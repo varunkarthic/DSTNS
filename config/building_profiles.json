@@ -1,0 +1,1 @@
+{"school":{"tmax":[[0.291667,0.375],[0.625,0.6875]],"weekend_impact_multiplier":0.1},"office":{"tmax":[[0.3125,0.416667],[0.6875,0.8125]],"weekend_impact_multiplier":0.35},"mall":{"tmax":[[0.4375,0.9375]],"weekend_impact_multiplier":1.25},"store":{"tmax":[[0.354167,0.895833]],"weekend_impact_multiplier":1.15}}

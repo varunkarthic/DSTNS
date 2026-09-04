@@ -1,0 +1,8 @@
+build
+build-asan
+ui-engine/node_modules
+ui-engine/dist
+.git
+logs/*
+data/scenarios/*
+data/checkpoints/*

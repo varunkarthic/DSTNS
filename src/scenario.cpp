@@ -1,0 +1,103 @@
+#include "dstns/scenario.hpp"
+#include "dstns/graph.hpp"
+#include "dstns/osm.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <numeric>
+#include <queue>
+#include <sstream>
+#include <stdexcept>
+
+namespace dstns {
+namespace {
+constexpr std::uint32_t ppm_day=1'000'000, seconds_day=86'400;
+RoadClass road_class(std::uint32_t x,std::uint32_t y){if(x%5==0)return RoadClass::Primary;if(y%4==0)return RoadClass::Secondary;if((x+y)%3==0)return RoadClass::Tertiary;return RoadClass::Residential;}
+double speed(RoadClass c){switch(c){case RoadClass::Motorway:return 30.0;case RoadClass::Primary:return 16.67;case RoadClass::Secondary:return 13.89;case RoadClass::Tertiary:return 11.11;case RoadClass::Residential:return 8.33;case RoadClass::Service:return 5.56;}return 8.33;}
+double capacity(RoadClass c){switch(c){case RoadClass::Motorway:return 4800;case RoadClass::Primary:return 3200;case RoadClass::Secondary:return 2400;case RoadClass::Tertiary:return 1800;case RoadClass::Residential:return 1100;case RoadClass::Service:return 600;}return 1100;}
+std::string canonical_graph(const Scenario&s){std::ostringstream o;for(const auto&n:s.nodes)o<<n.id.value<<','<<n.osm_node_id<<','<<std::llround(n.position.x_m*1000)<<','<<std::llround(n.position.y_m*1000)<<';';for(const auto&e:s.edges)o<<e.id.value<<','<<e.from.value<<','<<e.to.value<<','<<e.reverse_twin.value<<','<<std::llround(e.length_m*1000)<<','<<e.synthetic_reverse<<';';return o.str();}
+}
+
+Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& config)const{
+    if(config.playback_duration_s<60||config.playback_duration_s>1200)throw std::invalid_argument("playback_duration_s must be in [60,1200]");
+    auto effective_config = config;
+    if(!(effective_config.tick_rate>0&&effective_config.tick_rate<=100))throw std::invalid_argument("tick_rate must be in (0,100]");
+    if(effective_config.osm_file == "auto") {
+        if(std::filesystem::exists("data/fixtures/downtown_osm.xml")) effective_config.osm_file = "data/fixtures/downtown_osm.xml";
+        else effective_config.osm_file.clear();
+    }
+    if(effective_config.osm_file.empty()&&(effective_config.grid_width<3||effective_config.grid_height<3||std::uint64_t(effective_config.grid_width)*effective_config.grid_height>effective_config.max_nodes))throw std::invalid_argument("invalid grid dimensions or max_nodes");
+    if(effective_config.dws_frequency>0&&std::uint64_t(effective_config.dws_frequency-1)*5>=effective_config.playback_duration_s)throw std::invalid_argument("DWS frequency violates five-playback-second spacing");
+    Scenario s; s.seed=seed_value;s.config=effective_config;DeterministicRng rng(seed_value);
+    if(s.config.day<0)s.config.day=rng.bounded({RngDomain::DaySelector,0,0,0},7)<5?0:1;
+    if(s.config.day>1)throw std::invalid_argument("day must be 0, 1, or auto");
+    if(effective_config.osm_file.empty()){build_canonical_grid(s,rng);s.map_hash="sha256:"+sha256("dstns/offline-road-fixture/v1");}else{auto road=OsmRoadLoader{}.load_xml(effective_config.osm_file,effective_config.max_nodes,rng);s.root=road.root;s.nodes=std::move(road.nodes);s.edges=std::move(road.edges);s.map_hash=std::move(road.source_hash);}place_bus_stops(s);if(effective_config.buildings)place_buildings(s,rng);if(effective_config.signals)plan_signals(s);if(effective_config.traffic){plan_hotspots(s,rng);plan_trips(s,rng);}if(effective_config.dws)plan_weather(s,rng);calculate_hashes(s);return s;
+}
+
+void ScenarioCompiler::build_canonical_grid(Scenario&s,const DeterministicRng&rng)const{
+    const auto w=s.config.grid_width,h=s.config.grid_height;const double spacing=180.0;
+    const auto lat0=23.0200+(rng.uniform01({RngDomain::MapSelection,0,1,0})-.5)*.02;
+    const auto lon0=72.5700+(rng.uniform01({RngDomain::MapSelection,0,2,0})-.5)*.02;
+    s.nodes.reserve(std::size_t(w)*h);
+    for(std::uint32_t y=0;y<h;++y)for(std::uint32_t x=0;x<w;++x){const auto id=y*w+x;NodeStatic n;n.id={id};n.osm_node_id=9'000'000'000LL+id;n.position={x*spacing,y*spacing,lat0+y*spacing/111320.0,lon0+x*spacing/(111320.0*std::cos(lat0*3.141592653589793/180.0))};n.flood_susceptibility=.2+.75*rng.uniform01({RngDomain::DwsField,id,1,0});n.drainage=.2+.7*rng.uniform01({RngDomain::DwsField,id,2,0});s.nodes.push_back(n);}
+    auto add=[&](NodeId a,NodeId b,RoadClass cls,std::uint32_t segment){const auto first=static_cast<std::uint32_t>(s.edges.size());const auto length=point_distance(s.nodes[a.value].position,s.nodes[b.value].position);for(int direction=0;direction<2;++direction){EdgeStatic e;e.id={static_cast<std::uint32_t>(s.edges.size())};e.from=direction?a:b;e.to=direction?b:a;e.reverse_twin={first+std::uint32_t(1-direction)};e.osm_way_id=8'000'000'000LL+segment;e.segment_index=0;e.road_class=cls;e.source_oneway=((segment%11)==0);e.synthetic_reverse=e.source_oneway&&direction==1;e.lanes=cls==RoadClass::Primary?2:1;e.length_m=length;e.free_speed_mps=speed(cls);e.base_capacity_vph=capacity(cls);e.flood_susceptibility=(s.nodes[a.value].flood_susceptibility+s.nodes[b.value].flood_susceptibility)/2;e.geometry={s.nodes[e.from.value].position,s.nodes[e.to.value].position};s.edges.push_back(e);}s.nodes[a.value].degree++;s.nodes[b.value].degree++;};
+    std::uint32_t seg=0;for(std::uint32_t y=0;y<h;++y)for(std::uint32_t x=0;x<w;++x){const NodeId here{y*w+x};if(x+1<w)add(here,{y*w+x+1},road_class(x,y),seg++);if(y+1<h)add(here,{(y+1)*w+x},road_class(x,y),seg++);}s.root={static_cast<std::uint32_t>((h/2)*w+w/2)};
+}
+
+void ScenarioCompiler::place_bus_stops(Scenario&s)const{
+    const auto n=s.nodes.size();std::vector<std::vector<std::pair<NodeId,double>>> adj(n);for(std::size_t i=0;i<s.edges.size();i+=2){const auto&e=s.edges[i];adj[e.from.value].push_back({e.to,e.length_m});adj[e.to.value].push_back({e.from,e.length_m});}
+    std::vector<int> shell(n,-1);std::queue<NodeId>q;shell[s.root.value]=0;q.push(s.root);while(!q.empty()){auto u=q.front();q.pop();std::sort(adj[u.value].begin(),adj[u.value].end(),[](auto a,auto b){return a.first.value<b.first.value;});for(auto[v,d]:adj[u.value]){(void)d;if(shell[v.value]<0){shell[v.value]=shell[u.value]+1;q.push(v);}}}
+    std::vector<NodeId> order(n);for(std::size_t i=0;i<n;++i)order[i]=NodeId{static_cast<std::uint32_t>(i)};std::sort(order.begin(),order.end(),[&](auto a,auto b){if(shell[a.value]!=shell[b.value])return shell[a.value]<shell[b.value];if(s.nodes[a.value].degree!=s.nodes[b.value].degree)return s.nodes[a.value].degree>s.nodes[b.value].degree;return a.value<b.value;});
+    auto graph_dist=[&](NodeId start,const std::vector<BusStop>&stops,double cutoff){std::vector<double>d(n,1e100);using P=std::pair<double,NodeId>;struct C{bool operator()(const P&a,const P&b)const{return a.first>b.first||(a.first==b.first&&a.second.value>b.second.value);}};std::priority_queue<P,std::vector<P>,C>pq;d[start.value]=0;pq.push({0,start});while(!pq.empty()){auto[du,u]=pq.top();pq.pop();if(du!=d[u.value]||du>cutoff)continue;for(const auto&st:stops)if(u==st.anchor_node)return du;for(auto[v,w]:adj[u.value])if(du+w<d[v.value]){d[v.value]=du+w;pq.push({d[v.value],v});}}return 1e100;};
+    for(auto candidate:order){if(s.nodes[candidate.value].degree<2)continue;const auto nearest=s.bus_stops.empty()?1e100:graph_dist(candidate,s.bus_stops,s.config.stop_min_spacing_m);if(s.bus_stops.empty()||nearest>=s.config.stop_min_spacing_m){auto it=std::find_if(s.edges.begin(),s.edges.end(),[&](const auto&e){return e.from==candidate;});if(it!=s.edges.end()){BusStop stop;stop.id={static_cast<std::uint32_t>(s.bus_stops.size())};stop.anchor_node=candidate;stop.edge=it->id;stop.position_m=std::min(15.0,it->length_m*.25);stop.nearest_stop_distance_m=s.bus_stops.empty()?0:nearest;s.bus_stops.push_back(stop);s.nodes[candidate.value].bus_stop=true;}}}
+    // Coverage repair: deterministically add the farthest eligible node until all are within max coverage.
+    for(;;){double farthest=-1;NodeId pick{};for(const auto&node:s.nodes){if(node.degree<2||node.bus_stop)continue;const auto d=graph_dist(node.id,s.bus_stops,1e9);if(d>farthest||(d==farthest&&node.id.value<pick.value)){farthest=d;pick=node.id;}}if(farthest<=s.config.stop_max_coverage_m||farthest<0)break;auto it=std::find_if(s.edges.begin(),s.edges.end(),[&](const auto&e){return e.from==pick;});BusStop stop{{static_cast<std::uint32_t>(s.bus_stops.size())},pick,it->id,std::min(15.0,it->length_m*.25),farthest};s.bus_stops.push_back(stop);s.nodes[pick.value].bus_stop=true;}
+}
+
+void ScenarioCompiler::place_buildings(Scenario&s,const DeterministicRng&rng)const{
+    const std::array<BuildingType,4> types{BuildingType::School,BuildingType::Office,BuildingType::Mall,BuildingType::Store};
+    for(const auto&stop:s.bus_stops){if(rng.uniform01({RngDomain::Buildings,stop.id.value,0,0})>.72)continue;std::vector<NodeId> candidates;for(const auto&n:s.nodes){const auto d=point_distance(n.position,s.nodes[stop.anchor_node.value].position);if(d>=80&&d<=250&&!n.bus_stop&&!n.building)candidates.push_back(n.id);}if(candidates.empty())continue;std::sort(candidates.begin(),candidates.end(),[](auto a,auto b){return a.value<b.value;});auto chosen=candidates[rng.bounded({RngDomain::Buildings,stop.id.value,1,0},static_cast<std::uint32_t>(candidates.size()))];auto&n=s.nodes[chosen.value];n.building=types[rng.bounded({RngDomain::Buildings,stop.id.value,2,0},4)];const auto u=rng.uniform01({RngDomain::Buildings,stop.id.value,3,0});n.building_impact=.25+.6*u;n.building_radius_m=180+520*rng.uniform01({RngDomain::Buildings,stop.id.value,4,0});switch(*n.building){case BuildingType::School:n.tmax={{291667,375000,3,3},{625000,687500,3,3}};break;case BuildingType::Office:n.tmax={{312500,416667,2,3},{687500,812500,3,2}};break;case BuildingType::Mall:n.tmax={{437500,937500,1,1}};break;case BuildingType::Store:n.tmax={{354167,895833,1,1}};break;}}
+}
+
+void ScenarioCompiler::plan_signals(Scenario&s)const{
+    for(auto&n:s.nodes)if(n.degree>=4&&n.id.value%3==0){
+        n.signal=true;
+        const bool bottleneck = (n.id.value % 6 == 0);
+        const auto cycle = std::uint16_t(bottleneck ? (90 + (n.id.value % 4) * 10) : (60 + (n.id.value % 5) * 10));
+        if (bottleneck) {
+            const std::uint16_t major_g = 35;
+            const std::uint16_t minor_g = std::max<std::uint16_t>(15, cycle - major_g - 8);
+            s.signals.push_back({n.id, cycle, {major_g, 3, 1, minor_g, 3, 1}});
+        } else {
+            s.signals.push_back({n.id, cycle, {std::uint16_t((cycle-8)/2), 3, 1, std::uint16_t((cycle-8)/2), 3, 1}});
+        }
+    }
+}
+void ScenarioCompiler::plan_hotspots(Scenario&s,const DeterministicRng&rng)const{const auto count=std::clamp<std::size_t>(s.edges.size()/80,1,24);std::vector<std::pair<double,EdgeId>>scores;for(auto&e:s.edges){const auto central=(s.nodes[e.from.value].degree+s.nodes[e.to.value].degree)/8.0;const auto score=central*(.5+.5*rng.uniform01({RngDomain::TrafficControl,e.id.value,1,0}));scores.push_back({score,e.id});}std::sort(scores.begin(),scores.end(),[](auto a,auto b){return a.first!=b.first?a.first>b.first:a.second.value<b.second.value;});for(std::size_t i=0;i<count;++i){s.hotspot_edges.push_back(scores[i].second);s.edges[scores[i].second.value].hotspot_susceptibility=.5+.5*rng.uniform01({RngDomain::TrafficControl,scores[i].second.value,2,0});}}
+void ScenarioCompiler::plan_trips(Scenario&s,const DeterministicRng&rng)const{GraphStore g(s);RoutePlanner router(g);std::uint64_t id=0;for(std::uint32_t bin=0;bin<seconds_day/s.config.demand_bin_virtual_s;++bin){const auto base=2+rng.bounded({RngDomain::TrafficOD,bin,0,0},5);for(std::uint32_t j=0;j<base;++j){auto from=NodeId{rng.bounded({RngDomain::TrafficOD,bin,1,j},static_cast<std::uint32_t>(s.nodes.size()))};auto to=NodeId{rng.bounded({RngDomain::TrafficOD,bin,2,j},static_cast<std::uint32_t>(s.nodes.size()))};if(from==to)to.value=(to.value+1)%s.nodes.size();auto route=router.route(from,to);if(route.found)s.trips.push_back({id++,bin*s.config.demand_bin_virtual_s+rng.bounded({RngDomain::TrafficOD,bin,3,j},s.config.demand_bin_virtual_s),from,to,std::move(route.edges)});}}std::sort(s.trips.begin(),s.trips.end(),[](auto&a,auto&b){return a.depart_virtual_s!=b.depart_virtual_s?a.depart_virtual_s<b.depart_virtual_s:a.id<b.id;});}
+void ScenarioCompiler::plan_weather(Scenario&s,const DeterministicRng&rng)const{const auto f=s.config.dws_frequency;if(!f)return;std::vector<double>u(f);for(std::uint32_t i=0;i<f;++i)u[i]=rng.uniform01({RngDomain::DwsSchedule,i,0,0});std::stable_sort(u.begin(),u.end());const auto slack=double(s.config.playback_duration_s-5*(f-1));const auto diag=point_distance(s.nodes.front().position,s.nodes.back().position);for(std::uint32_t i=0;i<f;++i){const auto playback=5*i+slack*u[i];const auto start=std::uint32_t(std::llround(playback/s.config.playback_duration_s*ppm_day));const auto duration=std::uint32_t((45+75*std::pow(rng.uniform01({RngDomain::DwsSchedule,i,1,0}),1.5))/1440.0*ppm_day);DwsEvent e;e.id={i+1};e.epicenter={rng.bounded({RngDomain::DwsSchedule,i,2,0},static_cast<std::uint32_t>(s.nodes.size()))};e.start_ppm=start;e.end_ppm=std::min(ppm_day,start+duration);e.intensity=.15+.85*std::pow(rng.uniform01({RngDomain::DwsSchedule,i,3,0}),1.7);const auto rmin=std::max(250.0,.03*diag),rmax=std::min(5000.0,.35*diag);e.radius_m=rmin+(rmax-rmin)*std::pow(rng.uniform01({RngDomain::DwsSchedule,i,4,0}),2);e.flood_gain=.35+.6*rng.uniform01({RngDomain::DwsSchedule,i,5,0});e.recovery=.08+.15*rng.uniform01({RngDomain::DwsSchedule,i,6,0});s.dws_events.push_back(e);}}
+void ScenarioCompiler::calculate_hashes(Scenario&s)const{const auto graph=canonical_graph(s);s.graph_hash="sha256:"+sha256(graph);std::ostringstream ev;for(const auto&e:s.dws_events)ev<<e.id.value<<','<<e.epicenter.value<<','<<e.start_ppm<<','<<e.end_ppm<<','<<std::llround(e.intensity*1e6)<<';';for(const auto&t:s.trips)ev<<t.id<<','<<t.depart_virtual_s<<','<<t.from.value<<','<<t.to.value<<';';s.event_hash="sha256:"+sha256(ev.str());s.scenario_hash="sha256:"+sha256(s.seed.hex()+s.map_hash+s.graph_hash+s.event_hash+std::to_string(s.config.day));}
+
+void ScenarioCompiler::export_sumo(const Scenario&s,const std::filesystem::path&dir)const{
+    std::filesystem::create_directories(dir);std::ofstream nod(dir/"network.nod.xml"),edg(dir/"network.edg.xml"),rou(dir/"sandbox.rou.xml"),add(dir/"sandbox.add.xml"),cfg(dir/"sandbox.sumocfg");
+    if(!nod||!edg||!rou||!add||!cfg)throw std::runtime_error("cannot create SUMO bundle");
+    nod<<"<nodes>\n";for(const auto&n:s.nodes)nod<<"  <node id=\"n"<<n.id.value<<"\" x=\""<<n.position.x_m<<"\" y=\""<<n.position.y_m<<"\" type=\""<<(n.signal?"traffic_light":"priority")<<"\"/>\n";nod<<"</nodes>\n";
+    edg<<"<edges>\n";for(const auto&e:s.edges)edg<<"  <edge id=\"e"<<e.id.value<<"\" from=\"n"<<e.from.value<<"\" to=\"n"<<e.to.value<<"\" numLanes=\""<<e.lanes<<"\" speed=\""<<e.free_speed_mps<<"\"/>\n";edg<<"</edges>\n";
+    add<<"<additional>\n";for(const auto&b:s.bus_stops)add<<"  <busStop id=\"stop"<<b.id.value<<"\" lane=\"e"<<b.edge.value<<"_0\" startPos=\"1\" endPos=\""<<std::max(5.0,b.position_m)<<"\"/>\n";add<<"</additional>\n";
+    rou<<"<routes>\n"
+       <<"  <vType id=\"car\" accel=\"2.6\" decel=\"4.5\" sigma=\"0.2\" length=\"4.8\" maxSpeed=\"33.33\" vClass=\"passenger\" guiShape=\"passenger\"/>\n"
+       <<"  <vType id=\"bus\" accel=\"1.4\" decel=\"3.5\" sigma=\"0.1\" length=\"12.0\" maxSpeed=\"20.0\" vClass=\"bus\" guiShape=\"bus\"/>\n"
+       <<"  <vType id=\"van\" accel=\"2.0\" decel=\"4.0\" sigma=\"0.2\" length=\"6.5\" maxSpeed=\"25.0\" vClass=\"delivery\" guiShape=\"delivery\"/>\n";
+    for(const auto&t:s.trips){
+        if(t.route.empty())continue;
+        const char* vtype = (t.id % 8 == 0) ? "bus" : ((t.id % 4 == 0) ? "van" : "car");
+        rou<<"  <vehicle id=\"veh"<<t.id<<"\" type=\""<<vtype<<"\" depart=\""<<t.depart_virtual_s<<"\"><route edges=\"";
+        for(std::size_t i=0;i<t.route.size();++i){if(i)rou<<' ';rou<<'e'<<t.route[i].value;}
+        rou<<"\"/></vehicle>\n";
+    }
+    rou<<"</routes>\n";
+    cfg<<"<configuration><input><net-file value=\"network.net.xml\"/><route-files value=\"sandbox.rou.xml\"/><additional-files value=\"sandbox.add.xml\"/></input><time><begin value=\"0\"/><end value=\"86400\"/><step-length value=\"1\"/></time><processing><time-to-teleport value=\"120\"/></processing><report><no-step-log value=\"true\"/></report></configuration>\n";
+}
+} // namespace dstns
