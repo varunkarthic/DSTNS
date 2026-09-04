@@ -37,7 +37,11 @@ export interface TopologyNode {
   position: { lat: number; lon: number; x_m: number; y_m: number };
   degree: number;
   bus_stop: boolean;
+  bus_stop_radius_m?: number;
   signal: boolean;
+  signal_cycle_s?: number;
+  signal_offset_s?: number;
+  signal_green_s?: number;
   building: string | null;
   building_impact?: number;
   building_radius_m?: number;
@@ -125,13 +129,36 @@ export interface EventItem {
   data?: Record<string, unknown>;
 }
 
+export interface ActiveSurge {
+  id: number;
+  node_id: number;
+  lat: number;
+  lon: number;
+  x_m: number;
+  y_m: number;
+  radius_m: number;
+  factor: number;
+  start_s: number;
+  end_s: number;
+  remaining_s: number;
+  label: string;
+}
+
 export interface Snapshot {
   topology_revision: number;
   nodes: NodeState[];
   edges: EdgeState[];
   active_weather_events: number;
   active_weather?: ActiveWeather[];
+  active_surges?: ActiveSurge[];
   active_incidents?: ActiveIncident[];
+  active_transit_buses?: Array<{
+    bus_id: string;
+    label: string;
+    nodes: number[];
+    route_edges: number[];
+    total_distance_m: number;
+  }>;
   event_stack?: EventItem[];
 }
 
@@ -145,4 +172,18 @@ export interface News {
   template_id: string;
   message: string;
   data: Record<string, unknown>;
+}
+
+export interface TransitRouteResult {
+  ok: boolean;
+  valid: boolean;
+  bus_id?: string;
+  label?: string;
+  node_count?: number;
+  route_edges?: number[];
+  total_distance_m?: number;
+  message: string;
+  error_step?: number;
+  from_node?: number;
+  to_node?: number;
 }

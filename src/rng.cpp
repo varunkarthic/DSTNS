@@ -40,12 +40,25 @@ std::string Seed128::hex() const {
 }
 
 Seed128 Seed128::parse(std::string_view value) {
-    if (value.starts_with("0x")) value.remove_prefix(2);
-    if (value.empty() || value.size()>32) throw std::invalid_argument("seed must contain 1..32 hexadecimal digits");
-    std::string padded(32-value.size(),'0'); padded.append(value);
+    if (value.starts_with("0x") || value.starts_with("0X")) value.remove_prefix(2);
+    if (value.empty()) throw std::invalid_argument("seed must contain at least 1 digit");
+    std::string val_str(value);
+    if (val_str.size() > 32) {
+        // Deterministically hash 128-char seeds into canonical 32-hex (128-bit) representation
+        val_str = sha256(val_str).substr(0, 32);
+    }
+    std::string padded(32 > val_str.size() ? 32 - val_str.size() : 0, '0');
+    padded.append(val_str);
     Seed128 seed;
-    auto parse_half=[](std::string_view s) { std::uint64_t v{}; auto [p,e]=std::from_chars(s.data(),s.data()+s.size(),v,16); if(e!=std::errc{}||p!=s.data()+s.size()) throw std::invalid_argument("invalid hexadecimal seed"); return v; };
-    seed.high=parse_half(std::string_view(padded).substr(0,16)); seed.low=parse_half(std::string_view(padded).substr(16)); return seed;
+    auto parse_half = [](std::string_view s) {
+        std::uint64_t v{};
+        auto [p, e] = std::from_chars(s.data(), s.data() + s.size(), v, 16);
+        if (e != std::errc{} || p != s.data() + s.size()) throw std::invalid_argument("invalid hexadecimal seed");
+        return v;
+    };
+    seed.high = parse_half(std::string_view(padded).substr(0, 16));
+    seed.low = parse_half(std::string_view(padded).substr(16));
+    return seed;
 }
 
 Seed128 Seed128::secure() {

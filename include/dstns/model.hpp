@@ -31,6 +31,7 @@ struct NodeStatic {
     NodeId id; std::int64_t osm_node_id{}; Point position; std::uint16_t degree{};
     bool bus_stop{}, signal{}; std::optional<BuildingType> building;
     double building_impact{}, building_radius_m{}, flood_susceptibility{}, drainage{};
+    std::uint16_t signal_cycle_s{60}, signal_offset_s{0}, signal_green_s{27};
     std::vector<TimeWindow> tmax;
 };
 struct NodeDynamic { double rainfall{}, flood{}, building_effect{}; std::uint64_t state_revision{}; };
@@ -52,7 +53,7 @@ struct EdgeDynamic {
     bool manual_closed{}, closed{}; std::uint64_t state_revision{};
 };
 struct BusStop { StopId id; NodeId anchor_node; EdgeId edge; double position_m{}, nearest_stop_distance_m{}; };
-struct SignalPlan { NodeId node; std::uint16_t cycle_s{}; std::vector<std::uint16_t> phases_s; };
+struct SignalPlan { NodeId node; std::uint16_t cycle_s{}; std::vector<std::uint16_t> phases_s; std::uint16_t offset_s{}; };
 struct DwsEvent { EventId id; NodeId epicenter; std::uint32_t start_ppm{}, end_ppm{}; double intensity{}, radius_m{}, flood_gain{}, recovery{}; };
 struct PlannedTrip { std::uint64_t id{}; std::uint32_t depart_virtual_s{}; NodeId from, to; std::vector<EdgeId> route; };
 

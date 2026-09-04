@@ -21,7 +21,7 @@ std::string canonical_graph(const Scenario&s){std::ostringstream o;for(const aut
 }
 
 Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& config)const{
-    if(config.playback_duration_s<60||config.playback_duration_s>1200)throw std::invalid_argument("playback_duration_s must be in [60,1200]");
+    if(config.playback_duration_s<60||config.playback_duration_s>3600)throw std::invalid_argument("playback_duration_s must be in [60,3600]");
     auto effective_config = config;
     if(!(effective_config.tick_rate>0&&effective_config.tick_rate<=100))throw std::invalid_argument("tick_rate must be in (0,100]");
     if(effective_config.osm_file == "auto") {
@@ -64,20 +64,26 @@ void ScenarioCompiler::place_buildings(Scenario&s,const DeterministicRng&rng)con
 void ScenarioCompiler::plan_signals(Scenario&s)const{
     for(auto&n:s.nodes)if(n.degree>=4&&n.id.value%3==0){
         n.signal=true;
-        const bool bottleneck = (n.id.value % 6 == 0);
-        const auto cycle = std::uint16_t(bottleneck ? (90 + (n.id.value % 4) * 10) : (60 + (n.id.value % 5) * 10));
+        const bool bottleneck = (n.id.value % 5 == 0);
+        const auto cycle = std::uint16_t(bottleneck ? (90 + (n.id.value * 7) % 31) : (30 + (n.id.value * 13) % 45));
+        const auto offset = std::uint16_t((n.id.value * 19) % cycle);
+        n.signal_cycle_s = cycle;
+        n.signal_offset_s = offset;
         if (bottleneck) {
-            const std::uint16_t major_g = 35;
-            const std::uint16_t minor_g = std::max<std::uint16_t>(15, cycle - major_g - 8);
-            s.signals.push_back({n.id, cycle, {major_g, 3, 1, minor_g, 3, 1}});
+            const std::uint16_t major_g = std::max<std::uint16_t>(20, std::uint16_t(cycle * 0.40));
+            const std::uint16_t minor_g = std::max<std::uint16_t>(10, std::uint16_t(cycle - major_g - 8));
+            n.signal_green_s = major_g;
+            s.signals.push_back({n.id, cycle, {major_g, 3, 1, minor_g, 3, 1}, offset});
         } else {
-            s.signals.push_back({n.id, cycle, {std::uint16_t((cycle-8)/2), 3, 1, std::uint16_t((cycle-8)/2), 3, 1}});
+            const std::uint16_t green = std::max<std::uint16_t>(12, std::uint16_t((cycle - 8) / 2));
+            n.signal_green_s = green;
+            s.signals.push_back({n.id, cycle, {green, 3, 1, green, 3, 1}, offset});
         }
     }
 }
 void ScenarioCompiler::plan_hotspots(Scenario&s,const DeterministicRng&rng)const{const auto count=std::clamp<std::size_t>(s.edges.size()/80,1,24);std::vector<std::pair<double,EdgeId>>scores;for(auto&e:s.edges){const auto central=(s.nodes[e.from.value].degree+s.nodes[e.to.value].degree)/8.0;const auto score=central*(.5+.5*rng.uniform01({RngDomain::TrafficControl,e.id.value,1,0}));scores.push_back({score,e.id});}std::sort(scores.begin(),scores.end(),[](auto a,auto b){return a.first!=b.first?a.first>b.first:a.second.value<b.second.value;});for(std::size_t i=0;i<count;++i){s.hotspot_edges.push_back(scores[i].second);s.edges[scores[i].second.value].hotspot_susceptibility=.5+.5*rng.uniform01({RngDomain::TrafficControl,scores[i].second.value,2,0});}}
 void ScenarioCompiler::plan_trips(Scenario&s,const DeterministicRng&rng)const{GraphStore g(s);RoutePlanner router(g);std::uint64_t id=0;for(std::uint32_t bin=0;bin<seconds_day/s.config.demand_bin_virtual_s;++bin){const auto base=2+rng.bounded({RngDomain::TrafficOD,bin,0,0},5);for(std::uint32_t j=0;j<base;++j){auto from=NodeId{rng.bounded({RngDomain::TrafficOD,bin,1,j},static_cast<std::uint32_t>(s.nodes.size()))};auto to=NodeId{rng.bounded({RngDomain::TrafficOD,bin,2,j},static_cast<std::uint32_t>(s.nodes.size()))};if(from==to)to.value=(to.value+1)%s.nodes.size();auto route=router.route(from,to);if(route.found)s.trips.push_back({id++,bin*s.config.demand_bin_virtual_s+rng.bounded({RngDomain::TrafficOD,bin,3,j},s.config.demand_bin_virtual_s),from,to,std::move(route.edges)});}}std::sort(s.trips.begin(),s.trips.end(),[](auto&a,auto&b){return a.depart_virtual_s!=b.depart_virtual_s?a.depart_virtual_s<b.depart_virtual_s:a.id<b.id;});}
-void ScenarioCompiler::plan_weather(Scenario&s,const DeterministicRng&rng)const{const auto f=s.config.dws_frequency;if(!f)return;std::vector<double>u(f);for(std::uint32_t i=0;i<f;++i)u[i]=rng.uniform01({RngDomain::DwsSchedule,i,0,0});std::stable_sort(u.begin(),u.end());const auto slack=double(s.config.playback_duration_s-5*(f-1));const auto diag=point_distance(s.nodes.front().position,s.nodes.back().position);for(std::uint32_t i=0;i<f;++i){const auto playback=5*i+slack*u[i];const auto start=std::uint32_t(std::llround(playback/s.config.playback_duration_s*ppm_day));const auto duration=std::uint32_t((45+75*std::pow(rng.uniform01({RngDomain::DwsSchedule,i,1,0}),1.5))/1440.0*ppm_day);DwsEvent e;e.id={i+1};e.epicenter={rng.bounded({RngDomain::DwsSchedule,i,2,0},static_cast<std::uint32_t>(s.nodes.size()))};e.start_ppm=start;e.end_ppm=std::min(ppm_day,start+duration);e.intensity=.15+.85*std::pow(rng.uniform01({RngDomain::DwsSchedule,i,3,0}),1.7);const auto rmin=std::max(250.0,.03*diag),rmax=std::min(5000.0,.35*diag);e.radius_m=rmin+(rmax-rmin)*std::pow(rng.uniform01({RngDomain::DwsSchedule,i,4,0}),2);e.flood_gain=.35+.6*rng.uniform01({RngDomain::DwsSchedule,i,5,0});e.recovery=.08+.15*rng.uniform01({RngDomain::DwsSchedule,i,6,0});s.dws_events.push_back(e);}}
+void ScenarioCompiler::plan_weather(Scenario&s,const DeterministicRng&rng)const{const auto f=s.config.dws_frequency;if(!f)return;std::vector<double>u(f);for(std::uint32_t i=0;i<f;++i)u[i]=rng.uniform01({RngDomain::DwsSchedule,i,0,0});std::stable_sort(u.begin(),u.end());const auto slack=double(s.config.playback_duration_s-5*(f-1));for(std::uint32_t i=0;i<f;++i){const auto playback=5*i+slack*u[i];const auto start=std::uint32_t(std::llround(playback/s.config.playback_duration_s*ppm_day));const auto duration=std::uint32_t((45+75*std::pow(rng.uniform01({RngDomain::DwsSchedule,i,1,0}),1.5))/1440.0*ppm_day);DwsEvent e;e.id={i+1};e.epicenter={rng.bounded({RngDomain::DwsSchedule,i,2,0},static_cast<std::uint32_t>(s.nodes.size()))};e.start_ppm=start;e.end_ppm=std::min(ppm_day,start+duration);e.intensity=.15+.85*std::pow(rng.uniform01({RngDomain::DwsSchedule,i,3,0}),1.7);const auto rmin=100.0,rmax=600.0;e.radius_m=rmin+(rmax-rmin)*rng.uniform01({RngDomain::DwsSchedule,i,4,0});e.flood_gain=.35+.6*rng.uniform01({RngDomain::DwsSchedule,i,5,0});e.recovery=.08+.15*rng.uniform01({RngDomain::DwsSchedule,i,6,0});s.dws_events.push_back(e);}}
 void ScenarioCompiler::calculate_hashes(Scenario&s)const{const auto graph=canonical_graph(s);s.graph_hash="sha256:"+sha256(graph);std::ostringstream ev;for(const auto&e:s.dws_events)ev<<e.id.value<<','<<e.epicenter.value<<','<<e.start_ppm<<','<<e.end_ppm<<','<<std::llround(e.intensity*1e6)<<';';for(const auto&t:s.trips)ev<<t.id<<','<<t.depart_virtual_s<<','<<t.from.value<<','<<t.to.value<<';';s.event_hash="sha256:"+sha256(ev.str());s.scenario_hash="sha256:"+sha256(s.seed.hex()+s.map_hash+s.graph_hash+s.event_hash+std::to_string(s.config.day));}
 
 void ScenarioCompiler::export_sumo(const Scenario&s,const std::filesystem::path&dir)const{

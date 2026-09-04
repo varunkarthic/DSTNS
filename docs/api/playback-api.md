@@ -1,89 +1,198 @@
-# Playback API (`/api/v1/playback/*`)
+# Playback & Lifecycle API (`/api/v1/playback/*`)
 
-The Playback API controls simulation execution, time progression, pausing, seeking, and teardown.
+The Playback API controls the deterministic virtual clock, scenario generation, seed preparation, state progression, and historical timeline seek operations.
 
-## 1. Start Simulation
-- **Endpoint**: `POST /api/v1/playback/start`
-- **Purpose**: Transitions from `IDLE` to `PREPARING` -> `RUNNING` (or `PAUSED`).
-- **Request Body**:
-```json
-{
-  "seed": "0x123456789ABCDEF0",
-  "playback_duration_seconds": 1200,
-  "start_virtual_time": "00:00:00",
-  "day": 0,
-  "tick_rate": 1.0,
-  "modules": {
-    "traffic": true,
-    "signals": true,
-    "buildings": true,
-    "dws": true,
-    "flooding": true,
-    "news": true
-  },
-  "dws": {
-    "frequency": 4
-  }
-}
+---
+
+## 1. Lifecycle State Machine
+
 ```
-- **Response**: `202 Accepted`
+      +-------------+
+      |    IDLE     | <------------------------------------+
+      +-------------+                                      |
+             |                                             |
+             | prepare (compiles scenario & loads map)     |
+             v                                             |
+      +-------------+                                      |
+      |    READY    |                                      |
+      +-------------+                                      |
+             |                                             |
+             | start / play                                | stop / reset
+             v                                             |
+      +-------------+      pause      +-------------+      |
+      |   RUNNING   | --------------> |   PAUSED    |      |
+      +-------------+ <-------------- +-------------+      |
+             |             play              |             |
+             |                               |             |
+             +-------------------------------+-------------+
+             |
+             | duration completed
+             v
+      +-------------+
+      |  COMPLETED  |
+      +-------------+
+```
+
+---
+
+## 2. Prepare Scenario without Auto-Starting (`POST /api/v1/playback/prepare`)
+
+Compiles a deterministic road network topology and scenario for a given seed, and transitions the engine into `READY` state. This loads the map and all building anchors without advancing the virtual clock, allowing inspection before starting.
+
+### Endpoint
+* **Path**: `/api/v1/playback/prepare`
+* **Method**: `POST`
+
+### Request Parameters
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `seed` | `string` / `number` | `"auto"` | 128-bit hex string, 16-digit numeric string, or `"auto"`. |
+| `playback_duration_seconds` | `number` | `1200` | Real-world duration to play the full 24-hour virtual day $[60, 3600]$. |
+| `day` | `number` | `0` | `0` = Weekday (Commuter & School Rush), `1` = Weekend (Leisure & Shopping Peak). |
+| `tick_rate` | `number` | `1.0` | Initial virtual rate multiplier $[0.1, 100.0]$. |
+| `modules` | `object` | All `true` | Module enable flags (`traffic`, `signals`, `buildings`, `dws`, `flooding`, `news`). |
+| `dws` | `object` | `{"frequency": 3}` | Dynamic weather storm count per 24h day. |
+
+#### Example Request:
+```bash
+curl -X POST http://127.0.0.1:8090/api/v1/playback/prepare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "seed": "0x508905019bc2221d083c848bf3e12e22",
+    "playback_duration_seconds": 1200,
+    "day": 0,
+    "tick_rate": 1.0,
+    "modules": {
+      "traffic": true,
+      "signals": true,
+      "buildings": true,
+      "dws": true,
+      "flooding": true,
+      "news": true
+    },
+    "dws": {
+      "frequency": 4
+    }
+  }'
+```
+
+---
+
+## 3. Start Simulation Run (`POST /api/v1/playback/start`)
+
+Initializes or unpauses a deterministic simulation run, advancing the virtual clock continuously.
+
+#### Example: Quick-Start with 16-digit Numeric Seed
+```bash
+curl -X POST http://127.0.0.1:8090/api/v1/playback/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "seed": "9876543210987654",
+    "playback_duration_seconds": 600,
+    "day": 1
+  }'
+```
+
+### Successful Response (`200 OK`):
 ```json
 {
   "ok": true,
   "lifecycle": "RUNNING",
-  "run_id": "run_01",
-  "seed": "0x123456789abcdef0",
-  "message": "simulation started"
+  "run_id": "run_877a90265c24",
+  "seed": "0x00000000000000008bd03164923f9846",
+  "resolved_config": {
+    "day": 1,
+    "playback_duration_seconds": 600,
+    "tick_rate": 1.0
+  },
+  "stream": {
+    "snapshot": "/api/v1/view/snapshot",
+    "bulk_stream": "/api/v1/view/stream",
+    "news_stream": "/api/v1/news/stream"
+  },
+  "message": "Simulation accepted and prepared."
 }
 ```
 
-## 2. Playback Status
-- **Endpoint**: `GET /api/v1/playback/status`
-- **Purpose**: Returns real-time execution telemetry and clock status.
-- **Response**: `200 OK`
+---
+
+## 4. Playback Controls (`pause`, `play`, `stop`, `reset`)
+
+### Pause Simulation (`POST /api/v1/playback/pause`)
+Freezes the virtual clock while keeping all state intact.
+```bash
+curl -X POST http://127.0.0.1:8090/api/v1/playback/pause -H "Content-Type: application/json" -d '{}'
+```
+
+### Resume Playback (`POST /api/v1/playback/play`)
+Resumes virtual clock progression from current point.
+```bash
+curl -X POST http://127.0.0.1:8090/api/v1/playback/play -H "Content-Type: application/json" -d '{}'
+```
+
+### Stop Simulation (`POST /api/v1/playback/stop`)
+Halts simulation and releases active scenario runners.
+```bash
+curl -X POST http://127.0.0.1:8090/api/v1/playback/stop -H "Content-Type: application/json" -d '{}'
+```
+
+### Reset Runtime (`POST /api/v1/playback/reset`)
+Reverts the simulation clock back to 00:00:00 and clears dynamic traffic overlays while preserving compiled map topology.
+```bash
+curl -X POST http://127.0.0.1:8090/api/v1/playback/reset -H "Content-Type: application/json" -d '{}'
+```
+
+---
+
+## 5. Timeline Seek (`POST /api/v1/playback/seek`)
+
+Jumps the simulation clock to an exact virtual time of day (`HH:MM:SS` format) or percentage ($0.0 - 1.0$). The engine reconstructs all deterministic state, signal phases, weather cells, and vehicle queues via fast-forward checkpoint replay.
+
+#### Example Request:
+```bash
+curl -X POST http://127.0.0.1:8090/api/v1/playback/seek \
+  -H "Content-Type: application/json" \
+  -d '{"target_time": "14:30:00"}'
+```
+
+### Response:
 ```json
 {
   "ok": true,
+  "previous_time": "08:15:22",
+  "simulated_current_time": "14:30:00",
+  "virtual_day_seconds": 52200,
+  "state_revision": 1420
+}
+```
+
+---
+
+## 6. Query Playback Status (`GET /api/v1/playback/status`)
+
+Returns the current lifecycle state, virtual clock position, progress percentage, and active configuration.
+
+#### Example Request:
+```bash
+curl -s http://127.0.0.1:8090/api/v1/playback/status | jq .
+```
+
+### Response Structure:
+```json
+{
+  "ok": true,
+  "api_version": "1.0",
+  "run_id": "run_877a90265c24",
   "data": {
-    "run_id": "run_01",
     "lifecycle": "RUNNING",
-    "clock": {
-      "simulated_current_time": "14:30:00",
-      "simulated_seconds": 52200,
-      "simulation_percentage": 0.60416,
-      "base_rate": 72.0,
-      "tick_rate": 1.0,
-      "target_virtual_rate": 72.0,
-      "effective_virtual_rate": 71.9,
-      "paused": false
-    },
-    "state_revision": 1420
+    "seed": "0x00000000000000008bd03164923f9846"
+  },
+  "clock": {
+    "simulated_current_time": "11:24:30",
+    "virtual_day_seconds": 41070,
+    "simulation_percentage": 0.475,
+    "tick_rate": 1.0,
+    "target_virtual_rate": 72.0
   }
 }
 ```
-
-## 3. Pause Simulation
-- **Endpoint**: `POST /api/v1/playback/pause`
-- **Purpose**: Halts time evolution while keeping server operational.
-
-## 4. Resume Simulation
-- **Endpoint**: `POST /api/v1/playback/play`
-- **Purpose**: Resumes time advancement from current position or specified `resume_from`.
-
-## 5. Seek Simulation Time
-- **Endpoint**: `POST /api/v1/playback/seek`
-- **Purpose**: Reconstructs state at target virtual time using checkpoint replay.
-- **Request Body**:
-```json
-{
-  "target_time": "15:30:00"
-}
-```
-
-## 6. Stop Simulation
-- **Endpoint**: `POST /api/v1/playback/stop` (Alias: `POST /stop`)
-- **Purpose**: Stops active simulation and transitions to `STOPPED`.
-
-## 7. Reset Runtime
-- **Endpoint**: `POST /api/v1/playback/reset`
-- **Purpose**: Resets runtime state to `IDLE`.

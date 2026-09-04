@@ -150,9 +150,9 @@ components:
       type: object
       properties:
         seed: {oneOf: [{type: string, pattern: '^0x[0-9a-fA-F]{1,32}$'}, {type: integer, minimum: 0}]}
-        playback_duration_seconds: {type: integer, minimum: 60, maximum: 1200, default: 60}
+        playback_duration_seconds: {type: integer, minimum: 60, maximum: 3600, default: 60}
         start_virtual_time: {type: string, default: '00:00:00'}
-        tick_rate: {type: number, exclusiveMinimum: 0, maximum: 10, default: 1}
+        tick_rate: {type: number, exclusiveMinimum: 0, maximum: 100, default: 1}
         day: {oneOf: [{type: integer, enum: [0, 1]}, {const: auto}]}
         modules: {type: object, additionalProperties: {type: boolean}}
         dws: {type: object, properties: {frequency: {type: integer, minimum: 0}}}

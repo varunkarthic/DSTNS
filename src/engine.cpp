@@ -136,6 +136,164 @@ void SimulationEngine::anchor_wall_clock() {
     anchor_virtual_s_ = virtual_s_;
 }
 
+nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& config) {
+    std::lock_guard lock(mutex_);
+    if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused) {
+        stop();
+    }
+    transition(Lifecycle::Preparing);
+    try {
+        auto scenario = compiler_.compile(seed, config);
+        run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
+        graph_ = std::make_unique<GraphStore>(std::move(scenario));
+        tick_rate_ = config.tick_rate;
+        virtual_s_ = 0;
+        start_virtual_s_ = 0;
+        manual_weather_.clear();
+        active_surges_.clear();
+        active_transit_buses_.clear();
+        signal_overrides_.clear();
+        news_.clear();
+        commands_.clear();
+        redo_.clear();
+        checkpoints_.clear();
+        next_command_id_ = 1;
+        next_news_id_ = 1;
+        next_event_id_ = 1'000'000;
+        config_revision_ = 1;
+        signal_by_node_.assign(graph_->scenario().nodes.size(), nullptr);
+        for (const auto& sig : graph_->scenario().signals) {
+            if (sig.node.value < signal_by_node_.size()) {
+                signal_by_node_[sig.node.value] = &sig;
+            }
+        }
+        transition(Lifecycle::Ready);
+        add_news(0, "system", "info", "SCENARIO_INITIALIZED",
+                 "[" + hhmmss(virtual_s_) + "] Scenario prepared with Seed " + graph_->scenario().seed.hex(),
+                 {{"scenario_hash", graph_->scenario().scenario_hash}});
+        add_news(1, "system", "info", "NETWORK_TOPOLOGY_LOADED",
+                 "[" + hhmmss(virtual_s_) + "] Road network loaded: " + std::to_string(graph_->edges().size()) +
+                 " directional edges, " + std::to_string(graph_->nodes().size()) + " intersections.",
+                 {{"edges", graph_->edges().size()}, {"nodes", graph_->nodes().size()}});
+        return {
+            {"ok", true},
+            {"message", "Scenario compiled and ready in standby."},
+            {"run_id", run_id_},
+            {"seed", graph_->scenario().seed.hex()},
+            {"lifecycle", "READY"}
+        };
+    } catch (...) {
+        transition(Lifecycle::Idle);
+        throw;
+    }
+}
+
+nlohmann::json SimulationEngine::toggle_signal(NodeId node, std::optional<int> force_phase) {
+    std::lock_guard lock(mutex_);
+    if (!graph_ || node.value >= graph_->nodes().size()) throw std::invalid_argument("invalid node for signal toggle");
+    int current_override = signal_overrides_.contains(node.value) ? signal_overrides_[node.value] : 1;
+    int next_phase = force_phase.has_value() ? *force_phase : (current_override == 1 ? 2 : 1);
+    signal_overrides_[node.value] = next_phase;
+    ++config_revision_;
+    auto& c = record("signal_toggle", {{"node", node.value}, {"phase", current_override}}, {{"node", node.value}, {"phase", next_phase}});
+    add_news(c.id, "signals", "info", "SIGNAL_MANUAL_OVERRIDE",
+             "[" + hhmmss(virtual_s_) + "] Manual controller override: Node #" + std::to_string(node.value) +
+             " phase switched to " + (next_phase == 1 ? "Phase 1 (N-S Green / E-W Red)" : "Phase 2 (E-W Green / N-S Red)"),
+             {{"node_id", node.value}, {"phase", next_phase}});
+    return {
+        {"command_id", c.id},
+        {"node_id", node.value},
+        {"phase", next_phase},
+        {"phase_label", next_phase == 1 ? "PHASE_1_NS_GREEN" : "PHASE_2_EW_GREEN"}
+    };
+}
+
+nlohmann::json SimulationEngine::trigger_surge(NodeId node, double factor, double radius_m, std::uint32_t duration_s) {
+    std::lock_guard lock(mutex_);
+    if (!graph_ || node.value >= graph_->nodes().size()) throw std::invalid_argument("invalid node for surge");
+    const auto surge_id = static_cast<std::uint32_t>(next_event_id_++);
+    const auto end_s = std::min(day_s, virtual_s_ + duration_s);
+    active_surges_.push_back({surge_id, node, virtual_s_, end_s, factor, radius_m, "Commercial Demand Surge"});
+    ++config_revision_;
+    add_news(surge_id, "traffic", "warning", "TRAFFIC_SURGE_ACTIVE",
+             "[" + hhmmss(virtual_s_) + "] Commercial demand surge active around Node #" + std::to_string(node.value) +
+             " (+" + std::to_string(static_cast<int>((factor - 1.0) * 100)) + "% demand, radius " +
+             std::to_string(static_cast<int>(radius_m)) + "m until " + hhmmss(end_s) + ")",
+             {{"node_id", node.value}, {"factor", factor}, {"radius_m", radius_m}, {"end_time", hhmmss(end_s)}});
+    return {
+        {"surge_id", surge_id},
+        {"node_id", node.value},
+        {"factor", factor},
+        {"radius_m", radius_m},
+        {"start_time", hhmmss(virtual_s_)},
+        {"end_time", hhmmss(end_s)}
+    };
+}
+
+nlohmann::json SimulationEngine::validate_transit_route(const std::vector<std::uint32_t>& nodes, const std::string& bus_id, const std::string& label) {
+    std::lock_guard lock(mutex_);
+    if (!graph_) throw std::logic_error("no active simulation");
+    if (nodes.size() < 2) throw std::invalid_argument("route must contain at least 2 nodes");
+
+    const auto& sc = graph_->scenario();
+    for (auto n : nodes) {
+        if (n >= sc.nodes.size()) throw std::invalid_argument("node ID out of range: " + std::to_string(n));
+    }
+
+    std::vector<std::uint32_t> route_edges;
+    double total_distance_m = 0.0;
+
+    for (std::size_t i = 0; i + 1 < nodes.size(); ++i) {
+        const auto u = nodes[i];
+        const auto v = nodes[i + 1];
+        bool found = false;
+        for (const auto& e : sc.edges) {
+            if (e.from.value == u && e.to.value == v) {
+                route_edges.push_back(e.id.value);
+                total_distance_m += e.length_m;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            return {
+                {"ok", false},
+                {"valid", false},
+                {"error_step", i},
+                {"from_node", u},
+                {"to_node", v},
+                {"message", "Discontinuous route: Node #" + std::to_string(u) + " and Node #" + std::to_string(v) + " are not directly adjacent in the road network."}
+            };
+        }
+    }
+
+    const auto eff_label = label.empty() ? ("Transit Line " + bus_id) : label;
+    auto it = std::find_if(active_transit_buses_.begin(), active_transit_buses_.end(), [&](const DispatchedBusRecord& b) {
+        return b.bus_id == bus_id;
+    });
+    if (it != active_transit_buses_.end()) {
+        *it = DispatchedBusRecord{bus_id, eff_label, nodes, route_edges, total_distance_m};
+    } else {
+        active_transit_buses_.push_back({bus_id, eff_label, nodes, route_edges, total_distance_m});
+    }
+
+    add_news(next_event_id_++, "transit", "info", "TRANSIT_ROUTE_DISPATCHED",
+             "[" + hhmmss(virtual_s_) + "] Transit bus " + bus_id + " (" + eff_label + ") dispatched across " +
+             std::to_string(nodes.size()) + " nodes (" + std::to_string(static_cast<int>(total_distance_m)) + "m)",
+             {{"bus_id", bus_id}, {"nodes", nodes}, {"route_edges", route_edges}, {"total_distance_m", total_distance_m}});
+
+    return {
+        {"ok", true},
+        {"valid", true},
+        {"bus_id", bus_id},
+        {"label", eff_label},
+        {"node_count", nodes.size()},
+        {"route_edges", route_edges},
+        {"total_distance_m", total_distance_m},
+        {"message", "Single linked list transit route validated successfully."}
+    };
+}
+
 nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& config, std::uint32_t start) {
     std::lock_guard lock(mutex_);
     if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused || lifecycle_ == Lifecycle::Preparing) {
@@ -150,6 +308,8 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
         virtual_s_ = 0;
         start_virtual_s_ = std::min(start, day_s);
         manual_weather_.clear();
+        active_surges_.clear();
+        signal_overrides_.clear();
         news_.clear();
         commands_.clear();
         redo_.clear();
@@ -556,70 +716,124 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         es.flood = (na.flood + nb.flood) / 2;
         const auto attraction = (na.building_effect + nb.building_effect) / 2;
         const auto hot = sc.config.traffic ? e.hotspot_susceptibility : 0;
-        es.demand_vph = sc.config.traffic ? e.base_capacity_vph * (.18 + .68 * day_profile + .60 * attraction + .35 * hot) : 0;
+        
+        // Active Surge Multiplier following a smooth Gaussian / Normal Distribution curve
+        double surge_mult = 1.0;
+        for (const auto& s : active_surges_) {
+            if (virtual_s_ >= s.start_s && virtual_s_ <= s.end_s && s.end_s > s.start_s) {
+                const double rel_t = double(virtual_s_ - s.start_s) / double(s.end_s - s.start_s);
+                const double bell = std::sin(3.141592653589793 * rel_t);
+                const double bell_weight = bell * bell;
+                const double cur_factor = 1.0 + (s.factor - 1.0) * bell_weight;
+                const double cur_radius = s.radius_m * (0.35 + 0.65 * bell_weight);
+
+                const auto& sn = sc.nodes[s.node.value];
+                const double d1 = point_distance(sc.nodes[e.from.value].position, sn.position);
+                const double d2 = point_distance(sc.nodes[e.to.value].position, sn.position);
+                if (d1 <= cur_radius || d2 <= cur_radius) {
+                    surge_mult = std::max(surge_mult, cur_factor);
+                }
+            }
+        }
+
+        es.demand_vph = sc.config.traffic ? e.base_capacity_vph * (.18 + .68 * day_profile + .60 * attraction + .35 * hot) * surge_mult : 0;
+        
+        // Signal Phase Coordination Math Logic:
+        // Conflicting approach directions are partitioned into Phase 1 (North-South) and Phase 2 (East-West)
         if (sc.config.signals && e.to.value < signal_by_node_.size() && signal_by_node_[e.to.value] != nullptr) {
             const auto* sig = signal_by_node_[e.to.value];
             const auto cycle = sig->cycle_s > 0 ? sig->cycle_s : 60;
-            const auto t_in_cycle = (virtual_s_ + e.to.value * 7) % cycle;
+            const auto t_in_cycle = (virtual_s_ + sig->offset_s) % cycle;
             const auto& p = sig->phases_s;
             const std::uint16_t p0 = p.size() > 0 ? p[0] : 30;
             const std::uint16_t p1 = p.size() > 1 ? p[1] : 3;
             const std::uint16_t p2 = p.size() > 2 ? p[2] : 1;
             const std::uint16_t p3 = p.size() > 3 ? p[3] : 20;
             const std::uint16_t p4 = p.size() > 4 ? p[4] : 3;
-            const bool is_major = (e.id.value % 2 == 0);
-            if (is_major) {
-                if (t_in_cycle < p0) {
-                    es.signal_multiplier = 1.0;
-                } else if (t_in_cycle < p0 + p1) {
-                    es.signal_multiplier = 0.45;
+
+            // Geometry-derived approach angle: is this approaching from North/South or East/West?
+            const auto& from_pt = sc.nodes[e.from.value].position;
+            const auto& to_pt = sc.nodes[e.to.value].position;
+            const double dx = to_pt.x_m - from_pt.x_m;
+            const double dy = to_pt.y_m - from_pt.y_m;
+            const bool is_ns_approach = (std::abs(dy) >= std::abs(dx));
+
+            // Check manual signal phase override
+            if (signal_overrides_.contains(e.to.value)) {
+                const int forced_phase = signal_overrides_[e.to.value];
+                if (forced_phase == 1) {
+                    es.signal_multiplier = is_ns_approach ? 1.0 : 0.08;
                 } else {
-                    es.signal_multiplier = (cycle >= 90) ? 0.12 : 0.20;
+                    es.signal_multiplier = is_ns_approach ? 0.08 : 1.0;
                 }
             } else {
-                const std::uint32_t m_green_start = static_cast<std::uint32_t>(p0 + p1 + p2);
-                const std::uint32_t m_green_end = static_cast<std::uint32_t>(m_green_start + p3);
-                const std::uint32_t m_yellow_end = static_cast<std::uint32_t>(m_green_end + p4);
-                if (t_in_cycle >= m_green_start && t_in_cycle < m_green_end) {
-                    es.signal_multiplier = 1.0;
-                } else if (t_in_cycle >= m_green_end && t_in_cycle < m_yellow_end) {
-                    es.signal_multiplier = 0.45;
+                if (is_ns_approach) {
+                    if (t_in_cycle < p0) {
+                        es.signal_multiplier = 1.0;
+                    } else if (t_in_cycle < p0 + p1) {
+                        es.signal_multiplier = 0.40;
+                    } else {
+                        es.signal_multiplier = 0.08;
+                    }
                 } else {
-                    es.signal_multiplier = (cycle >= 90) ? 0.12 : 0.20;
+                    const std::uint32_t ew_green_start = static_cast<std::uint32_t>(p0 + p1 + p2);
+                    const std::uint32_t ew_green_end = static_cast<std::uint32_t>(ew_green_start + p3);
+                    const std::uint32_t ew_yellow_end = static_cast<std::uint32_t>(ew_green_end + p4);
+                    if (t_in_cycle >= ew_green_start && t_in_cycle < ew_green_end) {
+                        es.signal_multiplier = 1.0;
+                    } else if (t_in_cycle >= ew_green_end && t_in_cycle < ew_yellow_end) {
+                        es.signal_multiplier = 0.40;
+                    } else {
+                        es.signal_multiplier = 0.08;
+                    }
                 }
             }
         } else {
             es.signal_multiplier = 1.0;
         }
-        es.rain_speed_multiplier = 1 - .32 * es.rainfall;
-        es.flood_speed_multiplier = std::max(.05, 1 - .8 * es.flood);
-        es.rain_capacity_multiplier = 1 - .25 * es.rainfall;
-        es.flood_capacity_multiplier = std::max(.02, 1 - .9 * es.flood);
-        es.effective_speed_mps = e.free_speed_mps * std::max(0.25, es.signal_multiplier) * es.rain_speed_multiplier * es.flood_speed_multiplier * es.manual_speed_multiplier;
-        es.effective_capacity_vph = e.base_capacity_vph * es.signal_multiplier * es.rain_capacity_multiplier * es.flood_capacity_multiplier * es.manual_capacity_multiplier;
-        es.closed = es.manual_closed || es.flood >= .95;
-        const auto x = es.demand_vph / std::max(1.0, es.effective_capacity_vph);
-        const auto delay = .15 * std::pow(x, 4);
-        es.congestion_model = delay / (1 + delay);
 
-        // Microscopic vehicle density calculation:
-        // Real-world density k = demand / speed, scaling naturally with queue congestion
-        const double density_km = (es.demand_vph / std::max(2.0, es.effective_speed_mps * 3.6)) * (1.0 + 3.0 * es.congestion_model);
-        const double expected_veh = density_km * (e.length_m / 1000.0);
-        const double hash_sample = (static_cast<std::uint64_t>(e.id.value * 2654435761u + (virtual_s_ / 60) * 1013904223u) % 10000) / 10000.0;
-        std::uint32_t veh_cnt = static_cast<std::uint32_t>(std::floor(expected_veh));
-        if (hash_sample < (expected_veh - std::floor(expected_veh))) {
-            veh_cnt++;
+        // Realistic Weather Sensitivity (Rain causes moderate 10-25% slowing rather than sudden impassability)
+        es.rain_speed_multiplier = 1.0 - 0.18 * es.rainfall;
+        es.flood_speed_multiplier = std::max(0.35, 1.0 - 0.55 * es.flood);
+        es.rain_capacity_multiplier = 1.0 - 0.15 * es.rainfall;
+        es.flood_capacity_multiplier = std::max(0.30, 1.0 - 0.60 * es.flood);
+
+        // Smooth speed deceleration and acceleration curves (realistic gradual vehicle movement)
+        const double target_speed = es.manual_closed ? 0.0 : (e.free_speed_mps * es.signal_multiplier * es.rain_speed_multiplier * es.flood_speed_multiplier * es.manual_speed_multiplier);
+        if (es.effective_speed_mps < target_speed) {
+            es.effective_speed_mps = std::min(target_speed, es.effective_speed_mps + 2.4 * std::max(1.0, tick_rate_));
+        } else if (es.effective_speed_mps > target_speed) {
+            es.effective_speed_mps = std::max(target_speed, es.effective_speed_mps - 3.2 * std::max(1.0, tick_rate_));
         }
-        if (sc.config.traffic && (attraction > 0.25 || hot > 0.35 || es.congestion_model > 0.30)) {
-            veh_cnt = std::max<std::uint32_t>(veh_cnt, static_cast<std::uint32_t>(std::ceil(expected_veh * 1.6)));
+
+        es.effective_capacity_vph = e.base_capacity_vph * es.signal_multiplier * es.rain_capacity_multiplier * es.flood_capacity_multiplier * es.manual_capacity_multiplier;
+        es.closed = es.manual_closed || es.flood >= 0.98;
+
+        // Smooth physical vehicle queuing dynamics (eliminates abrupt 51 -> 2 jumps)
+        const double baseline_veh = (es.demand_vph / std::max(2.0, e.free_speed_mps * 3.6)) * (e.length_m / 1000.0);
+        const double max_queue_veh = (e.length_m / 7.5) * e.lanes;
+        const double target_veh = es.closed ? 0.0 : std::clamp(baseline_veh * (1.0 + 3.5 * (1.0 - es.signal_multiplier) * (0.5 + 0.5 * surge_mult)), 0.0, max_queue_veh);
+
+        const double current_veh = static_cast<double>(es.vehicle_count);
+        double next_veh = current_veh;
+        const double rate_factor = std::max(1.0, tick_rate_);
+        if (target_veh > current_veh) {
+            // Queue buildup: accumulates smoothly at physical inflow rate
+            const double max_inflow_step = std::max(0.4, (es.demand_vph / 3600.0) * dt * rate_factor);
+            next_veh = std::min(target_veh, current_veh + max_inflow_step);
+        } else if (target_veh < current_veh) {
+            // Queue discharge: drains smoothly at physical saturation flow rate
+            const double max_discharge_step = std::max(0.7, (e.lanes * 0.75) * dt * rate_factor);
+            next_veh = std::max(target_veh, current_veh - max_discharge_step);
         }
-        es.vehicle_count = veh_cnt;
-        es.mean_speed_mps = es.effective_speed_mps * (1 - es.congestion_model * .72);
-        es.halting_count = static_cast<std::uint32_t>(std::llround(es.vehicle_count * es.congestion_model));
+
+        es.vehicle_count = static_cast<std::uint32_t>(std::llround(next_veh));
+        es.congestion_model = clamp01(double(es.vehicle_count) / std::max(1.0, max_queue_veh * 0.75));
+        es.mean_speed_mps = es.effective_speed_mps * (1.0 - es.congestion_model * 0.65);
+        es.halting_count = static_cast<std::uint32_t>(std::llround(es.vehicle_count * (1.0 - es.signal_multiplier * 0.9)));
         es.occupancy = clamp01(es.vehicle_count * 5.0 / (std::max(1.0, e.length_m) * e.lanes));
-        es.congestion_observed = 1 - (1 - clamp01(1 - es.mean_speed_mps / std::max(.1, es.effective_speed_mps))) * (1 - double(es.halting_count) / std::max(1u, es.vehicle_count)) * (1 - es.occupancy);
-        es.congestion = clamp01(.45 * es.congestion_model + .55 * es.congestion_observed);
+        es.congestion_observed = 1.0 - (1.0 - clamp01(1.0 - es.mean_speed_mps / std::max(0.1, es.effective_speed_mps))) * (1.0 - double(es.halting_count) / std::max(1u, es.vehicle_count)) * (1.0 - es.occupancy);
+        es.congestion = clamp01(0.40 * es.congestion_model + 0.60 * es.congestion_observed);
     }
 
     const auto previous = virtual_s_ >= dt ? virtual_s_ - dt : 0;
@@ -651,31 +865,13 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         for (const auto& e : manual_weather_) notify(e);
     }
 
-    if (sc.config.traffic && (virtual_s_ % 300 == 0) && virtual_s_ > 0) {
-        for (const auto& e : sc.edges) {
-            const auto& es = graph_->edge_state(e.id);
-            if (es.closed && es.flood >= 0.85 && (virtual_s_ % 900 == 0)) {
-                add_news(200000 + e.id.value, "safety", "alert", "ROAD_FLOOD_CLOSED",
-                         "[" + hhmmss(virtual_s_) + "] Road " + std::to_string(e.id.value) + " (" + to_string(e.road_class) +
-                         ") is impassable due to severe flood inundation.",
-                         {{"edge_id", e.id.value}, {"flood", es.flood}});
-                break;
-            } else if (es.congestion >= 0.80 && (virtual_s_ % 600 == 0)) {
-                add_news(300000 + e.id.value, "traffic", "warning", "TRAFFIC_BOTTLENECK",
-                         "[" + hhmmss(virtual_s_) + "] Heavy congestion on Road " + std::to_string(e.id.value) +
-                         " (" + to_string(e.road_class) + "): " + std::to_string(es.vehicle_count) + " vehicles queued, speed reduced to " +
-                         std::to_string(static_cast<int>(es.effective_speed_mps * 3.6)) + " km/h.",
-                         {{"edge_id", e.id.value}, {"congestion", es.congestion}, {"vehicles", es.vehicle_count}});
-                break;
-            }
-        }
-    }
-
-    auto notify_time = [&](std::uint32_t t_sec, std::uint64_t ev_id, const std::string& cat, const std::string& sev, const std::string& tmpl, const std::string& msg) {
+    auto notify_time = [&](std::uint32_t t_sec, std::uint64_t ev_id, const std::string& cat, const std::string& sev, const std::string& tmpl, const std::string& msg, nlohmann::json data = {}) {
         if (previous < t_sec && virtual_s_ >= t_sec) {
-            add_news(ev_id, cat, sev, tmpl, msg);
+            add_news(ev_id, cat, sev, tmpl, msg, data);
         }
     };
+
+    // Scheduled Peak Hours & Transit Bulletins
     notify_time(8 * 3600 + 30 * 60, 400001, "transit", "info", "SCHOOL_RUSH_START",
                 "[08:30:00] Morning school bell surge: high pedestrian and student transit activity around school zones.");
     notify_time(9 * 3600 + 15 * 60, 400002, "traffic", "warning", "COMMERCIAL_PEAK_HOUR",
@@ -686,6 +882,49 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
                 "[17:30:00] Evening outbound rush hour: widespread arterial delays and high occupancy across transit corridors.");
     notify_time(21 * 3600, 400005, "transit", "info", "NIGHT_TRANSIT_MODE",
                 "[21:00:00] Night-time transit schedule initiated; off-peak speed profiles active.");
+
+    // Deterministic Stochastic Incidents (Incident Desk) throughout the day
+    if (!sc.nodes.empty() && !sc.edges.empty()) {
+        const auto n_cnt = static_cast<std::uint32_t>(sc.nodes.size());
+        const auto e_cnt = static_cast<std::uint32_t>(sc.edges.size());
+        const auto n1 = (sc.nodes.front().id.value + 13) % n_cnt;
+        const auto e1 = (sc.edges.front().id.value + 7) % e_cnt;
+        const auto n2 = (sc.nodes.front().id.value + 29) % n_cnt;
+        const auto e2 = (sc.edges.front().id.value + 37) % e_cnt;
+        const auto n3 = (sc.nodes.front().id.value + 47) % n_cnt;
+        const auto e3 = (sc.edges.front().id.value + 61) % e_cnt;
+        const auto n4 = (sc.nodes.front().id.value + 71) % n_cnt;
+        const auto e4 = (sc.edges.front().id.value + 89) % e_cnt;
+
+        notify_time(7 * 3600 + 15 * 60, 600001, "incident", "warning", "INCIDENT_AUTO_MERGE",
+                    "[07:15:00] Auto-rickshaw made an abrupt lane merge near Node #" + std::to_string(n1) +
+                    ", causing minor bumper scrape on Edge #" + std::to_string(e1) + ". (LOW SEVERITY)",
+                    {{"node_id", n1}, {"edge_id", e1}});
+        notify_time(9 * 3600 + 45 * 60, 600002, "incident", "warning", "INCIDENT_TEMPO_BREAKDOWN",
+                    "[09:45:00] Commercial delivery tempo breakdown on arterial corridor Edge #" + std::to_string(e2) +
+                    ": right lane obstructed, queue building up. (MID SEVERITY)",
+                    {{"edge_id", e2}});
+        notify_time(11 * 3600 + 20 * 60, 600003, "incident", "info", "INCIDENT_COW_DIVERSION",
+                    "[11:20:00] Stray cattle on roadway near Intersection Node #" + std::to_string(n2) +
+                    ": localized slow-moving traffic advisory in effect. (LOW SEVERITY)",
+                    {{"node_id", n2}});
+        notify_time(13 * 3600 + 40 * 60, 600004, "incident", "warning", "INCIDENT_BUS_PUNCTURE",
+                    "[13:40:00] Passenger bus suffered tire puncture near Node #" + std::to_string(n3) +
+                    ", left-turning traffic held. (MID SEVERITY)",
+                    {{"node_id", n3}});
+        notify_time(16 * 3600 + 10 * 60, 600005, "incident", "alert", "INCIDENT_TANKER_SPILL",
+                    "[16:10:00] Water tanker valve leakage on high-speed road Edge #" + std::to_string(e3) +
+                    ": slippery road conditions, speed limit reduced. (HIGH SEVERITY)",
+                    {{"edge_id", e3}});
+        notify_time(18 * 3600 + 25 * 60, 600006, "incident", "alert", "INCIDENT_INTERSECTION_CRASH",
+                    "[18:25:00] Multi-vehicle collision at signalized intersection Node #" + std::to_string(n4) +
+                    ": major inbound approach blocked, emergency diversion active. (HIGH SEVERITY)",
+                    {{"node_id", n4}});
+        notify_time(20 * 3600 + 30 * 60, 600007, "incident", "warning", "INCIDENT_SCOOTER_STALL",
+                    "[20:30:00] Stalled two-wheeler in middle lane on Edge #" + std::to_string(e4) +
+                    ": mild localized queue accumulation. (LOW SEVERITY)",
+                    {{"edge_id", e4}});
+    }
 
     if (sc.config.signals && (virtual_s_ % 7200 == 0) && virtual_s_ > 0) {
         add_news(500000 + (virtual_s_ / 7200), "signals", "info", "SIGNAL_SYNC",
@@ -814,8 +1053,14 @@ nlohmann::json SimulationEngine::topology() const {
             {"position", point_json(n.position)},
             {"degree", n.degree},
             {"bus_stop", n.bus_stop},
+            {"bus_stop_radius_m", n.bus_stop ? graph_->scenario().config.stop_max_coverage_m : 0.0},
             {"signal", n.signal},
-            {"building", n.building ? nlohmann::json(to_string(*n.building)) : nlohmann::json(nullptr)}
+            {"signal_cycle_s", n.signal ? n.signal_cycle_s : 0},
+            {"signal_offset_s", n.signal ? n.signal_offset_s : 0},
+            {"signal_green_s", n.signal ? n.signal_green_s : 0},
+            {"building", n.building ? nlohmann::json(to_string(*n.building)) : nlohmann::json(nullptr)},
+            {"building_impact", n.building_impact},
+            {"building_radius_m", n.building_radius_m}
         });
     }
     for (const auto& e : graph_->edges()) {
@@ -869,6 +1114,7 @@ nlohmann::json SimulationEngine::snapshot() const {
             {"flood", s.flood},
             {"effective_speed_mps", s.effective_speed_mps},
             {"vehicle_count", s.vehicle_count},
+            {"halting_count", s.halting_count},
             {"closed", s.closed}
         });
     }
@@ -932,13 +1178,53 @@ nlohmann::json SimulationEngine::snapshot() const {
         });
     }
 
+    nlohmann::json active_surges_list = nlohmann::json::array();
+    for (const auto& s : active_surges_) {
+        if (virtual_s_ >= s.start_s && virtual_s_ <= s.end_s && s.node.value < graph_->nodes().size() && s.end_s > s.start_s) {
+            const auto& n = graph_->nodes()[s.node.value];
+            const double rel_t = double(virtual_s_ - s.start_s) / double(s.end_s - s.start_s);
+            const double bell = std::sin(3.141592653589793 * rel_t);
+            const double bell_weight = bell * bell;
+            const double cur_factor = 1.0 + (s.factor - 1.0) * bell_weight;
+            const double cur_radius = s.radius_m * (0.35 + 0.65 * bell_weight);
+
+            active_surges_list.push_back({
+                {"id", s.id},
+                {"node_id", s.node.value},
+                {"lat", n.position.lat},
+                {"lon", n.position.lon},
+                {"x_m", n.position.x_m},
+                {"y_m", n.position.y_m},
+                {"radius_m", cur_radius},
+                {"factor", cur_factor},
+                {"start_s", s.start_s},
+                {"end_s", s.end_s},
+                {"remaining_s", s.end_s - virtual_s_},
+                {"label", s.label}
+            });
+        }
+    }
+
+    nlohmann::json active_buses_list = nlohmann::json::array();
+    for (const auto& b : active_transit_buses_) {
+        active_buses_list.push_back({
+            {"bus_id", b.bus_id},
+            {"label", b.label},
+            {"nodes", b.nodes},
+            {"route_edges", b.route_edges},
+            {"total_distance_m", b.total_distance_m}
+        });
+    }
+
     return envelope({
         {"topology_revision", 1},
         {"nodes", std::move(ns)},
         {"edges", std::move(es)},
         {"active_weather_events", active_weather_list.size()},
         {"active_weather", std::move(active_weather_list)},
+        {"active_surges", std::move(active_surges_list)},
         {"active_incidents", std::move(active_incidents)},
+        {"active_transit_buses", std::move(active_buses_list)},
         {"event_stack", std::move(event_stack)}
     });
 }
@@ -1520,4 +1806,3 @@ void SimulationEngine::terminate() {
 }
 
 } // namespace dstns
-

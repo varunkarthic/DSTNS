@@ -93,6 +93,17 @@ function drawMapPin(
   ctx.restore();
 }
 
+export interface DispatchedTransitBus {
+  busId: string;
+  label: string;
+  nodeRoute: number[];
+  edgeRoute: number[];
+  currentEdgeIndex: number;
+  progress: number;
+  totalDistanceM: number;
+  isHalted: boolean;
+}
+
 type Props = {
   topology: Topology | null;
   snapshot: Snapshot | null;
@@ -102,7 +113,9 @@ type Props = {
   tickRate?: number;
   selectedEdge?: TopologyEdge | null;
   reduceMotion?: boolean;
+  reduceVehicles?: boolean;
   focusTarget?: { lon: number; lat: number; zoom?: number; token: number } | null;
+  dispatchedBuses?: DispatchedTransitBus[];
   onSelect: (n: TopologyNode | null) => void;
   onSelectEdge?: (e: TopologyEdge | null) => void;
 };
@@ -155,7 +168,9 @@ export function NetworkMap({
   tickRate = 1.0,
   selectedEdge,
   reduceMotion = false,
+  reduceVehicles = false,
   focusTarget = null,
+  dispatchedBuses = [],
   onSelect,
   onSelectEdge
 }: Props) {
@@ -173,9 +188,11 @@ export function NetworkMap({
 
   // Store vehicle particles matching exact internal count
   const vehiclesRef = useRef<VehicleParticle[]>([]);
+  const transitBusesRef = useRef<Map<string, { currentEdgeIndex: number; progress: number; isHalted: boolean }>>(new Map());
   const animFrameRef = useRef<number | null>(null);
   const lastTickRef = useRef<number>(performance.now());
   const pulsePhaseRef = useRef<number>(0);
+  const topologyHashRef = useRef<string>('');
 
   // Compute map bounding box
   const bounds = useMemo(() => {
@@ -207,6 +224,15 @@ export function NetworkMap({
     };
   }, [topology]);
 
+  useEffect(() => {
+    (window as unknown as { __dstnsGetMapScreenshot?: () => string | null }).__dstnsGetMapScreenshot = () => {
+      return canvasRef.current?.toDataURL('image/png') || null;
+    };
+    return () => {
+      delete (window as unknown as { __dstnsGetMapScreenshot?: () => string | null }).__dstnsGetMapScreenshot;
+    };
+  }, []);
+
   // Transform coordinates (lon, lat) to screen (sx, sy)
   const project = useCallback((lon: number, lat: number, width: number, height: number) => {
     if (!bounds) return { x: width / 2, y: height / 2 };
@@ -229,10 +255,15 @@ export function NetworkMap({
     };
   }, [bounds, transform]);
 
-  // Sync vehicles pool to match EXACT internal simulation engine count 1-to-1
+  // Sync vehicles pool to match representational particle density (exact counts in tooltips)
   useEffect(() => {
     if (!topology || !topology.edges || topology.edges.length === 0 || !snapshot || !snapshot.edges) {
       return;
+    }
+
+    if (topologyHashRef.current !== topology.graph_hash) {
+      topologyHashRef.current = topology.graph_hash;
+      vehiclesRef.current = [];
     }
 
     const currentVehicles = vehiclesRef.current;
@@ -248,24 +279,25 @@ export function NetworkMap({
 
     for (const es of snapshot.edges) {
       const targetCount = es.vehicle_count;
+      // Representational density: 1 particle per 3 vehicles, min 1 if non-empty, max 4 per segment
+      const targetParticles = targetCount === 0 ? 0 : Math.min(4, Math.max(1, Math.ceil(targetCount / 3)));
       const existing = vehiclesByEdge.get(es.id) || [];
 
-      if (existing.length <= targetCount) {
+      if (existing.length <= targetParticles) {
         nextVehicles.push(...existing);
-        const toAdd = targetCount - existing.length;
+        const toAdd = targetParticles - existing.length;
         for (let i = 0; i < toAdd; i++) {
           nextVehicles.push({
             id: particleIdSeq++,
             edgeId: es.id,
-            progress: (i + Math.random() * 0.7) / Math.max(1, targetCount),
-            speedFactor: 0.82 + Math.random() * 0.36,
+            progress: (i + 0.35) / Math.max(1, targetParticles),
+            speedFactor: 0.85 + ((es.id * 37 + i * 17) % 31) / 100,
             isHalted: false
           });
         }
       } else {
-        // Excess vehicles: keep the ones with earliest progress
         existing.sort((a, b) => a.progress - b.progress);
-        nextVehicles.push(...existing.slice(0, targetCount));
+        nextVehicles.push(...existing.slice(0, targetParticles));
       }
     }
 
@@ -276,6 +308,13 @@ export function NetworkMap({
   const handleResetView = () => {
     setTransform({ scale: 1, panX: 0, panY: 0 });
   };
+
+  // Auto-center and fit viewport when topology changes (e.g. from seed reroll)
+  useEffect(() => {
+    if (topology && bounds) {
+      setTransform({ scale: 1, panX: 0, panY: 0 });
+    }
+  }, [topology?.graph_hash, topology?.root_node]);
 
   // Center & zoom on focus target event
   useEffect(() => {
@@ -310,11 +349,21 @@ export function NetworkMap({
 
     let active = true;
 
+    // Fast lookups
+    const nodeLookup = new Map<number, TopologyNode>();
+    for (const n of topology?.nodes || []) nodeLookup.set(n.id, n);
+
+    const edgeLookup = new Map<number, TopologyEdge>();
+    for (const e of topology?.edges || []) edgeLookup.set(e.id, e);
+
+    const edgeStateMap = new Map<number, EdgeState>();
+    for (const es of snapshot?.edges || []) edgeStateMap.set(es.id, es);
+
     const render = (now: number) => {
       if (!active) return;
-      const dt = Math.min((now - lastTickRef.current) / 1000, 0.1);
+      const rawDt = Math.min((now - lastTickRef.current) / 1000, 0.08);
       lastTickRef.current = now;
-      pulsePhaseRef.current = (pulsePhaseRef.current + dt * 1.8) % (Math.PI * 2);
+      pulsePhaseRef.current += rawDt * 2.0;
 
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
@@ -329,43 +378,15 @@ export function NetworkMap({
       ctx.save();
       ctx.scale(dpr, dpr);
 
-      // 1. Crisp Professional Background
+      // 1. Clear Canvas
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, width, height);
 
-      // Subtle modern engineering grid
-      ctx.strokeStyle = '#f1f5f9';
-      ctx.lineWidth = 1;
-      const gridSize = 40 * transform.scale;
-      const startX = (transform.panX % gridSize + gridSize) % gridSize;
-      const startY = (transform.panY % gridSize + gridSize) % gridSize;
-      ctx.beginPath();
-      for (let x = startX; x < width; x += gridSize) {
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-      }
-      for (let y = startY; y < height; y += gridSize) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-      }
-      ctx.stroke();
-
-      if (!topology || !topology.nodes.length) {
+      if (!topology || topology.edges.length === 0) {
         ctx.restore();
         animFrameRef.current = requestAnimationFrame(render);
         return;
       }
-
-      const edgeStateMap = new Map<number, EdgeState>();
-      if (snapshot && snapshot.edges) {
-        for (const e of snapshot.edges) edgeStateMap.set(e.id, e);
-      }
-
-      const edgeLookup = new Map<number, TopologyEdge>();
-      for (const e of topology.edges) edgeLookup.set(e.id, e);
-
-      const nodeLookup = new Map<number, TopologyNode>();
-      for (const n of topology.nodes) nodeLookup.set(n.id, n);
 
       // Build outgoing edge map for vehicle branching
       const outgoingMap = new Map<number, number[]>();
@@ -375,27 +396,22 @@ export function NetworkMap({
         outgoingMap.set(e.from, list);
       }
 
-      // 2. Active Rain Storms (Prolonged, Dynamic Radius, Translucent Oceanic Blue, Drifting Epicenter)
+      // 2. Active Rain Storms
       const weatherEvents = snapshot?.active_weather ?? [];
-      const pulse = (Math.sin(pulsePhaseRef.current) + 1) / 2; // 0..1
-
+      const pulse = (Math.sin(pulsePhaseRef.current) + 1) / 2;
       for (const w of weatherEvents) {
         const center = project(w.lon, w.lat, width, height);
         const rEdge = project(w.lon + (w.radius_m / 111320), w.lat, width, height);
         const radiusPx = Math.max(30, Math.abs(rEdge.x - center.x));
 
-        // Translucent gradient storm body
         const grad = ctx.createRadialGradient(center.x, center.y, radiusPx * 0.15, center.x, center.y, radiusPx);
         grad.addColorStop(0, `rgba(2, 132, 199, ${Math.min(0.42, 0.15 + w.intensity * 0.28)})`);
         grad.addColorStop(0.7, `rgba(14, 165, 233, ${Math.min(0.25, 0.08 + w.intensity * 0.18)})`);
         grad.addColorStop(1, 'rgba(56, 189, 248, 0.02)');
-
         ctx.beginPath();
         ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
         ctx.fillStyle = grad;
         ctx.fill();
-
-        // Dashed storm boundary
         ctx.beginPath();
         ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
         ctx.strokeStyle = '#0284c7';
@@ -403,27 +419,60 @@ export function NetworkMap({
         ctx.setLineDash([6, 5]);
         ctx.stroke();
         ctx.setLineDash([]);
-
-        // Animated propagating rain pulse wave
         const pulseR = radiusPx * (0.2 + pulse * 0.85);
         ctx.beginPath();
         ctx.arc(center.x, center.y, pulseR, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(56, 189, 248, ${0.45 * (1 - pulse)})`;
         ctx.lineWidth = 1.6;
         ctx.stroke();
-
-        // Drifting epicenter marker with wind drift vector
         ctx.beginPath();
         ctx.arc(center.x, center.y, 5.0, 0, Math.PI * 2);
         ctx.fillStyle = '#0369a1';
         ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.0;
-        ctx.stroke();
       }
 
-      // 3. Roads: SUMO-GUI Road Hierarchy
-      // Pass 3a: Selected Road Glow Halo
+      // 2b. Active Commercial & Traffic Surges (Normal Distribution Bell Curve Growth & Decay)
+      const surgeEvents = snapshot?.active_surges ?? [];
+      for (const s of surgeEvents) {
+        const center = project(s.lon, s.lat, width, height);
+        const surgeDur = Math.max(1, s.end_s - s.start_s);
+        const elapsed = virtualDaySeconds - s.start_s;
+        const normProgress = Math.max(0, Math.min(1, elapsed / surgeDur));
+        // Normal distribution / Gaussian bell curve factor sin(pi * u)
+        const bellFactor = Math.sin(Math.PI * normProgress);
+        const dynamicRadius = s.radius_m * (0.35 + 0.65 * bellFactor);
+        const rEdge = project(s.lon + (dynamicRadius / 111320), s.lat, width, height);
+        const radiusPx = Math.max(24, Math.abs(rEdge.x - center.x));
+
+        const surgeIntensity = Math.min(1.0, (s.factor - 1.0) * bellFactor);
+        const grad = ctx.createRadialGradient(center.x, center.y, radiusPx * 0.15, center.x, center.y, radiusPx);
+        grad.addColorStop(0, `rgba(220, 38, 38, ${Math.min(0.46, 0.16 + surgeIntensity * 0.30)})`);
+        grad.addColorStop(0.7, `rgba(239, 68, 68, ${Math.min(0.28, 0.08 + surgeIntensity * 0.20)})`);
+        grad.addColorStop(1, 'rgba(248, 113, 113, 0.01)');
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
+        ctx.strokeStyle = '#dc2626';
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([6, 5]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const pulseR = radiusPx * (0.2 + pulse * 0.85);
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, pulseR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(248, 113, 113, ${0.45 * (1 - pulse) * Math.max(0.2, bellFactor)})`;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, 5.0, 0, Math.PI * 2);
+        ctx.fillStyle = '#b91c1c';
+        ctx.fill();
+      }
+
+      // 3. Roads
       if (selectedEdge && selectedEdge.geometry && selectedEdge.geometry.length >= 2) {
         ctx.beginPath();
         const p0 = project(selectedEdge.geometry[0].lon, selectedEdge.geometry[0].lat, width, height);
@@ -439,11 +488,9 @@ export function NetworkMap({
         ctx.stroke();
       }
 
-      // Pass 3b: Solid Black / Slate Casings with Class-Specific Widths
       for (const edge of topology.edges) {
         if (!edge.geometry || edge.geometry.length < 2) continue;
         const style = getRoadStyle(edge.road_class);
-
         ctx.beginPath();
         const p0 = project(edge.geometry[0].lon, edge.geometry[0].lat, width, height);
         ctx.moveTo(p0.x, p0.y);
@@ -458,23 +505,47 @@ export function NetworkMap({
         ctx.stroke();
       }
 
-      // Pass 3c: Dynamic Inner Cores (Highway / Arterial / Congestion Colors)
       for (const edge of topology.edges) {
         if (!edge.geometry || edge.geometry.length < 2) continue;
         const style = getRoadStyle(edge.road_class);
         const es = edgeStateMap.get(edge.id);
 
-        let coreColor = style.defaultColor;
         if (es?.closed) {
-          coreColor = '#dc2626'; // Impassable / Closed
-        } else if ((es?.flood ?? 0) > 0.35) {
-          coreColor = '#2563eb'; // Flooded
+          ctx.beginPath();
+          const p0 = project(edge.geometry[0].lon, edge.geometry[0].lat, width, height);
+          ctx.moveTo(p0.x, p0.y);
+          for (let i = 1; i < edge.geometry.length; i++) {
+            const pi = project(edge.geometry[i].lon, edge.geometry[i].lat, width, height);
+            ctx.lineTo(pi.x, pi.y);
+          }
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+          ctx.lineWidth = style.casingWidth + 6;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y);
+          for (let i = 1; i < edge.geometry.length; i++) {
+            const pi = project(edge.geometry[i].lon, edge.geometry[i].lat, width, height);
+            ctx.lineTo(pi.x, pi.y);
+          }
+          ctx.strokeStyle = '#dc2626';
+          ctx.lineWidth = style.coreWidth + 1;
+          ctx.setLineDash([8, 6]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          continue;
+        }
+
+        let coreColor = style.defaultColor;
+        if ((es?.flood ?? 0) > 0.35) {
+          coreColor = '#2563eb';
         } else {
           const cong = es?.congestion ?? 0;
-          if (cong >= 0.75) coreColor = '#ef4444'; // Severe Congestion
-          else if (cong >= 0.40) coreColor = '#f59e0b'; // Moderate Traffic
-          else if (cong >= 0.15) coreColor = '#06b6d4'; // Active Flow
-          else coreColor = '#10b981'; // Free Flow
+          if (cong >= 0.75) coreColor = '#ef4444';
+          else if (cong >= 0.40) coreColor = '#f59e0b';
+          else if (cong >= 0.15) coreColor = '#06b6d4';
+          else coreColor = '#10b981';
         }
 
         ctx.beginPath();
@@ -491,52 +562,36 @@ export function NetworkMap({
         ctx.stroke();
       }
 
-      // Pass 3d: Hovered Road Highlight
-      if (hoveredEdge && hoveredEdge.id !== selectedEdge?.id && hoveredEdge.geometry.length >= 2) {
-        ctx.beginPath();
-        const p0 = project(hoveredEdge.geometry[0].lon, hoveredEdge.geometry[0].lat, width, height);
-        ctx.moveTo(p0.x, p0.y);
-        for (let i = 1; i < hoveredEdge.geometry.length; i++) {
-          const pi = project(hoveredEdge.geometry[i].lon, hoveredEdge.geometry[i].lat, width, height);
-          ctx.lineTo(pi.x, pi.y);
-        }
-        ctx.strokeStyle = '#06b6d4';
-        ctx.lineWidth = 7;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.stroke();
-      }
-
-      // 4. Traffic Signals and Vehicles Micro-Simulation
+      // 4. Vehicles & Traffic Signals
       const effectiveTick = running ? tickRate : 0;
-
-      // Determine signal state per signalized node
-      const signalStateMap = new Map<number, { isEWGreen: boolean; isNSGreen: boolean }>();
+      const signalStateMap = new Map<number, { isEWGreen: boolean; isNSGreen: boolean; remainingSec: number }>();
       for (const node of topology.nodes) {
         if (!node.signal) continue;
-        const cycle = 60;
-        const cycleSec = (virtualDaySeconds + node.id * 7) % cycle;
-        const isEWGreen = cycleSec < 27;
-        const isNSGreen = cycleSec >= 30 && cycleSec < 57;
-        signalStateMap.set(node.id, { isEWGreen, isNSGreen });
+        const cycle = node.signal_cycle_s || 60;
+        const offset = node.signal_offset_s || 0;
+        const greenTime = node.signal_green_s || Math.floor(cycle * 0.45);
+        const cycleSec = (virtualDaySeconds + offset) % cycle;
+        const isEWGreen = cycleSec < greenTime;
+        const isNSGreen = cycleSec >= greenTime + 3 && cycleSec < cycle - 3;
+        const remainingSec = isEWGreen ? (greenTime - cycleSec) : (cycle - cycleSec);
+        signalStateMap.set(node.id, { isEWGreen, isNSGreen, remainingSec });
       }
 
-      // Advance and Render Every Single Simulated Vehicle (1-to-1 matching internal counter)
+      const stepDt = reduceMotion ? Math.floor(rawDt * 5) / 5 : rawDt;
+
       for (const v of vehiclesRef.current) {
+        if (reduceVehicles && v.id % 2 !== 0) continue;
+        if (reduceMotion && v.id % 3 !== 0) continue;
         const edge = edgeLookup.get(v.edgeId);
         if (!edge || !edge.geometry || edge.geometry.length < 2) continue;
-
         const es = edgeStateMap.get(edge.id);
         const lenM = Math.max(10, edge.length_m);
         const baseSpeed = es ? es.effective_speed_mps : edge.free_speed_mps;
-
-        // Micro-simulation: Check traffic signal at edge terminus
         let mustHalt = false;
         const termNode = nodeLookup.get(edge.to);
         if (termNode && termNode.signal) {
           const sig = signalStateMap.get(termNode.id);
           if (sig) {
-            // Check edge heading
             const geom = edge.geometry;
             const lastP = geom[geom.length - 1];
             const prevP = geom[geom.length - 2];
@@ -544,62 +599,33 @@ export function NetworkMap({
             const dy = Math.abs(lastP.lat - prevP.lat);
             const isEW = dx >= dy;
             const signalRed = isEW ? !sig.isEWGreen : !sig.isNSGreen;
-
-            // Decelerate and stop at red light near intersection
-            if (signalRed && v.progress >= 0.82) {
-              mustHalt = true;
-            }
+            if (signalRed && v.progress >= 0.82) mustHalt = true;
           }
         }
-
-        // Check congestion queue halting
         if (!mustHalt && es && (es.halting_count ?? 0) > 0) {
           const queueRatio = Math.min(0.85, (es.halting_count ?? 0) / Math.max(1, es.vehicle_count));
-          const queueThreshold = 1.0 - queueRatio * 0.75;
-          if (v.progress >= queueThreshold) {
-            mustHalt = true;
-          }
+          if (v.progress >= 1.0 - queueRatio * 0.75) mustHalt = true;
         }
-
         v.isHalted = mustHalt;
-
-        // Vehicle advances according to speed variation and simulation tick rate
         if (!mustHalt && effectiveTick > 0) {
           const vehicleSpeed = baseSpeed * v.speedFactor * effectiveTick;
-          v.progress += (vehicleSpeed * dt) / lenM;
+          v.progress += (vehicleSpeed * stepDt) / lenM;
         }
-
-        // When vehicle reaches end of edge, choose next connected downstream road
         if (v.progress >= 1.0) {
           v.progress = 0;
           const nextCandidates = outgoingMap.get(edge.to);
-          if (nextCandidates && nextCandidates.length > 0) {
-            v.edgeId = nextCandidates[Math.floor(Math.random() * nextCandidates.length)];
-          } else {
-            v.edgeId = topology.edges[Math.floor(Math.random() * topology.edges.length)].id;
-          }
+          v.edgeId = nextCandidates && nextCandidates.length > 0 ? nextCandidates[Math.floor(Math.random() * nextCandidates.length)] : topology.edges[Math.floor(Math.random() * topology.edges.length)].id;
         }
-
-        // In Reduce Motion mode, only render 25% of vehicles on the GUI
-        if (reduceMotion && v.id % 4 !== 0) {
-          continue;
-        }
-
-        // Interpolate along multi-segment curved polyline
         const geom = edge.geometry;
         const totalSegments = geom.length - 1;
         const segIdx = Math.min(Math.floor(v.progress * totalSegments), totalSegments - 1);
         const segT = (v.progress * totalSegments) - segIdx;
-
         const p1 = project(geom[segIdx].lon, geom[segIdx].lat, width, height);
         const p2 = project(geom[segIdx + 1].lon, geom[segIdx + 1].lat, width, height);
-
         const vx = p1.x + (p2.x - p1.x) * segT;
         const vy = p1.y + (p2.y - p1.y) * segT;
-
-        // Render Vehicle Dot: Modern indigo particle with white core (or glowing brake amber when halting)
         ctx.beginPath();
-        ctx.arc(vx, vy, 4.0, 0, Math.PI * 2);
+        ctx.arc(vx, vy, 3.8, 0, Math.PI * 2);
         ctx.fillStyle = v.isHalted ? '#f59e0b' : '#6366f1';
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
@@ -607,74 +633,134 @@ export function NetworkMap({
         ctx.stroke();
       }
 
-      // 5. Intersections, Signals & POI Badges
+      // 4b. Dispatched Transit Buses (Single Linked List Path Animators from API / snapshots)
+      const allActiveBuses: Array<{ busId: string; label: string; edgeRoute: number[] }> = [];
+      if (dispatchedBuses && dispatchedBuses.length > 0) {
+        for (const b of dispatchedBuses) allActiveBuses.push({ busId: b.busId, label: b.label, edgeRoute: b.edgeRoute });
+      }
+      if (snapshot?.active_transit_buses && snapshot.active_transit_buses.length > 0) {
+        for (const b of snapshot.active_transit_buses) {
+          if (!allActiveBuses.some(x => x.busId === b.bus_id)) {
+            allActiveBuses.push({ busId: b.bus_id, label: b.label, edgeRoute: b.route_edges });
+          }
+        }
+      }
+
+      for (const bus of allActiveBuses) {
+        if (!bus.edgeRoute || bus.edgeRoute.length === 0) continue;
+        let busState = transitBusesRef.current.get(bus.busId);
+        if (!busState) {
+          busState = { currentEdgeIndex: 0, progress: 0, isHalted: false };
+          transitBusesRef.current.set(bus.busId, busState);
+        }
+
+        const curEdgeId = bus.edgeRoute[busState.currentEdgeIndex % bus.edgeRoute.length];
+        const edge = edgeLookup.get(curEdgeId);
+        if (!edge || !edge.geometry || edge.geometry.length < 2) continue;
+
+        const es = edgeStateMap.get(edge.id);
+        const baseSpeed = es ? es.effective_speed_mps : edge.free_speed_mps;
+        const lenM = Math.max(10, edge.length_m);
+        let busHalted = false;
+
+        const termNode = nodeLookup.get(edge.to);
+        if (termNode && termNode.signal) {
+          const sig = signalStateMap.get(termNode.id);
+          if (sig) {
+            const geom = edge.geometry;
+            const lastP = geom[geom.length - 1];
+            const prevP = geom[geom.length - 2];
+            const isEW = Math.abs(lastP.lon - prevP.lon) >= Math.abs(lastP.lat - prevP.lat);
+            const signalRed = isEW ? !sig.isEWGreen : !sig.isNSGreen;
+            if (signalRed && busState.progress >= 0.84) busHalted = true;
+          }
+        }
+        busState.isHalted = busHalted;
+
+        if (!busHalted && effectiveTick > 0) {
+          const busSpeed = Math.min(baseSpeed, 14.0) * effectiveTick;
+          busState.progress += (busSpeed * stepDt) / lenM;
+        }
+
+        if (busState.progress >= 1.0) {
+          busState.progress = 0;
+          busState.currentEdgeIndex = (busState.currentEdgeIndex + 1) % bus.edgeRoute.length;
+        }
+
+        const geom = edge.geometry;
+        const totalSegments = geom.length - 1;
+        const segIdx = Math.min(Math.floor(busState.progress * totalSegments), totalSegments - 1);
+        const segT = (busState.progress * totalSegments) - segIdx;
+        const p1 = project(geom[segIdx].lon, geom[segIdx].lat, width, height);
+        const p2 = project(geom[segIdx + 1].lon, geom[segIdx + 1].lat, width, height);
+        const bx = p1.x + (p2.x - p1.x) * segT;
+        const by = p1.y + (p2.y - p1.y) * segT;
+
+        // Distinct Golden / Amber Glowing Transit Bus
+        ctx.save();
+        ctx.shadowColor = 'rgba(245, 158, 11, 0.75)';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(bx, by, 7.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.0;
+        ctx.stroke();
+
+        // Bus label
+        ctx.shadowColor = 'transparent';
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 8.5px Manrope, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(bus.busId, bx, by - 10);
+        ctx.restore();
+      }
+
+      // 5. Intersections
       for (const node of topology.nodes) {
         const pt = project(node.position.lon, node.position.lat, width, height);
-
-        // 5a. Traffic Signal Heads
         if (node.signal) {
           const sig = signalStateMap.get(node.id);
           const isGreen = sig ? (sig.isEWGreen || sig.isNSGreen) : true;
-
           ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 5.5, 0, Math.PI * 2);
+          ctx.arc(pt.x, pt.y, 6.0, 0, Math.PI * 2);
           ctx.fillStyle = '#0f172a';
           ctx.fill();
+          ctx.strokeStyle = '#334155';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
           ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 3.4, 0, Math.PI * 2);
+          ctx.arc(pt.x, pt.y, 3.6, 0, Math.PI * 2);
           ctx.fillStyle = isGreen ? '#10b981' : '#ef4444';
           ctx.fill();
           continue;
         }
-
-        // 5b. Bus Stop Teardrop Pin with White Bus Icon
         if (node.bus_stop) {
           drawMapPin(ctx, pt.x, pt.y, '#0891b2', 'bus');
           continue;
         }
-
-        // 5c. Building POI Teardrop Pins (School, Office, Mall, Store) with White Vector Icons
         if (node.building) {
           const btype = node.building.toLowerCase();
           let bColor = '#4f46e5';
           let pinType: 'school' | 'office' | 'mall' | 'store' = 'store';
-
-          if (btype === 'school') {
-            bColor = '#d97706'; // Amber School
-            pinType = 'school';
-          } else if (btype === 'office') {
-            bColor = '#475569'; // Slate Office
-            pinType = 'office';
-          } else if (btype === 'mall') {
-            bColor = '#9333ea'; // Purple Mall
-            pinType = 'mall';
-          } else if (btype === 'store' || btype === 'shop') {
-            bColor = '#059669'; // Emerald Shop
-            pinType = 'store';
-          }
-
+          if (btype === 'school') { bColor = '#d97706'; pinType = 'school'; }
+          else if (btype === 'office') { bColor = '#475569'; pinType = 'office'; }
+          else if (btype === 'mall') { bColor = '#9333ea'; pinType = 'mall'; }
+          else if (btype === 'store' || btype === 'shop') { bColor = '#059669'; pinType = 'store'; }
           drawMapPin(ctx, pt.x, pt.y, bColor, pinType);
-          continue;
         }
-
-        // 5d. Minor intersection junction dot
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 2.0, 0, Math.PI * 2);
-        ctx.fillStyle = '#334155';
-        ctx.fill();
       }
-
       ctx.restore();
       animFrameRef.current = requestAnimationFrame(render);
     };
 
     animFrameRef.current = requestAnimationFrame(render);
-
     return () => {
       active = false;
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [topology, snapshot, bounds, transform, project, selectedEdge, hoveredEdge, running, virtualDaySeconds, tickRate, reduceMotion]);
+  }, [topology, snapshot, bounds, transform, project, selectedEdge, hoveredEdge, running, virtualDaySeconds, tickRate, reduceMotion, reduceVehicles, dispatchedBuses]);
 
   // Road & Node mouse hit-testing
   const findEntityAt = useCallback((clientX: number, clientY: number): { edge: TopologyEdge | null; node: TopologyNode | null } => {
@@ -686,18 +772,16 @@ export function NetworkMap({
     const width = rect.width;
     const height = rect.height;
 
-    // 1. Check POI Nodes first
     for (const node of topology.nodes) {
       if (node.bus_stop || node.building || node.signal) {
         const pt = project(node.position.lon, node.position.lat, width, height);
         const headY = pt.y - 10.5;
-        if (Math.hypot(px - pt.x, py - headY) <= 12 || Math.hypot(px - pt.x, py - pt.y) <= 12) {
+        if (Math.hypot(px - pt.x, py - headY) <= 18 || Math.hypot(px - pt.x, py - pt.y) <= 18) {
           return { edge: null, node };
         }
       }
     }
 
-    // 2. Check Roads
     let closestEdge: TopologyEdge | null = null;
     let minDistance = 16;
     for (const edge of topology.edges) {
@@ -730,10 +814,77 @@ export function NetworkMap({
     setHoveredNode(node);
 
     const rect = canvasRef.current?.getBoundingClientRect();
-    const tipX = e.clientX - (rect?.left ?? 0) + 14;
-    const tipY = e.clientY - (rect?.top ?? 0) - 10;
+    if (!rect) return;
+    const tipX = e.clientX - rect.left + 14;
+    const tipY = e.clientY - rect.top - 10;
 
-    if (node) {
+    // Check active surges hover
+    const surges = snapshot?.active_surges ?? [];
+    let hoveredSurge = null;
+    const canvas = canvasRef.current;
+    if (canvas && surges.length > 0) {
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      for (const s of surges) {
+        const pt = project(s.lon, s.lat, rect.width, rect.height);
+        const rEdge = project(s.lon + (s.radius_m / 111320), s.lat, rect.width, rect.height);
+        const radiusPx = Math.max(32, Math.abs(rEdge.x - pt.x));
+        if (Math.hypot(px - pt.x, py - pt.y) <= radiusPx) {
+          hoveredSurge = s;
+          break;
+        }
+      }
+    }
+
+    // Check active weather storm hover
+    const weather = snapshot?.active_weather ?? [];
+    let hoveredWeather = null;
+    if (canvas && weather.length > 0 && !hoveredSurge) {
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      for (const w of weather) {
+        const pt = project(w.lon, w.lat, rect.width, rect.height);
+        const rEdge = project(w.lon + (w.radius_m / 111320), w.lat, rect.width, rect.height);
+        const radiusPx = Math.max(30, Math.abs(rEdge.x - pt.x));
+        if (Math.hypot(px - pt.x, py - pt.y) <= radiusPx) {
+          hoveredWeather = w;
+          break;
+        }
+      }
+    }
+
+    if (hoveredSurge) {
+      const remaining = Math.max(0, Math.round(hoveredSurge.end_s - virtualDaySeconds));
+      const remMin = Math.floor(remaining / 60);
+      const remSec = remaining % 60;
+      const endH = String(Math.floor(hoveredSurge.end_s / 3600)).padStart(2, '0');
+      const endM = String(Math.floor((hoveredSurge.end_s % 3600) / 60)).padStart(2, '0');
+      const endS = String(Math.floor(hoveredSurge.end_s % 60)).padStart(2, '0');
+      const surgeEffectPct = Math.round((hoveredSurge.factor - 1.0) * 100);
+      setTooltip({
+        x: tipX,
+        y: tipY,
+        title: `Traffic Surge Zone · Node #${hoveredSurge.node_id}`,
+        lines: [
+          `Reason: ${hoveredSurge.label || 'Commercial demand surge'}`,
+          `Congestion Influx: +${Math.max(15, surgeEffectPct)}% traffic pressure`,
+          `Radius: ${Math.round(hoveredSurge.radius_m)}m radius`,
+          `Ends at: ${endH}:${endM}:${endS} (${remMin}m ${remSec}s remaining)`
+        ]
+      });
+    } else if (hoveredWeather) {
+      setTooltip({
+        x: tipX,
+        y: tipY,
+        title: `Localized Rain Storm`,
+        lines: [
+          `Precipitation Intensity: ${Math.round(hoveredWeather.intensity * 100)}%`,
+          `Radius: ${Math.round(hoveredWeather.radius_m)} meters`,
+          `Surface Wetness: ~${Math.round(hoveredWeather.intensity * 80)}% dampness`,
+          `Speed Impact: -${Math.round(hoveredWeather.intensity * 25)}% realistic speed reduction`
+        ]
+      });
+    } else if (node) {
       const lines: string[] = [];
       let title = `Node #${node.id}`;
       if (node.bus_stop) {
@@ -748,8 +899,15 @@ export function NetworkMap({
         else if (b === 'MALL') lines.push('Peak Hours: 12:00–14:00 & 18:00–21:30 (+40% congestion)');
         else if (b === 'STORE') lines.push('Peak Hours: 11:00–20:00 (+35% congestion)');
       } else if (node.signal) {
+        const cycle = node.signal_cycle_s || 60;
+        const offset = node.signal_offset_s || 0;
+        const greenTime = node.signal_green_s || Math.floor(cycle * 0.45);
+        const cycleSec = (virtualDaySeconds + offset) % cycle;
+        const isGreen = cycleSec < greenTime;
+        const secLeft = isGreen ? (greenTime - cycleSec) : (cycle - cycleSec);
         title = `Traffic Signal · Node #${node.id}`;
-        lines.push('Deterministic 60s Cycle (Coordinated)');
+        lines.push(`Live Phase: ${isGreen ? '🟢 GREEN' : '🔴 RED'} (Switches in ${secLeft}s)`);
+        lines.push(`Cycle: ${cycle}s (Green: ${greenTime}s, Offset: ${offset}s)`);
       }
       setTooltip({ x: tipX, y: tipY, title, lines });
     } else if (edge) {
@@ -791,10 +949,6 @@ export function NetworkMap({
         const { edge, node } = findEntityAt(e.clientX, e.clientY);
         if (edge) {
           if (onSelectEdge) onSelectEdge(edge);
-          if (onSelect && topology) {
-            const fromNode = topology.nodes.find(n => n.id === edge.from) ?? null;
-            onSelect(fromNode);
-          }
         } else if (node) {
           onSelect(node);
         }

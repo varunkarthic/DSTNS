@@ -30,6 +30,7 @@ public:
     SimulationEngine(const SimulationEngine&)=delete;
     SimulationEngine& operator=(const SimulationEngine&)=delete;
 
+    nlohmann::json prepare(Seed128 seed,const ScenarioConfig& config);
     nlohmann::json start(Seed128 seed,const ScenarioConfig& config,std::uint32_t start_virtual_s=0);
     nlohmann::json play(); nlohmann::json pause(); nlohmann::json stop(); nlohmann::json reset();
     nlohmann::json seek(std::uint32_t target_virtual_s,bool resume_after);
@@ -37,6 +38,9 @@ public:
     nlohmann::json set_module(const std::string& module,bool enabled);
     nlohmann::json add_weather(NodeId epicenter,double intensity,double radius_m,std::uint32_t duration_min,double flood_gain);
     nlohmann::json override_edge(EdgeId edge,double speed_multiplier,double capacity_multiplier,bool closed);
+    nlohmann::json toggle_signal(NodeId node,std::optional<int> force_phase=std::nullopt);
+    nlohmann::json trigger_surge(NodeId node,double factor,double radius_m,std::uint32_t duration_s);
+    nlohmann::json validate_transit_route(const std::vector<std::uint32_t>& nodes,const std::string& bus_id,const std::string& label);
     nlohmann::json undo(std::uint32_t count); nlohmann::json redo(std::uint32_t count);
 
     [[nodiscard]] nlohmann::json status() const; [[nodiscard]] nlohmann::json topology() const;
@@ -52,6 +56,8 @@ public:
     void terminate();
 private:
     struct Checkpoint { std::uint32_t virtual_s{}; std::vector<NodeDynamic> nodes; std::vector<EdgeDynamic> edges; std::size_t news_size{}; };
+    struct ActiveSurgeZone { std::uint32_t id{}; NodeId node{}; std::uint32_t start_s{}; std::uint32_t end_s{}; double factor{1.8}; double radius_m{300}; std::string label; };
+    struct DispatchedBusRecord { std::string bus_id, label; std::vector<std::uint32_t> nodes, route_edges; double total_distance_m{0.0}; };
     void loop(); void transition(Lifecycle next); void step_to(std::uint32_t target); void physics_step(std::uint32_t dt);
     void restore_to(std::uint32_t target); void anchor_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
     [[nodiscard]] nlohmann::json clock_json() const; [[nodiscard]] nlohmann::json envelope(nlohmann::json data) const;
@@ -63,9 +69,12 @@ private:
     std::string run_id_; std::uint32_t virtual_s_{}; std::uint32_t start_virtual_s_{}; double tick_rate_{1};
     std::chrono::steady_clock::time_point anchor_wall_{}; std::uint32_t anchor_virtual_s_{};
     std::chrono::steady_clock::time_point last_global_dump_{};
-    std::vector<DwsEvent> manual_weather_; std::vector<NewsItem> news_; std::vector<AppliedCommand> commands_,redo_;
+    std::vector<DwsEvent> manual_weather_; std::vector<ActiveSurgeZone> active_surges_;
+    std::vector<DispatchedBusRecord> active_transit_buses_;
+    std::vector<NewsItem> news_; std::vector<AppliedCommand> commands_,redo_;
     std::vector<Checkpoint> checkpoints_; std::uint64_t next_command_id_{1},next_news_id_{1},next_event_id_{1'000'000};
     std::vector<const SignalPlan*> signal_by_node_;
+    std::map<std::uint32_t, int> signal_overrides_;
     std::uint64_t config_revision_{}; bool terminate_requested_{};
 };
 

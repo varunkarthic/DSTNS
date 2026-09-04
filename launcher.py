@@ -39,8 +39,8 @@ def load_config() -> dict:
         cfg = json.load(handle)
     duration = cfg["playback"]["duration_seconds"]
     tick = cfg["playback"]["tick_rate"]
-    if not 60 <= duration <= 1200:
-        raise ValueError("playback.duration_seconds must be in [60, 1200]")
+    if not 60 <= duration <= 3600:
+        raise ValueError("playback.duration_seconds must be in [60, 3600]")
     if not 0 < tick <= 100:
         raise ValueError("playback.tick_rate must be in (0, 100]")
     return cfg
@@ -303,7 +303,7 @@ def edit_config() -> None:
         cfg["playback"]["tick_rate"] = float(tick)
     if port:
         cfg["api"]["port"] = int(port)
-    if not 60 <= cfg["playback"]["duration_seconds"] <= 1200 or not 0 < cfg["playback"]["tick_rate"] <= 10:
+    if not 60 <= cfg["playback"]["duration_seconds"] <= 3600 or not 0 < cfg["playback"]["tick_rate"] <= 100:
         raise ValueError("configuration is outside documented bounds")
     CONFIG.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     print("Configuration saved.")
