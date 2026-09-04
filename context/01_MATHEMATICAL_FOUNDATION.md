@@ -46,7 +46,7 @@ A physically coherent design must distinguish three notions of time.
 Let
 
 \[
-T_P \in [60,1200]\text{ seconds}
+T_P \in [60,3600]\text{ seconds}
 \]
 
 be the user-selected `simulation_time` / playback duration. Default:
@@ -89,7 +89,7 @@ S=t_D\bmod60.
 
 ### 2.3 SUMO physics time
 
-For traffic realism, SUMO should evolve on the **virtual-day timescale**, not on the 60–1200 second playback clock. The target engine time is
+For traffic realism, SUMO should evolve on the **virtual-day timescale**, not on the 60–3600 second playback clock. The target engine time is
 
 \[
 t_{SUMO}=t_D.
@@ -1454,7 +1454,7 @@ Recommended hard invariants:
 0 <= rainfall <= 1
 0 <= building_effect <= 1
 0 <= simulation_percentage <= 1
-60 <= playback_duration <= 1200
+60 <= playback_duration <= 3600
 1 <= lane_count <= configured_max
 0 < speed <= configured_max_speed
 0 <= capacity <= configured_max_capacity
@@ -1619,4 +1619,3 @@ strict_replay:
   canonical_sorting: true
   pinned_sumo_proj: true
 ```
-

@@ -116,7 +116,7 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
 
             if (!idStr.empty() && !latStr.empty() && !lonStr.empty()) {
                 const auto nid = std::stoll(idStr);
-                RawNode rn{nid, std::stod(latStr), std::stod(lonStr)};
+                RawNode rn{nid, std::stod(latStr), std::stod(lonStr), false, false, std::nullopt};
 
                 // Check if has inner tags before </node>
                 if (tag.find("/>") == std::string_view::npos) {
@@ -212,24 +212,104 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
 
     if (referenced.empty()) throw std::invalid_argument("eligible OSM ways reference no available nodes");
 
-    // Deterministic connected BFS from random anchor
-    std::vector<std::int64_t> anchors(referenced.begin(), referenced.end());
-    const auto root_osm = anchors[rng.bounded({RngDomain::MapSelection, 0, 0, 0}, static_cast<std::uint32_t>(anchors.size()))];
-    std::vector<std::int64_t> selected;
-    std::set<std::int64_t> seen{root_osm};
-    std::queue<std::int64_t> q;
-    q.push(root_osm);
+    // Compute geographic bounding box across all referenced nodes
+    double min_lat = 90.0, max_lat = -90.0, min_lon = 180.0, max_lon = -180.0;
+    for (const auto id : referenced) {
+        const auto& n = raw_nodes.at(id);
+        if (n.lat < min_lat) min_lat = n.lat;
+        if (n.lat > max_lat) max_lat = n.lat;
+        if (n.lon < min_lon) min_lon = n.lon;
+        if (n.lon > max_lon) max_lon = n.lon;
+    }
+    const double mid_lat = (min_lat + max_lat) / 2.0;
+    const double mid_lon = (min_lon + max_lon) / 2.0;
 
-    const auto target_nodes = std::min(max_nodes, static_cast<std::uint32_t>(referenced.size()));
-    while (!q.empty() && selected.size() < target_nodes) {
-        const auto u = q.front();
-        q.pop();
-        selected.push_back(u);
-        for (auto v : adjacency[u]) {
-            if (!seen.contains(v)) {
-                seen.insert(v);
-                q.push(v);
+    // Connected Radial Frontier Growth (CRFG, Section 5.3)
+    // Partition anchors into 9 geographic sectors to guarantee vastly different maps across seeds
+    std::vector<std::int64_t> anchors;
+    for (const auto id : referenced) {
+        if (adjacency[id].size() >= 2) anchors.push_back(id);
+    }
+    if (anchors.empty()) anchors.assign(referenced.begin(), referenced.end());
+
+    // Deterministically pick a target sector (0: North, 1: North-East, 2: East, 3: South-East, 4: South, 5: South-West, 6: West, 7: North-West, 8: Central Core)
+    const std::uint32_t sector_idx = rng.bounded({RngDomain::MapSelection, 0, 0, 1}, 9);
+    std::vector<std::int64_t> sector_anchors;
+    for (const auto id : anchors) {
+        const auto& n = raw_nodes.at(id);
+        const bool north = n.lat >= mid_lat;
+        const bool east = n.lon >= mid_lon;
+        switch (sector_idx) {
+            case 0: if (north && std::abs(n.lon - mid_lon) < (max_lon - min_lon) * 0.25) sector_anchors.push_back(id); break;
+            case 1: if (north && east) sector_anchors.push_back(id); break;
+            case 2: if (east && std::abs(n.lat - mid_lat) < (max_lat - min_lat) * 0.25) sector_anchors.push_back(id); break;
+            case 3: if (!north && east) sector_anchors.push_back(id); break;
+            case 4: if (!north && std::abs(n.lon - mid_lon) < (max_lon - min_lon) * 0.25) sector_anchors.push_back(id); break;
+            case 5: if (!north && !east) sector_anchors.push_back(id); break;
+            case 6: if (!east && std::abs(n.lat - mid_lat) < (max_lat - min_lat) * 0.25) sector_anchors.push_back(id); break;
+            case 7: if (north && !east) sector_anchors.push_back(id); break;
+            default: if (std::abs(n.lat - mid_lat) < (max_lat - min_lat) * 0.25 && std::abs(n.lon - mid_lon) < (max_lon - min_lon) * 0.25) sector_anchors.push_back(id); break;
+        }
+    }
+    const auto& candidate_pool = !sector_anchors.empty() ? sector_anchors : anchors;
+
+    // Dynamically vary the target node count over a wide range (180 to 750 nodes) based on seed
+    std::uint32_t target_nodes = std::min(max_nodes, static_cast<std::uint32_t>(referenced.size()));
+    if (referenced.size() > 250 && max_nodes > 250) {
+        const std::uint32_t size_variance = rng.bounded({RngDomain::MapSelection, 0, 1, 1}, 520);
+        target_nodes = 180 + size_variance;
+        target_nodes = std::min(target_nodes, static_cast<std::uint32_t>(referenced.size()));
+        target_nodes = std::min(target_nodes, max_nodes);
+    }
+
+    std::vector<std::int64_t> selected;
+    std::int64_t root_osm = 0;
+
+    struct CrfgCandidate {
+        double dist;
+        std::int64_t osm_id;
+        bool operator>(const CrfgCandidate& o) const {
+            if (std::abs(dist - o.dist) > 1e-6) return dist > o.dist;
+            return osm_id > o.osm_id;
+        }
+    };
+
+    // Retry counter 'a' if component is too small
+    for (std::uint32_t a = 0; a < 16; ++a) {
+        selected.clear();
+        root_osm = candidate_pool[rng.bounded({RngDomain::MapSelection, a, 0, 0}, static_cast<std::uint32_t>(candidate_pool.size()))];
+        const auto& r_root = raw_nodes.at(root_osm);
+        const double root_lat = r_root.lat;
+
+        std::set<std::int64_t> finalized;
+        std::map<std::int64_t, double> distance{{root_osm, 0.0}};
+        std::priority_queue<CrfgCandidate, std::vector<CrfgCandidate>, std::greater<CrfgCandidate>> pq;
+        pq.push({0.0, root_osm});
+
+        while (!pq.empty() && selected.size() < target_nodes) {
+            const auto top = pq.top();
+            pq.pop();
+            if (finalized.contains(top.osm_id)) continue;
+            finalized.insert(top.osm_id);
+            selected.push_back(top.osm_id);
+
+            for (auto v : adjacency[top.osm_id]) {
+                if (finalized.contains(v)) continue;
+                const auto& r_u = raw_nodes.at(top.osm_id);
+                const auto& r_v = raw_nodes.at(v);
+                const double dy = (r_v.lat - r_u.lat) * 111320.0;
+                const double dx = (r_v.lon - r_u.lon) * 111320.0 * std::cos(root_lat * 3.141592653589793 / 180.0);
+                const double candidate = top.dist + std::sqrt(dx * dx + dy * dy);
+                const auto known = distance.find(v);
+                if (known == distance.end() || candidate < known->second) {
+                    distance[v] = candidate;
+                    pq.push({candidate, v});
+                }
             }
+        }
+
+        if (selected.size() >= std::min(target_nodes, 25u)) {
+            break;
         }
     }
 

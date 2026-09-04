@@ -285,12 +285,13 @@ void ApiServer::routes() {
     });
     server_->Post("/api/v1/control/events/weather", [this](const auto& req, auto& r) {
         auto j = body(req);
+        const double default_rad = 100.0 + static_cast<double>(std::rand() % 501);
         send(r, engine_.add_weather(
             NodeId{j.at("epicenter_node")},
-            j.at("intensity"),
-            j.at("radius_m"),
-            j.at("duration_virtual_minutes"),
-            j.value("flood_gain", .5)
+            j.value("intensity", 0.85),
+            j.value("radius_m", default_rad),
+            j.value("duration_virtual_minutes", 60.0),
+            j.value("flood_gain", 0.5)
         ), 202);
     });
     server_->Post("/api/v1/control/events/traffic", [this](const httplib::Request& req, httplib::Response& r) {
@@ -315,6 +316,54 @@ void ApiServer::routes() {
     };
     server_->Put(R"(/api/v1/control/edges/(\d+))", edge_override_handler);
     server_->Post(R"(/api/v1/control/edges/(\d+)/override)", edge_override_handler);
+    server_->Post("/api/v1/playback/prepare", [this](const httplib::Request& req, httplib::Response& r) {
+        auto j = body(req);
+        Seed128 seed;
+        if (!j.contains("seed") || j.at("seed").is_null()) {
+            seed = Seed128::secure();
+        } else if (j.at("seed").is_string()) {
+            const auto s = j.at("seed").get<std::string>();
+            if (s.empty() || s == "auto" || s == "0x0" || s == "random") {
+                seed = Seed128::secure();
+            } else {
+                seed = Seed128::parse(s);
+            }
+        } else if (j.at("seed").is_number_unsigned()) {
+            const auto val = j.at("seed").get<std::uint64_t>();
+            seed = (val == 0) ? Seed128::secure() : Seed128{0, val};
+        } else {
+            seed = Seed128::secure();
+        }
+        auto c = config_from(j);
+        send(r, engine_.prepare(seed, c), 200);
+    });
+
+    server_->Post(R"(/api/v1/control/signals/(\d+)/toggle)", [this](const auto& req, auto& r) {
+        const auto node_id = static_cast<std::uint32_t>(std::stoul(req.matches[1]));
+        send(r, engine_.toggle_signal(NodeId{node_id}));
+    });
+    server_->Post(R"(/api/v1/control/signals/(\d+))", [this](const auto& req, auto& r) {
+        const auto node_id = static_cast<std::uint32_t>(std::stoul(req.matches[1]));
+        send(r, engine_.toggle_signal(NodeId{node_id}));
+    });
+    server_->Post("/api/v1/control/events/surge", [this](const auto& req, auto& r) {
+        auto j = body(req);
+        send(r, engine_.trigger_surge(
+            NodeId{j.at("node_id")},
+            j.value("factor", 1.8),
+            j.value("radius_m", 350.0),
+            j.value("duration_s", 1800u)
+        ), 202);
+    });
+    server_->Post("/api/v1/control/transit/route", [this](const auto& req, auto& r) {
+        auto j = body(req);
+        const std::vector<std::uint32_t> nodes = j.at("nodes");
+        const auto bus_id = j.value("bus_id", "BUS-101");
+        const auto label = j.value("label", "Transit Line " + bus_id);
+        const auto res = engine_.validate_transit_route(nodes, bus_id, label);
+        send(r, res, res.value("valid", false) ? 200 : 400);
+    });
+
     server_->Post("/api/v1/control/undo", [this](const auto& req, auto& r) {
         send(r, engine_.undo(body(req).value("count", std::uint32_t{1})));
     });

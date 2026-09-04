@@ -33,6 +33,6 @@ DSTNS configuration is stored in `config/defaults.json` and validated strictly o
 ```
 
 ## Validation Constraints
-- `playback.duration_seconds`: Integer in $[60, 1200]$.
-- `playback.tick_rate`: Floating-point in $(0, 10]$.
+- `playback.duration_seconds`: Integer in $[60, 3600]$.
+- `playback.tick_rate`: Floating-point in $(0, 100]$.
 - `dws.frequency`: Non-negative integer (e.g. 0 to 8).

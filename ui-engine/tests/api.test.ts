@@ -15,23 +15,24 @@ describe('DSTNS API client',()=>{
   });
 });
 
-describe('16-Digit Numeric Seed Sanitizer',()=>{
-  it('pads shorter numbers with trailing zeros to exactly 16 characters', ()=>{
+describe('Scenario Seed Sanitizer (16 to 128 chars)',()=>{
+  it('pads shorter numbers with trailing zeros to at least 16 characters', ()=>{
     expect(sanitizeNumericSeed('12345')).toBe('1234500000000000');
     expect(sanitizeNumericSeed('42')).toBe('4200000000000000');
   });
 
-  it('truncates longer inputs to the first 16 digits', ()=>{
-    expect(sanitizeNumericSeed('1234567890123456789999')).toBe('1234567890123456');
+  it('preserves seeds between 16 and 128 characters and truncates beyond 128', ()=>{
+    expect(sanitizeNumericSeed('12345678901234567890')).toBe('12345678901234567890');
+    const long135 = '1'.repeat(135);
+    expect(sanitizeNumericSeed(long135)).toBe('1'.repeat(128));
   });
 
   it('forces negative numbers to positive by stripping minus sign', ()=>{
     expect(sanitizeNumericSeed('-98765')).toBe('9876500000000000');
   });
 
-  it('ignores any non-digit characters in input', ()=>{
-    expect(sanitizeNumericSeed('seed-0x45a9b2c!')).toBe('0459200000000000');
-    expect(sanitizeNumericSeed('hello world')).toBe('0000000000000000');
+  it('supports 128-char hex seeds starting with 0x', ()=>{
+    expect(sanitizeNumericSeed('0x5089050192221083')).toBe('0x50890501922210830000000000000000');
   });
 
   it('preserves exactly 16 digit inputs', ()=>{

@@ -1,5 +1,6 @@
 #include "dstns/engine.hpp"
 #include "dstns/graph.hpp"
+#include "dstns/osm.hpp"
 #include "dstns/rng.hpp"
 #include "dstns/scenario.hpp"
 
@@ -36,9 +37,18 @@ int main(){try{
     for(std::size_t i=1;i<s1.dws_events.size();++i){const auto p0=s1.dws_events[i-1].start_ppm/1e6*cfg.playback_duration_s;const auto p1=s1.dws_events[i].start_ppm/1e6*cfg.playback_duration_s;check(p1-p0>=4.999,"DWS playback spacing");}
     auto without_news=cfg;without_news.news=false;auto s3=compiler.compile(seed,without_news);check(s1.graph_hash==s3.graph_hash&&s1.event_hash==s3.event_hash,"News module isolation");
     auto osm_cfg=cfg;osm_cfg.osm_file="tests/fixtures/roads.osm.xml";osm_cfg.max_nodes=50;auto osm=compiler.compile(seed,osm_cfg);check(osm.nodes.size()==9,"OSM road-only node filtering");check(osm.edges.size()==24,"OSM segment bidirectional normalization");check(std::any_of(osm.edges.begin(),osm.edges.end(),[](const auto&e){return e.synthetic_reverse;}),"OSM one-way provenance retained");
+    const auto alternate_seed=Seed128::parse("0xfedcba98765432100123456789abcdef");
+    const auto district1=OsmRoadLoader{}.load_xml("data/fixtures/downtown_osm.xml",50000,rng);
+    const auto district1_repeat=OsmRoadLoader{}.load_xml("data/fixtures/downtown_osm.xml",50000,same);
+    const auto district2=OsmRoadLoader{}.load_xml("data/fixtures/downtown_osm.xml",50000,DeterministicRng(alternate_seed));
+    auto osm_ids=[](const OsmRoadGraph&g){std::vector<std::int64_t> ids;for(const auto&n:g.nodes)ids.push_back(n.osm_node_id);return ids;};
+    check(osm_ids(district1)==osm_ids(district1_repeat),"same seed reproduces OSM district");
+    check(osm_ids(district1)!=osm_ids(district2),"different seed selects different OSM district");
+    check(district1.nodes.size()>=260&&district1.nodes.size()<=850,"OSM district size bounded");
     std::cerr<<"[test] graph\n";GraphStore graph(s1);RoutePlanner routes(graph);auto route=routes.route(NodeId{0},NodeId{static_cast<std::uint32_t>(s1.nodes.size()-1)});check(route.found&&!route.edges.empty(),"A* route");check(routes.route(NodeId{3},NodeId{3}).found&&routes.route(NodeId{3},NodeId{3}).cost_ms==0,"zero route");
     graph.edge_state(route.edges.front()).closed=true;auto alternate=routes.route(NodeId{0},NodeId{static_cast<std::uint32_t>(s1.nodes.size()-1)});check(alternate.found,"routing around closure");
-    rejects([&]{auto bad=cfg;bad.tick_rate=0;(void)compiler.compile(seed,bad);},"invalid tick rate rejected");rejects([&]{auto bad=cfg;bad.dws_frequency=25;(void)compiler.compile(seed,bad);},"impossible weather schedule rejected");
+    auto max_duration=cfg;max_duration.playback_duration_s=3600;(void)compiler.compile(seed,max_duration);
+    rejects([&]{auto bad=cfg;bad.playback_duration_s=3601;(void)compiler.compile(seed,bad);},"duration above 3600 rejected");rejects([&]{auto bad=cfg;bad.tick_rate=0;(void)compiler.compile(seed,bad);},"invalid tick rate rejected");rejects([&]{auto bad=cfg;bad.dws_frequency=25;(void)compiler.compile(seed,bad);},"impossible weather schedule rejected");
 
     std::cerr<<"[test] engine\n";const auto temp=std::filesystem::temp_directory_path()/("dstns-test-"+s1.scenario_hash.substr(7,10));std::filesystem::remove_all(temp);RuntimeLogger logger(temp);SimulationEngine engine(logger);std::cerr<<"[test] engine-start\n";engine.start(seed,cfg);std::cerr<<"[test] engine-pause\n";engine.pause();std::cerr<<"[test] engine-seek1\n";auto first=engine.seek(3600,false);(void)first;auto snap1=engine.snapshot()["data"];std::cerr<<"[test] engine-seek2\n";engine.seek(7200,false);engine.seek(3600,false);auto snap2=engine.snapshot()["data"];check(snap1==snap2,"checkpoint seek reconstruction");auto tick=engine.set_tick_rate(.5);check(tick["tick_rate"]==.5,"tick rate control");engine.undo(1);check(engine.status()["clock"]["tick_rate"]==1.0,"undo control");engine.redo(1);check(engine.status()["clock"]["tick_rate"]==.5,"redo control");rejects([&]{(void)engine.set_day(2);},"invalid day rejected");std::cerr<<"[test] engine-stop\n";engine.stop();check(engine.lifecycle()==Lifecycle::Stopped,"stop leaves server lifecycle");engine.reset();check(engine.lifecycle()==Lifecycle::Idle,"reset to idle");engine.terminate();std::filesystem::remove_all(temp);std::cerr<<"[test] done\n";
     std::cout<<"DSTNS tests passed: "<<tests<<" assertions\n";return 0;

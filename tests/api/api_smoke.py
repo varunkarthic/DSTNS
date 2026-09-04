@@ -80,7 +80,7 @@ def main():
             # 4. Start Simulation
             req_start = {
                 "seed": "0x123456789ABCDEF0",
-                "playback_duration_seconds": 1200,
+                "playback_duration_seconds": 3600,
                 "day": 0,
                 "tick_rate": 1.0,
                 "modules": {
@@ -178,7 +178,8 @@ def main():
 
             # 12. Tick Rate Control (Valid & Invalid)
             code, tick = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 0.5})
-            assert code == 200 and tick["tick_rate"] == 0.5 and tick["target_virtual_rate"] == 36.0
+            expected_rate = 86_400 / req_start["playback_duration_seconds"] * 0.5
+            assert code == 200 and tick["tick_rate"] == 0.5 and tick["target_virtual_rate"] == expected_rate
             assertions += 1
 
             code, err = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 0.0})

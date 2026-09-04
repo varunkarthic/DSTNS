@@ -1,0 +1,27 @@
+services:
+  dstns:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dstns_simulation_engine
+    restart: unless-stopped
+    ports:
+      # Map host port 8090 to container port 8090
+      - "0.0.0.0:8090:8090"
+    volumes:
+      - dstns_logs:/app/logs
+      - dstns_data:/app/data
+    environment:
+      - DSTNS_LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8090/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  dstns_logs:
+    driver: local
+  dstns_data:
+    driver: local

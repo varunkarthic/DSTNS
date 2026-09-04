@@ -1017,7 +1017,7 @@ Example:
 Validation:
 
 ```text
-60 <= simulation_time <= 1200
+60 <= simulation_time <= 3600
 day in {0,1,"auto"}
 max_nodes <= 50000
 ```
@@ -1704,4 +1704,3 @@ Layer 4 — Interaction
 ```
 
 The seed controls Layers 1–3. Layer 4 remains exactly replayable through its command journal.
-
