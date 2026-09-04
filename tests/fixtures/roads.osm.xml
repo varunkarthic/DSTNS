@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="dstns-test">
+  <node id="101" lat="23.0200" lon="72.5700"/><node id="102" lat="23.0200" lon="72.5720"/><node id="103" lat="23.0200" lon="72.5740"/>
+  <node id="104" lat="23.0220" lon="72.5700"/><node id="105" lat="23.0220" lon="72.5720"/><node id="106" lat="23.0220" lon="72.5740"/>
+  <node id="107" lat="23.0240" lon="72.5700"/><node id="108" lat="23.0240" lon="72.5720"/><node id="109" lat="23.0240" lon="72.5740"/>
+  <node id="999" lat="23.0300" lon="72.5800"/>
+  <way id="201"><nd ref="101"/><nd ref="102"/><nd ref="103"/><tag k="highway" v="primary"/><tag k="oneway" v="yes"/></way>
+  <way id="202"><nd ref="104"/><nd ref="105"/><nd ref="106"/><tag k="highway" v="secondary"/></way>
+  <way id="203"><nd ref="107"/><nd ref="108"/><nd ref="109"/><tag k="highway" v="residential"/></way>
+  <way id="204"><nd ref="101"/><nd ref="104"/><nd ref="107"/><tag k="highway" v="tertiary"/></way>
+  <way id="205"><nd ref="102"/><nd ref="105"/><nd ref="108"/><tag k="highway" v="residential"/></way>
+  <way id="206"><nd ref="103"/><nd ref="106"/><nd ref="109"/><tag k="highway" v="service"/></way>
+  <way id="999"><nd ref="999"/><nd ref="109"/><tag k="building" v="yes"/></way>
+</osm>

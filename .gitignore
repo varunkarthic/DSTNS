@@ -1,0 +1,12 @@
+build/
+build-asan/
+ui-engine/node_modules/
+ui-engine/dist/
+logs/*.log
+logs/*.db*
+data/scenarios/*
+data/checkpoints/*
+docker/certificates/*
+!docker/certificates/.gitkeep
+__pycache__/
+*.pyc
