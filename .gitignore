@@ -1,6 +1,8 @@
 build/
 build-asan/
 ui-engine/node_modules/
+dstns-operator-cli/node_modules/
+node_modules/
 ui-engine/dist/
 logs/*.log
 logs/*.db*
