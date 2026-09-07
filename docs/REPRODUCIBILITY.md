@@ -10,4 +10,4 @@ DSTNS guarantees bit-for-bit logical reproducibility of simulation outcomes acro
 `map_hash` is the SHA-256 digest of the complete OSM input byte stream. Any source-byte change therefore changes `map_hash` and the derived `scenario_hash`, even when it does not alter the selected road topology or `graph_hash`.
 
 ## Verification
-The dedicated verification CLI `dstns_replay_verify` executes dual compilations and checkpoint-seek reconstructions, asserting exact equality of `graph_hash`, `event_hash`, and `scenario_hash`.
+The dedicated verification CLI `dstns_replay_verify` executes dual compilations and independent engine runs for both synthetic-grid and OSM scenarios. It asserts exact equality of `graph_hash`, `event_hash`, `scenario_hash`, and complete snapshot data at 12,345 virtual seconds.

@@ -258,7 +258,54 @@ Exhaustive arithmetic evaluation for canonical IDs 0-49,999: zero phase-sum viol
 
 #### Git Operations
 
-Branch: `fix/issue-6-scenario-invariants`. Commit, push, PR, checks, merge, resolution comment, and closure pending. The production iterator change is already in merged PR #9; this branch adds the issue-specific fixture, invariant proof, and corrected documentation.
+Branch: `fix/issue-6-scenario-invariants`. Regression/docs commit: `16cb96d`; merge commit: `afebc51`. PR #13 was merged into `dstns`, with no configured GitHub checks. The production iterator fix remains traceable to `5a1a6b4`/PR #9. A detailed resolution comment explained both findings, and issue #6 was manually closed as completed after merge.
+
+#### Final Status
+
+Resolved, merged, documented, and CLOSED.
+
+### Issue #7 — Test suites do not cover what their names claim
+
+#### Problem and Root Cause
+
+- Performance returned success regardless of timing or route completeness.
+- Replay compared same-process scenario hashes but never independent engine state, and omitted OSM runtime coverage.
+- Property tests checked compiled structure but never the dynamic state produced by physics or closure-aware routing.
+- Progress/current-state documentation used static passing claims and stale counts/measurements without describing actual assertion strength or unavailable deployment gates.
+
+The root cause is test naming and documentation outpacing executable assertions. This allowed the checkpoint/news issues to remain invisible and made green results appear stronger than their evidence.
+
+#### Impact Analysis and Plan
+
+Inspected all CTest targets, verification/benchmark tools, CMake working directories and warning policy, engine lifecycle, snapshot schema, OSM fixture path, route closure behavior, normalized fields, docs, context status claims, and test runner composition. Strengthen each suite at its intended layer without adding timing-sensitive sleeps or external services.
+
+#### Implementation
+
+- Performance requires the fixture to resolve all 2,500 routes and enforces a generous 500-microsecond mean A* ceiling while retaining measurements.
+- Replay runs independent `SimulationEngine` instances to 12,345 virtual seconds and compares full snapshot data for both grid and OSM configurations, in addition to all three hashes.
+- `dstns_replay_verify` now performs the same independent grid/OSM runtime comparison instead of same-process compile plus a boundary-only seek.
+- Property tests run physics to 43,210 seconds for weekday/weekend, verify all normalized snapshot fields and effective-speed bounds, then sample all node pairs against deterministic closures and source restrictions.
+- Testing, performance, and current-state documentation now states the exact executable claims, dated sample metrics, current API assertion count, and unrun Docker gate.
+
+#### Tests Added or Modified
+
+Strengthened `dstns_performance_smoke`, `dstns_replay_reproducibility`, `dstns_property_invariants`, and the replay verification CLI. No assertion was removed or weakened.
+
+#### Security / Compatibility / Performance Review
+
+Test-only runtime directories are deterministic, removed before/after use, and contain no credentials. Independent engines are sequential, avoiding cross-test races. The 500-microsecond threshold is over 100 times the measured Release mean and checks gross regressions rather than hardware trivia. Expanded suites remain under seconds on the current machine.
+
+#### Validation Results
+
+Targeted strengthened suites: 3/3 PASS in 4.97 seconds. Direct performance result: 2,500/2,500 routes, 3.6264 microseconds/query; scenario compile 15 ms. Direct property and replay runs: PASS. Updated replay verifier: grid and OSM full runtime snapshots PASS. Full post-review validation pending.
+
+Adversarial review found that `start` followed by immediate `pause` could let the wall-clock worker advance a scheduler-dependent amount before a forward seek. Both replay harnesses now use `prepare` then `seek`, exercising real physics deterministically without a timing race.
+
+Final post-review validation: Release build PASS; CTest 4/4 PASS in 6.51 seconds; replay verifier grid/OSM runtime comparisons PASS; API smoke 79 assertions PASS; SUMO integration PASS; UI Vitest 7/7 PASS; TypeScript/Vite build PASS; `git diff --check` PASS. Debug ASan/UBSan build PASS and all 4 CTest targets PASS in 33.23 seconds. Docker remains environmentally unavailable.
+
+#### Git Operations
+
+Branch: `test/issue-7-meaningful-suites`. Functional commit `59dd4d9`; pushed to origin and opened PR #14 against `dstns`. GitHub reports no configured status checks. Merge, resolution comment, and closure pending.
 
 ## Baseline Validation
 
