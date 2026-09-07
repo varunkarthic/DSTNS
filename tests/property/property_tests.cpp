@@ -43,8 +43,15 @@ int main() {
             // Invariant 2: Bus stops must map to valid edges
             for (const auto& stop : scenario.bus_stops) {
                 assert_true(stop.edge.value < scenario.edges.size(), "Bus stop edge index in bounds");
+                assert_true(is_source_direction_allowed(scenario.edges[stop.edge.value]), "Bus stop edge direction is traversable");
                 assert_true(stop.position_m >= 0.0, "Bus stop position >= 0");
                 assert_true(stop.position_m <= scenario.edges[stop.edge.value].length_m, "Bus stop position within edge length");
+            }
+
+            for (const auto& trip : scenario.trips) {
+                for (const auto edge : trip.route) {
+                    assert_true(is_source_direction_allowed(scenario.edges[edge.value]), "Planned trip excludes forbidden source direction");
+                }
             }
 
             // Invariant 3: Weather events must have valid spatial/temporal bounds

@@ -6,7 +6,9 @@
 
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 
@@ -32,11 +34,20 @@ int main(){try{
     std::cerr<<"[test] scenario\n";ScenarioConfig cfg;cfg.playback_duration_s=120;cfg.grid_width=8;cfg.grid_height=7;cfg.dws_frequency=4;
     ScenarioCompiler compiler;auto s1=compiler.compile(seed,cfg);auto s2=compiler.compile(seed,cfg);
     check(s1.scenario_hash==s2.scenario_hash,"scenario replay hash");check(s1.graph_hash==s2.graph_hash,"graph replay hash");check(!s1.nodes.empty()&&!s1.edges.empty(),"scenario nonempty");
+    check(std::none_of(s1.edges.begin(),s1.edges.end(),[](const auto&e){return e.source_oneway||e.synthetic_reverse;}),"synthetic grid is bidirectional without source-only restrictions");
     check(s1.edges.size()%2==0,"edge pairs");for(const auto&e:s1.edges){check(e.reverse_twin.value<s1.edges.size(),"reverse ID valid");const auto&r=s1.edges[e.reverse_twin.value];check(r.from==e.to&&r.to==e.from&&r.reverse_twin==e.id,"reverse twin invariant");}
     check(!s1.bus_stops.empty(),"bus stops generated");for(const auto&b:s1.bus_stops)check(b.edge.value<s1.edges.size()&&b.position_m<=s1.edges[b.edge.value].length_m,"bus stop materialized");
     for(std::size_t i=1;i<s1.dws_events.size();++i){const auto p0=s1.dws_events[i-1].start_ppm/1e6*cfg.playback_duration_s;const auto p1=s1.dws_events[i].start_ppm/1e6*cfg.playback_duration_s;check(p1-p0>=4.999,"DWS playback spacing");}
     auto without_news=cfg;without_news.news=false;auto s3=compiler.compile(seed,without_news);check(s1.graph_hash==s3.graph_hash&&s1.event_hash==s3.event_hash,"News module isolation");
     auto osm_cfg=cfg;osm_cfg.osm_file="tests/fixtures/roads.osm.xml";osm_cfg.max_nodes=50;auto osm=compiler.compile(seed,osm_cfg);check(osm.nodes.size()==9,"OSM road-only node filtering");check(osm.edges.size()==24,"OSM segment bidirectional normalization");check(std::any_of(osm.edges.begin(),osm.edges.end(),[](const auto&e){return e.synthetic_reverse;}),"OSM one-way provenance retained");
+    GraphStore osm_graph(osm);RoutePlanner osm_routes(osm_graph);const auto forward=osm_routes.route(NodeId{0},NodeId{1});const auto reverse=osm_routes.route(NodeId{1},NodeId{0});
+    check(forward.found&&forward.edges.size()==1&&!osm.edges[forward.edges.front().value].synthetic_reverse,"OSM one-way forward direction traversable");
+    check(reverse.found&&std::none_of(reverse.edges.begin(),reverse.edges.end(),[&](EdgeId e){return osm.edges[e.value].synthetic_reverse;}),"OSM one-way reverse route avoids forbidden direction");
+    check(reverse.edges.size()>1,"OSM one-way reverse route takes legal detour");
+    check(std::none_of(osm.trips.begin(),osm.trips.end(),[&](const PlannedTrip&t){return std::any_of(t.route.begin(),t.route.end(),[&](EdgeId e){return osm.edges[e.value].synthetic_reverse;});}),"planned trips exclude forbidden one-way direction");
+    check(std::none_of(osm.bus_stops.begin(),osm.bus_stops.end(),[&](const BusStop&b){return osm.edges[b.edge.value].synthetic_reverse;}),"bus stops attach to traversable SUMO lanes");
+    check(std::none_of(osm.hotspot_edges.begin(),osm.hotspot_edges.end(),[&](EdgeId e){return osm.edges[e.value].synthetic_reverse;}),"hotspots exclude forbidden one-way direction");
+    const auto sumo_temp=std::filesystem::temp_directory_path()/"dstns-oneway-sumo";std::filesystem::remove_all(sumo_temp);compiler.export_sumo(osm,sumo_temp);std::ifstream sumo_edges(sumo_temp/"network.edg.xml");const std::string sumo_edge_xml((std::istreambuf_iterator<char>(sumo_edges)),{});for(const auto&e:osm.edges)if(e.synthetic_reverse)check(sumo_edge_xml.find("id=\"e"+std::to_string(e.id.value)+"\"")==std::string::npos,"SUMO export excludes forbidden reverse edge");std::filesystem::remove_all(sumo_temp);
     const auto alternate_seed=Seed128::parse("0xfedcba98765432100123456789abcdef");
     const auto district1=OsmRoadLoader{}.load_xml("data/fixtures/downtown_osm.xml",50000,rng);
     const auto district1_repeat=OsmRoadLoader{}.load_xml("data/fixtures/downtown_osm.xml",50000,same);
