@@ -23,3 +23,13 @@ All DSTNS API error responses return structured JSON with descriptive error code
 - `409 Conflict`: Action incompatible with current lifecycle state (e.g. start while already running).
 - `422 Unprocessable Entity`: Validation failed on value bounds.
 - `500 Internal Error`: Unexpected server exception.
+
+## Standard Error Codes
+
+- `INVALID_JSON`: the request body is not valid JSON.
+- `MISSING_FIELD`: a required JSON member is absent.
+- `INVALID_FIELD_TYPE`: a JSON member cannot be converted to the required type.
+- `INVALID_REQUEST`: a syntactically valid value violates request validation.
+- `NOT_FOUND`: a requested runtime entity does not exist.
+- `LIFECYCLE_CONFLICT`: the action is incompatible with the current simulation state.
+- `INTERNAL_ERROR`: an unexpected server failure; ordinary JSON shape errors are never reported with this code.
