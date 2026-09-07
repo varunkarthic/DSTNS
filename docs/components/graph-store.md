@@ -1,4 +1,4 @@
-# GraphStore Subsystem (`dstns::graph`)
+# Graph Storage (`dstns::GraphStore`)
 
 ## Purpose
 The `GraphStore` represents the canonical topological and dynamical state of the road network $G(t) = (V, E, \mathbf{X}_V(t), \mathbf{X}_E(t))$. It enforces a strict separation between immutable static road geometry and mutable dynamic runtime state.
@@ -51,13 +51,15 @@ class GraphStore {
 public:
     explicit GraphStore(Scenario scenario);
     [[nodiscard]] const Scenario& scenario() const;
-    [[nodiscard]] const std::vector<NodeStatic>& nodes() const;
-    [[nodiscard]] const std::vector<EdgeStatic>& edges() const;
-    [[nodiscard]] const std::vector<EdgeId>& outgoing_edges(NodeId u) const;
-    [[nodiscard]] NodeDynamic node_state(NodeId u) const;
-    [[nodiscard]] EdgeDynamic edge_state(EdgeId e) const;
-    void set_node_state(NodeId u, NodeDynamic state);
-    void set_edge_state(EdgeId e, EdgeDynamic state);
+    [[nodiscard]] std::span<const NodeStatic> nodes() const;
+    [[nodiscard]] std::span<const EdgeStatic> edges() const;
+    [[nodiscard]] const NodeStatic& node(NodeId id) const;
+    [[nodiscard]] const EdgeStatic& edge(EdgeId id) const;
+    [[nodiscard]] NodeDynamic& node_state(NodeId id);
+    [[nodiscard]] EdgeDynamic& edge_state(EdgeId id);
+    [[nodiscard]] std::span<const EdgeId> outgoing(NodeId id) const;
+    void commit();
+    void reset_dynamic();
 };
 ```
 

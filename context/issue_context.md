@@ -305,7 +305,48 @@ Final post-review validation: Release build PASS; CTest 4/4 PASS in 6.51 seconds
 
 #### Git Operations
 
-Branch: `test/issue-7-meaningful-suites`. Functional commit `59dd4d9`; pushed to origin and opened PR #14 against `dstns`. GitHub reports no configured status checks. Merge, resolution comment, and closure pending.
+Branch: `test/issue-7-meaningful-suites`. Functional commit `59dd4d9`, journal commit `0bb8bb7`, merge commit `043acb2`. PR #14 was merged into `dstns` with no configured GitHub checks. A detailed resolution comment was posted, and issue #7 was manually closed as completed after merge.
+
+#### Final Status
+
+Resolved, merged, documented, and CLOSED.
+
+### Issue #8 — Component docs describe nonexistent modules and orderings
+
+#### Problem and Root Cause
+
+The component pages presented conceptual areas as nested C++ namespaces (`dstns::graph`, `dstns::engine`, `dstns::spatial`, and others) even though implementation types live directly in `dstns`. The spatial-index and replay pages described standalone subsystems that do not exist, while DRNCP documented node and edge ordering rules different from `OsmRoadLoader`.
+
+The root cause was aspirational architecture prose drifting away from the compact implementation. The same audit found additional concrete mismatches in public signatures, SUMO integration, RNG addresses, CRFG sizing, logging tables, flood/traffic formulas, playback timing, and UI snapshot transport.
+
+#### Impact Analysis and Plan
+
+Inspected all 20 existing component pages and compared them with every public header plus the relevant graph, OSM, scenario, engine, logging, API, SUMO bridge, RNG, and UI call sites. Preserve useful conceptual pages, but name their concrete owners and explicitly distinguish conceptual concerns from classes, namespaces, and external processes.
+
+#### Implementation
+
+- Added a component map stating the single `dstns` namespace and listing concrete type/header ownership.
+- Replaced invented nested namespaces in all affected headings with actual classes or functions.
+- Rewrote spatial documentation around `point_distance`, `wendland_c2`, and the implemented linear scans; R-tree indexing remains future work.
+- Rewrote replay documentation around `SimulationEngine::restore_to`/`step_to`, real checkpoint contents, independent-run verification, and the exact hash coverage.
+- Corrected DRNCP: nodes sort by ascending OSM ID; edges retain XML way/segment order and emit forward then reverse, without endpoint sorting.
+- Corrected other audit findings including CRFG thresholds, bus-stop selection, RNG schema/math, GraphStore signatures, direct API locking, logging tables, flood/traffic behavior, SUMO CLI bridge behavior, playback bounds, and UI polling.
+
+#### Tests Added or Modified
+
+Documentation-only change. Validation checks namespace references, documented symbols, relative Markdown links, whitespace, and the existing executable suites; no runtime test was removed or weakened.
+
+#### Security / Compatibility / Performance Review
+
+No runtime, API, file-format, or dependency behavior changes. The documentation now avoids implying libsumo telemetry ingestion, replay-file compatibility, spatial-index complexity, or edge-ID ordering guarantees that callers cannot rely on.
+
+#### Validation Results
+
+Invented namespace/API scan: PASS. Every documented concrete owner resolves to a declared header type: PASS. Relative Markdown link check: PASS. `git diff --check`: PASS. Release build and CTest: 4/4 PASS in 6.87 seconds. UI Vitest: 7/7 PASS. UI TypeScript/Vite production build: PASS. SUMO integration smoke: PASS.
+
+#### Git Operations
+
+Branch: `docs/issue-8-align-components`. Commit, push, PR, checks, merge, resolution comment, and closure pending.
 
 ## Baseline Validation
 

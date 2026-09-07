@@ -1,17 +1,16 @@
-# Logging Subsystem (`dstns::logging`)
+# Runtime Logging (`dstns::RuntimeLogger`)
 
 ## Purpose
-The Logging Subsystem provides dual persistence: structured SQLite database journaling (`logs/runtime.db`) with Write-Ahead Logging (WAL) and text logs (`logs/system.log`).
+`RuntimeLogger` provides dual persistence in its caller-supplied directory: structured SQLite journaling (`runtime.db`) with Write-Ahead Logging (WAL) and text logs (`system.log`).
 
-## Ephemeral Epoch Reset
-When a new simulation session is launched or tests/resets are performed:
-- `logs/system.log` is truncated and initialized with the new run header.
-- `logs/runtime.db` tables are initialized or reset.
-- Source configuration (`config/defaults.json`) and cached OSM files are preserved.
+## Initialization
+Constructing `RuntimeLogger(directory)` creates the directory, opens or creates `runtime.db`, enables SQLite WAL mode, creates missing tables, and appends an initialization line to `system.log`. Existing logs and rows are not truncated by the constructor or by an engine reset.
 
 ## SQLite Database Tables
-1. `runtime_metadata`: Stores `run_id`, `seed`, `scenario_hash`, `graph_hash`, start times, and resolved config JSON.
+1. `runtime_metadata`: Schema for run ID, seed, scenario hash, timestamps, and status. The current logger exposes the table but does not populate it.
 2. `api_log`: Stores incoming HTTP request/response metrics, method, path, status, and execution duration.
-3. `event_log`: Records scheduled and manual events, virtual timestamp, entity IDs, news message, and undo status.
-4. `control_log`: Tracks all runtime control overrides and module toggles.
-5. `playback_log`: Logs all lifecycle state transitions (`IDLE -> PREPARING -> RUNNING -> PAUSED`).
+3. `event_schedule`: Schema for scheduled events; the current logger does not populate it.
+4. `event_log`: Records control journal entries with virtual timestamp and JSON payload.
+5. `lifecycle_log`: Records lifecycle transitions and state revisions.
+
+The query API intentionally exposes only `api_log`, `event_log`, and `lifecycle_log`.

@@ -5,7 +5,7 @@ The UI Engine is an independent React 19 + TypeScript + Vite web application uti
 
 ## Responsibilities
 - Render the exact canonical road graph from `/api/v1/view/topology` using MapLibre GL GeoJSON layers.
-- Continuously consume bulk dynamic state snapshots from `/api/v1/view/stream` (SSE) or `/api/v1/view/snapshot`.
+- Poll bulk dynamic state from `/api/v1/view/snapshot`; the engine also exposes one-shot SSE-formatted snapshot and news responses for external clients.
 - Render dynamic edge colors based on selectable modes: `Composite`, `Traffic`, `Weather`, `Flood`, `Speed`, `Capacity`.
 - Provide interactive controls: Playback Start modal, Pause/Resume, Seek slider, Tick Rate slider, and Module toggles.
 - Display detailed Node and Edge inspector sidebars upon map feature click.

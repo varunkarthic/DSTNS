@@ -1,4 +1,4 @@
-# OSM Loader (`dstns::osm`)
+# OSM Loader (`dstns::OsmRoadLoader`)
 
 ## Purpose
 The OSM Loader ingests OpenStreetMap XML snapshots and extracts strictly drivable, motorized road networks. It discards non-road entities (e.g., buildings, landuse, administrative boundaries, pedestrian paths) and normalizes geometry into canonical DSTNS coordinates.
@@ -19,6 +19,7 @@ Included vehicular highway types:
 - `tertiary`, `tertiary_link`
 - `residential`, `living_street`, `unclassified`
 - `service`
+- `track`
 
 ## Public Interfaces
 ```cpp
