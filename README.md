@@ -28,7 +28,7 @@ DSTNS features a modern terminal operator interface powered by `@poppinss/cliui`
 The console provides **Ubuntu Server (Subiquity) style navigation**:
 * **`↑` / `↓` Arrow Keys** (or `k` / `j`): Navigate menu options.
 * **`Space`**: Select / mark the highlighted option (`[●]`).
-* **`Enter`**: Execute the selected or highlighted option.
+* **`Enter`**: Execute the selected (`[●]`) option.
 * **`Esc`** (or `q`): Return to previous menu or exit console.
 
 ```bash

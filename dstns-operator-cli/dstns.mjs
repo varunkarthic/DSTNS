@@ -272,9 +272,10 @@ async function selectMenu({
     return items[initialIndex] ?? items[0] ?? null
   }
 
+  clearScreen()
+
   let cursorIndex = Math.max(0, Math.min(initialIndex, items.length - 1))
   let selectedIndex = cursorIndex
-  let hasExplicitlySelected = false
 
   const render = async () => {
     const lines = []
@@ -319,7 +320,7 @@ async function selectMenu({
     lines.push(
       `  ${ui.colors.bold(ui.colors.cyan('[↑/↓]'))} Navigate    ` +
       `  ${ui.colors.bold(ui.colors.cyan('[Space]'))} Select    ` +
-      `  ${ui.colors.bold(ui.colors.cyan('[Enter]'))} Execute    ` +
+      `  ${ui.colors.bold(ui.colors.cyan('[Enter]'))} Execute Selected    ` +
       `  ${ui.colors.bold(ui.colors.dim('[Esc]'))} ${exitLabel}`
     )
     lines.push(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────'))
@@ -373,13 +374,13 @@ async function selectMenu({
 
       if (key?.name === 'space' || str === ' ') {
         selectedIndex = cursorIndex
-        hasExplicitlySelected = true
         await render()
         return
       }
 
       if (key?.name === 'return' || key?.name === 'enter') {
-        const chosen = hasExplicitlySelected ? items[selectedIndex] : items[cursorIndex]
+        // ALWAYS execute the option marked with [●] (selectedIndex)
+        const chosen = items[selectedIndex] ?? items[cursorIndex]
         finish(chosen)
         return
       }
@@ -836,7 +837,6 @@ async function controlSession(serverProcess, port) {
       allowCancel: true,
       cancelId: 'back',
       beforeRender: async () => {
-        banner()
         const state = await dashboardState()
         return renderTelemetry(state)
       },
@@ -922,7 +922,6 @@ async function controlSession(serverProcess, port) {
         allowCancel: true,
         cancelId: 'cancel',
         beforeRender: async () => {
-          banner()
           const state = await dashboardState()
           return `${renderTelemetry(state)}  ${ui.colors.yellow('Are you sure you want to shut down the C++ DSTNS server?')}\n`
         },
@@ -1009,7 +1008,6 @@ async function viewLogs(topic = '') {
       allowCancel: true,
       cancelId: 'back',
       beforeRender: async () => {
-        banner()
         const state = await dashboardState()
         return `${renderTelemetry(state)}  ${ui.colors.dim('Select a log source to inspect runtime activity.')}\n`
       },
@@ -1071,7 +1069,6 @@ async function editConfig() {
       allowCancel: true,
       cancelId: 'back',
       beforeRender: async () => {
-        banner()
         const state = await dashboardState()
         const c = ui.colors
         const lines = [
@@ -1408,7 +1405,6 @@ async function resetRuntime({ confirmed = false } = {}) {
       allowCancel: true,
       cancelId: 'cancel',
       beforeRender: async () => {
-        banner()
         const state = await dashboardState()
         return `${renderTelemetry(state)}  ${ui.colors.yellow('This will delete ephemeral logs, SQLite databases, scenarios, and checkpoints.')}\n`
       },
@@ -1588,7 +1584,6 @@ async function menu() {
       allowCancel: true,
       cancelId: 'exit',
       beforeRender: async () => {
-        banner()
         const state = await dashboardState()
         return renderTelemetry(state)
       },
@@ -1639,20 +1634,17 @@ async function menu() {
           allowCancel: true,
           cancelId: 'back',
           beforeRender: async () => {
-            banner()
             const state = await dashboardState()
             return `${renderTelemetry(state)}  ${ui.colors.dim('Select which verification suite to execute.')}\n`
           },
         })
         if (testChoice && testChoice.id !== 'back') {
           clearScreen()
-          banner()
           await runTests(testChoice.id)
           await pressEnter()
         }
       } else if (choice.id === 'sumo') {
         clearScreen()
-        banner()
         await runStandaloneSumo()
         await pressEnter()
       } else if (choice.id === 'reset') {
@@ -1673,7 +1665,6 @@ async function menu() {
           allowCancel: true,
           cancelId: 'back',
           beforeRender: async () => {
-            banner()
             const state = await dashboardState()
             return `${renderTelemetry(state)}  ${ui.colors.dim('Manage Web UI frontend assets, dev server, and packages.')}\n`
           },
@@ -1697,7 +1688,6 @@ async function menu() {
         }
       } else if (choice.id === 'help') {
         clearScreen()
-        banner()
         renderHelp()
         await pressEnter()
       }
@@ -1768,8 +1758,6 @@ async function cleanup() {
 
 async function main() {
   const { command, topic, options } = parseArgs(process.argv.slice(2))
-
-  if (command || options.mode === 'server') banner()
 
   if (options.mode === 'server') {
     await startServer({ replace: true })
