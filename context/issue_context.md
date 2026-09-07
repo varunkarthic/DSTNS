@@ -94,7 +94,7 @@ Final post-review validation: Release build PASS; CTest 4/4 PASS; API smoke 72 a
 
 #### Git Operations
 
-Branch: `fix/issue-1-one-way-routing`. Commit, push, PR, CI, merge, GitHub resolution comment, and issue state are pending.
+Branch: `fix/issue-1-one-way-routing`. Functional commit: `5a1a6b4`. Pushed to origin. PR #9 targets `dstns`, is mergeable, and reports no configured checks (`statusCheckRollup` empty); local validation is therefore the available CI-equivalent evidence. Merge, GitHub resolution comment, and issue-state verification are pending.
 
 ## Baseline Validation
 
