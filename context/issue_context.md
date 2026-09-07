@@ -126,7 +126,11 @@ DSTNS is a C++20 urban transport simulation engine with an embedded HTTP API ser
 - `docs/api/news-api.md`
 - `docs/MATHEMATICAL_MODEL.md`
 - `context/01_MATHEMATICAL_FOUNDATION.md`
-- `context/02_SYSTEM_ARCHITECTURE.md`
+- `launcher.py`
+- `launcher`
+- `dstns-operator-cli/dstns.mjs`
+- `dstns-operator-cli/package.json`
+- `docs/operator-cli.md`
 
 # Integration Effects
 - Sub-seed derivation guarantees that adding new draws to incident or traffic models will never alter DWS weather cells or map geometry.
@@ -134,6 +138,7 @@ DSTNS is a C++20 urban transport simulation engine with an embedded HTTP API ser
 - Active incident integration modulates edge speeds, closes roads dynamically, affects routing decisions, and broadcasts to UI and API clients.
 - Resolving overlapping incidents cleanly maintains restrictions from remaining active incidents.
 - Zero state leaks occur between successive simulation runs.
+- The operator interface is modernized via `dstns-operator-cli` (powered by `@poppinss/cliui`), handling automatic Web UI dependency installation, bundle compilation, browser opening, Vite dev server, and multi-stage verification. `launcher.py` and `./launcher` seamlessly forward execution.
 
 # Tests Added
 - `tests/unit/test_main.cpp`:

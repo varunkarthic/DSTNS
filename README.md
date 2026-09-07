@@ -22,18 +22,26 @@ DSTNS is a high-performance C++20 urban road network scenario compiler, simulati
 
 ## Quick Start Guide
 
-### 1. Interactive Operator Launcher
-The simplest way to start DSTNS locally:
+### 1. Interactive Operator Console (`dstns-operator-cli`)
+DSTNS features a modern terminal operator interface powered by `@poppinss/cliui` that manages the entire lifecycle, automatic Web UI building, server health monitoring, and test suites:
 
 ```bash
+# Launch operator console (via root launcher or direct CLI)
+./launcher
+# or
 python3 launcher.py
+# or
+node dstns-operator-cli/dstns.mjs
 ```
-* **Menu Options**:
-  * `[1]` Start DSTNS Server (Web UI & Simulation Engine)
-  * `[2]` View System & Runtime Logs
-  * `[3]` Modify Default Configuration
-  * `[4]` Run Test Cases (Unit, Replay, SUMO, UI)
-  * `[5]` Reset Runtime State
+
+* **Key Commands**:
+  * `start [--open]`: Build engine & Web UI bundle, launch server, and optionally open browser
+  * `ui [open|dev|build|install]`: Manage frontend bundle, live Vite dev server, or browser
+  * `logs [system|api|event|playback]`: Inspect live SQLite WAL logs or text logs
+  * `config`: View and edit persisted runtime defaults
+  * `test [all|unit|ui]`: Execute test suites with structured status reporting
+  * `sumo`: Run standalone microscopic Eclipse SUMO traffic simulation
+  * `reset [--yes]`: Clear ephemeral checkpoints, runtime databases, and live runs
 
 ### 2. Manual Local Execution
 ```bash
@@ -150,22 +158,26 @@ curl -s http://127.0.0.1:8090/api/v1/view/snapshot | jq .
 Run the comprehensive test suite spanning C++ unit tests, property invariants, replay bit-reproducibility, SUMO integration, and UI testing:
 
 ```bash
-# Run all tests via launcher
+# Run all 9 verification stages via operator CLI
+./launcher test all
+# or
 python3 launcher.py test all
+# or
+node dstns-operator-cli/dstns.mjs test all
 
-# Or run individual test runners:
+# Or run individual test suites:
+./launcher test unit
+./launcher test ui
 ctest --test-dir build --output-on-failure
-npm test --prefix ui-engine
 python3 tests/api/api_smoke.py --server build/dstns_server
 bash tests/integration/sumo_smoke.sh
-./build/dstns_replay_verify
-./build/dstns_benchmark
 ```
 
 ---
 
 ## Technical Documentation Directory
 
+* [Operator Console (dstns-operator-cli)](docs/operator-cli.md)
 * [System Architecture Overview](docs/ARCHITECTURE.md)
 * [Deterministic Seeding & Sub-Seeds](docs/deterministic-seeding.md)
 * [OpenStreetMap Ingestion & City Catalog](docs/osm-map-generation.md)
