@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <numeric>
 #include <stdexcept>
 
 namespace {
@@ -52,6 +53,12 @@ int main() {
                 for (const auto edge : trip.route) {
                     assert_true(is_source_direction_allowed(scenario.edges[edge.value]), "Planned trip excludes forbidden source direction");
                 }
+            }
+
+            for (const auto& signal : scenario.signals) {
+                assert_true(signal.phases_s.size() == 6, "Signal plan has two green/yellow/all-red groups");
+                const auto allocated = std::accumulate(signal.phases_s.begin(), signal.phases_s.end(), std::uint32_t{0});
+                assert_true(allocated <= signal.cycle_s, "Signal phase durations fit within cycle");
             }
 
             // Invariant 3: Weather events must have valid spatial/temporal bounds
