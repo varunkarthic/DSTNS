@@ -43,19 +43,32 @@ def wait_health(base: str, process: subprocess.Popen) -> None:
     raise RuntimeError("Server health check timed out")
 
 def main():
+    root = Path(__file__).resolve().parent.parent.parent
+    default_server = root / "build" / "dstns_server"
     parser = argparse.ArgumentParser(description="DSTNS API Test Suite")
-    parser.add_argument("--server", required=True)
+    parser.add_argument("--server", default=str(default_server), help="Path to dstns_server (defaults to build/dstns_server)")
+    parser.add_argument("--url", default=None, help="Connect to running server base URL (e.g. http://127.0.0.1:8090)")
     args = parser.parse_args()
 
-    port = free_port()
-    base = f"http://127.0.0.1:{port}"
-    print(f"[test] Spawning test server on {base}...")
-
-    with tempfile.TemporaryDirectory(prefix="dstns-api-test-") as logs:
+    if args.url:
+        base = args.url.rstrip("/")
+        print(f"[test] Running API test suite against running server on {base}...")
+        process = None
+        logs = None
+    else:
+        if not Path(args.server).exists():
+            raise FileNotFoundError(f"DSTNS server binary not found at {args.server}. Run cmake --build build first.")
+        port = free_port()
+        base = f"http://127.0.0.1:{port}"
+        print(f"[test] Spawning test server on {base}...")
+        tmp_dir = tempfile.TemporaryDirectory(prefix="dstns-api-test-")
+        logs = tmp_dir.name
         process = subprocess.Popen([args.server, "--host", "127.0.0.1", "--port", str(port), "--logs", logs],
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        assertions = 0
-        try:
+
+    assertions = 0
+    try:
+        if process:
             wait_health(base, process)
 
             # 1. Health Endpoints
@@ -339,23 +352,30 @@ def main():
                 assert code == 200 and sumo_sim["data"]["ok"] is True and sumo_sim["data"]["engine"] == "SUMO"
                 assertions += 1
 
-            # 23. Graceful Terminate
-            code, term = call(base, "/api/v1/system/terminate", "POST", {})
-            assert code == 200
-            process.wait(timeout=5)
-            assert process.returncode == 0
-            assertions += 2
+            # 23. Graceful Terminate (only when test process was spawned)
+            if process:
+                code, term = call(base, "/api/v1/system/terminate", "POST", {})
+                assert code == 200
+                process.wait(timeout=5)
+                assert process.returncode == 0
+                assertions += 2
 
             # 24. SQLite Journal Verification
-            db_path = Path(logs) / "runtime.db"
-            assert db_path.exists() and db_path.stat().st_size > 0
-            assertions += 1
+            if logs:
+                db_path = Path(logs) / "runtime.db"
+                assert db_path.exists() and db_path.stat().st_size > 0
+                assertions += 1
 
             print(f"DSTNS Exhaustive API Test Suite PASSED: {assertions} assertions verified.")
-        finally:
-            if process.poll() is None:
-                process.terminate()
-                process.wait(timeout=3)
+    finally:
+        if process and process.poll() is None:
+            process.terminate()
+            process.wait(timeout=3)
+        if "tmp_dir" in locals():
+            try:
+                tmp_dir.cleanup()
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     main()

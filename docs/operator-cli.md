@@ -39,17 +39,54 @@ The DSTNS Operator CLI (`dstns-operator-cli`) is a modern terminal operator inte
 
 ---
 
+---
+
 ## 2. Interactive Navigation (Ubuntu Server Style)
 
-When launched in an interactive terminal session (`./launcher` or `python3 launcher.py` without subcommands), the operator console presents a modern Subiquity-inspired terminal interface:
+When launched in an interactive terminal session (`./launcher` or `python3 launcher.py` without subcommands), the operator console starts with a **System Bootstrap Splash Screen** developed by **Varun Karthic**:
 
 ```text
+╭────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                │
+│    DSTNS — DETERMINISTIC SIMULATED ENVIRONMENT  v1.1.0                         │
+│    Developed by Varun Karthic · Lead Architect & Developer                     │
+│    C++ Simulation Authority · Microscopic Physics · WebGL / MapLibre UI        │
+│                                                                                │
+╰────────────────────────────────────────────────────────────────────────────────╯
+  SYSTEM BOOTSTRAP & PREREQUISITES VERIFICATION
+  ──────────────────────────────────────────────────────────────────────────
+  ✔  Host OS & Platform       macOS 15.0 arm64 (10 cores, 24.0 GB RAM) · COMPATIBLE
+  ✔  C++20 Toolchain          Apple clang 21.0.0 (C++20 enabled)
+  ✔  Build System (CMake)     CMake 4.4.2
+  ✔  Scripting Runtime        Python 3.14.6 (SQLite3 WAL mode enabled)
+  ✔  Frontend Engine          Node.js v26.7.0 · npm ready
+  ✔  Microscopic Simulator    Eclipse SUMO 1.27.1 (found)
+  ✔  C++ Simulation Core      build/dstns_server (compiled & ready)
+  ✔  Web UI Assets            ui-engine/dist (production bundle ready)
+  ──────────────────────────────────────────────────────────────────────────
+  ●  All prerequisites verified. Launching operator console…
+```
+
+Following bootstrap, the console presents the **Flicker-Free Terminal Interface** with System Telemetry pinned to the top of all views:
+
+```text
+  SYSTEM & SIMULATION TELEMETRY
+  ──────────────────────────────────────────────────────────────────────────
+  ●  Platform Host   READY      macOS 15.0 arm64 (10 cores, 24.0 GB RAM)
+  ●  C++ Core Engine READY      build/dstns_server (C++20 Release · deterministic)
+  ●  Web UI Engine   READY      ui-engine/dist (production bundle · MapLibre/Vite)
+  ●  Configuration   VALID      config/defaults.json (port 8090 · 127.0.0.1)
+  ●  API Server      IDLE       http://127.0.0.1:8090/ · lifecycle: IDLE · health: READY
+  ●  Simulation Hub  ACTIVE     10 Hz · 3600s cycle · Blake3-128 cryptographic sub-seed · 4 incident slots
+  ●  Telemetry DB    READY      logs/runtime.db (SQLite WAL · api_log, event_log)
+  ──────────────────────────────────────────────────────────────────────────
+
   OPERATOR ACTIONS
   ──────────────────────────────────────────────────────────────────────────
 ❯ [●] Launch & Control Simulation     Start C++ server, physics loop & open Web UI
   [ ] Inspect System Logs             View event log, API requests, and SQLite DB
   [ ] Configuration Manager           Inspect and edit playback & network defaults
-  [ ] Run Verification Suite          Execute native C++, SUMO, API & UI tests
+  [ ] Run Verification Suite          Execute native C++, REST API, SUMO & UI tests
   [ ] Standalone SUMO Execution       Microscopic traffic simulation (sandbox.sumocfg)
   [ ] Reset Runtime State             Clear ephemeral SQLite DB, logs & scenarios
   [ ] Web UI Manager                  Open browser, Vite dev server, build, or install
@@ -57,16 +94,21 @@ When launched in an interactive terminal session (`./launcher` or `python3 launc
   [ ] Exit Operator Console           Shut down managed services and terminate
 
   ──────────────────────────────────────────────────────────────────────────
-  [↑/↓] Navigate    [Space] Select    [Enter] Execute    [q] Exit
+  [↑/↓] Navigate    [Space] Select    [Enter] Execute    [Esc] Exit
   ──────────────────────────────────────────────────────────────────────────
 ```
 
-### Controls
+### Controls & Aesthetics
 - **`↑` / `↓` Arrow Keys** (or `k` / `j`): Move focus cursor (`❯`) across menu options.
 - **`Space`**: Mark / select the highlighted option with radio indicator (`[●]`).
 - **`Enter`**: Execute the selected or highlighted option.
-- **`q` / `Escape`**: Return to parent menu or exit the operator console.
+- **`Esc`**: Return to parent menu or exit the operator console.
 - **`Ctrl+C`**: Cleanly terminate managed background processes and exit.
+- **Status Indicator Colors**:
+  - Green (`●`): Active, running, ready, or passed.
+  - Yellow (`●`): Idle, paused, standby, or warning.
+  - Red (`●`): Stopped, dead, crashed, missing, or failed.
+- **Zero-Flicker Rendering**: In-place cursor repositioning (`\x1b[H`) and line clearing (`\x1b[K`) guarantees 100% flicker-free navigation across all terminal emulators.
 
 ---
 
