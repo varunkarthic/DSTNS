@@ -346,7 +346,7 @@ Invented namespace/API scan: PASS. Every documented concrete owner resolves to a
 
 #### Git Operations
 
-Branch: `docs/issue-8-align-components`. Commit, push, PR, checks, merge, resolution comment, and closure pending.
+Branch: `docs/issue-8-align-components`. Documentation commit `de7077a`; pushed to origin and opened PR #15 against `dstns`. GitHub reports no configured status checks. Merge, resolution comment, and closure pending.
 
 ## Baseline Validation
 
