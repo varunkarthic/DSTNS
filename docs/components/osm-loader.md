@@ -8,7 +8,7 @@ The OSM Loader ingests OpenStreetMap XML snapshots and extracts strictly drivabl
 - Filter out non-drivable highway types (e.g. `footway`, `path`, `cycleway`, `steps`, `pedestrian`).
 - Materialize reverse twins for every physical segment while tracking `source_oneway` and `synthetic_reverse` provenance. Synthetic reverse twins preserve canonical topology and visualization, but are excluded from routing, demand, controls, bus-stop lanes, hotspots, and SUMO export.
 - Project WGS84 geographic coordinates $(\text{lat}, \text{lon})$ to local metric coordinates $(x, y)$ in meters using equirectangular projection.
-- Compute stable SHA-256 source hashes of input XML data.
+- Compute a stable SHA-256 source hash over the complete input XML byte stream.
 
 ## Highway Filtering Rules
 Included vehicular highway types:
