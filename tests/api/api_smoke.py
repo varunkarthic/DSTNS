@@ -140,8 +140,8 @@ def main():
             # 8. Dynamic Snapshot
             code, snap = call(base, "/api/v1/view/snapshot")
             assert code == 200 and len(snap["data"]["nodes"]) == len(topo["data"]["nodes"])
-            assert "active_weather" in snap["data"] and "event_stack" in snap["data"]
-            assertions += 2
+            assert "active_weather" in snap["data"] and "event_stack" in snap["data"] and "active_incidents" in snap["data"]
+            assertions += 3
 
             # 8b. Global View Comprehensive Endpoint
             code, gv = call(base, "/api/v1/view/global")
@@ -207,10 +207,14 @@ def main():
             assertions += 1
 
             # 10. Entity Catalogs
-            for cat in ("traffic", "weather", "buildings", "bus-stops", "signals", "events", "metrics"):
+            for cat in ("traffic", "weather", "buildings", "bus-stops", "signals", "events", "metrics", "incidents"):
                 code, c_res = call(base, f"/api/v1/view/{cat}")
                 assert code == 200 and ("items" in c_res["data"] or "vehicle_count" in c_res["data"])
                 assertions += 1
+
+            code, incs = call(base, "/api/v1/view/incidents")
+            assert code == 200 and len(incs["data"]["items"]) >= 4, "minimum 4 incidents generated"
+            assertions += 1
 
             # 11. Manifest
             code, man = call(base, "/api/v1/view/manifest")

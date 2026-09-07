@@ -70,6 +70,16 @@ int main() {
                 assert_true(dws.end_ppm >= dws.start_ppm, "DWS end >= start");
             }
 
+            // Invariant 4: Incidents must have valid topological anchors and parameters
+            for (const auto& inc : scenario.incidents) {
+                assert_true(inc.edge.value < scenario.edges.size(), "Incident edge in bounds");
+                assert_true(is_source_direction_allowed(scenario.edges[inc.edge.value]), "Incident edge traversable");
+                assert_true(inc.node.value < scenario.nodes.size(), "Incident node in bounds");
+                assert_true(inc.end_virtual_s > inc.start_virtual_s, "Incident end > start");
+                assert_true(inc.speed_multiplier >= 0.0 && inc.speed_multiplier <= 1.0, "Incident speed multiplier in [0,1]");
+                assert_true(inc.capacity_multiplier >= 0.0 && inc.capacity_multiplier <= 1.0, "Incident capacity multiplier in [0,1]");
+            }
+
             GraphStore routed_graph(scenario);
             for (const auto& edge : scenario.edges) {
                 if (is_source_direction_allowed(edge) && edge.id.value % 7 == 0) routed_graph.edge_state(edge.id).closed = true;

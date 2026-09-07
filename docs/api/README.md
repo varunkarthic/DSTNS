@@ -57,9 +57,9 @@ curl -X POST http://127.0.0.1:8090/api/v1/control/transit/route \
   -d '{"bus_id": "BUS-101", "label": "Downtown Shuttle", "nodes": [213, 6]}'
 ```
 
-### 6. Inject Dynamic Weather Cell
+### 6. Inject Deterministic Weather Cell
 ```bash
-# Inject rain with random radius (100m - 600m)
+# Inject rain cell with specified or default radius (350m)
 curl -X POST http://127.0.0.1:8090/api/v1/control/events/weather \
   -H "Content-Type: application/json" \
   -d '{"epicenter_node": 10}'

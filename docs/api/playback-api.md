@@ -51,7 +51,7 @@ Compiles a deterministic road network topology and scenario for a given seed, an
 | `day` | `number` | `0` | `0` = Weekday (Commuter & School Rush), `1` = Weekend (Leisure & Shopping Peak). |
 | `tick_rate` | `number` | `1.0` | Initial virtual rate multiplier $[0.1, 100.0]$. |
 | `modules` | `object` | All `true` | Module enable flags (`traffic`, `signals`, `buildings`, `dws`, `flooding`, `news`). |
-| `dws` | `object` | `{"frequency": 3}` | Dynamic weather storm count per 24h day. |
+| `dws` | `object` | `{"frequency": 3}` | Deterministic Weather Simulation storm count per 24h day. |
 
 #### Example Request:
 ```bash

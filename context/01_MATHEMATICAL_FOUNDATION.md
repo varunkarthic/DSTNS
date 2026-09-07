@@ -1078,7 +1078,7 @@ Signals should create congestion through normal queueing when demand grows; avoi
 
 ---
 
-## 18. Dynamic Weather Simulation (DWS)
+## 18. Deterministic Weather Simulation (DWS)
 
 DWS is deterministic and event-based.
 

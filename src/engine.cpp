@@ -8,6 +8,7 @@
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace dstns {
 namespace {
@@ -422,10 +423,20 @@ nlohmann::json SimulationEngine::reset() {
     graph_.reset();
     run_id_.clear();
     virtual_s_ = 0;
+    start_virtual_s_ = 0;
+    manual_weather_.clear();
+    active_surges_.clear();
+    active_transit_buses_.clear();
+    signal_overrides_.clear();
+    signal_by_node_.clear();
     news_.clear();
     commands_.clear();
     redo_.clear();
     checkpoints_.clear();
+    next_command_id_ = 1;
+    next_news_id_ = 1;
+    next_event_id_ = 1'000'000;
+    config_revision_ = 0;
     transition(Lifecycle::Idle);
     return {{"ok", true}, {"lifecycle", "IDLE"}};
 }
@@ -711,6 +722,30 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         }
     }
 
+    // Reset incident impact on all edges each physics tick
+    for (std::size_t i = 0; i < graph_->edges().size(); ++i) {
+        auto& es = graph_->edge_state(EdgeId{static_cast<std::uint32_t>(i)});
+        es.incident_speed_multiplier = 1.0;
+        es.incident_capacity_multiplier = 1.0;
+        es.incident_closed = false;
+    }
+
+    // Apply active incidents with safe overlapping composition
+    if (sc.config.incidents) {
+        for (const auto& inc : sc.incidents) {
+            if (virtual_s_ >= inc.start_virtual_s && virtual_s_ < inc.end_virtual_s) {
+                if (inc.edge.value < graph_->edges().size()) {
+                    auto& es = graph_->edge_state(inc.edge);
+                    es.incident_speed_multiplier = std::min(es.incident_speed_multiplier, inc.speed_multiplier);
+                    es.incident_capacity_multiplier = std::min(es.incident_capacity_multiplier, inc.capacity_multiplier);
+                    if (inc.closed) {
+                        es.incident_closed = true;
+                    }
+                }
+            }
+        }
+    }
+
     for (const auto& e : sc.edges) {
         auto& es = graph_->edge_state(e.id);
         const auto& na = graph_->node_states()[e.from.value];
@@ -815,15 +850,16 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         es.flood_capacity_multiplier = std::max(0.30, 1.0 - 0.60 * es.flood);
 
         // Smooth speed deceleration and acceleration curves (realistic gradual vehicle movement)
-        const double target_speed = es.manual_closed ? 0.0 : (e.free_speed_mps * es.signal_multiplier * es.rain_speed_multiplier * es.flood_speed_multiplier * es.manual_speed_multiplier);
+        const bool is_closed = es.manual_closed || es.incident_closed || es.flood >= 0.98;
+        const double target_speed = is_closed ? 0.0 : (e.free_speed_mps * es.signal_multiplier * es.rain_speed_multiplier * es.flood_speed_multiplier * es.manual_speed_multiplier * es.incident_speed_multiplier);
         if (es.effective_speed_mps < target_speed) {
             es.effective_speed_mps = std::min(target_speed, es.effective_speed_mps + 2.4 * std::max(1.0, tick_rate_));
         } else if (es.effective_speed_mps > target_speed) {
             es.effective_speed_mps = std::max(target_speed, es.effective_speed_mps - 3.2 * std::max(1.0, tick_rate_));
         }
 
-        es.effective_capacity_vph = e.base_capacity_vph * es.signal_multiplier * es.rain_capacity_multiplier * es.flood_capacity_multiplier * es.manual_capacity_multiplier;
-        es.closed = es.manual_closed || es.flood >= 0.98;
+        es.effective_capacity_vph = e.base_capacity_vph * es.signal_multiplier * es.rain_capacity_multiplier * es.flood_capacity_multiplier * es.manual_capacity_multiplier * es.incident_capacity_multiplier;
+        es.closed = is_closed;
 
         // Smooth physical vehicle queuing dynamics (eliminates abrupt 51 -> 2 jumps)
         const double baseline_veh = (es.demand_vph / std::max(2.0, e.free_speed_mps * 3.6)) * (e.length_m / 1000.0);
@@ -899,47 +935,35 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
     notify_time(21 * 3600, 400005, "transit", "info", "NIGHT_TRANSIT_MODE",
                 "[21:00:00] Night-time transit schedule initiated; off-peak speed profiles active.");
 
-    // Deterministic Stochastic Incidents (Incident Desk) throughout the day
-    if (!sc.nodes.empty() && !sc.edges.empty()) {
-        const auto n_cnt = static_cast<std::uint32_t>(sc.nodes.size());
-        const auto e_cnt = static_cast<std::uint32_t>(sc.edges.size());
-        const auto n1 = (sc.nodes.front().id.value + 13) % n_cnt;
-        const auto e1 = (sc.edges.front().id.value + 7) % e_cnt;
-        const auto n2 = (sc.nodes.front().id.value + 29) % n_cnt;
-        const auto e2 = (sc.edges.front().id.value + 37) % e_cnt;
-        const auto n3 = (sc.nodes.front().id.value + 47) % n_cnt;
-        const auto e3 = (sc.edges.front().id.value + 61) % e_cnt;
-        const auto n4 = (sc.nodes.front().id.value + 71) % n_cnt;
-        const auto e4 = (sc.edges.front().id.value + 89) % e_cnt;
-
-        notify_time(7 * 3600 + 15 * 60, 600001, "incident", "warning", "INCIDENT_AUTO_MERGE",
-                    "[07:15:00] Auto-rickshaw made an abrupt lane merge near Node #" + std::to_string(n1) +
-                    ", causing minor bumper scrape on Edge #" + std::to_string(e1) + ". (LOW SEVERITY)",
-                    {{"node_id", n1}, {"edge_id", e1}});
-        notify_time(9 * 3600 + 45 * 60, 600002, "incident", "warning", "INCIDENT_TEMPO_BREAKDOWN",
-                    "[09:45:00] Commercial delivery tempo breakdown on arterial corridor Edge #" + std::to_string(e2) +
-                    ": right lane obstructed, queue building up. (MID SEVERITY)",
-                    {{"edge_id", e2}});
-        notify_time(11 * 3600 + 20 * 60, 600003, "incident", "info", "INCIDENT_COW_DIVERSION",
-                    "[11:20:00] Stray cattle on roadway near Intersection Node #" + std::to_string(n2) +
-                    ": localized slow-moving traffic advisory in effect. (LOW SEVERITY)",
-                    {{"node_id", n2}});
-        notify_time(13 * 3600 + 40 * 60, 600004, "incident", "warning", "INCIDENT_BUS_PUNCTURE",
-                    "[13:40:00] Passenger bus suffered tire puncture near Node #" + std::to_string(n3) +
-                    ", left-turning traffic held. (MID SEVERITY)",
-                    {{"node_id", n3}});
-        notify_time(16 * 3600 + 10 * 60, 600005, "incident", "alert", "INCIDENT_TANKER_SPILL",
-                    "[16:10:00] Water tanker valve leakage on high-speed road Edge #" + std::to_string(e3) +
-                    ": slippery road conditions, speed limit reduced. (HIGH SEVERITY)",
-                    {{"edge_id", e3}});
-        notify_time(18 * 3600 + 25 * 60, 600006, "incident", "alert", "INCIDENT_INTERSECTION_CRASH",
-                    "[18:25:00] Multi-vehicle collision at signalized intersection Node #" + std::to_string(n4) +
-                    ": major inbound approach blocked, emergency diversion active. (HIGH SEVERITY)",
-                    {{"node_id", n4}});
-        notify_time(20 * 3600 + 30 * 60, 600007, "incident", "warning", "INCIDENT_SCOOTER_STALL",
-                    "[20:30:00] Stalled two-wheeler in middle lane on Edge #" + std::to_string(e4) +
-                    ": mild localized queue accumulation. (LOW SEVERITY)",
-                    {{"edge_id", e4}});
+    // Active Deterministic Incident Lifecycle (Activation & Resolution)
+    if (sc.config.incidents) {
+        for (const auto& inc : sc.incidents) {
+            if (previous < inc.start_virtual_s && virtual_s_ >= inc.start_virtual_s) {
+                std::string sev = "warning";
+                if (inc.type == IncidentType::RoadClosure || inc.type == IncidentType::HazardSpill) sev = "alert";
+                else if (inc.type == IncidentType::Congestion) sev = "info";
+                add_news(inc.id, "incident", sev, "INCIDENT_ACTIVATED",
+                         "[" + hhmmss(inc.start_virtual_s) + "] " + inc.description + " on Edge #" + std::to_string(inc.edge.value) +
+                         " near Node #" + std::to_string(inc.node.value) + ". (" + (sev == "alert" ? "HIGH" : (sev == "warning" ? "MID" : "LOW")) + " SEVERITY)",
+                         {{"incident_id", inc.id},
+                          {"type", to_string(inc.type)},
+                          {"edge_id", inc.edge.value},
+                          {"node_id", inc.node.value},
+                          {"speed_multiplier", inc.speed_multiplier},
+                          {"capacity_multiplier", inc.capacity_multiplier},
+                          {"closed", inc.closed},
+                          {"end_virtual_s", inc.end_virtual_s}});
+            }
+            if (previous < inc.end_virtual_s && virtual_s_ >= inc.end_virtual_s) {
+                add_news(inc.id + 500000, "incident", "info", "INCIDENT_RESOLVED",
+                         "[" + hhmmss(inc.end_virtual_s) + "] Incident cleared on Edge #" + std::to_string(inc.edge.value) +
+                         " (" + to_string(inc.type) + "): Normal traffic flow restored.",
+                         {{"incident_id", inc.id},
+                          {"type", to_string(inc.type)},
+                          {"edge_id", inc.edge.value},
+                          {"node_id", inc.node.value}});
+            }
+        }
     }
 
     if (sc.config.signals && (virtual_s_ % 7200 == 0) && virtual_s_ > 0) {
@@ -1176,20 +1200,60 @@ nlohmann::json SimulationEngine::snapshot() const {
     for (const auto& e : manual_weather_) check_weather(e);
 
     nlohmann::json active_incidents = nlohmann::json::array();
+    std::unordered_set<std::uint32_t> incident_edges;
+    for (const auto& inc : graph_->scenario().incidents) {
+        if (virtual_s_ >= inc.start_virtual_s && virtual_s_ < inc.end_virtual_s) {
+            if (inc.edge.value < graph_->edges().size()) {
+                const auto& e = graph_->edges()[inc.edge.value];
+                const auto& s = graph_->edge_states()[inc.edge.value];
+                incident_edges.insert(inc.edge.value);
+                active_incidents.push_back({
+                    {"incident_id", inc.id},
+                    {"type", to_string(inc.type)},
+                    {"description", inc.description},
+                    {"edge_id", e.id.value},
+                    {"from_node", e.from.value},
+                    {"to_node", e.to.value},
+                    {"node_id", inc.node.value},
+                    {"road_class", to_string(e.road_class)},
+                    {"congestion", s.congestion},
+                    {"flood", s.flood},
+                    {"closed", s.closed},
+                    {"effective_speed_mps", s.effective_speed_mps},
+                    {"vehicle_count", s.vehicle_count},
+                    {"speed_multiplier", inc.speed_multiplier},
+                    {"capacity_multiplier", inc.capacity_multiplier},
+                    {"start_virtual_s", inc.start_virtual_s},
+                    {"end_virtual_s", inc.end_virtual_s},
+                    {"remaining_s", inc.end_virtual_s > virtual_s_ ? (inc.end_virtual_s - virtual_s_) : 0}
+                });
+            }
+        }
+    }
     for (std::size_t i = 0; i < graph_->edges().size(); ++i) {
+        if (incident_edges.contains(static_cast<std::uint32_t>(i))) continue;
         const auto& e = graph_->edges()[i];
         const auto& s = graph_->edge_states()[i];
         if (s.closed || s.congestion >= 0.70 || s.flood >= 0.50) {
             active_incidents.push_back({
+                {"incident_id", 900000 + static_cast<std::uint32_t>(i)},
+                {"type", s.closed ? "road_closure" : (s.flood >= 0.50 ? "hazard_spill" : "congestion")},
+                {"description", s.closed ? "Road closed: impassable conditions" : "Localized bottleneck"},
                 {"edge_id", e.id.value},
                 {"from_node", e.from.value},
                 {"to_node", e.to.value},
+                {"node_id", e.from.value},
                 {"road_class", to_string(e.road_class)},
                 {"congestion", s.congestion},
                 {"flood", s.flood},
                 {"closed", s.closed},
                 {"effective_speed_mps", s.effective_speed_mps},
-                {"vehicle_count", s.vehicle_count}
+                {"vehicle_count", s.vehicle_count},
+                {"speed_multiplier", s.manual_speed_multiplier},
+                {"capacity_multiplier", s.manual_capacity_multiplier},
+                {"start_virtual_s", virtual_s_},
+                {"end_virtual_s", virtual_s_ + 1800},
+                {"remaining_s", 1800}
             });
         }
     }
@@ -1202,6 +1266,7 @@ nlohmann::json SimulationEngine::snapshot() const {
             {"news_id", n.news_id},
             {"event_id", n.event_id},
             {"simulated_current_time", hhmmss(n.virtual_s)},
+            {"virtual_s", n.virtual_s},
             {"category", n.category},
             {"severity", n.severity},
             {"template_id", n.template_id},
@@ -1446,6 +1511,22 @@ nlohmann::json SimulationEngine::catalog(const std::string& kind) const {
             })},
             {"hotspot_edge_count", sc.hotspot_edges.size()}
         });
+    } else if (kind == "incidents") {
+        for (const auto& inc : sc.incidents) {
+            items.push_back({
+                {"incident_id", inc.id},
+                {"type", to_string(inc.type)},
+                {"description", inc.description},
+                {"edge_id", inc.edge.value},
+                {"node_id", inc.node.value},
+                {"start_virtual_s", inc.start_virtual_s},
+                {"end_virtual_s", inc.end_virtual_s},
+                {"speed_multiplier", inc.speed_multiplier},
+                {"capacity_multiplier", inc.capacity_multiplier},
+                {"closed", inc.closed},
+                {"active", virtual_s_ >= inc.start_virtual_s && virtual_s_ < inc.end_virtual_s}
+            });
+        }
     } else {
         throw std::invalid_argument("unknown view catalog: " + kind);
     }
@@ -1714,21 +1795,62 @@ nlohmann::json SimulationEngine::global_view() const {
     }
 
     nlohmann::json active_incidents = nlohmann::json::array();
+    std::unordered_set<std::uint32_t> gv_incident_edges;
+    for (const auto& inc : sc.incidents) {
+        if (virtual_s_ >= inc.start_virtual_s && virtual_s_ < inc.end_virtual_s) {
+            if (inc.edge.value < graph_->edges().size()) {
+                const auto& e = graph_->edges()[inc.edge.value];
+                const auto& s = graph_->edge_states()[inc.edge.value];
+                gv_incident_edges.insert(inc.edge.value);
+                active_incidents.push_back({
+                    {"incident_id", inc.id},
+                    {"type", to_string(inc.type)},
+                    {"description", inc.description},
+                    {"edge_id", e.id.value},
+                    {"from_node", e.from.value},
+                    {"to_node", e.to.value},
+                    {"node_id", inc.node.value},
+                    {"road_class", to_string(e.road_class)},
+                    {"congestion", s.congestion},
+                    {"flood", s.flood},
+                    {"closed", s.closed},
+                    {"effective_speed_mps", s.effective_speed_mps},
+                    {"effective_speed_kmh", s.effective_speed_mps * 3.6},
+                    {"vehicle_count", s.vehicle_count},
+                    {"speed_multiplier", inc.speed_multiplier},
+                    {"capacity_multiplier", inc.capacity_multiplier},
+                    {"start_virtual_s", inc.start_virtual_s},
+                    {"end_virtual_s", inc.end_virtual_s},
+                    {"remaining_s", inc.end_virtual_s > virtual_s_ ? (inc.end_virtual_s - virtual_s_) : 0}
+                });
+            }
+        }
+    }
     for (std::size_t i = 0; i < graph_->edges().size(); ++i) {
+        if (gv_incident_edges.contains(static_cast<std::uint32_t>(i))) continue;
         const auto& e = graph_->edges()[i];
         const auto& s = graph_->edge_states()[i];
         if (s.closed || s.congestion >= 0.70 || s.flood >= 0.50) {
             active_incidents.push_back({
+                {"incident_id", 900000 + static_cast<std::uint32_t>(i)},
+                {"type", s.closed ? "road_closure" : (s.flood >= 0.50 ? "hazard_spill" : "congestion")},
+                {"description", s.closed ? "Road closed: impassable conditions" : "Localized bottleneck"},
                 {"edge_id", e.id.value},
                 {"from_node", e.from.value},
                 {"to_node", e.to.value},
+                {"node_id", e.from.value},
                 {"road_class", to_string(e.road_class)},
                 {"congestion", s.congestion},
                 {"flood", s.flood},
                 {"closed", s.closed},
                 {"effective_speed_mps", s.effective_speed_mps},
                 {"effective_speed_kmh", s.effective_speed_mps * 3.6},
-                {"vehicle_count", s.vehicle_count}
+                {"vehicle_count", s.vehicle_count},
+                {"speed_multiplier", s.manual_speed_multiplier},
+                {"capacity_multiplier", s.manual_capacity_multiplier},
+                {"start_virtual_s", virtual_s_},
+                {"end_virtual_s", virtual_s_ + 1800},
+                {"remaining_s", 1800}
             });
         }
     }

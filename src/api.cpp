@@ -95,9 +95,9 @@ void ApiServer::routes() {
         for (const auto& dir : {
             "ui-engine/dist",
             "../ui-engine/dist",
+            "../../ui-engine/dist",
             "dist",
-            "/app/ui-engine/dist",
-            "/Users/varun/Library/CloudStorage/OneDrive-Personal/SUMO_Sandbox/dstns/ui-engine/dist"
+            "/app/ui-engine/dist"
         }) {
             if (std::filesystem::exists(dir)) return std::filesystem::absolute(dir);
         }
@@ -293,7 +293,7 @@ void ApiServer::routes() {
     });
     server_->Post("/api/v1/control/events/weather", [this](const auto& req, auto& r) {
         auto j = body(req);
-        const double default_rad = 100.0 + static_cast<double>(std::rand() % 501);
+        const double default_rad = 350.0;
         send(r, engine_.add_weather(
             NodeId{j.at("epicenter_node")},
             j.value("intensity", 0.85),
@@ -421,7 +421,7 @@ void ApiServer::routes() {
         send(r, result);
     });
 
-    for (const auto* kind : {"traffic", "weather", "buildings", "bus-stops", "signals", "events", "metrics"}) {
+    for (const auto* kind : {"traffic", "weather", "buildings", "bus-stops", "signals", "events", "metrics", "incidents"}) {
         const auto path = std::string("/api/v1/view/") + kind;
         server_->Get(path, [this, kind](const auto&, auto& r) { send(r, engine_.catalog(kind)); });
     }

@@ -78,9 +78,9 @@ Once dispatched:
 
 ---
 
-## 2. Dynamic Weather Injection (`POST /api/v1/control/events/weather`)
+## 2. Deterministic Weather Injection (`POST /api/v1/control/events/weather`)
 
-Injects a localized dynamic rain storm cell onto the road network.
+Injects a localized deterministic rain storm cell onto the road network.
 
 ### Endpoint
 * **Path**: `/api/v1/control/events/weather`
@@ -91,7 +91,7 @@ Injects a localized dynamic rain storm cell onto the road network.
 | :--- | :--- | :--- | :--- |
 | `epicenter_node` | `uint32` | **Required** | Node ID where the storm cell originates. |
 | `intensity` | `double` | `0.85` | Rain intensity factor $[0.0, 1.0]$. |
-| `radius_m` | `double` | Random $[100, 600]$ | Storm radius in meters. |
+| `radius_m` | `double` | `350.0` | Storm radius in meters $[100, 600]$. |
 | `duration_virtual_minutes`| `double` | `60.0` | Virtual storm duration in minutes. |
 | `flood_gain` | `double` | `0.5` | Flooding accumulation multiplier. |
 
@@ -176,7 +176,7 @@ Dynamically enable or disable individual simulation sub-engines:
 * Available modules: `traffic`, `signals`, `buildings`, `dws`, `flooding`, `news`.
 
 ```bash
-# Disable dynamic weather subsystem (DWS)
+# Disable deterministic weather simulation subsystem (DWS)
 curl -X PUT http://127.0.0.1:8090/api/v1/control/modules/dws \
   -H "Content-Type: application/json" \
   -d '{"enabled": false}'

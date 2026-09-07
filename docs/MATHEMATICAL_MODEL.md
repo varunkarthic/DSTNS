@@ -17,7 +17,7 @@ $$W(d, R) = \begin{cases} (1 - r)^4(4r + 1), & r = \frac{d}{R} \le 1 \\ 0, & r >
 For activity interval $[t_{\text{start}}, t_{\text{end}}]$:
 $$K(t) = \left(\frac{t - t_{\text{start}}}{t_{\text{end}} - t_{\text{start}}}\right)^p \left(\frac{t_{\text{end}} - t}{t_{\text{end}} - t_{\text{start}}}\right)^q \cdot \frac{(p+q)^{p+q}}{p^p q^q}$$
 
-### 3. Dynamic Weather Precipitation Field
+### 3. Deterministic Weather Simulation (DWS) Precipitation Field
 $$\text{Rain}(u, t) = I_{\text{peak}} \cdot W(d(u, \text{epicenter}), R) \cdot K(t)$$
 
 ### 4. Flood Reservoir Dynamics

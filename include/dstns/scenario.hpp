@@ -18,6 +18,7 @@ private:
     void plan_hotspots(Scenario& scenario, const DeterministicRng& rng) const;
     void plan_trips(Scenario& scenario, const DeterministicRng& rng) const;
     void plan_weather(Scenario& scenario, const DeterministicRng& rng) const;
+    void plan_incidents(Scenario& scenario, const DeterministicRng& rng) const;
     void calculate_hashes(Scenario& scenario) const;
 };
 

@@ -63,6 +63,57 @@ int main(){try{
     auto max_duration=cfg;max_duration.playback_duration_s=3600;(void)compiler.compile(seed,max_duration);
     rejects([&]{auto bad=cfg;bad.playback_duration_s=3601;(void)compiler.compile(seed,bad);},"duration above 3600 rejected");rejects([&]{auto bad=cfg;bad.tick_rate=0;(void)compiler.compile(seed,bad);},"invalid tick rate rejected");rejects([&]{auto bad=cfg;bad.dws_frequency=25;(void)compiler.compile(seed,bad);},"impossible weather schedule rejected");
 
-    std::cerr<<"[test] engine\n";const auto temp=std::filesystem::temp_directory_path()/("dstns-test-"+s1.scenario_hash.substr(7,10));std::filesystem::remove_all(temp);RuntimeLogger logger(temp);SimulationEngine engine(logger);std::cerr<<"[test] engine-start\n";engine.start(seed,cfg);std::cerr<<"[test] engine-pause\n";engine.pause();engine.seek(137,false);engine.seek(3001,false);check(engine.status()["data"]["checkpoint_count"]==4,"unaligned progression captures crossed checkpoint boundaries");std::cerr<<"[test] engine-seek1\n";engine.seek(40830,false);auto snap1=engine.snapshot()["data"];std::cerr<<"[test] engine-seek2\n";engine.seek(45000,false);engine.seek(40830,false);auto snap2=engine.snapshot()["data"];check(snap1==snap2,"non-boundary seek reconstructs state and news IDs");auto tick=engine.set_tick_rate(.5);check(tick["tick_rate"]==.5,"tick rate control");engine.undo(1);check(engine.status()["clock"]["tick_rate"]==1.0,"undo control");engine.redo(1);check(engine.status()["clock"]["tick_rate"]==.5,"redo control");rejects([&]{(void)engine.set_day(2);},"invalid day rejected");std::cerr<<"[test] engine-stop\n";engine.stop();check(engine.lifecycle()==Lifecycle::Stopped,"stop leaves server lifecycle");engine.reset();check(engine.lifecycle()==Lifecycle::Idle,"reset to idle");engine.terminate();std::filesystem::remove_all(temp);std::cerr<<"[test] done\n";
+    std::cerr<<"[test] engine\n";const auto temp=std::filesystem::temp_directory_path()/("dstns-test-"+s1.scenario_hash.substr(7,10));std::filesystem::remove_all(temp);RuntimeLogger logger(temp);SimulationEngine engine(logger);std::cerr<<"[test] engine-start\n";engine.start(seed,cfg);std::cerr<<"[test] engine-pause\n";engine.pause();engine.seek(137,false);engine.seek(3001,false);check(engine.status()["data"]["checkpoint_count"]==4,"unaligned progression captures crossed checkpoint boundaries");std::cerr<<"[test] engine-seek1\n";engine.seek(40830,false);auto snap1=engine.snapshot()["data"];std::cerr<<"[test] engine-seek2\n";engine.seek(45000,false);engine.seek(40830,false);auto snap2=engine.snapshot()["data"];check(snap1==snap2,"non-boundary seek reconstructs state and news IDs");auto tick=engine.set_tick_rate(.5);check(tick["tick_rate"]==.5,"tick rate control");engine.undo(1);check(engine.status()["clock"]["tick_rate"]==1.0,"undo control");engine.redo(1);check(engine.status()["clock"]["tick_rate"]==.5,"redo control");rejects([&]{(void)engine.set_day(2);},"invalid day rejected");std::cerr<<"[test] engine-stop\n";engine.stop();check(engine.lifecycle()==Lifecycle::Stopped,"stop leaves server lifecycle");engine.reset();check(engine.lifecycle()==Lifecycle::Idle,"reset to idle");
+
+    std::cerr<<"[test] subseed avalanche and domain separation\n";
+    check(seed.derive("map") == seed.derive("map"), "subseed derive repeatability");
+    check(seed.derive("map") != seed.derive("dws"), "domain separation map vs dws");
+    check(seed.derive("map") != seed.derive("incidents"), "domain separation map vs incidents");
+    check(seed.derive("incidents") != seed.derive("events"), "domain separation incidents vs events");
+    const auto s_a = Seed128{0, 1000};
+    const auto s_b = Seed128{0, 1001};
+    const auto d_a = s_a.derive("map");
+    const auto d_b = s_b.derive("map");
+    std::uint32_t bit_diff = 0;
+    for (int i = 0; i < 64; ++i) {
+        if (((d_a.high ^ d_b.high) >> i) & 1) ++bit_diff;
+        if (((d_a.low ^ d_b.low) >> i) & 1) ++bit_diff;
+    }
+    check(bit_diff >= 40, "subseed derive avalanche: strong bit diffusion for 1-bit input change");
+
+    std::cerr<<"[test] incidents minimum count and temporal spread\n";
+    for (std::uint64_t v = 1; v <= 10; ++v) {
+        auto scn = compiler.compile(Seed128{0, v * 1000}, cfg);
+        check(scn.incidents.size() >= 4, "minimum 4 incidents generated per normal simulation");
+        for (const auto& inc : scn.incidents) {
+            check(inc.edge.value < scn.edges.size(), "incident edge id valid");
+            check(is_source_direction_allowed(scn.edges[inc.edge.value]), "incident edge traversable");
+            check(inc.end_virtual_s > inc.start_virtual_s, "incident end > start");
+        }
+        bool has_early = false, has_mid = false, has_late = false;
+        for (const auto& inc : scn.incidents) {
+            if (inc.start_virtual_s < 30000) has_early = true;
+            else if (inc.start_virtual_s < 60000) has_mid = true;
+            else has_late = true;
+        }
+        check(has_early || has_mid || has_late, "incidents spread temporally across the day");
+    }
+
+    std::cerr<<"[test] reset zero leakage\n";
+    engine.start(seed, cfg);
+    engine.trigger_surge(NodeId{0}, 2.5, 400.0, 1200);
+    engine.toggle_signal(NodeId{0}, 2);
+    engine.add_weather(NodeId{0}, 0.9, 500.0, 30, 0.6);
+    engine.reset();
+    check(engine.lifecycle() == Lifecycle::Idle, "reset to idle lifecycle");
+    check(engine.status()["data"]["lifecycle"] == "IDLE", "status shows idle");
+    const auto seed_b = Seed128{0, 99999};
+    engine.start(seed_b, cfg);
+    auto snap_b = engine.snapshot()["data"];
+    check(snap_b["active_surges"].empty(), "zero surge leakage after reset");
+    check(snap_b["active_weather"].empty(), "zero weather leakage after reset");
+    engine.reset();
+
+    engine.terminate();std::filesystem::remove_all(temp);std::cerr<<"[test] done\n";
     std::cout<<"DSTNS tests passed: "<<tests<<" assertions\n";return 0;
 }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
