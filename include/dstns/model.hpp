@@ -43,6 +43,11 @@ struct EdgeStatic {
     double length_m{}, free_speed_mps{}, base_capacity_vph{}, hotspot_susceptibility{}, flood_susceptibility{};
     std::vector<Point> geometry;
 };
+
+[[nodiscard]] constexpr bool is_source_direction_allowed(const EdgeStatic& edge) noexcept {
+    return !edge.synthetic_reverse;
+}
+
 struct EdgeDynamic {
     double demand_vph{}, effective_capacity_vph{}, effective_speed_mps{};
     double rainfall{}, flood{}, congestion_model{}, congestion_observed{}, congestion{};
