@@ -385,7 +385,7 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
         }
     }
 
-    out.source_hash = "sha256:" + sha256(xml.substr(0, std::min<std::size_t>(xml.size(), 10000)));
+    out.source_hash = "sha256:" + sha256(xml);
     return out;
 }
 
