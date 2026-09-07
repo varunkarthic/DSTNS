@@ -1,4 +1,4 @@
-# Traffic Signal Subsystem (`dstns::scenario`)
+# Traffic Signal Planning (`dstns::ScenarioCompiler`, `dstns::SimulationEngine`)
 
 ## Purpose
 Selects candidate signalized intersections across high-degree road nodes and assigns deterministic two-direction phase timing.

@@ -1,16 +1,21 @@
-# Replay & Reproducibility Verification (`dstns::replay`)
+# Replay Behavior (`dstns::SimulationEngine`)
 
 ## Purpose
-The Replay subsystem verifies byte-for-byte and logical state reproduction across simulation runs given the same master seed, configuration, and control history.
+Replay is not a separate namespace, class, or runtime service. `SimulationEngine::restore_to` restores a retained checkpoint and `SimulationEngine::step_to` deterministically advances physics to the requested time. The standalone `dstns_replay_verify` tool and replay CTest compare independent runs.
 
 ## Invariants & Hashes
-Every simulation scenario is fingerprinted by three cryptographic digests:
-1. `graph_hash` = $\text{SHA-256}(\text{Nodes}_{\text{canonical}} \parallel \text{Edges}_{\text{canonical}})$
-2. `event_hash` = $\text{SHA-256}(\text{DwsEvents} \parallel \text{PlannedTrips} \parallel \text{Signals})$
-3. `scenario_hash` = $\text{SHA-256}(\text{graph\_hash} \parallel \text{event\_hash} \parallel \text{config\_json})$
+Every simulation scenario is fingerprinted by three implementation-defined cryptographic digests:
+
+1. `graph_hash` hashes canonical node IDs, source node IDs, millimetre-rounded positions, and selected edge identity/topology fields.
+2. `event_hash` hashes selected DWS-event and planned-trip fields. Signal plans are not currently included.
+3. `scenario_hash` hashes the seed, `map_hash`, `graph_hash`, `event_hash`, and resolved day value.
+
+These descriptions intentionally match `ScenarioCompiler::calculate_hashes`; they are not a promise that every field in each object is covered.
 
 ## Replay Invariant
-Given identical `(Seed128, ScenarioConfig, ControlJournal)`:
+For identical `Seed128` and `ScenarioConfig`, with equivalent supported control state:
 - `graph_hash(Run 1) == graph_hash(Run 2)`
 - `scenario_hash(Run 1) == scenario_hash(Run 2)`
 - Dynamic state snapshots at simulated time $t$ match with 0 divergence.
+
+Checkpoints contain node state, edge state, news-log length, and the next news identifier. They do not serialize a general `ControlJournal`; callers must not treat arbitrary external control histories as an implemented replay-file format.
