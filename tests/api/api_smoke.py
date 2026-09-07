@@ -107,6 +107,14 @@ def main():
             assert code == 200 and p["lifecycle"] == "PAUSED"
             assertions += 1
 
+            code, _ = call(base, "/api/v1/playback/seek", "POST", {"target_time": "00:02:17"})
+            assert code == 200
+            code, _ = call(base, "/api/v1/playback/seek", "POST", {"target_time": "00:50:01"})
+            assert code == 200
+            code, checkpoint_status = call(base, "/api/v1/playback/status")
+            assert code == 200 and checkpoint_status["data"]["checkpoint_count"] == 4
+            assertions += 3
+
             # 7. Topology & Map Views
             code, topo = call(base, "/api/v1/view/topology")
             assert code == 200 and len(topo["data"]["nodes"]) > 0 and len(topo["data"]["edges"]) > 0
