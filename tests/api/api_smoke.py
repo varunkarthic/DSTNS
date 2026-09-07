@@ -148,6 +148,31 @@ def main():
             assert code == 200 and gv_world["ok"] is True
             assertions += 7
 
+            synthetic_reverse = next(
+                edge for edge in d["edges"]
+                if edge["synthetic_reverse"]
+                and not any(
+                    candidate["from"] == edge["from"]
+                    and candidate["to"] == edge["to"]
+                    and not candidate["synthetic_reverse"]
+                    for candidate in d["edges"]
+                )
+            )
+            code, invalid_route = call(base, "/api/v1/control/transit/route", "POST", {
+                "bus_id": "ONEWAY-REVERSE",
+                "nodes": [synthetic_reverse["from"], synthetic_reverse["to"]]
+            })
+            assert code == 400 and invalid_route["ok"] is False and invalid_route["valid"] is False
+            assert synthetic_reverse["dynamic"]["effective_capacity_vph"] == 0.0
+            assert synthetic_reverse["dynamic"]["effective_speed_mps"] == 0.0
+            reverse_twin = d["edges"][synthetic_reverse["reverse_twin"]]
+            code, valid_route = call(base, "/api/v1/control/transit/route", "POST", {
+                "bus_id": "ONEWAY-FORWARD",
+                "nodes": [reverse_twin["from"], reverse_twin["to"]]
+            })
+            assert code == 200 and valid_route["ok"] is True and valid_route["route_edges"] == [reverse_twin["id"]]
+            assertions += 4
+
             # 9. Node & Edge Detailed Views
             code, nodes = call(base, "/api/v1/view/nodes?offset=0&limit=10")
             assert code == 200 and len(nodes["data"]["items"]) <= 10

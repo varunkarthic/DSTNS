@@ -248,7 +248,7 @@ nlohmann::json SimulationEngine::validate_transit_route(const std::vector<std::u
         const auto v = nodes[i + 1];
         bool found = false;
         for (const auto& e : sc.edges) {
-            if (e.from.value == u && e.to.value == v) {
+            if (e.from.value == u && e.to.value == v && is_source_direction_allowed(e)) {
                 route_edges.push_back(e.id.value);
                 total_distance_m += e.length_m;
                 found = true;
@@ -714,6 +714,19 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         const auto& nb = graph_->node_states()[e.to.value];
         es.rainfall = (na.rainfall + nb.rainfall) / 2;
         es.flood = (na.flood + nb.flood) / 2;
+        if (!is_source_direction_allowed(e)) {
+            es.demand_vph = 0;
+            es.effective_capacity_vph = 0;
+            es.effective_speed_mps = 0;
+            es.congestion_model = 0;
+            es.congestion_observed = 0;
+            es.congestion = 0;
+            es.vehicle_count = 0;
+            es.halting_count = 0;
+            es.mean_speed_mps = 0;
+            es.occupancy = 0;
+            continue;
+        }
         const auto attraction = (na.building_effect + nb.building_effect) / 2;
         const auto hot = sc.config.traffic ? e.hotspot_susceptibility : 0;
         
