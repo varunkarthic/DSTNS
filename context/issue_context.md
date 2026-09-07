@@ -378,7 +378,7 @@ Compose schema: PASS. Multi-stage image build: PASS, with the upstream amd64-on-
 
 #### Git Operations
 
-Branch: `fix/issue-16-container-healthcheck`. Commit, push, PR, checks, merge, resolution comment, and closure pending.
+Branch: `fix/issue-16-container-healthcheck`. Functional/journal commit `1b2048f`; pushed to origin and opened PR #17 against `dstns`. GitHub reports no configured status checks. Merge, resolution comment, and closure pending.
 
 ## Baseline Validation
 
