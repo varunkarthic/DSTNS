@@ -29,7 +29,7 @@ The console provides **Ubuntu Server (Subiquity) style navigation**:
 * **`↑` / `↓` Arrow Keys** (or `k` / `j`): Navigate menu options.
 * **`Space`**: Select / mark the highlighted option (`[●]`).
 * **`Enter`**: Execute the selected or highlighted option.
-* **`q` / `Esc`**: Return to previous menu or exit console.
+* **`Esc`** (or `q`): Return to previous menu or exit console.
 
 ```bash
 # Launch operator console (via root launcher or direct CLI)
@@ -45,7 +45,7 @@ node dstns-operator-cli/dstns.mjs
   * `ui [open|dev|build|install]`: Manage frontend bundle, live Vite dev server, or browser
   * `logs [system|api|event|playback]`: Inspect live SQLite WAL logs or text logs
   * `config`: View and edit persisted runtime defaults
-  * `test [all|unit|ui]`: Execute test suites with structured status reporting
+  * `test [all|unit|api|replay|benchmark|sumo|ui]`: Execute test suites with structured status reporting
   * `sumo`: Run standalone microscopic Eclipse SUMO traffic simulation
   * `reset [--yes]`: Clear ephemeral checkpoints, runtime databases, and live runs
 
@@ -161,22 +161,19 @@ curl -s http://127.0.0.1:8090/api/v1/view/snapshot | jq .
 
 ## Testing & Quality Assurance
 
-Run the comprehensive test suite spanning C++ unit tests, property invariants, replay bit-reproducibility, SUMO integration, and UI testing:
+Run the comprehensive test suite spanning C++ unit tests, REST API endpoints, bit-reproducible replay, performance benchmarks, SUMO microscopic integration, and Web UI validation:
 
 ```bash
 # Run all 9 verification stages via operator CLI
 ./launcher test all
-# or
-python3 launcher.py test all
-# or
-node dstns-operator-cli/dstns.mjs test all
 
-# Or run individual test suites:
-./launcher test unit
-./launcher test ui
-ctest --test-dir build --output-on-failure
-python3 tests/api/api_smoke.py --server build/dstns_server
-bash tests/integration/sumo_smoke.sh
+# Or run individual test targets:
+./launcher test unit        # Native C++ unit & property tests (test_graph, test_dws, test_incident, test_bpr)
+./launcher test api         # REST API lifecycle & endpoint integration (82 assertions)
+./launcher test replay      # Deterministic replay bit-reproducibility
+./launcher test benchmark   # Performance throughput benchmarks
+./launcher test sumo        # Eclipse SUMO microscopic traffic simulation
+./launcher test ui          # Web UI TypeScript, Vite bundle & preview
 ```
 
 ---
