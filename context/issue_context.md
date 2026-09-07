@@ -141,7 +141,46 @@ No external-input or privilege surface changed. Status gains an additive `checkp
 
 #### Git Operations
 
-Branch: `fix/issues-2-3-replay-checkpoints`. Commit, push, PR, checks, merge, issue comments, and closure are pending.
+Branch: `fix/issues-2-3-replay-checkpoints`. Functional/journal commit: `79f419b`; merge commit: `4ac4949`. PR #10 was merged into `dstns`, with no configured GitHub checks. Separate detailed resolution comments were posted for #2 and #3, and both issues were manually closed as completed after merge.
+
+#### Final Status
+
+Both issues resolved, merged, documented, and CLOSED.
+
+### Issue #4 — Map hash covers only the first 10 KB
+
+#### Problem and Reproduction
+
+Two valid OSM documents can share more than 10,000 prefix bytes and differ later while producing the same `map_hash` and therefore weakening `scenario_hash`. The regression constructs two valid fixtures with an identical 11,000-byte XML-comment prefix and distinct suffix bytes; both intentionally compile to the same road graph.
+
+#### Root Cause
+
+`OsmRoadLoader::load_xml` explicitly truncated the source string before SHA-256. No test distinguished source identity from graph identity.
+
+#### Impact Analysis and Plan
+
+Inspected OSM file loading, `OsmRoadGraph::source_hash`, `ScenarioCompiler` propagation, manifest/export serialization, replay verifier assumptions, SHA-256 implementation, both shipped fixture sizes, and reproducibility documentation. `graph_hash` should remain topology-derived; `map_hash` must identify the complete supplied source bytes.
+
+#### Implementation
+
+- Hash the complete XML string once during OSM compilation.
+- Document full-byte-stream map identity and its distinction from canonical graph identity.
+
+#### Tests Added or Modified
+
+Unit coverage asserts different full-source hashes beyond the old cutoff, equal graph hashes for semantically identical road topology, and different map/scenario hashes downstream.
+
+#### Security / Compatibility / Performance Review
+
+The hash strengthens integrity semantics and does not change parsing or filesystem permissions. Cost becomes linear in source size, once per scenario compile; shipped inputs are approximately 1 MB and 8.6 MB, so this is bounded and appropriate for cryptographic source identity. Existing map/scenario hash values intentionally change because the old values did not represent their documented inputs.
+
+#### Validation Results
+
+Targeted Release build: PASS. Unit/replay/performance CTest subset: 3/3 PASS. Replay verifier: PASS. Full 8.6 MB `real_network.osm.xml` indexing: PASS (226 nodes, 486 edges; 44.43 seconds total scenario compilation, which includes parsing, selection, trips, and hashing). Post-review full CTest: 4/4 PASS. API smoke: 75 assertions PASS. `git diff --check`: PASS. Docker remains environmentally unavailable.
+
+#### Git Operations
+
+Branch: `fix/issue-4-full-map-hash`. Commit, push, PR, checks, merge, resolution comment, and closure pending.
 
 ## Baseline Validation
 
