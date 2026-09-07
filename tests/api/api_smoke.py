@@ -77,6 +77,14 @@ def main():
             assert code == 400 and err["error"]["code"] == "INVALID_REQUEST"
             assertions += 1
 
+            code, err = call(base, "/api/v1/control/transit/route", "POST", {"bus_id": "MISSING-NODES"})
+            assert code == 400 and err["error"]["code"] == "MISSING_FIELD"
+            assert "nodes" in err["error"]["message"]
+            code, err = call(base, "/api/v1/control/events/weather", "POST", {"epicenter_node": "not-a-number"})
+            assert code == 400 and err["error"]["code"] == "INVALID_FIELD_TYPE"
+            assert "number" in err["error"]["message"]
+            assertions += 4
+
             # 4. Start Simulation
             req_start = {
                 "seed": "0x123456789ABCDEF0",

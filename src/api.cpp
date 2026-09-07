@@ -143,6 +143,14 @@ void ApiServer::routes() {
             message = std::string("Malformed JSON: ") + e.what();
             code = "INVALID_JSON";
             status = 400;
+        } catch (const nlohmann::json::out_of_range& e) {
+            message = e.what();
+            code = "MISSING_FIELD";
+            status = 400;
+        } catch (const nlohmann::json::type_error& e) {
+            message = e.what();
+            code = "INVALID_FIELD_TYPE";
+            status = 400;
         } catch (const std::invalid_argument& e) {
             message = e.what();
             code = "INVALID_REQUEST";

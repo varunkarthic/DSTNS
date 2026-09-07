@@ -180,7 +180,47 @@ Targeted Release build: PASS. Unit/replay/performance CTest subset: 3/3 PASS. Re
 
 #### Git Operations
 
-Branch: `fix/issue-4-full-map-hash`. Commit, push, PR, checks, merge, resolution comment, and closure pending.
+Branch: `fix/issue-4-full-map-hash`. Functional/journal commit: `9542517`; merge commit: `c3a8476`. PR #11 was merged into `dstns`, with no configured GitHub checks. A detailed resolution comment was posted, and issue #4 was manually closed as completed after merge.
+
+#### Final Status
+
+Resolved, merged, documented, and CLOSED.
+
+### Issue #5 — Missing or wrong-typed JSON fields return 500
+
+#### Problem and Reproduction
+
+POSTing a transit route without `nodes` throws `nlohmann::json::out_of_range`; posting weather with a string `epicenter_node` throws `nlohmann::json::type_error`. Both bypassed the standard-library catches and became 500 `INTERNAL_ERROR` responses despite being client request defects.
+
+#### Root Cause
+
+nlohmann JSON exception classes derive directly through `nlohmann::json::exception`, not from `std::out_of_range` or `std::invalid_argument`. Only JSON parse errors had an explicit handler.
+
+#### Impact Analysis and Plan
+
+Inspected every direct `.at(...)` call, implicit JSON conversion, config parsing, entity lookup exception, lifecycle exception, common error envelope, system/API logging, OpenAPI response declarations, and client tests. Add narrowly ordered catches before the existing standard-library handlers so real entity `std::out_of_range` remains 404 and lifecycle/internal errors retain their current classifications.
+
+#### Implementation
+
+- Map missing JSON members to HTTP 400 `MISSING_FIELD`.
+- Map incompatible JSON types to HTTP 400 `INVALID_FIELD_TYPE`.
+- Document the server's actual standard error-code taxonomy.
+
+#### Tests Added or Modified
+
+API smoke now exercises the exact missing `nodes` and string `epicenter_node` cases, including status, code, and useful message content.
+
+#### Security / Compatibility / Performance Review
+
+This reduces false 500s without accepting invalid data or weakening validation. Existing response-envelope shape is unchanged; clients receive more precise additive code values. Error messages follow the existing parse-error policy and contain parser/type context, not secrets. No measurable performance impact.
+
+#### Validation Results
+
+Release build PASS; API smoke 79 assertions PASS; CTest 4/4 PASS; `git diff --check` PASS. The exact reported requests now return 400 with distinct codes and field/type context. Docker remains environmentally unavailable.
+
+#### Git Operations
+
+Branch: `fix/issue-5-json-client-errors`. Commit, push, PR, checks, merge, resolution comment, and closure pending.
 
 ## Baseline Validation
 
