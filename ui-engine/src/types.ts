@@ -27,6 +27,7 @@ export interface Status {
   day: number;
   paused: boolean;
   simulated_seconds: number;
+  checkpoint_count: number;
   virtual_seconds_remaining: number;
   modules: Record<string, boolean>;
 }

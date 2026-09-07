@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <iterator>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -175,6 +176,7 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
                  "[" + hhmmss(virtual_s_) + "] Road network loaded: " + std::to_string(graph_->edges().size()) +
                  " directional edges, " + std::to_string(graph_->nodes().size()) + " intersections.",
                  {{"edges", graph_->edges().size()}, {"nodes", graph_->nodes().size()}});
+        capture_checkpoint();
         return {
             {"ok", true},
             {"message", "Scenario compiled and ready in standby."},
@@ -353,7 +355,7 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
         }
         add_news(4, "traffic", "info", "PHYSICS_ENGINE_ACTIVE",
                  "[" + hhmmss(virtual_s_) + "] Microscopic physics engine active with deterministic queue dynamics.");
-        checkpoints_.push_back({0, graph_->node_states(), graph_->edge_states(), news_.size()});
+        capture_checkpoint();
         if (start_virtual_s_) restore_to(start_virtual_s_);
         transition(Lifecycle::Running);
         anchor_wall_clock();
@@ -433,7 +435,8 @@ nlohmann::json SimulationEngine::seek(std::uint32_t target, bool resume) {
     if (!graph_ || target > day_s) throw std::invalid_argument("target time outside virtual day");
     const auto was_running = lifecycle_ == Lifecycle::Running;
     transition(Lifecycle::Seeking);
-    restore_to(target);
+    if (target >= virtual_s_) step_to(target);
+    else restore_to(target);
     transition((resume || was_running) ? Lifecycle::Running : Lifecycle::Paused);
     anchor_wall_clock();
     cv_.notify_all();
@@ -950,15 +953,28 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
 void SimulationEngine::step_to(std::uint32_t target) {
     target = std::min(target, day_s);
     while (virtual_s_ < target) {
-        const auto dt = std::min<std::uint32_t>(60, target - virtual_s_);
+        const auto to_checkpoint = 900 - (virtual_s_ % 900);
+        const auto dt = std::min({std::uint32_t{60}, target - virtual_s_, to_checkpoint});
         virtual_s_ += dt;
         physics_step(dt);
         if (virtual_s_ % 900 == 0) {
-            checkpoints_.push_back({virtual_s_, graph_->node_states(), graph_->edge_states(), news_.size()});
+            capture_checkpoint();
         }
     }
     if (virtual_s_ >= day_s && lifecycle_ == Lifecycle::Running) {
         transition(Lifecycle::Completed);
+    }
+}
+
+void SimulationEngine::capture_checkpoint() {
+    Checkpoint checkpoint{virtual_s_, graph_->node_states(), graph_->edge_states(), news_.size(), next_news_id_};
+    const auto position = std::lower_bound(checkpoints_.begin(), checkpoints_.end(), virtual_s_, [](const Checkpoint& value, auto time) {
+        return value.virtual_s < time;
+    });
+    if (position != checkpoints_.end() && position->virtual_s == virtual_s_) {
+        *position = std::move(checkpoint);
+    } else {
+        checkpoints_.insert(position, std::move(checkpoint));
     }
 }
 
@@ -974,6 +990,8 @@ void SimulationEngine::restore_to(std::uint32_t target) {
         for (std::size_t i = 0; i < it->nodes.size(); ++i) graph_->node_state(NodeId{static_cast<std::uint32_t>(i)}) = it->nodes[i];
         for (std::size_t i = 0; i < it->edges.size(); ++i) graph_->edge_state(EdgeId{static_cast<std::uint32_t>(i)}) = it->edges[i];
         if (news_.size() > it->news_size) news_.resize(it->news_size);
+        next_news_id_ = it->next_news_id;
+        checkpoints_.erase(std::next(it), checkpoints_.end());
     }
     step_to(target);
 }
@@ -1043,6 +1061,7 @@ nlohmann::json SimulationEngine::status() const {
         {"day", graph_ ? graph_->scenario().config.day : -1},
         {"paused", lifecycle_ == Lifecycle::Paused},
         {"simulated_seconds", virtual_s_},
+        {"checkpoint_count", checkpoints_.size()},
         {"virtual_seconds_remaining", day_s - virtual_s_},
         {"modules", graph_ ? nlohmann::json{
             {"traffic", graph_->scenario().config.traffic},
