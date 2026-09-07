@@ -10,6 +10,7 @@ Provides plain-XML and libsumo interfaces to Eclipse SUMO (Simulation of Urban M
   - `routes.rou.xml`: Vehicle types and pre-calculated A* deterministic trip paths.
   - `additional.add.xml`: Bus stop definition anchors.
   - `sandbox.sumocfg`: Master SUMO configuration.
+- Omit topology-only `synthetic_reverse` edges so the microscopic network preserves OSM one-way restrictions.
 - Integrate with SUMO CLI tools (`netconvert`, `sumo`) and `libsumo` in-process API.
 - Read microscopic telemetry (lane mean speeds, vehicle counts, waiting times) and ingest them into `GraphStore` dynamic channels.
 

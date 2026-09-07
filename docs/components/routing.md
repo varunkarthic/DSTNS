@@ -8,6 +8,7 @@ The `RoutePlanner` owns strategic, deterministic shortest-path and minimum-cost 
 - Use dynamic travel-time edge cost:
   $$\text{cost}(e) = \frac{\text{length\_m}(e)}{\text{effective\_speed\_mps}(e)}$$
 - Respect manual road closures (`closed == true` treated as infinite traversal cost).
+- Respect source-map directionality (`synthetic_reverse == true` is topology-only and never traversable).
 - Break priority queue ties deterministically using lowest `NodeId`.
 - Adhere to Euclidean distance / maximum speed heuristic to maintain admissibility.
 
