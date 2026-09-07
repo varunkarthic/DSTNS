@@ -23,6 +23,7 @@ BOOTING -> IDLE -> PREPARING -> READY -> RUNNING <-> PAUSED
 4. **Effective Virtual Rate & Lag**: If computational throughput cannot achieve target speed, physics steps are never skipped; the simulation tracks lagging virtual seconds $\Delta t_{\text{lag}}$.
 
 ## Checkpointing & Fast Seeking
-- Checkpoints are captured at fixed virtual intervals (default every 300 virtual seconds).
+- Checkpoints are captured at fixed 900-virtual-second boundaries. Physics steps are shortened when necessary to land exactly on each crossed boundary, even after an unaligned live tick or seek.
 - Seeking to target virtual time $t_{\text{target}}$ restores the nearest preceding checkpoint $t_{\text{cp}} \le t_{\text{target}}$ and rolls physics forward to $t_{\text{target}}$.
-- Fast-forward and rewind operations guarantee identical deterministic state reconstructions.
+- Checkpoints include the news-log size and next news identifier. Rewinding truncates invalid future checkpoints and restores that cursor before replay, so state and news identifiers reproduce exactly.
+- Forward seeks advance from current state; backward seeks restore and replay from the nearest retained checkpoint.

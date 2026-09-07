@@ -185,7 +185,9 @@ curl -s http://127.0.0.1:8090/api/v1/playback/status | jq .
   "run_id": "run_877a90265c24",
   "data": {
     "lifecycle": "RUNNING",
-    "seed": "0x00000000000000008bd03164923f9846"
+    "run_id": "run_877a90265c24",
+    "simulated_seconds": 41070,
+    "checkpoint_count": 46
   },
   "clock": {
     "simulated_current_time": "11:24:30",
