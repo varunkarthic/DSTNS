@@ -25,6 +25,5 @@ COPY --from=ui-build /ui/dist /app/ui-engine/dist
 COPY config /app/config
 RUN mkdir -p /app/logs /app/data
 EXPOSE 8090
-HEALTHCHECK --interval=5s --timeout=2s --retries=10 CMD curl -fsS http://127.0.0.1:8090/health || exit 1
+HEALTHCHECK --interval=5s --timeout=2s --retries=10 CMD ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=1).read()"]
 ENTRYPOINT ["/app/dstns_server","--host","0.0.0.0","--port","8090","--logs","/app/logs"]
-

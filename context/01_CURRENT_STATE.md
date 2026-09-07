@@ -26,5 +26,5 @@
   - React 19 + TypeScript + MapLibre GL JS client for canonical road map rendering.
   - Independent Node.js Fastify server for UI Overlay API (`/ui-api/v1/*`).
 - **Container Deployment**:
-  - Multi-stage Dockerfiles and `docker-compose.yml` with Caddy TLS gateway.
-  - Current full Compose/HTTPS runtime verification is unrun because the local Docker daemon is unavailable; container configuration must not be described as deployment-verified from native/image-only evidence.
+  - Multi-stage Dockerfile and `docker-compose.yml` serve the unified backend and compiled UI over HTTP on port 8090.
+  - Compose configuration, image build, container health, host HTTP, and browser rendering are verified in the 2026-09-07 final audit; this repository does not currently configure an HTTPS gateway.
