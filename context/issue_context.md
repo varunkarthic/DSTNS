@@ -220,7 +220,45 @@ Release build PASS; API smoke 79 assertions PASS; CTest 4/4 PASS; `git diff --ch
 
 #### Git Operations
 
-Branch: `fix/issue-5-json-client-errors`. Commit, push, PR, checks, merge, resolution comment, and closure pending.
+Branch: `fix/issue-5-json-client-errors`. Functional/journal commit: `09267ec`; merge commit: `31293f4`. PR #12 was merged into `dstns`, with no configured GitHub checks. A detailed resolution comment was posted, and issue #5 was manually closed as completed after merge.
+
+#### Final Status
+
+Resolved, merged, documented, and CLOSED.
+
+### Issue #6 — Scenario compiler iterator safety and signal phase bounds
+
+#### Problem and Reproduction
+
+The bus-stop coverage repair dereferenced an outgoing-edge search without verifying success. A source one-way sink can have degree 2 yet no traversable outgoing direction. The issue also alleged a 32-second phase allocation could exceed a 30-second non-bottleneck signal cycle.
+
+#### Investigation and Root Cause
+
+The iterator hazard was confirmed and already corrected in PR #9 as a necessary part of one-way enforcement: coverage candidates now require and carry a validated traversable outgoing edge before materializing a stop.
+
+The claimed signal overflow is not reachable. Signals require `node.id % 3 == 0`; non-bottlenecks additionally require `node.id % 5 != 0`. Exhaustive evaluation over every supported canonical ID below `max_nodes=50000` found the minimum reachable non-bottleneck cycle is 33 seconds (ID 21), with 32 seconds explicitly allocated, and zero allocations exceeding their cycle. IDs producing the arithmetic minimum of 30 are multiples of 45 and therefore always take the separate bottleneck branch. No signal production change is justified.
+
+#### Impact Analysis and Decisions
+
+Inspected node-degree construction, source-direction semantics, both bus-stop placement loops, signal eligibility, cycle arithmetic, engine phase consumption, supported `max_nodes`, Git history, and signal documentation. Retain the existing implicit all-red remainder for odd cycles; changing phase timing would alter correct deterministic behavior based on an unreachable premise.
+
+#### Implementation and Regression Protection
+
+- Added a minimal OSM fixture where a degree-2 sink has only topology-only outgoing twins; scenario compilation must succeed and must not attach a bus stop to it.
+- Added property assertions that every generated signal has six phases and their sum never exceeds `cycle_s`.
+- Corrected signal component documentation to the actual selection, cycle ranges, and implicit remainder behavior.
+
+#### Security / Compatibility / Performance Review
+
+No new runtime behavior is introduced in this branch. The earlier iterator fix converts unsafe dereference into deterministic candidate exclusion. Tests and documentation are additive, with negligible runtime cost.
+
+#### Validation Results
+
+Exhaustive arithmetic evaluation for canonical IDs 0-49,999: zero phase-sum violations; minimum reachable non-bottleneck tuple `(cycle=33, node=21, allocated=32)`. Targeted unit/property CTest: 2/2 PASS. Post-review full CTest: 4/4 PASS. API smoke: 79 assertions PASS. SUMO integration: PASS. `git diff --check`: PASS. Docker remains environmentally unavailable.
+
+#### Git Operations
+
+Branch: `fix/issue-6-scenario-invariants`. Commit, push, PR, checks, merge, resolution comment, and closure pending. The production iterator change is already in merged PR #9; this branch adds the issue-specific fixture, invariant proof, and corrected documentation.
 
 ## Baseline Validation
 
