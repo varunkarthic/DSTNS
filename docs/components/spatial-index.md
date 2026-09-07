@@ -1,12 +1,15 @@
-# Spatial Index Subsystem (`dstns::spatial`)
+# Spatial Kernels and Linear Scans (`dstns::point_distance`, `dstns::wendland_c2`)
 
 ## Purpose
-The Spatial Index subsystem accelerates metric 2D spatial queries, radius neighbor searches, and building/weather field evaluations across the road network graph.
+There is no spatial-index class or `dstns::spatial` namespace. The current graph sizes use free metric-kernel functions plus direct linear scans in scenario generation and simulation physics.
 
 ## Responsibilities
-- Compute Euclidean distances in metric space $(x_m, y_m)$ and great-circle distances from $(\text{lat}, \text{lon})$.
-- Perform radius searches within distance $R$ for weather epicenters and building influence zones.
+- `point_distance` computes Euclidean distance in projected metric coordinates $(x_m, y_m)$; it does not compute great-circle distance.
+- `ScenarioCompiler::place_buildings` scans all nodes for candidates in its distance band.
+- `SimulationEngine::physics_step` scans nodes or edges when evaluating storms, building effects, and surge zones.
 - Support spatial compact kernels (Wendland $C^2$ polynomial).
+
+These searches are $O(|V|)$ or $O(|E|)$ per evaluated feature. An R-tree or other spatial index remains future optimization work, not an implemented subsystem.
 
 ## Mathematical Kernels
 ### Compact Wendland $C^2$ Spatial Kernel

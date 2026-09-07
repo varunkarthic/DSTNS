@@ -1,7 +1,7 @@
-# Playback Engine & Checkpoints (`dstns::engine`)
+# Playback and Checkpoints (`dstns::SimulationEngine`)
 
 ## Purpose
-The Playback Engine coordinates time progression across the three-clock model (playback clock $t_P \in [0, T_P]$, virtual day clock $t_D \in [0, 86399]$, and physics engine clock $t_{\text{SUMO}}$). It handles start, pause, play, seek, rate scaling, and periodic snapshotting.
+`SimulationEngine` maps elapsed wall time onto a virtual day $t_D \in [0,86400]$ using the configured playback duration $T_P$. Its built-in deterministic traffic physics advances in virtual-time steps; an optional SUMO run is a separate exported process, not a third synchronized engine clock.
 
 ## Lifecycle States
 ```text
@@ -17,10 +17,10 @@ BOOTING -> IDLE -> PREPARING -> READY -> RUNNING <-> PAUSED
 ## Three-Clock Model & Rate Scaling
 1. **Base Rate**:
    $$\text{base\_rate} = \frac{86400}{T_P}$$
-2. **Tick Rate**: Multiplier $k_{\text{tick}} \in (0, 10]$ (default 1.0).
+2. **Tick Rate**: Multiplier $k_{\text{tick}} \in (0, 100]$ (default 1.0).
 3. **Target Virtual Rate**:
    $$\text{target\_virtual\_rate} = \text{base\_rate} \cdot k_{\text{tick}}$$
-4. **Effective Virtual Rate & Lag**: If computational throughput cannot achieve target speed, physics steps are never skipped; the simulation tracks lagging virtual seconds $\Delta t_{\text{lag}}$.
+4. **Stepping**: The worker wakes about every 50 ms and calls `step_to`; physics is integrated in steps no larger than 60 virtual seconds and shortened at checkpoint boundaries.
 
 ## Checkpointing & Fast Seeking
 - Checkpoints are captured at fixed 900-virtual-second boundaries. Physics steps are shortened when necessary to land exactly on each crossed boundary, even after an unaligned live tick or seek.

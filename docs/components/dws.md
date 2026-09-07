@@ -1,4 +1,4 @@
-# Dynamic Weather Simulation (DWS) (`dstns::scenario`)
+# Dynamic Weather (`dstns::ScenarioCompiler`, `dstns::SimulationEngine`)
 
 ## Purpose
 The Dynamic Weather Simulation generates deterministic localized rainfall storms centered on road nodes and calculates spatial-temporal precipitation intensity fields across the road network.
@@ -10,8 +10,7 @@ Each DWS event $k$ is characterized by:
 - `start_ppm`, `end_ppm`: Parts-per-million virtual day timestamps $[t_{\text{start}}, t_{\text{end}}]$.
 - `intensity` $I_{\text{peak}} \in [0, 1]$: Maximum precipitation rate.
 - `radius_m` $R$: Maximum spatial extent in meters.
-- `flood_gain`: Water accumulation multiplier.
-- `recovery`: Natural drainage rate.
+- `flood_gain`, `recovery`: Deterministically generated event metadata. The current node flood integrator uses fixed gain/drain coefficients and does not consume these two fields.
 
 ## Spatiotemporal Kernel
 At distance $d$ from the epicenter and time $t \in [t_{\text{start}}, t_{\text{end}}]$:

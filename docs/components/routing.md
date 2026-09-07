@@ -1,4 +1,4 @@
-# Route Planning Subsystem (`dstns::graph`)
+# Route Planning (`dstns::RoutePlanner`)
 
 ## Purpose
 The `RoutePlanner` owns strategic, deterministic shortest-path and minimum-cost route calculation across the canonical road network using A* search.
@@ -16,7 +16,7 @@ The `RoutePlanner` owns strategic, deterministic shortest-path and minimum-cost 
 ```cpp
 struct RouteResult {
     bool found{false};
-    double cost_ms{0.0};
+    std::uint64_t cost_ms{0};
     std::vector<EdgeId> edges;
 };
 
