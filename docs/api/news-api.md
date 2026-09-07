@@ -22,7 +22,8 @@ Server-Sent Events emitting real-time notifications as events occur.
 ```
 
 ### 3. News Categories
-- `DWS_STARTED` / `DWS_ENDED`: Dynamic weather simulation events.
+- `DWS_RAIN_STARTED` / `DWS_RAIN_ENDED`: Deterministic Weather Simulation events.
+- `INCIDENT_ACTIVATED` / `INCIDENT_RESOLVED`: Incident Desk stochastic disruption events.
 - `TRAFFIC_HOTSPOT_ACTIVE`: Recurrent peak congestion triggers.
 - `ROAD_CLOSED` / `ROAD_RESTORED`: Flooding or manual closure changes.
 - `CONTROL_OVERRIDE`: Manual operator parameter updates.

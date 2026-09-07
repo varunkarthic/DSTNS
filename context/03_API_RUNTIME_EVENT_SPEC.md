@@ -1316,7 +1316,7 @@ Example news stream:
 [00:00:00] 121 Bus Stops generated
 [00:00:00] 386 Traffic Signals configured
 [00:00:00] Day Mode: Weekday
-[00:00:00] Dynamic Weather Simulation scheduled 3 events
+[00:00:00] Deterministic Weather Simulation scheduled 3 events
 [00:00:00] Simulation started
 ```
 

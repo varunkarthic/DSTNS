@@ -9,6 +9,7 @@ namespace dstns {
 
 const char* to_string(RoadClass v) { switch(v){case RoadClass::Motorway:return "motorway";case RoadClass::Primary:return "primary";case RoadClass::Secondary:return "secondary";case RoadClass::Tertiary:return "tertiary";case RoadClass::Residential:return "residential";case RoadClass::Service:return "service";} return "residential"; }
 const char* to_string(BuildingType v) { switch(v){case BuildingType::School:return "school";case BuildingType::Office:return "office";case BuildingType::Mall:return "mall";case BuildingType::Store:return "store";} return "store"; }
+const char* to_string(IncidentType v) { switch(v){case IncidentType::RoadClosure:return "road_closure";case IncidentType::Accident:return "accident";case IncidentType::Congestion:return "congestion";case IncidentType::VehicleBreakdown:return "vehicle_breakdown";case IncidentType::HazardSpill:return "hazard_spill";} return "incident"; }
 
 double point_distance(const Point& a,const Point& b){ return std::hypot(a.x_m-b.x_m,a.y_m-b.y_m); }
 double wendland_c2(double d,double r){ if(r<=0||d>=r)return 0; const auto q=std::max(0.0,d/r); const auto t=1-q; return t*t*t*t*(1+4*q); }

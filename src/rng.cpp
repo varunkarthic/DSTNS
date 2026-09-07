@@ -67,6 +67,12 @@ Seed128 Seed128::secure() {
     return {next(),next()};
 }
 
+Seed128 Seed128::derive(std::string_view domain) const {
+    const std::string payload = hex() + ":" + std::string(domain);
+    const std::string hash = sha256(payload);
+    return Seed128::parse(std::string_view(hash).substr(0, 32));
+}
+
 std::uint32_t DeterministicRng::u32(RngAddress a) const {
     const std::array<std::uint32_t,4> counter{static_cast<std::uint32_t>(a.object),static_cast<std::uint32_t>(a.object>>32),a.purpose,a.draw};
     const auto domain=static_cast<std::uint64_t>(a.domain);

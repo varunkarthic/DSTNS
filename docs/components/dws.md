@@ -1,7 +1,7 @@
-# Dynamic Weather (`dstns::ScenarioCompiler`, `dstns::SimulationEngine`)
+# Deterministic Weather Simulation (`dstns::ScenarioCompiler`, `dstns::SimulationEngine`)
 
 ## Purpose
-The Dynamic Weather Simulation generates deterministic localized rainfall storms centered on road nodes and calculates spatial-temporal precipitation intensity fields across the road network.
+The Deterministic Weather Simulation (DWS) generates reproducible localized rainfall storms centered on road nodes and calculates spatial-temporal precipitation intensity fields across the road network.
 
 ## Weather Event Model
 Each DWS event $k$ is characterized by:

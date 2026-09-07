@@ -989,7 +989,7 @@ export default function App() {
                 type="button"
                 className={`stack-tab ${stackTab === 'dws' ? 'active' : ''}`}
                 onClick={() => setStackTab('dws')}
-                title="Dynamic Weather System scheduled storm cells"
+                title="Deterministic Weather Simulation (DWS) scheduled storm cells"
               >
                 <CategoryIcon category="weather" /> DWS ({activeDws.length})
               </button>

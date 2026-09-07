@@ -752,7 +752,7 @@ Within each segment use Webster-derived values with clamps.
 
 ---
 
-## 18. Dynamic Weather Simulation subsystem
+## 18. Deterministic Weather Simulation (DWS) subsystem
 
 ```cpp
 struct DwsEvent {

@@ -13,12 +13,13 @@ struct Seed128 {
     [[nodiscard]] std::string hex() const;
     static Seed128 parse(std::string_view value);
     static Seed128 secure();
+    [[nodiscard]] Seed128 derive(std::string_view domain) const;
     auto operator<=>(const Seed128&) const = default;
 };
 
 enum class RngDomain : std::uint32_t {
     MapSelection = 1, BusStops, Buildings, TrafficControl, TrafficOD,
-    TrafficSignals, DwsSchedule, DwsField, DaySelector
+    TrafficSignals, DwsSchedule, DwsField, DaySelector, Incidents, Events
 };
 
 struct RngAddress {
