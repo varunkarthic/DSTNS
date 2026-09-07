@@ -39,7 +39,38 @@ The DSTNS Operator CLI (`dstns-operator-cli`) is a modern terminal operator inte
 
 ---
 
-## 2. Invocation & Entry Points
+## 2. Interactive Navigation (Ubuntu Server Style)
+
+When launched in an interactive terminal session (`./launcher` or `python3 launcher.py` without subcommands), the operator console presents a modern Subiquity-inspired terminal interface:
+
+```text
+  OPERATOR ACTIONS
+  ──────────────────────────────────────────────────────────────────────────
+❯ [●] Launch & Control Simulation     Start C++ server, physics loop & open Web UI
+  [ ] Inspect System Logs             View event log, API requests, and SQLite DB
+  [ ] Configuration Manager           Inspect and edit playback & network defaults
+  [ ] Run Verification Suite          Execute native C++, SUMO, API & UI tests
+  [ ] Standalone SUMO Execution       Microscopic traffic simulation (sandbox.sumocfg)
+  [ ] Reset Runtime State             Clear ephemeral SQLite DB, logs & scenarios
+  [ ] Web UI Manager                  Open browser, Vite dev server, build, or install
+  [ ] Command Reference               Display CLI command syntax and flags
+  [ ] Exit Operator Console           Shut down managed services and terminate
+
+  ──────────────────────────────────────────────────────────────────────────
+  [↑/↓] Navigate    [Space] Select    [Enter] Execute    [q] Exit
+  ──────────────────────────────────────────────────────────────────────────
+```
+
+### Controls
+- **`↑` / `↓` Arrow Keys** (or `k` / `j`): Move focus cursor (`❯`) across menu options.
+- **`Space`**: Mark / select the highlighted option with radio indicator (`[●]`).
+- **`Enter`**: Execute the selected or highlighted option.
+- **`q` / `Escape`**: Return to parent menu or exit the operator console.
+- **`Ctrl+C`**: Cleanly terminate managed background processes and exit.
+
+---
+
+## 3. Invocation & Entry Points
 
 The operator console can be launched through multiple equivalent entrypoints:
 
@@ -59,7 +90,7 @@ npm start --prefix dstns-operator-cli
 
 ---
 
-## 3. Command Reference
+## 4. Command Reference
 
 ### Starting the Server & Web UI
 ```bash

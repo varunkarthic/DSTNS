@@ -23,7 +23,13 @@ DSTNS is a high-performance C++20 urban road network scenario compiler, simulati
 ## Quick Start Guide
 
 ### 1. Interactive Operator Console (`dstns-operator-cli`)
-DSTNS features a modern terminal operator interface powered by `@poppinss/cliui` that manages the entire lifecycle, automatic Web UI building, server health monitoring, and test suites:
+DSTNS features a modern terminal operator interface powered by `@poppinss/cliui` that manages the entire lifecycle, automatic Web UI building, server health monitoring, and test suites.
+
+The console provides **Ubuntu Server (Subiquity) style navigation**:
+* **`↑` / `↓` Arrow Keys** (or `k` / `j`): Navigate menu options.
+* **`Space`**: Select / mark the highlighted option (`[●]`).
+* **`Enter`**: Execute the selected or highlighted option.
+* **`q` / `Esc`**: Return to previous menu or exit console.
 
 ```bash
 # Launch operator console (via root launcher or direct CLI)
@@ -34,7 +40,7 @@ python3 launcher.py
 node dstns-operator-cli/dstns.mjs
 ```
 
-* **Key Commands**:
+* **CLI Commands & Flags (Non-Interactive Automation)**:
   * `start [--open]`: Build engine & Web UI bundle, launch server, and optionally open browser
   * `ui [open|dev|build|install]`: Manage frontend bundle, live Vite dev server, or browser
   * `logs [system|api|event|playback]`: Inspect live SQLite WAL logs or text logs

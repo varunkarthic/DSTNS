@@ -3,7 +3,13 @@
 /**
  * DSTNS Operator CLI
  *
- * Presentation layer powered by @poppinss/cliui.
+ * Modern terminal operator interface powered by @poppinss/cliui.
+ * Ubuntu Server (Subiquity) style navigation:
+ * - Up / Down arrow keys (or k / j) to navigate options
+ * - Space to select / mark radio item ([●])
+ * - Enter to execute highlighted or selected option
+ * - q / Esc to return or exit
+ *
  * The C++ DSTNS server remains the simulation authority.
  */
 
@@ -21,7 +27,8 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-import readline from 'node:readline/promises'
+import nodeReadline from 'node:readline'
+import readlinePromises from 'node:readline/promises'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -38,7 +45,6 @@ const UI_DIST = path.join(UI_ENGINE, 'dist')
 const VERSION = '1.1.0'
 
 const ui = cliui()
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
 let managedServer = null
 let managedServerPort = null
@@ -57,7 +63,7 @@ class CommandError extends Error {
 
 function clearScreen() {
   if (process.stdout.isTTY) {
-    process.stdout.write('\x1b[2J\x1b[H')
+    process.stdout.write('\x1b[H\x1b[J')
   }
 }
 
@@ -95,23 +101,202 @@ function formatDuration(ms) {
 
 function banner() {
   ui.sticker()
-    .add(`${ui.colors.cyan('DSTNS')}  ${ui.colors.dim(`v${VERSION}`)}`)
-    .add('Deterministic Simulated Environment')
-    .add(ui.colors.dim('Operator Console · C++ simulation authority'))
-    .add(ui.colors.dim('Developed by Varun Karthic'))
+    .add(`${ui.colors.bold(ui.colors.cyan('DSTNS OPERATOR CONSOLE'))}  ${ui.colors.dim(`v${VERSION}`)}`)
+    .add('Deterministic Simulated Environment · C++ Simulation Authority')
+    .add(ui.colors.dim('Microscopic traffic physics · Automated deterministic weather · Live Web UI'))
     .render()
 }
 
-async function prompt(label, fallback = '') {
-  const suffix = fallback === '' ? '' : ` ${ui.colors.dim(`[${fallback}]`)}`
-  const answer = await rl.question(`${ui.colors.cyan(label)}${suffix}: `)
-  const value = answer.trim()
-  return value || fallback
+/**
+ * Interactive menu selector inspired by Ubuntu Server (Subiquity).
+ *
+ * @param {object} options
+ * @param {string} options.title - Menu section header
+ * @param {Array<{id: string, label: string, description?: string}>} options.items - Selectable options
+ * @param {number} [options.initialIndex=0] - Initial cursor position
+ * @param {boolean} [options.allowCancel=true] - Whether q/Escape cancels
+ * @param {string} [options.cancelId='back'] - Item id returned on cancel
+ * @param {Function} [options.beforeRender=null] - Async callback to print banners/cards before options
+ * @returns {Promise<{id: string, label: string, description?: string}>}
+ */
+async function selectMenu({
+  title = '',
+  items = [],
+  initialIndex = 0,
+  allowCancel = true,
+  cancelId = 'back',
+  beforeRender = null,
+}) {
+  if (!process.stdin.isTTY || items.length === 0) {
+    return items[initialIndex] ?? items[0] ?? null
+  }
+
+  let cursorIndex = Math.max(0, Math.min(initialIndex, items.length - 1))
+  let selectedIndex = cursorIndex
+  let hasExplicitlySelected = false
+
+  const render = async () => {
+    const lines = []
+    lines.push('\x1b[H\x1b[J')
+
+    if (beforeRender) {
+      const header = await beforeRender({ cursorIndex, selectedIndex })
+      if (header) lines.push(header)
+    }
+
+    if (title) {
+      lines.push(`  ${ui.colors.bold(ui.colors.cyan(title))}`)
+      lines.push(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────'))
+    }
+
+    const maxLabelLen = items.reduce((max, it) => Math.max(max, it.label.length), 0) + 2
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      const isFocused = i === cursorIndex
+      const isSelected = i === selectedIndex
+
+      const cursor = isFocused ? ui.colors.bold(ui.colors.cyan('❯ ')) : '  '
+      const mark = isSelected ? ui.colors.bold(ui.colors.green('[●] ')) : ui.colors.dim('[ ] ')
+      const pad = ' '.repeat(Math.max(2, maxLabelLen - item.label.length))
+
+      let label
+      let desc
+      if (isFocused) {
+        label = ui.colors.bold(ui.colors.white(item.label))
+        desc = ui.colors.cyan(item.description ?? '')
+      } else {
+        label = isSelected ? ui.colors.white(item.label) : ui.colors.dim(item.label)
+        desc = ui.colors.dim(item.description ?? '')
+      }
+
+      lines.push(`${cursor}${mark}${label}${pad}${desc}`)
+    }
+
+    lines.push('')
+    lines.push(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────'))
+    const exitLabel = cancelId === 'exit' ? 'Exit' : 'Back'
+    lines.push(
+      `  ${ui.colors.bold(ui.colors.cyan('[↑/↓]'))} Navigate    ` +
+      `  ${ui.colors.bold(ui.colors.cyan('[Space]'))} Select    ` +
+      `  ${ui.colors.bold(ui.colors.cyan('[Enter]'))} Execute    ` +
+      `  ${ui.colors.bold(ui.colors.dim('[q]'))} ${exitLabel}`
+    )
+    lines.push(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────'))
+    lines.push('')
+
+    process.stdout.write(lines.join('\n'))
+  }
+
+  process.stdout.write('\x1b[?25l') // hide terminal cursor
+  nodeReadline.emitKeypressEvents(process.stdin)
+  process.stdin.setRawMode(true)
+  process.stdin.resume()
+
+  await render()
+
+  return new Promise((resolve) => {
+    const finish = (result) => {
+      process.stdin.removeListener('keypress', onKeypress)
+      if (process.stdin.isTTY) process.stdin.setRawMode(false)
+      process.stdin.pause()
+      process.stdout.write('\x1b[?25h') // restore cursor
+      resolve(result)
+    }
+
+    const onKeypress = async (str, key) => {
+      if (key?.ctrl && key?.name === 'c') {
+        finish(null)
+        await cleanup()
+        process.stdout.write('\n')
+        process.exit(130)
+      }
+
+      if (key?.name === 'up' || key?.name === 'k') {
+        cursorIndex = (cursorIndex - 1 + items.length) % items.length
+        await render()
+        return
+      }
+
+      if (key?.name === 'down' || key?.name === 'j') {
+        cursorIndex = (cursorIndex + 1) % items.length
+        await render()
+        return
+      }
+
+      if (key?.name === 'space' || str === ' ') {
+        selectedIndex = cursorIndex
+        hasExplicitlySelected = true
+        await render()
+        return
+      }
+
+      if (key?.name === 'return' || key?.name === 'enter') {
+        const chosen = hasExplicitlySelected ? items[selectedIndex] : items[cursorIndex]
+        finish(chosen)
+        return
+      }
+
+      if (allowCancel && (key?.name === 'escape' || key?.name === 'q' || str === 'q')) {
+        const cancelItem = items.find((it) => it.id === cancelId || it.id === 'back' || it.id === 'exit')
+        finish(cancelItem ?? { id: cancelId, label: 'Cancel' })
+      }
+    }
+
+    process.stdin.on('keypress', onKeypress)
+  })
+}
+
+async function promptText(label, fallback = '') {
+  if (!process.stdin.isTTY) return fallback
+  process.stdout.write('\x1b[?25h')
+  const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    const suffix = fallback === '' ? '' : ` ${ui.colors.dim(`[default: ${fallback}]`)}`
+    const answer = await rl.question(`  ${ui.colors.cyan(label)}${suffix}: `)
+    const val = answer.trim()
+    return val || fallback
+  } finally {
+    rl.close()
+  }
 }
 
 async function pressEnter() {
   if (!process.stdin.isTTY) return
-  await rl.question(ui.colors.dim('\nPress Enter to continue…'))
+  process.stdout.write(ui.colors.dim('\n  Press Enter, Space, or q to continue… '))
+  return new Promise((resolve) => {
+    nodeReadline.emitKeypressEvents(process.stdin)
+    if (process.stdin.isTTY) process.stdin.setRawMode(true)
+    process.stdin.resume()
+
+    const onKey = (str, key) => {
+      if (key?.ctrl && key?.name === 'c') {
+        process.stdin.removeListener('keypress', onKey)
+        if (process.stdin.isTTY) process.stdin.setRawMode(false)
+        process.stdin.pause()
+        process.stdout.write('\n')
+        cleanup().then(() => process.exit(130))
+        return
+      }
+      if (
+        key?.name === 'return' ||
+        key?.name === 'enter' ||
+        key?.name === 'space' ||
+        key?.name === 'escape' ||
+        key?.name === 'q' ||
+        str === ' ' ||
+        str === 'q'
+      ) {
+        process.stdin.removeListener('keypress', onKey)
+        if (process.stdin.isTTY) process.stdin.setRawMode(false)
+        process.stdin.pause()
+        process.stdout.write('\n')
+        resolve()
+      }
+    }
+
+    process.stdin.on('keypress', onKey)
+  })
 }
 
 async function loadConfig() {
@@ -249,103 +434,106 @@ async function checkDstnsHealth(port) {
   return null
 }
 
-async function waitHealth(port, child, timeoutMs = 15_000) {
+async function waitHealth(port, childProcess, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs
-
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
-      throw new Error(`Server exited before becoming healthy (exit ${child.exitCode})`)
+    if (childProcess && childProcess.exitCode !== null) {
+      throw new Error(`Server process exited unexpectedly with code ${childProcess.exitCode}`)
     }
-
     const health = await checkDstnsHealth(port)
     if (health) return health
-    await new Promise((resolve) => setTimeout(resolve, 200))
+    await new Promise((resolve) => setTimeout(resolve, 250))
   }
-
-  throw new Error(`Server did not become healthy on port ${port} within ${timeoutMs / 1000}s`)
-}
-
-async function build({ forceUi = false } = {}) {
-  await mkdir(BUILD, { recursive: true })
-
-  const tasks = ui.tasks()
-  tasks
-    .add('Configure C++ engine', async ({ update }) => {
-      const started = Date.now()
-      await runCommand('cmake', [
-        '-S', ROOT,
-        '-B', BUILD,
-        '-DCMAKE_BUILD_TYPE=Release',
-      ], { onOutput: (line) => update(line) })
-      return `Configured in ${formatDuration(Date.now() - started)}`
-    })
-    .add('Build DSTNS engine', async ({ update }) => {
-      const started = Date.now()
-      await runCommand('cmake', ['--build', BUILD, '-j4'], {
-        onOutput: (line) => update(line),
-      })
-      return `Built in ${formatDuration(Date.now() - started)}`
-    })
-    .addIf(!existsSync(path.join(UI_ENGINE, 'node_modules')), 'Install Web UI dependencies', async ({ update }) => {
-      const started = Date.now()
-      await runCommand('npm', ['install', '--prefix', UI_ENGINE], {
-        onOutput: (line) => update(line),
-      })
-      return `UI dependencies installed in ${formatDuration(Date.now() - started)}`
-    })
-    .addIf(forceUi || !existsSync(UI_DIST), 'Build Web UI bundle', async ({ update }) => {
-      const started = Date.now()
-      await runCommand('npm', ['run', 'build', '--prefix', UI_ENGINE], {
-        onOutput: (line) => update(line),
-      })
-      return `UI bundle ready in ${formatDuration(Date.now() - started)}`
-    })
-
-  await tasks.run()
-  if (tasks.getState() === 'failed') {
-    throw tasks.error ?? new Error('Build failed')
-  }
-}
-
-async function ensureBuild() {
-  const missingServer = !existsSync(SERVER)
-  const missingUi = !existsSync(UI_DIST)
-  if (missingServer || missingUi) {
-    ui.logger.info('Build artifacts are incomplete', {
-      suffix: [missingServer ? 'server' : null, missingUi ? 'ui' : null].filter(Boolean).join(', '),
-    })
-    await build({ forceUi: missingUi })
-  }
+  throw new Error(`Server did not become healthy within ${timeoutMs / 1000}s on port ${port}`)
 }
 
 function collectChildTail(child) {
   let stdout = ''
   let stderr = ''
-  const cap = 100_000
+  const max = 32_000
 
   child.stdout?.on('data', (chunk) => {
-    stdout = (stdout + chunk.toString()).slice(-cap)
+    stdout = (stdout + chunk.toString()).slice(-max)
   })
   child.stderr?.on('data', (chunk) => {
-    stderr = (stderr + chunk.toString()).slice(-cap)
+    stderr = (stderr + chunk.toString()).slice(-max)
   })
 
   return () => ({ stdout, stderr })
 }
 
-async function startServer({ replace = false, open: shouldOpen = false } = {}) {
+async function build({ forceCmake = false, forceUi = false } = {}) {
+  const tasks = ui.tasks()
+
+  const needCmake = forceCmake || !existsSync(SERVER)
+  const uiModules = path.join(UI_ENGINE, 'node_modules')
+  const needUiInstall = !existsSync(uiModules)
+  const needUiBuild = forceUi || !existsSync(UI_DIST)
+
+  if (needCmake) {
+    tasks.add('Configure CMake build tree', async ({ update }) => {
+      const started = Date.now()
+      await runCommand('cmake', ['-S', ROOT, '-B', BUILD, '-DDSTNS_BUILD_TESTS=ON'], {
+        onOutput: (line) => update(line),
+      })
+      return `Configured · ${formatDuration(Date.now() - started)}`
+    })
+
+    tasks.add('Compile C++ simulation engine', async ({ update }) => {
+      const started = Date.now()
+      await runCommand('cmake', ['--build', BUILD, '-j4'], {
+        onOutput: (line) => update(line),
+      })
+      return `Compiled · ${formatDuration(Date.now() - started)}`
+    })
+  }
+
+  if (needUiInstall) {
+    tasks.add('Install Web UI dependencies', async ({ update }) => {
+      const started = Date.now()
+      await runCommand('npm', ['install', '--prefix', UI_ENGINE], {
+        onOutput: (line) => update(line),
+      })
+      return `Installed · ${formatDuration(Date.now() - started)}`
+    })
+  }
+
+  if (needUiBuild) {
+    tasks.add('Build production Web UI bundle', async ({ update }) => {
+      const started = Date.now()
+      await runCommand('npm', ['run', 'build', '--prefix', UI_ENGINE], {
+        onOutput: (line) => update(line),
+      })
+      return `Bundle built · ${formatDuration(Date.now() - started)}`
+    })
+  }
+
+  if (tasks.tasks.length === 0) {
+    ui.logger.success('Environment verified', { suffix: 'all artifacts ready' })
+    return
+  }
+
+  await tasks.run()
+  if (tasks.getState() === 'failed') {
+    throw tasks.error ?? new Error('Build steps failed')
+  }
+}
+
+async function startServer({ replace = false, open = false } = {}) {
   const cfg = await loadConfig()
-  await ensureBuild()
-  await mkdir(LOGS, { recursive: true })
-
   let port = Number(cfg.api.port)
-  const host = String(cfg.api.host)
+  const host = cfg.api.host || '127.0.0.1'
 
-  if (await canConnect(port)) {
+  await mkdir(LOGS, { recursive: true })
+  await build()
+
+  const shouldOpen = Boolean(open)
+
+  if (await canConnect(port, host)) {
     const existing = await checkDstnsHealth(port)
     if (existing) {
-      ui.logger.info('Attached to an existing DSTNS server', {
-        suffix: `port ${port} · ${existing.lifecycle ?? 'UNKNOWN'}`,
+      ui.logger.info('Attached to existing healthy DSTNS server', {
+        suffix: `port ${port} · ${existing.lifecycle ?? 'READY'}`,
       })
       renderServerCard(port, existing)
       if (shouldOpen) {
@@ -415,21 +603,6 @@ function renderServerCard(port, health = {}) {
     .render()
 }
 
-function renderSessionMenu(port) {
-  const table = ui.table()
-  table
-    .fullWidth()
-    .head(['Key', 'Action', 'Description'])
-    .row(['s', 'Start simulation', 'Auto-seed, SUMO physics, configured duration/tick rate'])
-    .row(['p', 'Pause', 'Pause simulation playback'])
-    .row(['r', 'Resume', 'Resume simulation playback'])
-    .row(['i', 'Status', 'Show current system state'])
-    .row(['o', 'Open UI', `Open http://127.0.0.1:${port}/`])
-    .row(['x', 'Terminate', 'Terminate the DSTNS server'])
-    .row(['q', 'Back', 'Return to the operator dashboard'])
-    .render()
-}
-
 function flattenObject(value, prefix = '', depth = 0, rows = []) {
   if (rows.length >= 40) return rows
 
@@ -460,7 +633,7 @@ function renderJsonTable(title, body) {
   ui.logger.info(title)
   const rows = flattenObject(body)
   const table = ui.table()
-  table.fullWidth().head(['Field', 'Value'])
+  table.head(['Field', 'Value'])
   for (const [key, value] of rows) table.row([key, value])
   table.render()
 }
@@ -489,40 +662,70 @@ async function openBrowser(url) {
   }
 }
 
+const SESSION_ITEMS = [
+  { id: 'start', label: 'Start Simulation', description: 'Initialize seed, traffic physics, and start playback' },
+  { id: 'pause', label: 'Pause Simulation', description: 'Freeze simulation clock and hold vehicle states' },
+  { id: 'resume', label: 'Resume Simulation', description: 'Resume playback loop and active incidents' },
+  { id: 'status', label: 'Inspect System Status', description: 'Query /api/v1/system/status live telemetry' },
+  { id: 'open', label: 'Open Web UI in Browser', description: 'Launch Web UI in default browser' },
+  { id: 'terminate', label: 'Terminate Server', description: 'Gracefully stop the background C++ server' },
+  { id: 'back', label: 'Return to Dashboard', description: 'Leave server running and return to main menu' },
+]
+
 async function controlSession(serverProcess, port) {
   const cfg = await loadConfig()
-  let firstRender = true
+  let lastSessionIndex = 0
 
   while (true) {
-    if (firstRender) {
-      renderSessionMenu(port)
-      firstRender = false
-    }
-
     if (serverProcess && serverProcess.exitCode !== null) {
       ui.logger.error(new Error(`Managed server exited with code ${serverProcess.exitCode}`))
       return
     }
 
-    const raw = (await prompt(`dstns:${port}`)).toLowerCase()
-    const command = ({
-      '1': 's', start: 's', init: 's',
-      '2': 'p', pause: 'p',
-      '3': 'r', play: 'r', resume: 'r',
-      '4': 'i', status: 'i', info: 'i',
-      '5': 'x', terminate: 'x', kill: 'x',
-      open: 'o', ui: 'o',
-      exit: 'q', quit: 'q', return: 'q',
-    })[raw] ?? raw
+    const choice = await selectMenu({
+      title: 'ACTIVE SERVER CONTROLS',
+      items: SESSION_ITEMS,
+      initialIndex: lastSessionIndex,
+      allowCancel: true,
+      cancelId: 'back',
+      beforeRender: async () => {
+        clearScreen()
+        const health = await checkDstnsHealth(port)
+        const lifecycle = health?.lifecycle ?? 'READY'
+        const isRunning = serverProcess ? serverProcess.exitCode === null : true
+        const c = ui.colors
 
-    if (command === 'q') return
+        const lines = [
+          c.dim('╭──────────────────────────────────────────────────────────────────────────╮'),
+          `${c.dim('│')}  ${c.bold(c.cyan('DSTNS ACTIVE SERVER SESSION'))}                                    ${c.dim(`port ${port}`)}  ${c.dim('│')}`,
+          `${c.dim('│')}  ${c.dim('Simulation authority running with deterministic clock and REST API')}       ${c.dim('│')}`,
+          c.dim('╰──────────────────────────────────────────────────────────────────────────╯'),
+          '',
+          `  ${c.bold(c.cyan('SERVER TELEMETRY'))}`,
+          c.dim('  ──────────────────────────────────────────────────────────────────────────'),
+          `  ${c.green('●')}  ${c.bold('Status       ')} ${c.green(lifecycle.padEnd(12))} ${c.dim(isRunning ? 'Process active' : 'Process exited')}`,
+          `  ${c.green('●')}  ${c.bold('Endpoint     ')} ${c.cyan(`http://127.0.0.1:${port}/`)}`,
+          `  ${c.green('●')}  ${c.bold('Web UI       ')} ${c.cyan(`http://127.0.0.1:${port}/`)}`,
+          `  ${c.green('●')}  ${c.bold('Playback API ')} ${c.cyan(`http://127.0.0.1:${port}/api/v1/playback/status`)}`,
+          c.dim('  ──────────────────────────────────────────────────────────────────────────'),
+          '',
+        ]
+        return lines.join('\n')
+      },
+    })
 
-    if (command === 'o') {
+    if (!choice || choice.id === 'back') return
+
+    lastSessionIndex = SESSION_ITEMS.findIndex((it) => it.id === choice.id)
+    if (lastSessionIndex === -1) lastSessionIndex = 0
+
+    if (choice.id === 'open') {
       await openBrowser(`http://127.0.0.1:${port}/`)
+      await pressEnter()
       continue
     }
 
-    if (command === 's') {
+    if (choice.id === 'start') {
       const payload = {
         seed: 'auto',
         playback_duration_seconds: Number(cfg.playback.duration_seconds),
@@ -546,54 +749,68 @@ async function controlSession(serverProcess, port) {
       } else {
         ui.logger.error(new Error(body?.error ?? body?.message ?? `HTTP ${code}`))
       }
+      await pressEnter()
       continue
     }
 
-    if (command === 'p') {
+    if (choice.id === 'pause') {
       const { code, body } = await apiCall(port, '/api/v1/playback/pause', 'POST', {})
       if (code >= 200 && code < 300) {
         ui.logger.success('Simulation paused', { suffix: body?.lifecycle ?? `HTTP ${code}` })
       } else {
         ui.logger.error(new Error(body?.error ?? body?.message ?? `HTTP ${code}`))
       }
+      await pressEnter()
       continue
     }
 
-    if (command === 'r') {
+    if (choice.id === 'resume') {
       const { code, body } = await apiCall(port, '/api/v1/playback/play', 'POST', {})
       if (code >= 200 && code < 300) {
         ui.logger.success('Simulation resumed', { suffix: body?.lifecycle ?? `HTTP ${code}` })
       } else {
         ui.logger.error(new Error(body?.error ?? body?.message ?? `HTTP ${code}`))
       }
+      await pressEnter()
       continue
     }
 
-    if (command === 'i') {
+    if (choice.id === 'status') {
       const { code, body } = await apiCall(port, '/api/v1/system/status')
       if (code >= 200 && code < 300) renderJsonTable('DSTNS system status', body)
       else ui.logger.error(new Error(body?.error ?? body?.message ?? `HTTP ${code}`))
+      await pressEnter()
       continue
     }
 
-    if (command === 'x') {
-      const confirmation = (await prompt('Type TERMINATE to stop the server')).toUpperCase()
-      if (confirmation !== 'TERMINATE') {
-        ui.logger.info('Termination cancelled')
-        continue
-      }
+    if (choice.id === 'terminate') {
+      const confirmItems = [
+        { id: 'cancel', label: 'Cancel', description: 'Keep the DSTNS server running' },
+        { id: 'confirm', label: 'Confirm Termination', description: 'Send shutdown signal to C++ server process' },
+      ]
+      const confirmed = await selectMenu({
+        title: 'SERVER TERMINATION CONFIRMATION',
+        items: confirmItems,
+        allowCancel: true,
+        cancelId: 'cancel',
+        beforeRender: async () => {
+          clearScreen()
+          return `  ${ui.colors.yellow('Are you sure you want to shut down the C++ DSTNS server?')}\n`
+        },
+      })
 
-      const { code, body } = await apiCall(port, '/terminate', 'POST', {})
-      if (code >= 200 && code < 300) {
-        ui.logger.success(body?.message ?? 'Server termination requested')
-      } else {
-        ui.logger.error(new Error(body?.error ?? body?.message ?? `HTTP ${code}`))
+      if (confirmed?.id === 'confirm') {
+        const { code, body } = await apiCall(port, '/terminate', 'POST', {})
+        if (code >= 200 && code < 300) {
+          ui.logger.success(body?.message ?? 'Server termination requested')
+        } else {
+          ui.logger.error(new Error(body?.error ?? body?.message ?? `HTTP ${code}`))
+        }
+        await pressEnter()
+        return
       }
-      return
+      ui.logger.info('Termination cancelled')
     }
-
-    ui.logger.warning('Unknown session command', { suffix: raw || '(empty)' })
-    renderSessionMenu(port)
   }
 }
 
@@ -638,36 +855,45 @@ function renderLogTable(columns, rows) {
   }
 
   const table = ui.table()
-  table.fullWidth().head(selected.map((index) => columns[index]))
+  table.head(selected.map((index) => columns[index]))
   for (const row of rows) {
     table.row(selected.map((index) => trimText(row[index], 72)))
   }
   table.render()
 }
 
+const LOG_ITEMS = [
+  { id: 'system', label: 'System Log (system.log)', description: 'Stream latest entries from logs/system.log' },
+  { id: 'api', label: 'REST API Log (SQLite)', description: 'Query api_log: endpoints, response codes, latencies' },
+  { id: 'event', label: 'Simulation Event Log (SQLite)', description: 'Query event_log: weather, incidents, triggers' },
+  { id: 'playback', label: 'Playback Lifecycle Log', description: 'Query lifecycle_log: state transition history' },
+  { id: 'back', label: 'Return to Main Menu', description: 'Go back to operator dashboard' },
+]
+
 async function viewLogs(topic = '') {
   let choice = topic.toLowerCase()
-  if (!choice) {
-    const table = ui.table()
-    table
-      .head(['Key', 'Log'])
-      .row(['1', 'system'])
-      .row(['2', 'api'])
-      .row(['3', 'event'])
-      .row(['4', 'playback'])
-      .row(['q', 'return'])
-      .render()
-    choice = (await prompt('Log source')).toLowerCase()
-  }
 
-  choice = ({ '1': 'system', '2': 'api', '3': 'event', '4': 'playback' })[choice] ?? choice
-  if (['q', 'quit', 'return', ''].includes(choice)) return
+  if (!choice) {
+    const selected = await selectMenu({
+      title: 'LOG INSPECTOR',
+      items: LOG_ITEMS,
+      allowCancel: true,
+      cancelId: 'back',
+      beforeRender: async () => {
+        clearScreen()
+        banner()
+        return `  ${ui.colors.dim('Select a log source to inspect runtime activity.')}\n`
+      },
+    })
+    if (!selected || selected.id === 'back') return false
+    choice = selected.id
+  }
 
   if (choice === 'system') {
     const file = path.join(LOGS, 'system.log')
     if (!existsSync(file)) {
       ui.logger.info('No system log yet')
-      return
+      return true
     }
 
     const content = await readFile(file, 'utf8')
@@ -676,7 +902,7 @@ async function viewLogs(topic = '') {
     for (const line of lines) {
       ui.logger.info(trimText(line, 160), { prefix: '%time%' })
     }
-    return
+    return true
   }
 
   const mapping = {
@@ -687,43 +913,98 @@ async function viewLogs(topic = '') {
   const tableName = mapping[choice]
   if (!tableName) {
     ui.logger.warning('Unknown log source', { suffix: choice })
-    return
+    return true
   }
 
   const data = await queryRuntimeDb(tableName)
   if (!data) {
     ui.logger.info('No runtime database yet')
-    return
+    return true
   }
   renderLogTable(data.columns, data.rows)
+  return true
 }
 
 async function editConfig() {
-  const cfg = await loadConfig()
+  while (true) {
+    const cfg = await loadConfig()
+    const CONFIG_ITEMS = [
+      { id: 'duration', label: `Playback Duration (${cfg.playback.duration_seconds}s)`, description: 'Configured duration in seconds [60–3600]' },
+      { id: 'tick', label: `Tick Rate (${cfg.playback.tick_rate} Hz)`, description: 'Simulation frequency in Hertz (0, 100]' },
+      { id: 'host', label: `API Host (${cfg.api.host})`, description: 'Bind network interface (e.g. 127.0.0.1)' },
+      { id: 'port', label: `API Port (${cfg.api.port})`, description: 'Network listening port [1–65535]' },
+      { id: 'back', label: 'Done (Return to Dashboard)', description: 'Finish configuring and return to main menu' },
+    ]
 
-  const table = ui.table()
-  table
-    .fullWidth()
-    .head(['Setting', 'Current', 'Allowed'])
-    .row(['playback.duration_seconds', String(cfg.playback.duration_seconds), '60–3600 seconds'])
-    .row(['playback.tick_rate', String(cfg.playback.tick_rate), '> 0 and ≤ 100'])
-    .row(['api.host', String(cfg.api.host), 'bind address'])
-    .row(['api.port', String(cfg.api.port), '1–65535'])
-    .render()
+    const choice = await selectMenu({
+      title: 'CONFIGURATION MANAGER',
+      items: CONFIG_ITEMS,
+      allowCancel: true,
+      cancelId: 'back',
+      beforeRender: async () => {
+        clearScreen()
+        banner()
+        const c = ui.colors
+        const lines = [
+          `  ${c.bold(c.cyan('CURRENT SETTINGS'))}`,
+          c.dim('  ──────────────────────────────────────────────────────────────────────────'),
+          `  ●  ${c.bold('Duration  ')} ${String(cfg.playback.duration_seconds).padEnd(10)} ${c.dim('seconds per simulation cycle [60–3600]')}`,
+          `  ●  ${c.bold('Tick Rate ')} ${String(cfg.playback.tick_rate).padEnd(10)} ${c.dim('simulation update frequency in Hz (0, 100]')}`,
+          `  ●  ${c.bold('API Host  ')} ${String(cfg.api.host).padEnd(10)} ${c.dim('listening address')}`,
+          `  ●  ${c.bold('API Port  ')} ${String(cfg.api.port).padEnd(10)} ${c.dim('REST API port [1–65535]')}`,
+          c.dim('  ──────────────────────────────────────────────────────────────────────────'),
+          '',
+          `  ${c.dim('Select a parameter to modify its value, or choose Done to return.')}\n`,
+        ]
+        return lines.join('\n')
+      },
+    })
 
-  const duration = await prompt('Playback duration', String(cfg.playback.duration_seconds))
-  const tick = await prompt('Tick rate', String(cfg.playback.tick_rate))
-  const host = await prompt('API host', String(cfg.api.host))
-  const port = await prompt('API port', String(cfg.api.port))
+    if (!choice || choice.id === 'back') return
 
-  cfg.playback.duration_seconds = Number(duration)
-  cfg.playback.tick_rate = Number(tick)
-  cfg.api.host = host
-  cfg.api.port = Number(port)
-  validateConfig(cfg)
-
-  await writeFile(CONFIG, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8')
-  ui.logger.success('Configuration saved', { suffix: CONFIG })
+    if (choice.id === 'duration') {
+      const val = await promptText('Enter new playback duration (seconds)', String(cfg.playback.duration_seconds))
+      const num = Number(val)
+      if (Number.isInteger(num) && num >= 60 && num <= 3600) {
+        cfg.playback.duration_seconds = num
+        await writeFile(CONFIG, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8')
+        ui.logger.success('Playback duration updated', { suffix: `${num}s` })
+      } else {
+        ui.logger.error(new Error('Invalid duration: must be an integer between 60 and 3600'))
+      }
+      await pressEnter()
+    } else if (choice.id === 'tick') {
+      const val = await promptText('Enter new tick rate (Hz)', String(cfg.playback.tick_rate))
+      const num = Number(val)
+      if (Number.isFinite(num) && num > 0 && num <= 100) {
+        cfg.playback.tick_rate = num
+        await writeFile(CONFIG, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8')
+        ui.logger.success('Tick rate updated', { suffix: `${num} Hz` })
+      } else {
+        ui.logger.error(new Error('Invalid tick rate: must be in (0, 100]'))
+      }
+      await pressEnter()
+    } else if (choice.id === 'host') {
+      const val = await promptText('Enter API host', String(cfg.api.host))
+      if (val.trim()) {
+        cfg.api.host = val.trim()
+        await writeFile(CONFIG, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8')
+        ui.logger.success('API host updated', { suffix: cfg.api.host })
+      }
+      await pressEnter()
+    } else if (choice.id === 'port') {
+      const val = await promptText('Enter API port', String(cfg.api.port))
+      const num = Number(val)
+      if (Number.isInteger(num) && num >= 1 && num <= 65535) {
+        cfg.api.port = num
+        await writeFile(CONFIG, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8')
+        ui.logger.success('API port updated', { suffix: `port ${num}` })
+      } else {
+        ui.logger.error(new Error('Invalid port: must be an integer between 1 and 65535'))
+      }
+      await pressEnter()
+    }
+  }
 }
 
 const TESTS = {
@@ -800,7 +1081,7 @@ async function runTests(scope = 'all', { verbose = false } = {}) {
     tasks.add(test.title, async ({ update, error }) => {
       const stepStart = Date.now()
       try {
-        const result = await runCommand(test.command, test.args, {
+        await runCommand(test.command, test.args, {
           cwd: ROOT,
           onOutput: (line) => update(line),
         })
@@ -820,7 +1101,7 @@ async function runTests(scope = 'all', { verbose = false } = {}) {
 
   ui.logger.info('Test summary')
   const summary = ui.table()
-  summary.fullWidth().head(['Test', 'Result', 'Duration'])
+  summary.head(['Test', 'Result', 'Duration'])
   for (const result of results) {
     summary.row([
       result.name,
@@ -959,8 +1240,21 @@ async function runStandaloneSumo() {
 
 async function resetRuntime({ confirmed = false } = {}) {
   if (!confirmed && process.stdin.isTTY) {
-    const answer = (await prompt('Type RESET to clear runtime state')).toUpperCase()
-    if (answer !== 'RESET') {
+    const resetItems = [
+      { id: 'cancel', label: 'Cancel', description: 'Keep all databases, logs, and checkpoints intact' },
+      { id: 'confirm', label: 'Confirm Reset', description: 'Purge runtime.db, system.log, scenarios & checkpoints' },
+    ]
+    const choice = await selectMenu({
+      title: 'RESET RUNTIME STATE CONFIRMATION',
+      items: resetItems,
+      allowCancel: true,
+      cancelId: 'cancel',
+      beforeRender: async () => {
+        clearScreen()
+        return `  ${ui.colors.yellow('This will delete ephemeral logs, SQLite databases, scenarios, and checkpoints.')}\n`
+      },
+    })
+    if (choice?.id !== 'confirm') {
       ui.logger.info('Reset cancelled')
       return false
     }
@@ -1016,93 +1310,111 @@ function renderHelp() {
 
 async function dashboardState() {
   let cfg
+  let configOk = false
+  let configStr = 'invalid'
+  let configPath = CONFIG
+
   try {
     cfg = await loadConfig()
+    configOk = true
+    configStr = 'valid'
+    configPath = `${CONFIG} (port: ${cfg.api.port})`
   } catch (error) {
-    return {
-      config: ui.colors.red('INVALID'),
-      server: ui.colors.red('UNKNOWN'),
-      build: existsSync(SERVER) ? 'engine ready' : 'engine missing',
-      web: existsSync(UI_DIST) ? 'bundle ready' : 'bundle missing',
-      port: '—',
-      error: error.message,
+    configStr = 'invalid'
+    configPath = `${CONFIG} · ${error.message}`
+  }
+
+  const port = cfg ? Number(cfg.api.port) : 8080
+  let serverOk = false
+  let serverStr = 'stopped'
+  let serverDetail = `configured port ${port} · http://127.0.0.1:${port}/ (offline)`
+
+  if (await canConnect(port)) {
+    const health = await checkDstnsHealth(port)
+    if (health) {
+      serverOk = true
+      serverStr = health.lifecycle ?? 'running'
+      serverDetail = `http://127.0.0.1:${port}/ · lifecycle: ${serverStr}`
+    } else {
+      serverStr = 'occupied'
+      serverDetail = `port ${port} in use by another process`
     }
   }
 
-  const port = Number(cfg.api.port)
-  let server = ui.colors.dim('stopped')
-  if (await canConnect(port)) {
-    const health = await checkDstnsHealth(port)
-    server = health
-      ? ui.colors.green(health.lifecycle ?? 'running')
-      : ui.colors.yellow('port occupied')
-  }
+  const buildOk = existsSync(SERVER)
+  const webOk = existsSync(UI_DIST)
 
   return {
-    config: ui.colors.green('valid'),
-    server,
-    build: existsSync(SERVER) ? ui.colors.green('ready') : ui.colors.yellow('missing'),
-    web: existsSync(UI_DIST) ? ui.colors.green('ready') : ui.colors.yellow('missing'),
-    port: String(port),
-    error: null,
+    build: buildOk ? 'ready' : 'missing',
+    buildOk,
+    buildPath: SERVER,
+    web: webOk ? 'ready' : 'missing',
+    webOk,
+    webPath: existsSync(UI_DIST) ? `${UI_DIST} (production bundle)` : `${UI_ENGINE} (unbuilt)`,
+    config: configStr,
+    configOk,
+    configPath,
+    server: serverStr,
+    serverOk,
+    serverDetail,
+    port,
   }
 }
 
-async function renderDashboard() {
-  clearScreen()
-  banner()
-  const state = await dashboardState()
-
-  const status = ui.table()
-  status
-    .fullWidth()
-    .head(['Component', 'State', 'Detail'])
-    .row(['C++ engine', state.build, SERVER])
-    .row(['Web UI', state.web, UI_DIST])
-    .row(['Configuration', state.config, CONFIG])
-    .row(['API server', state.server, `configured port ${state.port}`])
-    .render()
-
-  if (state.error) ui.logger.error(new Error(state.error))
-
-  const menu = ui.table()
-  menu
-    .fullWidth()
-    .head(['Key', 'Command', 'Description'])
-    .row(['1', 'start', 'Launch/attach server and enter simulation controls'])
-    .row(['2', 'logs', 'Inspect system, API, event, or playback logs'])
-    .row(['3', 'config', 'Edit validated defaults'])
-    .row(['4', 'test', 'Run native, API, replay, SUMO, benchmark, and UI tests'])
-    .row(['5', 'sumo', 'Run standalone microscopic SUMO execution'])
-    .row(['6', 'reset', 'Clear ephemeral runtime state'])
-    .row(['7', 'ui', 'Open or manage Web UI (open, dev, build, install)'])
-    .row(['8', 'help', 'Show CLI command reference'])
-    .row(['9', 'exit', 'Exit operator console'])
-    .render()
+function renderTelemetry(state) {
+  const c = ui.colors
+  const lines = [
+    `  ${c.bold(c.cyan('SYSTEM TELEMETRY'))}`,
+    c.dim('  ──────────────────────────────────────────────────────────────────────────'),
+    `  ${state.buildOk ? c.green('●') : c.red('●')}  ${c.bold('C++ Core       ')} ${state.build.padEnd(12)} ${c.dim(state.buildPath)}`,
+    `  ${state.webOk ? c.green('●') : c.yellow('●')}  ${c.bold('Web UI Dist    ')} ${state.web.padEnd(12)} ${c.dim(state.webPath)}`,
+    `  ${state.configOk ? c.green('●') : c.red('●')}  ${c.bold('Configuration  ')} ${state.config.padEnd(12)} ${c.dim(state.configPath)}`,
+    `  ${state.serverOk ? c.green('●') : c.dim('●')}  ${c.bold('API Server     ')} ${state.server.padEnd(12)} ${c.dim(state.serverDetail)}`,
+    c.dim('  ──────────────────────────────────────────────────────────────────────────'),
+    '',
+  ]
+  return lines.join('\n')
 }
+
+const MENU_ITEMS = [
+  { id: 'start', label: 'Launch & Control Simulation', description: 'Start C++ server, physics loop & open Web UI' },
+  { id: 'logs', label: 'Inspect System Logs', description: 'View event log, API requests, and SQLite DB' },
+  { id: 'config', label: 'Configuration Manager', description: 'Inspect and edit playback & network defaults' },
+  { id: 'test', label: 'Run Verification Suite', description: 'Execute native C++, SUMO, API & UI tests' },
+  { id: 'sumo', label: 'Standalone SUMO Execution', description: 'Microscopic traffic simulation (sandbox.sumocfg)' },
+  { id: 'reset', label: 'Reset Runtime State', description: 'Clear ephemeral SQLite DB, logs & scenarios' },
+  { id: 'ui', label: 'Web UI Manager', description: 'Open browser, Vite dev server, build, or install' },
+  { id: 'help', label: 'Command Reference', description: 'Display CLI command syntax and flags' },
+  { id: 'exit', label: 'Exit Operator Console', description: 'Shut down managed services and terminate' },
+]
 
 async function menu() {
-  const aliases = {
-    '1': 'start',
-    '2': 'logs',
-    '3': 'config',
-    '4': 'test',
-    '5': 'sumo',
-    '6': 'reset',
-    '7': 'ui',
-    '8': 'help',
-    '9': 'exit',
-    q: 'exit',
-    quit: 'exit',
-  }
+  let lastIndex = 0
 
   while (true) {
-    await renderDashboard()
-    const raw = (await prompt('dstns')).toLowerCase()
-    const action = aliases[raw] ?? raw
+    const choice = await selectMenu({
+      title: 'OPERATOR ACTIONS',
+      items: MENU_ITEMS,
+      initialIndex: lastIndex,
+      allowCancel: true,
+      cancelId: 'exit',
+      beforeRender: async () => {
+        clearScreen()
+        banner()
+        const state = await dashboardState()
+        return renderTelemetry(state)
+      },
+    })
+
+    if (!choice || choice.id === 'exit') {
+      return 0
+    }
+
+    lastIndex = MENU_ITEMS.findIndex((it) => it.id === choice.id)
+    if (lastIndex === -1) lastIndex = 0
 
     try {
-      if (action === 'start') {
+      if (choice.id === 'start') {
         if (managedServer && managedServer.exitCode === null && managedServerPort) {
           ui.logger.info('Using managed DSTNS server', { suffix: `port ${managedServerPort}` })
           await controlSession(managedServer, managedServerPort)
@@ -1117,39 +1429,81 @@ async function menu() {
           }
           await controlSession(started.process, started.port)
         }
-      } else if (action === 'logs') {
-        await viewLogs()
-      } else if (action === 'config') {
+      } else if (choice.id === 'logs') {
+        const didShow = await viewLogs()
+        if (didShow) await pressEnter()
+      } else if (choice.id === 'config') {
         await editConfig()
-      } else if (action === 'test') {
-        const scope = (await prompt('Scope (all/unit/ui)', 'all')).toLowerCase()
-        const verbose = (await prompt('Verbose task output? (y/N)', 'n')).toLowerCase().startsWith('y')
-        await runTests(scope, { verbose })
-      } else if (action === 'sumo') {
-        await runStandaloneSumo()
-      } else if (action === 'reset') {
-        await resetRuntime()
-      } else if (action === 'ui') {
-        const choice = (await prompt('UI action: open/dev/build/install', 'open')).toLowerCase()
-        if (choice === 'dev') {
-          ui.logger.info('Starting Web UI development server (Vite hot-reload)...')
-          await runCommand('npm', ['run', 'dev', '--prefix', UI_ENGINE], { inherit: true })
-        } else if (choice === 'build') {
-          await build({ forceUi: true })
-          ui.logger.success('Web UI bundle rebuilt')
-        } else if (choice === 'install') {
-          await runCommand('npm', ['install', '--prefix', UI_ENGINE], { inherit: true })
-          ui.logger.success('Web UI dependencies installed')
-        } else {
-          const cfg = await loadConfig()
-          await openBrowser(`http://127.0.0.1:${Number(cfg.api.port)}/`)
+      } else if (choice.id === 'test') {
+        const testOptions = [
+          { id: 'all', label: 'All Test Suites', description: 'Complete test suite (C++, SUMO, API, UI, benchmarks)' },
+          { id: 'unit', label: 'Native C++ Unit Tests', description: 'Fast C++ CTest test suite' },
+          { id: 'ui', label: 'Web UI Test Suite', description: 'Vitest frontend component & state tests' },
+          { id: 'back', label: 'Return to Main Menu', description: 'Go back to operator dashboard' },
+        ]
+        const testChoice = await selectMenu({
+          title: 'VERIFICATION SUITE SELECTOR',
+          items: testOptions,
+          allowCancel: true,
+          cancelId: 'back',
+          beforeRender: async () => {
+            clearScreen()
+            banner()
+            return `  ${ui.colors.dim('Select which verification suite to execute.')}\n`
+          },
+        })
+        if (testChoice && testChoice.id !== 'back') {
+          await runTests(testChoice.id)
+          await pressEnter()
         }
-      } else if (action === 'help') {
+      } else if (choice.id === 'sumo') {
+        await runStandaloneSumo()
+        await pressEnter()
+      } else if (choice.id === 'reset') {
+        const didReset = await resetRuntime()
+        if (didReset) await pressEnter()
+      } else if (choice.id === 'ui') {
+        const cfg = await loadConfig()
+        const uiOptions = [
+          { id: 'open', label: 'Open Web UI in Browser', description: `Launch http://127.0.0.1:${cfg.api.port}/` },
+          { id: 'dev', label: 'Vite Development Server', description: 'Start hot-reloading dev server in ui-engine' },
+          { id: 'build', label: 'Build Production Bundle', description: 'Compile optimized assets into ui-engine/dist' },
+          { id: 'install', label: 'Install UI Dependencies', description: 'Run npm install in ui-engine directory' },
+          { id: 'back', label: 'Return to Main Menu', description: 'Go back to operator dashboard' },
+        ]
+        const uiChoice = await selectMenu({
+          title: 'WEB UI MANAGER',
+          items: uiOptions,
+          allowCancel: true,
+          cancelId: 'back',
+          beforeRender: async () => {
+            clearScreen()
+            banner()
+            return `  ${ui.colors.dim('Manage Web UI frontend assets, dev server, and packages.')}\n`
+          },
+        })
+        if (uiChoice && uiChoice.id !== 'back') {
+          if (uiChoice.id === 'dev') {
+            ui.logger.info('Starting Web UI development server (Vite hot-reload)...')
+            await runCommand('npm', ['run', 'dev', '--prefix', UI_ENGINE], { inherit: true })
+          } else if (uiChoice.id === 'build') {
+            await build({ forceUi: true })
+            ui.logger.success('Web UI bundle rebuilt')
+            await pressEnter()
+          } else if (uiChoice.id === 'install') {
+            await runCommand('npm', ['install', '--prefix', UI_ENGINE], { inherit: true })
+            ui.logger.success('Web UI dependencies installed')
+            await pressEnter()
+          } else if (uiChoice.id === 'open') {
+            await openBrowser(`http://127.0.0.1:${Number(cfg.api.port)}/`)
+            await pressEnter()
+          }
+        }
+      } else if (choice.id === 'help') {
+        clearScreen()
+        banner()
         renderHelp()
-      } else if (action === 'exit') {
-        return 0
-      } else {
-        ui.logger.warning('Unknown command', { suffix: raw || '(empty)' })
+        await pressEnter()
       }
     } catch (error) {
       if (error instanceof CommandError) {
@@ -1158,9 +1512,8 @@ async function menu() {
       } else {
         ui.logger.error(error instanceof Error ? error : new Error(String(error)))
       }
+      await pressEnter()
     }
-
-    await pressEnter()
   }
 }
 
@@ -1208,7 +1561,11 @@ async function cleanup() {
     })
   }
 
-  rl.close()
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(false)
+  }
+  process.stdin.pause()
+  process.stdout.write('\x1b[?25h') // restore cursor
 }
 
 async function main() {
