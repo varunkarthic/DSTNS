@@ -1,7 +1,7 @@
-# API Server Subsystem (`dstns::api`)
+# HTTP API (`dstns::ApiServer`)
 
 ## Purpose
-The API Server exposes HTTP/REST and streaming (Server-Sent Events) interfaces for simulation control, topology retrieval, bulk state delivery, news events, and system administration.
+The API Server exposes HTTP/REST and one-shot Server-Sent Events-formatted responses for simulation control, topology retrieval, bulk state delivery, news events, and system administration.
 
 ## API Namespaces
 - `/api/v1/playback/*`: Primary simulation lifecycle endpoints (`/start`, `/pause`, `/play`, `/seek`, `/stop`, `/reset`, `/status`).
@@ -10,5 +10,5 @@ The API Server exposes HTTP/REST and streaming (Server-Sent Events) interfaces f
 - `/api/v1/news/*`: Structured live news events and historical timeline.
 - `/api/v1/system/*`: Health status and graceful shutdown termination.
 
-## Single-Writer Architecture
-API worker threads do not directly mutate simulation state. Mutating requests enqueue commands onto a synchronized thread-safe queue. The single simulation engine loop consumes commands, applies state changes, commits a new `state_revision`, and updates the shared immutable snapshot.
+## Concurrency Model
+`ApiServer` handlers call `SimulationEngine` methods directly. The engine serializes reads, controls, and its background playback loop with a recursive mutex; there is no separate API command queue. Undoable controls are recorded as `AppliedCommand` entries after the mutation is accepted.

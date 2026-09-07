@@ -1,20 +1,10 @@
-# Synthetic Building Subsystem (`dstns::scenario`)
+# Building Generation and Demand (`dstns::ScenarioCompiler`, `dstns::SimulationEngine`)
 
 ## Purpose
 Generates synthetic points of interest (Schools, Offices, Malls, Stores) around bus stop nodes and computes continuous temporal demand influence functions.
 
-## Building Categories & Profiles
-1. **School**:
-   - Weekday peak windows: Morning drop-off (07:30–08:30), Afternoon pick-up (14:30–15:30).
-   - Weekend influence: 0.
-2. **Office**:
-   - Weekday peak windows: Morning commute (08:00–09:30), Evening commute (17:00–18:30).
-   - Weekend influence: Minimal (0.05).
-3. **Mall**:
-   - Weekday peak windows: Evening leisure (18:00–21:00).
-   - Weekend peak windows: Afternoon & evening (12:00–20:00).
-4. **Store**:
-   - General daytime retail curve (09:00–19:00) on both weekdays and weekends.
+## Implemented Profiles
+`ScenarioCompiler::place_buildings` assigns one of four types near eligible bus stops and stores Beta-window parameters on the selected node. `SimulationEngine::physics_step` combines those smooth windows with explicit point-of-interest rush windows and weekend multipliers. The canonical values live in those two functions; the component does not own a separate scheduler or service.
 
 ## Temporal Kernel Formulation
 Each activity window $[t_{\text{start}}, t_{\text{end}}]$ uses a smooth Beta-style polynomial kernel with rise power $p$ and fall power $q$:
