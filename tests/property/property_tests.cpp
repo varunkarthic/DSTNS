@@ -3,6 +3,7 @@
 #include "dstns/scenario.hpp"
 
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <numeric>
 #include <stdexcept>
@@ -68,6 +69,49 @@ int main() {
                 assert_true(dws.intensity >= 0.0 && dws.intensity <= 1.0, "DWS intensity clamped in [0,1]");
                 assert_true(dws.end_ppm >= dws.start_ppm, "DWS end >= start");
             }
+
+            GraphStore routed_graph(scenario);
+            for (const auto& edge : scenario.edges) {
+                if (is_source_direction_allowed(edge) && edge.id.value % 7 == 0) routed_graph.edge_state(edge.id).closed = true;
+            }
+            RoutePlanner planner(routed_graph);
+            for (const auto& from : scenario.nodes) {
+                for (const auto& to : scenario.nodes) {
+                    const auto route = planner.route(from.id, to.id);
+                    for (const auto edge : route.edges) {
+                        assert_true(!routed_graph.edge_states()[edge.value].closed, "Route excludes dynamically closed edge");
+                        assert_true(is_source_direction_allowed(scenario.edges[edge.value]), "Route excludes forbidden source direction");
+                    }
+                }
+            }
+
+            const auto runtime_dir = std::filesystem::temp_directory_path() / ("dstns-property-day-" + std::to_string(day));
+            std::filesystem::remove_all(runtime_dir);
+            {
+                RuntimeLogger logger(runtime_dir);
+                SimulationEngine engine(logger);
+                engine.prepare(seed, cfg);
+                engine.seek(43'210, false);
+                const auto snapshot = engine.snapshot();
+                const auto bounded = [](double value) { return std::isfinite(value) && value >= 0.0 && value <= 1.0; };
+                assert_true(bounded(snapshot["clock"]["simulation_percentage"]), "Simulation percentage clamped in [0,1]");
+                for (const auto& node : snapshot["data"]["nodes"]) {
+                    assert_true(bounded(node["rainfall"]), "Dynamic node rainfall clamped in [0,1]");
+                    assert_true(bounded(node["flood"]), "Dynamic node flood clamped in [0,1]");
+                    assert_true(bounded(node["building_effect"]), "Dynamic building effect clamped in [0,1]");
+                }
+                for (const auto& edge : snapshot["data"]["edges"]) {
+                    const auto id = edge["id"].get<std::size_t>();
+                    assert_true(bounded(edge["congestion"]), "Dynamic edge congestion clamped in [0,1]");
+                    assert_true(bounded(edge["rainfall"]), "Dynamic edge rainfall clamped in [0,1]");
+                    assert_true(bounded(edge["flood"]), "Dynamic edge flood clamped in [0,1]");
+                    assert_true(edge["effective_speed_mps"].get<double>() >= 0.0, "Effective speed is non-negative");
+                    assert_true(edge["effective_speed_mps"].get<double>() <= scenario.edges[id].free_speed_mps, "Effective speed does not exceed free speed");
+                }
+                engine.stop();
+                engine.terminate();
+            }
+            std::filesystem::remove_all(runtime_dir);
         }
 
         std::cout << "[property-tests] All property tests passed successfully.\n";
