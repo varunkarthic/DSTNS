@@ -94,14 +94,14 @@ Following bootstrap, the console presents the **Flicker-Free Terminal Interface*
   [ ] Exit Operator Console           Shut down managed services and terminate
 
   ──────────────────────────────────────────────────────────────────────────
-  [↑/↓] Navigate    [Space] Select    [Enter] Execute    [Esc] Exit
+  [↑/↓] Navigate    [Space] Select    [Enter] Execute Selected    [Esc] Exit
   ──────────────────────────────────────────────────────────────────────────
 ```
 
 ### Controls & Aesthetics
 - **`↑` / `↓` Arrow Keys** (or `k` / `j`): Move focus cursor (`❯`) across menu options.
 - **`Space`**: Mark / select the highlighted option with radio indicator (`[●]`).
-- **`Enter`**: Execute the selected or highlighted option.
+- **`Enter`**: Execute the selected (`[●]`) option.
 - **`Esc`**: Return to parent menu or exit the operator console.
 - **`Ctrl+C`**: Cleanly terminate managed background processes and exit.
 - **Status Indicator Colors**:

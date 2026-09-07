@@ -12,3 +12,7 @@ docker/certificates/*
 !docker/certificates/.gitkeep
 __pycache__/
 *.pyc
+.DS_Store
+.cache/
+*.idx
+logs/*.json
