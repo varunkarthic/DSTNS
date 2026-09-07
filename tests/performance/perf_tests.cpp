@@ -34,7 +34,18 @@ int main() {
     }
     t1 = std::chrono::steady_clock::now();
     auto route_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-    std::cout << "2,500 A* routing queries (" << found_count << " found): " << route_us << " us (" << (route_us / 2500.0) << " us/query)\n";
+    const auto mean_route_us = route_us / 2500.0;
+    std::cout << "2,500 A* routing queries (" << found_count << " found): " << route_us << " us (" << mean_route_us << " us/query)\n";
+
+    if (found_count != 2500) {
+        std::cerr << "FAILED: performance fixture returned only " << found_count << " of 2500 routes\n";
+        return 1;
+    }
+    constexpr double max_mean_route_us = 500.0;
+    if (mean_route_us > max_mean_route_us) {
+        std::cerr << "FAILED: mean route time exceeded 500 us regression ceiling\n";
+        return 1;
+    }
 
     std::cout << "[perf-tests] Performance checks passed.\n";
     return 0;
