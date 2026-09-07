@@ -12,7 +12,7 @@
 
 - Initial commit history head: `257257a Bug Fixes & UX Changes`; previous commit `179d79b Initial Commit`.
 - `git fetch --all --prune` completed successfully on the initial branch.
-- The worktree was already dirty before this run. Existing modifications are confined to clangd index artifacts under `.cache/clangd/index/` and generated SUMO artifacts under `data/sumo_run/` (`network.edg.xml`, `network.net.xml`, `network.nod.xml`, `sandbox.add.xml`, and `sandbox.rou.xml`). These changes are treated as user-owned and will not be overwritten, reverted, or staged.
+- The worktree was already dirty before this run. Existing modifications are confined to clangd index artifacts under `.cache/clangd/index/` and generated SUMO artifacts under `data/sumo_run/` (`network.edg.xml`, `network.net.xml`, `network.nod.xml`, `sandbox.add.xml`, `sandbox.rou.xml`, and `tripinfo.xml`). These changes are treated as user-owned and will not be overwritten, reverted, or staged.
 - No pre-existing `context/issue_context.md` was present; this journal was created before code changes.
 
 ## Repository Architecture
@@ -38,8 +38,9 @@ All open issues were retrieved with structured output and individually inspected
 | #6 Scenario compiler iterator and signal phases | Safety/correctness, medium | Bus-stop placement, signal planning | Medium | Property tests in #7 can enforce phase invariants | Actionable; both defects share one compiler file but need separate regressions. |
 | #7 Named suites overclaim coverage | Test credibility, high | Performance, replay, property tests, verification tool/docs | Medium/high | Directly protects #1-#3 and #6; should be completed after those runtime fixes | Actionable; current test names/documentation exceed what the assertions demonstrate. |
 | #8 Component docs describe nonexistent modules/order | Documentation/API integration risk, medium | `docs/components/` architecture map | Medium | Must reflect final implementation after all code work | Actionable; documentation should describe concrete classes/functions in the single `dstns` namespace, not invented namespaces or indexes. |
+| #16 Container healthcheck uses missing `curl` | Deployment correctness, high | Dockerfile and Compose health | Low | Discovered by the final full-stack gate after Docker Desktop became available | Actionable; service returns HTTP 200 but orchestration reports `unhealthy`. |
 
-No duplicates, invalid reports, or already-fixed issues were found. Processing order: #1; #2/#3; #4; #5; #6; #7; #8, with related regression coverage landed alongside each root-cause fix and the broader suite-strengthening completed afterward.
+No duplicates, invalid reports, or already-fixed issues were found. Initial processing order: #1; #2/#3; #4; #5; #6; #7; #8. Issue #16 was created and addressed when final deployment validation exposed it. Related regression coverage landed alongside each root-cause fix and the broader suite-strengthening completed afterward.
 
 ## Global Dependencies and Relationships
 
@@ -346,7 +347,38 @@ Invented namespace/API scan: PASS. Every documented concrete owner resolves to a
 
 #### Git Operations
 
-Branch: `docs/issue-8-align-components`. Documentation commit `de7077a`; pushed to origin and opened PR #15 against `dstns`. GitHub reports no configured status checks. Merge, resolution comment, and closure pending.
+Branch: `docs/issue-8-align-components`. Documentation commit `de7077a`, journal commit `98c0940`, merge commit `6b9c20b`. PR #15 was merged into `dstns` with no configured GitHub checks. A detailed resolution comment was posted, and issue #8 was manually closed as completed after merge.
+
+#### Final Status
+
+Resolved, merged, documented, and CLOSED.
+
+### Issue #16 — Container healthcheck depends on missing curl
+
+#### Problem and Reproduction
+
+After Docker Desktop became available, `docker compose up --build -d` built and started the unified runtime successfully. Host requests to `/health`, `/api/v1/playback/status`, and `/` returned HTTP 200, but Docker transitioned the container to `unhealthy`. Every probe failed with `/bin/sh: 1: curl: not found`.
+
+#### Root Cause and Impact
+
+Both `Dockerfile` and `docker-compose.yml` invoked `curl` for health checks, while the `ghcr.io/eclipse-sumo/sumo:latest` runtime image does not include it. The application was healthy, but orchestration readiness and dependent-service gating were permanent false negatives.
+
+#### Implementation
+
+- Replaced both curl probes with Python standard-library `urllib.request` probes using the runtime image's existing `/usr/bin/python3`.
+- Corrected current-state deployment documentation: the shipped stack serves HTTP on port 8090 and does not contain the previously claimed Caddy/HTTPS gateway.
+
+#### Security / Compatibility / Performance Review
+
+The probe remains loopback-only, sends no credentials, has a one-second network timeout, and adds no package or image dependency. Endpoint and interval/retry semantics remain unchanged.
+
+#### Validation Results
+
+Compose schema: PASS. Multi-stage image build: PASS, with the upstream amd64-on-arm64 platform warning. Forced container recreation: PASS. Docker health transitioned to `healthy` on the first observed post-start probe. Host health, status API, and compiled UI HTTP responses: PASS. Chrome rendered the dashboard and exposed the expected graph/control/telemetry view. Starting from the UI changed lifecycle to `RUNNING`, advanced virtual time/revision/vehicles, and stopping from the UI returned the application to `STOPPED`/standby, confirming the browser-to-container-runtime path.
+
+#### Git Operations
+
+Branch: `fix/issue-16-container-healthcheck`. Functional/journal commit `1b2048f`; pushed to origin and opened PR #17 against `dstns`. GitHub reports no configured status checks. Merge, resolution comment, and closure pending.
 
 ## Baseline Validation
 
