@@ -22,6 +22,8 @@ DSTNS is a high-performance C++20 urban road network scenario compiler, simulati
 
 ## Quick Start Guide
 
+The sandbox loads the bundled Berlin OpenStreetMap road network on startup and seed changes. The Docker image includes this map at `/app/maps/downtown_osm.xml`, outside the persistent `/app/data` volume so existing volumes cannot hide it. Missing map data produces an error; synthetic grids are reserved for explicit test fixtures. The UI preserves local geographic proportions when fitting and focusing the map.
+
 ### 1. Interactive Operator Console (`dstns-operator-cli`)
 DSTNS features a modern terminal operator interface powered by `@poppinss/cliui` that manages the entire lifecycle, automatic Web UI building, server health monitoring, and test suites.
 
@@ -36,7 +38,8 @@ The console provides **Ubuntu Server (Subiquity) style navigation**:
 ./launcher
 # or
 python3 launcher.py
-# or
+# or, for direct Node execution, install dependencies first
+npm ci --prefix dstns-operator-cli
 node dstns-operator-cli/dstns.mjs
 ```
 

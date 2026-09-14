@@ -106,9 +106,7 @@ SimulationEngine::SimulationEngine(RuntimeLogger& logger)
     : logger_(logger) {
     try {
         ScenarioConfig cfg{};
-        if (std::filesystem::exists("data/fixtures/downtown_osm.xml")) {
-            cfg.osm_file = "data/fixtures/downtown_osm.xml";
-        }
+        cfg.osm_file = "auto";
         auto seed = Seed128::parse("0x508905019bc2221d083c848bf3e12e22");
         auto scenario = compiler_.compile(seed, cfg);
         run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);

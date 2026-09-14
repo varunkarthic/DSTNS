@@ -74,8 +74,8 @@ ScenarioConfig config_from(const json& j) {
         auto& f = j.at("fixture");
         c.grid_width = f.value("grid_width", c.grid_width);
         c.grid_height = f.value("grid_height", c.grid_height);
-    } else if (c.osm_file.empty() && std::filesystem::exists("data/fixtures/downtown_osm.xml")) {
-        c.osm_file = "data/fixtures/downtown_osm.xml";
+    } else if (c.osm_file.empty()) {
+        c.osm_file = "auto";
     }
     return c;
 }

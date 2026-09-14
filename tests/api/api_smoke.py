@@ -86,6 +86,12 @@ def main():
             assertions += 1
 
             # 3. Validation: Reject invalid start requests
+            code, initial_map = call(base, "/api/v1/view/topology")
+            assert code == 200 and len(initial_map["data"]["nodes"]) > 120
+            assert len({n["position"]["lon"] for n in initial_map["data"]["nodes"]}) > 12
+            assert len({n["position"]["lat"] for n in initial_map["data"]["nodes"]}) > 10
+            assertions += 3
+
             code, err = call(base, "/api/v1/playback/start", "POST", {"tick_rate": -1})
             assert code == 400 and err["error"]["code"] == "INVALID_REQUEST"
             assertions += 1

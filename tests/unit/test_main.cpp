@@ -39,6 +39,16 @@ int main(){try{
     check(!s1.bus_stops.empty(),"bus stops generated");for(const auto&b:s1.bus_stops)check(b.edge.value<s1.edges.size()&&b.position_m<=s1.edges[b.edge.value].length_m,"bus stop materialized");
     for(std::size_t i=1;i<s1.dws_events.size();++i){const auto p0=s1.dws_events[i-1].start_ppm/1e6*cfg.playback_duration_s;const auto p1=s1.dws_events[i].start_ppm/1e6*cfg.playback_duration_s;check(p1-p0>=4.999,"DWS playback spacing");}
     auto without_news=cfg;without_news.news=false;auto s3=compiler.compile(seed,without_news);check(s1.graph_hash==s3.graph_hash&&s1.event_hash==s3.event_hash,"News module isolation");
+    auto auto_cfg=cfg;auto_cfg.osm_file="auto";
+    const auto real_map=compiler.compile(seed,auto_cfg);
+    check(real_map.config.osm_file!="auto"&&!real_map.config.osm_file.empty(),"auto resolves a real road map");
+    check(real_map.nodes.size()>120,"default road map is not the 120-node grid");
+    const auto original_cwd=std::filesystem::current_path();
+    std::filesystem::current_path(std::filesystem::temp_directory_path());
+    bool missing_map_rejected=false;
+    try{(void)compiler.compile(seed,auto_cfg);}catch(const std::invalid_argument&){missing_map_rejected=true;}
+    std::filesystem::current_path(original_cwd);
+    check(missing_map_rejected,"auto rejects missing map instead of silently generating a grid");
     auto osm_cfg=cfg;osm_cfg.osm_file="tests/fixtures/roads.osm.xml";osm_cfg.max_nodes=50;auto osm=compiler.compile(seed,osm_cfg);check(osm.nodes.size()==9,"OSM road-only node filtering");check(osm.edges.size()==24,"OSM segment bidirectional normalization");check(std::any_of(osm.edges.begin(),osm.edges.end(),[](const auto&e){return e.synthetic_reverse;}),"OSM one-way provenance retained");
     GraphStore osm_graph(osm);RoutePlanner osm_routes(osm_graph);const auto forward=osm_routes.route(NodeId{0},NodeId{1});const auto reverse=osm_routes.route(NodeId{1},NodeId{0});
     check(forward.found&&forward.edges.size()==1&&!osm.edges[forward.edges.front().value].synthetic_reverse,"OSM one-way forward direction traversable");

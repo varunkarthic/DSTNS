@@ -23,6 +23,8 @@ WORKDIR /app
 COPY --from=build /src/build/dstns_server /app/dstns_server
 COPY --from=ui-build /ui/dist /app/ui-engine/dist
 COPY config /app/config
+# Keep the bundled map outside /app/data: existing Compose data volumes mask image files.
+COPY data/fixtures/downtown_osm.xml /app/maps/downtown_osm.xml
 RUN mkdir -p /app/logs /app/data
 EXPOSE 8090
 HEALTHCHECK --interval=5s --timeout=2s --retries=10 CMD ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=1).read()"]
