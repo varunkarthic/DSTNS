@@ -50,8 +50,15 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
     auto effective_config = config;
     if(!(effective_config.tick_rate>0&&effective_config.tick_rate<=100))throw std::invalid_argument("tick_rate must be in (0,100]");
     if(effective_config.osm_file == "auto") {
-        if(std::filesystem::exists("data/fixtures/downtown_osm.xml")) effective_config.osm_file = "data/fixtures/downtown_osm.xml";
-        else effective_config.osm_file.clear();
+        for (const auto* candidate : {"data/fixtures/downtown_osm.xml", "../data/fixtures/downtown_osm.xml", "/app/maps/downtown_osm.xml"}) {
+            if (std::filesystem::is_regular_file(candidate)) {
+                effective_config.osm_file = candidate;
+                break;
+            }
+        }
+        if (effective_config.osm_file == "auto") {
+            throw std::invalid_argument("Real road map missing: install data/fixtures/downtown_osm.xml or supply map.osm_file");
+        }
     }
     if(effective_config.osm_file.empty()&&(effective_config.grid_width<3||effective_config.grid_height<3||std::uint64_t(effective_config.grid_width)*effective_config.grid_height>effective_config.max_nodes))throw std::invalid_argument("invalid grid dimensions or max_nodes");
     if(effective_config.dws_frequency>0&&std::uint64_t(effective_config.dws_frequency-1)*5>=effective_config.playback_duration_s)throw std::invalid_argument("DWS frequency violates five-playback-second spacing");

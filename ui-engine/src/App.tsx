@@ -385,6 +385,9 @@ export default function App() {
         currentRunIdRef.current = incomingRunId;
         lastNewsIdRef.current = 0;
         setNews([]);
+        setFocusTarget(null);
+        setSelectedNode(null);
+        setSelectedEdge(null);
         setTopology(null);
       }
 
@@ -504,6 +507,7 @@ export default function App() {
     lastNewsIdRef.current = 0;
     setNews([]);
     setTopology(null);
+    setFocusTarget(null);
     setSelectedNode(null);
     setSelectedEdge(null);
     await action(async () => {

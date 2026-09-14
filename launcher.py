@@ -16,13 +16,22 @@ OPERATOR_DIR = ROOT / "dstns-operator-cli"
 OPERATOR_SCRIPT = OPERATOR_DIR / "dstns.mjs"
 
 
-def ensure_operator_dependencies() -> None:
+def ensure_operator_dependencies(node_bin: str) -> None:
     """Ensure @poppinss/cliui and operator CLI dependencies are installed."""
-    node_modules = OPERATOR_DIR / "node_modules"
-    if not node_modules.exists():
-        print("[DSTNS] Installing operator CLI dependencies (npm install)...")
-        npm_bin = shutil.which("npm") or "npm"
-        subprocess.run([npm_bin, "install", "--prefix", str(OPERATOR_DIR)], check=True)
+    probe = subprocess.run(
+        [node_bin, "--input-type=module", "-e", "await import('@poppinss/cliui')"],
+        cwd=OPERATOR_DIR,
+        capture_output=True,
+    )
+    if probe.returncode == 0:
+        return
+
+    npm_bin = shutil.which("npm")
+    if not npm_bin:
+        raise RuntimeError("npm is required to install the operator CLI dependencies. Please install npm and retry.")
+    install_command = "ci" if (OPERATOR_DIR / "package-lock.json").exists() else "install"
+    print(f"[DSTNS] Installing operator CLI dependencies (npm {install_command})...", flush=True)
+    subprocess.run([npm_bin, install_command], cwd=OPERATOR_DIR, check=True)
 
 
 def main() -> int:
@@ -36,7 +45,11 @@ def main() -> int:
         print(f"Error: Operator CLI script not found at {OPERATOR_SCRIPT}", file=sys.stderr)
         return 1
 
-    ensure_operator_dependencies()
+    try:
+        ensure_operator_dependencies(node_bin)
+    except (RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
 
     cmd = [node_bin, str(OPERATOR_SCRIPT)] + sys.argv[1:]
     try:

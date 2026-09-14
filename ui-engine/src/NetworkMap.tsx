@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { Snapshot, Topology, TopologyNode, TopologyEdge, EdgeState } from './types';
+import { fitGeographicPoint, longitudeScaleAt } from './mapProjection';
 
 function drawMapPin(
   ctx: CanvasRenderingContext2D,
@@ -236,18 +237,7 @@ export function NetworkMap({
   // Transform coordinates (lon, lat) to screen (sx, sy)
   const project = useCallback((lon: number, lat: number, width: number, height: number) => {
     if (!bounds) return { x: width / 2, y: height / 2 };
-    const padding = 50;
-    const availW = width - padding * 2;
-    const availH = height - padding * 2;
-    const scaleFactor = Math.min(availW / bounds.spanLon, availH / bounds.spanLat);
-
-    const baseCenterX = width / 2;
-    const baseCenterY = height / 2;
-    const centerLon = (bounds.minLon + bounds.maxLon) / 2;
-    const centerLat = (bounds.minLat + bounds.maxLat) / 2;
-
-    const rawX = baseCenterX + (lon - centerLon) * scaleFactor;
-    const rawY = baseCenterY - (lat - centerLat) * scaleFactor;
+    const { x: rawX, y: rawY } = fitGeographicPoint(lon, lat, bounds, width, height);
 
     return {
       x: (rawX - width / 2) * transform.scale + width / 2 + transform.panX,
@@ -320,17 +310,7 @@ export function NetworkMap({
   useEffect(() => {
     if (!focusTarget || !bounds || !containerRef.current) return;
     const { width, height } = containerRef.current.getBoundingClientRect();
-    const padding = 50;
-    const availW = width - padding * 2;
-    const availH = height - padding * 2;
-    const scaleFactor = Math.min(availW / bounds.spanLon, availH / bounds.spanLat);
-    const baseCenterX = width / 2;
-    const baseCenterY = height / 2;
-    const centerLon = (bounds.minLon + bounds.maxLon) / 2;
-    const centerLat = (bounds.minLat + bounds.maxLat) / 2;
-
-    const rawX = baseCenterX + (focusTarget.lon - centerLon) * scaleFactor;
-    const rawY = baseCenterY - (focusTarget.lat - centerLat) * scaleFactor;
+    const { x: rawX, y: rawY } = fitGeographicPoint(focusTarget.lon, focusTarget.lat, bounds, width, height);
     const targetScale = focusTarget.zoom ?? 2.8;
 
     setTransform({
@@ -401,7 +381,7 @@ export function NetworkMap({
       const pulse = (Math.sin(pulsePhaseRef.current) + 1) / 2;
       for (const w of weatherEvents) {
         const center = project(w.lon, w.lat, width, height);
-        const rEdge = project(w.lon + (w.radius_m / 111320), w.lat, width, height);
+        const rEdge = project(w.lon + (w.radius_m / (111320 * longitudeScaleAt(w.lat))), w.lat, width, height);
         const radiusPx = Math.max(30, Math.abs(rEdge.x - center.x));
 
         const grad = ctx.createRadialGradient(center.x, center.y, radiusPx * 0.15, center.x, center.y, radiusPx);
@@ -441,7 +421,7 @@ export function NetworkMap({
         // Normal distribution / Gaussian bell curve factor sin(pi * u)
         const bellFactor = Math.sin(Math.PI * normProgress);
         const dynamicRadius = s.radius_m * (0.35 + 0.65 * bellFactor);
-        const rEdge = project(s.lon + (dynamicRadius / 111320), s.lat, width, height);
+        const rEdge = project(s.lon + (dynamicRadius / (111320 * longitudeScaleAt(s.lat))), s.lat, width, height);
         const radiusPx = Math.max(24, Math.abs(rEdge.x - center.x));
 
         const surgeIntensity = Math.min(1.0, (s.factor - 1.0) * bellFactor);
@@ -827,7 +807,7 @@ export function NetworkMap({
       const py = e.clientY - rect.top;
       for (const s of surges) {
         const pt = project(s.lon, s.lat, rect.width, rect.height);
-        const rEdge = project(s.lon + (s.radius_m / 111320), s.lat, rect.width, rect.height);
+        const rEdge = project(s.lon + (s.radius_m / (111320 * longitudeScaleAt(s.lat))), s.lat, rect.width, rect.height);
         const radiusPx = Math.max(32, Math.abs(rEdge.x - pt.x));
         if (Math.hypot(px - pt.x, py - pt.y) <= radiusPx) {
           hoveredSurge = s;
@@ -844,7 +824,7 @@ export function NetworkMap({
       const py = e.clientY - rect.top;
       for (const w of weather) {
         const pt = project(w.lon, w.lat, rect.width, rect.height);
-        const rEdge = project(w.lon + (w.radius_m / 111320), w.lat, rect.width, rect.height);
+        const rEdge = project(w.lon + (w.radius_m / (111320 * longitudeScaleAt(w.lat))), w.lat, rect.width, rect.height);
         const radiusPx = Math.max(30, Math.abs(rEdge.x - pt.x));
         if (Math.hypot(px - pt.x, py - pt.y) <= radiusPx) {
           hoveredWeather = w;

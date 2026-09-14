@@ -8,7 +8,7 @@ Copy this folder into the DSTNS repository root as:
 
 ```text
 DSTNS/
-├── operator-cli/
+├── dstns-operator-cli/
 │   ├── dstns.mjs
 │   └── package.json
 ├── build/
@@ -17,16 +17,18 @@ DSTNS/
 └── ...
 ```
 
-The CLI resolves the DSTNS project root as the parent directory of `operator-cli`.
+The CLI resolves the DSTNS project root as the parent directory of `dstns-operator-cli`.
 
 ## Install
 
 ```bash
-cd operator-cli
-npm install
+cd dstns-operator-cli
+npm ci
 ```
 
 ## Run
+
+From the repository root, `./launcher` (or `python3 launcher.py`) checks that the CLI dependencies load and installs them if needed. Direct Node execution requires the install step above.
 
 ```bash
 npm start
