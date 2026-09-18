@@ -1,21 +1,7 @@
-# UI Engine (`ui-engine`)
+# UI engine
 
-## Purpose
-The UI Engine is an independent React 19 + TypeScript + Vite web application utilizing MapLibre GL JS for hardware-accelerated WebGL rendering of the canonical road network, dynamic traffic congestion, weather storm overlays, and interactive playback controls.
+React/TypeScript/Vite implements the alpha design with reusable frosted surfaces and locally bundled fonts. `useSimulation` polls revisioned status/snapshots without overlap, caches topology per run and bounds news/toasts. `NetworkMap` preprocesses projected geometry once and uses separate static/dynamic canvases, viewport culling and zoom-dependent labels. The implementation uses Canvas 2D.
 
-## Responsibilities
-- Render the exact canonical road graph from `/api/v1/view/topology` using MapLibre GL GeoJSON layers.
-- Poll bulk dynamic state from `/api/v1/view/snapshot`; the engine also exposes one-shot SSE-formatted snapshot and news responses for external clients.
-- Render dynamic edge colors based on selectable modes: `Composite`, `Traffic`, `Weather`, `Flood`, `Speed`, `Capacity`.
-- Provide interactive controls: Playback Start modal, Pause/Resume, Seek slider, Tick Rate slider, and Module toggles.
-- Display detailed Node and Edge inspector sidebars upon map feature click.
-- Expose an independent **UI Overlay API** (`/ui-api/v1/*`) via a dedicated Node.js/Fastify gateway in `ui-engine/server/` for third-party decision agent visualization.
+The observer exposes pause/resume/speed and display-layer controls. Delayed custom tooltips inspect actual edge/signal/POI/weather state. A persistent Reduce Motion button respects the OS preference initially. `EventPanel` separates activity, scheduled events and retained execution history; `report.ts` creates the matching PDF locally.
 
-## Visual Color Scales
-- **Free**: `#4caf50` (Neutral green)
-- **Low Congestion**: `#ffeb3b` (Yellow)
-- **Medium Congestion**: `#ff9800` (Orange)
-- **High Congestion**: `#f44336` (Red)
-- **Critical / Blocked**: `#b71c1c` (Dark red)
-- **Flood Layer**: `#00e5ff` (Cyan) with alpha blending.
-- **Weather Storm**: `#2979ff` translucent circular radial gradient.
+See [modernization](../modernization.md) for formulas, data contracts, rendering semantics and model limits. The optional external annotation service in `ui-engine/server/` retains its existing API independently; neither the previous nor current production map consumes that service automatically.

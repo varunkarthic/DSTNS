@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import gzip
 """Comprehensive end-to-end API test suite for DSTNS."""
 import argparse
 import json
@@ -9,6 +10,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+import os
 
 def free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -17,7 +19,7 @@ def free_port() -> int:
 
 def call(base: str, path: str, method: str = "GET", payload: dict | list | None = None) -> tuple[int, dict]:
     data = None if payload is None else json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(base + path, data=data, method=method, headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(base + path, data=data, method=method, headers={"Content-Type": "application/json", "X-DSTNS-Operator": os.environ.get("DSTNS_OPERATOR_TOKEN", "")})
     try:
         with urllib.request.urlopen(req, timeout=5) as response:
             return response.status, json.load(response)
@@ -70,6 +72,7 @@ def main():
     try:
         if process:
             wait_health(base, process)
+            os.environ["DSTNS_OPERATOR_TOKEN"] = (Path(logs) / "operator.token").read_text().strip()
 
             # 1. Health Endpoints
             code, h1 = call(base, "/health")
@@ -85,20 +88,22 @@ def main():
             assert code == 200 and st["data"]["lifecycle"] == "IDLE"
             assertions += 1
 
-            # 3. Validation: Reject invalid start requests
+            # 3. No map before a run. The seed selects a real city district that
+            # is downloaded on demand, so the server must not compile a scenario
+            # (and must not hit the network) merely because it booted.
             code, initial_map = call(base, "/api/v1/view/topology")
-            assert code == 200 and len(initial_map["data"]["nodes"]) > 120
-            assert len({n["position"]["lon"] for n in initial_map["data"]["nodes"]}) > 12
-            assert len({n["position"]["lat"] for n in initial_map["data"]["nodes"]}) > 10
-            assertions += 3
+            assert code == 200 and not initial_map["data"]
+            assertions += 1
+
+            # 3b. Validation: Reject invalid start requests
 
             code, err = call(base, "/api/v1/playback/start", "POST", {"tick_rate": -1})
             assert code == 400 and err["error"]["code"] == "INVALID_REQUEST"
             assertions += 1
 
             code, err = call(base, "/api/v1/control/transit/route", "POST", {"bus_id": "MISSING-NODES"})
-            assert code == 400 and err["error"]["code"] == "MISSING_FIELD"
-            assert "nodes" in err["error"]["message"]
+            assert code == 410 and err["error"]["code"] == "TRANSIT_API_RETIRED"
+            assert "no longer supported" in err["error"]["message"]
             code, err = call(base, "/api/v1/control/events/weather", "POST", {"epicenter_node": "not-a-number"})
             assert code == 400 and err["error"]["code"] == "INVALID_FIELD_TYPE"
             assert "number" in err["error"]["message"]
@@ -109,6 +114,7 @@ def main():
                 "seed": "0x123456789ABCDEF0",
                 "playback_duration_seconds": 3600,
                 "day": 0,
+                "map": {"osm_file": "tests/fixtures/roads.osm.xml", "max_nodes": 50},
                 "tick_rate": 1.0,
                 "modules": {
                     "traffic": True,
@@ -123,6 +129,16 @@ def main():
             code, start = call(base, "/api/v1/playback/start", "POST", req_start)
             assert code == 202 and start["lifecycle"] == "RUNNING"
             assertions += 1
+
+            # The map now exists, is geographically spread, and reports both the
+            # metre projection and the place it was cut from.
+            code, started_map = call(base, "/api/v1/view/topology")
+            assert code == 200 and len(started_map["data"]["nodes"]) >= 9
+            assert len({n["position"]["lon"] for n in started_map["data"]["nodes"]}) > 2
+            assert len({n["position"]["lat"] for n in started_map["data"]["nodes"]}) > 2
+            assert started_map["data"]["projection"]["units"] == "metres"
+            assert "location" in started_map["data"]
+            assertions += 5
 
             # 5. Double start conflict
             code, err = call(base, "/api/v1/playback/start", "POST", req_start)
@@ -197,7 +213,7 @@ def main():
                 "bus_id": "ONEWAY-REVERSE",
                 "nodes": [synthetic_reverse["from"], synthetic_reverse["to"]]
             })
-            assert code == 400 and invalid_route["ok"] is False and invalid_route["valid"] is False
+            assert code == 410 and invalid_route["ok"] is False
             assert synthetic_reverse["dynamic"]["effective_capacity_vph"] == 0.0
             assert synthetic_reverse["dynamic"]["effective_speed_mps"] == 0.0
             reverse_twin = d["edges"][synthetic_reverse["reverse_twin"]]
@@ -205,7 +221,7 @@ def main():
                 "bus_id": "ONEWAY-FORWARD",
                 "nodes": [reverse_twin["from"], reverse_twin["to"]]
             })
-            assert code == 200 and valid_route["ok"] is True and valid_route["route_edges"] == [reverse_twin["id"]]
+            assert code == 410 and valid_route["error"]["code"] == "TRANSIT_API_RETIRED"
             assertions += 4
 
             # 9. Node & Edge Detailed Views
@@ -307,6 +323,13 @@ def main():
             # 18. Seek
             code, seek = call(base, "/api/v1/playback/seek", "POST", {"target_time": "15:30:00"})
             assert code == 200 and seek["simulated_seconds"] == 55800 and seek["lifecycle"] == "PAUSED"
+            assertions += 1
+
+            # Rich JSON uses negotiated compression, including its exact media type.
+            request = urllib.request.Request(base + "/api/v1/view/topology", headers={"Accept-Encoding": "gzip"})
+            with urllib.request.urlopen(request) as compressed:
+                assert compressed.headers.get("Content-Encoding") == "gzip"
+                assert json.loads(gzip.decompress(compressed.read()))["ok"]
             assertions += 1
 
             # 19. News API

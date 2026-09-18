@@ -3,6 +3,7 @@
 #include "dstns/osm.hpp"
 #include "dstns/rng.hpp"
 #include "dstns/scenario.hpp"
+#include "dstns/geo.hpp"
 
 #include <cmath>
 #include <filesystem>
@@ -39,16 +40,28 @@ int main(){try{
     check(!s1.bus_stops.empty(),"bus stops generated");for(const auto&b:s1.bus_stops)check(b.edge.value<s1.edges.size()&&b.position_m<=s1.edges[b.edge.value].length_m,"bus stop materialized");
     for(std::size_t i=1;i<s1.dws_events.size();++i){const auto p0=s1.dws_events[i-1].start_ppm/1e6*cfg.playback_duration_s;const auto p1=s1.dws_events[i].start_ppm/1e6*cfg.playback_duration_s;check(p1-p0>=4.999,"DWS playback spacing");}
     auto without_news=cfg;without_news.news=false;auto s3=compiler.compile(seed,without_news);check(s1.graph_hash==s3.graph_hash&&s1.event_hash==s3.event_hash,"News module isolation");
+    // "auto" means the seed picks a real city district and the tile is fetched
+    // on demand. Exercise that offline: plant the tile this seed names, then
+    // confirm the cache is used and that a genuine miss is a hard failure.
     auto auto_cfg=cfg;auto_cfg.osm_file="auto";
+    const auto tile_cache=std::filesystem::temp_directory_path()/"dstns-auto-map";
+    std::filesystem::remove_all(tile_cache);std::filesystem::create_directories(tile_cache);
+    auto_cfg.map_cache_dir=tile_cache.string();
+    const auto planned=select_map_location(seed,auto_cfg.map_tile_radius_m);
+    check(!planned.city.empty(),"auto resolves the seed to a named city");
+    std::filesystem::copy_file("data/fixtures/real_network.osm.xml",planned.cache_path(tile_cache));
     const auto real_map=compiler.compile(seed,auto_cfg);
-    check(real_map.config.osm_file!="auto"&&!real_map.config.osm_file.empty(),"auto resolves a real road map");
+    check(real_map.config.osm_file==planned.cache_path(tile_cache).string(),"auto uses the seed-derived tile");
+    check(real_map.map_city==planned.city&&!real_map.map_downloaded,"cached tile is reused and its city recorded");
     check(real_map.nodes.size()>120,"default road map is not the 120-node grid");
-    const auto original_cwd=std::filesystem::current_path();
-    std::filesystem::current_path(std::filesystem::temp_directory_path());
+    // An absent tile that cannot be downloaded must fail, never fall back.
+    ::setenv("DSTNS_PYTHON","/usr/bin/false",1);
+    auto miss_cfg=auto_cfg;miss_cfg.map_cache_dir=(tile_cache/"empty").string();
     bool missing_map_rejected=false;
-    try{(void)compiler.compile(seed,auto_cfg);}catch(const std::invalid_argument&){missing_map_rejected=true;}
-    std::filesystem::current_path(original_cwd);
-    check(missing_map_rejected,"auto rejects missing map instead of silently generating a grid");
+    try{(void)compiler.compile(seed,miss_cfg);}catch(const MapFetchError&){missing_map_rejected=true;}
+    ::unsetenv("DSTNS_PYTHON");
+    std::filesystem::remove_all(tile_cache);
+    check(missing_map_rejected,"an undownloadable map fails instead of silently generating a grid");
     auto osm_cfg=cfg;osm_cfg.osm_file="tests/fixtures/roads.osm.xml";osm_cfg.max_nodes=50;auto osm=compiler.compile(seed,osm_cfg);check(osm.nodes.size()==9,"OSM road-only node filtering");check(osm.edges.size()==24,"OSM segment bidirectional normalization");check(std::any_of(osm.edges.begin(),osm.edges.end(),[](const auto&e){return e.synthetic_reverse;}),"OSM one-way provenance retained");
     GraphStore osm_graph(osm);RoutePlanner osm_routes(osm_graph);const auto forward=osm_routes.route(NodeId{0},NodeId{1});const auto reverse=osm_routes.route(NodeId{1},NodeId{0});
     check(forward.found&&forward.edges.size()==1&&!osm.edges[forward.edges.front().value].synthetic_reverse,"OSM one-way forward direction traversable");
@@ -61,13 +74,13 @@ int main(){try{
     const auto hash_temp=std::filesystem::temp_directory_path()/"dstns-map-hash";std::filesystem::remove_all(hash_temp);std::filesystem::create_directories(hash_temp);std::ifstream osm_fixture("tests/fixtures/roads.osm.xml");const std::string fixture_xml((std::istreambuf_iterator<char>(osm_fixture)),{});const auto close_tag=fixture_xml.rfind("</osm>");check(close_tag!=std::string::npos,"OSM hash fixture has closing tag");const auto shared_comment="\n<!--"+std::string(11'000,'x');const auto write_variant=[&](const std::filesystem::path&path,char suffix){std::ofstream out(path);out<<fixture_xml.substr(0,close_tag)<<shared_comment<<suffix<<"-->\n"<<fixture_xml.substr(close_tag);};const auto map_a=hash_temp/"a.osm.xml",map_b=hash_temp/"b.osm.xml";write_variant(map_a,'a');write_variant(map_b,'b');const auto hash_a=OsmRoadLoader{}.load_xml(map_a,50,rng);const auto hash_b=OsmRoadLoader{}.load_xml(map_b,50,rng);check(hash_a.source_hash!=hash_b.source_hash,"map hash covers bytes after first 10KB");auto hash_cfg_a=osm_cfg,hash_cfg_b=osm_cfg;hash_cfg_a.osm_file=map_a.string();hash_cfg_b.osm_file=map_b.string();const auto scenario_a=compiler.compile(seed,hash_cfg_a),scenario_b=compiler.compile(seed,hash_cfg_b);check(scenario_a.graph_hash==scenario_b.graph_hash,"non-topological XML suffix preserves graph hash");check(scenario_a.map_hash!=scenario_b.map_hash&&scenario_a.scenario_hash!=scenario_b.scenario_hash,"full map hash propagates into scenario identity");std::filesystem::remove_all(hash_temp);
     auto sink_cfg=cfg;sink_cfg.osm_file="tests/fixtures/oneway_sink.osm.xml";sink_cfg.max_nodes=10;const auto sink=compiler.compile(seed,sink_cfg);const auto sink_node=std::find_if(sink.nodes.begin(),sink.nodes.end(),[](const NodeStatic&n){return n.osm_node_id==3;});check(sink_node!=sink.nodes.end()&&sink_node->degree==2,"one-way sink fixture has coverage-eligible degree");check(std::none_of(sink.bus_stops.begin(),sink.bus_stops.end(),[&](const BusStop&stop){return stop.anchor_node==sink_node->id;}),"bus-stop coverage skips node without traversable outgoing edge");
     const auto alternate_seed=Seed128::parse("0xfedcba98765432100123456789abcdef");
-    const auto district1=OsmRoadLoader{}.load_xml("data/fixtures/downtown_osm.xml",50000,rng);
-    const auto district1_repeat=OsmRoadLoader{}.load_xml("data/fixtures/downtown_osm.xml",50000,same);
-    const auto district2=OsmRoadLoader{}.load_xml("data/fixtures/downtown_osm.xml",50000,DeterministicRng(alternate_seed));
+    const auto district1=OsmRoadLoader{}.load_xml("data/fixtures/real_network.osm.xml",50000,rng);
+    const auto district1_repeat=OsmRoadLoader{}.load_xml("data/fixtures/real_network.osm.xml",50000,same);
+    const auto district2=OsmRoadLoader{}.load_xml("data/fixtures/real_network.osm.xml",50000,DeterministicRng(alternate_seed));
     auto osm_ids=[](const OsmRoadGraph&g){std::vector<std::int64_t> ids;for(const auto&n:g.nodes)ids.push_back(n.osm_node_id);return ids;};
     check(osm_ids(district1)==osm_ids(district1_repeat),"same seed reproduces OSM district");
     check(osm_ids(district1)!=osm_ids(district2),"different seed selects different OSM district");
-    check(district1.nodes.size()>=260&&district1.nodes.size()<=850,"OSM district size bounded");
+    check(district1.nodes.size()>=1000&&district1.nodes.size()<=6000,"OSM district size bounded");
     std::cerr<<"[test] graph\n";GraphStore graph(s1);RoutePlanner routes(graph);auto route=routes.route(NodeId{0},NodeId{static_cast<std::uint32_t>(s1.nodes.size()-1)});check(route.found&&!route.edges.empty(),"A* route");check(routes.route(NodeId{3},NodeId{3}).found&&routes.route(NodeId{3},NodeId{3}).cost_ms==0,"zero route");
     graph.edge_state(route.edges.front()).closed=true;auto alternate=routes.route(NodeId{0},NodeId{static_cast<std::uint32_t>(s1.nodes.size()-1)});check(alternate.found,"routing around closure");
     auto max_duration=cfg;max_duration.playback_duration_s=3600;(void)compiler.compile(seed,max_duration);

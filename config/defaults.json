@@ -1,11 +1,63 @@
 {
-  "schema_version": "1.0", "seed": "auto", "day": "auto",
-  "playback": {"duration_seconds": 60, "tick_rate": 1.0, "checkpoint_virtual_seconds": 900},
-  "map": {"source": "osm-xml", "osm_file": "auto", "max_nodes": 50000, "min_nodes": 9, "max_anchor_attempts": 64, "min_compactness": 0.10},
-  "modules": {"traffic": true, "signals": true, "buildings": true, "dws": true, "flooding": true, "news": true},
-  "bus_stops": {"min_spacing_m": 300, "target_spacing_m": 500, "max_coverage_m": 800, "building_annulus_m": [80, 250]},
-  "traffic": {"demand_bin_virtual_s": 300, "route_probe_count": 512, "bpr_alpha": 0.15, "bpr_beta": 4},
-  "dws": {"frequency": 3, "min_start_gap_playback_seconds": 5, "min_duration_virtual_min": 20, "max_duration_virtual_min": 120},
-  "api": {"host": "0.0.0.0", "port": 8090}, "ui": {"port": 5173, "osm_background": true},
-  "logging": {"level": "INFO", "system_log": "logs/system.log", "database": "logs/runtime.db"}
+  "schema_version": "1.0",
+  "seed": "auto",
+  "day": 0,
+  "playback": {
+    "duration_seconds": 3600,
+    "tick_rate": 1.0,
+    "checkpoint_virtual_seconds": 900
+  },
+  "map": {
+    "source": "OpenStreetMap",
+    "max_nodes": 50000,
+    "min_nodes": 9,
+    "max_anchor_attempts": 64,
+    "min_compactness": 0.1,
+    "map_selection_version": "urban-crfg-v2",
+    "on_demand": true,
+    "tile_radius_m": 2000,
+    "cache_dir": "data/maps"
+  },
+  "modules": {
+    "traffic": true,
+    "signals": true,
+    "buildings": true,
+    "dws": true,
+    "flooding": true,
+    "news": true
+  },
+  "bus_stops": {
+    "min_spacing_m": 300,
+    "target_spacing_m": 500,
+    "max_coverage_m": 800,
+    "building_annulus_m": [
+      80,
+      250
+    ]
+  },
+  "traffic": {
+    "demand_bin_virtual_s": 300,
+    "route_probe_count": 512,
+    "bpr_alpha": 0.15,
+    "bpr_beta": 4
+  },
+  "dws": {
+    "frequency": 3,
+    "min_start_gap_playback_seconds": 5,
+    "min_duration_virtual_min": 20,
+    "max_duration_virtual_min": 120
+  },
+  "api": {
+    "host": "0.0.0.0",
+    "port": 8090
+  },
+  "ui": {
+    "port": 5173,
+    "osm_background": true
+  },
+  "logging": {
+    "level": "INFO",
+    "system_log": "logs/system.log",
+    "database": "logs/runtime.db"
+  }
 }

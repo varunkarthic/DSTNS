@@ -44,6 +44,8 @@ struct EdgeStatic {
     bool source_oneway{}, synthetic_reverse{}; std::uint16_t lanes{1};
     double length_m{}, free_speed_mps{}, base_capacity_vph{}, hotspot_susceptibility{}, flood_susceptibility{};
     std::vector<Point> geometry;
+    std::string name;
+    std::map<std::string, std::string> tags;
 };
 
 [[nodiscard]] constexpr bool is_source_direction_allowed(const EdgeStatic& edge) noexcept {
@@ -57,7 +59,7 @@ struct EdgeDynamic {
     double rain_capacity_multiplier{1}, flood_capacity_multiplier{1};
     double manual_speed_multiplier{1}, manual_capacity_multiplier{1};
     double incident_speed_multiplier{1}, incident_capacity_multiplier{1};
-    std::uint32_t vehicle_count{}, halting_count{}; double mean_speed_mps{}, occupancy{};
+    std::uint32_t vehicle_count{}, halting_count{}; double vehicle_load{}, mean_speed_mps{}, occupancy{};
     bool manual_closed{}, incident_closed{}, closed{}; std::uint64_t state_revision{};
 };
 struct BusStop { StopId id; NodeId anchor_node; EdgeId edge; double position_m{}, nearest_stop_distance_m{}; };
@@ -80,10 +82,25 @@ struct Incident {
     bool closed{false};
 };
 
+struct MapFeature {
+    std::string id, name, category;
+    Point center;
+    std::vector<Point> geometry;
+    std::map<std::string, std::string> tags;
+    bool polygon{};
+    std::optional<BuildingType> demand_type;
+    NodeId anchor;
+};
+
 struct ScenarioConfig {
-    std::uint32_t playback_duration_s{60}; double tick_rate{1}; int day{-1};
+    std::uint32_t playback_duration_s{60}; double tick_rate{1}; int day{0};
     std::uint32_t grid_width{12}, grid_height{10}, max_nodes{50000};
     std::string osm_file;
+    std::string saved_seed_id, map_selection_version{"urban-crfg-v2"};
+    // On-demand OSM sourcing: the seed picks a city and an anchor, and a tile of
+    // this radius is downloaded into map_cache_dir the first time it is needed.
+    double map_tile_radius_m{2000};
+    std::string map_cache_dir{"data/maps"};
     std::uint32_t dws_frequency{3}, demand_bin_virtual_s{300};
     double stop_min_spacing_m{300}, stop_target_spacing_m{500}, stop_max_coverage_m{800};
     std::uint32_t min_incidents{4};
@@ -93,6 +110,12 @@ struct ScenarioConfig {
 struct Scenario {
     Seed128 seed; ScenarioConfig config; NodeId root;
     std::vector<NodeStatic> nodes; std::vector<EdgeStatic> edges;
+    std::vector<MapFeature> features;
+    double projection_lat{}, projection_lon{};
+    // Provenance of the road network: which real place this graph was cut from.
+    std::string map_city, map_country, map_source_file;
+    double map_anchor_lat{}, map_anchor_lon{}, map_tile_radius_m{};
+    bool map_downloaded{false};
     std::vector<BusStop> bus_stops; std::vector<SignalPlan> signals;
     std::vector<DwsEvent> dws_events; std::vector<PlannedTrip> trips;
     std::vector<Incident> incidents;

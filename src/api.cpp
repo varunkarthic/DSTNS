@@ -1,9 +1,11 @@
 #include "dstns/api.hpp"
+#include "dstns/geo.hpp"
 #include "dstns/sumo_bridge.hpp"
 
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <chrono>
+#include <cstdlib>
 #include <cmath>
 #include <fstream>
 #include <regex>
@@ -19,7 +21,8 @@ void send(httplib::Response& r, const json& j, int status = 200) {
         copy["ok"] = (status >= 200 && status < 300);
     }
     r.status = status;
-    r.set_content(copy.dump(), "application/json; charset=utf-8");
+    // JSON is UTF-8 by definition; the exact media type enables httplib compression.
+    r.set_content(copy.dump(), "application/json");
 }
 
 json body(const httplib::Request& r) {
@@ -53,6 +56,10 @@ ScenarioConfig config_from(const json& j) {
         if (j.at("day").is_string() && j.at("day") == "auto") c.day = -1;
         else c.day = j.at("day");
     }
+    c.saved_seed_id=j.value("saved_seed_id",std::string{});
+    c.map_selection_version=j.value("map_selection_version",std::string("urban-crfg-v2"));
+    if(c.map_selection_version!="urban-crfg-v2")throw std::invalid_argument("unsupported map selection version");
+    if(!c.saved_seed_id.empty()&&!std::regex_match(c.saved_seed_id,std::regex("[A-Za-z0-9][A-Za-z0-9_-]{0,63}")))throw std::invalid_argument("invalid saved seed ID");
     if (j.contains("modules")) {
         auto& m = j.at("modules");
         c.traffic = m.value("traffic", m.value("traffic_demand", c.traffic));
@@ -69,6 +76,10 @@ ScenarioConfig config_from(const json& j) {
         const auto& m = j.at("map");
         c.max_nodes = m.value("max_nodes", c.max_nodes);
         c.osm_file = m.value("osm_file", std::string{});
+        c.map_tile_radius_m = m.value("tile_radius_m", c.map_tile_radius_m);
+        c.map_cache_dir = m.value("cache_dir", c.map_cache_dir);
+        if (!(c.map_tile_radius_m > 0 && c.map_tile_radius_m <= 20000))
+            throw std::invalid_argument("map.tile_radius_m must be in (0, 20000] metres");
     }
     if (j.contains("fixture")) {
         auto& f = j.at("fixture");
@@ -105,6 +116,15 @@ void ApiServer::routes() {
     };
 
     const auto dist = find_dist();
+    if(std::filesystem::exists("media"))server_->set_mount_point("/media",std::filesystem::absolute("media").string());
+    server_->Get("/media/logo.png",[](const auto&,auto& r){r.status=404;});
+    const std::string operator_token=std::getenv("DSTNS_OPERATOR_TOKEN")?std::getenv("DSTNS_OPERATOR_TOKEN"):"";
+    server_->set_pre_routing_handler([operator_token](const auto& req,auto& r){
+        if((req.path=="/api/v1/playback/start"||req.path=="/api/v1/playback/prepare") && req.method=="POST" && (operator_token.empty()||req.get_header_value("X-DSTNS-Operator")!=operator_token)) {
+            send(r,{{"error",{{"code","CLI_START_REQUIRED"},{"message","Start simulations through the operator CLI."}}}},403);return httplib::Server::HandlerResponse::Handled;
+        }
+        return httplib::Server::HandlerResponse::Unhandled;
+    });
     if (!dist.empty() && std::filesystem::exists(dist / "assets")) {
         server_->set_mount_point("/assets", (dist / "assets").string());
     }
@@ -139,6 +159,13 @@ void ApiServer::routes() {
         int status = 500;
         try {
             if (ep) std::rethrow_exception(ep);
+        } catch (const MapFetchError& e) {
+            // The seed names a real place that could not be downloaded. This is
+            // upstream/environmental, and retryable, so it must not look like a
+            // bad request or a crash.
+            message = e.what();
+            code = "MAP_FETCH_FAILED";
+            status = 503;
         } catch (const nlohmann::json::parse_error& e) {
             message = std::string("Malformed JSON: ") + e.what();
             code = "INVALID_JSON";
@@ -179,6 +206,7 @@ void ApiServer::routes() {
         send(r, {
             {"ok", true},
             {"service", "dstns"},
+            {"observer_ui_version", "observer-v2"},
             {"product", "Deterministic Simulated Environment"},
             {"version", "1.0.0"},
             {"lifecycle", to_string(engine_.lifecycle())}
@@ -261,11 +289,6 @@ void ApiServer::routes() {
         auto c = config_from(j);
         const auto start = j.contains("start_virtual_time") ? time_value(j.at("start_virtual_time")) : 0;
         auto res = engine_.start(seed, c, start);
-        std::thread([this]() {
-            try {
-                (void)engine_.sumo_simulate("data/sumo_run", 0, 3600);
-            } catch (...) {}
-        }).detach();
         send(r, res, 202);
     });
     server_->Post("/api/v1/playback/pause", [this](const auto&, auto& r) { send(r, engine_.pause()); });
@@ -363,13 +386,9 @@ void ApiServer::routes() {
             j.value("duration_s", 1800u)
         ), 202);
     });
-    server_->Post("/api/v1/control/transit/route", [this](const auto& req, auto& r) {
-        auto j = body(req);
-        const std::vector<std::uint32_t> nodes = j.at("nodes");
-        const auto bus_id = j.value("bus_id", "BUS-101");
-        const auto label = j.value("label", "Transit Line " + bus_id);
-        const auto res = engine_.validate_transit_route(nodes, bus_id, label);
-        send(r, res, res.value("valid", false) ? 200 : 400);
+    server_->Post("/api/v1/control/transit/route", [](const auto&, auto& r) {
+        r.set_header("Deprecation","true");
+        send(r,{{"error",{{"code","TRANSIT_API_RETIRED"},{"message","Transit route dispatch is no longer supported."}}}},410);
     });
 
     server_->Post("/api/v1/control/undo", [this](const auto& req, auto& r) {
@@ -421,10 +440,20 @@ void ApiServer::routes() {
         send(r, result);
     });
 
-    for (const auto* kind : {"traffic", "weather", "buildings", "bus-stops", "signals", "events", "metrics", "incidents"}) {
+    for (const auto* kind : {"traffic", "weather", "buildings", "bus-stops", "signals", "events", "metrics", "incidents", "congestion"}) {
         const auto path = std::string("/api/v1/view/") + kind;
         server_->Get(path, [this, kind](const auto&, auto& r) { send(r, engine_.catalog(kind)); });
     }
+
+    server_->Get("/api/v1/view/event-queue",[this](const auto& req,auto& r){
+        auto number=[&](const char* key,std::size_t fallback,std::size_t max){if(!req.has_param(key))return fallback;auto value=req.get_param_value(key);if(!std::regex_match(value,std::regex("[0-9]{1,6}")))throw std::invalid_argument("invalid event pagination");auto n=std::stoul(value);if(n>max)throw std::invalid_argument("event pagination out of range");return n;};
+        const auto view=req.has_param("view")?req.get_param_value("view"):"future";
+        const auto category=req.has_param("category")?req.get_param_value("category"):"all";
+        if(view!="future"&&view!="history")throw std::invalid_argument("view must be future or history");
+        if(category!="all"&&category!="signals"&&category!="demand"&&category!="incidents"&&category!="weather"&&category!="flooding"&&category!="system")throw std::invalid_argument("invalid event category");
+        const auto limit=number("limit",50,200);if(!limit)throw std::invalid_argument("limit must be positive");
+        send(r,engine_.scheduled_events(view=="future",category,number("offset",0,100000),limit));
+    });
 
     // News API
     server_->Get("/api/v1/news", [this](const auto& req, auto& r) {

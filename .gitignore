@@ -16,3 +16,13 @@ __pycache__/
 .cache/
 *.idx
 logs/*.json
+
+# Operator credentials and saved local configurations
+logs/operator.token
+data/seed-store/
+artifacts/modernization/
+# Downloaded OSM tiles and their provenance manifests are a local cache: the
+# seed regenerates them on demand, and they run to tens of megabytes each.
+data/maps/*.osm.xml
+data/maps/*.manifest.json
+data/maps/*.part

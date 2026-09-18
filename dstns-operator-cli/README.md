@@ -1,6 +1,6 @@
-# DSTNS Operator CLI
+# DSTNS operator CLI
 
-Modern terminal operator interface for DSTNS using the real `@poppinss/cliui` package.
+The Node console lives in `dstns-operator-cli/`; the repository root is its parent. Install with `npm ci --prefix dstns-operator-cli`, then use `./launcher start` or `node dstns-operator-cli/dstns.mjs start` from the repository root.
 
 ## Placement
 
@@ -59,3 +59,18 @@ chmod +x dstns.mjs
 ```
 
 The C++ process remains the simulation authority. The Node launcher is only the operator/presentation layer.
+
+## Non-interactive launcher arguments
+
+```bash
+./launcher start --seed 382923 --day-type weekend --save-seed campus-test
+./launcher start --saved-seed campus-test
+./launcher seeds list
+./launcher seeds inspect campus-test
+./launcher seeds delete campus-test
+./launcher logs system
+./launcher test all
+./launcher sumo
+```
+
+`start` starts playback immediately. Weekday is the default. The browser observes the core and exposes pause/resume/speed. See the [modernization guide](../docs/modernization.md) for validated arguments, pinned OSM source storage, private operator credentials and process ownership. Interactive terminal menus remain available by running `./launcher` without arguments.

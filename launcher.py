@@ -45,10 +45,11 @@ def main() -> int:
         print(f"Error: Operator CLI script not found at {OPERATOR_SCRIPT}", file=sys.stderr)
         return 1
 
+    os.chdir(ROOT)
     try:
         ensure_operator_dependencies(node_bin)
-    except (RuntimeError, subprocess.CalledProcessError) as error:
-        print(f"Error: {error}", file=sys.stderr)
+    except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+        print(f"Error: could not install operator dependencies: {error}", file=sys.stderr)
         return 1
 
     cmd = [node_bin, str(OPERATOR_SCRIPT)] + sys.argv[1:]

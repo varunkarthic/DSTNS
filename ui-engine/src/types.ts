@@ -1,16 +1,23 @@
-export type Lifecycle='IDLE'|'PREPARING'|'READY'|'RUNNING'|'PAUSED'|'SEEKING'|'STOPPED'|'COMPLETED'|'ERROR'|'TERMINATING';
-
+export type Lifecycle =
+  | "IDLE"
+  | "PREPARING"
+  | "READY"
+  | "RUNNING"
+  | "PAUSED"
+  | "SEEKING"
+  | "STOPPED"
+  | "COMPLETED"
+  | "ERROR"
+  | "TERMINATING";
 export interface Clock {
   playback_state: Lifecycle;
   playback_duration_seconds: number;
   simulation_percentage: number;
   simulated_current_time: string;
   virtual_day_seconds: number;
-  base_rate: number;
   tick_rate: number;
   target_virtual_rate: number;
 }
-
 export interface Envelope<T> {
   api_version: string;
   run_id: string;
@@ -20,149 +27,153 @@ export interface Envelope<T> {
   clock: Clock;
   data: T;
 }
-
 export interface Status {
   lifecycle: Lifecycle;
-  run_id: string;
   day: number;
-  paused: boolean;
-  simulated_seconds: number;
-  checkpoint_count: number;
-  virtual_seconds_remaining: number;
+  saved_seed_id: string;
+  map_selection_version: string;
   modules: Record<string, boolean>;
 }
-
+export interface Point {
+  x_m: number;
+  y_m: number;
+  lat: number;
+  lon: number;
+}
 export interface TopologyNode {
   id: number;
-  osm_node_id: number;
-  position: { lat: number; lon: number; x_m: number; y_m: number };
+  position: Point;
   degree: number;
-  bus_stop: boolean;
-  bus_stop_radius_m?: number;
   signal: boolean;
-  signal_cycle_s?: number;
-  signal_offset_s?: number;
-  signal_green_s?: number;
-  building: string | null;
-  building_impact?: number;
-  building_radius_m?: number;
+  osm_node_id: number;
 }
-
 export interface TopologyEdge {
   id: number;
   from: number;
   to: number;
   reverse_twin: number;
+  synthetic_reverse: boolean;
+  name: string;
   road_class: string;
   length_m: number;
+  lanes: number;
   free_speed_mps: number;
-  geometry: { lat: number; lon: number; x_m: number; y_m: number }[];
+  geometry: Point[];
 }
-
-export interface TopologyBounds {
-  min_lat: number;
-  max_lat: number;
-  min_lon: number;
-  max_lon: number;
-  center_lat?: number;
-  center_lon?: number;
+export interface MapFeature {
+  id: string;
+  name: string;
+  category: string;
+  polygon: boolean;
+  position: Point;
+  geometry: Point[];
+  tags: Record<string, string>;
 }
-
+// Where on earth this graph was cut from. Positions elsewhere in the topology
+// are true metres from the projection origin; the UI compresses only for display.
+export interface MapLocation {
+  city: string;
+  country: string;
+  anchor_lat: number;
+  anchor_lon: number;
+  tile_radius_m: number;
+  downloaded: boolean;
+}
 export interface Topology {
-  root_node: number;
-  topology_revision: number;
   graph_hash: string;
-  bounds?: TopologyBounds;
+  location?: MapLocation;
+  projection?: {
+    name: string;
+    origin_lat: number;
+    origin_lon: number;
+    units: string;
+  };
   nodes: TopologyNode[];
   edges: TopologyEdge[];
+  features: MapFeature[];
+  source: string;
+  map_selection_version: string;
+  bounds: {
+    min_lat: number;
+    max_lat: number;
+    min_lon: number;
+    max_lon: number;
+  };
 }
-
 export interface EdgeState {
   id: number;
   congestion: number;
   rainfall: number;
   flood: number;
   effective_speed_mps: number;
+  mean_speed_mps: number;
   vehicle_count: number;
-  halting_count?: number;
+  halting_count: number;
   closed: boolean;
+  incident_closed: boolean;
+  incident_speed_multiplier: number;
+  signal_multiplier: number;
+  demand_vph: number;
+  effective_capacity_vph: number;
+  demand_causes: string[];
 }
-
-export interface NodeState {
-  id: number;
-  rainfall: number;
-  flood: number;
-  building_effect: number;
+export interface SignalState {
+  signal_id: number;
+  junction_id: number;
+  phase: number;
+  phase_name: string;
+  group_a: string;
+  group_b: string;
+  phase_started_at: number | null;
+  time_in_phase: number | null;
+  next_transition_at: number | null;
+  cycle_length: number;
+  enabled: boolean;
 }
-
-export interface ActiveWeather {
+export interface DemandState {
+  feature_id: string;
+  multiplier: number;
+  active: boolean;
+  radius_m: number;
+}
+export interface WeatherState {
   id: number;
-  epicenter_node: number;
-  lat: number;
-  lon: number;
   x_m: number;
   y_m: number;
   radius_m: number;
   intensity: number;
-  flood_gain: number;
 }
-
-export interface ActiveIncident {
+export interface IncidentState {
+  id?: number;
+  incident_id?: number;
   edge_id: number;
-  from_node: number;
-  to_node: number;
-  road_class: string;
-  congestion: number;
-  flood: number;
+  type?: string;
+  description?: string;
   closed: boolean;
-  effective_speed_mps: number;
-  vehicle_count: number;
+  flood: number;
 }
-
-export interface EventItem {
-  news_id: number;
-  event_id: number;
-  simulated_current_time: string;
-  category: string;
-  severity: string;
-  template_id: string;
-  message: string;
-  data?: Record<string, unknown>;
+export interface Congestion {
+  current: number;
+  average: number;
+  delta: number;
+  source: string;
+  history?: { virtual_s: number; current: number; average: number }[];
 }
-
-export interface ActiveSurge {
-  id: number;
-  node_id: number;
-  lat: number;
-  lon: number;
-  x_m: number;
-  y_m: number;
-  radius_m: number;
-  factor: number;
-  start_s: number;
-  end_s: number;
-  remaining_s: number;
-  label: string;
-}
-
 export interface Snapshot {
   topology_revision: number;
-  nodes: NodeState[];
+  nodes: {
+    id: number;
+    rainfall: number;
+    flood: number;
+    building_effect: number;
+  }[];
   edges: EdgeState[];
-  active_weather_events: number;
-  active_weather?: ActiveWeather[];
-  active_surges?: ActiveSurge[];
-  active_incidents?: ActiveIncident[];
-  active_transit_buses?: Array<{
-    bus_id: string;
-    label: string;
-    nodes: number[];
-    route_edges: number[];
-    total_distance_m: number;
-  }>;
-  event_stack?: EventItem[];
+  signals: SignalState[];
+  demand: DemandState[];
+  congestion: Congestion;
+  active_weather: WeatherState[];
+  active_incidents: IncidentState[];
 }
-
 export interface News {
   news_id: number;
   event_id: number;
@@ -174,17 +185,57 @@ export interface News {
   message: string;
   data: Record<string, unknown>;
 }
-
-export interface TransitRouteResult {
-  ok: boolean;
-  valid: boolean;
-  bus_id?: string;
-  label?: string;
-  node_count?: number;
-  route_edges?: number[];
-  total_distance_m?: number;
-  message: string;
-  error_step?: number;
-  from_node?: number;
-  to_node?: number;
+export interface ScheduledEvent {
+  id: number;
+  virtual_s: number;
+  entity: number;
+  category: string;
+  description: string;
+  status: string;
+  phase: number;
+  value: number;
+}
+export interface EventPage {
+  items: ScheduledEvent[];
+  total: number;
+  pending_count: number;
+  executed_count: number;
+  history_retention: number;
+}
+// Display layers are frontend-only: toggling one changes what is drawn, never
+// what the simulation computes. No layer state is ever sent to the core.
+export interface Layers {
+  traffic: boolean;
+  weather: boolean;
+  flooding: boolean;
+  events: boolean;
+  buildings: boolean;
+  signals: boolean;
+  roads: boolean;
+  nodes: boolean;
+  vehicles: boolean;
+  transit: boolean;
+  incidents: boolean;
+  labels: boolean;
+}
+export const defaultLayers: Layers = {
+  traffic: true,
+  weather: true,
+  flooding: true,
+  events: true,
+  buildings: true,
+  signals: true,
+  roads: true,
+  nodes: true,
+  vehicles: true,
+  transit: true,
+  incidents: true,
+  labels: false,
+};
+export interface Inspection {
+  title: string;
+  category: string;
+  status?: string;
+  description?: string;
+  metrics?: [string, string][];
 }
