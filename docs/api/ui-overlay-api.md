@@ -1,33 +1,11 @@
-# UI Overlay API (`/ui-api/v1/*`)
+# Optional external annotation service
 
-The UI Overlay API is an independent visualization layer hosted by the Node.js Fastify server (`ui-engine/server/`) to allow external multi-agent decision systems to render custom vehicles and decision agents atop the DSTNS map.
+`npm run overlay --prefix ui-engine` runs the independent Node HTTP service on port 4174 (override with `PORT`). Its existing routes are retained:
 
-## Endpoints
+- `GET /api/v1/ui-overlay/entities`
+- `POST /api/v1/ui-overlay/entities` with `type` of `point`, `line`, `polygon` or `label`
+- `PUT /api/v1/ui-overlay/entities/{id}` or `/{id}/move`
+- `DELETE /api/v1/ui-overlay/entities/{id}`
+- `GET /api/v1/ui-overlay/stream` for SSE changes
 
-### 1. List Overlay Entities (`GET /ui-api/v1/entities`)
-Returns all active external visual overlay entities.
-
-### 2. Create Overlay Entity (`POST /ui-api/v1/entities`)
-```json
-{
-  "id": "agent-bus-01",
-  "type": "vehicle",
-  "node_id": 14,
-  "label": "Decision Agent 01",
-  "icon": "bus",
-  "metadata": {"route": "Downtown Loop"}
-}
-```
-
-### 3. Move Visual Entity (`POST /ui-api/v1/entities/{id}/move`)
-```json
-{
-  "from_node_id": 14,
-  "to_node_id": 28,
-  "path_node_ids": [14, 18, 22, 28],
-  "duration_ms": 4000
-}
-```
-
-### 4. Delete Overlay Entity (`DELETE /ui-api/v1/entities/{id}`)
-Removes the specified entity from the overlay renderer.
+Entities live in memory and do not mutate the C++ simulation. This service is separate from the production server; the production map does not automatically consume these annotations. Earlier documentation described unimplemented `/ui-api/v1` routes and vehicle animation; those were not actual contracts.

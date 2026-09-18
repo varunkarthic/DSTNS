@@ -6,3 +6,10 @@ ui-engine/dist
 logs/*
 data/scenarios/*
 data/checkpoints/*
+
+ui-engine-alpha
+artifacts
+data/maps/*.osm.xml
+data/seed-store
+dstns-operator-cli/node_modules
+.cache

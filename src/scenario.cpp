@@ -1,4 +1,6 @@
 #include "dstns/scenario.hpp"
+#include "dstns/geo.hpp"
+#include "dstns/osm_fetch.hpp"
 #include "dstns/graph.hpp"
 #include "dstns/osm.hpp"
 
@@ -45,20 +47,28 @@ static constexpr CityAnchor kCityCatalog[] = {
 };
 }
 
+// Below this a district is not a street network worth simulating.
+constexpr std::size_t kMinimumDistrictNodes = 400;
+
 Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& config)const{
+    if(config.max_nodes<2||config.max_nodes>50000)throw std::invalid_argument("max_nodes must be in [2,50000]");
+    if(config.map_selection_version!="urban-crfg-v2")throw std::invalid_argument("unsupported map selection version");
+    if(config.day < -1 || config.day>1)throw std::invalid_argument("invalid day type");
+    if(config.demand_bin_virtual_s==0||config.demand_bin_virtual_s>86400)throw std::invalid_argument("invalid demand bin");
     if(config.playback_duration_s<60||config.playback_duration_s>3600)throw std::invalid_argument("playback_duration_s must be in [60,3600]");
     auto effective_config = config;
     if(!(effective_config.tick_rate>0&&effective_config.tick_rate<=100))throw std::invalid_argument("tick_rate must be in (0,100]");
+    // "auto" means: let the seed choose a real place and fetch it on demand.
+    // The tile is cached under its seed-derived name, so re-running one seed is
+    // offline and free while a re-rolled seed necessarily downloads a new map.
+    MapLocation location{};
+    bool located = false, downloaded = false;
     if(effective_config.osm_file == "auto") {
-        for (const auto* candidate : {"data/fixtures/downtown_osm.xml", "../data/fixtures/downtown_osm.xml", "/app/maps/downtown_osm.xml"}) {
-            if (std::filesystem::is_regular_file(candidate)) {
-                effective_config.osm_file = candidate;
-                break;
-            }
-        }
-        if (effective_config.osm_file == "auto") {
-            throw std::invalid_argument("Real road map missing: install data/fixtures/downtown_osm.xml or supply map.osm_file");
-        }
+        location = select_map_location(seed_value, effective_config.map_tile_radius_m);
+        located = true;
+        const auto tile = acquire_map_tile(location, effective_config.map_cache_dir);
+        effective_config.osm_file = tile.file.string();
+        downloaded = tile.downloaded;
     }
     if(effective_config.osm_file.empty()&&(effective_config.grid_width<3||effective_config.grid_height<3||std::uint64_t(effective_config.grid_width)*effective_config.grid_height>effective_config.max_nodes))throw std::invalid_argument("invalid grid dimensions or max_nodes");
     if(effective_config.dws_frequency>0&&std::uint64_t(effective_config.dws_frequency-1)*5>=effective_config.playback_duration_s)throw std::invalid_argument("DWS frequency violates five-playback-second spacing");
@@ -77,17 +87,34 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
     DeterministicRng incident_rng(incident_seed);
     DeterministicRng scenario_rng(scenario_seed);
 
-    if(s.config.day<0)s.config.day=scenario_rng.bounded({RngDomain::DaySelector,0,0,0},7)<5?0:1;
+    if(s.config.day<0)s.config.day=0;
     if(s.config.day>1)throw std::invalid_argument("day must be 0, 1, or auto");
     if(effective_config.osm_file.empty()){
         build_canonical_grid(s,map_rng);
         s.map_hash="sha256:"+sha256("dstns/offline-road-fixture/v1");
     }else{
         auto road=OsmRoadLoader{}.load_xml(effective_config.osm_file,effective_config.max_nodes,map_rng);
-        s.root=road.root;s.nodes=std::move(road.nodes);s.edges=std::move(road.edges);s.map_hash=std::move(road.source_hash);
+        s.root=road.root;s.nodes=std::move(road.nodes);s.edges=std::move(road.edges);s.map_hash=std::move(road.source_hash);s.features=std::move(road.features);s.projection_lat=road.projection_lat;s.projection_lon=road.projection_lon;
+        s.map_source_file=effective_config.osm_file;
+        if(located){
+            s.map_city=location.city;s.map_country=location.country;
+            s.map_anchor_lat=location.anchor_lat;s.map_anchor_lon=location.anchor_lon;
+            s.map_tile_radius_m=location.radius_m;s.map_downloaded=downloaded;
+            // A tile that lands on water, parkland or an unmapped area yields a
+            // network too thin to simulate. Say so plainly instead of running a
+            // degenerate scenario that looks like a working one.
+            if(s.nodes.size()<kMinimumDistrictNodes){
+                throw MapFetchError("The map tile for "+location.city+" ("+location.country+") at "
+                    +std::to_string(location.anchor_lat)+", "+std::to_string(location.anchor_lon)
+                    +" contains only "+std::to_string(s.nodes.size())+" road junctions (at least "
+                    +std::to_string(kMinimumDistrictNodes)+" are needed). The area is mostly water or "
+                    "unmapped; re-roll the seed for a different district.");
+            }
+        }
     }
     place_bus_stops(s);
-    if(effective_config.buildings)place_buildings(s,scenario_rng);
+    if(effective_config.buildings && effective_config.osm_file.empty())place_buildings(s,scenario_rng);
+    if(effective_config.osm_file.empty())for(const auto& n:s.nodes)if(n.building){MapFeature f;f.id="fixture/"+std::to_string(n.id.value);f.category=to_string(*n.building);f.name="Synthetic "+f.category;f.center=n.position;f.geometry={n.position};f.demand_type=n.building;f.anchor=n.id;s.features.push_back(f);}
     if(effective_config.signals)plan_signals(s);
     if(effective_config.traffic){plan_hotspots(s,traffic_rng);plan_trips(s,traffic_rng);}
     if(effective_config.dws)plan_weather(s,dws_rng);
@@ -166,24 +193,23 @@ void ScenarioCompiler::place_buildings(Scenario&s,const DeterministicRng&rng)con
     for(const auto&stop:s.bus_stops){if(rng.uniform01({RngDomain::Buildings,stop.id.value,0,0})>.72)continue;std::vector<NodeId> candidates;for(const auto&n:s.nodes){const auto d=point_distance(n.position,s.nodes[stop.anchor_node.value].position);if(d>=80&&d<=250&&!n.bus_stop&&!n.building)candidates.push_back(n.id);}if(candidates.empty())continue;std::sort(candidates.begin(),candidates.end(),[](auto a,auto b){return a.value<b.value;});auto chosen=candidates[rng.bounded({RngDomain::Buildings,stop.id.value,1,0},static_cast<std::uint32_t>(candidates.size()))];auto&n=s.nodes[chosen.value];n.building=types[rng.bounded({RngDomain::Buildings,stop.id.value,2,0},4)];const auto u=rng.uniform01({RngDomain::Buildings,stop.id.value,3,0});n.building_impact=.25+.6*u;n.building_radius_m=180+520*rng.uniform01({RngDomain::Buildings,stop.id.value,4,0});switch(*n.building){case BuildingType::School:n.tmax={{291667,375000,3,3},{625000,687500,3,3}};break;case BuildingType::Office:n.tmax={{312500,416667,2,3},{687500,812500,3,2}};break;case BuildingType::Mall:n.tmax={{437500,937500,1,1}};break;case BuildingType::Store:n.tmax={{354167,895833,1,1}};break;}}
 }
 
-void ScenarioCompiler::plan_signals(Scenario&s)const{
-    for(auto&n:s.nodes)if(n.degree>=4&&n.id.value%3==0){
+void ScenarioCompiler::plan_signals(Scenario& s) const {
+    DeterministicRng rng(s.seed.derive("signals"));
+    std::vector<std::array<double,2>> demand(s.nodes.size(), {1.0,1.0});
+    for(const auto& e:s.edges) if(is_source_direction_allowed(e)) {
+        const auto& a=s.nodes[e.from.value].position;const auto& b=s.nodes[e.to.value].position;
+        demand[e.to.value][std::abs(b.y_m-a.y_m)>=std::abs(b.x_m-a.x_m)?0:1]+=e.base_capacity_vph;
+    }
+    for(auto& n:s.nodes) if(n.signal || (s.config.osm_file.empty() && n.degree>=4 && n.id.value%3==0)) {
         n.signal=true;
-        const bool bottleneck = (n.id.value % 5 == 0);
-        const auto cycle = std::uint16_t(bottleneck ? (90 + (n.id.value * 7) % 31) : (30 + (n.id.value * 13) % 45));
-        const auto offset = std::uint16_t((n.id.value * 19) % cycle);
-        n.signal_cycle_s = cycle;
-        n.signal_offset_s = offset;
-        if (bottleneck) {
-            const std::uint16_t major_g = std::max<std::uint16_t>(20, std::uint16_t(cycle * 0.40));
-            const std::uint16_t minor_g = std::max<std::uint16_t>(10, std::uint16_t(cycle - major_g - 8));
-            n.signal_green_s = major_g;
-            s.signals.push_back({n.id, cycle, {major_g, 3, 1, minor_g, 3, 1}, offset});
-        } else {
-            const std::uint16_t green = std::max<std::uint16_t>(12, std::uint16_t((cycle - 8) / 2));
-            n.signal_green_s = green;
-            s.signals.push_back({n.id, cycle, {green, 3, 1, green, 3, 1}, offset});
-        }
+        const auto id=static_cast<std::uint64_t>(n.osm_node_id);
+        const double total=demand[n.id.value][0]+demand[n.id.value][1];
+        const auto cycle=std::uint16_t(std::clamp(45.0+4.0*n.degree+total/1200.0+20.0*rng.uniform01({RngDomain::TrafficSignals,id,0,0}),50.0,120.0));
+        const auto green=std::uint16_t(std::clamp(double(cycle-8)*demand[n.id.value][0]/total,12.0,double(cycle-20)));
+        const auto other=std::uint16_t(cycle-8-green);
+        n.signal_cycle_s=cycle;n.signal_green_s=green;
+        n.signal_offset_s=std::uint16_t(rng.bounded({RngDomain::TrafficSignals,id,1,0},cycle));
+        s.signals.push_back({n.id,cycle,{green,3,1,other,3,1},n.signal_offset_s});
     }
 }
 void ScenarioCompiler::plan_hotspots(Scenario&s,const DeterministicRng&rng)const{std::vector<std::pair<double,EdgeId>>scores;for(auto&e:s.edges){if(!is_source_direction_allowed(e))continue;const auto central=(s.nodes[e.from.value].degree+s.nodes[e.to.value].degree)/8.0;const auto score=central*(.5+.5*rng.uniform01({RngDomain::TrafficControl,e.id.value,1,0}));scores.push_back({score,e.id});}const auto count=std::min<std::size_t>(std::clamp<std::size_t>(s.edges.size()/80,1,24),scores.size());std::sort(scores.begin(),scores.end(),[](auto a,auto b){return a.first!=b.first?a.first>b.first:a.second.value<b.second.value;});for(std::size_t i=0;i<count;++i){s.hotspot_edges.push_back(scores[i].second);s.edges[scores[i].second.value].hotspot_susceptibility=.5+.5*rng.uniform01({RngDomain::TrafficControl,scores[i].second.value,2,0});}}
@@ -269,7 +295,9 @@ void ScenarioCompiler::plan_incidents(Scenario&s,const DeterministicRng&rng)cons
 void ScenarioCompiler::calculate_hashes(Scenario&s)const{
     const auto graph=canonical_graph(s);
     s.graph_hash="sha256:"+sha256(graph);
-    std::ostringstream ev;
+    std::ostringstream ev; ev<<"events-v2/"<<s.config.map_selection_version;
+    for(const auto& p:s.signals){ev<<p.node.value<<','<<p.cycle_s<<','<<p.offset_s;for(auto phase:p.phases_s)ev<<','<<phase;}
+    for(const auto& f:s.features)if(f.demand_type)ev<<f.id<<','<<static_cast<int>(*f.demand_type);
     for(const auto&e:s.dws_events)ev<<e.id.value<<','<<e.epicenter.value<<','<<e.start_ppm<<','<<e.end_ppm<<','<<std::llround(e.intensity*1e6)<<';';
     for(const auto&t:s.trips)ev<<t.id<<','<<t.depart_virtual_s<<','<<t.from.value<<','<<t.to.value<<';';
     for(const auto&inc:s.incidents)ev<<inc.id<<','<<static_cast<int>(inc.type)<<','<<inc.edge.value<<','<<inc.start_virtual_s<<','<<inc.end_virtual_s<<';';

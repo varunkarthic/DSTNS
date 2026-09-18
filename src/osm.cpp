@@ -20,6 +20,7 @@ struct RawNode {
     bool bus_stop{false};
     bool signal{false};
     std::optional<BuildingType> building;
+    std::map<std::string, std::string> tags;
 };
 
 struct RawWay {
@@ -27,18 +28,26 @@ struct RawWay {
     std::vector<std::int64_t> refs;
     std::string highway;
     bool oneway{false};
+    std::map<std::string, std::string> tags;
 };
 
 std::string extract_attr(std::string_view s, std::string_view key) {
-    const auto pos = s.find(key);
-    if (pos == std::string_view::npos) return {};
-    const auto eq = s.find('=', pos + key.size());
-    if (eq == std::string_view::npos) return {};
-    const auto q1 = s.find_first_of("\"'", eq + 1);
+    // Match complete attribute names and XML whitespace, including pretty-printed inputs.
+    std::size_t pos = 0, q1 = std::string_view::npos;
+    while ((pos = s.find(key, pos)) != std::string_view::npos) {
+        if (pos == 0 || std::string_view(" \t\r\n").find(s[pos - 1]) == std::string_view::npos) { pos += key.size(); continue; }
+        auto eq = s.find_first_not_of(" \t\r\n", pos + key.size());
+        if (eq == std::string_view::npos || s[eq] != '=') { pos += key.size(); continue; }
+        q1 = s.find_first_not_of(" \t\r\n", eq + 1);
+        if (q1 != std::string_view::npos && (s[q1] == '\"' || s[q1] == '\'')) break;
+        return {};
+    }
     if (q1 == std::string_view::npos) return {};
     const auto q2 = s.find(s[q1], q1 + 1);
     if (q2 == std::string_view::npos) return {};
-    return std::string(s.substr(q1 + 1, q2 - q1 - 1));
+    auto result=std::string(s.substr(q1+1,q2-q1-1));
+    for(const auto& [encoded,decoded]:std::vector<std::pair<std::string,std::string>>{{"&quot;","\""},{"&apos;","'"},{"&lt;","<"},{"&gt;",">"},{"&amp;","&"}}){std::size_t at=0;while((at=result.find(encoded,at))!=std::string::npos){result.replace(at,encoded.size(),decoded);at+=decoded.size();}}
+    return result;
 }
 
 bool allowed(const std::string& h) {
@@ -95,14 +104,16 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
     const std::string_view sv(xml);
 
     std::map<std::int64_t, RawNode> raw_nodes;
-    std::vector<RawWay> ways;
+    std::vector<RawWay> ways, feature_ways;
 
     // Fast tokenizer for <node> and <way>
     std::size_t idx = 0;
     while (idx < sv.size()) {
-        const auto npos = sv.find("<node ", idx);
-        const auto wpos = sv.find("<way ", idx);
-        if (npos == std::string_view::npos && wpos == std::string_view::npos) break;
+        const auto next = sv.find('<',idx);
+        if(next==std::string_view::npos)break;
+        const auto npos=sv.substr(next,6)=="<node "?next:std::string_view::npos;
+        const auto wpos=sv.substr(next,5)=="<way "?next:std::string_view::npos;
+        if(npos==std::string_view::npos&&wpos==std::string_view::npos){idx=next+1;continue;}
 
         if (npos != std::string_view::npos && (wpos == std::string_view::npos || npos < wpos)) {
             // Parse <node ...>
@@ -116,12 +127,13 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
 
             if (!idStr.empty() && !latStr.empty() && !lonStr.empty()) {
                 const auto nid = std::stoll(idStr);
-                RawNode rn{nid, std::stod(latStr), std::stod(lonStr), false, false, std::nullopt};
+                RawNode rn; rn.id=nid; rn.lat=std::stod(latStr); rn.lon=std::stod(lonStr);
+                if (!std::isfinite(rn.lat)||!std::isfinite(rn.lon)||std::abs(rn.lat)>90||std::abs(rn.lon)>180) throw std::invalid_argument("invalid OSM coordinates");
 
                 // Check if has inner tags before </node>
                 if (tag.find("/>") == std::string_view::npos) {
                     const auto closeNode = sv.find("</node>", endTag);
-                    if (closeNode != std::string_view::npos && closeNode - endTag < 2000) {
+                    if (closeNode != std::string_view::npos && closeNode > endTag) {
                         const auto body = sv.substr(endTag + 1, closeNode - endTag - 1);
                         std::size_t tIdx = 0;
                         while ((tIdx = body.find("<tag ", tIdx)) != std::string_view::npos) {
@@ -130,6 +142,7 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
                             const auto tTag = body.substr(tIdx, tEnd - tIdx + 1);
                             const auto k = extract_attr(tTag, "k");
                             const auto v = extract_attr(tTag, "v");
+                            rn.tags[k] = v;
                             if (k == "highway" && (v == "bus_stop" || v == "platform")) rn.bus_stop = true;
                             if (k == "amenity" && v == "bus_station") rn.bus_stop = true;
                             if (k == "highway" && v == "traffic_signals") rn.signal = true;
@@ -180,13 +193,17 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
                     const auto tagStr = wayBlock.substr(tagPos, tagEnd - tagPos + 1);
                     const auto k = extract_attr(tagStr, "k");
                     const auto v = extract_attr(tagStr, "v");
+                    rw.tags[k] = v;
                     if (k == "highway") rw.highway = v;
                     if (k == "oneway") rw.oneway = (v == "yes" || v == "1" || v == "true");
                     if (k == "access" && (v == "private" || v == "no")) rw.highway.clear();
                     tagPos = tagEnd + 1;
                 }
 
-                if (allowed(rw.highway) && rw.refs.size() > 1) {
+                if (rw.tags.contains("building") || rw.tags.contains("amenity") || rw.tags.contains("shop") || rw.tags.contains("office") || rw.tags.contains("leisure") || rw.tags.contains("landuse") || rw.tags.contains("railway") || rw.tags.contains("public_transport")) feature_ways.push_back(rw);
+                if (rw.tags["oneway"] == "-1") { rw.oneway=true; std::reverse(rw.refs.begin(),rw.refs.end()); }
+                if (rw.tags["junction"] == "roundabout" && !rw.tags.contains("oneway")) rw.oneway=true;
+                if (allowed(rw.highway) && rw.tags["access"] != "private" && rw.tags["access"] != "no" && rw.refs.size() > 1) {
                     ways.push_back(std::move(rw));
                 }
             }
@@ -194,6 +211,8 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
         }
     }
 
+    std::sort(ways.begin(),ways.end(),[](const auto& a,const auto& b){return a.id<b.id;});
+    if (max_nodes < 2 || max_nodes > 50000) throw std::invalid_argument("max_nodes must be in [2,50000]");
     if (ways.empty()) throw std::invalid_argument("OSM contains no eligible road ways");
 
     // Build node adjacency
@@ -253,23 +272,20 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
     }
     const auto& candidate_pool = !sector_anchors.empty() ? sector_anchors : anchors;
 
-    // Dynamically vary the target node count over a wide range (180 to 750 nodes) based on seed
-    std::uint32_t target_nodes = std::min(max_nodes, static_cast<std::uint32_t>(referenced.size()));
-    if (referenced.size() > 250 && max_nodes > 250) {
-        const std::uint32_t size_variance = rng.bounded({RngDomain::MapSelection, 0, 1, 1}, 520);
-        target_nodes = 180 + size_variance;
-        target_nodes = std::min(target_nodes, static_cast<std::uint32_t>(referenced.size()));
-        target_nodes = std::min(target_nodes, max_nodes);
-    }
+    // Version urban-crfg-v2: real connected districts, with thousands of nodes when available.
+    const auto available=static_cast<std::uint32_t>(referenced.size());
+    const auto district_limit=available>250?static_cast<std::uint32_t>(available*(.55+.20*rng.uniform01({RngDomain::MapSelection,0,2,2}))):available;
+    const auto target_nodes = std::min({max_nodes,district_limit,4000u+rng.bounded({RngDomain::MapSelection,0,1,2},2001)});
 
     std::vector<std::int64_t> selected;
-    std::int64_t root_osm = 0;
+    std::int64_t root_osm = 0, best_root = 0;
+    std::vector<std::int64_t> best_selected;
 
     struct CrfgCandidate {
         double dist;
         std::int64_t osm_id;
         bool operator>(const CrfgCandidate& o) const {
-            if (std::abs(dist - o.dist) > 1e-6) return dist > o.dist;
+            if (dist != o.dist) return dist > o.dist;
             return osm_id > o.osm_id;
         }
     };
@@ -308,11 +324,14 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
             }
         }
 
-        if (selected.size() >= std::min(target_nodes, 25u)) {
+        if (selected.size() > best_selected.size()) { best_selected=selected; best_root=root_osm; }
+        if (selected.size() >= target_nodes) {
             break;
         }
     }
 
+    selected=std::move(best_selected); root_osm=best_root;
+    if (selected.size()<2) throw std::invalid_argument("OSM has no usable connected region");
     std::sort(selected.begin(), selected.end());
     std::map<std::int64_t, NodeId> ids;
     double lat0 = 0, lon0 = 0;
@@ -323,7 +342,7 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
     lat0 /= selected.size();
     lon0 /= selected.size();
 
-    OsmRoadGraph out;
+    OsmRoadGraph out; out.projection_lat=lat0; out.projection_lon=lon0;
     for (std::size_t i = 0; i < selected.size(); ++i) {
         ids[selected[i]] = NodeId{static_cast<std::uint32_t>(i)};
         const auto& r = raw_nodes.at(selected[i]);
@@ -356,7 +375,7 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
     std::uint32_t segment = 0;
     for (const auto& w : ways) {
         for (std::size_t i = 1; i < w.refs.size(); ++i) {
-            if (!ids.contains(w.refs[i - 1]) || !ids.contains(w.refs[i])) continue;
+            if (!ids.contains(w.refs[i - 1]) || !ids.contains(w.refs[i]) || w.refs[i-1]==w.refs[i]) continue;
             const auto a = ids.at(w.refs[i - 1]), b = ids.at(w.refs[i]);
             const auto rc = cls(w.highway);
             const auto first = static_cast<std::uint32_t>(out.edges.size());
@@ -369,6 +388,8 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
                 e.osm_way_id = w.id;
                 e.segment_index = segment;
                 e.road_class = rc;
+                e.name = w.tags.contains("name") ? w.tags.at("name") : "";
+                e.tags = w.tags;
                 e.source_oneway = w.oneway;
                 e.synthetic_reverse = w.oneway && d == 1;
                 e.lanes = rc == RoadClass::Motorway ? 3 : (rc == RoadClass::Primary ? 2 : 1);
@@ -385,6 +406,28 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
         }
     }
 
+    auto project = [&](double lat,double lon) { return Point{(lon-lon0)*111320.0*std::cos(lat0*3.141592653589793/180), (lat-lat0)*111320.0, lat,lon}; };
+    double loX=1e20,loY=1e20,hiX=-1e20,hiY=-1e20;
+    for(const auto& n:out.nodes){loX=std::min(loX,n.position.x_m);loY=std::min(loY,n.position.y_m);hiX=std::max(hiX,n.position.x_m);hiY=std::max(hiY,n.position.y_m);}
+    auto add_feature = [&](std::string id,const auto& tags,std::vector<Point> geometry,bool polygon) {
+        if(geometry.empty()) return;
+        MapFeature f; f.id=std::move(id); f.tags=tags; f.geometry=std::move(geometry); f.polygon=polygon;
+        for(const auto& p:f.geometry){f.center.x_m+=p.x_m;f.center.y_m+=p.y_m;f.center.lat+=p.lat;f.center.lon+=p.lon;}
+        const auto size=double(f.geometry.size()); f.center.x_m/=size;f.center.y_m/=size;f.center.lat/=size;f.center.lon/=size;
+        if(f.center.x_m<loX||f.center.x_m>hiX||f.center.y_m<loY||f.center.y_m>hiY) return;
+        auto tag=[&](const std::string& key){auto it=tags.find(key);return it==tags.end()?std::string{}:it->second;};
+        f.name=tag("name"); f.category="building";
+        for(const auto* key:{"building","landuse","leisure","railway","public_transport","office","shop","amenity"}) if(!tag(key).empty()) f.category=tag(key)=="yes"?key:tag(key);
+        if(f.category=="school"||f.category=="college"||f.category=="university"||f.category=="kindergarten") f.demand_type=BuildingType::School;
+        else if(!tag("office").empty()||f.category=="commercial"||f.category=="offices") f.demand_type=BuildingType::Office;
+        else if(f.category=="mall"||f.category=="retail"||f.category=="marketplace") f.demand_type=BuildingType::Mall;
+        else if(!tag("shop").empty()||f.category=="hospital"||f.category=="bus_station"||f.category=="station"||f.category=="restaurant"||f.category=="cafe"||f.category=="stadium") f.demand_type=BuildingType::Store;
+        double nearest=1e20; for(const auto& n:out.nodes){const auto d=point_distance(n.position,f.center);if(d<nearest){nearest=d;f.anchor=n.id;}}
+        out.features.push_back(std::move(f));
+    };
+    for(const auto& w:feature_ways){std::vector<Point> g;bool complete=true;for(auto id:w.refs){auto it=raw_nodes.find(id);if(it==raw_nodes.end()){complete=false;break;}g.push_back(project(it->second.lat,it->second.lon));}if(complete)add_feature("way/"+std::to_string(w.id),w.tags,std::move(g),w.refs.size()>3&&w.refs.front()==w.refs.back());}
+    for(const auto& [id,n]:raw_nodes) if(n.tags.contains("amenity")||n.tags.contains("shop")||n.tags.contains("office")||n.tags.contains("leisure")||n.tags.contains("railway")||n.tags.contains("public_transport")||n.bus_stop) add_feature("node/"+std::to_string(id),n.tags,{project(n.lat,n.lon)},false);
+    std::sort(out.features.begin(),out.features.end(),[](const auto& a,const auto& b){return a.id<b.id;});
     out.source_hash = "sha256:" + sha256(xml);
     return out;
 }

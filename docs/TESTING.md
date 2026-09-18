@@ -1,6 +1,6 @@
 # Testing Architecture & Verification
 
-DSTNS includes 4 tiers of automated test suites:
+DSTNS includes multiple tiers of automated test suites:
 
 1. **C++ Unit Tests (`dstns_tests`)**:
    - Seed parsing, SHA-256 digests, Philox RNG isolation, Wendland kernels, A* shortest path, and single-writer engine lifecycle.
@@ -15,9 +15,15 @@ DSTNS includes 4 tiers of automated test suites:
 6. **SUMO Network Integration Smoke (`tests/integration/sumo_smoke.sh`)**:
    - Exports scenario into XML, runs `netconvert`, and advances headless SUMO.
 7. **UI Test Suite (`ui-engine/tests/`)**:
-   - Vitest suite for UI client decoding and overlay client dispatching.
+   - Vitest coverage for observer transport, malformed data, bounded event requests, road color precedence and hit testing.
 
-Run all tests:
+8. **Modernization invariants (`dstns_modern_tests`)**: independent heap controllers, demand effects, weighted congestion/EMA, clock-speed invariance, checkpoint replay, geographic metadata/projection and 10,000-controller stress.
+9. **CLI saved seeds**: `python3 tests/cli/test_seeds.py` verifies SQLite roundtrip, uniqueness, IDs, pinned-map integrity and argument validation.
+10. **Actual Chrome integration**: `node ui-engine/tests/browser.mjs` launches an isolated server and drives CLI startup, observer controls, motion preferences, event pages, inspection, responsive layouts, PDF download and failure recovery. Set `CHROME_BIN` for another Chrome executable.
+
+Run existing core/API/SUMO/UI gates:
 ```bash
 ./scripts/test.sh
 ```
+
+Optional large-map probe: attach `node ui-engine/tests/large-browser.mjs` to a paused run at 07:44:55 using `DSTNS_LARGE_URL` (default port 18194). It measures render cadence, pointer inspection, demand alerts and report download. `node ui-engine/tests/container-browser.mjs` verifies the isolated Compose saved weekend run; `DSTNS_CONTAINER_URL` overrides port 18195. These attach to existing task-owned runs and are not part of unattended core tests.

@@ -4,169 +4,840 @@ info:
   version: 1.0.0
   description: Deterministic Spatiotemporal Transport Network Simulator runtime API.
 servers:
-  - url: http://127.0.0.1:8090
-    description: Local C++ API server
-  - url: https://localhost:8443
+- url: http://127.0.0.1:8090
+  description: Local C++ API server
 tags:
-  - {name: Playback}
-  - {name: View}
-  - {name: Control}
-  - {name: News}
-  - {name: System}
+- name: Playback
+- name: View
+- name: Control
+- name: News
+- name: System
 paths:
   /health:
-    get: {tags: [System], operationId: health, responses: {'200': {description: Healthy, content: {application/json: {schema: {$ref: '#/components/schemas/Health'}}}}}}
+    get:
+      tags:
+      - System
+      operationId: health
+      responses:
+        '200':
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
   /api/v1/system/status:
-    get: {$ref: '#/components/pathItems/StatusGet'}
+    get:
+      tags:
+      - Playback
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/system/terminate:
-    post: {tags: [System], operationId: terminate, responses: {'200': {$ref: '#/components/responses/Ok'}}}
+    post:
+      tags:
+      - System
+      operationId: terminate
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
   /api/v1/playback/status:
-    get: {$ref: '#/components/pathItems/StatusGet'}
+    get:
+      tags:
+      - Playback
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/playback/start:
     post:
-      tags: [Playback]
+      tags:
+      - Playback
       operationId: startSimulation
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/StartRequest'}}}}
+      description: CLI operator startup; browser creation is forbidden.
+      security:
+      - OperatorKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartRequest'
       responses:
-        '202': {description: Prepared and running, content: {application/json: {schema: {$ref: '#/components/schemas/StartResponse'}}}}
-        '400': {$ref: '#/components/responses/Error'}
-        '409': {$ref: '#/components/responses/Error'}
+        '403':
+          $ref: '#/components/responses/Error'
+        '202':
+          description: Prepared and running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          description: >-
+            MAP_FETCH_FAILED. The seed resolved to a real city district whose
+            OpenStreetMap tile is not cached and could not be downloaded
+            (offline, Overpass rate limiting, or an area too sparse to
+            simulate). No scenario is compiled and no substitute map is used.
+            The message names the city, the coordinates and the cause.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/v1/playback/pause:
-    post: {tags: [Playback], operationId: pause, responses: {'200': {$ref: '#/components/responses/Ok'}, '409': {$ref: '#/components/responses/Error'}}}
+    post:
+      tags:
+      - Playback
+      operationId: pause
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '409':
+          $ref: '#/components/responses/Error'
   /api/v1/playback/play:
-    post: {tags: [Playback], operationId: play, responses: {'200': {$ref: '#/components/responses/Ok'}, '409': {$ref: '#/components/responses/Error'}}}
+    post:
+      tags:
+      - Playback
+      operationId: play
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '409':
+          $ref: '#/components/responses/Error'
   /api/v1/playback/stop:
-    post: {tags: [Playback], operationId: stop, responses: {'200': {$ref: '#/components/responses/Ok'}}}
+    post:
+      tags:
+      - Playback
+      operationId: stop
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
   /api/v1/playback/reset:
-    post: {tags: [Playback], operationId: reset, responses: {'200': {$ref: '#/components/responses/Ok'}}}
+    post:
+      tags:
+      - Playback
+      operationId: reset
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
   /api/v1/playback/seek:
     post:
-      tags: [Playback]
+      tags:
+      - Playback
       operationId: seek
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [target_time], properties: {target_time: {type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'}, play: {type: boolean, default: false}}}}}}
-      responses: {'200': {$ref: '#/components/responses/Ok'}, '400': {$ref: '#/components/responses/Error'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - target_time
+              properties:
+                target_time:
+                  type: string
+                  pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$
+                play:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
   /api/v1/control/tick-rate:
     put:
-      tags: [Control]
+      tags:
+      - Control
       operationId: setTickRate
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [tick_rate], properties: {tick_rate: {type: number, exclusiveMinimum: 0, maximum: 10}}}}}}
-      responses: {'200': {$ref: '#/components/responses/Ok'}, '400': {$ref: '#/components/responses/Error'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - tick_rate
+              properties:
+                tick_rate:
+                  type: number
+                  exclusiveMinimum: 0
+                  maximum: 100
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
   /api/v1/control/day:
     post:
-      tags: [Control]
+      tags:
+      - Control
       operationId: setDay
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [day], properties: {day: {type: integer, enum: [0, 1]}}}}}}
-      responses: {'200': {$ref: '#/components/responses/Ok'}, '400': {$ref: '#/components/responses/Error'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - day
+              properties:
+                day:
+                  type: integer
+                  enum:
+                  - 0
+                  - 1
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
   /api/v1/control/modules/{module}:
     put:
-      tags: [Control]
+      tags:
+      - Control
       operationId: setModule
-      parameters: [{$ref: '#/components/parameters/Module'}]
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [enabled], properties: {enabled: {type: boolean}}}}}}
-      responses: {'200': {$ref: '#/components/responses/Ok'}, '400': {$ref: '#/components/responses/Error'}}
+      parameters:
+      - $ref: '#/components/parameters/Module'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - enabled
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
   /api/v1/control/events/weather:
     post:
-      tags: [Control]
+      tags:
+      - Control
       operationId: addWeather
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/WeatherRequest'}}}}
-      responses: {'202': {$ref: '#/components/responses/Ok'}, '400': {$ref: '#/components/responses/Error'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeatherRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
   /api/v1/control/events/traffic:
     post:
-      tags: [Control]
+      tags:
+      - Control
       operationId: addTraffic
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/TrafficRequest'}}}}
-      responses: {'202': {$ref: '#/components/responses/Ok'}, '400': {$ref: '#/components/responses/Error'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrafficRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
   /api/v1/control/edges/{id}/override:
     post:
-      tags: [Control]
+      tags:
+      - Control
       operationId: overrideEdge
-      parameters: [{$ref: '#/components/parameters/Id'}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/EdgeOverride'}}}}
-      responses: {'200': {$ref: '#/components/responses/Ok'}, '400': {$ref: '#/components/responses/Error'}, '404': {$ref: '#/components/responses/Error'}}
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EdgeOverride'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
   /api/v1/control/undo:
-    post: {$ref: '#/components/pathItems/HistoryMutation'}
+    post:
+      tags:
+      - Control
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  minimum: 1
+                  default: 1
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
   /api/v1/control/redo:
-    post: {$ref: '#/components/pathItems/HistoryMutation'}
+    post:
+      tags:
+      - Control
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  minimum: 1
+                  default: 1
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
   /api/v1/control/history:
-    get: {tags: [Control], operationId: history, responses: {'200': {$ref: '#/components/responses/Envelope'}}}
+    get:
+      tags:
+      - Control
+      operationId: history
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/run:
-    get: {$ref: '#/components/pathItems/StatusGet'}
+    get:
+      tags:
+      - Playback
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/manifest:
-    get: {tags: [View], operationId: manifest, responses: {'200': {$ref: '#/components/responses/Envelope'}}}
+    get:
+      tags:
+      - View
+      operationId: manifest
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/topology:
-    get: {tags: [View], operationId: topology, responses: {'200': {description: Complete immutable topology, content: {application/json: {schema: {$ref: '#/components/schemas/Envelope'}}}}}
+    get:
+      tags:
+      - View
+      operationId: topology
+      responses:
+        '200':
+          description: Complete immutable topology
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
   /api/v1/view/snapshot:
-    get: {tags: [View], operationId: snapshot, responses: {'200': {description: Complete dynamic state, content: {application/json: {schema: {$ref: '#/components/schemas/Envelope'}}}}}
+    get:
+      tags:
+      - View
+      operationId: snapshot
+      responses:
+        '200':
+          description: Complete dynamic state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
   /api/v1/view/nodes:
-    get: {$ref: '#/components/pathItems/PagedView'}
+    get:
+      tags:
+      - View
+      parameters:
+      - $ref: '#/components/parameters/Offset'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/edges:
-    get: {$ref: '#/components/pathItems/PagedView'}
+    get:
+      tags:
+      - View
+      parameters:
+      - $ref: '#/components/parameters/Offset'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/bus-stops:
-    get: {$ref: '#/components/pathItems/ViewGet'}
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/buildings:
-    get: {$ref: '#/components/pathItems/ViewGet'}
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/signals:
-    get: {$ref: '#/components/pathItems/ViewGet'}
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/weather:
-    get: {$ref: '#/components/pathItems/ViewGet'}
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/traffic:
-    get: {$ref: '#/components/pathItems/ViewGet'}
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/events:
-    get: {$ref: '#/components/pathItems/ViewGet'}
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/metrics:
-    get: {$ref: '#/components/pathItems/ViewGet'}
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/stream:
-    get: {tags: [View], operationId: stateStream, responses: {'200': {description: Reconnecting one-Hz SSE snapshot, content: {text/event-stream: {schema: {type: string}}}}}}
+    get:
+      tags:
+      - View
+      operationId: stateStream
+      responses:
+        '200':
+          description: Reconnecting one-Hz SSE snapshot
+          content:
+            text/event-stream:
+              schema:
+                type: string
   /api/v1/news:
     get:
-      tags: [News]
+      tags:
+      - News
       operationId: listNews
-      parameters: [{$ref: '#/components/parameters/SinceNews'}, {$ref: '#/components/parameters/Limit'}]
-      responses: {'200': {$ref: '#/components/responses/Envelope'}}
+      parameters:
+      - $ref: '#/components/parameters/SinceNews'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/news/stream:
-    get: {tags: [News], operationId: newsStream, responses: {'200': {description: Reconnecting SSE news feed, content: {text/event-stream: {schema: {type: string}}}}}}
+    get:
+      tags:
+      - News
+      operationId: newsStream
+      responses:
+        '200':
+          description: Reconnecting SSE news feed
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /api/v1/view/congestion:
+    get:
+      tags:
+      - View
+      description: Bounded weighted current congestion
+      virtual-time EMA and minute history: null
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/event-queue:
+    get:
+      tags:
+      - View
+      description: Distinguishes pending events from the retained 2000 most recent
+        executions.
+      parameters:
+      - name: view
+        in: query
+        schema:
+          type: string
+          enum:
+          - future
+          - history
+          default: future
+      - name: category
+        in: query
+        schema:
+          type: string
+          enum:
+          - all
+          - signals
+          - demand
+          - incidents
+          - weather
+          - flooding
+          - system
+          default: all
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          default: 0
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+        '400':
+          $ref: '#/components/responses/Error'
+  /api/v1/view/global:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/config:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/incidents:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
 components:
+  securitySchemes:
+    OperatorKey:
+      type: apiKey
+      in: header
+      name: X-DSTNS-Operator
   parameters:
-    Id: {name: id, in: path, required: true, schema: {type: integer, minimum: 0}}
-    Module: {name: module, in: path, required: true, schema: {type: string, enum: [traffic, signals, buildings, dws, flooding, news]}}
-    Offset: {name: offset, in: query, schema: {type: integer, minimum: 0, default: 0}}
-    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 1000, default: 250}}
-    SinceNews: {name: since_news_id, in: query, schema: {type: integer, minimum: 0, default: 0}}
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 0
+    Module:
+      name: module
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+        - traffic
+        - signals
+        - buildings
+        - dws
+        - flooding
+        - news
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 250
+    SinceNews:
+      name: since_news_id
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
   schemas:
-    Health: {type: object, required: [ok, product, lifecycle], properties: {ok: {type: boolean}, product: {const: DSTNS}, lifecycle: {type: string}}}
+    Health:
+      type: object
+      required:
+      - ok
+      - product
+      - lifecycle
+      properties:
+        ok:
+          type: boolean
+        product:
+          const: DSTNS
+        lifecycle:
+          type: string
     Clock:
       type: object
-      required: [playback_state, simulated_current_time, virtual_day_seconds, simulation_percentage, tick_rate]
-      properties: {playback_state: {type: string}, simulated_current_time: {type: string}, virtual_day_seconds: {type: integer}, simulation_percentage: {type: number}, playback_duration_seconds: {type: integer}, base_rate: {type: number}, tick_rate: {type: number}, target_virtual_rate: {type: number}}
+      required:
+      - playback_state
+      - simulated_current_time
+      - virtual_day_seconds
+      - simulation_percentage
+      - tick_rate
+      properties:
+        playback_state:
+          type: string
+        simulated_current_time:
+          type: string
+        virtual_day_seconds:
+          type: integer
+        simulation_percentage:
+          type: number
+        playback_duration_seconds:
+          type: integer
+        base_rate:
+          type: number
+        tick_rate:
+          type: number
+        target_virtual_rate:
+          type: number
     Envelope:
       type: object
-      required: [api_version, run_id, global_seed, state_revision, config_revision, clock, data]
-      properties: {api_version: {const: '1.0'}, run_id: {type: string}, global_seed: {type: string}, state_revision: {type: integer}, config_revision: {type: integer}, clock: {$ref: '#/components/schemas/Clock'}, data: {}}
+      required:
+      - api_version
+      - run_id
+      - global_seed
+      - state_revision
+      - config_revision
+      - clock
+      - data
+      properties:
+        api_version:
+          const: '1.0'
+        run_id:
+          type: string
+        global_seed:
+          type: string
+        state_revision:
+          type: integer
+        config_revision:
+          type: integer
+        clock:
+          $ref: '#/components/schemas/Clock'
+        data: {}
     Error:
       type: object
-      required: [api_version, error]
-      properties: {api_version: {const: '1.0'}, error: {type: object, required: [code, message], properties: {code: {type: string}, message: {type: string}, details: {type: object}}}}
+      required:
+      - api_version
+      - error
+      properties:
+        api_version:
+          const: '1.0'
+        error:
+          type: object
+          required:
+          - code
+          - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
     StartRequest:
       type: object
       properties:
-        seed: {oneOf: [{type: string, pattern: '^0x[0-9a-fA-F]{1,32}$'}, {type: integer, minimum: 0}]}
-        playback_duration_seconds: {type: integer, minimum: 60, maximum: 3600, default: 60}
-        start_virtual_time: {type: string, default: '00:00:00'}
-        tick_rate: {type: number, exclusiveMinimum: 0, maximum: 100, default: 1}
-        day: {oneOf: [{type: integer, enum: [0, 1]}, {const: auto}]}
-        modules: {type: object, additionalProperties: {type: boolean}}
-        dws: {type: object, properties: {frequency: {type: integer, minimum: 0}}}
-        map: {type: object, properties: {osm_file: {type: string}, max_nodes: {type: integer, minimum: 3, maximum: 50000}}}
-    StartResponse: {type: object, required: [ok, run_id, seed, lifecycle, resolved_config, stream], properties: {ok: {type: boolean}, message: {type: string}, run_id: {type: string}, seed: {type: string}, lifecycle: {type: string}, resolved_config: {type: object}, stream: {type: object}}}
-    WeatherRequest: {type: object, required: [epicenter_node, intensity, radius_m, duration_virtual_minutes], properties: {epicenter_node: {type: integer, minimum: 0}, intensity: {type: number, minimum: 0, maximum: 1}, radius_m: {type: number, exclusiveMinimum: 0}, duration_virtual_minutes: {type: integer, minimum: 1}, flood_gain: {type: number, minimum: 0, maximum: 1}}}
-    TrafficRequest: {type: object, required: [target, congestion_pressure], properties: {target: {type: object, required: [type, id], properties: {type: {const: edge}, id: {type: integer, minimum: 0}}}, congestion_pressure: {type: number, minimum: 0, maximum: 1}}}
-    EdgeOverride: {type: object, properties: {speed_multiplier: {type: number, minimum: 0, maximum: 2, default: 1}, capacity_multiplier: {type: number, minimum: 0, maximum: 2, default: 1}, closed: {type: boolean, default: false}}}
+        seed:
+          oneOf:
+          - type: string
+            pattern: ^0x[0-9a-fA-F]{1,32}$
+          - type: integer
+            minimum: 0
+        playback_duration_seconds:
+          type: integer
+          minimum: 60
+          maximum: 3600
+          default: 3600
+        start_virtual_time:
+          type: string
+          default: 00:00:00
+        tick_rate:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 100
+          default: 1
+        saved_seed_id:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$
+        map_selection_version:
+          type: string
+          const: urban-crfg-v2
+        day:
+          default: 0
+          oneOf:
+          - type: integer
+            enum:
+            - 0
+            - 1
+          - const: auto
+        modules:
+          type: object
+          additionalProperties:
+            type: boolean
+        dws:
+          type: object
+          properties:
+            frequency:
+              type: integer
+              minimum: 0
+        map:
+          type: object
+          properties:
+            osm_file:
+              type: string
+              default: auto
+              description: >-
+                Path to an OSM XML file, or "auto" (the default) to let the seed
+                select a real city district that is downloaded from OpenStreetMap
+                on demand and cached under map.cache_dir. Regenerating the graph
+                with a different seed names a different tile and therefore
+                requires a new download; an identical seed reuses the cache.
+            max_nodes:
+              type: integer
+              minimum: 2
+              maximum: 50000
+            tile_radius_m:
+              type: number
+              exclusiveMinimum: 0
+              maximum: 20000
+              default: 2000
+              description: >-
+                Half-extent in true metres of the tile downloaded around the
+                seed-derived anchor.
+            cache_dir:
+              type: string
+              default: data/maps
+              description: Directory holding downloaded tiles, keyed by city and anchor.
+    StartResponse:
+      type: object
+      required:
+      - ok
+      - run_id
+      - seed
+      - lifecycle
+      - resolved_config
+      - stream
+      properties:
+        ok:
+          type: boolean
+        message:
+          type: string
+        run_id:
+          type: string
+        seed:
+          type: string
+        lifecycle:
+          type: string
+        resolved_config:
+          type: object
+        stream:
+          type: object
+    WeatherRequest:
+      type: object
+      required:
+      - epicenter_node
+      - intensity
+      - radius_m
+      - duration_virtual_minutes
+      properties:
+        epicenter_node:
+          type: integer
+          minimum: 0
+        intensity:
+          type: number
+          minimum: 0
+          maximum: 1
+        radius_m:
+          type: number
+          exclusiveMinimum: 0
+        duration_virtual_minutes:
+          type: integer
+          minimum: 1
+        flood_gain:
+          type: number
+          minimum: 0
+          maximum: 1
+    TrafficRequest:
+      type: object
+      required:
+      - target
+      - congestion_pressure
+      properties:
+        target:
+          type: object
+          required:
+          - type
+          - id
+          properties:
+            type:
+              const: edge
+            id:
+              type: integer
+              minimum: 0
+        congestion_pressure:
+          type: number
+          minimum: 0
+          maximum: 1
+    EdgeOverride:
+      type: object
+      properties:
+        speed_multiplier:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 1
+        capacity_multiplier:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 1
+        closed:
+          type: boolean
+          default: false
   responses:
-    Ok: {description: Successful command, content: {application/json: {schema: {type: object}}}}
-    Envelope: {description: Revisioned JSON envelope, content: {application/json: {schema: {$ref: '#/components/schemas/Envelope'}}}}
-    Error: {description: Structured error, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
-  pathItems:
-    StatusGet: {tags: [Playback], operationId: status, responses: {'200': {$ref: '#/components/responses/Envelope'}}}
-    ViewGet: {tags: [View], responses: {'200': {$ref: '#/components/responses/Envelope'}}}
-    PagedView: {tags: [View], parameters: [{$ref: '#/components/parameters/Offset'}, {$ref: '#/components/parameters/Limit'}], responses: {'200': {$ref: '#/components/responses/Envelope'}}}
-    HistoryMutation: {tags: [Control], requestBody: {content: {application/json: {schema: {type: object, properties: {count: {type: integer, minimum: 1, default: 1}}}}}}, responses: {'200': {$ref: '#/components/responses/Ok'}}}
+    Ok:
+      description: Successful command
+      content:
+        application/json:
+          schema:
+            type: object
+    Envelope:
+      description: Revisioned JSON envelope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+    Error:
+      description: Structured error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

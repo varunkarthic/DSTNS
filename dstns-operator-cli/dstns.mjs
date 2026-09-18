@@ -16,6 +16,9 @@
  */
 
 import { cliui } from '@poppinss/cliui'
+import { needsBuild } from './artifacts.mjs'
+import { randomBytes } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import {
@@ -38,7 +41,8 @@ const OPERATOR_DIR = path.dirname(__filename)
 const ROOT = path.resolve(OPERATOR_DIR, '..')
 
 const CONFIG = path.join(ROOT, 'config', 'defaults.json')
-const LOGS = path.join(ROOT, 'logs')
+const LOGS = process.env.DSTNS_LOGS_DIR ? path.resolve(process.env.DSTNS_LOGS_DIR) : path.join(ROOT, 'logs')
+const ACTIVE_SERVER = path.join(LOGS, 'launcher.json')
 const BUILD = path.join(ROOT, 'build')
 const SERVER = path.join(BUILD, 'dstns_server')
 const EXPORT_TOOL = path.join(BUILD, 'dstns_scenario_export')
@@ -144,7 +148,7 @@ async function runSplashScreen() {
   ui.sticker()
     .add(`${ui.colors.bold(ui.colors.cyan('DSTNS — DETERMINISTIC SIMULATED ENVIRONMENT'))}  ${ui.colors.dim(`v${VERSION}`)}`)
     .add(`Developed by ${ui.colors.bold(ui.colors.green('Varun Karthic'))} · Lead Architect & Developer`)
-    .add(ui.colors.dim('C++ Simulation Authority · Microscopic Traffic Physics · WebGL/MapLibre Engine'))
+    .add(ui.colors.dim('C++ Simulation Authority · Aggregate Traffic Model · Canvas Observer'))
     .render()
 
   process.stdout.write(`\n  ${ui.colors.bold(ui.colors.cyan('SYSTEM BOOTSTRAP & PREREQUISITES VERIFICATION'))}\n`)
@@ -547,7 +551,7 @@ async function findAvailablePort(startPort, host = '127.0.0.1') {
   throw new Error('No available network ports found')
 }
 
-async function apiCall(port, endpoint, method = 'GET', payload = undefined, timeoutMs = 5000) {
+async function apiCall(port, endpoint, method = 'GET', payload = undefined, timeoutMs = 120000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
@@ -555,7 +559,7 @@ async function apiCall(port, endpoint, method = 'GET', payload = undefined, time
     const response = await fetch(`http://127.0.0.1:${port}${endpoint}`, {
       method,
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-DSTNS-Operator': process.env.DSTNS_OPERATOR_TOKEN || await readFile(path.join(LOGS, 'operator.token'), 'utf8').then(s => s.trim()).catch(() => '') },
       body: payload === undefined ? undefined : JSON.stringify(payload),
     })
 
@@ -613,15 +617,19 @@ function collectChildTail(child) {
 async function build({ forceCmake = false, forceUi = false } = {}) {
   const tasks = ui.tasks()
 
-  const needCmake = forceCmake || !existsSync(SERVER)
+  const nativeStamp = path.join(BUILD, '.launcher-source')
+  const uiStamp = path.join(UI_DIST, '.launcher-source')
+  const nativeState = existsSync(path.join(ROOT,'src')) ? await needsBuild(ROOT,['CMakeLists.txt','src','include','apps/dstns_server'],SERVER,nativeStamp) : null
+  const uiState = existsSync(path.join(UI_ENGINE,'src')) ? await needsBuild(ROOT,['ui-engine/src','ui-engine/public','ui-engine/package.json','ui-engine/package-lock.json','ui-engine/index.html','ui-engine/vite.config.ts','ui-engine/tsconfig.json'],path.join(UI_DIST,'index.html'),uiStamp) : null
+  const needCmake = forceCmake || !existsSync(SERVER) || nativeState?.needed
   const uiModules = path.join(UI_ENGINE, 'node_modules')
-  const needUiInstall = !existsSync(uiModules)
-  const needUiBuild = forceUi || !existsSync(UI_DIST)
+  const needUiBuild = forceUi || !existsSync(path.join(UI_DIST,'index.html')) || uiState?.needed
+  const needUiInstall = needUiBuild && !existsSync(uiModules)
 
   if (needCmake) {
     tasks.add('Configure CMake build tree', async ({ update }) => {
       const started = Date.now()
-      await runCommand('cmake', ['-S', ROOT, '-B', BUILD, '-DDSTNS_BUILD_TESTS=ON'], {
+      await runCommand('cmake', ['-S', ROOT, '-B', BUILD, '-DDSTNS_BUILD_TESTS=ON', '-DCMAKE_BUILD_TYPE=Release'], {
         onOutput: (line) => update(line),
       })
       return `Configured · ${formatDuration(Date.now() - started)}`
@@ -632,6 +640,7 @@ async function build({ forceCmake = false, forceUi = false } = {}) {
       await runCommand('cmake', ['--build', BUILD, '-j4'], {
         onOutput: (line) => update(line),
       })
+      if (nativeState) await writeFile(nativeStamp,nativeState.fingerprint)
       return `Compiled · ${formatDuration(Date.now() - started)}`
     })
   }
@@ -639,7 +648,7 @@ async function build({ forceCmake = false, forceUi = false } = {}) {
   if (needUiInstall) {
     tasks.add('Install Web UI dependencies', async ({ update }) => {
       const started = Date.now()
-      await runCommand('npm', ['install', '--prefix', UI_ENGINE], {
+      await runCommand('npm', ['ci', '--prefix', UI_ENGINE], {
         onOutput: (line) => update(line),
       })
       return `Installed · ${formatDuration(Date.now() - started)}`
@@ -652,11 +661,12 @@ async function build({ forceCmake = false, forceUi = false } = {}) {
       await runCommand('npm', ['run', 'build', '--prefix', UI_ENGINE], {
         onOutput: (line) => update(line),
       })
+      if (uiState) await writeFile(uiStamp,uiState.fingerprint)
       return `Bundle built · ${formatDuration(Date.now() - started)}`
     })
   }
 
-  if (tasks.tasks.length === 0) {
+  if (!needCmake && !needUiInstall && !needUiBuild) {
     ui.logger.success('Environment verified', { suffix: 'all artifacts ready' })
     return
   }
@@ -669,8 +679,13 @@ async function build({ forceCmake = false, forceUi = false } = {}) {
 
 async function startServer({ replace = false, open = false } = {}) {
   const cfg = await loadConfig()
-  let port = Number(cfg.api.port)
-  const host = cfg.api.host || '127.0.0.1'
+  let port = Number(process.env.DSTNS_API_PORT || cfg.api.port)
+  if(!Number.isInteger(port)||port<1||port>65535)throw new Error("Invalid DSTNS_API_PORT")
+  if (!process.env.DSTNS_API_PORT) {
+    const previous=await readFile(ACTIVE_SERVER,'utf8').then(JSON.parse).catch(()=>null)
+    if(previous?.port && (await checkDstnsHealth(previous.port))?.observer_ui_version==='observer-v2')port=previous.port
+  }
+  const host = cfg.api.host || '127.0.0.1' 
 
   await mkdir(LOGS, { recursive: true })
   await build()
@@ -679,7 +694,8 @@ async function startServer({ replace = false, open = false } = {}) {
 
   if (await canConnect(port, host)) {
     const existing = await checkDstnsHealth(port)
-    if (existing) {
+    if (existing?.observer_ui_version === 'observer-v2') {
+      await writeFile(ACTIVE_SERVER,JSON.stringify({port,observer_ui_version:'observer-v2'}))
       ui.logger.info('Attached to existing healthy DSTNS server', {
         suffix: `port ${port} · ${existing.lifecycle ?? 'READY'}`,
       })
@@ -691,7 +707,7 @@ async function startServer({ replace = false, open = false } = {}) {
     }
 
     const freePort = await findAvailablePort(port + 1)
-    ui.logger.warning(`Configured port ${port} is occupied by another service`, {
+    ui.logger.warning(`Port ${port} is serving ${existing ? 'an older DSTNS version' : 'another service'}`, {
       suffix: `using ${freePort}`,
     })
     port = freePort
@@ -720,6 +736,7 @@ async function startServer({ replace = false, open = false } = {}) {
     ui.logger.success('DSTNS server is healthy', {
       suffix: `port ${port} · ${health.lifecycle ?? 'READY'}`,
     })
+    await writeFile(ACTIVE_SERVER,JSON.stringify({port,observer_ui_version:'observer-v2'}))
     renderServerCard(port, health)
     if (shouldOpen) {
       await openBrowser(`http://127.0.0.1:${port}/`)
@@ -802,12 +819,14 @@ async function openBrowser(url) {
   }
 
   try {
-    const child = spawn(command, args, { detached: true, stdio: 'ignore' })
-    child.unref()
-    ui.logger.success('Opened DSTNS Web UI', { suffix: url })
-  } catch (error) {
-    ui.logger.warning('Could not open a browser automatically', { suffix: error.message })
-  }
+    await new Promise((resolve,reject)=>{
+      const child=spawn(command,args,{stdio:'ignore'});
+      child.once('error',reject);
+      child.once('exit',code=>code===0?resolve():reject(new Error(`Browser opener exited ${code}`)));
+    });
+    ui.logger.success('Opened DSTNS Web UI', {suffix:url});
+  } catch(error) {ui.logger.warning('Open this URL in your browser', {suffix:url});}
+
 }
 
 const SESSION_ITEMS = [
@@ -821,7 +840,6 @@ const SESSION_ITEMS = [
 ]
 
 async function controlSession(serverProcess, port) {
-  const cfg = await loadConfig()
   let lastSessionIndex = 0
 
   while (true) {
@@ -854,29 +872,8 @@ async function controlSession(serverProcess, port) {
     }
 
     if (choice.id === 'start') {
-      const payload = {
-        seed: 'auto',
-        playback_duration_seconds: Number(cfg.playback.duration_seconds),
-        day: 0,
-        tick_rate: Number(cfg.playback.tick_rate),
-        modules: {
-          traffic: true,
-          signals: true,
-          buildings: true,
-          dws: true,
-          flooding: true,
-          news: true,
-        },
-        dws: { frequency: 4 },
-      }
-      const { code, body } = await apiCall(port, '/api/v1/playback/start', 'POST', payload)
-      if (code >= 200 && code < 300) {
-        ui.logger.success('Simulation started', {
-          suffix: body?.lifecycle ?? `HTTP ${code}`,
-        })
-      } else {
-        ui.logger.error(new Error(body?.error ?? body?.message ?? `HTTP ${code}`))
-      }
+      try {await startRun(port, await runConfig({}));}
+      catch(error){ui.logger.error(error);}
       await pressEnter()
       continue
     }
@@ -1451,13 +1448,14 @@ async function resetRuntime({ confirmed = false } = {}) {
 
 function renderHelp() {
   ui.instructions()
-    .add(`${ui.colors.cyan('dstns start [--open]')} Launch or attach to the C++ API server (with optional browser open)`)
+    .add(`${ui.colors.cyan('dstns [start] [--no-open]')} Build current code, load real OSM and open the observer`)
     .add(`${ui.colors.cyan('dstns ui [action]')}     Manage Web UI: open, dev (Vite hot-reload), build, or install`)
     .add(`${ui.colors.cyan('dstns logs')}            Inspect system/API/event/playback logs`)
     .add(`${ui.colors.cyan('dstns config')}          Validate and edit persisted defaults`)
     .add(`${ui.colors.cyan('dstns test [scope]')}    Run tests: all, unit, api, replay, benchmark, sumo, or ui`)
     .add(`${ui.colors.cyan('dstns sumo')}            Run a standalone SUMO microscopic simulation`)
     .add(`${ui.colors.cyan('dstns reset')}           Clear ephemeral runtime data`)
+    .add(`${ui.colors.cyan('dstns console')}         Open the interactive operator dashboard`)
     .add(`${ui.colors.cyan('dstns help')}            Display this help`)
     .add(`${ui.colors.cyan('dstns --mode=server')}   Run the C++ server in foreground mode`)
     .render()
@@ -1507,7 +1505,7 @@ async function dashboardState() {
     buildStatus: buildOk ? 'ready' : 'missing',
     buildDetail: `${path.relative(ROOT, SERVER)} (${buildOk ? 'C++20 Release · deterministic' : 'missing binary'})`,
     webStatus: webOk ? 'ready' : 'missing',
-    webDetail: `${path.relative(ROOT, UI_DIST)} (${webOk ? 'production bundle · MapLibre/Vite' : 'unbuilt bundle'})`,
+    webDetail: `${path.relative(ROOT, UI_DIST)} (${webOk ? 'production observer · Canvas/Vite' : 'unbuilt bundle'})`,
     configStatus,
     configDetail,
     serverStatus,
@@ -1598,20 +1596,8 @@ async function menu() {
 
     try {
       if (choice.id === 'start') {
-        if (managedServer && managedServer.exitCode === null && managedServerPort) {
-          ui.logger.info('Using managed DSTNS server', { suffix: `port ${managedServerPort}` })
-          await controlSession(managedServer, managedServerPort)
-        } else {
-          const started = await startServer({ open: true })
-          if (started.process) {
-            managedServer = started.process
-            managedServerPort = started.port
-          } else {
-            managedServer = null
-            managedServerPort = started.port
-          }
-          await controlSession(started.process, started.port)
-        }
+        const started = await launchSimulation({open:true});
+        await controlSession(started.process, started.port);
       } else if (choice.id === 'logs') {
         const didShow = await viewLogs()
         if (didShow) await pressEnter()
@@ -1682,7 +1668,7 @@ async function menu() {
             ui.logger.success('Web UI dependencies installed')
             await pressEnter()
           } else if (uiChoice.id === 'open') {
-            await openBrowser(`http://127.0.0.1:${Number(cfg.api.port)}/`)
+            await openBrowser(`http://127.0.0.1:${await activePort()}/`)
             await pressEnter()
           }
         }
@@ -1703,13 +1689,92 @@ async function menu() {
   }
 }
 
+function seedStore(action, data) {
+  const result = spawnSync('python3', [path.join(OPERATOR_DIR, 'seeds.py'), action], { input: JSON.stringify(data), encoding: 'utf8', cwd: ROOT })
+  if (result.status !== 0) throw new Error(result.stderr?.trim() || 'Saved seed database unavailable')
+  return JSON.parse(result.stdout)
+}
+
+async function runConfig(options) {
+  if (options.seed && options['saved-seed']) throw new Error('--seed and --saved-seed are mutually exclusive')
+  let config
+  if (options['saved-seed']) config = seedStore('use', { id: options['saved-seed'] }).config
+  else {
+    const defaults = await loadConfig()
+    let seed = options.seed
+    if (seed) {
+      if (!/^(?:0x[0-9a-fA-F]{1,32}|[0-9]{1,39})$/.test(seed)) throw new Error('Seed must be a decimal integer or 0x hexadecimal, within 128 bits')
+      const n = BigInt(seed); if (n < 0n || n >= (1n << 128n)) throw new Error('Seed exceeds 128 bits')
+      seed = '0x' + n.toString(16).padStart(32, '0')
+    } else seed = '0x' + randomBytes(16).toString('hex')
+    // "auto" lets the seed choose a real city district, which the core
+    // downloads from OpenStreetMap on demand and caches by seed-derived name.
+    // An explicit --osm-file (or map.osm_file in config) still pins a file.
+    const source = options['osm-file'] || defaults.map.osm_file || 'auto'
+    const map = { osm_file: source === 'auto' ? 'auto' : path.resolve(ROOT, source), max_nodes: defaults.map.max_nodes }
+    if (defaults.map.tile_radius_m) map.tile_radius_m = defaults.map.tile_radius_m
+    if (defaults.map.cache_dir) map.cache_dir = defaults.map.cache_dir
+    config = { seed, day: defaults.day ?? 0, playback_duration_seconds: defaults.playback.duration_seconds, tick_rate: defaults.playback.tick_rate, map, modules:defaults.modules, dws:defaults.dws, map_selection_version: 'urban-crfg-v2' }
+  }
+  if (options['osm-file']) config.map.osm_file = path.resolve(ROOT, options['osm-file'])
+  if (config.map.osm_file !== 'auto' && !existsSync(config.map.osm_file)) throw new Error('OSM data unavailable; provide --osm-file PATH')
+  if (options['day-type']) config.day = options['day-type'] === 'weekend' ? 1 : 0
+  for (const [arg,key,min,max] of [['duration','playback_duration_seconds',60,3600],['speed','tick_rate',0.01,100],['max-nodes','max_nodes',2,50000]]) {
+    if (!options[arg]) continue
+    const v = Number(options[arg]); if (!Number.isFinite(v) || v < min || v > max || (arg !== 'speed' && !Number.isInteger(v))) throw new Error(`--${arg} must be in [${min},${max}]`)
+    if (arg === 'max-nodes') config.map.max_nodes=v; else config[key]=v
+  }
+  return config
+}
+
+async function startRun(port,payload) {
+  const onDemand = payload.map.osm_file === 'auto'
+  ui.logger.info(
+    onDemand ? 'Resolving the seed to a city district' : 'Loading real OpenStreetMap district',
+    {suffix: onDemand ? 'downloading from OpenStreetMap if not already cached' : payload.map.osm_file},
+  )
+  const result=await apiCall(port,'/api/v1/playback/start','POST',payload)
+  if(result.code!==202)throw new Error(result.body?.error?.message || `Startup failed: HTTP ${result.code}`)
+  const topology=await apiCall(port,'/api/v1/view/topology')
+  const map=topology.body?.data
+  if(topology.code!==200 || map?.source!=='OpenStreetMap' || !map.nodes?.length || !map.edges?.length)throw new Error('The server did not load a usable real OSM network.')
+  const where=map.location?.city
+    ? `${map.location.city}, ${map.location.country} · ${map.location.anchor_lat.toFixed(4)}, ${map.location.anchor_lon.toFixed(4)}`
+    : null
+  if(where)ui.logger.info('District',{suffix:`${where}${map.location.downloaded?' (downloaded)':' (cached)'}`})
+  ui.logger.success(`Simulation running · ${payload.seed} · ${payload.day===1?'weekend':'weekday'}`,{suffix:`${map.nodes.length.toLocaleString()} road nodes · ${map.features.length.toLocaleString()} buildings/POIs`})
+}
+async function launchSimulation(options) {
+  let payload=await runConfig(options)
+  if(options['save-seed'])payload=seedStore('save',{id:options['save-seed'],description:options.description,config:payload}).config
+  const started=await startServer()
+  if(started.process){managedServer=started.process;managedServerPort=started.port}
+  const explicitRun=['seed','saved-seed','save-seed','day-type','osm-file','max-nodes','duration','speed'].some(key=>options[key]!==undefined)
+  if(['RUNNING','PAUSED'].includes(started.health?.lifecycle) && !explicitRun) {
+    const current=await apiCall(started.port,'/api/v1/view/topology')
+    if(current.body?.data?.source!=='OpenStreetMap')throw new Error('The active server is running a synthetic fixture. Stop that run before launching an OSM simulation.')
+    ui.logger.info('Observing the existing real OSM simulation')
+  } else await startRun(started.port,payload)
+  const url=`http://127.0.0.1:${started.port}/`
+  ui.logger.info('Observer ready', {suffix:url})
+  if(options.open)await openBrowser(url)
+  return started
+}
+async function activePort() {
+  const saved=await readFile(ACTIVE_SERVER,'utf8').then(JSON.parse).catch(()=>null)
+  const cfg=await loadConfig()
+  const ports=[managedServerPort,saved?.port,Number(process.env.DSTNS_API_PORT || cfg.api.port)].filter(Boolean)
+  for(const port of ports)if((await checkDstnsHealth(port))?.observer_ui_version==='observer-v2')return port
+  throw new Error('No current observer server is running. Use ./launcher start first.')
+}
+
 function parseArgs(argv) {
   const positional = []
   const options = {
-    mode: process.stdin.isTTY ? 'interactive' : null,
+    mode: null,
     yes: false,
     verbose: false,
-    open: false,
+    open: process.platform === 'darwin' || process.platform === 'win32' || !!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY,
     noSplash: false,
   }
 
@@ -1718,15 +1783,23 @@ function parseArgs(argv) {
     if (arg === '--yes' || arg === '-y') options.yes = true
     else if (arg === '--verbose' || arg === '-v') options.verbose = true
     else if (arg === '--open' || arg === '-o') options.open = true
+    else if (arg === '--no-open') options.open = false
+    else if (arg === '--help' || arg === '-h') positional.push('help')
     else if (arg === '--no-splash') options.noSplash = true
     else if (arg.startsWith('--mode=')) options.mode = arg.slice('--mode='.length)
     else if (arg === '--mode' && i + 1 < argv.length) options.mode = argv[++i]
+    else if (['--seed','--saved-seed','--save-seed','--day-type','--osm-file','--max-nodes','--duration','--speed','--description'].includes(arg)) {
+      if (!argv[i+1] || argv[i+1].startsWith('--')) throw new Error(`Missing value for ${arg}`)
+      options[arg.slice(2)] = argv[++i]
+    }
+    else if (arg.startsWith('-')) throw new Error(`Unknown option: ${arg}`)
     else positional.push(arg)
   }
 
   return {
-    command: positional[0] ?? null,
+    command: positional[0] ?? (options.mode ? null : 'start'),
     topic: positional[1] ?? null,
+    id: positional[2] ?? null,
     options,
   }
 }
@@ -1757,7 +1830,13 @@ async function cleanup() {
 }
 
 async function main() {
-  const { command, topic, options } = parseArgs(process.argv.slice(2))
+  const { command, topic, id, options } = parseArgs(process.argv.slice(2))
+  if (options['day-type'] && !['weekday','weekend'].includes(options['day-type'])) throw new Error('--day-type must be weekday or weekend')
+  if (command === 'seeds') {
+    if (!['save','list','inspect','delete'].includes(topic)) throw new Error('Usage: dstns seeds save|list|inspect|delete [ID]')
+    const result = seedStore(topic, { id, description: options.description, ...(topic === 'save' ? { config: await runConfig(options) } : {}) })
+    console.log(JSON.stringify(result, null, 2)); return 0
+  }
 
   if (options.mode === 'server') {
     await startServer({ replace: true })
@@ -1765,12 +1844,9 @@ async function main() {
   }
 
   if (command === 'start') {
-    const started = await startServer({ open: options.open })
-    if (started.process) {
-      managedServer = started.process
-      managedServerPort = started.port
-    }
+    const started = await launchSimulation(options)
     if (process.stdin.isTTY) await controlSession(started.process, started.port)
+    else if (started.process) await new Promise(resolve => started.process.once('exit', resolve))
     return 0
   }
 
@@ -1793,8 +1869,7 @@ async function main() {
       return 0
     }
     if (sub === 'open') {
-      const cfg = await loadConfig()
-      await openBrowser(`http://127.0.0.1:${Number(cfg.api.port)}/`)
+      await openBrowser(`http://127.0.0.1:${await activePort()}/`)
       return 0
     }
     throw new Error(`Unknown UI action: ${sub}. Available actions: open, dev, build, install`)
@@ -1830,7 +1905,7 @@ async function main() {
     return 0
   }
 
-  if (command) {
+  if (command && command !== 'console') {
     throw new Error(`Unknown command: ${command}`)
   }
 

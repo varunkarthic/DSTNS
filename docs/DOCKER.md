@@ -1,86 +1,21 @@
-# Docker & Container Deployment Guide
+# Docker operation
 
-DSTNS provides a unified, self-contained multi-stage Docker container packaging the C++ Simulation Engine (with Eclipse SUMO microscopic physics integration) and the compiled React Web UI.
+Compose selects Linux amd64 because the upstream SUMO image is amd64; ARM hosts use Docker emulation. The image packages the C++ core, compiled observer UI, Node operator CLI, Python SQLite seed store and SUMO batch adapter. It starts an idle HTTP server on port 8090; create a run through the container CLI:
 
----
-
-## 1. Quick Start with Docker Compose
-
-The simplest way to build and run DSTNS is using the root `docker-compose.yml`:
-
-```bash
-# Build and launch DSTNS in detached mode
+```
 docker compose up --build -d
-
-# Follow live container logs
-docker compose logs -f
-
-# Check container health status
+docker compose exec dstns node dstns-operator-cli/dstns.mjs start --seed 382923 --day-type weekend --save-seed demo
+docker compose exec dstns node dstns-operator-cli/dstns.mjs seeds list
 docker compose ps
 ```
 
-### Access Points
-* **Web UI Dashboard**: [http://127.0.0.1:8090/](http://127.0.0.1:8090/)
-* **REST API Endpoint**: [http://127.0.0.1:8090/api/v1/playback/status](http://127.0.0.1:8090/api/v1/playback/status)
-* **Health Check**: [http://127.0.0.1:8090/health](http://127.0.0.1:8090/health)
+Open `http://127.0.0.1:8090`. Logs/operator credential persist in `dstns_logs`; saved seeds and pinned maps persist in `dstns_data`. The image includes a real OSM fixture. Existing data volumes created before this release may need the fixture copied into `/app/data/fixtures`; alternatively mount a source and pass its container path with `--osm-file`. A large local source is deliberately not baked into the image:
 
----
-
-## 2. Port & Network Interface Mapping
-
-In `docker-compose.yml`, the engine binds to port `8090`:
-```yaml
-ports:
-  - "0.0.0.0:8090:8090"
 ```
-* Binds to `0.0.0.0` inside the container and maps host port `8090` to container port `8090`.
-* Accessible from both `http://127.0.0.1:8090/` and `http://localhost:8090/`, as well as over the local network IP.
-
----
-
-## 3. Persistent Volumes
-
-The container mounts two named volumes:
-* `dstns_logs`: Stores SQLite runtime logs (`runtime.db`) and human-readable logs (`system.log`).
-* `dstns_data`: Stores scenario exports, SUMO tripinfo outputs, and simulation checkpoints.
-
-```yaml
-volumes:
-  - dstns_logs:/app/logs
-  - dstns_data:/app/data
+docker cp data/maps/berlin-urban.osm.xml dstns_simulation_engine:/app/data/berlin.osm.xml
+docker compose exec dstns node dstns-operator-cli/dstns.mjs start --osm-file /app/data/berlin.osm.xml --seed 42
 ```
 
----
+Start requires the private operator credential read locally by the CLI. No browser start key is embedded. The health check uses Python urllib against loopback `/health`; container health and HTTP availability are separate from simulation lifecycle. SUMO remains a batch adapter, not the authoritative live traffic model.
 
-## 4. Standalone Docker Build & Run
-
-To build and run directly with Docker CLI without compose:
-
-```bash
-# 1. Build the multi-stage image
-docker build -t dstns-simulation:latest .
-
-# 2. Run container with port mapping and volume mounts
-docker run -d \
-  --name dstns_engine \
-  -p 0.0.0.0:8090:8090 \
-  -v dstns_logs:/app/logs \
-  -v dstns_data:/app/data \
-  --restart unless-stopped \
-  dstns-simulation:latest
-
-# 3. Verify health
-curl -s http://127.0.0.1:8090/health | jq .
-```
-
----
-
-## 5. Stopping the Container
-
-```bash
-# Using Docker Compose
-docker compose down
-
-# Using Docker CLI
-docker stop dstns_engine && docker rm dstns_engine
-```
+For a registry mirror, build with `--build-arg NPM_REGISTRY=https://registry.yarnpkg.com`; TLS verification remains enabled. `docker compose down` stops the service while preserving data volumes.

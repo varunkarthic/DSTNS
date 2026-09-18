@@ -1,13 +1,18 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+// Minimal ambient declaration: @types/node is not a dependency of the browser
+// bundle, and the config only ever reads one optional port override.
+declare const process: { env: Record<string, string | undefined> };
+const apiTarget = `http://127.0.0.1:${process.env.DSTNS_API_PORT || '8090'}`;
 export default defineConfig({
   plugins: [react()],
   build: { chunkSizeWarningLimit: 1300 },
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://127.0.0.1:8090' },
-      '/health': { target: 'http://127.0.0.1:8090' },
+      '/api': { target: apiTarget },
+      '/health': { target: apiTarget },
+      '/media': { target: apiTarget },
     },
   },
   test: { environment: 'jsdom', setupFiles: ['./tests/setup.ts'] },
