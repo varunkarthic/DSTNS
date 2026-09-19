@@ -60,10 +60,16 @@ export function stadiumPath(width: number, height: number, inset = 1.5): string 
   return `M ${width / 2} ${y0} H ${x1 - r} A ${r} ${r} 0 0 1 ${x1 - r} ${y1} H ${x0 + r} A ${r} ${r} 0 0 1 ${x0 + r} ${y0} Z`;
 }
 
-/** "0x5089050192221083c848bf3e12e22a4f" becomes "50890501…2a4f". */
+/**
+ * The seed as the rail shows it. Seeds are numbers: a generated one is short
+ * enough to show whole, and only a very long typed seed is elided, keeping
+ * both ends so it can still be recognised. Copying always yields the whole
+ * number.
+ */
 export function shortSeed(seed: string): string {
-  const hex = seed.replace(/^0x/i, "");
-  return hex.length > 14 ? `${hex.slice(0, 8)}…${hex.slice(-4)}` : hex;
+  const text = seed.trim();
+  if (text.length <= 16) return text;
+  return `${text.slice(0, 8)}…${text.slice(-4)}`;
 }
 
 async function copyText(text: string): Promise<boolean> {

@@ -109,6 +109,25 @@ def main():
             assert "number" in err["error"]["message"]
             assertions += 4
 
+            # 3b. The seed is a number, in whichever form it is given.
+            decimal_start = dict(req_start_template := {
+                "seed": "1311768467294899695",
+                "playback_duration_seconds": 3600,
+                "day": 0,
+                "map": {"osm_file": "tests/fixtures/roads.osm.xml", "max_nodes": 50},
+            })
+            code, started = call(base, "/api/v1/playback/start", "POST", decimal_start)
+            assert code == 202, started
+            code, seeded = call(base, "/api/v1/playback/status")
+            assert seeded["seed"] == "1311768467294899695", seeded["seed"]
+            # 0x1234567890abcdef is the same number written in hexadecimal.
+            assert seeded["global_seed"] == "0x00000000000000001234567890abcdef"
+            assertions += 3
+            del req_start_template
+            # Leave the core idle again so the run below starts from nothing.
+            call(base, "/api/v1/playback/stop", "POST", {})
+            call(base, "/api/v1/playback/reset", "POST", {})
+
             # 4. Start Simulation
             req_start = {
                 "seed": "0x123456789ABCDEF0",
@@ -355,7 +374,7 @@ def main():
             # 18c. World regeneration: a fresh seed, the operator's configuration,
             # started paused, reported through a pollable job.
             code, status_before = call(base, "/api/v1/playback/status")
-            old_run, old_seed = status_before["run_id"], status_before["global_seed"]
+            old_run, old_seed = status_before["run_id"], status_before["seed"]
             code, idle = call(base, "/api/v1/world/status")
             assert code == 200 and idle["data"]["enabled"] is True
             code, stale = call(base, "/api/v1/world/regenerate", "POST", {"expected_run_id": "run_elsewhere"})
@@ -371,7 +390,10 @@ def main():
             assert job["data"]["state"] == "ready" and job["data"]["error"] is None, job
             code, status_after = call(base, "/api/v1/playback/status")
             assert status_after["run_id"] == job["data"]["run_id"] != old_run
-            assert status_after["global_seed"] == job["data"]["seed"]
+            assert status_after["seed"] == job["data"]["seed"]
+            assert status_after["global_seed"] == job["data"]["seed_hex"]
+            # A generated seed is a plain number an operator can read and retype.
+            assert status_after["seed"].isdigit() and len(status_after["seed"]) <= 20
             assert status_after["data"]["lifecycle"] == "PAUSED"
             assert status_after["clock"]["virtual_day_seconds"] == 0
             code, topo = call(base, "/api/v1/view/topology")

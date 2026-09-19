@@ -113,7 +113,8 @@ private:
     struct WorldJob {
         std::string state{"idle"};   // idle | generating | ready | failed
         std::string stage{"idle"};   // seed | compiling | installing | ready | failed
-        std::string seed, previous_run_id, run_id, error_code, error;
+        // `seed` is the operator-facing decimal form; `seed_hex` the internal one.
+        std::string seed, seed_hex, previous_run_id, run_id, error_code, error;
         std::uint64_t generation{};
         std::chrono::steady_clock::time_point started{}, finished{};
     };

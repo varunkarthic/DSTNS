@@ -1,4 +1,6 @@
 #include "dstns/api.hpp"
+
+#include "dstns/utf8.hpp"
 #include "dstns/geo.hpp"
 #include "dstns/osm_fetch.hpp"
 #include "dstns/sumo_bridge.hpp"
@@ -23,7 +25,27 @@ void send(httplib::Response& r, const json& j, int status = 200) {
     }
     r.status = status;
     // JSON is UTF-8 by definition; the exact media type enables httplib compression.
-    r.set_content(copy.dump(), "application/json");
+    r.set_content(dump_json(copy), "application/json");
+}
+
+// The run's seed as the operator wrote it.
+//
+// The seed is a number: a decimal integer is the form the CLI and the
+// interface show, and "0x..." remains accepted for the internal hexadecimal
+// form. Absent, empty, "auto" or "random" draws a fresh 64-bit seed, which
+// stays short enough to read back and retype.
+Seed128 seed_from(const nlohmann::json& j) {
+    if (!j.contains("seed") || j.at("seed").is_null()) return Seed128::secure64();
+    if (j.at("seed").is_number_unsigned()) {
+        const auto value = j.at("seed").get<std::uint64_t>();
+        return value == 0 ? Seed128::secure64() : Seed128{0, value};
+    }
+    if (!j.at("seed").is_string()) return Seed128::secure64();
+    const auto text = j.at("seed").get<std::string>();
+    if (text.empty() || text == "auto" || text == "random" || text == "0x0") return Seed128::secure64();
+    if (text.starts_with("0x") || text.starts_with("0X")) return Seed128::parse(text);
+    if (text.find_first_not_of("0123456789") == std::string::npos) return Seed128::from_decimal(text);
+    return Seed128::parse(text);
 }
 
 json body(const httplib::Request& r) {
@@ -58,8 +80,8 @@ ScenarioConfig config_from(const json& j) {
         else c.day = j.at("day");
     }
     c.saved_seed_id=j.value("saved_seed_id",std::string{});
-    c.map_selection_version=j.value("map_selection_version",std::string("urban-crfg-v2"));
-    if(c.map_selection_version!="urban-crfg-v2")throw std::invalid_argument("unsupported map selection version");
+    c.map_selection_version=j.value("map_selection_version",std::string("urban-crfg-v3"));
+    if(c.map_selection_version!="urban-crfg-v3")throw std::invalid_argument("unsupported map selection version");
     if(!c.saved_seed_id.empty()&&!std::regex_match(c.saved_seed_id,std::regex("[A-Za-z0-9][A-Za-z0-9_-]{0,63}")))throw std::invalid_argument("invalid saved seed ID");
     if (j.contains("modules")) {
         auto& m = j.at("modules");
@@ -349,22 +371,7 @@ void ApiServer::routes() {
     server_->Get("/api/v1/playback/status", [this](const auto&, auto& r) { send(r, engine_.status()); });
     server_->Post("/api/v1/playback/start", [this](const httplib::Request& req, httplib::Response& r) {
         auto j = body(req);
-        Seed128 seed;
-        if (!j.contains("seed") || j.at("seed").is_null()) {
-            seed = Seed128::secure();
-        } else if (j.at("seed").is_string()) {
-            const auto s = j.at("seed").get<std::string>();
-            if (s.empty() || s == "auto" || s == "0x0" || s == "random") {
-                seed = Seed128::secure();
-            } else {
-                seed = Seed128::parse(s);
-            }
-        } else if (j.at("seed").is_number_unsigned()) {
-            const auto val = j.at("seed").get<std::uint64_t>();
-            seed = (val == 0) ? Seed128::secure() : Seed128{0, val};
-        } else {
-            seed = Seed128::secure();
-        }
+        const auto seed = seed_from(j);
         auto c = config_from(j);
         const auto start = j.contains("start_virtual_time") ? time_value(j.at("start_virtual_time")) : 0;
         auto res = engine_.start(seed, c, start);
@@ -460,22 +467,7 @@ void ApiServer::routes() {
     server_->Post(R"(/api/v1/control/edges/(\d+)/override)", edge_override_handler);
     server_->Post("/api/v1/playback/prepare", [this](const httplib::Request& req, httplib::Response& r) {
         auto j = body(req);
-        Seed128 seed;
-        if (!j.contains("seed") || j.at("seed").is_null()) {
-            seed = Seed128::secure();
-        } else if (j.at("seed").is_string()) {
-            const auto s = j.at("seed").get<std::string>();
-            if (s.empty() || s == "auto" || s == "0x0" || s == "random") {
-                seed = Seed128::secure();
-            } else {
-                seed = Seed128::parse(s);
-            }
-        } else if (j.at("seed").is_number_unsigned()) {
-            const auto val = j.at("seed").get<std::uint64_t>();
-            seed = (val == 0) ? Seed128::secure() : Seed128{0, val};
-        } else {
-            seed = Seed128::secure();
-        }
+        const auto seed = seed_from(j);
         auto c = config_from(j);
         send(r, engine_.prepare(seed, c), 200);
     });
@@ -595,11 +587,11 @@ void ApiServer::routes() {
     // Streaming
     server_->Get("/api/v1/view/stream", [this](const auto&, auto& r) {
         r.set_header("Connection", "close");
-        r.set_content("retry: 1000\nevent: snapshot\ndata: " + engine_.snapshot().dump() + "\n\n", "text/event-stream");
+        r.set_content("retry: 1000\nevent: snapshot\ndata: " + dump_json(engine_.snapshot()) + "\n\n", "text/event-stream");
     });
     server_->Get("/api/v1/news/stream", [this](const auto&, auto& r) {
         r.set_header("Connection", "close");
-        r.set_content("retry: 1000\nevent: news\ndata: " + engine_.news(0, 100).dump() + "\n\n", "text/event-stream");
+        r.set_content("retry: 1000\nevent: news\ndata: " + dump_json(engine_.news(0, 100)) + "\n\n", "text/event-stream");
     });
 
     // Terminate

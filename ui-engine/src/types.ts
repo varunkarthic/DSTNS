@@ -21,6 +21,9 @@ export interface Clock {
 export interface Envelope<T> {
   api_version: string;
   run_id: string;
+  /** The run's name: the raw decimal seed that started it. */
+  seed: string;
+  /** The same value in the core's internal hexadecimal form. */
   global_seed: string;
   state_revision: number;
   config_revision: number;
@@ -312,7 +315,9 @@ export type WorldStage =
 export interface WorldStatus {
   state: WorldJobState;
   stage: WorldStage;
+  /** The new world's raw decimal seed. */
   seed: string;
+  seed_hex?: string;
   previous_run_id: string;
   run_id: string;
   generation: number;

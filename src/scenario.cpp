@@ -20,31 +20,7 @@ RoadClass road_class(std::uint32_t x,std::uint32_t y){if(x%5==0)return RoadClass
 double speed(RoadClass c){switch(c){case RoadClass::Motorway:return 30.0;case RoadClass::Primary:return 16.67;case RoadClass::Secondary:return 13.89;case RoadClass::Tertiary:return 11.11;case RoadClass::Residential:return 8.33;case RoadClass::Service:return 5.56;}return 8.33;}
 double capacity(RoadClass c){switch(c){case RoadClass::Motorway:return 4800;case RoadClass::Primary:return 3200;case RoadClass::Secondary:return 2400;case RoadClass::Tertiary:return 1800;case RoadClass::Residential:return 1100;case RoadClass::Service:return 600;}return 1100;}
 std::string canonical_graph(const Scenario&s){std::ostringstream o;for(const auto&n:s.nodes)o<<n.id.value<<','<<n.osm_node_id<<','<<std::llround(n.position.x_m*1000)<<','<<std::llround(n.position.y_m*1000)<<';';for(const auto&e:s.edges)o<<e.id.value<<','<<e.from.value<<','<<e.to.value<<','<<e.reverse_twin.value<<','<<std::llround(e.length_m*1000)<<','<<e.synthetic_reverse<<';';return o.str();}
-struct CityAnchor {
-    const char* name;
-    double lat;
-    double lon;
-};
 
-// Diverse metropolitan transport centers across the globe for strong avalanche geographic distribution
-static constexpr CityAnchor kCityCatalog[] = {
-    {"Tokyo, Japan", 35.6762, 139.6503},
-    {"London, UK", 51.5074, -0.1278},
-    {"New York, USA", 40.7128, -74.0060},
-    {"Paris, France", 48.8566, 2.3522},
-    {"Singapore", 1.3521, 103.8198},
-    {"Berlin, Germany", 52.5200, 13.4050},
-    {"Sydney, Australia", -33.8688, 151.2093},
-    {"Ahmedabad, India", 23.0225, 72.5714},
-    {"Toronto, Canada", 43.6532, -79.3832},
-    {"São Paulo, Brazil", -23.5505, -46.6333},
-    {"Seoul, South Korea", 37.5665, 126.9780},
-    {"Amsterdam, Netherlands", 52.3676, 4.9041},
-    {"Dubai, UAE", 25.2048, 55.2708},
-    {"Stockholm, Sweden", 59.3293, 18.0686},
-    {"Hong Kong", 22.3193, 114.1694},
-    {"San Francisco, USA", 37.7749, -122.4194}
-};
 }
 
 // Below this a district is not a street network worth simulating.
@@ -60,7 +36,7 @@ constexpr double kSignalSnapRadiusM = 45.0;
 
 Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& config)const{
     if(config.max_nodes<2||config.max_nodes>50000)throw std::invalid_argument("max_nodes must be in [2,50000]");
-    if(config.map_selection_version!="urban-crfg-v2")throw std::invalid_argument("unsupported map selection version");
+    if(config.map_selection_version!="urban-crfg-v3")throw std::invalid_argument("unsupported map selection version");
     if(config.day < -1 || config.day>1)throw std::invalid_argument("invalid day type");
     if(config.demand_bin_virtual_s==0||config.demand_bin_virtual_s>86400)throw std::invalid_argument("invalid demand bin");
     if(config.playback_duration_s<60||config.playback_duration_s>3600)throw std::invalid_argument("playback_duration_s must be in [60,3600]");
@@ -136,8 +112,11 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
 void ScenarioCompiler::build_canonical_grid(Scenario&s,const DeterministicRng&rng)const{
     const auto w=s.config.grid_width,h=s.config.grid_height;const double spacing=180.0;
     // Map seed mixing selects metropolitan transport region from global catalog
-    const auto city_idx = rng.bounded({RngDomain::MapSelection,0,0,0},static_cast<std::uint32_t>(sizeof(kCityCatalog)/sizeof(kCityCatalog[0])));
-    const auto& city = kCityCatalog[city_idx];
+    // The same world catalogue the downloaded maps are drawn from, so a
+    // synthetic grid sits where its seed says it does.
+    const auto& catalog = city_catalog();
+    const auto city_idx = rng.bounded({RngDomain::MapSelection,0,0,0},static_cast<std::uint32_t>(catalog.size()));
+    const auto& city = catalog[city_idx];
     const auto lat0 = city.lat + (rng.uniform01({RngDomain::MapSelection,0,1,0}) - 0.5) * 0.04;
     const auto lon0 = city.lon + (rng.uniform01({RngDomain::MapSelection,0,2,0}) - 0.5) * 0.04;
     s.nodes.reserve(std::size_t(w)*h);

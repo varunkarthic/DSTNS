@@ -147,7 +147,12 @@ int main() {
         const auto status = engine.status();
         check(status["run_id"] == done["run_id"], "the new run is active");
         check(status["run_id"] != old_run, "run identity changed");
-        check(status["global_seed"] == accepted["seed"], "active seed is the generated seed");
+        // The run is named by its decimal seed; the hexadecimal form is internal.
+        check(status["seed"] == accepted["seed"], "active seed is the generated seed");
+        check(status["global_seed"] == accepted["seed_hex"], "the internal hexadecimal form matches too");
+        check(status["seed"].get<std::string>().find_first_not_of("0123456789") == std::string::npos,
+              "the seed an operator sees is a plain number");
+        check(status["seed"].get<std::string>().size() <= 20, "a generated seed is short enough to retype");
         check(lifecycle(engine) == "PAUSED", "a regenerated world starts paused");
         check(virtual_s(engine) == 0, "a regenerated world starts at 00:00:00");
         check(status["clock"]["tick_rate"].get<double>() == 2.0, "the operator's requested rate carries over");
@@ -197,6 +202,37 @@ int main() {
         check(engine.status()["run_id"] != old_run, "the retry installs a new world");
         engine.terminate();
         std::filesystem::remove(pinned);
+    }
+
+    std::cout << "seed representation\n";
+    {
+        // The seed an operator types is a number, and the run is named by that
+        // same number; the hexadecimal form is an internal detail.
+        check(Seed128::from_decimal("0").decimal() == "0", "zero round-trips");
+        check(Seed128::from_decimal("12345").decimal() == "12345", "a small seed round-trips");
+        check(Seed128{0, 42}.decimal() == "42", "a 64-bit value reads as itself");
+        const std::string max128 = "340282366920938463463374607431768211455";
+        check(Seed128::from_decimal(max128).decimal() == max128, "the largest 128-bit seed round-trips");
+        check(Seed128::from_decimal(max128).hex() == "0xffffffffffffffffffffffffffffffff", "and matches its hexadecimal form");
+        check(Seed128::parse("0x5089050192221083c848bf3e12e22a4f").decimal() ==
+                  "107049685868914714890632172424598268495",
+              "a hexadecimal seed has one decimal name");
+        check(Seed128::from_decimal("107049685868914714890632172424598268495").hex() ==
+                  "0x5089050192221083c848bf3e12e22a4f",
+              "and that decimal name parses back to it");
+        check(throws_invalid([&] { (void)Seed128::from_decimal("340282366920938463463374607431768211456"); }),
+              "a value above 128 bits is rejected");
+        check(throws_invalid([&] { (void)Seed128::from_decimal("12ab"); }), "a non-numeric seed is rejected");
+        check(throws_invalid([&] { (void)Seed128::from_decimal(""); }), "an empty seed is rejected");
+
+        // The same number starts the same world, whichever form it arrives in.
+        SimulationEngine a(logger), b(logger);
+        a.prepare(Seed128::from_decimal("12345"), fixture());
+        b.prepare(Seed128::parse("0x3039"), fixture());
+        check(a.status()["seed"] == "12345", "the run reports the seed it was started with");
+        check(a.snapshot()["data"] == b.snapshot()["data"], "decimal and hexadecimal forms start the same world");
+        a.terminate();
+        b.terminate();
     }
 
     std::cout << "playback rate range\n";

@@ -9,7 +9,7 @@ import sqlite3
 import sys
 from datetime import datetime, timezone
 
-VERSION = 'urban-crfg-v2'
+VERSION = 'urban-crfg-v3'
 ROOT = Path(__file__).resolve().parent.parent
 
 def seed_id(value):

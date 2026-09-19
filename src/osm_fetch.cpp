@@ -1,5 +1,7 @@
 #include "dstns/osm_fetch.hpp"
 
+#include "dstns/utf8.hpp"
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -60,7 +62,9 @@ std::string tail_lines(const std::string& text, std::size_t count) {
         if (!joined.empty()) joined += " | ";
         joined += line;
     }
-    return joined;
+    // A child process may emit anything at all, including binary from a proxy
+    // or a partial multi-byte character; the message is reported over JSON.
+    return sanitize_message(joined, 600);
 }
 
 // The in-flight download, published for observability only. Guarded because the
@@ -86,7 +90,7 @@ void read_progress(MapFetchStatus& status) {
         const auto open_quote = text.find('"', text.find(':', phase_at));
         const auto close_quote = text.find('"', open_quote + 1);
         if (open_quote != std::string::npos && close_quote != std::string::npos)
-            status.phase = text.substr(open_quote + 1, close_quote - open_quote - 1);
+            status.phase = sanitize_message(text.substr(open_quote + 1, close_quote - open_quote - 1), 64);
     }
     status.bytes = number("\"bytes\"");
     status.total = number("\"total\"");
@@ -127,7 +131,7 @@ MapTileResult acquire_map_tile(const MapLocation& location, const std::filesyste
 
     std::filesystem::create_directories(cache_directory, ec);
     if (ec) {
-        throw MapFetchError("Cannot create map cache directory " + cache_directory.string() + ": " + ec.message());
+        throw MapFetchError("Cannot create map cache directory " + sanitize_message(cache_directory.string()) + ": " + sanitize_message(ec.message()));
     }
 
     const auto script = find_fetch_script();
@@ -165,7 +169,7 @@ MapTileResult acquire_map_tile(const MapLocation& location, const std::filesyste
 
     if (!std::filesystem::is_regular_file(target, ec)) {
         throw MapFetchError("OSM download for " + location.city + " reported success but wrote no file to "
-                            + target.string());
+                            + sanitize_message(target.string()));
     }
     const auto size = std::filesystem::file_size(target, ec);
     if (ec || size < kMinimumTileBytes) {

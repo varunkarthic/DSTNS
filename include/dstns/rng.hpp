@@ -7,12 +7,25 @@
 
 namespace dstns {
 
+// The run's identity.
+//
+// A seed is a 128-bit number. `decimal()` is how it is written for people: the
+// plain number an operator types on the command line and reads back in the
+// interface. `hex()` is the internal canonical form used for hashing and
+// derivation, and is not the seed's user-facing name.
 struct Seed128 {
     std::uint64_t high{};
     std::uint64_t low{};
     [[nodiscard]] std::string hex() const;
+    /// The same value written as a decimal integer, without separators.
+    [[nodiscard]] std::string decimal() const;
     static Seed128 parse(std::string_view value);
+    /// Parse a decimal integer of up to 39 digits. Throws on anything else.
+    static Seed128 from_decimal(std::string_view value);
     static Seed128 secure();
+    /// A random seed small enough to read and retype: 64 bits, so at most 20
+    /// digits, while remaining a full Seed128.
+    static Seed128 secure64();
     [[nodiscard]] Seed128 derive(std::string_view domain) const;
     auto operator<=>(const Seed128&) const = default;
 };

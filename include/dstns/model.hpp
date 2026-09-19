@@ -99,7 +99,7 @@ struct ScenarioConfig {
     std::uint32_t playback_duration_s{60}; double tick_rate{1}; int day{0};
     std::uint32_t grid_width{12}, grid_height{10}, max_nodes{50000};
     std::string osm_file;
-    std::string saved_seed_id, map_selection_version{"urban-crfg-v2"};
+    std::string saved_seed_id, map_selection_version{"urban-crfg-v3"};
     // On-demand OSM sourcing. The seed picks a city and an anchor inside it;
     // one extract of this side length is downloaded per city into map_cache_dir
     // and shared by every district of that city.

@@ -103,8 +103,8 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   const lifecycle = status.data.lifecycle;
   const location = topology.location?.city ? topology.location : undefined;
   const place = location ? `${location.city}, ${location.country}` : "Explicit map file";
-  const seed = status.global_seed;
-  const shortSeed = seed.replace(/^0x/, "").slice(0, 12);
+  const seed = status.seed || status.global_seed;
+  const shortSeed = seed.length > 14 ? `${seed.slice(0, 12)}…` : seed;
 
   // ---- Derived records -----------------------------------------------------
   const net = networkStats(topology);
@@ -864,7 +864,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     doc.line(`Simulation Report · ${place}`, doc.W - doc.M, 10.2, 7.5, PRINT.dim, "right", "chrome");
     doc.rule(17);
     doc.rule(doc.H - 14);
-    doc.line(`DSTNS · Seed ${shortSeed}… · Run ${status.run_id}`, doc.M, doc.H - 11.5, 7, PRINT.faint, "left", "chrome");
+    doc.line(`DSTNS · Seed ${shortSeed} · Run ${status.run_id}`, doc.M, doc.H - 11.5, 7, PRINT.faint, "left", "chrome");
     doc.line(`Page ${p} of ${pages}`, doc.W - doc.M, doc.H - 11.5, 7.5, PRINT.dim, "right", "chrome");
   }
 

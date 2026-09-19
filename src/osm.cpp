@@ -1,4 +1,6 @@
 #include "dstns/osm.hpp"
+
+#include "dstns/utf8.hpp"
 #include "dstns/graph.hpp"
 
 #include <algorithm>
@@ -46,7 +48,10 @@ std::string extract_attr(std::string_view s, std::string_view key) {
     if (q1 == std::string_view::npos) return {};
     const auto q2 = s.find(s[q1], q1 + 1);
     if (q2 == std::string_view::npos) return {};
-    auto result=std::string(s.substr(q1+1,q2-q1-1));
+    // The file comes from the network and may be mis-encoded or truncated
+    // mid-character; repair it here so no mis-encoded byte can reach a
+    // response, a log line or a hash.
+    auto result=sanitize_utf8(s.substr(q1+1,q2-q1-1), 512);
     for(const auto& [encoded,decoded]:std::vector<std::pair<std::string,std::string>>{{"&quot;","\""},{"&apos;","'"},{"&lt;","<"},{"&gt;",">"},{"&amp;","&"}}){std::size_t at=0;while((at=result.find(encoded,at))!=std::string::npos){result.replace(at,encoded.size(),decoded);at+=decoded.size();}}
     return result;
 }
@@ -291,7 +296,7 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
         if (candidate_pool.empty()) candidate_pool = anchors;
     }
 
-    // Version urban-crfg-v2: a real connected district. target_nodes is the
+    // Version urban-crfg-v3: a real connected district. target_nodes is the
     // operative cap — it keeps a district well inside a city extract, so several
     // distinct districts fit in one download and the client has a tractable
     // amount of geometry. The share only binds when the source is itself small,

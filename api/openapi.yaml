@@ -955,7 +955,7 @@ components:
           pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$
         map_selection_version:
           type: string
-          const: urban-crfg-v2
+          const: urban-crfg-v3
         day:
           default: 0
           oneOf:

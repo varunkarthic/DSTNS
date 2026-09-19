@@ -22,6 +22,11 @@ constexpr std::array<std::uint32_t, 64> k{
   0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2};
 constexpr std::uint32_t rotr(std::uint32_t x, unsigned n) { return (x >> n) | (x << (32U - n)); }
 
+/// High 64 bits of a 64x64 bit product, for the decimal seed conversions.
+std::uint64_t mul_high(std::uint64_t a, std::uint64_t b) {
+    return static_cast<std::uint64_t>((static_cast<unsigned __int128>(a) * b) >> 64);
+}
+
 std::array<std::uint32_t, 4> philox(std::array<std::uint32_t,4> c, std::array<std::uint32_t,2> key) {
     constexpr std::uint64_t m0=0xD2511F53ULL, m1=0xCD9E8D57ULL;
     for (int round=0; round<10; ++round) {
@@ -61,10 +66,58 @@ Seed128 Seed128::parse(std::string_view value) {
     return seed;
 }
 
+std::string Seed128::decimal() const {
+    // Long division of the 128-bit value by 10, most significant half first.
+    if (high == 0) return std::to_string(low);
+    std::string digits;
+    std::uint64_t hi = high, lo = low;
+    while (hi || lo) {
+        // 128-bit / 10 in two 64-bit steps, carrying the remainder across.
+        const std::uint64_t hi_q = hi / 10, hi_r = hi % 10;
+        // (hi_r * 2^64 + lo) / 10, computed in halves to stay inside 64 bits.
+        const std::uint64_t top = (hi_r << 32) | (lo >> 32);
+        const std::uint64_t top_q = top / 10, top_r = top % 10;
+        const std::uint64_t bottom = (top_r << 32) | (lo & 0xFFFFFFFFULL);
+        const std::uint64_t bottom_q = bottom / 10, remainder = bottom % 10;
+        hi = hi_q;
+        lo = (top_q << 32) | bottom_q;
+        digits.push_back(static_cast<char>('0' + remainder));
+    }
+    return std::string(digits.rbegin(), digits.rend());
+}
+
+Seed128 Seed128::from_decimal(std::string_view value) {
+    while (!value.empty() && value.front() == ' ') value.remove_prefix(1);
+    while (!value.empty() && value.back() == ' ') value.remove_suffix(1);
+    if (value.empty() || value.size() > 39) throw std::invalid_argument("seed must be 1 to 39 decimal digits");
+    Seed128 seed;
+    for (const char c : value) {
+        if (c < '0' || c > '9') throw std::invalid_argument("seed must be a decimal integer");
+        // seed = seed * 10 + digit, in 128 bits, detecting overflow.
+        const std::uint64_t low_product = seed.low * 10;
+        const std::uint64_t low_carry = mul_high(seed.low, 10);
+        const std::uint64_t high_product = seed.high * 10;
+        if (mul_high(seed.high, 10) != 0) throw std::invalid_argument("seed does not fit in 128 bits");
+        std::uint64_t high = high_product + low_carry;
+        if (high < low_carry) throw std::invalid_argument("seed does not fit in 128 bits");
+        const auto digit = static_cast<std::uint64_t>(c - '0');
+        const std::uint64_t low = low_product + digit;
+        if (low < digit && ++high == 0) throw std::invalid_argument("seed does not fit in 128 bits");
+        seed.high = high;
+        seed.low = low;
+    }
+    return seed;
+}
+
 Seed128 Seed128::secure() {
     std::random_device rd;
     auto next=[&] { return (static_cast<std::uint64_t>(rd())<<32U)^rd(); };
     return {next(),next()};
+}
+
+Seed128 Seed128::secure64() {
+    std::random_device rd;
+    return {0, (static_cast<std::uint64_t>(rd()) << 32U) ^ rd()};
 }
 
 Seed128 Seed128::derive(std::string_view domain) const {

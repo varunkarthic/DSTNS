@@ -10,15 +10,20 @@
 
 namespace dstns {
 
-// One metropolitan area the seed may resolve to. The box is the dense urban
-// core worth simulating, not an administrative boundary.
+// One urban centre the seed may resolve to.
+//
+// The catalogue is a wide, geographically spread list of cities whose centres
+// are densely mapped in OpenStreetMap, so an extract taken around one lands on
+// a connected street network. Only the centre is stored: the extract is a
+// square of the configured extent around it, and the district anchor is drawn
+// inside that square.
 struct City {
     std::string name;
     std::string country;
-    double min_lat{}, min_lon{}, max_lat{}, max_lon{};
+    double lat{}, lon{};
 
-    [[nodiscard]] double centre_lat() const { return (min_lat + max_lat) / 2; }
-    [[nodiscard]] double centre_lon() const { return (min_lon + max_lon) / 2; }
+    [[nodiscard]] double centre_lat() const { return lat; }
+    [[nodiscard]] double centre_lon() const { return lon; }
     // Filesystem-safe identity, e.g. "san-francisco".
     [[nodiscard]] std::string slug() const;
 };
@@ -57,6 +62,9 @@ public:
     explicit MapFetchError(const std::string& what) : std::runtime_error(what) {}
 };
 
+// Every city a seed may resolve to, in a fixed order: the order is part of the
+// selection, so changing it changes which city a seed picks and must come with
+// a new map selection version.
 [[nodiscard]] const std::vector<City>& city_catalog();
 
 // Metres per degree of latitude, and of longitude at a given latitude. The
