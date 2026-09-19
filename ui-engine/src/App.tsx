@@ -11,6 +11,7 @@ import { Splash, splashStageFor } from "./Splash";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
 import { NotificationHistory } from "./notificationHistory";
+import { ViewportNotice, useViewportSize, viewportTooSmall } from "./Viewport";
 import {
   AboutCard,
   AutoFocusPrompt,
@@ -186,7 +187,9 @@ export default function App() {
     coreVirtualSecond: sim.status?.clock.virtual_day_seconds ?? 0,
     lastDataAt: sim.lastDataAt,
     // Keep reporting while data is stale: that is the condition ASB acts on.
-    active: !!runId && !["IDLE", "TERMINATING"].includes(lifecycle),
+    // A world being replaced is the exception: nothing measured across that
+    // swap describes how well the interface is keeping up.
+    active: !!runId && !["IDLE", "TERMINATING"].includes(lifecycle) && !world.active,
     runId,
   });
   const suspended = asb?.gui_suspended === true;
@@ -687,6 +690,16 @@ export default function App() {
     ...(asb && asb.state !== "NORMAL" ? [`Backpressure ${asb.state.toLowerCase()}`] : asb?.rate_capped ? ["Speed held by backpressure"] : []),
   ];
   const interactive = valid && !suspended && !world.active;
+  const viewport = useViewportSize();
+  const tooSmall = viewportTooSmall(viewport.width, viewport.height);
+
+  if (tooSmall) {
+    return (
+      <TimeFormatProvider hour12={hour12} onToggle={toggleHour12}>
+        <ViewportNotice width={viewport.width} height={viewport.height} reduceMotion={reduceMotion} />
+      </TimeFormatProvider>
+    );
+  }
 
   return (
     <TimeFormatProvider hour12={hour12} onToggle={toggleHour12}>

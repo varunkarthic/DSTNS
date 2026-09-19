@@ -166,6 +166,17 @@ void ApiServer::routes() {
         }
         r.set_content("<!DOCTYPE html><html><head><title>DSTNS</title></head><body><h1>DSTNS Engine</h1><p>API Server active on port 8090.</p></body></html>", "text/html; charset=utf-8");
     };
+    // The browser icon lives beside index.html rather than under /assets,
+    // because the page references it by a fixed path.
+    server_->Get("/favicon.svg", [dist](const httplib::Request&, httplib::Response& r) {
+        std::ifstream f(dist / "favicon.svg");
+        if (dist.empty() || !f) {
+            r.status = 404;
+            return;
+        }
+        std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        r.set_content(content, "image/svg+xml");
+    });
     server_->Get("/", index_handler);
     server_->Get("/index.html", index_handler);
 
@@ -316,10 +327,13 @@ void ApiServer::routes() {
 
     // Observability for a download in flight. Unauthenticated and read-only:
     // it reports only progress through a map the seed already determined.
-    server_->Get("/api/v1/system/map-status", [](const auto&, auto& r) {
+    server_->Get("/api/v1/system/map-status", [this](const auto&, auto& r) {
         const auto status = current_map_fetch();
         send(r, {{"api_version", "1.0"},
                  {"data", {{"active", status.active},
+                           // What a preparation is spending its time on, even
+                           // while no map is being downloaded.
+                           {"preparation", engine_.preparation_stage()},
                            {"city", status.city},
                            {"country", status.country},
                            {"phase", status.phase},

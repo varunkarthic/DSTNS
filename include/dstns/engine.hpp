@@ -46,6 +46,13 @@ public:
     // progress is reported by world_status().
     nlohmann::json regenerate_world(const nlohmann::json& request = {});
     [[nodiscard]] nlohmann::json world_status() const;
+    /// What compilation is doing right now: "selecting", "acquiring",
+    /// "building", or "" when nothing is being compiled. Readable while a
+    /// compile holds the engine lock, so the interface can report progress
+    /// through a blocking preparation.
+    [[nodiscard]] std::string preparation_stage() const;
+    /// Whether a replacement world is being prepared right now.
+    [[nodiscard]] bool world_generating() const { return world_generating_.load(); }
     nlohmann::json set_tick_rate(double value); nlohmann::json set_day(int value);
     nlohmann::json set_module(const std::string& module,bool enabled);
     nlohmann::json add_weather(NodeId epicenter,double intensity,double radius_m,std::uint32_t duration_min,double flood_gain);
@@ -121,6 +128,17 @@ private:
     mutable std::mutex world_mutex_;
     WorldJob world_job_;
     std::uint64_t world_generation_counter_{};
+    // True from the moment a world is requested until the replacement is
+    // installed or the attempt fails. Read without world_mutex_ by the
+    // backpressure path, which must not block on a generation.
+    std::atomic<bool> world_generating_{false};
+    // 0 none, 1 selecting, 2 acquiring, 3 building. Atomic because it is read
+    // by the API thread while the engine lock is held by a compile.
+    std::atomic<int> preparing_stage_{0};
+    ScenarioCompiler::Progress compile_progress();
+    // When the current world was installed. A report that arrives just after a
+    // swap was measured against the world that has just gone.
+    std::chrono::steady_clock::time_point installed_at_{};
     [[nodiscard]] nlohmann::json world_status_locked() const;
     // Declared last so it is joined before anything it touches is destroyed.
     std::jthread world_worker_;

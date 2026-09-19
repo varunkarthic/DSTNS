@@ -134,7 +134,8 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
     }
     transition(Lifecycle::Preparing);
     try {
-        auto scenario = compiler_.compile(seed, config);
+        auto scenario = compiler_.compile(seed, config, compile_progress());
+        preparing_stage_.store(0);
         run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
         graph_ = std::make_unique<GraphStore>(std::move(scenario));
         tick_rate_ = config.tick_rate;
@@ -179,6 +180,7 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
             {"lifecycle", "READY"}
         };
     } catch (...) {
+        preparing_stage_.store(0);
         transition(Lifecycle::Idle);
         throw;
     }
@@ -246,6 +248,7 @@ nlohmann::json SimulationEngine::trigger_surge(NodeId node, double factor, doubl
 }
 
 void SimulationEngine::install_scenario(Scenario scenario, double tick_rate, std::uint32_t start) {
+    installed_at_ = std::chrono::steady_clock::now();
     run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
     graph_ = std::make_unique<GraphStore>(std::move(scenario));
     tick_rate_ = tick_rate;
@@ -312,7 +315,8 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
     }
     transition(Lifecycle::Preparing);
     try {
-        install_scenario(compiler_.compile(seed, config), config.tick_rate, start);
+        install_scenario(compiler_.compile(seed, config, compile_progress()), config.tick_rate, start);
+        preparing_stage_.store(0);
         transition(Lifecycle::Running);
         anchor_wall_clock();
         cv_.notify_all();
@@ -335,6 +339,7 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
             }}
         };
     } catch (...) {
+        preparing_stage_.store(0);
         transition(Lifecycle::Idle);
         throw;
     }
@@ -475,6 +480,13 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         if (request.is_object() && request.contains("expected_run_id") &&
             request.at("expected_run_id").get<std::string>() != run_id_)
             throw std::logic_error("run changed; world generation cancelled");
+        // The world is about to be replaced: stop it advancing first, so no
+        // physics, events or backpressure are evaluated against a world that
+        // is on its way out.
+        if (lifecycle_ == Lifecycle::Running) {
+            transition(Lifecycle::Paused);
+            ++playback_revision_;
+        }
         config = graph_->scenario().config;
         // A seed-selected world stores the path of the tile it resolved to.
         // Re-rolling must let the new seed choose its own place, so restore
@@ -494,11 +506,14 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
     world_job_.previous_run_id = previous;
     world_job_.generation = ++world_generation_counter_;
     world_job_.started = std::chrono::steady_clock::now();
+    world_generating_.store(true);
     const auto generation = world_job_.generation;
     logger_.system("INFO", "world", "Generating new world with seed " + seed.hex());
     // Assigning joins the previous (already finished) worker, if any.
     world_worker_ = std::jthread([this, seed, config, generation](std::stop_token) {
         auto fail = [&](const std::string& code, const std::string& message) {
+            world_generating_.store(false);
+            preparing_stage_.store(0);
             std::lock_guard l(world_mutex_);
             if (world_job_.generation != generation) return;
             world_job_.state = "failed";
@@ -509,7 +524,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
             logger_.system("ERROR", "world", code + ": " + message);
         };
         try {
-            auto scenario = compiler_.compile(seed, config);
+            auto scenario = compiler_.compile(seed, config, compile_progress());
             {
                 std::lock_guard l(world_mutex_);
                 world_job_.stage = "installing";
@@ -527,6 +542,10 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
                 cv_.notify_all();
                 run = run_id_;
             }
+            // The swap is complete: backpressure may judge the new world from
+            // the next report onwards.
+            preparing_stage_.store(0);
+            world_generating_.store(false);
             std::lock_guard l(world_mutex_);
             if (world_job_.generation != generation) return;
             world_job_.state = "ready";
@@ -592,6 +611,30 @@ AppliedCommand& SimulationEngine::record(std::string type, nlohmann::json before
     return commands_.back();
 }
 
+// How long after a world is installed backpressure ignores what it is told.
+// One report interval is 1 s, so this covers the report in flight across the
+// swap and the first one after it without hiding a genuinely slow interface.
+constexpr double kWorldSettleS = 3.0;
+
+// Publishes what a compile is doing, so a wait can be explained while the
+// engine lock is held.
+ScenarioCompiler::Progress SimulationEngine::compile_progress() {
+    return [this](ScenarioCompiler::Stage stage) {
+        preparing_stage_.store(stage == ScenarioCompiler::Stage::Selecting   ? 1
+                               : stage == ScenarioCompiler::Stage::Acquiring ? 2
+                                                                             : 3);
+    };
+}
+
+std::string SimulationEngine::preparation_stage() const {
+    switch (preparing_stage_.load()) {
+        case 1: return "selecting";
+        case 2: return "acquiring";
+        case 3: return "building";
+        default: return "";
+    }
+}
+
 double SimulationEngine::asb_now() const {
     return std::chrono::duration<double>(std::chrono::steady_clock::now() - asb_epoch_).count();
 }
@@ -606,6 +649,17 @@ nlohmann::json SimulationEngine::report_backpressure(double virtual_lag_s, doubl
     if (!std::isfinite(since_poll_s) || since_poll_s < 0)
         throw std::invalid_argument("since_poll_s must be finite and non-negative");
     const auto now = asb_now();
+    // While a world is being prepared the observer is looking at a paused
+    // world and will shortly be handed another one. Lag measured across that
+    // swap says nothing about the interface keeping up, so it is not observed
+    // and the window is cleared rather than left to decay into a false alarm.
+    // The settling window also covers the report that was already in flight
+    // when the swap completed, which describes the world that has just gone.
+    const auto since_install = std::chrono::duration<double>(std::chrono::steady_clock::now() - installed_at_).count();
+    if (world_generating_.load() || since_install < kWorldSettleS) {
+        asb_.reset();
+        return backpressure_json();
+    }
     asb_.observe({virtual_lag_s, client_frame_s, since_poll_s, requested_tick_rate_}, now);
     // Apply whatever ASB now permits, without losing the operator's request.
     const auto governed = asb_.govern_tick_rate(requested_tick_rate_, now);

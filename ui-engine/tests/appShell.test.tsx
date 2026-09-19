@@ -103,6 +103,8 @@ type Mock = {
   world: Record<string, unknown>;
   worldQueue: Record<string, unknown>[];
   topology?: unknown;
+  preparation: string;
+  topologyDelay: boolean;
 };
 let state: Mock;
 
@@ -126,6 +128,8 @@ function mockApi(overrides: Partial<Mock> = {}) {
     news: [],
     world: { state: "idle", stage: "idle", seed: "", previous_run_id: "", run_id: "", generation: 0, elapsed_s: 0, map: null, error: null, enabled: true },
     worldQueue: [],
+    preparation: "",
+    topologyDelay: false,
     ...overrides,
   };
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -145,7 +149,8 @@ function mockApi(overrides: Partial<Mock> = {}) {
       data,
     });
     if (path.includes("/system/ui-config")) return json({ api_version: "1.0", data: state.uiConfig });
-    if (path.includes("/system/map-status")) return json({ api_version: "1.0", data: { active: false } });
+    if (path.includes("/system/map-status"))
+      return json({ api_version: "1.0", data: { active: false, preparation: state.preparation } });
     if (path.includes("/system/backpressure")) return json(state.backpressure);
     if (path.includes("/world/regenerate")) {
       state.world = { ...state.world, state: "generating", stage: "compiling", seed: "4210818", previous_run_id: state.runId };
@@ -160,7 +165,10 @@ function mockApi(overrides: Partial<Mock> = {}) {
     let data: unknown = {};
     if (path.includes("/playback/status"))
       data = { lifecycle: state.lifecycle, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v3", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1 };
-    else if (path.includes("/view/topology")) data = state.topology ?? topology;
+    else if (path.includes("/view/topology")) {
+      if (state.topologyDelay) return json({ error: { code: "NOT_READY", message: "no topology yet" } }, 409);
+      data = state.topology ?? topology;
+    }
     else if (path.includes("/view/snapshot")) data = state.snapshot;
     else if (path.includes("/news")) {
       const since = Number(new URL(path, "http://x").searchParams.get("since_news_id") ?? 0);
@@ -659,6 +667,68 @@ describe("layers and legend", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Road state legend" })).not.toBeInTheDocument());
   });
+});
+
+describe("start-up", () => {
+  const sizeTo = (width: number, height: number) => {
+    Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: height, configurable: true });
+    fireEvent(window, new Event("resize"));
+  };
+  afterEach(() => sizeTo(1440, 900));
+
+  it("narrates the stages the core reports, then shows the map", async () => {
+    mockApi({ lifecycle: "PREPARING" });
+    state.preparation = "selecting";
+    state.topologyDelay = true;
+    render(<App />);
+    const surface = await screen.findByRole("status", { name: /Selecting world|Starting interface/ }, { timeout: 4000 });
+    await waitFor(() => expect(within(surface).getByRole("heading")).toHaveTextContent("Selecting world"), { timeout: 4000 });
+    const steps = within(surface).getByRole("list", { name: "Progress" });
+    expect(within(steps).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "Starting interface",
+      "Selecting world",
+      "Downloading map",
+      "Generating world",
+      "Initializing simulation",
+    ]);
+    expect(within(steps).getByText("Selecting world").closest("li")).toHaveClass("active");
+    expect(within(steps).getByText("Starting interface").closest("li")).toHaveClass("done");
+
+    state.preparation = "building";
+    await waitFor(() => expect(within(surface).getByRole("heading")).toHaveTextContent("Generating world"), { timeout: 4000 });
+    expect(within(steps).getByText("Selecting world").closest("li")).toHaveClass("done");
+
+    // The map arrives: the start-up screen leaves rather than disappearing.
+    state.preparation = "";
+    state.lifecycle = "RUNNING";
+    state.topologyDelay = false;
+    await ready();
+    await waitFor(() => expect(document.querySelector(".loading-surface")).toBeNull(), { timeout: 4000 });
+  }, 20000);
+
+  it("does not claim progress before a run exists", async () => {
+    mockApi({ lifecycle: "IDLE" });
+    render(<App />);
+    expect(await screen.findByText("Waiting for a simulation")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Progress" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  it("refuses to squeeze the interface onto a small display", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    sizeTo(900, 700);
+    const notice = await screen.findByRole("alert");
+    expect(notice).toHaveTextContent("This interface is not optimized for this screen size.");
+    expect(notice).toHaveTextContent("1024");
+    expect(notice).toHaveTextContent("900");
+    expect(screen.queryByLabelText("Pause simulation")).not.toBeInTheDocument();
+    // It leaves on its own once there is room again.
+    sizeTo(1440, 900);
+    await waitFor(() => expect(screen.getByLabelText("Pause simulation")).toBeInTheDocument());
+  }, 15000);
 });
 
 describe("telemetry collapse", () => {
