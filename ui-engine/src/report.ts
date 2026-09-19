@@ -421,7 +421,8 @@ export async function exportReport(
   tile(PAGE.margin + (tw4 + PAGE.gutter) * 3, 58, tw4, "Demand peaks", String(snapshot.data.demand.filter((d) => d.active).length), "", INK.amber);
 
   sectionTitle("Adaptive Simulation Backpressure", 92);
-  panel(PAGE.margin, 97, COL, 34);
+  // Four rows at 8mm pitch starting 9mm in, plus breathing room at the foot.
+  panel(PAGE.margin, 97, COL, 40);
   if (asb) {
     row("State", asb.state, 106);
     row("Backpressure", `${(asb.score * 100).toFixed(0)}% (${asb.synced ? "in sync" : "out of sync"})`, 114);
