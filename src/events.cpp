@@ -35,10 +35,34 @@ void EventRuntime::initialize(const Scenario& s) {
         else {windows={{39600,72000}};label="Commercial demand";}
         const auto identity=Seed128::parse("0x"+sha256(f.id).substr(0,16)).low;
         const double peak=1.4+0.5*rng.uniform01({RngDomain::Buildings,identity,0,0})+(s.config.day==1?.15:0);
+        // Real institutions do not all open on the same minute. Shift each
+        // one's window by up to +/-20 minutes and vary its length, derived from
+        // the feature's own identity so the stagger is deterministic.
+        const double shift=(rng.uniform01({RngDomain::Buildings,identity,1,0})-0.5)*2400;
+        const double stretch=0.8+0.4*rng.uniform01({RngDomain::Buildings,identity,2,0});
+        const auto& display=f.name.empty()?f.id:f.name;
         for(auto [start,end]:windows) {
-            push({start,static_cast<std::uint32_t>(i),0,0,"demand",label+" · "+(f.name.empty()?f.id:f.name),1+(peak-1)*.5});
-            push({start+(end-start)/3,static_cast<std::uint32_t>(i),0,0,"demand",label+" peak · "+(f.name.empty()?f.id:f.name),peak});
-            push({end,static_cast<std::uint32_t>(i),0,0,"demand","Demand returns to normal · "+(f.name.empty()?f.id:f.name),1.0});
+            const double centre=(start+end)/2.0+shift;
+            const double half=((end-start)/2.0)*stretch;
+            const double from=std::max(0.0,centre-half), to=std::min(86399.0,centre+half);
+            if(to-from<60) continue;
+            // Raised cosine from 1 up to peak and back, sampled in steps, so
+            // demand rises and falls gradually instead of snapping between
+            // three levels. The UI colours the multiplier directly, which makes
+            // the visible progression white -> orange -> red -> orange -> white.
+            constexpr int kSteps=8;
+            for(int step=0;step<=kSteps;++step) {
+                const double u=double(step)/kSteps;
+                const double shape=std::sin(3.141592653589793*u);
+                const double value=1.0+(peak-1.0)*shape*shape;
+                const auto at=static_cast<std::uint32_t>(from+(to-from)*u);
+                const bool crest=step==kSteps/2;
+                const bool done=step==kSteps;
+                push({at,static_cast<std::uint32_t>(i),0,0,"demand",
+                      done?("Demand returns to normal · "+display)
+                          :(label+(crest?" peak · ":" · ")+display),
+                      done?1.0:value});
+            }
         }
     }
     // Precompute only spatial neighbours once; no geometric scans in the physics loop.

@@ -30,4 +30,37 @@ struct MapTileResult {
 // root. Exposed so tests and diagnostics can report a missing fetcher clearly.
 [[nodiscard]] std::filesystem::path find_fetch_script();
 
+// A snapshot of the download currently in flight, if any. The operator CLI
+// polls this so a multi-minute city download is a progress bar rather than a
+// silent wait; nothing in the simulation depends on it.
+struct MapFetchStatus {
+    bool active{};
+    std::string city, country, phase, file;
+    std::uintmax_t bytes{}, total{};
+    double elapsed_s{};
+};
+
+[[nodiscard]] MapFetchStatus current_map_fetch();
+
+// How the map cache is trimmed when the server boots.
+enum class CachePolicy {
+    Keep,   // never delete; the operator manages the directory
+    Prune,  // keep the newest `keep` extracts, delete the rest
+    Clear,  // delete every cached extract
+};
+
+[[nodiscard]] CachePolicy parse_cache_policy(const std::string& value);
+
+struct CacheSweep {
+    std::size_t removed{};
+    std::size_t kept{};
+    std::uintmax_t freed_bytes{};
+};
+
+// Trim the map cache. City extracts are large, and a long-lived install would
+// otherwise accumulate one per city ever visited. Called once at startup.
+CacheSweep sweep_map_cache(const std::filesystem::path& directory,
+                           CachePolicy policy,
+                           std::size_t keep = 1);
+
 } // namespace dstns

@@ -41,6 +41,10 @@ args = parser.parse_args()
 
 def fail(message):
     """Exit non-zero with a single-line reason the C++ caller can surface verbatim."""
+    try:
+        (args.output.with_name(args.output.name + '.progress')).unlink(missing_ok=True)
+    except (OSError, NameError):
+        pass
     print(f'fetch_osm: {message}', file=sys.stderr)
     raise SystemExit(1)
 
@@ -92,13 +96,52 @@ request = urllib.request.Request(
     headers={'User-Agent': 'DSTNS urban source importer'},
 )
 
+# Progress is published beside the target so the operator CLI can render a bar
+# for what is otherwise a silent multi-minute wait inside the core.
+progress_path = args.output.with_name(args.output.name + '.progress')
+
+
+def publish(phase, done=0, total=0):
+    try:
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = progress_path.with_suffix('.tmp')
+        tmp.write_text(json.dumps({'phase': phase, 'bytes': done, 'total': total}))
+        os.replace(tmp, progress_path)
+    except OSError:
+        pass  # Progress reporting must never break the download.
+
+
+def read_streaming(response):
+    # Overpass sends Content-Length only sometimes; report what is known.
+    total = int(response.headers.get('Content-Length') or 0)
+    chunks, done, last = [], 0, 0.0
+    while True:
+        chunk = response.read(256 * 1024)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        done += len(chunk)
+        if done > MAX_BYTES:
+            raise ValueError('too large')
+        now = time.monotonic()
+        if now - last > 0.25:
+            publish('download', done, total)
+            last = now
+    publish('download', done, total or done)
+    return b''.join(chunks)
+
+
 content = None
 last_error = ''
+publish('connect')
 for attempt in range(args.retries + 1):
     try:
         with urllib.request.urlopen(request, timeout=args.timeout + 40) as response:
-            content = response.read(MAX_BYTES + 1)
+            content = read_streaming(response)
         break
+    except ValueError:
+        progress_path.unlink(missing_ok=True)
+        fail(f'OSM response exceeds {MAX_BYTES // (1024 * 1024)} MiB; reduce the extent')
     except urllib.error.HTTPError as error:
         # 429 (too many requests) and 504 (gateway timeout) are Overpass load shedding.
         last_error = f'Overpass returned HTTP {error.code} {error.reason}'
@@ -107,7 +150,9 @@ for attempt in range(args.retries + 1):
         last_error = f'network error contacting Overpass: {error}'
         retryable = True
     if not retryable or attempt == args.retries:
+        progress_path.unlink(missing_ok=True)
         fail(last_error)
+    publish('retry')
     time.sleep(2 ** attempt * 5)
 
 if content is None:
@@ -115,6 +160,7 @@ if content is None:
 if len(content) > MAX_BYTES:
     fail(f'OSM response exceeds {MAX_BYTES // (1024 * 1024)} MiB; reduce --radius-m')
 
+publish('parse', len(content), len(content))
 try:
     root = ET.fromstring(content)
 except ET.ParseError as error:
@@ -149,4 +195,5 @@ manifest = {
     'query': query,
 }
 args.output.with_suffix('.manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+progress_path.unlink(missing_ok=True)
 print(json.dumps(manifest, indent=2))

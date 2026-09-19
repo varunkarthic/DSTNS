@@ -15,8 +15,11 @@
     "min_compactness": 0.1,
     "map_selection_version": "urban-crfg-v2",
     "on_demand": true,
-    "tile_radius_m": 2000,
-    "cache_dir": "data/maps"
+    "cache_dir": "data/maps",
+    "city_extent_m": 5000,
+    "district_nodes": 3000,
+    "cache_policy": "prune",
+    "cache_keep": 1
   },
   "modules": {
     "traffic": true,

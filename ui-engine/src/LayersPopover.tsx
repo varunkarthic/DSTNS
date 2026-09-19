@@ -48,37 +48,36 @@ export function LayersPopover({
   const vehicles =
     snapshot?.edges.reduce((sum, e) => sum + e.vehicle_count, 0) ?? 0;
 
+  // Every layer the renderer honours, listed exactly once.
   const groups: Group[] = [
     {
       title: "Network",
       items: [
-        ["roads", "Roads & Links"],
-        ["nodes", "Graph Nodes"],
-        ["signals", "Signals (Adaptive)"],
+        ["roads", "Roads & links"],
+        ["signals", "Traffic signals"],
+        ["labels", "Street names"],
       ],
     },
     {
-      title: "Transit",
+      title: "Traffic",
       items: [
-        ["vehicles", `Vehicles (${vehicles.toLocaleString()})`],
-        ["transit", "Public Bus Fleet"],
-        ["buildings", `Facilities (${topology?.features.length ?? 0})`],
+        ["traffic", "Congestion colouring"],
+        ["vehicles", `Flow markers (${vehicles.toLocaleString()} veh)`],
+        ["buildings", `Places (${(topology?.features.length ?? 0).toLocaleString()})`],
       ],
     },
     {
       title: "Environment",
       items: [
-        ["weather", "Weather (DWS)"],
-        ["flooding", "Flood Hazard"],
-        ["traffic", "Traffic Congestion"],
+        ["weather", "Weather cells"],
+        ["flooding", "Flood hazard"],
       ],
     },
     {
       title: "Events",
       items: [
         ["incidents", `Incidents (${snapshot?.active_incidents.length ?? 0})`],
-        ["events", "Demand Events"],
-        ["labels", "Node Debug IDs"],
+        ["events", "Demand events"],
       ],
     },
   ];

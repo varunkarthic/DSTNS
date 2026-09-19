@@ -134,6 +134,8 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
         run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
         graph_ = std::make_unique<GraphStore>(std::move(scenario));
         tick_rate_ = config.tick_rate;
+        requested_tick_rate_ = config.tick_rate;
+        asb_.reset();
         virtual_s_ = 0;
         start_virtual_s_ = 0;
         manual_weather_.clear();
@@ -249,6 +251,8 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
         run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
         graph_ = std::make_unique<GraphStore>(std::move(scenario));
         tick_rate_ = config.tick_rate;
+        requested_tick_rate_ = config.tick_rate;
+        asb_.reset();
         virtual_s_ = 0;
         start_virtual_s_ = std::min(start, day_s);
         manual_weather_.clear();
@@ -409,22 +413,96 @@ AppliedCommand& SimulationEngine::record(std::string type, nlohmann::json before
     return commands_.back();
 }
 
+double SimulationEngine::asb_now() const {
+    return std::chrono::duration<double>(std::chrono::steady_clock::now() - asb_epoch_).count();
+}
+
+nlohmann::json SimulationEngine::report_backpressure(double virtual_lag_s, double client_frame_s,
+                                                     double since_poll_s) {
+    std::lock_guard lock(mutex_);
+    if (!std::isfinite(virtual_lag_s) || virtual_lag_s < 0)
+        throw std::invalid_argument("virtual_lag_s must be finite and non-negative");
+    if (!std::isfinite(client_frame_s) || client_frame_s < 0)
+        throw std::invalid_argument("client_frame_s must be finite and non-negative");
+    if (!std::isfinite(since_poll_s) || since_poll_s < 0)
+        throw std::invalid_argument("since_poll_s must be finite and non-negative");
+    const auto now = asb_now();
+    asb_.observe({virtual_lag_s, client_frame_s, since_poll_s, requested_tick_rate_}, now);
+    // Apply whatever ASB now permits, without losing the operator's request.
+    const auto governed = asb_.govern_tick_rate(requested_tick_rate_, now);
+    if (governed != tick_rate_) {
+        if (lifecycle_ == Lifecycle::Running) {
+            const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
+            step_to(std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(
+                elapsed * (day_s / double(graph_->scenario().config.playback_duration_s)) * tick_rate_)));
+        }
+        tick_rate_ = governed;
+        ++config_revision_;
+        anchor_wall_clock();
+    }
+    return backpressure_json();
+}
+
+void SimulationEngine::note_delivery(std::size_t bytes) {
+    std::lock_guard lock(mutex_);
+    asb_.record_delivery(bytes, asb_now());
+}
+
+nlohmann::json SimulationEngine::backpressure() const {
+    std::lock_guard lock(mutex_);
+    return backpressure_json();
+}
+
+nlohmann::json SimulationEngine::backpressure_json() const {
+    const auto s = asb_.status(asb_now());
+    auto actions = nlohmann::json::array();
+    for (const auto& a : s.recent_actions)
+        actions.push_back({{"at_s", a.at_monotonic_s}, {"action", a.action}, {"reason", a.reason},
+                           {"score", a.score}, {"rate_before", std::isfinite(a.tick_rate_before) ? a.tick_rate_before : -1.0},
+                           {"rate_after", std::isfinite(a.tick_rate_after) ? a.tick_rate_after : -1.0}});
+    return {
+        {"state", to_string(s.state)},
+        {"score", s.score},
+        {"synced", s.synced},
+        {"rate_locked", s.rate_locked},
+        {"motion_locked", s.motion_locked},
+        {"gui_suspended", s.gui_suspended},
+        {"rate_capped", s.rate_capped},
+        {"rate_cap", std::isfinite(s.rate_cap) ? s.rate_cap : -1.0},
+        {"applied_tick_rate", tick_rate_},
+        {"requested_tick_rate", requested_tick_rate_},
+        {"stressed_for_s", s.stressed_for_s},
+        {"state_for_s", s.state_for_s},
+        {"throughput", {{"snapshots_per_s", s.snapshots_per_s}, {"bytes_per_s", s.bytes_per_s}}},
+        {"actions", actions},
+        {"thresholds", {{"synced", kAsbSyncedScore}, {"stressed", kAsbStressedScore},
+                        {"critical", kAsbCriticalScore}, {"escalate_after_s", kAsbEscalateAfterS},
+                        {"restricted_hold_s", kAsbRestrictedHoldS}, {"recover_after_s", kAsbRecoverAfterS}}}
+    };
+}
+
 nlohmann::json SimulationEngine::set_tick_rate(double v) {
     std::lock_guard lock(mutex_);
-    if (!std::isfinite(v) || v <= 0 || v > 100) throw std::invalid_argument("tick_rate must be finite and in (0,100]");
+    if (!std::isfinite(v) || v <= 0 || v > 50) throw std::invalid_argument("tick_rate must be finite and in (0,50]");
     if (lifecycle_ == Lifecycle::Running) {
         const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
         step_to(std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(elapsed * (day_s / double(graph_->scenario().config.playback_duration_s)) * tick_rate_)));
     }
     const auto old = tick_rate_;
-    tick_rate_ = v;
+    requested_tick_rate_ = v;
+    // ASB may hold the applied rate below the request while the observer is
+    // behind. The request is remembered so the rate returns on its own once
+    // synchronization recovers, rather than needing the operator to re-ask.
+    tick_rate_ = asb_.govern_tick_rate(v, asb_now());
     ++config_revision_;
-    auto& c = record("tick_rate", {{"tick_rate", old}}, {{"tick_rate", v}});
+    auto& c = record("tick_rate", {{"tick_rate", old}}, {{"tick_rate", tick_rate_}});
     anchor_wall_clock();
     return {
         {"command_id", c.id},
         {"previous_tick_rate", old},
-        {"tick_rate", v},
+        {"tick_rate", tick_rate_},
+        {"requested_tick_rate", v},
+        {"rate_governed_by_asb", tick_rate_ < v},
         {"base_rate", graph_ ? day_s / double(graph_->scenario().config.playback_duration_s) : 0},
         {"target_virtual_rate", graph_ ? day_s / double(graph_->scenario().config.playback_duration_s) * v : 0}
     };
@@ -522,6 +600,7 @@ void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
     const auto& v = forward ? c.after : c.before;
     if (c.type == "tick_rate") {
         tick_rate_ = v.at("tick_rate");
+        requested_tick_rate_ = tick_rate_;
         anchor_wall_clock();
     } else if (c.type == "day") {
         const_cast<ScenarioConfig&>(graph_->scenario().config).day = v.at("day");
@@ -1001,7 +1080,7 @@ nlohmann::json SimulationEngine::topology() const {
             {"country",graph_->scenario().map_country},
             {"anchor_lat",graph_->scenario().map_anchor_lat},
             {"anchor_lon",graph_->scenario().map_anchor_lon},
-            {"tile_radius_m",graph_->scenario().map_tile_radius_m},
+            {"city_extent_m",graph_->scenario().map_city_extent_m},
             {"downloaded",graph_->scenario().map_downloaded}}},
         {"root_node", graph_->scenario().root.value},
         {"topology_revision", 1},

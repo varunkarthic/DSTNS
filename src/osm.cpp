@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <limits>
 #include <map>
 #include <queue>
 #include <set>
@@ -95,7 +96,7 @@ double cap_for(RoadClass c) {
 
 } // namespace
 
-OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uint32_t max_nodes, const DeterministicRng& rng) const {
+OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uint32_t max_nodes, const DeterministicRng& rng, const DistrictAnchor& anchor) const {
     std::ifstream in(file);
     if (!in) throw std::invalid_argument("cannot open OSM XML: " + file.string());
     std::ostringstream buffer;
@@ -251,31 +252,53 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
     }
     if (anchors.empty()) anchors.assign(referenced.begin(), referenced.end());
 
-    // Deterministically pick a target sector (0: North, 1: North-East, 2: East, 3: South-East, 4: South, 5: South-West, 6: West, 7: North-West, 8: Central Core)
-    const std::uint32_t sector_idx = rng.bounded({RngDomain::MapSelection, 0, 0, 1}, 9);
-    std::vector<std::int64_t> sector_anchors;
-    for (const auto id : anchors) {
-        const auto& n = raw_nodes.at(id);
-        const bool north = n.lat >= mid_lat;
-        const bool east = n.lon >= mid_lon;
-        switch (sector_idx) {
-            case 0: if (north && std::abs(n.lon - mid_lon) < (max_lon - min_lon) * 0.25) sector_anchors.push_back(id); break;
-            case 1: if (north && east) sector_anchors.push_back(id); break;
-            case 2: if (east && std::abs(n.lat - mid_lat) < (max_lat - min_lat) * 0.25) sector_anchors.push_back(id); break;
-            case 3: if (!north && east) sector_anchors.push_back(id); break;
-            case 4: if (!north && std::abs(n.lon - mid_lon) < (max_lon - min_lon) * 0.25) sector_anchors.push_back(id); break;
-            case 5: if (!north && !east) sector_anchors.push_back(id); break;
-            case 6: if (!east && std::abs(n.lat - mid_lat) < (max_lat - min_lat) * 0.25) sector_anchors.push_back(id); break;
-            case 7: if (north && !east) sector_anchors.push_back(id); break;
-            default: if (std::abs(n.lat - mid_lat) < (max_lat - min_lat) * 0.25 && std::abs(n.lon - mid_lon) < (max_lon - min_lon) * 0.25) sector_anchors.push_back(id); break;
+    std::vector<std::int64_t> candidate_pool;
+    if (anchor.valid) {
+        // Grow from the road node nearest the seed's coordinates. One city
+        // extract therefore yields a different district per seed without a
+        // further download.
+        std::int64_t nearest = 0;
+        double best = std::numeric_limits<double>::max();
+        const double lon_scale = std::cos(anchor.lat * 3.141592653589793 / 180.0);
+        for (const auto id : anchors) {
+            const auto& n = raw_nodes.at(id);
+            const double dy = n.lat - anchor.lat;
+            const double dx = (n.lon - anchor.lon) * lon_scale;
+            const double d = dx * dx + dy * dy;
+            // Ties broken by OSM id so the choice never depends on iteration order.
+            if (d < best || (d == best && id < nearest)) { best = d; nearest = id; }
         }
+        candidate_pool.push_back(nearest);
+    } else {
+        // No resolved location (bare fixtures): fall back to seeded sectors.
+        const std::uint32_t sector_idx = rng.bounded({RngDomain::MapSelection, 0, 0, 1}, 9);
+        for (const auto id : anchors) {
+            const auto& n = raw_nodes.at(id);
+            const bool north = n.lat >= mid_lat;
+            const bool east = n.lon >= mid_lon;
+            switch (sector_idx) {
+                case 0: if (north && std::abs(n.lon - mid_lon) < (max_lon - min_lon) * 0.25) candidate_pool.push_back(id); break;
+                case 1: if (north && east) candidate_pool.push_back(id); break;
+                case 2: if (east && std::abs(n.lat - mid_lat) < (max_lat - min_lat) * 0.25) candidate_pool.push_back(id); break;
+                case 3: if (!north && east) candidate_pool.push_back(id); break;
+                case 4: if (!north && std::abs(n.lon - mid_lon) < (max_lon - min_lon) * 0.25) candidate_pool.push_back(id); break;
+                case 5: if (!north && !east) candidate_pool.push_back(id); break;
+                case 6: if (!east && std::abs(n.lat - mid_lat) < (max_lat - min_lat) * 0.25) candidate_pool.push_back(id); break;
+                case 7: if (north && !east) candidate_pool.push_back(id); break;
+                default: if (std::abs(n.lat - mid_lat) < (max_lat - min_lat) * 0.25 && std::abs(n.lon - mid_lon) < (max_lon - min_lon) * 0.25) candidate_pool.push_back(id); break;
+            }
+        }
+        if (candidate_pool.empty()) candidate_pool = anchors;
     }
-    const auto& candidate_pool = !sector_anchors.empty() ? sector_anchors : anchors;
 
-    // Version urban-crfg-v2: real connected districts, with thousands of nodes when available.
-    const auto available=static_cast<std::uint32_t>(referenced.size());
-    const auto district_limit=available>250?static_cast<std::uint32_t>(available*(.55+.20*rng.uniform01({RngDomain::MapSelection,0,2,2}))):available;
-    const auto target_nodes = std::min({max_nodes,district_limit,4000u+rng.bounded({RngDomain::MapSelection,0,1,2},2001)});
+    // Version urban-crfg-v2: a real connected district. target_nodes is the
+    // operative cap — it keeps a district well inside a city extract, so several
+    // distinct districts fit in one download and the client has a tractable
+    // amount of geometry. The share only binds when the source is itself small,
+    // where taking all of it would make every seed produce the same map.
+    const auto available = static_cast<std::uint32_t>(referenced.size());
+    const auto share = available > 250 ? static_cast<std::uint32_t>(available * 0.6) : available;
+    const auto target_nodes = std::min({max_nodes, std::max(share, 200u), anchor.target_nodes});
 
     std::vector<std::int64_t> selected;
     std::int64_t root_osm = 0, best_root = 0;
@@ -291,7 +314,8 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
     };
 
     // Retry counter 'a' if component is too small
-    for (std::uint32_t a = 0; a < 16; ++a) {
+    const std::uint32_t attempts = anchor.valid ? 1u : 16u;
+    for (std::uint32_t a = 0; a < attempts; ++a) {
         selected.clear();
         root_osm = candidate_pool[rng.bounded({RngDomain::MapSelection, a, 0, 0}, static_cast<std::uint32_t>(candidate_pool.size()))];
         const auto& r_root = raw_nodes.at(root_osm);

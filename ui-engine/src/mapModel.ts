@@ -86,3 +86,102 @@ export function insideFootprint(x: number, y: number, points: Point[]) {
   }
   return inside;
 }
+
+// ---------------------------------------------------------------------------
+// Places
+//
+// The core reports a feature's `category` as the raw OpenStreetMap tag value,
+// which is whatever a mapper happened to type: "company", "retail",
+// "apartments", "kindergarten". Normalising it here gives every place a short
+// human name and a consistent glyph, and means an unnamed building reads as
+// "School" rather than "Unnamed kindergarten".
+// ---------------------------------------------------------------------------
+
+export interface PlaceKind {
+  label: string;
+  icon: string;
+  /** Places whose demand is modelled; only these take the demand colour ramp. */
+  demand: boolean;
+}
+
+const PLACE_KINDS: [RegExp, PlaceKind][] = [
+  [/^(school|kindergarten|childcare)$/, { label: "School", icon: "S", demand: true }],
+  [/^(university|college)$/, { label: "University", icon: "U", demand: true }],
+  [/^(hospital|clinic|doctors)$/, { label: "Hospital", icon: "H", demand: true }],
+  [/^(mall|shopping_centre|shopping_center|marketplace|department_store)$/,
+    { label: "Shopping Mall", icon: "M", demand: true }],
+  [/^(supermarket|convenience|retail)$/, { label: "Shops", icon: "R", demand: true }],
+  [/^(office|offices|company|commercial|government|bank|townhall|courthouse)$/,
+    { label: "Office", icon: "O", demand: true }],
+  [/^(station|bus_station|railway|train_station|subway|halt|platform)$/,
+    { label: "Transport Hub", icon: "T", demand: true }],
+  [/^(restaurant|cafe|fast_food|bar|pub|food_court)$/, { label: "Food & Drink", icon: "F", demand: true }],
+  [/^(hotel|hostel|guest_house)$/, { label: "Hotel", icon: "L", demand: true }],
+  [/^(park|garden|playground|pitch|recreation_ground|grass|forest)$/,
+    { label: "Park", icon: "P", demand: false }],
+  [/^(stadium|sports_centre|sports_center|arena)$/, { label: "Stadium", icon: "A", demand: true }],
+  [/^(church|place_of_worship|mosque|synagogue|temple)$/, { label: "Place of Worship", icon: "W", demand: false }],
+  [/^(museum|library|theatre|cinema|arts_centre|gallery)$/, { label: "Culture", icon: "C", demand: true }],
+  [/^(pharmacy|chemist)$/, { label: "Pharmacy", icon: "R", demand: true }],
+  [/^(parking|garage|garages|fuel)$/, { label: "Parking", icon: "K", demand: false }],
+  [/^(industrial|warehouse|works|factory)$/, { label: "Industrial", icon: "I", demand: true }],
+  [/^(residential|apartments|house|detached|dormitory|terrace)$/,
+    { label: "Residential", icon: "·", demand: false }],
+];
+
+const GENERIC = new Set(["building", "yes", "", "landuse", "leisure", "amenity"]);
+
+export function placeKind(feature: {
+  category: string;
+  tags?: Record<string, string>;
+}): PlaceKind {
+  // The most specific tag wins: a building=yes tagged shop=mall is a mall.
+  const candidates = [
+    feature.tags?.amenity,
+    feature.tags?.shop,
+    feature.tags?.office ? "office" : undefined,
+    feature.tags?.tourism,
+    feature.tags?.railway,
+    feature.tags?.public_transport,
+    feature.tags?.leisure,
+    feature.tags?.landuse,
+    feature.tags?.building,
+    feature.category,
+  ];
+  for (const value of candidates) {
+    if (!value || GENERIC.has(value)) continue;
+    for (const [pattern, kind] of PLACE_KINDS)
+      if (pattern.test(value)) return kind;
+  }
+  return { label: "Building", icon: "•", demand: false };
+}
+
+/** A place's display title: its real name, else what kind of place it is. */
+export function placeTitle(feature: {
+  name: string;
+  category: string;
+  tags?: Record<string, string>;
+}): string {
+  return feature.name?.trim() || placeKind(feature).label;
+}
+
+// Demand colour ramp. A modelled place idles white, warms through amber as
+// demand builds, peaks red, then cools back the same way as the window closes.
+// Because the underlying multiplier follows a raised cosine, the visible
+// progression is white -> orange -> red -> orange -> white on its own.
+export function demandColor(multiplier: number): string {
+  const t = Math.max(0, Math.min(1, (multiplier - 1) / 0.9));
+  if (t <= 0.02) return "#dce8f2";
+  const stops: [number, [number, number, number]][] = [
+    [0.0, [220, 232, 242]],
+    [0.45, [255, 185, 56]],
+    [1.0, [255, 91, 101]],
+  ];
+  let lo = stops[0], hi = stops[stops.length - 1];
+  for (let i = 1; i < stops.length; i++)
+    if (t <= stops[i][0]) { lo = stops[i - 1]; hi = stops[i]; break; }
+  const span = hi[0] - lo[0] || 1;
+  const k = (t - lo[0]) / span;
+  const mix = lo[1].map((c, i) => Math.round(c + (hi[1][i] - c) * k));
+  return `rgb(${mix[0]} ${mix[1]} ${mix[2]})`;
+}

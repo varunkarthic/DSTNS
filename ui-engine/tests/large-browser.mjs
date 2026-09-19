@@ -90,7 +90,8 @@ try {
         (box.height - 60) / 2 +
         (-(a.y_m + b.y_m) / 2 - (Math.max(...ys) + Math.min(...ys)) / 2) *
           scale;
-    if (x < 400 || x > 1000 || y < 220 || y > 780) continue;
+    // Only aim at canvas no floating panel covers (see browser.mjs).
+    if (x < 120 || x > 900 || y < 200 || y > 620) continue;
     await page.mouse.move(x, y);
     await page.waitForTimeout(330);
     if (

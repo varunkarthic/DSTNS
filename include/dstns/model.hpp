@@ -97,9 +97,11 @@ struct ScenarioConfig {
     std::uint32_t grid_width{12}, grid_height{10}, max_nodes{50000};
     std::string osm_file;
     std::string saved_seed_id, map_selection_version{"urban-crfg-v2"};
-    // On-demand OSM sourcing: the seed picks a city and an anchor, and a tile of
-    // this radius is downloaded into map_cache_dir the first time it is needed.
-    double map_tile_radius_m{2000};
+    // On-demand OSM sourcing. The seed picks a city and an anchor inside it;
+    // one extract of this side length is downloaded per city into map_cache_dir
+    // and shared by every district of that city.
+    double map_city_extent_m{5000};
+    std::uint32_t map_district_nodes{3000};
     std::string map_cache_dir{"data/maps"};
     std::uint32_t dws_frequency{3}, demand_bin_virtual_s{300};
     double stop_min_spacing_m{300}, stop_target_spacing_m{500}, stop_max_coverage_m{800};
@@ -114,7 +116,7 @@ struct Scenario {
     double projection_lat{}, projection_lon{};
     // Provenance of the road network: which real place this graph was cut from.
     std::string map_city, map_country, map_source_file;
-    double map_anchor_lat{}, map_anchor_lon{}, map_tile_radius_m{};
+    double map_anchor_lat{}, map_anchor_lon{}, map_city_extent_m{};
     bool map_downloaded{false};
     std::vector<BusStop> bus_stops; std::vector<SignalPlan> signals;
     std::vector<DwsEvent> dws_events; std::vector<PlannedTrip> trips;

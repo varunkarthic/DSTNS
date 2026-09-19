@@ -6,6 +6,7 @@ import type {
   News,
   EventPage,
   Congestion,
+  Backpressure,
 } from "./types";
 const base =
   (import.meta.env.VITE_DSTNS_API_URL as string | undefined)?.replace(
@@ -79,4 +80,15 @@ export const api = {
     request("/api/v1/playback/reset", { method: "POST", body: "{}" }),
   terminate: () =>
     request("/api/v1/system/terminate", { method: "POST", body: "{}" }),
+  // ASB: report how far behind this observer is and receive the resulting
+  // backpressure state in the same round trip.
+  backpressure: (
+    virtual_lag_s: number,
+    client_frame_s: number,
+    since_poll_s: number,
+  ) =>
+    request<Backpressure>("/api/v1/system/backpressure", {
+      method: "POST",
+      body: JSON.stringify({ virtual_lag_s, client_frame_s, since_poll_s }),
+    }),
 };

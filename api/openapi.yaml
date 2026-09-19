@@ -682,7 +682,7 @@ components:
         tick_rate:
           type: number
           exclusiveMinimum: 0
-          maximum: 100
+          maximum: 50
           default: 1
         saved_seed_id:
           type: string

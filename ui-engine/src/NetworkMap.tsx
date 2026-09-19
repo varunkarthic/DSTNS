@@ -11,13 +11,23 @@ import type { RefObject } from "react";
 import { mapFitLayout, metresToGeographic } from "./mapProjection";
 import { InfoCard, Tooltip } from "./Tooltip";
 import {
+  demandColor,
   distanceToSegment,
   insideFootprint,
+  placeKind,
+  placeTitle,
   roadInspection,
   roadState,
   stateColors,
 } from "./mapModel";
-import type { Inspection, Layers, Point, Snapshot, Topology } from "./types";
+import type {
+  Inspection,
+  Layers,
+  Point,
+  Snapshot,
+  Topology,
+  TopologyEdge,
+} from "./types";
 
 // Imperative handle so the alpha layout can host the map controls in its own
 // floating dock instead of inside the canvas.
@@ -37,6 +47,9 @@ type Props = {
   reduceMotion: boolean;
   running: boolean;
   virtualTime: number;
+  tickRate?: number;
+  /** Where the camera should glide to next; a new token restarts the glide. */
+  focus?: { x_m: number; y_m: number; scale?: number; token: number } | null;
   controls?: RefObject<MapControls | null>;
   onView?: (view: MapView) => void;
   onCursor?: (position: { lat: number; lon: number } | null) => void;
@@ -66,18 +79,6 @@ function geometry(points: Point[], closed = false): Geo {
   if (closed) path.closePath();
   return { path, minX, maxX, minY, maxY };
 }
-const poiIcon = (category: string) =>
-  ({
-    school: "S",
-    college: "S",
-    university: "U",
-    hospital: "H",
-    mall: "M",
-    office: "O",
-    station: "T",
-    bus_station: "B",
-    park: "P",
-  })[category] || "•";
 function NetworkMap({
   topology,
   snapshot,
@@ -85,6 +86,8 @@ function NetworkMap({
   reduceMotion,
   running,
   virtualTime,
+  tickRate = 1,
+  focus,
   controls,
   onView,
   onCursor,
@@ -124,6 +127,30 @@ function NetworkMap({
       demand: new Map(snapshot?.demand.map((d) => [d.feature_id, d])),
     }),
     [snapshot],
+  );
+  // Flow markers only ever appear on edges that carry traffic. Deriving that
+  // list once per snapshot keeps the per-frame loop proportional to what is
+  // actually drawn rather than to the whole network.
+  const flowing = useMemo(() => {
+    if (!topology) return [];
+    const out: { edge: TopologyEdge; speed: number; count: number }[] = [];
+    for (const e of topology.edges) {
+      if (e.synthetic_reverse || e.geometry.length < 2) continue;
+      const s = state.edges.get(e.id);
+      if (!s?.vehicle_count) continue;
+      out.push({ edge: e, speed: s.mean_speed_mps, count: s.vehicle_count });
+    }
+    return out;
+  }, [topology, state]);
+  // Adaptive detail. The draw cost of a frame is measured and fed back into how
+  // many markers the next frame may place, so a dense district or a fast rate
+  // degrades detail instead of dropping frames.
+  const quality = useRef(1);
+  // Place kinds depend only on the topology, so resolve them once rather than
+  // re-deriving a regex match for every feature on every frame.
+  const kinds = useMemo(
+    () => (topology ? topology.features.map((f) => placeKind(f)) : []),
+    [topology],
   );
   const fit = useCallback(() => {
     if (!cached) return;
@@ -210,6 +237,10 @@ function NetworkMap({
     const received = performance.now();
     const draw = () => {
       if (!dynamic.current) return;
+      // One shared 0..1 clock so every animated overlay pulses in step.
+      const pulse = reduceMotion
+        ? 0
+        : ((performance.now() - received) / 2400) % 1;
       const ctx = setup(dynamic.current);
       if (!ctx) return;
       const screen = (p: Point) => ({
@@ -220,6 +251,7 @@ function NetworkMap({
       ctx.translate(view.x, view.y);
       ctx.scale(view.scale, view.scale);
       ctx.lineCap = "round";
+      if (layers.roads)
       topology.edges.forEach((e, i) => {
         if (e.synthetic_reverse || !visible(cached.roads[i])) return;
         if (
@@ -255,28 +287,63 @@ function NetworkMap({
             r = w.radius_m * view.scale;
           if (x + r < 0 || x - r > size.w || y + r < 0 || y - r > size.h)
             continue;
-          const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
-          gradient.addColorStop(
-            0,
-            `rgba(55,215,255,${0.06 + w.intensity * 0.16})`,
+          // Body of the cell: a soft core that breathes with the pulse clock,
+          // so a storm reads as weather rather than a static blue disc.
+          const breathe = 1 + Math.sin(pulse * Math.PI * 2) * 0.03;
+          const gradient = ctx.createRadialGradient(
+            x, y, r * 0.08,
+            x, y, r * breathe,
           );
-          gradient.addColorStop(1, "rgba(55,215,255,0)");
+          gradient.addColorStop(0, `rgba(55,215,255,${0.1 + w.intensity * 0.2})`);
+          gradient.addColorStop(0.55, `rgba(0,103,125,${0.05 + w.intensity * 0.1})`);
+          gradient.addColorStop(1, "rgba(7,20,32,0)");
           ctx.fillStyle = gradient;
           ctx.beginPath();
-          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.arc(x, y, r * breathe, 0, Math.PI * 2);
           ctx.fill();
-          ctx.setLineDash([3, 6]);
-          ctx.strokeStyle = "#37d7ff66";
-          ctx.lineWidth = 1;
+
+          // Rain: short slanted streaks falling inside the cell. They are laid
+          // out on a fixed lattice and only their phase advances, so the field
+          // stays stable as the map pans instead of reshuffling every frame.
+          if (!reduceMotion && r > 26) {
+            const spacing = Math.max(16, 26 - w.intensity * 8);
+            const drop = ((pulse * 2) % 1) * spacing * 2;
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(x, y, r * 0.94, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.strokeStyle = `rgba(147,255,222,${0.1 + w.intensity * 0.22})`;
+            ctx.lineWidth = 0.9;
+            ctx.beginPath();
+            for (let gx = -r; gx <= r; gx += spacing) {
+              for (let gy = -r; gy <= r; gy += spacing * 2) {
+                const sx = x + gx + ((gy + drop) % spacing) * 0.35;
+                const sy = y + ((gy + drop) % (r * 2 + spacing * 2)) - r;
+                ctx.moveTo(sx, sy);
+                ctx.lineTo(sx - 3.5, sy + 9);
+              }
+            }
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // Edge of the cell, and a label that stays outside the rain.
+          ctx.setLineDash([4, 7]);
+          ctx.lineDashOffset = -pulse * 22;
+          ctx.strokeStyle = `rgba(55,215,255,${0.35 + w.intensity * 0.25})`;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
           ctx.stroke();
           ctx.setLineDash([]);
+          ctx.lineDashOffset = 0;
           ctx.fillStyle = "#b2ebff";
           ctx.font = "10px Inter";
-          ctx.fillText(`Rain ${(w.intensity * 100).toFixed(0)}%`, x + 8, y - 8);
+          ctx.fillText(`Rain ${(w.intensity * 100).toFixed(0)}%`, x + 8, y - r - 6);
         }
       const labels = new Set<string>();
       ctx.font = "10px Inter";
-      if (view.scale > 0.3)
+      if (layers.labels && view.scale > 0.3)
         topology.edges.forEach((e, i) => {
           if (!e.name || e.synthetic_reverse || !visible(cached.roads[i]))
             return;
@@ -296,17 +363,15 @@ function NetworkMap({
         topology.features.forEach((f, i) => {
           if (!visible(cached.features[i])) return;
           const demand = state.demand.get(f.id);
+          const kind = kinds[i];
+          // Zoomed out, keep only the landmarks that orient the operator and
+          // anything currently drawing traffic.
           if (
             view.scale < 0.65 &&
             !demand?.active &&
-            ![
-              "school",
-              "hospital",
-              "university",
-              "college",
-              "station",
-              "mall",
-            ].includes(f.category)
+            !["School", "University", "Hospital", "Shopping Mall", "Transport Hub"].includes(
+              kind.label,
+            )
           )
             return;
           if (f.polygon && !demand) return;
@@ -314,17 +379,23 @@ function NetworkMap({
           const cell = `${Math.floor(p.x / 28)},${Math.floor(p.y / 28)}`;
           if (poiCells.has(cell)) return;
           poiCells.add(cell);
-          ctx.fillStyle = demand?.active ? "#ff6577" : "#162e3b";
-          ctx.strokeStyle = demand?.active ? "#ffb4ab" : "#638591";
-          ctx.lineWidth = 1.2;
+          // Modelled places carry the demand ramp: white at rest, warming
+          // through amber to red at peak, then cooling back the same way.
+          const multiplier = demand?.multiplier ?? 1;
+          const warm = kind.demand && multiplier > 1.01;
+          const tint = warm ? demandColor(multiplier) : "#162e3b";
+          ctx.fillStyle = tint;
+          ctx.strokeStyle = warm ? tint : "#638591";
+          ctx.lineWidth = warm ? 1.6 : 1.2;
           ctx.beginPath();
           ctx.roundRect(p.x - 8, p.y - 8, 16, 16, 5);
           ctx.fill();
           ctx.stroke();
           ctx.font = "bold 10px Inter";
           ctx.textAlign = "center";
-          ctx.fillStyle = demand?.active ? "#071420" : "#d7e4f5";
-          ctx.fillText(poiIcon(f.category), p.x, p.y + 3);
+          // Keep the glyph readable against whatever the ramp produced.
+          ctx.fillStyle = warm && multiplier > 1.35 ? "#071420" : warm ? "#31210a" : "#d7e4f5";
+          ctx.fillText(kind.icon, p.x, p.y + 3);
           ctx.textAlign = "start";
           if (view.scale > 1 && f.name) {
             ctx.fillStyle = "#bbc9ce";
@@ -352,46 +423,72 @@ function NetworkMap({
             ctx.fill();
           });
         }
-      if (layers.events)
+      if (layers.events || layers.incidents)
         for (const inc of snapshot?.active_incidents ?? []) {
           const e = topology.edges[inc.edge_id];
-          if (!e) continue;
+          if (!e?.geometry.length) continue;
           const a = screen(e.geometry[0]),
             b = screen(e.geometry[e.geometry.length - 1]);
           const x = (a.x + b.x) / 2,
             y = (a.y + b.y) / 2;
-          ctx.fillStyle = inc.flood > 0.01 ? "#4ba9ff" : "#ff6577";
+          const flooded = inc.flood > 0.01;
+          const hue = flooded ? "75,169,255" : "255,91,101";
+          // Expanding radar rings, as in the alpha mockup: each ring grows from
+          // the marker and fades out, staggered so the pulse reads continuously.
+          if (!reduceMotion) {
+            for (let ring = 0; ring < 2; ring++) {
+              const phase = ((pulse + ring * 0.5) % 1);
+              const radius = 10 + phase * 34;
+              ctx.beginPath();
+              ctx.arc(x, y, radius, 0, Math.PI * 2);
+              ctx.strokeStyle = `rgba(${hue},${(1 - phase) * 0.55})`;
+              ctx.lineWidth = 1.4;
+              ctx.stroke();
+            }
+          }
+          // Core disc, then the warning glyph.
           ctx.beginPath();
-          ctx.moveTo(x, y - 9);
-          ctx.lineTo(x + 8, y + 6);
-          ctx.lineTo(x - 8, y + 6);
+          ctx.arc(x, y, 11, 0, Math.PI * 2);
+          ctx.fillStyle = flooded ? "rgba(6,40,70,0.85)" : "rgba(105,0,5,0.85)";
+          ctx.fill();
+          ctx.strokeStyle = `rgb(${hue})`;
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+          ctx.fillStyle = `rgb(${hue})`;
+          ctx.beginPath();
+          ctx.moveTo(x, y - 6);
+          ctx.lineTo(x + 6, y + 4.5);
+          ctx.lineTo(x - 6, y + 4.5);
           ctx.closePath();
           ctx.fill();
-          ctx.fillStyle = "#071420";
-          ctx.font = "bold 10px Inter";
-          ctx.fillText("!", x - 2, y + 3);
+          ctx.fillStyle = flooded ? "#062846" : "#690005";
+          ctx.font = "bold 8px Inter";
+          ctx.textAlign = "center";
+          ctx.fillText(flooded ? "~" : "!", x, y + 3.5);
+          ctx.textAlign = "start";
         }
       vehicleMarkers.current = [];
-      if (layers.traffic && !reduceMotion && view.scale > 0.25) {
+      const drawStarted = performance.now();
+      // Above roughly 20x real time individual markers move further than they
+      // are wide each frame, so they read as noise. Spend the budget on fewer,
+      // and let the measured cost pull it down further on heavy scenes.
+      const rateFactor = tickRate <= 4 ? 1 : tickRate <= 20 ? 0.6 : 0.3;
+      const markerBudget = Math.round(1500 * quality.current * rateFactor);
+      if (layers.vehicles && !reduceMotion && view.scale > 0.25 && markerBudget > 0) {
         let count = 0;
         const time =
           virtualTime +
           (running ? Math.min(1, (performance.now() - received) / 1000) : 0);
-        for (const e of topology.edges) {
-          const s = state.edges.get(e.id);
-          if (
-            e.synthetic_reverse ||
-            !s?.vehicle_count ||
-            !visible(cached.roads[e.id])
-          )
-            continue;
+        for (const { edge: e, speed, count: vehicles } of flowing) {
+          if (count >= markerBudget) break;
+          if (!visible(cached.roads[e.id])) continue;
           const a = screen(e.geometry[0]),
             b = screen(e.geometry[e.geometry.length - 1]);
-          const n = Math.min(5, s.vehicle_count);
-          for (let i = 0; i < n && count < 1500; i++, count++) {
+          const n = Math.min(5, vehicles);
+          for (let i = 0; i < n && count < markerBudget; i++, count++) {
             const progress =
               ((i + 0.5) / n +
-                (time * s.mean_speed_mps) / Math.max(1, e.length_m)) %
+                (time * speed) / Math.max(1, e.length_m)) %
               1;
             vehicleMarkers.current.push({
               x: a.x + (b.x - a.x) * progress,
@@ -408,6 +505,13 @@ function NetworkMap({
           }
         }
       }
+      // Aim to spend under 8ms drawing, leaving the rest of a 60Hz frame for
+      // compositing and the rest of the page. Recover slowly, shed fast.
+      const cost = performance.now() - drawStarted;
+      quality.current = Math.min(
+        1,
+        Math.max(0.12, quality.current * (cost > 11 ? 0.82 : cost < 5 ? 1.05 : 1)),
+      );
       if (running && !reduceMotion) frame = requestAnimationFrame(draw);
     };
     draw();
@@ -423,7 +527,53 @@ function NetworkMap({
     reduceMotion,
     running,
     virtualTime,
+    flowing,
+    tickRate,
   ]);
+  // Smooth camera glide. The operator should be carried to an incident rather
+  // than teleported, so the view eases over ~900ms and any manual pan, zoom or
+  // drag cancels it immediately.
+  const glide = useRef<number | undefined>(undefined);
+  const cancelGlide = useCallback(() => {
+    if (glide.current !== undefined) cancelAnimationFrame(glide.current);
+    glide.current = undefined;
+  }, []);
+  useEffect(() => cancelGlide, [cancelGlide]);
+  useEffect(() => {
+    if (!focus || !size.w) return;
+    const layout = mapFitLayout(size.w, size.h);
+    let from: View | null = null;
+    const started = performance.now();
+    const duration = reduceMotion ? 0 : 900;
+    const step = (now: number) => {
+      setView((current) => {
+        from ??= current;
+        const target: View = {
+          scale: focus.scale ?? current.scale,
+          x: 0,
+          y: 0,
+        };
+        target.x = layout.centerX - focus.x_m * target.scale;
+        target.y = layout.centerY + focus.y_m * target.scale;
+        const t = duration ? Math.min(1, (now - started) / duration) : 1;
+        // Ease-out cubic: quick departure, gentle arrival.
+        const k = 1 - Math.pow(1 - t, 3);
+        if (t >= 1) glide.current = undefined;
+        return {
+          scale: from.scale + (target.scale - from.scale) * k,
+          x: from.x + (target.x - from.x) * k,
+          y: from.y + (target.y - from.y) * k,
+        };
+      });
+      if (glide.current !== undefined) glide.current = requestAnimationFrame(step);
+    };
+    cancelGlide();
+    glide.current = requestAnimationFrame(step);
+    return cancelGlide;
+    // Only a new token starts a glide; view changes during it must not restart it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.token, size.w, size.h, reduceMotion, cancelGlide]);
+
   const clearHover = () => {
     clearTimeout(timer.current);
     hoverKey.current = "";
@@ -489,7 +639,7 @@ function NetworkMap({
           break;
         }
       }
-    if (!info && layers.traffic && !reduceMotion) {
+    if (!info && layers.vehicles && !reduceMotion) {
       const marker = vehicleMarkers.current.find(
         (p) =>
           Math.hypot(p.x - (clientX - rect.left), p.y - (clientY - rect.top)) <
@@ -543,7 +693,7 @@ function NetworkMap({
           const d = state.demand.get(f.id);
           key = f.id;
           info = {
-            title: f.name || `Unnamed ${f.category}`,
+            title: placeTitle(f),
             category: f.category,
             status: d?.active ? "Demand increase" : "Normal",
             description: f.id,
@@ -637,6 +787,7 @@ function NetworkMap({
       );
   };
   const zoom = (factor: number, cx = size.w / 2, cy = size.h / 2) => {
+    cancelGlide();
     clearHover();
     setView((v) => {
       const scale = Math.min(8, Math.max(0.025, v.scale * factor)),
@@ -747,10 +898,12 @@ function NetworkMap({
         tabIndex={0}
         aria-label="Simulation map. Drag to pan, scroll or press plus and minus to zoom. Hover entities to inspect. Search places for keyboard inspection."
         onWheel={(e) => {
+          cancelGlide();
           const r = e.currentTarget.getBoundingClientRect();
           zoom(e.deltaY > 0 ? 0.9 : 1.1, e.clientX - r.left, e.clientY - r.top);
         }}
         onPointerDown={(e) => {
+          cancelGlide();
           clearHover();
           drag.current = { x: e.clientX, y: e.clientY, view };
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -817,8 +970,8 @@ function NetworkMap({
                     }));
                     setHover({
                       info: {
-                        title: f.name || `Unnamed ${f.category}`,
-                        category: f.category,
+                        title: placeTitle(f),
+                        category: placeKind(f).label,
                         description: f.id,
                         metrics: [
                           [

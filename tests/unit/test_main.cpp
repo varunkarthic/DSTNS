@@ -47,7 +47,7 @@ int main(){try{
     const auto tile_cache=std::filesystem::temp_directory_path()/"dstns-auto-map";
     std::filesystem::remove_all(tile_cache);std::filesystem::create_directories(tile_cache);
     auto_cfg.map_cache_dir=tile_cache.string();
-    const auto planned=select_map_location(seed,auto_cfg.map_tile_radius_m);
+    const auto planned=select_map_location(seed,auto_cfg.map_city_extent_m);
     check(!planned.city.empty(),"auto resolves the seed to a named city");
     std::filesystem::copy_file("data/fixtures/real_network.osm.xml",planned.cache_path(tile_cache));
     const auto real_map=compiler.compile(seed,auto_cfg);

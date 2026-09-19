@@ -333,6 +333,24 @@ button:disabled {
   box-shadow: var(--glass-shadow);
 }
 
+/* Bottom chrome: HUD row, control strip and playback dock in one column, so
+ * their spacing is structural rather than a stack of hand-tuned offsets. */
+.bottom-stack {
+  position: absolute;
+  left: var(--space-lg);
+  right: calc(var(--deck-width) + 35px);
+  bottom: 20px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  pointer-events: none;
+}
+.bottom-stack > * {
+  pointer-events: auto;
+}
+
 /* Left vertical map dock */
 .map-dock {
   position: absolute;
@@ -367,6 +385,15 @@ button:disabled {
   background: var(--surface-container-high);
   color: var(--primary);
 }
+.map-dock button.active {
+  background: var(--primary-container);
+  color: var(--on-primary);
+  box-shadow: 0 0 14px rgb(53 215 255 / 45%);
+}
+.map-dock button.active:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
 .map-dock .divider {
   width: 20px;
   height: 1px;
@@ -376,14 +403,9 @@ button:disabled {
 
 /* Coordinate HUD and scale bar */
 .map-hud {
-  position: absolute;
-  bottom: var(--space-xl);
-  left: var(--space-lg);
-  z-index: 20;
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  pointer-events: none;
+  gap: var(--space-sm);
 }
 .hud-chip {
   display: flex;
@@ -752,11 +774,6 @@ button:disabled {
 /* ---- Bottom controller ------------------------------------------------ */
 
 .control-strip {
-  position: absolute;
-  left: var(--space-lg);
-  right: calc(var(--deck-width) + 35px);
-  bottom: 170px;
-  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -814,11 +831,6 @@ button:disabled {
 }
 
 .playback-dock {
-  position: absolute;
-  left: var(--space-lg);
-  right: calc(var(--deck-width) + 35px);
-  bottom: 20px;
-  z-index: 30;
   display: flex;
   flex-direction: column;
   padding: 16px;
@@ -1171,16 +1183,17 @@ button:disabled {
 
 /* ---- Overlays: toasts, errors, loading -------------------------------- */
 
+/* Notifications stack down the side of the map, clear of the place search at
+ * top-centre and of the telemetry deck on the right. */
 .toasts {
   position: absolute;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(var(--space-xl) + 52px);
+  right: calc(var(--deck-width) + 56px);
   z-index: 45;
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  width: min(420px, 60vw);
+  width: min(320px, 32vw);
   pointer-events: none;
 }
 .toast {
@@ -1190,6 +1203,27 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  border-left: 3px solid var(--primary-container);
+  animation: toast-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast.alert {
+  border-left-color: var(--error);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.reduce-motion .toast {
+  animation: none;
+}
+.toast p {
+  overflow-wrap: anywhere;
 }
 .toast > div {
   display: flex;
@@ -1259,31 +1293,39 @@ button:disabled {
 }
 
 /* Road-state legend */
+/* An inline chip in the HUD row, matching the coordinate and scale chips.
+ * Scoped to the row so it also outranks the legacy absolute rule. */
+.map-hud .legend {
+  position: static;
+}
 .legend {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  padding: 8px 16px;
-  border-radius: var(--radius-full);
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: var(--radius-xl);
+  background: rgb(7 20 32 / 70%);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgb(60 73 77 / 40%);
   font-family: var(--font-mono);
   font-size: 9px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: var(--on-surface-variant);
+  white-space: nowrap;
 }
 .legend span {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.legend i {
+.map-hud .legend i {
   width: 8px;
   height: 8px;
   border-radius: var(--radius-full);
+}
+.map-hud .legend span {
+  font-size: 9px;
+  color: var(--on-surface-variant);
 }
 
 /* ---- Responsive ------------------------------------------------------- */
@@ -1327,8 +1369,8 @@ button:disabled {
   .telemetry-deck {
     display: none;
   }
-  .control-strip,
-  .playback-dock {
+  .bottom-stack,
+  .toasts {
     right: var(--space-lg);
   }
   .loading-card {
@@ -1345,9 +1387,11 @@ button:disabled {
   .control-strip {
     display: none;
   }
-  .playback-dock {
+  .bottom-stack {
     left: var(--space-sm);
     right: var(--space-sm);
+  }
+  .playback-dock {
     padding: 12px;
   }
   .dock-row {
@@ -1378,23 +1422,14 @@ button:disabled {
  * selectors the alpha layout repositions. The bottom-left corner belongs to
  * the playback controller, so the HUD, legend and search move clear of it. */
 
-/* Bottom-left as in the alpha, lifted clear of the control strip above the
- * playback dock so the coordinate readout and scale bar stay legible. */
 .map-hud {
-  top: auto;
-  left: var(--space-lg);
-  bottom: 216px;
+  position: static;
+  align-self: flex-start;
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 
-/* Top-right of the map region: the bottom belongs to the playback controller
- * and the attribution, and the top-centre to the place search. */
-.legend {
-  top: var(--space-xl);
-  left: auto;
-  bottom: auto;
-  right: calc(var(--deck-width) + 56px);
-  transform: none;
-}
+
 
 .place-search.glass {
   position: absolute;
@@ -1463,13 +1498,9 @@ button:disabled {
 }
 
 @media (max-width: 1024px) {
-  /* The telemetry deck is gone, so the search returns to the viewport centre
-   * and the legend drops beside the HUD rather than colliding with it. Both
-   * stay above the control strip, which is still present down to 720px. */
-  .legend {
-    top: auto;
-    bottom: 216px;
-    right: var(--space-lg);
+  /* The telemetry deck is gone, so the search returns to the viewport centre. */
+  .place-search.glass {
+    left: 50%;
   }
 }
 
@@ -1479,4 +1510,151 @@ button:disabled {
   .place-search.glass {
     display: none;
   }
+}
+
+/* ---- Containment ------------------------------------------------------
+ * Flex and grid children default to min-width:auto, which lets long text push
+ * a row wider than its panel instead of shrinking. These rules make every
+ * text-bearing box clip or wrap inside its own bounds, so a long street name,
+ * a big vehicle count or a verbose event description can never spill out.
+ */
+
+.telemetry-deck,
+.control-strip,
+.playback-dock,
+.layers-popover,
+.toast,
+.hud-chip,
+.metric,
+.stream-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Flex rows that carry text */
+.metric-top,
+.metric-bottom,
+.stream-head,
+.stream-meta,
+.deck-header,
+.rate-pod .head,
+.layer-group label {
+  min-width: 0;
+}
+
+.metric-top span,
+.stream-meta span,
+.rate-pod .head .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Values and tags keep their own line rather than being cut mid-figure. */
+.metric-value,
+.rate-pod .head .value,
+.chip,
+.tag {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stream-card strong,
+.stream-title strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stream-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.stream-meta small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The deck header's title may be long in other locales. */
+.deck-header h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.deck-header .chip {
+  flex-shrink: 0;
+}
+
+/* The control strip carries a seed, a host and three buttons on one line. */
+.control-strip {
+  flex-wrap: wrap;
+  row-gap: var(--space-sm);
+}
+.control-strip .status {
+  min-width: 0;
+}
+.control-strip .status .addr,
+.seed-toggle .value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seed-toggle {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Layer labels wrap rather than widening the popover. */
+.layer-group label {
+  overflow-wrap: anywhere;
+}
+.layer-group label span {
+  min-width: 0;
+}
+
+/* The idle card shows a shell command that must not widen the card. */
+.loading-card code {
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.loading-card h2 {
+  overflow-wrap: anywhere;
+}
+
+/* Errors can be long: a fetch failure quotes the city, coordinates and cause. */
+.error-banner {
+  overflow-wrap: anywhere;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+/* Place search results */
+.place-search li button {
+  min-width: 0;
+}
+.place-search li button,
+.place-search small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+/* The HUD row wraps onto a second line before it ever overruns the map. */
+.map-hud > * {
+  min-width: 0;
+}
+.hud-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

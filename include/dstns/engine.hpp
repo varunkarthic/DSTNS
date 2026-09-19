@@ -2,6 +2,7 @@
 
 #include "dstns/graph.hpp"
 #include "dstns/events.hpp"
+#include "dstns/asb.hpp"
 #include "dstns/logging.hpp"
 #include "dstns/scenario.hpp"
 
@@ -52,12 +53,21 @@ public:
     [[nodiscard]] nlohmann::json global_view() const;
     [[nodiscard]] nlohmann::json export_sumo(const std::filesystem::path& directory) const;
     [[nodiscard]] nlohmann::json sumo_simulate(const std::filesystem::path& directory, std::uint32_t begin_s, std::uint32_t end_s) const;
+    // Adaptive Simulation Backpressure. The observer reports how far behind it
+    // is; the engine throttles itself to close the gap and publishes what it did.
+    nlohmann::json report_backpressure(double virtual_lag_s, double client_frame_s, double since_poll_s);
+    [[nodiscard]] nlohmann::json backpressure() const;
+    // Record that a payload of this size was served, for the data-rate report.
+    void note_delivery(std::size_t bytes);
+
     [[nodiscard]] std::uint64_t state_revision() const;
     [[nodiscard]] Lifecycle lifecycle() const;
     void terminate();
 private:
     struct Checkpoint { std::uint32_t virtual_s{}; std::vector<NodeDynamic> nodes; std::vector<EdgeDynamic> edges; std::size_t news_size{}; std::uint64_t next_news_id{1}; EventRuntime events; CongestionTracker congestion; };
     struct ActiveSurgeZone { std::uint32_t id{}; NodeId node{}; std::uint32_t start_s{}; std::uint32_t end_s{}; double factor{1.8}; double radius_m{300}; std::string label; };
+    [[nodiscard]] double asb_now() const;
+    [[nodiscard]] nlohmann::json backpressure_json() const;
     void loop(); void transition(Lifecycle next); void step_to(std::uint32_t target); void physics_step(std::uint32_t dt); void capture_checkpoint();
     void restore_to(std::uint32_t target); void anchor_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
     [[nodiscard]] nlohmann::json clock_json() const; [[nodiscard]] nlohmann::json envelope(nlohmann::json data) const;
@@ -74,6 +84,9 @@ private:
     std::vector<NewsItem> news_; std::vector<AppliedCommand> commands_,redo_;
     std::vector<Checkpoint> checkpoints_; std::uint64_t next_command_id_{1},next_news_id_{1},next_event_id_{1'000'000};
     EventRuntime events_;
+    mutable AdaptiveBackpressure asb_;
+    double requested_tick_rate_{1.0};
+    std::chrono::steady_clock::time_point asb_epoch_{std::chrono::steady_clock::now()};
     CongestionTracker congestion_;
     std::vector<const SignalPlan*> signal_by_node_;
     std::map<std::uint32_t, int> signal_overrides_;

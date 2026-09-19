@@ -1,5 +1,6 @@
 #include "dstns/api.hpp"
 #include "dstns/geo.hpp"
+#include "dstns/osm_fetch.hpp"
 #include "dstns/sumo_bridge.hpp"
 
 #include <httplib.h>
@@ -76,10 +77,13 @@ ScenarioConfig config_from(const json& j) {
         const auto& m = j.at("map");
         c.max_nodes = m.value("max_nodes", c.max_nodes);
         c.osm_file = m.value("osm_file", std::string{});
-        c.map_tile_radius_m = m.value("tile_radius_m", c.map_tile_radius_m);
+        c.map_city_extent_m = m.value("city_extent_m", c.map_city_extent_m);
+        c.map_district_nodes = m.value("district_nodes", c.map_district_nodes);
         c.map_cache_dir = m.value("cache_dir", c.map_cache_dir);
-        if (!(c.map_tile_radius_m > 0 && c.map_tile_radius_m <= 20000))
-            throw std::invalid_argument("map.tile_radius_m must be in (0, 20000] metres");
+        if (!(c.map_city_extent_m >= 500 && c.map_city_extent_m <= 20000))
+            throw std::invalid_argument("map.city_extent_m must be in [500, 20000] metres");
+        if (c.map_district_nodes < 200 || c.map_district_nodes > 50000)
+            throw std::invalid_argument("map.district_nodes must be in [200, 50000]");
     }
     if (j.contains("fixture")) {
         auto& f = j.at("fixture");
@@ -266,6 +270,81 @@ void ApiServer::routes() {
     server_->Get("/api/v1/system/terminate", terminate_handler);
     server_->Post("/api/v1/system/terminate", terminate_handler);
 
+    // AGPL section 13: this program is offered over a network, so every user
+    // interacting with it must be told where to obtain the corresponding
+    // source of the version they are running.
+    server_->Get("/api/v1/system/source", [](const auto&, auto& r) {
+        send(r, {{"api_version", "1.0"},
+                 {"data", {
+                     {"program", "DSTNS"},
+                     {"version", DSTNS_VERSION},
+                     {"copyright", "Copyright (C) 2026 Varun Karthic"},
+                     {"license", "AGPL-3.0-or-later"},
+                     {"license_url", "https://www.gnu.org/licenses/agpl-3.0.html"},
+                     {"source_offer",
+                      "You may obtain the complete corresponding source for this running "
+                      "version, under the terms of the GNU Affero General Public License "
+                      "version 3 or later. The source accompanies this deployment; see the "
+                      "LICENSE and COPYRIGHT files distributed with it."},
+                     {"map_data", {
+                         {"source", "OpenStreetMap contributors"},
+                         {"license", "ODbL 1.0"},
+                         {"url", "https://www.openstreetmap.org/copyright"}}}}}});
+    });
+
+    // Observability for a download in flight. Unauthenticated and read-only:
+    // it reports only progress through a map the seed already determined.
+    server_->Get("/api/v1/system/map-status", [](const auto&, auto& r) {
+        const auto status = current_map_fetch();
+        send(r, {{"api_version", "1.0"},
+                 {"data", {{"active", status.active},
+                           {"city", status.city},
+                           {"country", status.country},
+                           {"phase", status.phase},
+                           {"bytes", status.bytes},
+                           {"total", status.total},
+                           {"elapsed_s", status.elapsed_s}}}});
+    });
+
+    // Presentation defaults for the observer. Served rather than bundled so an
+    // operator can change the interface's starting state without rebuilding the
+    // front end. Nothing here reaches the simulation.
+    server_->Get("/api/v1/system/ui-config", [](const auto&, auto& r) {
+        for (const auto* candidate : {"config/ui-config.json", "../config/ui-config.json",
+                                      "/app/config/ui-config.json"}) {
+            std::ifstream in(candidate);
+            if (!in) continue;
+            try {
+                json parsed;
+                in >> parsed;
+                send(r, {{"api_version", "1.0"}, {"data", parsed}});
+                return;
+            } catch (const json::parse_error& e) {
+                // A malformed file must not take the interface down; the client
+                // falls back to its built-in defaults and the operator is told.
+                send(r, {{"api_version", "1.0"},
+                         {"error", {{"code", "UI_CONFIG_INVALID"},
+                                    {"message", std::string("config/ui-config.json is not valid JSON: ") + e.what()}}}},
+                     500);
+                return;
+            }
+        }
+        send(r, {{"api_version", "1.0"}, {"data", json::object()}});
+    });
+
+    // ASB. The observer reports how far behind it is; the response carries the
+    // full backpressure state so one round trip both informs and instructs.
+    server_->Post("/api/v1/system/backpressure", [this](const auto& req, auto& r) {
+        auto j = body(req);
+        send(r, engine_.report_backpressure(
+                    j.value("virtual_lag_s", 0.0),
+                    j.value("client_frame_s", 0.0),
+                    j.value("since_poll_s", 0.0)));
+    });
+    server_->Get("/api/v1/system/backpressure", [this](const auto&, auto& r) {
+        send(r, engine_.backpressure());
+    });
+
     // Playback API
     server_->Get("/api/v1/playback/status", [this](const auto&, auto& r) { send(r, engine_.status()); });
     server_->Post("/api/v1/playback/start", [this](const httplib::Request& req, httplib::Response& r) {
@@ -409,7 +488,12 @@ void ApiServer::routes() {
     server_->Get("/api/v1/topology", [this](const auto&, auto& r) { send(r, engine_.topology()); });
     server_->Get("/api/v1/view/network", [this](const auto&, auto& r) { send(r, engine_.topology()); });
     server_->Get("/api/v1/view/map/full", [this](const auto&, auto& r) { send(r, engine_.topology()); });
-    server_->Get("/api/v1/view/snapshot", [this](const auto&, auto& r) { send(r, engine_.snapshot()); });
+    server_->Get("/api/v1/view/snapshot", [this](const auto&, auto& r) {
+        // Snapshots are the bulk of what the observer consumes, so their size
+        // and cadence are what ASB reports as the delivered data rate.
+        send(r, engine_.snapshot());
+        engine_.note_delivery(r.body.size());
+    });
     server_->Get("/api/v1/view/global", [this](const auto&, auto& r) { send(r, engine_.global_view()); });
     server_->Get("/api/v1/view/world", [this](const auto&, auto& r) { send(r, engine_.global_view()); });
     server_->Get("/api/v1/view/all", [this](const auto&, auto& r) { send(r, engine_.global_view()); });

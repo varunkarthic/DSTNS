@@ -1,6 +1,10 @@
 #include "dstns/osm_fetch.hpp"
 
+#include <algorithm>
 #include <array>
+#include <chrono>
+#include <fstream>
+#include <mutex>
 #include <cstdio>
 #include <cstdlib>
 #include <sstream>
@@ -59,7 +63,47 @@ std::string tail_lines(const std::string& text, std::size_t count) {
     return joined;
 }
 
+// The in-flight download, published for observability only. Guarded because the
+// API thread reads it while the engine thread writes it.
+std::mutex g_fetch_mutex;
+MapFetchStatus g_fetch;
+std::chrono::steady_clock::time_point g_started;
+
+// Read the sidecar the Python downloader updates as bytes arrive.
+void read_progress(MapFetchStatus& status) {
+    std::ifstream in(status.file + ".progress");
+    if (!in) return;
+    std::string text((std::istreambuf_iterator<char>(in)), {});
+    const auto number = [&](const char* key) -> std::uintmax_t {
+        const auto at = text.find(key);
+        if (at == std::string::npos) return 0;
+        const auto colon = text.find(':', at);
+        if (colon == std::string::npos) return 0;
+        return std::strtoull(text.c_str() + colon + 1, nullptr, 10);
+    };
+    const auto phase_at = text.find("\"phase\"");
+    if (phase_at != std::string::npos) {
+        const auto open_quote = text.find('"', text.find(':', phase_at));
+        const auto close_quote = text.find('"', open_quote + 1);
+        if (open_quote != std::string::npos && close_quote != std::string::npos)
+            status.phase = text.substr(open_quote + 1, close_quote - open_quote - 1);
+    }
+    status.bytes = number("\"bytes\"");
+    status.total = number("\"total\"");
+}
+
 } // namespace
+
+MapFetchStatus current_map_fetch() {
+    std::lock_guard lock(g_fetch_mutex);
+    auto copy = g_fetch;
+    if (copy.active) {
+        read_progress(copy);
+        copy.elapsed_s = std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - g_started).count();
+    }
+    return copy;
+}
 
 std::filesystem::path find_fetch_script() {
     for (const auto* candidate : {"scripts/fetch_osm.py", "../scripts/fetch_osm.py", "/app/scripts/fetch_osm.py"}) {
@@ -92,6 +136,19 @@ MapTileResult acquire_map_tile(const MapLocation& location, const std::filesyste
                             + location.city + " (" + location.bbox() + ")");
     }
 
+    {
+        std::lock_guard lock(g_fetch_mutex);
+        g_fetch = {true, location.city, location.country, "connect", target.string(), 0, 0, 0};
+        g_started = std::chrono::steady_clock::now();
+    }
+    // Always clear the published status, however this call leaves.
+    struct FetchGuard {
+        ~FetchGuard() {
+            std::lock_guard lock(g_fetch_mutex);
+            g_fetch = {};
+        }
+    } guard;
+
     std::ostringstream command;
     command << shell_quote(python_interpreter()) << ' ' << shell_quote(script.string())
             << " --bbox " << shell_quote(location.bbox())
@@ -117,6 +174,51 @@ MapTileResult acquire_map_tile(const MapLocation& location, const std::filesyste
                             + std::to_string(size) + " bytes); Overpass is likely rate limiting this host");
     }
     return {target, true, size};
+}
+
+CachePolicy parse_cache_policy(const std::string& value) {
+    if (value == "keep") return CachePolicy::Keep;
+    if (value == "clear") return CachePolicy::Clear;
+    if (value == "prune") return CachePolicy::Prune;
+    throw std::invalid_argument("map.cache_policy must be keep, prune or clear");
+}
+
+CacheSweep sweep_map_cache(const std::filesystem::path& directory, CachePolicy policy, std::size_t keep) {
+    CacheSweep result;
+    std::error_code ec;
+    if (policy == CachePolicy::Keep || !std::filesystem::is_directory(directory, ec)) return result;
+    if (policy == CachePolicy::Clear) keep = 0;
+
+    // Newest first, by last write time. Each extract is one .osm.xml plus an
+    // optional sidecar manifest, which follows its extract.
+    struct Entry { std::filesystem::path file; std::filesystem::file_time_type age; std::uintmax_t bytes; };
+    std::vector<Entry> entries;
+    for (const auto& item : std::filesystem::directory_iterator(directory, ec)) {
+        if (ec) break;
+        const auto& path = item.path();
+        if (!item.is_regular_file(ec)) continue;
+        // ".osm.xml" — extension() only yields ".xml", so match the stem too.
+        if (path.extension() != ".xml" || path.stem().extension() != ".osm") continue;
+        entries.push_back({path, std::filesystem::last_write_time(path, ec), std::filesystem::file_size(path, ec)});
+    }
+    std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) { return a.age > b.age; });
+
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (i < keep) { ++result.kept; continue; }
+        const auto manifest = entries[i].file.parent_path()
+            / (entries[i].file.stem().stem().string() + ".osm.manifest.json");
+        std::filesystem::remove(manifest, ec);
+        if (std::filesystem::remove(entries[i].file, ec)) {
+            ++result.removed;
+            result.freed_bytes += entries[i].bytes;
+        }
+    }
+    // Interrupted downloads are never valid; drop them unconditionally.
+    for (const auto& item : std::filesystem::directory_iterator(directory, ec)) {
+        if (ec) break;
+        if (item.path().extension() == ".part") std::filesystem::remove(item.path(), ec);
+    }
+    return result;
 }
 
 } // namespace dstns

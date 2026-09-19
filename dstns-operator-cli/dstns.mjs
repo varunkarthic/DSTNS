@@ -20,7 +20,7 @@ import { needsBuild } from './artifacts.mjs'
 import { randomBytes } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import {
   mkdir,
   readFile,
@@ -48,7 +48,7 @@ const SERVER = path.join(BUILD, 'dstns_server')
 const EXPORT_TOOL = path.join(BUILD, 'dstns_scenario_export')
 const UI_ENGINE = path.join(ROOT, 'ui-engine')
 const UI_DIST = path.join(UI_ENGINE, 'dist')
-const VERSION = '1.1.0'
+const VERSION = '2.0.0'
 
 const ui = cliui()
 
@@ -142,16 +142,44 @@ function getOsInfo() {
   return { name, release, arch, cores, memGb, isCompatible }
 }
 
+const WORDMARK = [
+  '  ██████  ███████ ████████ ███    ██ ███████',
+  '  ██   ██ ██         ██    ████   ██ ██     ',
+  '  ██   ██ ███████    ██    ██ ██  ██ ███████',
+  '  ██   ██      ██    ██    ██  ██ ██      ██',
+  '  ██████  ███████    ██    ██   ████ ███████',
+]
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** Licence notice shown at every start, as AGPL section 5 expects of an
+ *  interactive program. Kept to four lines so it informs without nagging. */
+function licenceNotice() {
+  return [
+    `${ui.colors.dim('Copyright (C) 2026')} ${ui.colors.bold('Varun Karthic')}`,
+    ui.colors.dim('Licence AGPL-3.0-or-later — this is free software, and you are'),
+    ui.colors.dim('welcome to redistribute it under certain conditions; see LICENSE.'),
+    ui.colors.dim('Comes with ABSOLUTELY NO WARRANTY. Map data © OpenStreetMap (ODbL).'),
+  ]
+}
+
 async function runSplashScreen() {
   clearScreen()
 
-  ui.sticker()
-    .add(`${ui.colors.bold(ui.colors.cyan('DSTNS — DETERMINISTIC SIMULATED ENVIRONMENT'))}  ${ui.colors.dim(`v${VERSION}`)}`)
-    .add(`Developed by ${ui.colors.bold(ui.colors.green('Varun Karthic'))} · Lead Architect & Developer`)
-    .add(ui.colors.dim('C++ Simulation Authority · Aggregate Traffic Model · Canvas Observer'))
-    .render()
+  // Wordmark reveals a line at a time: a short, deliberate boot rather than a
+  // wall of text appearing at once.
+  process.stdout.write('\n')
+  for (const line of WORDMARK) {
+    process.stdout.write(`${ui.colors.cyan(line)}\n`)
+    if (process.stdout.isTTY) await sleep(45)
+  }
+  process.stdout.write(
+    `${ui.colors.dim('  Deterministic Spatiotemporal Transport Network Simulator')}  ${ui.colors.bold(ui.colors.cyan(`v${VERSION}`))}\n\n`,
+  )
+  for (const line of licenceNotice()) process.stdout.write(`  ${line}\n`)
+  process.stdout.write('\n')
 
-  process.stdout.write(`\n  ${ui.colors.bold(ui.colors.cyan('SYSTEM BOOTSTRAP & PREREQUISITES VERIFICATION'))}\n`)
+  process.stdout.write(`  ${ui.colors.bold(ui.colors.cyan('SYSTEM BOOTSTRAP & PREREQUISITES VERIFICATION'))}\n`)
   process.stdout.write(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────\n'))
 
   const osInfo = getOsInfo()
@@ -1727,13 +1755,87 @@ async function runConfig(options) {
   return config
 }
 
+const mib = (n) => (n / (1024 * 1024)).toFixed(1)
+
+/**
+ * One rewritten line showing download progress. Overpass sends Content-Length
+ * only sometimes, so the bar is determinate when it can be and sweeps a band
+ * otherwise — inventing a percentage from an unknown total would be a lie.
+ */
+function drawBar(label, done, total, sweep, width = 28) {
+  if (!process.stdout.isTTY) return
+  const known = total > 0 && done <= total
+  let bar
+  let right
+  if (known) {
+    const ratio = done / total
+    const filled = Math.round(ratio * width)
+    bar = ui.colors.cyan('█'.repeat(filled)) + ui.colors.dim('░'.repeat(width - filled))
+    right = `${String(Math.round(ratio * 100)).padStart(3)}%  ${mib(done)}/${mib(total)} MiB`
+  } else {
+    const band = 6
+    const head = sweep % (width + band)
+    bar = Array.from({ length: width }, (_, i) =>
+      i >= head - band && i < head ? ui.colors.cyan('█') : ui.colors.dim('░'),
+    ).join('')
+    right = `${mib(done)} MiB`
+  }
+  process.stdout.write(`\r  ${ui.colors.dim(label.padEnd(24))} ${bar}  ${ui.colors.dim(right)}   `)
+}
+
+/**
+ * Follow a map download while the blocking start request is in flight.
+ * Returns a stop function. Progress is observational: if the endpoint is
+ * unavailable the start still proceeds, just without a bar.
+ */
+function followMapDownload(port) {
+  let stopped = false
+  let drew = false
+  const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+  let tick = 0
+  const poll = async () => {
+    while (!stopped) {
+      try {
+        const res = await apiCall(port, '/api/v1/system/map-status')
+        const status = res.body?.data
+        if (status?.active) {
+          drew = true
+          const where = status.city ? `${status.city}` : 'map'
+          if (status.phase === 'download') {
+            drawBar(`${spinner[tick % spinner.length]} Downloading ${where}`, status.bytes, status.total, tick++)
+          } else {
+            const phase = status.phase === 'parse' ? 'Validating' : 'Contacting Overpass'
+            process.stdout.write(
+              `\r  ${ui.colors.dim(`${spinner[tick++ % spinner.length]} ${phase} ${where}`.padEnd(52))}   `,
+            )
+          }
+        }
+      } catch {
+        // The server is busy compiling; try again shortly.
+      }
+      await sleep(180)
+    }
+    if (drew && process.stdout.isTTY) process.stdout.write('\r' + ' '.repeat(78) + '\r')
+  }
+  void poll()
+  return () => {
+    stopped = true
+  }
+}
+
 async function startRun(port,payload) {
   const onDemand = payload.map.osm_file === 'auto'
   ui.logger.info(
     onDemand ? 'Resolving the seed to a city district' : 'Loading real OpenStreetMap district',
     {suffix: onDemand ? 'downloading from OpenStreetMap if not already cached' : payload.map.osm_file},
   )
-  const result=await apiCall(port,'/api/v1/playback/start','POST',payload)
+  const stopFollowing = onDemand ? followMapDownload(port) : () => {}
+  let result
+  try {
+    result = await apiCall(port,'/api/v1/playback/start','POST',payload)
+  } finally {
+    stopFollowing()
+  }
   if(result.code!==202)throw new Error(result.body?.error?.message || `Startup failed: HTTP ${result.code}`)
   const topology=await apiCall(port,'/api/v1/view/topology')
   const map=topology.body?.data
@@ -1785,6 +1887,8 @@ function parseArgs(argv) {
     else if (arg === '--open' || arg === '-o') options.open = true
     else if (arg === '--no-open') options.open = false
     else if (arg === '--help' || arg === '-h') positional.push('help')
+    else if (arg === '--version' || arg === '-V') positional.push('version')
+    else if (arg === '--license' || arg === '--licence') positional.push('license')
     else if (arg === '--no-splash') options.noSplash = true
     else if (arg.startsWith('--mode=')) options.mode = arg.slice('--mode='.length)
     else if (arg === '--mode' && i + 1 < argv.length) options.mode = argv[++i]
@@ -1902,6 +2006,20 @@ async function main() {
 
   if (command === 'help' || command === '--help' || command === '-h') {
     renderHelp()
+    return 0
+  }
+
+  if (command === 'version') {
+    process.stdout.write(`DSTNS ${VERSION}\n`)
+    for (const line of licenceNotice()) process.stdout.write(`${line}\n`)
+    return 0
+  }
+
+  if (command === 'license') {
+    // Print the licence itself when it ships alongside; otherwise say where it is.
+    const licensePath = path.join(ROOT, 'LICENSE')
+    if (existsSync(licensePath)) process.stdout.write(readFileSync(licensePath, 'utf8'))
+    else process.stdout.write('GNU Affero General Public License v3 or later — https://www.gnu.org/licenses/agpl-3.0.html\n')
     return 0
   }
 

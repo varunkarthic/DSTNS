@@ -2,8 +2,12 @@ import { useRef, useState } from "react";
 import { Tooltip } from "./Tooltip";
 import type { Clock, Lifecycle } from "./types";
 
-/** Rate multipliers the core accepts (tick_rate must be in (0, 100]). */
-const RATES = [0.25, 0.5, 1, 2, 5, 10, 25, 50, 100];
+/**
+ * Rate multipliers offered to the operator. The core accepts up to 50x; past
+ * that the map animates faster than it can be read and the render budget is
+ * spent on motion nobody can follow.
+ */
+const RATES = [0.25, 0.5, 1, 2, 5, 10, 20, 35, 50];
 const STEP_SECONDS = 60;
 
 type Props = {
@@ -201,9 +205,9 @@ export function PlaybackDock({
           </div>
           <div className="ticks">
             <span>1×</span>
-            <span>10×</span>
+            <span>5×</span>
+            <span>20×</span>
             <span>50×</span>
-            <span>100×</span>
           </div>
         </div>
 
