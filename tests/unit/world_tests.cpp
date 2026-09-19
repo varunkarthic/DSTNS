@@ -5,6 +5,7 @@
 // derived from a fresh seed, keep the old world intact when generation fails,
 // and never let the observer choose the scenario configuration.
 #include "dstns/engine.hpp"
+#include "dstns/scenario.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -196,6 +197,44 @@ int main() {
         check(engine.status()["run_id"] != old_run, "the retry installs a new world");
         engine.terminate();
         std::filesystem::remove(pinned);
+    }
+
+    std::cout << "playback rate range\n";
+    {
+        SimulationEngine engine(logger);
+        engine.prepare(seed, fixture());
+        check(engine.set_tick_rate(10)["requested_tick_rate"].get<double>() == 10.0, "10x is an accepted playback rate");
+        check(engine.set_tick_rate(0.25)["requested_tick_rate"].get<double>() == 0.25, "0.25x is an accepted playback rate");
+        check(throws_invalid([&] { (void)engine.set_tick_rate(10.5); }), "rates above 10x are rejected");
+        check(throws_invalid([&] { (void)engine.set_tick_rate(0); }), "a zero rate is rejected");
+        auto config = fixture();
+        config.tick_rate = 10;
+        check(!throws_invalid([&] { (void)ScenarioCompiler{}.compile(seed, config); }), "a scenario may start at 10x");
+        config.tick_rate = 11;
+        check(throws_invalid([&] { (void)ScenarioCompiler{}.compile(seed, config); }), "a scenario above 10x is rejected");
+        engine.terminate();
+    }
+
+    std::cout << "place demand types\n";
+    {
+        SimulationEngine engine(logger);
+        engine.prepare(seed, fixture());
+        const auto topology = engine.topology()["data"];
+        const auto demand = engine.snapshot()["data"]["demand"];
+        std::size_t typed = 0;
+        bool known = true, reported = true;
+        for (const auto& f : topology["features"]) {
+            reported = reported && f.contains("demand_type");
+            if (!f.contains("demand_type") || f["demand_type"].is_null()) continue;
+            ++typed;
+            const auto t = f["demand_type"].get<std::string>();
+            known = known && (t == "school" || t == "office" || t == "mall" || t == "store");
+        }
+        check(reported, "every feature reports demand_type");
+        check(typed > 0, "the fixture has demand-modelled places");
+        check(known, "demand types are school, office, mall or store");
+        check(typed == demand.size(), "exactly the typed places carry a demand entry");
+        engine.terminate();
     }
 
     if (failures) {

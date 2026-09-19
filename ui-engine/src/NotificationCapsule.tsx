@@ -17,15 +17,12 @@ import { formatDuration } from "./timeFormat";
 export function NotificationCapsule({
   items,
   focusedKey,
-  silenced,
   reduceMotion,
   onDismiss,
 }: {
   /** Visible notifications, most relevant first. */
   items: UiNotification[];
   focusedKey: string | null;
-  /** Notifications currently hidden by Do Not Disturb. */
-  silenced: number;
   reduceMotion: boolean;
   onDismiss: (n: UiNotification) => void;
 }) {
@@ -73,17 +70,9 @@ export function NotificationCapsule({
     if (!list.length && open) collapse();
   }, [list.length, open]);
 
-  if (!current) {
-    if (!silenced) return null;
-    return (
-      <div className="capsule-slot" data-tip-avoid>
-        <span className="capsule-silenced" role="status">
-          <Icon name="bellOff" size={14} />
-          {silenced} silenced
-        </span>
-      </div>
-    );
-  }
+  // Nothing to show: the slot keeps its place in the HUD, empty. Silenced
+  // events are reviewed in the Notifications tab, not announced here.
+  if (!current) return <div className="capsule-slot empty" aria-hidden="true" />;
 
   const focused = focusMatches(current.focusKey, focusedKey);
   return (

@@ -655,7 +655,7 @@ nlohmann::json SimulationEngine::backpressure_json() const {
 
 nlohmann::json SimulationEngine::set_tick_rate(double v) {
     std::lock_guard lock(mutex_);
-    if (!std::isfinite(v) || v <= 0 || v > 5) throw std::invalid_argument("tick_rate must be finite and in (0,5]");
+    if (!std::isfinite(v) || v <= 0 || v > kMaxTickRate) throw std::invalid_argument("tick_rate must be finite and in (0,10]");
     if (lifecycle_ == Lifecycle::Running) {
         const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
         step_to(std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(elapsed * (day_s / double(graph_->scenario().config.playback_duration_s)) * tick_rate_)));
@@ -1240,7 +1240,7 @@ nlohmann::json SimulationEngine::topology() const {
         max_lon = std::max(max_lon, n.position.lon);
     }
     auto features=nlohmann::json::array();
-    for(const auto& f:graph_->scenario().features){auto geometry=nlohmann::json::array();for(const auto& p:f.geometry)geometry.push_back(point_json(p));features.push_back({{"id",f.id},{"name",f.name},{"category",f.category},{"polygon",f.polygon},{"position",point_json(f.center)},{"geometry",geometry},{"tags",f.tags},{"anchor_node",f.anchor.value}});}
+    for(const auto& f:graph_->scenario().features){auto geometry=nlohmann::json::array();for(const auto& p:f.geometry)geometry.push_back(point_json(p));features.push_back({{"id",f.id},{"name",f.name},{"category",f.category},{"polygon",f.polygon},{"position",point_json(f.center)},{"geometry",geometry},{"tags",f.tags},{"anchor_node",f.anchor.value},{"demand_type",f.demand_type?nlohmann::json(to_string(*f.demand_type)):nlohmann::json(nullptr)}});}
     return envelope({
         {"features",features},
         {"map_selection_version",graph_->scenario().config.map_selection_version},

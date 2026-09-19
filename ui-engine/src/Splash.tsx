@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react";
-import { Logo } from "./Logo";
+import { LoadingSurface } from "./LoadingSurface";
 
 /**
- * Boot screen.
+ * Start-up screen.
  *
  * The interface starts before the core has a map: a district is often being
- * downloaded from OpenStreetMap, which takes tens of seconds. Rather than an
- * empty page, the splash shows the mark assembling itself and reports what the
- * core is actually doing, so the wait is legible instead of blank.
- *
- * It is a status display, not a loading bar for its own sake - every line it
- * shows comes from a real stage the core reported.
+ * downloaded from OpenStreetMap, which takes tens of seconds. The start-up
+ * screen reports what is actually happening, stage by stage, and dissolves
+ * into the map once the first network has arrived.
  */
+
+/** Stages the interface can observe on the way to a live map, in order. */
+export const BOOT_STEPS = [
+  { id: "connect", label: "Connecting interface" },
+  { id: "map", label: "Loading map data" },
+  { id: "world", label: "Preparing world" },
+  { id: "network", label: "Loading network" },
+] as const;
 
 export interface SplashStage {
   /** Short phrase: what is happening right now. */
@@ -20,73 +25,65 @@ export interface SplashStage {
   detail?: string;
   /** 0..1 when the core knows, undefined when it does not. */
   progress?: number;
+  /** Index into BOOT_STEPS; stages passed quickly (a cached map) count as done. */
+  step: number;
+  /** No run exists yet, so there is nothing to load until one is started. */
+  waiting?: boolean;
 }
 
 export function Splash({
   stage,
   reduceMotion,
+  closing = false,
   onDismiss,
 }: {
   stage: SplashStage;
   reduceMotion: boolean;
+  closing?: boolean;
   onDismiss?: () => void;
 }) {
-  // Only offer a way past the splash once waiting has become notable, so the
-  // option does not flash up during a fast start.
+  // Only offer a way past the start-up screen once waiting has become
+  // notable, so the option does not flash up during a fast start.
   const [stalled, setStalled] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setStalled(true), 12000);
     return () => clearTimeout(timer);
   }, []);
 
-  const known = typeof stage.progress === "number" && Number.isFinite(stage.progress);
-  const percent = known ? Math.round(Math.min(1, Math.max(0, stage.progress!)) * 100) : 0;
-
   return (
-    <div className={`splash${reduceMotion ? " still" : ""}`} role="status" aria-live="polite">
-      <div className="splash-mark">
-        <Logo height={72} animated={!reduceMotion} />
-      </div>
-      <p className="splash-sub">Deterministic Spatiotemporal Transport Network Simulator</p>
-
-      <div className="splash-status">
-        <span className="splash-stage">{stage.label}</span>
-        {stage.detail && <span className="splash-detail">{stage.detail}</span>}
-      </div>
-
-      <div
-        className={`splash-track${known ? "" : " indeterminate"}`}
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={known ? percent : undefined}
-        aria-label={stage.label}
-      >
-        <i style={known ? { width: `${percent}%` } : undefined} />
-      </div>
-
-      {known && <span className="splash-percent mono">{percent}%</span>}
-
-      {stalled && onDismiss && (
-        <button className="btn splash-skip" onClick={onDismiss}>
-          Continue without waiting
-        </button>
-      )}
-
-      <p className="splash-licence">
-        © 2026 Varun Karthic · AGPL-3.0-or-later · Map data © OpenStreetMap
-        contributors (ODbL)
-      </p>
-    </div>
+    <LoadingSurface
+      mode="boot"
+      title={stage.label}
+      status={stage.detail}
+      steps={stage.waiting ? undefined : BOOT_STEPS}
+      stepIndex={stage.step}
+      progress={stage.progress}
+      progressLabel={stage.label}
+      closing={closing}
+      reduceMotion={reduceMotion}
+      titleId="splash-title"
+      actions={
+        stalled && onDismiss && !closing ? (
+          <button type="button" className="btn ghost" onClick={onDismiss}>
+            Continue without waiting
+          </button>
+        ) : undefined
+      }
+      footer={
+        <p className="loading-licence">
+          Deterministic Spatiotemporal Transport Network Simulator · © 2026 Varun Karthic · AGPL-3.0-or-later · Map data © OpenStreetMap contributors (ODbL)
+        </p>
+      }
+    />
   );
 }
 
 /**
- * Translate what the core reports into a stage the splash can show.
+ * Translate what the core reports into a start-up stage.
  *
- * `mapStatus` is the live download report; `lifecycle` and `stage` come from
- * the simulation client. Keeping the mapping here means the splash itself has
- * no opinion about the core's vocabulary.
+ * `mapStatus` is the live download report; `lifecycle` and `clientStage` come
+ * from the simulation client. Keeping the mapping here means the screen itself
+ * has no opinion about the core's vocabulary.
  */
 export function splashStageFor(
   mapStatus: {
@@ -99,6 +96,7 @@ export function splashStageFor(
   lifecycle: string,
   clientStage: string,
   hasTopology: boolean,
+  connected = true,
 ): SplashStage | null {
   if (hasTopology) return null;
 
@@ -108,6 +106,7 @@ export function splashStageFor(
     if (mapStatus.phase === "download") {
       const known = (mapStatus.total ?? 0) > 0;
       return {
+        step: 1,
         label: `Downloading ${city}`,
         detail: known
           ? `${mib(mapStatus.bytes ?? 0)} of ${mib(mapStatus.total!)} MiB from OpenStreetMap`
@@ -115,18 +114,13 @@ export function splashStageFor(
         progress: known ? (mapStatus.bytes ?? 0) / mapStatus.total! : undefined,
       };
     }
-    if (mapStatus.phase === "parse")
-      return { label: `Validating ${city}`, detail: "Checking the downloaded map" };
-    return {
-      label: `Requesting ${city}`,
-      detail: "Waiting for Overpass to build the extract",
-    };
+    if (mapStatus.phase === "parse") return { step: 1, label: `Validating ${city}`, detail: "Checking the downloaded map" };
+    return { step: 1, label: `Requesting ${city}`, detail: "Waiting for OpenStreetMap to prepare the extract" };
   }
 
-  if (lifecycle === "IDLE")
-    return { label: "Awaiting a run", detail: "Start a simulation from the CLI" };
-  if (lifecycle === "PREPARING")
-    return { label: "Compiling the scenario", detail: "Building the road graph and schedules" };
-
-  return { label: clientStage || "Connecting to the simulation" };
+  if (!connected) return { step: 0, label: "Connecting to the simulation", detail: clientStage || undefined };
+  if (lifecycle === "IDLE") return { step: 0, waiting: true, label: "Waiting for a simulation", detail: "Start a run from the DSTNS CLI." };
+  if (lifecycle === "PREPARING") return { step: 2, label: "Preparing world", detail: "Building the road graph, signals and schedules" };
+  if (/network|buildings/i.test(clientStage)) return { step: 3, label: "Loading network", detail: "Receiving roads and places" };
+  return { step: 0, label: "Connecting to the simulation" };
 }

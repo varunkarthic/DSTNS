@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { hasMarker, placeKind } from "./mapModel";
 import type { KeyboardEvent } from "react";
 import { Icon } from "./Icons";
 import type { IconName } from "./Icons";
@@ -42,6 +43,11 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
   }, [onClose]);
 
   const vehicles = snapshot?.edges.reduce((sum, e) => sum + e.vehicle_count, 0) ?? 0;
+  // Places with no DSTNS type, which the map draws as plain dots.
+  const otherPlaces = useMemo(
+    () => topology?.features.filter((f) => hasMarker(f) && placeKind(f).group === "other").length ?? 0,
+    [topology],
+  );
   const noData = !topology;
 
   const groups: { title: string; items: Item[] }[] = [
@@ -57,7 +63,8 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
     {
       title: "Places",
       items: [
-        { key: "buildings", label: "Buildings", icon: "building", count: topology ? topology.features.length.toLocaleString() : undefined },
+        { key: "buildings", label: "Buildings and places", icon: "building", count: topology ? topology.features.length.toLocaleString() : undefined },
+        { key: "other_places", label: "Unclassified places", icon: "pin", count: otherPlaces ? otherPlaces.toLocaleString() : undefined },
         { key: "place_names", label: "Place names", icon: "label" },
         { key: "labels", label: "Street names", icon: "label" },
       ],

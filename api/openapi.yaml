@@ -399,7 +399,7 @@ paths:
                 tick_rate:
                   type: number
                   exclusiveMinimum: 0
-                  maximum: 5
+                  maximum: 10
       responses:
         '200':
           $ref: '#/components/responses/Ok'
@@ -948,7 +948,7 @@ components:
         tick_rate:
           type: number
           exclusiveMinimum: 0
-          maximum: 5
+          maximum: 10
           default: 1
         saved_seed_id:
           type: string

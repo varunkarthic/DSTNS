@@ -164,6 +164,11 @@ def main():
             assert "bounds" in topo["data"] and "min_lat" in topo["data"]["bounds"]
             assertions += 2
 
+            # Place markers carry their canonical demand type (or null).
+            assert all("demand_type" in f for f in topo["data"]["features"])
+            assert {f["demand_type"] for f in topo["data"]["features"]} <= {None, "school", "office", "mall", "store"}
+            assertions += 1
+
             code, net = call(base, "/api/v1/view/network")
             assert code == 200 and net["data"]["graph_hash"] == topo["data"]["graph_hash"]
             assertions += 1
@@ -269,6 +274,17 @@ def main():
             code, err = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 150.0})
             assert code == 400
             assertions += 1
+
+            code, tick = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 10.0})
+            assert code == 200 and tick["requested_tick_rate"] == 10.0, "10x is the highest offered rate"
+            assertions += 1
+
+            code, err = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 10.5})
+            assert code == 400, "rates above 10x are rejected"
+            assertions += 1
+
+            code, tick = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 0.5})
+            assert code == 200
 
             # 13. Day Override (Valid & Invalid)
             code, day = call(base, "/api/v1/control/day", "POST", {"day": 1})

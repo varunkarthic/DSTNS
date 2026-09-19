@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "./Icons";
 import { Logo } from "./Logo";
+import { LoadingSurface } from "./LoadingSurface";
 import { useTimeFormat } from "./preferences";
 import { formatDuration, formatWallDuration } from "./timeFormat";
 import type { Backpressure, WorldStatus } from "./types";
@@ -20,12 +21,14 @@ export function Scrim({
   children,
   closing = false,
   dismissible = true,
+  className = "",
 }: {
   onClose: () => void;
   labelledBy: string;
   children: ReactNode;
   closing?: boolean;
   dismissible?: boolean;
+  className?: string;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const restore = useRef<Element | null>(null);
@@ -77,7 +80,7 @@ export function Scrim({
     >
       <div
         ref={panel}
-        className="dialog glass"
+        className={`dialog glass ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
@@ -103,17 +106,35 @@ export function AboutCard({
   location?: { city: string; country: string } | null;
   seed?: string;
 }) {
+  const [licence, setLicence] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const copySeed = async () => {
+    if (!seed) return;
+    try {
+      await navigator.clipboard.writeText(seed);
+      setCopied(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
   return (
-    <Scrim onClose={onClose} labelledBy="about-title" closing={closing}>
+    <Scrim onClose={onClose} labelledBy="about-title" closing={closing} className="about-dialog">
       <div className="about-head">
-        <div>
-          <h2 id="about-title" className="sr-only">
-            DSTNS
-          </h2>
-          <Logo height={30} />
-          <p>Deterministic Spatiotemporal Transport Network Simulator</p>
-          <span className="chip">v{version}</span>
-        </div>
+        <Logo height={26} />
+        <button type="button" className="icon-btn" aria-label="Close About DSTNS" onClick={onClose}>
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+      <h2 id="about-title" className="about-title">
+        Deterministic Spatiotemporal Transport Network Simulator
+      </h2>
+      <div className="about-badges">
+        <span className="badge">Version {version}</span>
+        <span className="badge">AGPL-3.0-or-later</span>
       </div>
 
       <dl className="about-facts">
@@ -123,44 +144,59 @@ export function AboutCard({
         </div>
         <div>
           <dt>Seed</dt>
-          <dd className="mono">{seed || "None"}</dd>
+          <dd className="about-seed">
+            <span className="mono">{seed || "None"}</span>
+            {seed && (
+              <button type="button" className="icon-btn small" aria-label={copied ? "Seed copied" : "Copy seed"} onClick={() => void copySeed()}>
+                <Icon name={copied ? "check" : "copy"} size={14} />
+              </button>
+            )}
+          </dd>
         </div>
       </dl>
 
-      <div className="about-licence">
-        <p>
-          Copyright © 2026 <strong>Varun Karthic</strong>
-        </p>
-        <p>
-          Released under the <strong>GNU Affero General Public License v3 or
-          later</strong>. This is free software: you are welcome to redistribute
-          it under the terms of that licence, and it comes with{" "}
-          <strong>absolutely no warranty</strong>.
-        </p>
-        <p>
-          Because DSTNS is operated over a network, section 13 applies: you are
-          entitled to the complete corresponding source of the version you are
-          interacting with.
-        </p>
-        <p className="muted">
-          Map data © OpenStreetMap contributors, licensed under the Open
-          Database License (ODbL) 1.0. That licence is separate from, and not
-          superseded by, this program's licence.
-        </p>
+      <div className={`disclosure${licence ? " open" : ""}`}>
+        <button type="button" className="disclosure-head" aria-expanded={licence} aria-controls="about-licence" onClick={() => setLicence((v) => !v)}>
+          <Icon name="info" size={16} />
+          <span>Licence and attribution</span>
+          <Icon name="chevronDown" size={14} className="disclosure-chevron" />
+        </button>
+        <div className="disclosure-body" id="about-licence" inert={!licence || undefined}>
+          <div>
+            <p>
+              Copyright © 2026 <strong>Varun Karthic</strong>. Released under the <strong>GNU Affero General Public License v3 or later</strong>.
+              This is free software: you may redistribute it under the terms of that licence, and it comes with <strong>absolutely no warranty</strong>.
+            </p>
+            <p>
+              Because DSTNS is operated over a network, section 13 applies: you are entitled to the complete corresponding source of the version
+              you are interacting with.
+            </p>
+            <p className="muted">
+              Map data © OpenStreetMap contributors, licensed under the Open Database License (ODbL) 1.0. That licence is separate from, and not
+              superseded by, this program's licence.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="about-links">
+        <a className="link-row" href="/api/v1/system/source">
+          <Icon name="download" size={16} />
+          <span>
+            Source code
+            <small>Complete corresponding source for this version</small>
+          </span>
+        </a>
+        <a className="link-row" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer noopener">
+          <Icon name="external" size={16} />
+          <span>
+            Map attribution
+            <small>OpenStreetMap copyright and licence</small>
+          </span>
+        </a>
       </div>
 
       <div className="dialog-actions">
-        <a className="btn" href="/api/v1/system/source">
-          Source &amp; licence
-        </a>
-        <a
-          className="btn"
-          href="https://www.openstreetmap.org/copyright"
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          Map attribution
-        </a>
         <button className="btn primary" onClick={onClose}>
           Close
         </button>
@@ -439,6 +475,7 @@ export function WorldGenerationOverlay({
   loaded,
   closing,
   error,
+  reduceMotion = false,
   onRetry,
   onCancel,
 }: {
@@ -448,75 +485,47 @@ export function WorldGenerationOverlay({
   loaded: boolean;
   closing?: boolean;
   error: string;
+  reduceMotion?: boolean;
   onRetry: () => void;
   onCancel: () => void;
 }) {
   const step = worldStep(status, loaded);
   const failed = !!error;
-  const seed = status?.seed || requestedSeed;
+  const done = step.index >= WORLD_STEPS.length - 1;
+  const retry = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (failed) retry.current?.focus();
+  }, [failed]);
   return (
-    <div className={`scrim world-scrim${closing ? " closing" : ""}`} role="alertdialog" aria-modal="true" aria-labelledby="world-title" aria-describedby="world-detail">
-      <div className="dialog world-dialog">
-        <div className={`world-ring${failed ? " failed" : ""}${step.index >= 4 ? " done" : ""}`} aria-hidden="true">
-          <svg viewBox="0 0 48 48" width="48" height="48">
-            <circle className="world-ring-track" cx="24" cy="24" r="20" />
-            <circle
-              className="world-ring-arc"
-              cx="24"
-              cy="24"
-              r="20"
-              pathLength={100}
-              style={{ strokeDasharray: `${failed ? 100 : Math.max(8, (step.index / 4) * 100)} 100` }}
-            />
-          </svg>
-          <Icon name={failed ? "incident" : step.index >= 4 ? "check" : "reroll"} size={18} />
-        </div>
-        <h2 id="world-title">{failed ? "World generation failed" : step.index >= 4 ? "New world ready" : "Generating new world"}</h2>
-        {seed && (
-          <p className="world-seed">
-            <span>Seed</span> <span className="mono">{seed}</span>
-          </p>
-        )}
-        {failed ? (
+    <LoadingSurface
+      mode="overlay"
+      role="alertdialog"
+      titleId="world-title"
+      title={failed ? "World generation failed" : done ? "New world ready" : "Generating new world"}
+      seed={status?.seed || requestedSeed || undefined}
+      steps={WORLD_STEPS}
+      stepIndex={step.index}
+      status={step.detail}
+      progress={step.progress}
+      progressLabel="Download progress"
+      failed={failed}
+      error={error}
+      note={failed ? "The previous world is still running and has not been changed." : done ? undefined : "The current world keeps running until the new one is ready."}
+      closing={closing}
+      reduceMotion={reduceMotion}
+      actions={
+        failed ? (
           <>
-            <p className="dialog-body" id="world-detail">
-              {error}
-            </p>
-            <p className="dialog-body muted">The previous world is still running and has not been changed.</p>
-          </>
-        ) : (
-          <>
-            <ol className="world-steps" aria-label="Progress">
-              {WORLD_STEPS.map((s, i) => (
-                <li key={s.id} className={i < step.index ? "done" : i === step.index ? "active" : ""} aria-current={i === step.index ? "step" : undefined}>
-                  <span className="world-step-dot" aria-hidden="true">
-                    {i < step.index ? <Icon name="check" size={14} strokeWidth={2.4} /> : null}
-                  </span>
-                  {s.label}
-                </li>
-              ))}
-            </ol>
-            <p className="world-detail" id="world-detail" aria-live="polite">
-              {step.detail}
-            </p>
-            {step.progress !== undefined && (
-              <div className="world-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(step.progress * 100)} aria-label="Download progress">
-                <i style={{ width: `${step.progress * 100}%` }} />
-              </div>
-            )}
-          </>
-        )}
-        {failed && (
-          <div className="dialog-actions">
-            <button className="btn" onClick={onCancel}>
+            <button type="button" className="btn" onClick={onCancel}>
               Return to current world
             </button>
-            <button className="btn primary" onClick={onRetry}>
+            <button type="button" ref={retry} className="btn primary" onClick={onRetry}>
+              <Icon name="reroll" size={16} />
               Retry
             </button>
-          </div>
-        )}
-      </div>
-    </div>
+          </>
+        ) : undefined
+      }
+    />
   );
 }

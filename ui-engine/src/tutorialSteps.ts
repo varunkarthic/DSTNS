@@ -59,7 +59,7 @@ export const tutorialSteps: readonly TutorialStep[] = [
   {
     target: "rate",
     title: "Speed",
-    body: "Choose 0.25× to 5× the configured pace. The applied speed can be held lower while the interface catches up; your choice is restored automatically.",
+    body: "Choose 0.25× to 10× the configured pace. The applied speed can be held lower while the interface catches up; your choice is restored automatically.",
   },
   {
     target: "seed",

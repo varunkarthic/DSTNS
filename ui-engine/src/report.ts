@@ -1,6 +1,6 @@
 import { LOGO, logoPng } from "./logoAsset";
 import reportFontUrl from "./assets/report-inter.ttf?url";
-import { placeKind, roadState, roadTitle } from "./mapModel";
+import { DEMAND_TYPE_LABEL, placeKind, roadState, roadTitle } from "./mapModel";
 import { DAY_TICKS, PRINT, ReportDocument, lineHeight, wallTicks } from "./pdfLayout";
 import type { Column, Series } from "./pdfLayout";
 import {
@@ -63,6 +63,7 @@ const LAYER_NAMES: Record<keyof Layers, string> = {
   signals: "Signals",
   buildings: "Buildings",
   place_names: "Place names",
+  other_places: "Unclassified places",
   labels: "Street names",
   weather: "Weather",
   flooding: "Flooding",
@@ -332,7 +333,20 @@ export async function buildReport(input: ReportInput, resources: ReportResources
       "Places by kind",
       [...byPlace.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([label, value]) => ({ label, value })),
       "",
-      "Which kinds of places generate demand in this district?",
+      "What kinds of places make up this district?",
+    );
+  const byDemand = new Map<string, number>();
+  for (const f of topology.features)
+    if (f.demand_type) {
+      const label = DEMAND_TYPE_LABEL[f.demand_type] ?? f.demand_type;
+      byDemand.set(label, (byDemand.get(label) ?? 0) + 1);
+    }
+  if (byDemand.size)
+    doc.barChart(
+      "Demand-modelled places by demand type",
+      [...byDemand.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value })),
+      "",
+      "Which places does the core schedule demand for?",
     );
 
   // =========================================================================
