@@ -10,18 +10,20 @@ Related references: [configuration](ui-configuration.md), [API](api.md),
 
 ## Contents
 
-1. [Layout](#layout)
-2. [Command rail](#command-rail)
-3. [Time and progress](#time-and-progress)
-4. [Speed](#speed)
-5. [Seed and new worlds](#seed-and-new-worlds)
-6. [Runtime status](#runtime-status)
-7. [Notifications](#notifications)
-8. [Do Not Disturb](#do-not-disturb)
-9. [Auto Focus](#auto-focus)
-10. [Sidebar and settings](#sidebar-and-settings)
-11. [Layers and legend](#layers-and-legend)
-12. [Telemetry deck](#telemetry-deck)
+1. [Start-up](#start-up)
+2. [Layout](#layout)
+3. [Command rail](#command-rail)
+4. [Time and progress](#time-and-progress)
+5. [Speed](#speed)
+6. [Seed and new worlds](#seed-and-new-worlds)
+7. [Runtime status](#runtime-status)
+8. [Notifications](#notifications)
+9. [Do Not Disturb](#do-not-disturb)
+10. [Auto Focus](#auto-focus)
+11. [Sidebar and settings](#sidebar-and-settings)
+12. [Layers and legends](#layers-and-legends)
+13. [Telemetry](#telemetry)
+14. [Minimum screen size](#minimum-screen-size)
 13. [Tooltips](#tooltips)
 14. [Tutorial](#tutorial)
 15. [Simulation complete](#simulation-complete)
@@ -32,6 +34,34 @@ Related references: [configuration](ui-configuration.md), [API](api.md),
 20. [Architecture](#architecture)
 21. [Performance](#performance)
 22. [Verification](#verification)
+
+## Start-up
+
+The interface opens first and the world is prepared behind it. The CLI starts
+the core, opens the browser, and only then requests the run, so the wait is
+spent watching the interface report what is happening rather than a blank tab.
+
+The start-up screen shows the stages the core actually reports, in order:
+
+| Stage | Entered when |
+|---|---|
+| Starting interface | before the first status arrives |
+| Selecting world | the compile is resolving the seed to a place |
+| Downloading map | a map is being requested, downloaded or validated |
+| Generating world | the graph, signals and schedules are being built |
+| Initializing simulation | the run exists and the first network is arriving |
+
+`GET /system/map-status` carries both the live download figures and, in
+`preparation`, what the compile is doing; it stays readable while a compile
+holds the engine lock, which is what lets the interface follow a blocking
+preparation. A percentage is shown only for a download whose total size the
+core knows. Nothing is invented: when no run has been started the screen says
+so and shows no progress at all.
+
+The mark draws itself, the stages settle in beneath it, and once the first
+network arrives the screen dissolves while the map renders behind it, with the
+instrumentation fading up in place. The same surface, in an overlay form, is
+used for world generation and for failures.
 
 ## Layout
 
@@ -48,19 +78,22 @@ The map fills the window. Floating instrumentation sits over it:
 | AF |                                                   |                 |
 | DND|                                                   |                 |
 | RM |                                                   |                 |
-| ⚙  | [Notification +2] [Layers] [Legend]   [coords] [scale]              |
-+----+ ( ⟲ | « ▸| ▶ » ) ( 08:42:17 ) ( 0.25 0.5 1 2 3 5 ) SEED … ↻ ● Online  Terminate |
+| ⚙  | [Notification +2]  [Layers] [Roads] [Places]      [coords] [scale] |
++----+ ( ⟲ | « ▸| ▶ » ) ( 08:42:17 ) (0.25 … 10×) SEED 17310766… ↻ ● Online  Terminate |
 +--------------------------------------------------------------------------+
 ```
 
 - **Sidebar** (left): zoom, fit, place search, Auto Focus, Do Not Disturb,
   reduced motion, and Settings.
-- **Telemetry deck** (right): live measures and the Stack, News, Queue and
-  Incidents lists. It stops above the command rail. Below 1024 px it is hidden
-  and opened with the Telemetry button in the header.
-- **Lower cluster**: the notification capsule, the Layers button and the
-  road-state legend on the left; coordinates and the scale bar on the right. It
-  stays inside the map area and wraps on narrow windows.
+- **Telemetry** (right): live measures and the Stack, News, Queue, Incidents
+  and Notifications lists. It stops above the command rail and collapses to a
+  narrow strip. Below 1024 px only the strip is docked.
+- **Lower HUD**: three zones above the rail. Notifications on the left, the
+  Layers button and the road and place legends in the centre, coordinates and
+  the scale bar on the right. The zones never overlap each other, the rail, the
+  map tools or telemetry; which elements become compact is decided by the
+  width of the HUD itself, not the window, so collapsing telemetry gives the
+  legends their full form back.
 - **Command rail** (bottom): the simulation controls, centred across the full
   width.
 
@@ -136,22 +169,31 @@ such text, so they follow the preference too. Midnight at the end of the day is
 ## Speed
 
 A segmented control with a sliding highlight, offering exactly 0.25×, 0.5×,
-1×, 2×, 3× and 5×. It is a `radiogroup`: arrow keys, Home and End move the
-selection and send the new rate.
+1×, 2×, 3×, 5× and 10×. It is a `radiogroup`: arrow keys, Home and End move the
+selection and send the new rate. The core accepts any rate in (0, 10].
 
-The highlight is positioned from the applied rate with `ratePosition()`, which
-places an offered rate exactly on its step and any other rate proportionally
-between two steps. When backpressure lowers the applied rate the highlight
-glides to it over 520 ms rather than jumping, and turns amber; the requested
-rate is marked with a dotted amber underline. When backpressure locks the rate
-at 1× the control is disabled and shows a lock badge.
+Every label sits on one baseline in a segment of the same width, and the weight
+does not change with selection, so nothing shifts when the choice moves. The
+highlight is placed over the *measured* segment of the nearest offered rate
+(`pillGeometry()`), not from an assumed segment width, so it stays aligned at
+every window size; it moves in 170 ms. When backpressure lowers the applied
+rate the highlight follows it and turns amber, and the requested rate keeps a
+dotted amber underline. When backpressure locks the rate at 1× the control is
+disabled and shows a lock badge.
 
 ## Seed and new worlds
 
-The seed is always visible, shortened in the middle for long 128-bit seeds
-(`50890501…2a4f`). Clicking copies the full seed to the clipboard and shows
-"Copied" in place for 1.6 s ("Copy failed" if the browser refuses). Copying is
-local and sends nothing to the core.
+The seed is a number, and it is the same number end to end: what the operator
+types on the command line, what names the run, what the interface shows, and
+what reproduces the world. A generated seed is 64 bits, so it is short enough
+to read off the screen and retype; a typed seed may be up to 128 bits and is
+then shortened in the middle for display. The core's hexadecimal form is an
+internal detail, reported as `global_seed` for provenance and never presented
+as the seed's name.
+
+The seed is always visible. Clicking copies the whole number to the clipboard
+and shows "Copied" in place for 1.6 s ("Copy failed" if the browser refuses).
+Copying is local and sends nothing to the core.
 
 The arrows beside the seed generate a new world.
 
@@ -248,7 +290,7 @@ grouped.
 ### Capsule
 
 `src/NotificationCapsule.tsx`. One fixed-height (48 px) capsule in the lower
-cluster shows the most relevant notification: the Auto Focus event first, then
+HUD shows the most relevant notification: the Auto Focus event first, then
 the most severe, then the newest. The others are counted in a `+N` badge that
 updates live.
 
@@ -280,8 +322,25 @@ else hide if its category or its severity is muted
   moves to an event that has no current notification (because it expired or
   was never raised), `focusNotification()` builds one from live state, so the
   operator always sees why the camera moved. It is marked **Following**.
-- When everything is muted the capsule is replaced by a small "N silenced"
-  count.
+- Nothing announces what was silenced on the map. The count sits on the
+  **Notifications** tab, and the events themselves are there to read.
+
+### History
+
+`src/notificationHistory.ts`. Every notification-worthy event is recorded once,
+whether or not its toast was ever shown, with how it was delivered: **Shown**,
+**Silenced** (held back by DND), **Notifications off**, or **Before this
+session** for events already in the feed when the interface connected. An
+event followed by Auto Focus is marked, as is one shown only because of the
+Auto Focus override.
+
+The store is keyed by event, so re-rendering, regrouping or replaying after a
+seek can never create a second record, and it is bounded at 1,000 entries,
+dropping the oldest. Each row carries the title, the time in the global format,
+a summary, its flags, and expands to the measured details and the raw technical
+fields. The list renders 60 rows at a time behind a **Show earlier** control,
+so a long day cannot grow an unbounded DOM. Filters: All, Shown, Silenced and
+Auto Focus, each with its count.
 
 ## Auto Focus
 
@@ -338,7 +397,7 @@ Sections:
 Each section is a self-contained block in `src/SettingsDrawer.tsx`, so new
 settings are added without reorganising the drawer.
 
-## Layers and legend
+## Layers and legends
 
 **Layers** opens a panel above its button. Each row has an icon, a name, a live
 count where one exists, and a switch. Arrow keys move between switches;
@@ -349,10 +408,54 @@ Street names and place names are off by default. Hiding street names removes
 them where the map draws them rather than covering them, and roads stay drawn.
 Layers change the picture only; nothing is sent to the core.
 
-The legend beside it shows the road-state colours: Clear, Moderate, Severe,
-Flooded.
+**Road legend**: the road-state colours, Clear, Moderate, Severe and Flooded,
+inline where the HUD has room and a button with the same swatches where it does
+not.
 
-## Telemetry deck
+**Place legend**: every marker glyph the map draws, what it stands for, how
+many there are, and the demand the core models for it. The taxonomy is
+presentation only and lives in `src/mapModel.ts`; whether a place has demand is
+never inferred from it. The core reports each feature's `demand_type` (school,
+office, mall or store) and the snapshot carries its current multiplier, so the
+legend shows "Peak 1.62×", "At rest", or "Not modelled" for kinds the
+simulation does not model. Hover cards on the map are built from the same
+function, so the two can never disagree.
+
+Places with no DSTNS type, drawn as plain dots, are the bulk of an
+OpenStreetMap extract: benches, bicycle parking, stop positions and rail lines,
+around 1,300 of 3,500 features in the bundled fixture. They are hidden by
+default and enabled either from the legend's footer or from Layers, under
+**Unclassified places**. They are hidden from the picture only; the simulation
+is unaffected.
+
+## Telemetry
+
+Live Telemetry has two forms of the same data.
+
+**Full panel.** Network measures and the detail tabs below them.
+
+**Collapsed strip.** The panel morphs into a narrow strip on the right edge
+that keeps the runtime dot, road edges, vehicles, congestion and weather as
+icons with abbreviated figures (`6.2K`, `1.2K`, `37%`), and one button per
+list with its count. The glass surface and the contents cross-fade over 280 ms
+rather than one disappearing and another appearing, and the map keeps its
+position; only the space it may use grows, which Auto Focus picks up on its
+next framing.
+
+Clicking a figure or a list opens a **temporary side panel** beside the strip.
+Choosing another list changes the panel's contents in place rather than closing
+and reopening it, and the full panel stays collapsed. Escape or an outside
+click closes it and returns focus to the button that opened it. The collapsed
+choice and the open tab are remembered for the next visit.
+
+Compact figures use one formatter (`formatCompact`): exact below a thousand,
+then `1.2K`, `12.9K`, `105K`, `1.25M`, never wider than six characters.
+
+Weather is shown as a coloured glyph with one to three filled bars, so
+severity is never carried by colour alone, and its accessible name reads
+"Weather: Heavy rain, 2 active cells, 6.4 mm/h". The severity is the strongest
+active cell, which is the rule the panel has always applied; the core does not
+sum overlapping cells.
 
 - Tiles: road edges and those carrying flow, vehicles and halting, incidents
   and closures, weather, and the congestion index.
@@ -363,6 +466,7 @@ Flooded.
 - **Queue**: upcoming or executed scheduled events, filterable by category.
 - **Incidents**: incident and flooding messages in operator language with
   severity tags.
+- **Notifications**: the history, below.
 
 Lists fade out at the bottom while more content lies below; the fade is removed
 when the real end is reached, so it never implies hidden content. Every list
@@ -513,6 +617,20 @@ build real PDFs and assert that no two text boxes overlap, that all text stays
 inside the margins, that headers repeat, and that no em dashes or development
 language appear.
 
+## Minimum screen size
+
+DSTNS is an operator interface for laptop and desktop displays. Below
+**1024 x 640** the interface is not squeezed: it is replaced by a notice in the
+same design, saying so, reporting the current and required sizes, and leaving
+on its own as soon as the window is large enough. The simulation is unaffected.
+
+Those figures come from the laid-out interface rather than a round number. At
+1024 px the command rail still carries transport, the clock, all seven speeds,
+the seed, the re-roll, runtime status and Terminate on one row (it drops the
+seed's label and the word Terminate below 1180 px); at 640 px the map keeps
+about 400 px between the header and the rail. The browser suite asserts both,
+along with the absence of any overlap at that size.
+
 ## Dialogs, errors and empty states
 
 Dialogs share one shell (`Scrim` in `src/Dialogs.tsx`): the map stays visible
@@ -532,6 +650,7 @@ confirmations (Terminate) use red; others use cyan.
 | No incidents, news or queue items | Empty-state rows |
 | No layer data yet | "Layers apply once a map is loaded." |
 | Interface suspended by backpressure | Suspension dialog with Play/Pause, Reset and Terminate |
+| Window below the supported size | Full-screen notice with the current and required sizes |
 
 ## Motion
 
@@ -578,7 +697,7 @@ statically.
 | Session telemetry | `telemetryRecorder.ts` |
 | Report | `report.ts`, `reportModel.ts`, `pdfLayout.ts` |
 | Icons | `Icons.tsx` (one 24-unit box, explicit pixel sizes) |
-| Styles | `hud.css` (instrumentation) over `theme.css` and `style.css` |
+| Styles | `system.css` (tokens and redesigned surfaces) over `hud.css`, `theme.css` and `style.css` |
 
 Shared presentation state (`timeFormat`, Auto Focus, DND and its lists, layers,
 playback intervals) lives in the configuration object held by `App` and is
@@ -588,9 +707,33 @@ props. World generation state (`requestedSeed`, `status`, `error`) is local to
 `App` and driven by the core's job status.
 
 Core additions for this interface: `SimulationEngine::step()`,
-`regenerate_world()` and `world_status()` in `src/engine.cpp`, with routes in
-`src/api.cpp`. Starting a world is shared between the CLI start path and
-regeneration through `install_scenario()`.
+`regenerate_world()`, `world_status()` and `preparation_stage()` in
+`src/engine.cpp`, with routes in `src/api.cpp`. Starting a world is shared
+between the CLI start path and regeneration through `install_scenario()`.
+
+### Design system
+
+`system.css` holds the tokens every surface takes its material from: the glass
+background, border, blur and shadow; a radius scale (6 chips, 10 controls,
+14 cards, 18 popovers, 24 panels, pill for free-floating controls); control
+heights (26, 32, 36); icon sizes (14 inline, 16 utility, 18 primary); and
+motion (120 ms hover, 170 ms selection, 220 ms popovers, 280 ms panel morph).
+The command rail is the reference: every panel, menu, legend, dialog and
+loading surface inherits from it rather than carrying its own values.
+
+Menus and popovers share one placement routine with tooltips
+(`computePlacement`), so a menu near the bottom rail opens upward and one near
+an edge slides inward instead of being clipped. The queue's category filter is
+a custom listbox, not a native `<select>`: no default browser control remains
+in the interface.
+
+### Brand mark
+
+The wordmark in `src/assets/logo.svg` is the only source. `logoAsset.ts` crops
+it to the artwork and drops its backdrop; `scripts/make-favicon.mjs` groups the
+wordmark's sub-paths into glyphs and cuts the first one, the D, into
+`public/favicon.svg`. Replacing the logo and re-running the script re-cuts the
+icon, with no geometry duplicated anywhere.
 
 ## Performance
 
@@ -609,7 +752,7 @@ regeneration through `install_scenario()`.
 | Suite | Command | Covers |
 |---|---|---|
 | UI unit and integration | `npm test --prefix ui-engine` | Formatting, notification model and DND, Auto Focus geometry, tooltip placement, telemetry, configuration, report model and PDF layout, the full shell with mocked core |
-| HUD in a real browser | `node ui-engine/tests/browser-hud.mjs` | Live core: layout at 1440, 1100 and 760 px, tooltip collisions, speed and step reaching the engine, paused state, seed copy, settings and layers, notification capsule, tutorial start to finish, world regeneration, PDF download |
+| HUD in a real browser | `node ui-engine/tests/browser-hud.mjs` | Live core: layout at 2560, 1920, 1440, 1280 and 1024x640 with no overlaps, the notice below the minimum, tooltip collisions, speed and step reaching the engine, paused state, the numeric seed copied, settings and layers, notification capsule, telemetry collapse and side panel, place legend, tutorial start to finish, world regeneration, PDF download |
 | End to end | `node ui-engine/tests/browser.mjs` | CLI-only start, pause and resume, speed, persisted motion, queue, real signal and place inspection, demand notification, responsive layouts, report, malformed data, completion, termination |
 | Core | `ctest --test-dir build` | Includes `dstns_world_and_stepping` for step and regeneration, including failure preserving the previous world |
 | HTTP | `python3 tests/api/api_smoke.py` | Step and world endpoints among the full API |

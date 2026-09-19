@@ -520,7 +520,7 @@ body:has(.reduce-motion) .floating {
   min-width: 180px;
 }
 .legend-popover.places {
-  width: min(344px, calc(100vw - 24px));
+  width: min(360px, calc(100vw - 24px));
 }
 .glyph-preview {
   display: inline-flex;
@@ -550,7 +550,7 @@ body:has(.reduce-motion) .floating {
 }
 .place-rows li {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 40px 104px;
+  grid-template-columns: 18px minmax(0, 1fr) 44px 118px;
   align-items: center;
   gap: 10px;
   min-height: 30px;
@@ -580,6 +580,7 @@ body:has(.reduce-motion) .floating {
   align-items: center;
   gap: 8px;
   font-size: 10.5px;
+  white-space: nowrap;
   color: var(--text-dim);
 }
 .demand-bar {
@@ -706,7 +707,8 @@ body:has(.reduce-motion) .floating {
 }
 .telemetry-deck.compact .deck-surface {
   left: calc(100% - var(--strip-w));
-  bottom: calc(100% - var(--strip-h, 480px));
+  /* Never taller than the space between the header and the rail. */
+  bottom: max(0px, calc(100% - var(--strip-h, 480px)));
   border-radius: calc(var(--strip-w) / 2);
 }
 .deck-full {
@@ -735,6 +737,9 @@ body:has(.reduce-motion) .floating {
   top: 0;
   right: 0;
   width: var(--strip-w);
+  max-height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1290,6 +1295,21 @@ body:has(.reduce-motion) .floating {
 .strip-badge.muted {
   color: var(--text);
   background: #3a4a57;
+}
+
+/* A short window: the strip tightens so it still fits between the header and
+ * the rail, rather than growing past them. */
+@media (max-height: 760px) {
+  .strip-metric {
+    height: 40px;
+  }
+  .strip-expand,
+  .strip-view {
+    height: 36px;
+  }
+  .strip-rule {
+    margin: 3px 0;
+  }
 }
 
 /* Temporary side panel beside the strip. */
@@ -1872,7 +1892,7 @@ body:has(.reduce-motion) .floating {
   animation: fade-in 220ms var(--ease);
 }
 .viewport-card {
-  width: min(400px, 100%);
+  width: min(440px, 100%);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1912,6 +1932,7 @@ body:has(.reduce-motion) .floating {
   border: 1px solid var(--well-line);
 }
 .viewport-facts dt {
+  white-space: nowrap;
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -1920,6 +1941,7 @@ body:has(.reduce-motion) .floating {
 }
 .viewport-facts dd {
   margin: 4px 0 0;
+  white-space: nowrap;
   font-size: 15px;
   color: var(--text);
 }

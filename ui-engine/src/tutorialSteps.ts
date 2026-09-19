@@ -7,7 +7,7 @@
  * tutorial targets, because they may not exist while the tour is running.
  * The last step is the playback group, and its action starts the simulation.
  */
-export const TUTORIAL_VERSION = "2";
+export const TUTORIAL_VERSION = "3";
 
 export interface TutorialStep {
   target: string;
@@ -34,7 +34,7 @@ export const tutorialSteps: readonly TutorialStep[] = [
   {
     target: "dnd",
     title: "Do Not Disturb",
-    body: "Silences the notification categories you choose in Settings. Events are still recorded, listed in telemetry and included in the report.",
+    body: "Silences the notification categories you choose in Settings. Every event is still recorded and can be reviewed, silenced or not, in the Notifications tab.",
   },
   {
     target: "settings",
@@ -44,12 +44,17 @@ export const tutorialSteps: readonly TutorialStep[] = [
   {
     target: "telemetry",
     title: "Live telemetry",
-    body: "Network measures at the current instant, with Stack, News, Queue and Incidents below. Stack shows each subsystem; Queue lists scheduled and executed events.",
+    body: "Network measures at the current instant, with Stack, News, Queue, Incidents and Notifications below. It collapses to a strip of compact figures, and each list then opens beside it without reopening the panel.",
   },
   {
     target: "layers",
     title: "Layers",
     body: "Choose what the map draws: traffic, signals, buildings, weather, flooding and more. Layers change the picture only, never the simulation.",
+  },
+  {
+    target: "places",
+    title: "Place legend",
+    body: "Every marker the map draws, what it stands for, how many there are, and the demand the simulation models for it. Unclassified points are hidden until you ask for them.",
   },
   {
     target: "clock",

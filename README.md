@@ -9,7 +9,7 @@ Deterministic Spatiotemporal Transport Network Simulator: a C++20 simulation cor
 ## Key Highlights
 
 - **128-Bit Determinism & Cryptographic Sub-Seeds**: A master 128-bit seed cryptographically derives independent sub-seeds (`map`, `dws`, `traffic`, `incidents`, `events`, `scenario`) via SHA-256 (`Seed128::derive`), ensuring complete subsystem isolation and $\ge 40$ bit avalanche diffusion on single-bit seed perturbations.
-- **Seed-Selected Cities, Downloaded On Demand**: The 128-bit seed derives both a metropolis from a 16-city catalog (Tokyo, London, New York, Paris, Berlin, Singapore, Sydney, Toronto, Mumbai, Seoul, São Paulo, Cairo, San Francisco, Amsterdam, Stockholm, Dubai) and coordinates within its urban core. The district is fetched from OpenStreetMap on demand and cached by seed-derived name, then processed through Connected Radial Frontier Growth (CRFG) and canonical 0-indexed entity sorting (DRNCP).
+- **Seed-Selected Cities, Downloaded On Demand**: The 128-bit seed derives both a metropolis from a catalog of 181 urban centres across every inhabited continent and coordinates within its urban core. The district is fetched from OpenStreetMap on demand and cached by seed-derived name, then processed through Connected Radial Frontier Growth (CRFG) and canonical 0-indexed entity sorting (DRNCP).
 - **True Metric Scale**: Node positions and edge lengths are real metres from the projection origin, verified against haversine ground truth to within 0.13%. Display scaling is a client concern and never feeds back into the model.
 - **Deterministic Weather Simulation (DWS)**: Continuous compact-support Wendland $C^2$ radial kernels modeling storm cell kinematics, precipitation rates, surface runoff, road friction loss, and dynamic flash flooding.
 - **First-Class Incident Management**: Guaranteed $\ge 4$ incidents per day distributed across early, midday, and late time slots, inducing real physical road closures and speed/capacity attenuations with clean overlapping resolution.
@@ -23,7 +23,7 @@ Deterministic Spatiotemporal Transport Network Simulator: a C++20 simulation cor
 
 ## Quick Start Guide
 
-The seed chooses where the simulation happens. It resolves to one of sixteen cities and to coordinates inside that city, and the road network for a 4 km-wide district around that point is downloaded from OpenStreetMap the first time it is needed, then cached at `data/maps/<city>_<lat>_<lon>_r<radius>.osm.xml`.
+The seed is a plain number: what you type on the command line is what names the run, what the interface shows, and what reproduces the world. It chooses where the simulation happens, resolving to one of 181 cities and to coordinates inside that city, and the road network for a 4 km-wide district around that point is downloaded from OpenStreetMap the first time it is needed, then cached at `data/maps/<city>_<lat>_<lon>_r<radius>.osm.xml`.
 
 Re-running a seed reuses its cached tile and needs no network. Re-rolling the seed lands somewhere else and downloads that district — a first download takes roughly 20–50 seconds. If it cannot be downloaded, startup fails with `MAP_FETCH_FAILED` naming the city, the coordinates and the cause; no substitute map is used, because that would break the correspondence between a seed and the place it denotes. Synthetic grids remain reserved for explicit test fixtures, and `--osm-file PATH` still pins a specific map.
 
@@ -58,7 +58,7 @@ node dstns-operator-cli/dstns.mjs
 ./launcher seeds list
 ```
 
-Open the URL printed by the CLI (normally `http://127.0.0.1:8090`). The browser observes the active run and offers playback (back, step, play and pause, forward, reset), speed, and generating a new world from a fresh seed. Startup and weekday/weekend configuration belong to the CLI; weekday is the default. The UI no longer injects incidents, closes roads or dispatches Transit routes.
+Open the URL printed by the CLI (normally `http://127.0.0.1:8090`). The interface opens first and reports each stage of world selection, download, generation and initialization as the core reaches it. It then observes the active run and offers playback (back, step, play and pause, forward, reset), speed from 0.25× to 10×, and generating a new world from a fresh seed. It is built for laptop and desktop displays: below 1024x640 it says so instead of squeezing. Startup and weekday/weekend configuration belong to the CLI; weekday is the default. The UI no longer injects incidents, closes roads or dispatches Transit routes.
 
 For a larger pinned OSM source, run `python3 scripts/fetch_osm.py`, then `./launcher start`. The importer keeps a checksum manifest and refuses to overwrite existing data. Use `--osm-file PATH` to select an existing source. Saved seeds retain source bytes and deterministic configuration in a SQLite registry.
 

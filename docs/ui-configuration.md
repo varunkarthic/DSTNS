@@ -31,7 +31,7 @@ defaults.
 ### `layers`
 
 Which layers the map draws. All boolean. Every layer defaults to `true` except
-`labels` and `place_names`, which default to `false`.
+`labels`, `place_names` and `other_places`, which default to `false`.
 
 | Key | Draws |
 | --- | --- |
@@ -41,6 +41,7 @@ Which layers the map draws. All boolean. Every layer defaults to `true` except
 | `signals` | Traffic-signal phase indicators |
 | `buildings` | Place markers and footprints |
 | `place_names` | Names of places. Independent of `buildings`: off keeps every building drawn and withholds only its name |
+| `other_places` | OpenStreetMap points with no DSTNS place type: benches, bicycle parking, stop positions, rail lines. Off by default, because a district holds thousands of them and they bury the places that matter. They are still simulated, and the place legend can turn them back on |
 | `labels` | Street names. Off by default. Hiding them removes the text only; roads stay drawn |
 | `weather` | Rain cells |
 | `flooding` | Flood colouring |

@@ -41,5 +41,6 @@ class Seeds(unittest.TestCase):
  def test_cli_save_weekend(self):
   args=['node',str(ROOT/'dstns-operator-cli/dstns.mjs'),'seeds','save','weekend-test','--seed','382923','--day-type','weekend','--osm-file','tests/fixtures/roads.osm.xml']
   r=subprocess.run(args,capture_output=True,text=True,cwd=ROOT);self.assertEqual(r.returncode,0,r.stdout+r.stderr)
-  cfg=seeds.operate('use',{'id':'weekend-test'})['config'];self.assertEqual(cfg['day'],1);self.assertEqual(int(cfg['seed'],16),382923)
+  cfg=seeds.operate('use',{'id':'weekend-test'})['config'];self.assertEqual(cfg['day'],1);# The stored seed is the number the operator typed, not a hash of it.
+  self.assertEqual(cfg['seed'],'382923')
 if __name__=='__main__':unittest.main()

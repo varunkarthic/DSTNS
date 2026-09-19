@@ -889,6 +889,7 @@ components:
       required:
       - api_version
       - run_id
+      - seed
       - global_seed
       - state_revision
       - config_revision
@@ -899,8 +900,19 @@ components:
           const: '1.0'
         run_id:
           type: string
+        seed:
+          type: string
+          description: >-
+            The run's seed as a decimal integer: the number that started it and
+            the name it is known by in the interface, the CLI and reports.
+          pattern: '^[0-9]{1,39}$'
+          example: '17310766248549826767'
         global_seed:
           type: string
+          description: >-
+            The same value in the core's internal 128-bit hexadecimal form,
+            used for hashing and sub-seed derivation.
+          example: '0x0000000000000000f02b5a3a1c2d4e8f' 
         state_revision:
           type: integer
         config_revision:
@@ -947,6 +959,7 @@ components:
           default: 00:00:00
         tick_rate:
           type: number
+          description: Playback multiplier; the interface offers 0.25 to 10.
           exclusiveMinimum: 0
           maximum: 10
           default: 1

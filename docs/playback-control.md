@@ -10,7 +10,7 @@ operation:
 | Forward | `POST /api/v1/playback/seek` | Move forward by the skip interval |
 | Step | `POST /api/v1/playback/step` | Advance by the step interval (default 1 minute) and hold paused |
 | Reset | `POST /api/v1/playback/seek` to 0, after confirmation | Replay the same scenario from 00:00:00 |
-| Speed | `PUT /api/v1/control/tick-rate` | 0.25×, 0.5×, 1×, 2×, 3× or 5× the configured pace |
+| Speed | `PUT /api/v1/control/tick-rate` | 0.25×, 0.5×, 1×, 2×, 3×, 5× or 10× the configured pace |
 | Generate New World | `POST /api/v1/world/regenerate`, after confirmation | Replace the world with one from a fresh seed; it starts paused |
 | Terminate | `POST /api/v1/system/terminate`, after confirmation | Stop the run and the server |
 

@@ -67,15 +67,22 @@ try {
   const layout = async (label) => {
     const vw = page.viewportSize();
     const rail = await box(page.locator(".rail"));
-    const cluster = page.locator(".lower-cluster > *:visible");
+    const cluster = page.locator(".lower-hud .hud-zone > *:visible");
     const pieces = [];
     for (let i = 0; i < (await cluster.count()); i++) pieces.push(await cluster.nth(i).boundingBox());
-    const deck = await page.locator(".telemetry-deck").isVisible() ? await box(page.locator(".telemetry-deck")) : null;
+    // The painted surface, not the panel's full box: collapsed, only the
+    // strip is drawn and the rest of that box lets pointers through.
+    const deck = await page.locator(".deck-surface").isVisible() ? await box(page.locator(".deck-surface")) : null;
     const dock = await box(page.locator(".map-dock"));
     assert.ok(rail, `${label}: rail visible`);
     assert.ok(rail.x >= 0 && rail.x + rail.width <= vw.width + 0.5, `${label}: rail inside viewport`);
     assert.ok(rail.height <= 66 || vw.width <= 900, `${label}: rail compact (${rail.height}px)`);
-    for (const p of pieces) assert.ok(!overlap(p, rail), `${label}: lower cluster clear of rail`);
+    for (const p of pieces) assert.ok(!overlap(p, rail), `${label}: lower HUD clear of rail`);
+    // The zones of the lower HUD never run into each other either.
+    for (let i = 0; i < pieces.length; i++)
+      for (let j = i + 1; j < pieces.length; j++)
+        assert.ok(!overlap(pieces[i], pieces[j]), `${label}: lower HUD elements do not overlap`);
+    if (deck) for (const p of pieces) assert.ok(!overlap(p, deck), `${label}: lower HUD clear of telemetry`);
     if (deck) assert.ok(!overlap(deck, rail), `${label}: rail clear of deck`);
     assert.ok(!overlap(dock, rail), `${label}: rail clear of dock`);
     const scrollW = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -89,18 +96,51 @@ try {
     await layout("1440");
     await page.screenshot({ path: path.join(out, "hud-1440.png") });
   });
-  check("layout at 1100", async () => {
-    await page.setViewportSize({ width: 1100, height: 800 });
+  check("layout at 2560", async () => {
+    await page.setViewportSize({ width: 2560, height: 1440 });
     await page.waitForTimeout(400);
-    await layout("1100");
-    await page.screenshot({ path: path.join(out, "hud-1100.png") });
+    await layout("2560");
+    await page.screenshot({ path: path.join(out, "hud-2560.png") });
   });
-  check("layout at 760", async () => {
-    await page.setViewportSize({ width: 760, height: 900 });
+  check("layout at 1920", async () => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
     await page.waitForTimeout(400);
-    await layout("760");
-    await page.screenshot({ path: path.join(out, "hud-760.png") });
+    await layout("1920");
+  });
+  check("layout at 1280", async () => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForTimeout(400);
+    await layout("1280");
+    await page.screenshot({ path: path.join(out, "hud-1280.png") });
+  });
+  check("layout at the minimum supported size", async () => {
+    await page.setViewportSize({ width: 1024, height: 640 });
+    await page.waitForTimeout(500);
+    await layout("1024x640");
+    // Everything the rail carries has to fit on one row at the smallest
+    // supported size: this is what that minimum was chosen against.
+    const rail = await box(page.locator(".rail"));
+    assert.ok(rail.height <= 66, `rail stays one row at 1024 (${rail.height}px)`);
+    for (const name of [/Copy seed/, "Terminate"])
+      assert.ok(await page.getByRole("button", { name }).first().isVisible(), `${name} visible at 1024x640`);
+    for (const rate of ["0.25 times speed", "10 times speed"])
+      assert.ok(await page.getByRole("radio", { name: rate }).isVisible(), `${rate} visible at 1024x640`);
+    await page.screenshot({ path: path.join(out, "hud-1024.png") });
+  });
+  check("below the minimum, the interface says so instead of squeezing", async () => {
+    await page.setViewportSize({ width: 900, height: 700 });
+    await page.waitForTimeout(400);
+    const notice = page.getByRole("alert");
+    await notice.waitFor({ timeout: 5000 });
+    assert.match(await notice.innerText(), /not optimized for this screen size/i);
+    assert.match(await notice.innerText(), /1024/);
+    assert.equal(await page.locator(".rail").count(), 0, "the interface is not rendered at all");
+    const scrollW = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(scrollW <= 901, "the notice itself does not scroll sideways");
+    await page.screenshot({ path: path.join(out, "hud-too-small.png") });
+    // And it leaves again on its own.
     await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole("button", { name: "Pause simulation" }).waitFor({ timeout: 10000 });
     await page.waitForTimeout(400);
   });
 
@@ -154,7 +194,11 @@ try {
     await seed.click();
     await page.locator(".seed-feedback.copied").waitFor();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
-    assert.equal(copied, (await call("/api/v1/playback/status")).body.global_seed);
+    const status = (await call("/api/v1/playback/status")).body;
+    // The seed is copied as the number that starts the run, not as its hash.
+    assert.equal(copied, status.seed);
+    assert.match(copied, /^\d+$/);
+    assert.notEqual(copied, status.global_seed);
   });
 
   check("settings drawer and layers panel", async () => {
@@ -228,9 +272,68 @@ try {
     await page.getByRole("alertdialog").waitFor({ state: "detached", timeout: 30000 });
     const after = (await call("/api/v1/playback/status")).body;
     assert.notEqual(after.run_id, before.run_id, "new run");
-    assert.notEqual(after.global_seed, before.global_seed, "new seed");
-    await page.getByRole("button", { name: new RegExp(`Copy seed ${after.global_seed}`) }).waitFor();
+    assert.notEqual(after.seed, before.seed, "new seed");
+    assert.match(after.seed, /^\d{1,20}$/, "a generated seed is a plain number");
+    await page.getByRole("button", { name: new RegExp(`Copy seed ${after.seed}`) }).waitFor();
     await page.getByRole("button", { name: "Resume simulation" }).waitFor();
+  });
+
+  check("telemetry collapses to a strip with a temporary side panel", async () => {
+    const deck = page.locator(".telemetry-deck");
+    const surfaceBefore = await box(page.locator(".deck-surface"));
+    await page.getByRole("button", { name: "Collapse live telemetry" }).click();
+    await page.waitForTimeout(500);
+    const surfaceAfter = await box(page.locator(".deck-surface"));
+    assert.ok(surfaceAfter.width < surfaceBefore.width / 3, "the panel really became a strip");
+    assert.ok(await deck.locator(".deck-strip").isVisible(), "the strip is shown");
+
+    const strip = page.getByRole("navigation", { name: "Telemetry summary" });
+    // Compact figures use the shared abbreviation.
+    const roads = await strip.getByRole("button", { name: /^Road edges/ }).innerText();
+    assert.match(roads, /^\d+(\.\d+)?K?$/, `compact road count reads ${roads}`);
+
+    await strip.getByRole("button", { name: "Stack" }).click();
+    const panel = page.getByRole("dialog", { name: "Stack" });
+    await panel.waitFor();
+    await page.waitForTimeout(400);
+    const panelBox = await box(panel);
+    const railBox = await box(page.locator(".rail"));
+    const dockBox = await box(page.locator(".map-dock"));
+    assert.ok(!overlap(panelBox, railBox), "the side panel clears the command bar");
+    assert.ok(!overlap(panelBox, dockBox), "the side panel clears the map tools");
+    await page.screenshot({ path: path.join(out, "telemetry-compact.png") });
+
+    await strip.getByRole("button", { name: /^Notifications/ }).click();
+    await page.getByRole("dialog", { name: "Notifications" }).waitFor();
+    await page.waitForTimeout(400);
+    assert.ok(await deck.locator(".deck-strip").isVisible(), "the full panel stayed collapsed");
+    await page.screenshot({ path: path.join(out, "notification-history.png") });
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog", { name: "Notifications" }).waitFor({ state: "detached" });
+
+    await strip.getByRole("button", { name: "Expand live telemetry" }).click();
+    await page.waitForTimeout(500);
+    assert.ok((await box(page.locator(".deck-surface"))).width > surfaceBefore.width / 2, "the panel came back");
+  });
+
+  check("the place legend explains every marker on the map", async () => {
+    await page.getByRole("button", { name: "Place legend" }).click();
+    const legend = page.getByRole("dialog", { name: "Place legend" });
+    await legend.waitFor();
+    await page.waitForTimeout(350);
+    const rows = await legend.getByRole("listitem").allInnerTexts();
+    assert.ok(rows.length >= 3, `the legend lists the kinds on the map (${rows.length})`);
+    // Every glyph the legend shows is one the map actually draws.
+    const glyphs = await legend.locator(".place-glyph").allInnerTexts();
+    assert.ok(glyphs.every((g) => g.trim().length === 1), `glyphs are single characters: ${glyphs.join()}`);
+    assert.ok(rows.some((r) => /Not modelled|At rest|Peak \d/.test(r)), "demand is reported per kind");
+    await page.screenshot({ path: path.join(out, "place-legend.png") });
+    const toggle = legend.getByRole("switch", { name: "Show unclassified places" });
+    if (await toggle.count()) {
+      assert.equal(await toggle.getAttribute("aria-checked"), "false", "unclassified places start hidden");
+    }
+    await page.keyboard.press("Escape");
+    await legend.waitFor({ state: "detached" });
   });
 
   check("report downloads as a multi-page PDF", async () => {

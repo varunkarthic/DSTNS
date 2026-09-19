@@ -27,7 +27,7 @@ An explicit day/map/speed override changes the effective run; exact replay requi
 
 ## Real geography
 
-The seed chooses the place. `seed.derive("map.city")` selects one of sixteen metropolitan areas and `seed.derive("map.anchor")` selects coordinates inside it.
+The seed chooses the place. `seed.derive("map.city")` selects one of 181 urban centres, spread across every inhabited continent, and `seed.derive("map.anchor")` selects coordinates inside it. The catalogue and its order are part of the `urban-crfg-v3` map selection version.
 
 **One download per city, many districts.** The download unit is a *city extract*: a square of `map.city_extent_m` (5 km by default) centred on the city, cached at `data/maps/<city>_x<extent>.osm.xml`. Because that name depends only on the city, every district of that city reads the same file. The seed's anchor then picks where inside it the district grows: the road loader starts from the junction nearest the anchor and grows a connected district of `map.district_nodes` (3,000 by default). So re-rolling usually lands on a different part of an already-downloaded city and costs nothing, and only crossing to a new city triggers a download.
 
