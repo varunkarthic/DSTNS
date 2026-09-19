@@ -175,7 +175,8 @@ export default function App() {
   const location = rawLocation?.city ? rawLocation : undefined;
   const origin = sim.topology?.projection;
   const runId = sim.status?.run_id ?? "";
-  const seed = sim.status?.global_seed ?? "";
+  // The seed an operator reads and retypes is the raw number, not the hash.
+  const seed = sim.status?.seed || sim.status?.global_seed || "";
 
   // ---- Backpressure -----------------------------------------------------
   const { asb, resetToken } = useBackpressure({

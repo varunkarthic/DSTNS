@@ -24,7 +24,7 @@ function topology(): Topology {
     }
   const features = Array.from({ length: 30 }, (_, i) => ({ id: `way/${i}`, name: `Place ${i}`, category: ["school", "office", "retail", "hospital", "park"][i % 5], polygon: false, position: nodes[i * 4].position, geometry: [], tags: { amenity: ["school", "office", "marketplace", "hospital", "park"][i % 5] } }));
   return {
-    graph_hash: "sha256:0123456789abcdef0123456789abcdef", nodes, edges, features, source: "OpenStreetMap", map_selection_version: "urban-crfg-v2",
+    graph_hash: "sha256:0123456789abcdef0123456789abcdef", nodes, edges, features, source: "OpenStreetMap", map_selection_version: "urban-crfg-v3",
     bounds: { min_lat: 52.5, max_lat: 52.522, min_lon: 13.4, max_lon: 13.433 },
     projection: { name: "local equirectangular", origin_lat: 52.5, origin_lon: 13.4, units: "metres" },
     location: { city: "Berlin", country: "Germany", anchor_lat: 52.505, anchor_lon: 13.4235, city_extent_m: 5000, downloaded: true },
@@ -89,8 +89,8 @@ function input(overrides: Partial<ReportInput> = {}): ReportInput {
   const topo = topology();
   const virtual = 60000;
   return {
-    status: { api_version: "1.0", run_id: "run_test", global_seed: "0x5089050192221083c848bf3e12e22a4f", state_revision: 9, config_revision: 3, clock: { playback_state: "RUNNING", playback_duration_seconds: 3600, simulation_percentage: virtual / 86400, simulated_current_time: "16:40:00", virtual_day_seconds: virtual, tick_rate: 2, target_virtual_rate: 48 }, data: { lifecycle: "RUNNING", day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v2", modules: { traffic: true, signals: true, dws: true, flooding: true, news: true, buildings: false }, playback_revision: 12 } },
-    snapshot: { api_version: "1.0", run_id: "run_test", global_seed: "0x5089050192221083c848bf3e12e22a4f", state_revision: 9, config_revision: 3, clock: { playback_state: "RUNNING", playback_duration_seconds: 3600, simulation_percentage: virtual / 86400, simulated_current_time: "16:40:00", virtual_day_seconds: virtual, tick_rate: 2, target_virtual_rate: 48 }, data: snapshot(topo, virtual) },
+    status: { api_version: "1.0", run_id: "run_test", seed: "107049685868914714890632172424598268495", global_seed: "0x5089050192221083c848bf3e12e22a4f", state_revision: 9, config_revision: 3, clock: { playback_state: "RUNNING", playback_duration_seconds: 3600, simulation_percentage: virtual / 86400, simulated_current_time: "16:40:00", virtual_day_seconds: virtual, tick_rate: 2, target_virtual_rate: 48 }, data: { lifecycle: "RUNNING", day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v3", modules: { traffic: true, signals: true, dws: true, flooding: true, news: true, buildings: false }, playback_revision: 12 } },
+    snapshot: { api_version: "1.0", run_id: "run_test", seed: "107049685868914714890632172424598268495", global_seed: "0x5089050192221083c848bf3e12e22a4f", state_revision: 9, config_revision: 3, clock: { playback_state: "RUNNING", playback_duration_seconds: 3600, simulation_percentage: virtual / 86400, simulated_current_time: "16:40:00", virtual_day_seconds: virtual, tick_rate: 2, target_virtual_rate: 48 }, data: snapshot(topo, virtual) },
     topology: topo,
     congestion: snapshot(topo, virtual).congestion,
     news: busyNews(),
@@ -163,7 +163,8 @@ describe("report generation", () => {
     expect(text).toContain("Congestion index across the virtual day");
     expect(text).toContain("Incident register");
     expect(text).toContain("Backpressure interventions");
-    expect(text).toContain("0x5089050192221083c848bf3e12e22a4f");
+    // Provenance names the seed as the operator knows it, a plain number.
+    expect(text).toContain("107049685868914714890632172424598268495");
     expect(text).toContain("sha256:feedface");
     expect(text).toMatch(/Flooding detected on \d+ roads/);
     expect(text).toContain("OBSERVED");

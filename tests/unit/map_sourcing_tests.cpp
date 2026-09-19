@@ -6,6 +6,7 @@
 #include "dstns/osm_fetch.hpp"
 #include "dstns/scenario.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -53,7 +54,27 @@ int main() {
             keys.insert(location.cache_key());
             anchors.insert(std::to_string(location.anchor_lat) + "," + std::to_string(location.anchor_lon));
         }
-        check(cities.size() >= 8, "seeds spread across the city catalog");
+        check(city_catalog().size() >= 150, "the catalogue offers a wide choice of cities");
+        check(cities.size() >= 60, "200 seeds reach at least 60 different cities");
+
+        // ---- The spread is genuinely global ------------------------------
+        // Buckets by longitude and hemisphere, so a catalogue that drifted
+        // back towards a handful of European capitals would fail here.
+        std::set<int> longitude_bands;
+        bool northern = false, southern = false;
+        std::map<std::string, int> per_city_draws;
+        for (unsigned i = 0; i < 400; ++i) {
+            const auto where = select_map_location(Seed128::parse("0x" + std::to_string(i + 1) + "c17e"));
+            longitude_bands.insert(static_cast<int>(std::floor((where.centre_lon + 180.0) / 45.0)));
+            northern = northern || where.centre_lat > 0;
+            southern = southern || where.centre_lat < 0;
+            ++per_city_draws[where.city];
+        }
+        check(longitude_bands.size() >= 6, "seeds land in at least six 45-degree longitude bands");
+        check(northern && southern, "seeds reach both hemispheres");
+        const auto busiest = std::max_element(per_city_draws.begin(), per_city_draws.end(),
+                                              [](const auto& a, const auto& b) { return a.second < b.second; });
+        check(busiest->second < 40, "no single city dominates the draw");
         check(keys.size() <= city_catalog().size(),
               "extracts are per city, not per seed, so re-rolling rarely re-downloads");
         check(anchors.size() >= 195, "distinct seeds still pick distinct districts");

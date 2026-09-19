@@ -23,7 +23,7 @@ The core remains the authority. The UI polls revisioned snapshots/status sequent
 
 SQLite at `data/seed-store/seeds.sqlite3` stores unique IDs, canonical seed, creation time, description, map algorithm version, source SHA-256 and full resolved startup payload. SQL bindings prevent name injection; IDs never become paths. Saving copies OSM bytes to a SHA-addressed map cache. Duplicate IDs fail rather than overwrite. Reuse verifies both version and source checksum. Delete removes the registry entry; shared map blobs are intentionally retained. `DSTNS_SEED_DB` selects an alternate registry (used by isolated tests).
 
-An explicit day/map/speed override changes the effective run; exact replay requires the saved configuration without overrides. `urban-crfg-v2` is incompatible with old district-selection hashes. The seed alone cannot identify a changing upstream OSM snapshot: source bytes are part of deterministic configuration.
+An explicit day/map/speed override changes the effective run; exact replay requires the saved configuration without overrides. `urban-crfg-v3` is incompatible with old district-selection hashes. The seed alone cannot identify a changing upstream OSM snapshot: source bytes are part of deterministic configuration.
 
 ## Real geography
 

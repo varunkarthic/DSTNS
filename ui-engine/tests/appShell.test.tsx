@@ -46,7 +46,7 @@ const topology = {
   ],
   features: [],
   source: "OpenStreetMap",
-  map_selection_version: "urban-crfg-v2",
+  map_selection_version: "urban-crfg-v3",
   bounds: { min_lat: 52.4, max_lat: 52.6, min_lon: 13.3, max_lon: 13.5 },
   projection: { name: "local equirectangular", origin_lat: 52.5, origin_lon: 13.4, units: "metres" },
   location: { city: "Berlin", country: "Germany", anchor_lat: 52.505, anchor_lon: 13.4235, city_extent_m: 5000, downloaded: true },
@@ -94,6 +94,7 @@ type Mock = {
   lifecycle: string;
   runId: string;
   seed: string;
+  seedHex: string;
   clock: typeof baseClock;
   snapshot: typeof baseSnapshot;
   backpressure: typeof backpressure;
@@ -116,7 +117,8 @@ function mockApi(overrides: Partial<Mock> = {}) {
   state = {
     lifecycle: "RUNNING",
     runId: "run_1",
-    seed: "0x5089050192221083c848bf3e12e22a4f",
+    seed: "17310766248549826767",
+    seedHex: "0xf02b5a3a1c2d4e8f",
     clock: { ...baseClock },
     snapshot: structuredClone(baseSnapshot),
     backpressure,
@@ -135,7 +137,8 @@ function mockApi(overrides: Partial<Mock> = {}) {
     const envelope = (data: unknown) => ({
       api_version: "1.0",
       run_id: state.runId,
-      global_seed: state.seed,
+      seed: state.seed,
+      global_seed: state.seedHex,
       state_revision: 1,
       config_revision: 1,
       clock: { ...state.clock, playback_state: state.lifecycle },
@@ -145,7 +148,7 @@ function mockApi(overrides: Partial<Mock> = {}) {
     if (path.includes("/system/map-status")) return json({ api_version: "1.0", data: { active: false } });
     if (path.includes("/system/backpressure")) return json(state.backpressure);
     if (path.includes("/world/regenerate")) {
-      state.world = { ...state.world, state: "generating", stage: "compiling", seed: "0xabcdef0123456789abcdef0123456789", previous_run_id: state.runId };
+      state.world = { ...state.world, state: "generating", stage: "compiling", seed: "4210818", previous_run_id: state.runId };
       return json({ api_version: "1.0", data: state.world }, 202);
     }
     if (path.includes("/world/status")) {
@@ -156,7 +159,7 @@ function mockApi(overrides: Partial<Mock> = {}) {
     if (path.includes("/playback/step")) return json({ simulated_seconds: state.clock.virtual_day_seconds + 60, stepped_seconds: 60, lifecycle: "PAUSED" });
     let data: unknown = {};
     if (path.includes("/playback/status"))
-      data = { lifecycle: state.lifecycle, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v2", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1 };
+      data = { lifecycle: state.lifecycle, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v3", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1 };
     else if (path.includes("/view/topology")) data = state.topology ?? topology;
     else if (path.includes("/view/snapshot")) data = state.snapshot;
     else if (path.includes("/news")) {
@@ -314,16 +317,18 @@ describe("command rail", () => {
     expect(time).toHaveAccessibleName(/paused/);
   });
 
-  it("keeps a long seed visible and copies it on click", async () => {
+  it("shows the raw numeric seed and copies it whole on click", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     mockApi();
     render(<App />);
     await ready();
-    const seed = screen.getByRole("button", { name: /Copy seed 0x5089050192221083c848bf3e12e22a4f/ });
-    expect(seed).toHaveTextContent("50890501…2a4f");
+    // The run is named by the number that starts it, not by its hash.
+    const seed = screen.getByRole("button", { name: /Copy seed 17310766248549826767/ });
+    expect(seed).toHaveTextContent("17310766…6767");
+    expect(seed).not.toHaveTextContent("0xf02b");
     fireEvent.click(seed);
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith("0x5089050192221083c848bf3e12e22a4f"));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("17310766248549826767"));
     expect(await within(seed).findByText("Copied")).toBeInTheDocument();
     // Copying is local; nothing reaches the core.
     expect(calls).toEqual([]);
@@ -372,7 +377,7 @@ describe("world regeneration", () => {
 
     const overlay = await screen.findByRole("alertdialog");
     await waitFor(() => expect(calls.some((c) => c.path.includes("/world/regenerate") && JSON.parse(c.body).expected_run_id === "run_1")).toBe(true));
-    expect(await within(overlay).findByText("0xabcdef0123456789abcdef0123456789")).toBeInTheDocument();
+    expect(await within(overlay).findByText("4210818")).toBeInTheDocument();
     // Real download progress is shown when the core knows the size.
     expect(await within(overlay).findByText(/Downloading Oslo, Norway: 2\.0 of 8\.0 MiB/, {}, { timeout: 3000 })).toBeInTheDocument();
     expect(within(overlay).getByRole("progressbar", { name: "Download progress" })).toHaveAttribute("aria-valuenow", "25");
@@ -380,11 +385,12 @@ describe("world regeneration", () => {
 
     // The core swaps worlds: the interface picks the new run up and the overlay leaves.
     state.runId = "run_2";
-    state.seed = "0xabcdef0123456789abcdef0123456789";
+    state.seed = "4210818";
+    state.seedHex = "0x40422";
     state.lifecycle = "PAUSED";
     expect(await screen.findByText("New world ready", {}, { timeout: 5000 })).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(), { timeout: 4000 });
-    expect(screen.getByRole("button", { name: /Copy seed 0xabcdef/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Copy seed 4210818/ })).toBeInTheDocument();
   }, 20000);
 
   it("reports a failed generation and keeps the current world", async () => {
@@ -407,7 +413,7 @@ describe("world regeneration", () => {
     state.worldQueue = [{ state: "failed", stage: "failed", error: { code: "WORLD_GENERATION_FAILED", message: "x" } }];
     fireEvent.click(await screen.findByRole("button", { name: "Return to current world" }, { timeout: 3000 }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: /Copy seed 0x5089/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Copy seed 17310766/ })).toBeInTheDocument();
   }, 15000);
 
   it("phrases generation errors for operators", () => {
@@ -797,7 +803,7 @@ describe("dialogs and suspension", () => {
     expect(dialog).toHaveTextContent("24:00:00");
     await waitFor(() => expect(dialog).toHaveTextContent(/Incidents\s*1/));
     expect(dialog).toHaveTextContent(/Rain events\s*1/);
-    expect(dialog).toHaveTextContent("0x5089050192221083c848bf3e12e22a4f");
+    expect(dialog).toHaveTextContent("17310766248549826767");
     expect(within(dialog).getByRole("button", { name: /Download Report/ })).toBeEnabled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Simulation Complete" })).not.toBeInTheDocument());

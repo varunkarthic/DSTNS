@@ -26,7 +26,7 @@ else()
 endif()
 
 add_library(dstns_core
-  src/rng.cpp src/graph.cpp src/asb.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp)
+  src/rng.cpp src/utf8.cpp src/graph.cpp src/asb.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp)
 target_include_directories(dstns_core PUBLIC include)
 target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib)
 if(APPLE)
@@ -71,6 +71,12 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_asb_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_asb COMMAND dstns_asb_tests)
   set_tests_properties(dstns_asb PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_executable(dstns_utf8_tests tests/unit/utf8_tests.cpp)
+  target_link_libraries(dstns_utf8_tests PRIVATE dstns_core)
+  target_compile_options(dstns_utf8_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_text_boundaries COMMAND dstns_utf8_tests)
+  set_tests_properties(dstns_text_boundaries PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_executable(dstns_map_tests tests/unit/map_sourcing_tests.cpp)
   target_link_libraries(dstns_map_tests PRIVATE dstns_core)

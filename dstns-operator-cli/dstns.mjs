@@ -1664,12 +1664,16 @@ async function runConfig(options) {
   if (options['saved-seed']) config = seedStore('use', { id: options['saved-seed'] }).config
   else {
     const defaults = await loadConfig()
+    // The seed is a number, and the run is named by that number end to end:
+    // what is typed here is what the interface shows and what reproduces the
+    // world. A generated seed is 64 bits, so it stays short enough to read
+    // back off the screen and retype.
     let seed = options.seed
     if (seed) {
       if (!/^(?:0x[0-9a-fA-F]{1,32}|[0-9]{1,39})$/.test(seed)) throw new Error('Seed must be a decimal integer or 0x hexadecimal, within 128 bits')
       const n = BigInt(seed); if (n < 0n || n >= (1n << 128n)) throw new Error('Seed exceeds 128 bits')
-      seed = '0x' + n.toString(16).padStart(32, '0')
-    } else seed = '0x' + randomBytes(16).toString('hex')
+      seed = n.toString(10)
+    } else seed = BigInt('0x' + randomBytes(8).toString('hex')).toString(10)
     // "auto" lets the seed choose a real city district, which the core
     // downloads from OpenStreetMap on demand and caches by seed-derived name.
     // An explicit --osm-file (or map.osm_file in config) still pins a file.
@@ -1677,7 +1681,7 @@ async function runConfig(options) {
     const map = { osm_file: source === 'auto' ? 'auto' : path.resolve(ROOT, source), max_nodes: defaults.map.max_nodes }
     if (defaults.map.tile_radius_m) map.tile_radius_m = defaults.map.tile_radius_m
     if (defaults.map.cache_dir) map.cache_dir = defaults.map.cache_dir
-    config = { seed, day: defaults.day ?? 0, playback_duration_seconds: defaults.playback.duration_seconds, tick_rate: defaults.playback.tick_rate, map, modules:defaults.modules, dws:defaults.dws, map_selection_version: 'urban-crfg-v2' }
+    config = { seed, day: defaults.day ?? 0, playback_duration_seconds: defaults.playback.duration_seconds, tick_rate: defaults.playback.tick_rate, map, modules:defaults.modules, dws:defaults.dws, map_selection_version: 'urban-crfg-v3' }
   }
   if (options['osm-file']) config.map.osm_file = path.resolve(ROOT, options['osm-file'])
   if (config.map.osm_file !== 'auto' && !existsSync(config.map.osm_file)) throw new Error('OSM data unavailable; provide --osm-file PATH')

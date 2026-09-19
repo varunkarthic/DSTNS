@@ -1,4 +1,6 @@
 #include "dstns/engine.hpp"
+
+#include "dstns/utf8.hpp"
 #include "dstns/sumo_bridge.hpp"
 #include "dstns/osm_fetch.hpp"
 
@@ -172,7 +174,8 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
             {"ok", true},
             {"message", "Scenario compiled and ready in standby."},
             {"run_id", run_id_},
-            {"seed", graph_->scenario().seed.hex()},
+            {"seed", graph_->scenario().seed.decimal()},
+            {"seed_hex", graph_->scenario().seed.hex()},
             {"lifecycle", "READY"}
         };
     } catch (...) {
@@ -317,7 +320,8 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
             {"ok", true},
             {"message", "Simulation accepted and prepared."},
             {"run_id", run_id_},
-            {"seed", graph_->scenario().seed.hex()},
+            {"seed", graph_->scenario().seed.decimal()},
+            {"seed_hex", graph_->scenario().seed.hex()},
             {"lifecycle", to_string(lifecycle_)},
             {"resolved_config", {
                 {"playback_duration_seconds", config.playback_duration_s},
@@ -458,7 +462,8 @@ nlohmann::json SimulationEngine::step(std::uint32_t seconds) {
 }
 
 nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request) {
-    Seed128 seed = Seed128::secure();
+    // Short enough for an operator to read off the screen and retype.
+    Seed128 seed = Seed128::secure64();
     ScenarioConfig config;
     std::string previous;
     double rate = 1.0;
@@ -484,7 +489,8 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
     world_job_ = WorldJob{};
     world_job_.state = "generating";
     world_job_.stage = "compiling";
-    world_job_.seed = seed.hex();
+    world_job_.seed = seed.decimal();
+    world_job_.seed_hex = seed.hex();
     world_job_.previous_run_id = previous;
     world_job_.generation = ++world_generation_counter_;
     world_job_.started = std::chrono::steady_clock::now();
@@ -568,6 +574,7 @@ nlohmann::json SimulationEngine::world_status_locked() const {
             {"state", j.state},
             {"stage", stage},
             {"seed", j.seed},
+            {"seed_hex", j.seed_hex},
             {"previous_run_id", j.previous_run_id},
             {"run_id", j.run_id},
             {"generation", j.generation},
@@ -581,7 +588,7 @@ nlohmann::json SimulationEngine::world_status_locked() const {
 AppliedCommand& SimulationEngine::record(std::string type, nlohmann::json before, nlohmann::json after) {
     redo_.clear();
     commands_.push_back({next_command_id_++, std::move(type), "applied", virtual_s_, std::move(before), std::move(after)});
-    logger_.event(run_id_, commands_.back().id, "control", "applied", virtual_s_, commands_.back().after.dump());
+    logger_.event(run_id_, commands_.back().id, "control", "applied", virtual_s_, dump_json(commands_.back().after));
     return commands_.back();
 }
 
@@ -1125,7 +1132,7 @@ void SimulationEngine::loop() {
             last_global_dump_ = now;
             try {
                 const auto gv = global_view();
-                logger_.write_file("global_view.json", gv.dump(2));
+                logger_.write_file("global_view.json", dump_json(gv, 2));
             } catch (...) {}
         }
     }
@@ -1157,6 +1164,7 @@ nlohmann::json SimulationEngine::envelope(nlohmann::json data) const {
         {"api_version", "1.0"},
         {"run_id", run_id_},
         {"global_seed", graph_ ? graph_->scenario().seed.hex() : ""},
+        {"seed", graph_ ? graph_->scenario().seed.decimal() : ""},
         {"state_revision", graph_ ? graph_->state_revision() : 0},
         {"config_revision", config_revision_},
         {"clock", clock_json()},
@@ -1489,7 +1497,8 @@ nlohmann::json SimulationEngine::manifest() const {
         {"version", "1.0.0"},
         {"algorithm_version", "DSTNS/1"},
         {"determinism_level", 2},
-        {"seed", s.seed.hex()},
+        {"seed", s.seed.decimal()},
+        {"seed_hex", s.seed.hex()},
         {"map_hash", s.map_hash},
         {"graph_hash", s.graph_hash},
         {"event_hash", s.event_hash},
@@ -1934,6 +1943,7 @@ nlohmann::json SimulationEngine::global_view() const {
         {"playback_revision", playback_revision_},
         {"run_id", run_id_},
         {"global_seed", sc.seed.hex()},
+        {"seed", sc.seed.decimal()},
         {"state_revision", graph_->state_revision()},
         {"config_revision", config_revision_},
         {"bounds", {

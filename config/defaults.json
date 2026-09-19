@@ -13,7 +13,7 @@
     "min_nodes": 9,
     "max_anchor_attempts": 64,
     "min_compactness": 0.1,
-    "map_selection_version": "urban-crfg-v2",
+    "map_selection_version": "urban-crfg-v3",
     "on_demand": true,
     "cache_dir": "data/maps",
     "city_extent_m": 5000,
