@@ -510,7 +510,7 @@ export function WorldGenerationOverlay({
       progressLabel="Download progress"
       failed={failed}
       error={error}
-      note={failed ? "The previous world is still running and has not been changed." : done ? undefined : "The current world keeps running until the new one is ready."}
+      note={failed ? "The previous world is unchanged, and is still loaded." : done ? undefined : "The current world is paused and stays loaded until the new one is ready."}
       closing={closing}
       reduceMotion={reduceMotion}
       actions={

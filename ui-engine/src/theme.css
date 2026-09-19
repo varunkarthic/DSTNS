@@ -1258,40 +1258,6 @@ button:disabled {
   box-shadow: 0 0 24px rgb(255 91 101 / 20%);
 }
 
-.loading-card {
-  position: absolute;
-  top: 50%;
-  left: calc((100% - var(--deck-width)) / 2);
-  transform: translate(-50%, -50%);
-  z-index: 25;
-  width: min(460px, 70vw);
-  padding: var(--space-xl);
-  border-radius: var(--radius-panel);
-  text-align: left;
-}
-.loading-card h2 {
-  margin: var(--space-sm) 0 var(--space-md);
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
-}
-.loading-card p {
-  margin: 0 0 var(--space-sm);
-  color: var(--on-surface-variant);
-  font-size: 13px;
-}
-.loading-card code {
-  display: block;
-  padding: 10px 12px;
-  border-radius: var(--radius-lg);
-  background: var(--surface-container-lowest);
-  border: 1px solid rgb(60 73 77 / 40%);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--primary);
-  margin-bottom: var(--space-sm);
-}
-
 /* Road-state legend */
 /* An inline chip in the HUD row, matching the coordinate and scale chips.
  * Scoped to the row so it also outranks the legacy absolute rule. */
@@ -1372,9 +1338,6 @@ button:disabled {
   .bottom-stack,
   .toasts {
     right: var(--space-lg);
-  }
-  .loading-card {
-    left: 50%;
   }
 }
 
@@ -1621,11 +1584,7 @@ button:disabled {
   min-width: 0;
 }
 
-/* The idle card shows a shell command that must not widen the card. */
-.loading-card code {
-  overflow-x: auto;
-  white-space: nowrap;
-}
+/* A stage title can name a long city; it wraps rather than widening the card. */
 .loading-card h2 {
   overflow-wrap: anywhere;
 }
