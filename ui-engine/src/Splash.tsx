@@ -45,9 +45,8 @@ export function Splash({
   return (
     <div className={`splash${reduceMotion ? " still" : ""}`} role="status" aria-live="polite">
       <div className="splash-mark">
-        <Logo size={96} animated={!reduceMotion} />
+        <Logo height={72} animated={!reduceMotion} />
       </div>
-      <h1 className="splash-word">DSTNS</h1>
       <p className="splash-sub">Deterministic Spatiotemporal Transport Network Simulator</p>
 
       <div className="splash-status">

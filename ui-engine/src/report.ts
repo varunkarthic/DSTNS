@@ -1,3 +1,4 @@
+import { LOGO, logoPng } from "./logoAsset";
 import reportFontUrl from "./assets/report-inter.ttf?url";
 import { placeKind, roadState, roadTitle } from "./mapModel";
 import type {
@@ -82,25 +83,7 @@ export async function exportReport(
     pdf.roundedRect(x, y, w, h, 2, 2, "F");
   };
 
-  /** The DSTNS mark, drawn as vectors so the report needs no image asset. */
-  const mark = (cx: number, cy: number, r: number) => {
-    pdf.setDrawColor(INK.accent);
-    pdf.setLineWidth(r * 0.09);
-    pdf.circle(cx, cy, r, "S");
-    pdf.setLineWidth(r * 0.16);
-    const inner = r * 0.34;
-    const outer = r * 0.82;
-    pdf.line(cx, cy - outer, cx, cy - inner);
-    pdf.line(cx, cy + inner, cx, cy + outer);
-    pdf.line(cx - outer, cy, cx - inner, cy);
-    pdf.line(cx + inner, cy, cx + outer, cy);
-    pdf.setFillColor(INK.bg);
-    pdf.setDrawColor(INK.accent);
-    pdf.setLineWidth(r * 0.12);
-    pdf.roundedRect(cx - inner, cy - inner, inner * 2, inner * 2, r * 0.1, r * 0.1, "FD");
-    pdf.setFillColor(INK.accent);
-    pdf.circle(cx, cy, r * 0.13, "F");
-  };
+  const logoImage = await logoPng();
 
   let page = 0;
   const sheet = (title: string, kicker: string) => {
@@ -109,9 +92,8 @@ export async function exportReport(
     pdf.setFillColor(INK.bg);
     pdf.rect(0, 0, PAGE.w, PAGE.h, "F");
 
-    mark(PAGE.margin + 6, 20, 6);
-    text("DSTNS", PAGE.margin + 16, 18, 13, INK.text);
-    text("Deterministic Spatiotemporal Transport Network Simulator", PAGE.margin + 16, 23.5, 6.5, INK.faint);
+    pdf.addImage(logoImage, "PNG", PAGE.margin, 13, 7 * LOGO.aspect, 7);
+    text("Deterministic Spatiotemporal Transport Network Simulator", PAGE.margin, 25, 6.5, INK.faint);
     right(status.run_id, PAGE.w - PAGE.margin, 18, 7, INK.dim);
     right(snapshot.clock.simulated_current_time + " virtual", PAGE.w - PAGE.margin, 23, 7, INK.faint);
     rule(28);
@@ -176,7 +158,7 @@ export async function exportReport(
   // is reported separately in the road-state tiles above.
   const worst = [...realEdges]
     .map((e) => ({ edge: e, state: stateById.get(e.id) }))
-    .filter((r) => r.state && r.state.vehicle_count > 0 && r.state.congestion > 0)
+    .filter((r) => r.state && !r.state.closed && !r.state.incident_closed && r.state.vehicle_count > 0 && r.state.congestion > 0)
     .sort(
       (a, b) =>
         (b.state!.congestion ?? 0) - (a.state!.congestion ?? 0) ||
@@ -253,20 +235,23 @@ export async function exportReport(
   // 2 — Congestion
   // =======================================================================
   sheet("Congestion", "Section two");
+  const history = congestion.history ?? [];
 
+  // The index is reported as the instant it describes. A smoothed companion
+  // invited a comparison against a norm the model does not claim to know.
+  const peak = history.length ? Math.max(...history.map((h) => h.current)) : snapshot.data.congestion.current;
   const tw2 = (COL - PAGE.gutter * 2) / 3;
   tile(PAGE.margin, 58, tw2, "Current", `${snapshot.data.congestion.current.toFixed(1)}%`, "", INK.accent);
-  tile(PAGE.margin + tw2 + PAGE.gutter, 58, tw2, "Moving average", `${snapshot.data.congestion.average.toFixed(1)}%`, "", INK.mint);
+  tile(PAGE.margin + tw2 + PAGE.gutter, 58, tw2, "Peak so far", `${peak.toFixed(1)}%`, "", INK.amber);
   tile(
     PAGE.margin + (tw2 + PAGE.gutter) * 2,
     58,
     tw2,
-    "Delta",
-    `${snapshot.data.congestion.delta >= 0 ? "+" : ""}${snapshot.data.congestion.delta.toFixed(1)} pp`,
+    "Roads carrying flow",
+    snapshot.data.edges.filter((e) => e.vehicle_count > 0).length.toLocaleString(),
   );
 
   sectionTitle("Across the virtual day", 96);
-  const history = congestion.history ?? [];
   const cx = PAGE.margin + 10;
   const cy = 104;
   const cw = COL - 14;
@@ -275,28 +260,23 @@ export async function exportReport(
   pdf.setDrawColor(INK.panelEdge);
   pdf.setLineWidth(0.15);
   for (const frac of [0, 0.5, 1]) pdf.line(cx, cy + ch * frac, cx + cw, cy + ch * frac);
-  for (const [key, color] of [
-    ["average", INK.mint],
-    ["current", INK.accent],
-  ] as const) {
-    pdf.setDrawColor(color);
-    pdf.setLineWidth(0.45);
-    for (let i = 1; i < history.length; i++) {
-      const a = history[i - 1];
-      const b = history[i];
-      pdf.line(
-        cx + (a.virtual_s / 86400) * cw,
-        cy + ch - (a[key] / 100) * ch,
-        cx + (b.virtual_s / 86400) * cw,
-        cy + ch - (b[key] / 100) * ch,
-      );
-    }
+  pdf.setDrawColor(INK.accent);
+  pdf.setLineWidth(0.5);
+  for (let i = 1; i < history.length; i++) {
+    const a = history[i - 1];
+    const b = history[i];
+    pdf.line(
+      cx + (a.virtual_s / 86400) * cw,
+      cy + ch - (a.current / 100) * ch,
+      cx + (b.virtual_s / 86400) * cw,
+      cy + ch - (b.current / 100) * ch,
+    );
   }
   text("100%", PAGE.margin + 1, cy + 2, 6, INK.faint);
   text("0%", PAGE.margin + 1, cy + ch, 6, INK.faint);
   text("00:00", cx, cy + ch + 6, 6.5, INK.faint);
   right("24:00", cx + cw, cy + ch + 6, 6.5, INK.faint);
-  text("Current (cyan) · 15-minute moving average (mint)", cx, cy + ch + 11, 7, INK.dim);
+  text("Congestion index, sampled each virtual minute. No smoothing is applied.", cx, cy + ch + 11, 7, INK.dim);
 
   sectionTitle("Road state", 176);
   let bx = PAGE.margin;

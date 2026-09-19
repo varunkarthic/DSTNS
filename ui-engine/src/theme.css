@@ -2246,3 +2246,322 @@ a.btn { text-decoration: none; }
   .dock-menu,
   .dock-search { left: calc(100% + 8px); width: 220px; }
 }
+
+/* =======================================================================
+ * v2.1 surfaces
+ * ======================================================================= */
+
+/* ---- Brand wordmark ------------------------------------------------------
+ * The mark is a wordmark, so it stands in for the title rather than sitting
+ * beside a second copy of the same word.
+ */
+.brand {
+  gap: 12px;
+}
+.brand p {
+  margin: 0;
+}
+.brand .dstns-logo {
+  /* The artwork ships as light letterforms; let it carry its own colour. */
+  display: block;
+}
+.dstns-logo.animated {
+  animation: mark-in 620ms var(--ease-out) both;
+}
+@keyframes mark-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+    filter: blur(3px);
+  }
+}
+.reduce-motion .dstns-logo.animated {
+  animation: none;
+}
+.splash-mark .dstns-logo {
+  filter: drop-shadow(0 0 30px rgb(53 215 255 / 22%));
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- ASB banner (item 4) -------------------------------------------------
+ * Restricted and Async are conditions of the whole session, so they are
+ * announced across the top rather than tucked into a chip among others.
+ */
+.asb-banner {
+  position: relative;
+  z-index: 55;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px var(--margin);
+  font-size: 12px;
+  border-bottom: 1px solid rgb(255 185 56 / 30%);
+  background: linear-gradient(90deg, rgb(255 185 56 / 16%), rgb(255 185 56 / 5%));
+  color: var(--state-moderate);
+  animation: banner-in 260ms var(--ease-out);
+}
+.asb-banner.bad {
+  border-bottom-color: rgb(255 91 101 / 40%);
+  background: linear-gradient(90deg, rgb(255 91 101 / 20%), rgb(255 91 101 / 6%));
+  color: var(--error);
+}
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+.reduce-motion .asb-banner {
+  animation: none;
+}
+.asb-banner strong {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.asb-banner .asb-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asb-banner .asb-figure {
+  flex-shrink: 0;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.asb-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  animation: asb-throb 1.6s ease-in-out infinite;
+}
+@keyframes asb-throb {
+  50% {
+    opacity: 0.3;
+    transform: scale(0.75);
+  }
+}
+.reduce-motion .asb-dot {
+  animation: none;
+}
+
+/* ---- Dock icons (items 2, 8) --------------------------------------------
+ * One drawn set on a shared grid, so every glyph carries the same weight and
+ * occupies the same optical size - which mixed text characters never did.
+ */
+.map-dock button {
+  width: 38px;
+  height: 38px;
+}
+.dock-icon {
+  display: block;
+  transition:
+    transform 0.25s var(--spring),
+    opacity 0.2s;
+}
+.reduce-motion .dock-icon {
+  transition: none;
+}
+/* Each control animates in a way that means something: the reticle closes,
+   the bell swings, the motion lines settle. */
+.map-dock button:hover:not(:disabled) .dock-icon {
+  transform: scale(1.08);
+}
+.reduce-motion .map-dock .dock-icon * {
+  animation: none !important;
+}
+
+/* ---- Playback: step size (item 5) --------------------------------------- */
+.step-pod {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.step-pod .segmented button {
+  padding: 2px 7px;
+  font-size: 9px;
+}
+/* The day track reports; it is not a control. */
+.scrubber.readonly {
+  cursor: default;
+}
+.scrubber.readonly .head {
+  width: 12px;
+  height: 12px;
+}
+.scrubber.readonly:hover .head {
+  transform: translateX(-50%);
+}
+
+/* ---- Notification stacks (item 3) ---------------------------------------
+ * A burst collapses to one card that says how many it stands for. The cards
+ * beneath show as offset shoulders, so depth is visible rather than merely
+ * stated.
+ */
+.toast {
+  position: relative;
+  transition:
+    transform 0.25s var(--ease-out),
+    box-shadow 0.25s;
+}
+.toast.still {
+  animation: none;
+  transition: none;
+}
+.stack-under {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -4px;
+  height: 10px;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-top: none;
+  z-index: -1;
+}
+.stack-under.two {
+  left: 14px;
+  right: 14px;
+  bottom: -8px;
+}
+.toast.stacked:hover {
+  transform: translateY(-2px);
+}
+.toast-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.toast-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.toast-count {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgb(53 215 255 / 16%);
+  border: 1px solid rgb(178 235 255 / 25%);
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: background 0.18s;
+}
+.toast-count:hover {
+  background: rgb(53 215 255 / 30%);
+}
+.toast-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  animation: list-in 200ms var(--ease-out);
+}
+@keyframes list-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.reduce-motion .toast-list {
+  animation: none;
+}
+.toast-list li {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--on-surface-variant);
+}
+.toast-list li span:first-child {
+  flex-shrink: 0;
+  color: var(--primary);
+  font-size: 9px;
+  padding-top: 1px;
+}
+.toast-list li span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.toast-more {
+  color: var(--outline);
+  font-style: italic;
+}
+
+@media (max-width: 720px) {
+  .asb-banner .asb-detail {
+    display: none;
+  }
+  .step-pod {
+    display: flex;
+  }
+}
+
+/* Guided tour: spotlight is measured from DOM anchors on every layout frame. */
+.tutorial-overlay { position: fixed; inset: 0; z-index: 200; isolation: isolate; }
+.tutorial-shade { position: absolute; background: rgb(2 9 17 / 76%); backdrop-filter: blur(2px); pointer-events: none; }
+.tutorial-spotlight { position: absolute; border: 2px solid var(--primary, #9de7ff); border-radius: 12px; box-shadow: 0 0 18px rgb(55 215 255 / 30%); pointer-events: none; }
+.tutorial-card { position: absolute; box-sizing: border-box; width: min(380px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow-y: auto; padding: 22px; border: 1px solid #466779; border-radius: 18px; color: #e2edf7; background: #101e2e; font: 14px/1.55 Inter, sans-serif; box-shadow: 0 16px 60px #0008; animation: tutorial-in 160ms ease-out; }
+.tutorial-card h2 { font-size: 21px; margin: 10px 0; line-height: 1.2; }
+.tutorial-card p { margin: 12px 0 18px; }
+.tutorial-card small, .tutorial-unavailable { color: #abc3d4; font-size: 12px; }
+.tutorial-actions { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.tutorial-actions .btn { padding: 8px 12px; }
+@keyframes tutorial-in { from { opacity: 0; transform: translateY(4px); } }
+.tutorial-overlay.reduce-motion *, .reduce-motion .dock-icon, .reduce-motion .toast { animation: none !important; transition: none !important; transform: none !important; }
+.telemetry-toggle { display: none; }
+@media (max-width: 1024px) {
+  .telemetry-toggle { display: inline-flex; }
+  .telemetry-open .telemetry-deck,
+  [data-tour-target="telemetry"] .telemetry-deck,
+  [data-tour-target="congestion"] .telemetry-deck,
+  [data-tour-target="weather"] .telemetry-deck,
+  [data-tour-target="events"] .telemetry-deck,
+  [data-tour-target="asb"] .telemetry-deck { display: flex; top: 12px; right: 12px; width: min(380px, calc(100% - 84px)); max-height: 48vh; }
+}
+@media (max-width: 720px) {
+  .app-header { padding-inline: 10px; gap: 8px; }
+  .app-header .dstns-logo { width: 85px; }
+  .header-actions { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .header-actions .chip { display: none; }
+  .header-actions .btn { font-size: 11px; padding: 6px; }
+  .control-strip { display: flex; padding: 4px; gap: 6px; }
+  .control-strip .seed-toggle, .control-strip .status { display: none; }
+  .control-strip .btn { padding: 6px 8px; font-size: 11px; }
+  .map-hud .scale-bar { display: flex; }
+  .dock-row { justify-content: space-between; }
+  .clock-pod .value { font-size: 19px; }
+  .step-pod { order: 2; }
+  .transport { order: 2; gap: 3px; }
+  .transport button { width: 32px; height: 32px; }
+  .asb-banner { flex-wrap: wrap; gap: 4px 10px; }
+  .asb-banner .asb-detail { display: block; order: 3; flex-basis: 100%; white-space: normal; }
+}

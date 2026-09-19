@@ -1,17 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Tooltip } from "./Tooltip";
 import type { Clock, Lifecycle } from "./types";
 
 /**
  * Rate multipliers offered to the operator.
  *
+ * Capped at 5x. Past that the observer cannot keep up on ordinary hardware:
+ * each poll covers so much virtual time that the picture is a slideshow of
+ * disconnected states rather than a simulation being watched, and the core
+ * spends its budget on work nobody can follow.
+ *
  * The slider is indexed, not linear: the handle sits at the index of the value,
  * and the tick labels below are drawn from this same array at the same
  * positions. Deriving both from one source is what keeps the label under the
  * handle equal to the value the handle sets.
  */
-export const RATES = [0.25, 0.5, 1, 2, 5, 10, 20, 35, 50] as const;
-const STEP_SECONDS = 60;
+export const RATES = [0.25, 0.5, 1, 2, 3, 5] as const;
+/** Step sizes, in virtual seconds. Stepping is the only way to move the run. */
+export const STEPS = [
+  { label: "1m", seconds: 60 },
+  { label: "15m", seconds: 900 },
+  { label: "1h", seconds: 3600 },
+] as const;
 
 /** Index of the entry a rate corresponds to, snapping to the nearest offered value. */
 export function rateIndexOf(rate: number): number {
@@ -40,6 +50,8 @@ type Props = {
   hour12: boolean;
   onHour12: (value: boolean) => void;
   rateLocked: boolean;
+  reduceMotion?: boolean;
+  requestedRate?: number;
   onPlayPause: () => void;
   onSeek: (virtualSeconds: number) => void;
   onRate: (rate: number) => void;
@@ -51,6 +63,7 @@ function formatClock(seconds: number, hour12: boolean) {
   const h = Math.floor(s / 3600) % 24;
   const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
   const ss = String(s % 60).padStart(2, "0");
+  if (s >= 86400) return "24:00:00";
   if (!hour12) return `${String(h).padStart(2, "0")}:${mm}:${ss}`;
   const suffix = h < 12 ? "AM" : "PM";
   const hour = h % 12 === 0 ? 12 : h % 12;
@@ -65,13 +78,16 @@ export function PlaybackDock({
   hour12,
   onHour12,
   rateLocked,
+  reduceMotion = false,
+  requestedRate,
   onPlayPause,
   onSeek,
   onRate,
   onReset,
 }: Props) {
-  const scrubber = useRef<HTMLDivElement>(null);
   const rateTrack = useRef<HTMLDivElement>(null);
+  const [stepIndex, setStepIndex] = useState(0);
+  const step = STEPS[stepIndex];
 
   const paused = lifecycle === "PAUSED";
   const virtual = clock?.virtual_day_seconds ?? 0;
@@ -79,38 +95,16 @@ export function PlaybackDock({
   const rate = clock?.tick_rate ?? 1;
   const index = rateIndexOf(rate);
 
-  // Item 16: when ASB pulls the rate down the handle must travel, not teleport.
-  // The target is eased towards over a few frames, so a governed change reads as
-  // deceleration rather than a jump.
-  const [shownOffset, setShownOffset] = useState(() => rateOffset(index));
-  const target = rateOffset(index);
-  const raf = useRef(0);
-  useEffect(() => {
-    cancelAnimationFrame(raf.current);
-    const step = () => {
-      setShownOffset((current) => {
-        const delta = target - current;
-        if (Math.abs(delta) < 0.25) return target;
-        raf.current = requestAnimationFrame(step);
-        // Ease-out: quick at first, settling gently onto the mark.
-        return current + delta * 0.18;
-      });
-    };
-    raf.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf.current);
-  }, [target]);
-
-  const seekFromPointer = (clientX: number) => {
-    const el = scrubber.current;
-    if (!el || !enabled) return;
-    const rect = el.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    onSeek(Math.round(ratio * 86400));
-  };
+  // CSS handles interpolation without a render loop; reduced motion is immediate.
+  const lower = Math.max(0, RATES.filter(v => v <= rate).length - 1);
+  const upper = Math.min(RATES.length - 1, lower + 1);
+  const fraction = upper === lower ? 0 : Math.max(0, Math.min(1, (rate - RATES[lower]) / (RATES[upper] - RATES[lower])));
+  const shownOffset = rateOffset(lower + fraction);
+  const rateStyle = { left: `${shownOffset}%`, transition: reduceMotion ? "none" : "left 280ms ease-out" };
 
   const rateFromPointer = (clientX: number) => {
     const el = rateTrack.current;
-    if (!el || !enabled || rateLocked) return;
+    if (!el || !enabled || pending || rateLocked) return;
     const rect = el.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
     onRate(RATES[Math.round(ratio * (RATES.length - 1))]);
@@ -118,43 +112,24 @@ export function PlaybackDock({
 
   return (
     <section className="playback-dock" aria-label="Runtime playback">
-      {/* Tier 1: the day scrubber. */}
+      {/*
+        Tier 1: where the run is in its day.
+
+        Read-only by design. Dragging a 24-hour track is a blunt instrument -
+        a pixel is roughly five virtual minutes, so the smallest slip throws
+        the simulation somewhere unintended and forces a re-seek. Movement is
+        through the step controls, which land on exact, repeatable amounts.
+      */}
       <div className="scrubber-row">
         <span className="time mono">00:00</span>
         <div
-          ref={scrubber}
-          className="scrubber"
-          role="slider"
-          tabIndex={enabled ? 0 : -1}
+          className="scrubber readonly"
+          role="progressbar"
           aria-label="Virtual day position"
           aria-valuemin={0}
           aria-valuemax={86400}
           aria-valuenow={Math.round(virtual)}
           aria-valuetext={formatClock(virtual, hour12)}
-          aria-disabled={!enabled}
-          onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(e.pointerId);
-            seekFromPointer(e.clientX);
-          }}
-          onPointerMove={(e) => {
-            if (e.buttons === 1) seekFromPointer(e.clientX);
-          }}
-          onKeyDown={(e) => {
-            if (!enabled) return;
-            const delta =
-              e.key === "ArrowRight" || e.key === "ArrowUp"
-                ? STEP_SECONDS
-                : e.key === "ArrowLeft" || e.key === "ArrowDown"
-                  ? -STEP_SECONDS
-                  : e.key === "Home"
-                    ? -virtual
-                    : e.key === "End"
-                      ? 86400 - virtual
-                      : 0;
-            if (!delta) return;
-            e.preventDefault();
-            onSeek(Math.min(86400, Math.max(0, virtual + delta)));
-          }}
         >
           <div className="rail">
             <i style={{ width: `${percent}%` }} />
@@ -170,6 +145,7 @@ export function PlaybackDock({
       {/* Tier 2: clock, rate, transport - one compact row. */}
       <div className="dock-row">
         <button
+          data-tutorial="clock"
           className="clock-pod"
           onClick={() => onHour12(!hour12)}
           aria-label={`Virtual time, ${hour12 ? "12" : "24"} hour clock. Activate to switch.`}
@@ -184,24 +160,24 @@ export function PlaybackDock({
 
         <div className="dock-divider" aria-hidden="true" />
 
-        <div className={`rate-pod${rateLocked ? " locked" : ""}`}>
+        <div data-tutorial="rate" className={`rate-pod${rateLocked ? " locked" : ""}`}>
           <div className="head">
             <span className="name">Rate</span>
-            <span className="value mono">{rate}×</span>
+            <span className="value mono">{rate}×{requestedRate !== undefined && requestedRate !== rate ? ` / ${requestedRate}× requested` : ""}</span>
           </div>
           <div
             ref={rateTrack}
             className="rate-slider"
             role="slider"
-            tabIndex={enabled && !rateLocked ? 0 : -1}
+            tabIndex={enabled && !pending && !rateLocked ? 0 : -1}
             aria-label="Simulation rate multiplier"
             aria-valuemin={RATES[0]}
             aria-valuemax={RATES[RATES.length - 1]}
             aria-valuenow={rate}
-            aria-valuetext={`${rate} times real time`}
-            aria-disabled={!enabled || rateLocked}
+            aria-valuetext={`${rate} times configured playback pace`}
+            aria-disabled={!enabled || pending || rateLocked}
             onPointerDown={(e) => {
-              if (rateLocked) return;
+              if (!enabled || pending || rateLocked) return;
               e.currentTarget.setPointerCapture(e.pointerId);
               rateFromPointer(e.clientX);
             }}
@@ -209,7 +185,7 @@ export function PlaybackDock({
               if (e.buttons === 1) rateFromPointer(e.clientX);
             }}
             onKeyDown={(e) => {
-              if (!enabled || rateLocked) return;
+              if (!enabled || pending || rateLocked) return;
               const step =
                 e.key === "ArrowRight" || e.key === "ArrowUp"
                   ? 1
@@ -222,9 +198,9 @@ export function PlaybackDock({
             }}
           >
             <div className="rail">
-              <i style={{ width: `${shownOffset}%` }} />
+              <i style={{ width: `${shownOffset}%`, transition: reduceMotion ? "none" : "width 280ms ease-out" }} />
             </div>
-            <div className="head" style={{ left: `${shownOffset}%` }} />
+            <div className="head" style={rateStyle} />
           </div>
           {/* Ticks are drawn from RATES at their own offsets, so every label
               sits exactly where selecting it puts the handle. */}
@@ -235,7 +211,7 @@ export function PlaybackDock({
                 className={i === index ? "current" : ""}
                 style={{ left: `${rateOffset(i)}%` }}
                 tabIndex={-1}
-                disabled={!enabled || rateLocked}
+                disabled={!enabled || pending || rateLocked}
                 onClick={() => onRate(value)}
               >
                 {value}×
@@ -246,13 +222,36 @@ export function PlaybackDock({
 
         <div className="dock-divider" aria-hidden="true" />
 
-        <div className="transport">
-          <Tooltip info={{ title: "Back one minute", category: "Runtime control" }}>
+        <div className="step-pod" data-tutorial="steps">
+          <span className="eyebrow">Step</span>
+          <div className="segmented">
+            {STEPS.map((option, i) => (
+              <button
+                key={option.label}
+                type="button"
+                aria-pressed={i === stepIndex}
+                disabled={!enabled}
+                onClick={() => setStepIndex(i)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="transport" data-tutorial="transport">
+          <Tooltip
+            info={{
+              title: `Back ${step.label}`,
+              category: "Runtime control",
+              description: "Stepping is how the run is moved; the day track is a read-only indicator.",
+            }}
+          >
             <button
               type="button"
-              aria-label="Step back one virtual minute"
+              aria-label={`Step back ${step.label}`}
               disabled={!enabled || pending}
-              onClick={() => onSeek(Math.max(0, virtual - STEP_SECONDS))}
+              onClick={() => onSeek(Math.max(0, virtual - step.seconds))}
             >
               <span aria-hidden="true">⏮</span>
             </button>
@@ -274,12 +273,18 @@ export function PlaybackDock({
               <span aria-hidden="true">{paused ? "▶" : "❚❚"}</span>
             </button>
           </Tooltip>
-          <Tooltip info={{ title: "Forward one minute", category: "Runtime control" }}>
+          <Tooltip
+            info={{
+              title: `Forward ${step.label}`,
+              category: "Runtime control",
+              description: "Stepping is how the run is moved; the day track is a read-only indicator.",
+            }}
+          >
             <button
               type="button"
-              aria-label="Step forward one virtual minute"
+              aria-label={`Step forward ${step.label}`}
               disabled={!enabled || pending}
-              onClick={() => onSeek(Math.min(86400, virtual + STEP_SECONDS))}
+              onClick={() => onSeek(Math.min(86400, virtual + step.seconds))}
             >
               <span aria-hidden="true">⏭</span>
             </button>

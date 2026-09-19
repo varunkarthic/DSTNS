@@ -34,7 +34,7 @@ public:
 
     nlohmann::json prepare(Seed128 seed,const ScenarioConfig& config);
     nlohmann::json start(Seed128 seed,const ScenarioConfig& config,std::uint32_t start_virtual_s=0);
-    nlohmann::json play(); nlohmann::json pause(); nlohmann::json stop(); nlohmann::json reset();
+    nlohmann::json play(const nlohmann::json& guard = {}); nlohmann::json pause(const nlohmann::json& guard = {}); nlohmann::json stop(); nlohmann::json reset();
     nlohmann::json seek(std::uint32_t target_virtual_s,bool resume_after);
     nlohmann::json set_tick_rate(double value); nlohmann::json set_day(int value);
     nlohmann::json set_module(const std::string& module,bool enabled);
@@ -68,6 +68,8 @@ private:
     struct ActiveSurgeZone { std::uint32_t id{}; NodeId node{}; std::uint32_t start_s{}; std::uint32_t end_s{}; double factor{1.8}; double radius_m{300}; std::string label; };
     [[nodiscard]] double asb_now() const;
     [[nodiscard]] nlohmann::json backpressure_json() const;
+    void check_playback_guard(const nlohmann::json& guard) const;
+    std::uint64_t playback_revision_{}; // Never reset: distinguishes same-seed restarts.
     void loop(); void transition(Lifecycle next); void step_to(std::uint32_t target); void physics_step(std::uint32_t dt); void capture_checkpoint();
     void restore_to(std::uint32_t target); void anchor_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
     [[nodiscard]] nlohmann::json clock_json() const; [[nodiscard]] nlohmann::json envelope(nlohmann::json data) const;

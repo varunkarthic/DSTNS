@@ -122,24 +122,28 @@ const backpressure = {
 /** Record every mutating call so tests can assert what reached the core. */
 let calls: { path: string; method: string; body: string }[] = [];
 
-/**
- * With auto_focus.mode "enable" the shell offers auto-focus once per run.
- * Tests that are not about that prompt dismiss it first.
- */
-async function dismissAutoFocusPrompt() {
-  const decline = await screen.findByRole("button", { name: "Disable" }, { timeout: 3000 });
-  fireEvent.click(decline);
-  await waitFor(() =>
-    expect(screen.queryByRole("button", { name: "Disable" })).not.toBeInTheDocument(),
-  );
+/** ui-config that asks before enabling auto-focus, rather than forcing it on. */
+const ASKS_FIRST = { auto_focus: { mode: "enable" } };
+
+/** Wait until the run has loaded and its controls are live. */
+async function ready() {
+  await waitFor(() => expect(screen.getByLabelText("Pause simulation")).toBeEnabled(), {
+    timeout: 4000,
+  });
 }
 
 function mockApi(
-  overrides: { lifecycle?: string; runId?: string; backpressure?: typeof backpressure } = {},
+  overrides: {
+    lifecycle?: string;
+    runId?: string;
+    backpressure?: typeof backpressure;
+    uiConfig?: Record<string, unknown>;
+  } = {},
 ) {
   const runId = overrides.runId ?? "run_1";
   const lifecycle = overrides.lifecycle ?? "RUNNING";
   const asbBody = overrides.backpressure ?? backpressure;
+  const uiConfig = overrides.uiConfig ?? {};
   vi.spyOn(globalThis, "fetch").mockImplementation(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
@@ -157,7 +161,7 @@ function mockApi(
       });
       // Endpoints that are not enveloped.
       if (path.includes("/system/ui-config"))
-        return new Response(JSON.stringify({ api_version: "1.0", data: {} }), {
+        return new Response(JSON.stringify({ api_version: "1.0", data: uiConfig }), {
           headers: { "Content-Type": "application/json" },
         });
       if (path.includes("/system/map-status"))
@@ -215,7 +219,6 @@ describe("observer shell", () => {
   it("renders live telemetry from the snapshot", async () => {
     mockApi();
     render(<App />);
-    await dismissAutoFocusPrompt();
     expect(await screen.findByText("LIVE TELEMETRY")).toBeDefined();
     await waitFor(() =>
       expect(screen.getByText("14%")).toBeInTheDocument(),
@@ -225,13 +228,13 @@ describe("observer shell", () => {
   it("drives playback through the core API", async () => {
     mockApi();
     render(<App />);
-    await dismissAutoFocusPrompt();
+    await ready();
     fireEvent.click(await screen.findByLabelText("Pause simulation"));
     await waitFor(() =>
       expect(calls.some((c) => c.path.includes("/playback/pause"))).toBe(true),
     );
 
-    fireEvent.click(screen.getByLabelText("Step forward one virtual minute"));
+    fireEvent.click(screen.getByLabelText("Step forward 1m"));
     await waitFor(() => {
       const seek = calls.find((c) => c.path.includes("/playback/seek"));
       expect(seek).toBeDefined();
@@ -259,7 +262,7 @@ describe("observer shell", () => {
   it("abandons a reset when the confirmation is cancelled", async () => {
     mockApi();
     render(<App />);
-    await dismissAutoFocusPrompt();
+    await ready();
     calls.length = 0;
     fireEvent.click(screen.getByLabelText("Reset simulation to the start of the day"));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
@@ -271,7 +274,7 @@ describe("observer shell", () => {
   it("keeps display layers entirely in the frontend", async () => {
     mockApi();
     render(<App />);
-    await dismissAutoFocusPrompt();
+    await ready();
     const map = await screen.findByTestId("map");
     expect(map.getAttribute("data-layers")).toContain("weather");
 
@@ -320,7 +323,7 @@ describe("observer shell", () => {
 
 describe("v2 surfaces", () => {
   it("offers auto-focus once per run and remembers the answer", async () => {
-    mockApi();
+    mockApi({ uiConfig: ASKS_FIRST });
     render(<App />);
     // The offer appears because ui-config's default mode is "enable".
     expect(await screen.findByText("This simulation supports Auto-Focus")).toBeInTheDocument();
@@ -340,7 +343,7 @@ describe("v2 surfaces", () => {
   it("shows the About card with the licence and a source offer", async () => {
     mockApi();
     render(<App />);
-    await dismissAutoFocusPrompt();
+    await ready();
     fireEvent.click(screen.getByLabelText("About DSTNS, licence and source"));
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent("Varun Karthic");
@@ -356,7 +359,7 @@ describe("v2 surfaces", () => {
   it("closes a dialog on Escape", async () => {
     mockApi();
     render(<App />);
-    await dismissAutoFocusPrompt();
+    await ready();
     fireEvent.click(screen.getByLabelText("About DSTNS, licence and source"));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
@@ -366,7 +369,7 @@ describe("v2 surfaces", () => {
   it("silences notifications under do-not-disturb without touching the core", async () => {
     mockApi();
     render(<App />);
-    await dismissAutoFocusPrompt();
+    await ready();
     calls.length = 0;
     fireEvent.click(screen.getByLabelText("Do not disturb"));
     await waitFor(() =>
@@ -376,23 +379,28 @@ describe("v2 surfaces", () => {
     expect(calls).toEqual([]);
   });
 
-  it("keeps buildings drawn when place names are switched off", async () => {
+  it("ships with place names off while still drawing the buildings", async () => {
     mockApi();
     render(<App />);
-    await dismissAutoFocusPrompt();
+    await ready();
+    const drawn = () => screen.getByTestId("map").getAttribute("data-layers") ?? "";
+    // The shipped default: the network keeps its shape without the clutter.
+    expect(drawn()).not.toContain("place_names");
+    expect(drawn()).toContain("buildings");
+
+    // And the two are independent, so names can be turned on on their own.
     fireEvent.click(screen.getByRole("button", { name: /Display Layers/ }));
     fireEvent.click(await screen.findByLabelText("Place names"));
     await waitFor(() => {
-      const drawn = screen.getByTestId("map").getAttribute("data-layers") ?? "";
-      expect(drawn).not.toContain("place_names");
-      expect(drawn).toContain("buildings");
+      expect(drawn()).toContain("place_names");
+      expect(drawn()).toContain("buildings");
     });
   });
 
   it("opens the auto-focus strategy menu on a double click", async () => {
     mockApi();
     render(<App />);
-    await dismissAutoFocusPrompt();
+    await ready();
     fireEvent.doubleClick(screen.getByLabelText("Auto-focus on live events"));
     const menu = await screen.findByRole("menu", { name: "Auto-focus strategy" });
     expect(menu).toBeInTheDocument();
@@ -408,7 +416,7 @@ describe("v2 surfaces", () => {
   it("expands search from the dock rather than occupying the map", async () => {
     mockApi();
     render(<App />);
-    await dismissAutoFocusPrompt();
+    await ready();
     // No search field until it is asked for.
     expect(screen.queryByLabelText("Search places")).toBeInstanceOf(HTMLButtonElement);
     fireEvent.click(screen.getByLabelText("Search places"));

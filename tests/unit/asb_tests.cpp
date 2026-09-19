@@ -43,14 +43,14 @@ int main() {
     // ---- A healthy observer is never interfered with ---------------------
     {
         AdaptiveBackpressure asb;
-        const double t = feed(asb, healthy(10.0), 0, 30);
+        const double t = feed(asb, healthy(5.0), 0, 30);
         const auto s = asb.status(t);
         check(s.state == AsbState::Normal, "a healthy observer stays in Normal");
         check(s.synced, "a healthy observer reports synced");
         check(s.score < kAsbSyncedScore, "a healthy observer scores below the synced threshold");
         check(!s.rate_locked && !s.motion_locked && !s.gui_suspended,
               "Normal imposes no locks");
-        check(asb.govern_tick_rate(10.0, t) == 10.0,
+        check(asb.govern_tick_rate(5.0, t) == 5.0,
               "a healthy observer keeps the rate the operator asked for");
     }
 
@@ -81,9 +81,9 @@ int main() {
     // ---- Throttling happens before any escalation -------------------------
     {
         AdaptiveBackpressure asb;
-        asb.observe(drowning(20.0), 0);
-        const double governed = asb.govern_tick_rate(20.0, 0);
-        check(governed < 20.0, "a stressed observer is throttled immediately");
+        asb.observe(drowning(5.0), 0);
+        const double governed = asb.govern_tick_rate(5.0, 0);
+        check(governed < 5.0, "a stressed observer is throttled immediately");
         check(governed >= 1.0, "throttling never drops below real time");
         check(asb.state() == AsbState::Normal,
               "throttling alone does not change state");
@@ -92,7 +92,7 @@ int main() {
     // ---- The default state is tried once, before Restricted ---------------
     {
         AdaptiveBackpressure asb;
-        double t = feed(asb, drowning(20.0), 0, kAsbEscalateAfterS + 0.5);
+        double t = feed(asb, drowning(5.0), 0, kAsbEscalateAfterS + 0.5);
         auto s = asb.status(t);
         bool forced = false;
         for (const auto& a : s.recent_actions) if (a.action == "default_state") forced = true;
@@ -104,15 +104,14 @@ int main() {
     // ---- Restricted: entered on failed recovery, locks rate and motion ----
     {
         AdaptiveBackpressure asb;
-        double t = feed(asb, drowning(20.0), 0, 20);
+        double t = feed(asb, drowning(5.0), 0, 6.25);
         auto s = asb.status(t);
-        check(s.state == AsbState::Restricted || s.state == AsbState::Async,
-              "continued failure escalates past Normal");
-        if (s.state == AsbState::Restricted) {
+        check(s.state == AsbState::Restricted, "failed default recovery enters Restricted at 6s");
+        {
             check(s.rate_locked, "Restricted locks the rate");
             check(s.motion_locked, "Restricted forces reduced motion");
             check(!s.gui_suspended, "Restricted does not suspend the interface");
-            check(asb.govern_tick_rate(50.0, t) == 1.0,
+            check(asb.govern_tick_rate(5.0, t) == 1.0,
                   "Restricted pins the multiplier at 1x whatever is requested");
         }
     }
@@ -120,8 +119,9 @@ int main() {
     // ---- Restricted is held for its minimum before any judgement ----------
     {
         AdaptiveBackpressure asb;
-        double t = feed(asb, drowning(20.0), 0, 20);
-        if (asb.state() == AsbState::Restricted) {
+        double t = feed(asb, drowning(5.0), 0, 6.25);
+        check(asb.state() == AsbState::Restricted, "Restricted hold precondition");
+        {
             const double entered = t;
             // Recover immediately; the hold must still be honoured.
             t = feed(asb, healthy(), entered + 0.25, kAsbRestrictedHoldS - 1.0);
@@ -133,12 +133,12 @@ int main() {
     // ---- Async: the terminal rung, GUI suspended, simulation untouched ----
     {
         AdaptiveBackpressure asb;
-        double t = feed(asb, drowning(50.0), 0, 60);
+        double t = feed(asb, drowning(5.0), 0, 60);
         const auto s = asb.status(t);
         check(s.state == AsbState::Async, "persistent failure reaches Async");
         check(s.gui_suspended, "Async suspends the interface");
         check(s.rate_locked, "Async keeps the rate locked");
-        check(asb.govern_tick_rate(50.0, t) == 1.0, "Async runs the simulation at 1x");
+        check(asb.govern_tick_rate(5.0, t) == 1.0, "Async runs the simulation at 1x");
         bool suspended = false;
         for (const auto& a : s.recent_actions) if (a.action == "suspend") suspended = true;
         check(suspended, "the suspension is recorded with a reason");
@@ -147,7 +147,7 @@ int main() {
     // ---- Recovery walks back down, and only after a sustained good spell --
     {
         AdaptiveBackpressure asb;
-        double t = feed(asb, drowning(20.0), 0, 60);
+        double t = feed(asb, drowning(5.0), 0, 60);
         check(asb.state() == AsbState::Async, "reached Async before testing recovery");
         // A brief good patch must not release it.
         t = feed(asb, healthy(), t + 0.25, 1.0);
@@ -157,6 +157,7 @@ int main() {
         check(asb.state() == AsbState::Normal, "a sustained recovery returns to Normal");
         const auto s = asb.status(t);
         check(!s.gui_suspended && !s.rate_locked, "returning to Normal lifts every lock");
+        check(asb.govern_tick_rate(5.0, t) == 5.0, "recovery restores the requested rate");
     }
 
     // ---- Noise must not flap the state ------------------------------------
@@ -172,7 +173,7 @@ int main() {
     // ---- Actions are explained, and the log stays bounded -----------------
     {
         AdaptiveBackpressure asb;
-        double t = feed(asb, drowning(20.0), 0, 120);
+        double t = feed(asb, drowning(5.0), 0, 120);
         const auto s = asb.status(t);
         check(!s.recent_actions.empty(), "transitions are recorded");
         check(s.recent_actions.size() <= 24, "the action log is bounded");
@@ -195,7 +196,7 @@ int main() {
     // ---- Reset clears everything, so one run cannot colour the next -------
     {
         AdaptiveBackpressure asb;
-        const double t = feed(asb, drowning(20.0), 0, 60);
+        const double t = feed(asb, drowning(5.0), 0, 60);
         asb.record_delivery(1000, t);
         check(asb.state() != AsbState::Normal, "state was dirty before reset");
         asb.reset();
@@ -204,7 +205,7 @@ int main() {
         check(s.score == 0, "reset clears the score");
         check(s.recent_actions.empty(), "reset clears the action log");
         check(s.bytes_per_s == 0, "reset clears the delivery window");
-        check(asb.govern_tick_rate(20.0, 0) == 20.0, "reset restores full operator control");
+        check(asb.govern_tick_rate(5.0, 0) == 5.0, "reset restores full operator control");
     }
 
     // ---- to_string covers every state -------------------------------------

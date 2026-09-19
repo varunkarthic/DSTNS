@@ -34,6 +34,7 @@ export interface UiConfig {
     max_visible: number;
     dwell_ms: number;
   };
+  tutorial: { enabled: boolean; show_on_startup: boolean };
   clock: { hour12: boolean };
   asb: { enabled: boolean; report_interval_ms: number };
 }
@@ -42,12 +43,13 @@ export const BUILT_IN: UiConfig = {
   layers: { ...defaultLayers },
   reduce_motion: "auto",
   auto_focus: {
-    mode: "enable",
+    mode: "enable-force",
     strategy: "round-robin",
     dwell_seconds: 9,
     zoom: 1.6,
   },
   notifications: { enabled: true, dnd: false, max_visible: 3, dwell_ms: 7000 },
+  tutorial: { enabled: true, show_on_startup: false },
   clock: { hour12: false },
   asb: { enabled: true, report_interval_ms: 1000 },
 };
@@ -87,6 +89,7 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
   const focus = (p.auto_focus ?? {}) as Record<string, unknown>;
   const notes = (p.notifications ?? {}) as Record<string, unknown>;
   const clock = (p.clock ?? {}) as Record<string, unknown>;
+  const tutorial = (p.tutorial ?? {}) as Record<string, unknown>;
   const asb = (p.asb ?? {}) as Record<string, unknown>;
 
   const layers = { ...base.layers };
@@ -105,8 +108,12 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
     notifications: {
       enabled: bool(notes.enabled, base.notifications.enabled),
       dnd: bool(notes.dnd, base.notifications.dnd),
-      max_visible: num(notes.max_visible, base.notifications.max_visible, 1, 8),
+      max_visible: Math.round(num(notes.max_visible, base.notifications.max_visible, 1, 8)),
       dwell_ms: num(notes.dwell_ms, base.notifications.dwell_ms, 1000, 60000),
+    },
+    tutorial: {
+      enabled: bool(tutorial.enabled, base.tutorial.enabled),
+      show_on_startup: bool(tutorial.show_on_startup, base.tutorial.show_on_startup),
     },
     clock: { hour12: bool(clock.hour12, base.clock.hour12) },
     asb: {
@@ -150,7 +157,7 @@ export function diffConfig(base: UiConfig, next: UiConfig): Record<string, unkno
       if (a[key] !== b[key]) out[key as string] = b[key];
     return out;
   };
-  for (const key of ["auto_focus", "notifications", "clock", "asb"] as const) {
+  for (const key of ["auto_focus", "notifications", "clock", "asb", "tutorial"] as const) {
     const changed = section(base[key], next[key]);
     if (Object.keys(changed).length) patch[key] = changed;
   }
@@ -182,7 +189,7 @@ export function clearOverrides(): void {
  */
 export async function loadConfig(
   fetchImpl: typeof fetch = fetch,
-): Promise<{ config: UiConfig; source: "built-in" | "server" | "viewer" }> {
+): Promise<{ config: UiConfig; operator: UiConfig; source: "built-in" | "server" | "viewer" }> {
   let config = BUILT_IN;
   let source: "built-in" | "server" | "viewer" = "built-in";
   try {
@@ -197,12 +204,13 @@ export async function loadConfig(
   } catch {
     /* Offline or no core: the built-in defaults are already complete. */
   }
+  const operator = config;
   const overrides = readOverrides();
   if (overrides) {
     config = mergeConfig(config, overrides);
     source = "viewer";
   }
-  return { config, source };
+  return { config, operator, source };
 }
 
 /** Whether reduced motion should be on, given the setting and the OS preference. */

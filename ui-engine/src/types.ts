@@ -28,6 +28,7 @@ export interface Envelope<T> {
   data: T;
 }
 export interface Status {
+  playback_revision?: number;
   lifecycle: Lifecycle;
   day: number;
   saved_seed_id: string;
@@ -231,7 +232,8 @@ export const defaultLayers: Layers = {
   vehicles: true,
   incidents: true,
   labels: true,
-  place_names: true,
+  // Off by default: names are dense enough to obscure the network they sit on.
+  place_names: false,
 };
 export interface Inspection {
   title: string;
