@@ -13,6 +13,7 @@ Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed,
 | POST | `/api/v1/playback/step` | Advance `seconds` (1 to 3600, default 60) of virtual time and hold paused |
 | POST | `/api/v1/world/regenerate` | Replace the world with one from a fresh secure seed; HTTP 202, progress via `/world/status` |
 | GET | `/api/v1/world/status` | State of the current or last world generation job |
+| GET | `/api/v1/system/observer` | Whether the observer page has been served yet, and how many times |
 | PUT | `/api/v1/control/tick-rate` | Rate in (0, 10]; the interface offers 0.25, 0.5, 1, 2, 3, 5 and 10 |
 | GET | `/api/v1/view/topology` | Immutable geographic graph, road names/tags, features, bounds, projection |
 | GET | `/api/v1/view/snapshot` | Dynamic roads, signals, demand, weather, actual incidents, congestion |
@@ -98,6 +99,12 @@ A second request while one is generating, or with a stale `expected_run_id`,
 returns HTTP 409 `LIFECYCLE_CONFLICT`. Operators can disable the endpoint with
 `DSTNS_DISABLE_WORLD_REGENERATION=1`, which returns HTTP 403
 `WORLD_REGENERATION_DISABLED`.
+
+`GET /api/v1/system/observer` reports `{loaded, loads}`. The launcher opens the
+interface and waits for this before requesting a run, so world selection, the
+map download, generation and initialization are all watched in the interface
+rather than happening behind a blank tab. It counts page loads only and carries
+no session identity.
 
 `GET /api/v1/system/map-status` reports the live map download and, in
 `preparation`, what a compile is doing when no map is moving: `selecting`

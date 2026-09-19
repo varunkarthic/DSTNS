@@ -251,6 +251,28 @@ paths:
         '400':
           $ref: '#/components/responses/Error'
 
+  /api/v1/system/observer:
+    get:
+      tags:
+      - System
+      summary: Whether the observer page has been served in a browser yet
+      responses:
+        '200':
+          description: Observer load count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version:
+                    const: '1.0'
+                  data:
+                    type: object
+                    properties:
+                      loaded:
+                        type: boolean
+                      loads:
+                        type: integer
   /api/v1/system/map-status:
     get:
       tags:

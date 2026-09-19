@@ -155,7 +155,8 @@ void ApiServer::routes() {
         server_->set_mount_point("/assets", (dist / "assets").string());
     }
 
-    auto index_handler = [dist](const httplib::Request&, httplib::Response& r) {
+    auto index_handler = [this, dist](const httplib::Request&, httplib::Response& r) {
+        observer_loads_.fetch_add(1);
         if (!dist.empty() && std::filesystem::exists(dist / "index.html")) {
             std::ifstream f(dist / "index.html");
             if (f) {
@@ -168,6 +169,13 @@ void ApiServer::routes() {
     };
     // The browser icon lives beside index.html rather than under /assets,
     // because the page references it by a fixed path.
+    // Whether the observer has been loaded in a browser yet. The launcher
+    // opens the interface first and waits for this before starting a run, so
+    // world selection and the download are watched rather than hidden.
+    server_->Get("/api/v1/system/observer", [this](const auto&, auto& r) {
+        const auto loads = observer_loads_.load();
+        send(r, {{"api_version", "1.0"}, {"data", {{"loaded", loads > 0}, {"loads", loads}}}});
+    });
     server_->Get("/favicon.svg", [dist](const httplib::Request&, httplib::Response& r) {
         std::ifstream f(dist / "favicon.svg");
         if (dist.empty() || !f) {

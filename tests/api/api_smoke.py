@@ -109,6 +109,14 @@ def main():
             assert "number" in err["error"]["message"]
             assertions += 4
 
+            # 3a. The launcher waits for the observer before asking for a world.
+            code, observer = call(base, "/api/v1/system/observer")
+            assert code == 200 and observer["data"]["loaded"] is False, observer
+            urllib.request.urlopen(base + "/").read()
+            code, observer = call(base, "/api/v1/system/observer")
+            assert code == 200 and observer["data"]["loaded"] is True and observer["data"]["loads"] >= 1
+            assertions += 2
+
             # 3b. The seed is a number, in whichever form it is given.
             decimal_start = dict(req_start_template := {
                 "seed": "1311768467294899695",
