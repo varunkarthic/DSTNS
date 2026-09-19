@@ -1,4 +1,5 @@
 import { defaultLayers } from "./types";
+import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from "./notificationModel";
 import type { Layers } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -14,6 +15,12 @@ import type { Layers } from "./types";
 // Every value is presentation only. Nothing here is sent to the simulation or
 // changes what it computes.
 // ---------------------------------------------------------------------------
+
+const NOTIFICATION_CATEGORY_IDS = NOTIFICATION_CATEGORIES.map((c) => c.id as string);
+const NOTIFICATION_SEVERITY_IDS = NOTIFICATION_SEVERITIES.map((c) => c.id as string);
+/** Intervals offered for Back, Forward and Step, in virtual seconds. */
+export const SKIP_OPTIONS = [60, 300, 900, 3600] as const;
+export const STEP_OPTIONS = [1, 10, 60, 300] as const;
 
 export type ReduceMotionSetting = "auto" | "on" | "off";
 export type AutoFocusMode = "disable" | "enable" | "enable-force";
@@ -31,8 +38,18 @@ export interface UiConfig {
   notifications: {
     enabled: boolean;
     dnd: boolean;
+    /** Categories silenced while Do Not Disturb is on. */
+    dnd_categories: string[];
+    /** Severities silenced while Do Not Disturb is on. */
+    dnd_severities: string[];
     max_visible: number;
     dwell_ms: number;
+  };
+  playback: {
+    /** Back and Forward jump by this many virtual seconds. */
+    skip_seconds: number;
+    /** Step advances by this many virtual seconds and holds. */
+    step_seconds: number;
   };
   tutorial: { enabled: boolean; show_on_startup: boolean };
   clock: { hour12: boolean };
@@ -48,7 +65,15 @@ export const BUILT_IN: UiConfig = {
     dwell_seconds: 9,
     zoom: 1.6,
   },
-  notifications: { enabled: true, dnd: false, max_visible: 3, dwell_ms: 7000 },
+  notifications: {
+    enabled: true,
+    dnd: false,
+    dnd_categories: [...NOTIFICATION_CATEGORY_IDS],
+    dnd_severities: [],
+    max_visible: 3,
+    dwell_ms: 7000,
+  },
+  playback: { skip_seconds: 900, step_seconds: 60 },
   tutorial: { enabled: true, show_on_startup: false },
   clock: { hour12: false },
   asb: { enabled: true, report_interval_ms: 1000 },
@@ -67,6 +92,16 @@ function oneOf<T extends string>(value: unknown, allowed: T[], fallback: T): T {
 
 function bool(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+/** Keep only permitted, unique values, in the permitted order. */
+function subset(value: unknown, allowed: string[], fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback;
+  return allowed.filter((a) => value.includes(a));
+}
+
+function choice(value: unknown, allowed: readonly number[], fallback: number): number {
+  return typeof value === "number" && allowed.includes(value) ? value : fallback;
 }
 
 function num(value: unknown, fallback: number, min: number, max: number): number {
@@ -91,6 +126,7 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
   const clock = (p.clock ?? {}) as Record<string, unknown>;
   const tutorial = (p.tutorial ?? {}) as Record<string, unknown>;
   const asb = (p.asb ?? {}) as Record<string, unknown>;
+  const playback = (p.playback ?? {}) as Record<string, unknown>;
 
   const layers = { ...base.layers };
   for (const key of Object.keys(base.layers) as (keyof Layers)[])
@@ -108,12 +144,18 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
     notifications: {
       enabled: bool(notes.enabled, base.notifications.enabled),
       dnd: bool(notes.dnd, base.notifications.dnd),
+      dnd_categories: subset(notes.dnd_categories, NOTIFICATION_CATEGORY_IDS, base.notifications.dnd_categories),
+      dnd_severities: subset(notes.dnd_severities, NOTIFICATION_SEVERITY_IDS, base.notifications.dnd_severities),
       max_visible: Math.round(num(notes.max_visible, base.notifications.max_visible, 1, 8)),
       dwell_ms: num(notes.dwell_ms, base.notifications.dwell_ms, 1000, 60000),
     },
     tutorial: {
       enabled: bool(tutorial.enabled, base.tutorial.enabled),
       show_on_startup: bool(tutorial.show_on_startup, base.tutorial.show_on_startup),
+    },
+    playback: {
+      skip_seconds: choice(playback.skip_seconds, SKIP_OPTIONS, base.playback.skip_seconds),
+      step_seconds: choice(playback.step_seconds, STEP_OPTIONS, base.playback.step_seconds),
     },
     clock: { hour12: bool(clock.hour12, base.clock.hour12) },
     asb: {
@@ -153,11 +195,16 @@ export function diffConfig(base: UiConfig, next: UiConfig): Record<string, unkno
 
   const section = <T extends object>(a: T, b: T) => {
     const out: Record<string, unknown> = {};
-    for (const key of Object.keys(a) as (keyof T)[])
-      if (a[key] !== b[key]) out[key as string] = b[key];
+    for (const key of Object.keys(a) as (keyof T)[]) {
+      const x = a[key];
+      const y = b[key];
+      // Lists compare by content: a fresh array with the same members is no change.
+      const same = Array.isArray(x) && Array.isArray(y) ? JSON.stringify(x) === JSON.stringify(y) : x === y;
+      if (!same) out[key as string] = y;
+    }
     return out;
   };
-  for (const key of ["auto_focus", "notifications", "clock", "asb", "tutorial"] as const) {
+  for (const key of ["auto_focus", "notifications", "playback", "clock", "asb", "tutorial"] as const) {
     const changed = section(base[key], next[key]);
     if (Object.keys(changed).length) patch[key] = changed;
   }

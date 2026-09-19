@@ -7,6 +7,7 @@ import type {
   EventPage,
   Congestion,
   Backpressure,
+  WorldStatus,
 } from "./types";
 const base =
   (import.meta.env.VITE_DSTNS_API_URL as string | undefined)?.replace(
@@ -36,7 +37,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   if (
     path.includes("/view/") ||
-    path.endsWith("/status") ||
+    path.endsWith("/playback/status") ||
     path.startsWith("/api/v1/news")
   ) {
     if (
@@ -77,6 +78,36 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ target_time, play }),
     }),
+  // Advance a fixed number of virtual seconds and hold paused.
+  step: (seconds: number) =>
+    request<{ simulated_seconds: number; stepped_seconds: number; lifecycle: string }>("/api/v1/playback/step", {
+      method: "POST",
+      body: JSON.stringify({ seconds }),
+    }),
+  // Ask the core for a new world from a fresh seed. Progress is polled.
+  regenerateWorld: (expected_run_id?: string) =>
+    request<{ data: WorldStatus }>("/api/v1/world/regenerate", {
+      method: "POST",
+      body: JSON.stringify(expected_run_id ? { expected_run_id } : {}),
+    }),
+  worldStatus: () => request<{ data: WorldStatus }>("/api/v1/world/status"),
+  /** Every news item recorded for the run, paged in core-sized requests. */
+  allNews: async (runId: string, max = 20000): Promise<News[]> => {
+    const out: News[] = [];
+    let since = 0;
+    while (out.length < max) {
+      const page = await request<Envelope<{ items: News[] }>>(
+        `/api/v1/news?since_news_id=${since}&limit=500`,
+      );
+      if (page.run_id !== runId) throw new Error("The simulation changed while its history was being read.");
+      const items = page.data.items.filter((n) => n.news_id > since);
+      if (!items.length) break;
+      out.push(...items);
+      since = Math.max(...items.map((n) => n.news_id));
+      if (page.data.items.length < 500) break;
+    }
+    return out.sort((a, b) => a.news_id - b.news_id);
+  },
   reset: () =>
     request("/api/v1/playback/reset", { method: "POST", body: "{}" }),
   terminate: () =>

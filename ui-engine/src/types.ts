@@ -143,6 +143,12 @@ export interface WeatherState {
   y_m: number;
   radius_m: number;
   intensity: number;
+  epicenter_node?: number;
+  lat?: number;
+  lon?: number;
+  /** Fraction of the cell's lifetime elapsed: growth below 0.25, decay above 0.7. */
+  phase?: number;
+  flood_gain?: number;
 }
 export interface IncidentState {
   id?: number;
@@ -152,6 +158,15 @@ export interface IncidentState {
   description?: string;
   closed: boolean;
   flood: number;
+  node_id?: number;
+  road_class?: string;
+  congestion?: number;
+  vehicle_count?: number;
+  speed_multiplier?: number;
+  capacity_multiplier?: number;
+  start_virtual_s?: number;
+  end_virtual_s?: number;
+  remaining_s?: number;
 }
 export interface Congestion {
   current: number;
@@ -231,7 +246,8 @@ export const defaultLayers: Layers = {
   roads: true,
   vehicles: true,
   incidents: true,
-  labels: true,
+  // Off by default: road names crowd the network at district scale.
+  labels: false,
   // Off by default: names are dense enough to obscure the network they sit on.
   place_names: false,
 };
@@ -271,4 +287,38 @@ export interface Backpressure {
   throughput: { snapshots_per_s: number; bytes_per_s: number };
   actions: AsbAction[];
   thresholds: Record<string, number>;
+}
+
+// ---------------------------------------------------------------------------
+// World regeneration
+// ---------------------------------------------------------------------------
+export type WorldJobState = "idle" | "generating" | "ready" | "failed";
+export type WorldStage =
+  | "idle"
+  | "compiling"
+  | "requesting"
+  | "downloading"
+  | "validating"
+  | "building"
+  | "installing"
+  | "ready"
+  | "failed";
+export interface WorldStatus {
+  state: WorldJobState;
+  stage: WorldStage;
+  seed: string;
+  previous_run_id: string;
+  run_id: string;
+  generation: number;
+  elapsed_s: number;
+  enabled?: boolean;
+  map: {
+    city: string;
+    country: string;
+    phase: string;
+    bytes: number;
+    total: number;
+    elapsed_s: number;
+  } | null;
+  error: { code: string; message: string } | null;
 }

@@ -8,7 +8,9 @@ import {
   useState,
 } from "react";
 import type { RefObject } from "react";
-import { mapFitLayout, metresToGeographic } from "./mapProjection";
+import { mapFitLayout, mapInsets, metresToGeographic } from "./mapProjection";
+import { viewportFor } from "./autoFocus";
+import type { Bounds } from "./autoFocus";
 import { InfoCard, Tooltip } from "./Tooltip";
 import {
   demandColor,
@@ -50,8 +52,12 @@ type Props = {
   running: boolean;
   virtualTime: number;
   tickRate?: number;
-  /** Where the camera should glide to next; a new token restarts the glide. */
-  focus?: { x_m: number; y_m: number; scale?: number; token: number } | null;
+  /**
+   * Where the camera should glide to next; a new token starts a new glide.
+   * `bounds` (metres, y north) frames an event's footprint; a point with a
+   * scale centres on it.
+   */
+  focus?: { bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number } | null;
   controls?: RefObject<MapControls | null>;
   onView?: (view: MapView) => void;
   onCursor?: (position: { lat: number; lon: number } | null) => void;
@@ -153,20 +159,24 @@ function NetworkMap({
     () => (topology ? topology.features.map((f) => placeKind(f)) : []),
     [topology],
   );
-  const fit = useCallback(() => {
-    if (!cached) return;
+  /** The view that frames `bounds` (metres, y north) clear of the chrome. */
+  const viewForBounds = useCallback(
+    (bounds: Bounds, padding: number, minSpan?: number): View => {
+      const v = viewportFor(bounds, { width: size.w, height: size.h, insets: mapInsets(size.w, size.h) }, { padding, maxScale: 8, minScale: 0.025, minSpan });
+      return { scale: v.scale, x: v.screen.x - v.centre.x * v.scale, y: v.screen.y + v.centre.y * v.scale };
+    },
+    [size],
+  );
+  const networkView = useCallback((): View | null => {
+    if (!cached) return null;
     const b = cached.bounds;
-    const layout = mapFitLayout(size.w, size.h);
-    const scale = Math.min(
-      layout.available / Math.max(1, b.maxX - b.minX),
-      (size.h - 150) / Math.max(1, b.maxY - b.minY),
-    );
-    setView({
-      scale,
-      x: layout.centerX - ((b.minX + b.maxX) / 2) * scale,
-      y: layout.centerY - ((b.minY + b.maxY) / 2) * scale,
-    });
-  }, [cached, size]);
+    // Cached geometry is in canvas orientation (y down); bounds are y north.
+    return viewForBounds({ minX: b.minX, maxX: b.maxX, minY: -b.maxY, maxY: -b.minY }, 0.03, 0);
+  }, [cached, viewForBounds]);
+  const fit = useCallback(() => {
+    const next = networkView();
+    if (next) setView(next);
+  }, [networkView]);
   useEffect(() => {
     const el = host.current;
     if (!el) return;
@@ -531,49 +541,65 @@ function NetworkMap({
     flowing,
     tickRate,
   ]);
-  // Smooth camera glide. The operator should be carried to an incident rather
-  // than teleported, so the view eases over ~900ms and any manual pan, zoom or
-  // drag cancels it immediately.
+  // Smooth camera glide. The operator is carried to an event rather than
+  // teleported: the view eases over a duration scaled to the distance, and any
+  // manual pan, zoom or drag cancels it immediately.
   const glide = useRef<number | undefined>(undefined);
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const cancelGlide = useCallback(() => {
     if (glide.current !== undefined) cancelAnimationFrame(glide.current);
     glide.current = undefined;
   }, []);
   useEffect(() => cancelGlide, [cancelGlide]);
+  const glideTo = useCallback(
+    (target: View) => {
+      cancelGlide();
+      let from: View | null = null;
+      let duration = 0;
+      const started = performance.now();
+      const step = (now: number) => {
+        setView((current) => {
+          if (!from) {
+            from = current;
+            // Longer moves and larger zoom changes take a little longer.
+            const travel = Math.hypot(target.x - current.x, target.y - current.y) / Math.max(1, size.w);
+            const zoom = Math.abs(Math.log(target.scale / Math.max(1e-6, current.scale)));
+            duration = reduceMotion ? 0 : Math.min(1400, 650 + travel * 500 + zoom * 180);
+          }
+          const t = duration ? Math.min(1, (now - started) / duration) : 1;
+          // Ease-in-out cubic: gentle departure and arrival.
+          const k = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          if (t >= 1) glide.current = undefined;
+          // Interpolate zoom geometrically so it feels uniform in speed.
+          const scale = from.scale * Math.pow(target.scale / from.scale, k);
+          // Keep the point under the moving centre on a straight path.
+          const layout = mapFitLayout(size.w, size.h);
+          const fromCentre = { x: (layout.centerX - from.x) / from.scale, y: (layout.centerY - from.y) / from.scale };
+          const toCentre = { x: (layout.centerX - target.x) / target.scale, y: (layout.centerY - target.y) / target.scale };
+          const cx = fromCentre.x + (toCentre.x - fromCentre.x) * k;
+          const cy = fromCentre.y + (toCentre.y - fromCentre.y) * k;
+          return { scale, x: layout.centerX - cx * scale, y: layout.centerY - cy * scale };
+        });
+        if (glide.current !== undefined) glide.current = requestAnimationFrame(step);
+      };
+      glide.current = requestAnimationFrame(step);
+    },
+    [cancelGlide, reduceMotion, size.w, size.h],
+  );
   useEffect(() => {
     if (!focus || !size.w) return;
+    if (focus.bounds) {
+      glideTo(viewForBounds(focus.bounds, focus.padding ?? 0.18));
+      return;
+    }
+    if (focus.x_m === undefined || focus.y_m === undefined) return;
     const layout = mapFitLayout(size.w, size.h);
-    let from: View | null = null;
-    const started = performance.now();
-    const duration = reduceMotion ? 0 : 900;
-    const step = (now: number) => {
-      setView((current) => {
-        from ??= current;
-        const target: View = {
-          scale: focus.scale ?? current.scale,
-          x: 0,
-          y: 0,
-        };
-        target.x = layout.centerX - focus.x_m * target.scale;
-        target.y = layout.centerY + focus.y_m * target.scale;
-        const t = duration ? Math.min(1, (now - started) / duration) : 1;
-        // Ease-out cubic: quick departure, gentle arrival.
-        const k = 1 - Math.pow(1 - t, 3);
-        if (t >= 1) glide.current = undefined;
-        return {
-          scale: from.scale + (target.scale - from.scale) * k,
-          x: from.x + (target.x - from.x) * k,
-          y: from.y + (target.y - from.y) * k,
-        };
-      });
-      if (glide.current !== undefined) glide.current = requestAnimationFrame(step);
-    };
-    cancelGlide();
-    glide.current = requestAnimationFrame(step);
-    return cancelGlide;
+    const scale = focus.scale ?? viewRef.current.scale;
+    glideTo({ scale, x: layout.centerX - focus.x_m * scale, y: layout.centerY + focus.y_m * scale });
     // Only a new token starts a glide; view changes during it must not restart it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus?.token, size.w, size.h, reduceMotion, cancelGlide]);
+  }, [focus?.token, size.w, size.h]);
 
   const clearHover = () => {
     clearTimeout(timer.current);
@@ -801,7 +827,10 @@ function NetworkMap({
     () => ({
       zoomIn: () => zoom(1.3),
       zoomOut: () => zoom(1 / 1.3),
-      fit,
+      fit: () => {
+        const next = networkView();
+        if (next) glideTo(next);
+      },
       inspectFeature: (id: string) => {
         const feature = topology?.features.find((f) => f.id === id);
         if (!feature) return;
@@ -828,7 +857,7 @@ function NetworkMap({
     }),
     // zoom and inspection close over the current size and state, so refresh
     // the handle when any of them changes.
-    [fit, size.w, size.h, topology, state],
+    [networkView, glideTo, size.w, size.h, topology, state],
   );
   // view.scale is pixels per metre, so its reciprocal is metres per pixel: the
   // figure the scale bar and the coordinate readout are drawn from.

@@ -1,23 +1,79 @@
-/** Content refers to actual model owners: engine.cpp, events.cpp and asb.cpp.
- * Targets are semantic DOM anchors, never viewport coordinates. */
-export const TUTORIAL_VERSION = "1";
-export const tutorialSteps = [
-  { target: "header", title: "Meet your observer", body: "DSTNS observes a deterministic simulation started from the operator CLI. The header identifies the city; the status strip and telemetry show the current run. This tour pauses virtual time so you can read without missing events." },
-  { target: "map", title: "Read the network", body: "Drag to pan, or use the map’s arrow keys and + / − to navigate. Hover roads, signals and places for details. Green means clear, amber moderate and red severe congestion; blue marks flooding. Flow dots represent aggregate traffic, not individually tracked vehicles." },
-  { target: "zoom", title: "Zoom and fit", body: "Use + and − to change scale, or Fit to frame the network in the available map area. Geometry is in real metres. Display zoom changes the picture, never road lengths or simulation calculations." },
-  { target: "search", title: "Find a place", body: "Search opens a place-name field. Choose a result to centre and inspect its actual OSM feature. Place names are hidden on the map by default; buildings and search remain available." },
-  { target: "focus", title: "Follow events", body: "Auto-focus starts enabled by default. It visits incidents, flooding and weather; frequent signal changes are excluded. Click to toggle, or double-click for Round-Robin / Latest. Manual pan or zoom cancels the current camera glide." },
-  { target: "motion", title: "Choose a quieter view", body: "Reduce Motion stops nonessential animation and flow markers without changing traffic, weather or virtual time. DND, beside it, hides notification stacks while retaining the News history. Similar messages stack with a count; expand to read each one, or dismiss the group." },
-  { target: "hud", title: "Coordinates and scale", body: "The coordinate HUD follows your pointer, or shows the map origin. The scale bar converts the current canvas scale into real metres. A road one kilometre long stays one kilometre long at any zoom." },
-  { target: "layers", title: "Choose display layers", body: "Display Layers controls roads, street and place names, signals, flow, buildings, weather, flooding, incidents and demand. These choices affect drawing only. Reset returns the layers to the operator’s ui-config.json defaults." },
-  { target: "telemetry", title: "Understand live telemetry", body: "Road Edges counts canonical directions; active edges carry vehicles. Vehicles and halting counts sum the latest modeled edge state. The deck also identifies module state and signal controllers. Signals alternate approach groups with amber and all-red clearance; nearby offsets follow travel time." },
-  { target: "congestion", title: "How congestion is calculated", body: "For each traversable road: 60% speed loss + 25% halted / max(1, vehicles) + 15% occupancy, clamped to 0–1. Speed loss is 1 − mean speed / free speed (zero without vehicles). Closed roads score 1. The network index weights each road by length × lanes, then multiplies by 100. It shows the current computed state." },
-  { target: "weather", title: "Weather and residual flooding", body: "Seeded weather cells combine a time envelope with the compact spatial kernel W(q) = (1−q)⁴(4q+1), q = distance / radius; outside the radius, rain is zero. Flooding accumulates from rainfall and drains over virtual time, so it can persist after rain ends. Flood levels are synthetic model values, not measured water depths. The displayed mm/h is indicative: peak cell intensity × 8." },
-  { target: "events", title: "Events, incidents and demand", body: "Stack shows runtime subsystems. News retains recent messages; Queue separates upcoming events from the latest 2,000 executed events. Incidents restrict capacity or close roads. School, University, Office and Mall demand uses seeded time windows and an eight-step sin² ramp; nearby influence fades through a 400 m spatial kernel. Demand colours progress from white through amber to red." },
-  { target: "asb", title: "Adaptive Simulation Backpressure", body: "ASB takes the worst normalized pressure from virtual lag, frame time and snapshot staleness. Sustained pressure lowers the applied rate while remembering your requested rate. After 3 seconds it tries minimal display; failed recovery leads to Restricted (1× and reduced motion), then Async after at least 5 seconds. Async suspends the interface while the engine stays alive. Sustained health restores normal operation." },
-  { target: "clock", title: "Virtual clock and day progress", body: "One cycle represents 24 hours. Virtual seconds per wall second = 86,400 / configured playback duration × applied multiplier. Click the clock to switch 12 / 24 hour display. The day bar is read-only: clicking or dragging it never seeks." },
-  { target: "steps", title: "Move by exact steps", body: "Choose 1 minute, 15 minutes or 1 hour, then use Back / Forward. Steps clamp at 00:00 and 24:00. Rewinding restores a checkpoint and replays deterministic physics. Playback resumes only if the run was already playing." },
-  { target: "rate", title: "Requested and applied speed", body: "Choose 0.25×, 0.5×, 1×, 2×, 3× or 5×, using the slider or arrow keys. Five times is the maximum. ASB can reduce the applied multiplier and lock the control; your requested multiplier is retained for recovery. The multiplier scales the configured playback pace, not real-world seconds directly." },
-  { target: "transport", title: "Pause, reset and terminate", body: "Play / Pause controls virtual time. Reset asks before returning this same scenario to 00:00. Terminate asks before shutting down the session; a new run then needs the CLI. Finishing or skipping this tour restores playback only if the tour paused it and the run, playback state and ASB still permit it." },
-  { target: "help", title: "Reports and help", body: "Export Report saves a local PDF of the observed run, current congestion and history, map, events and ASB. About contains the licence, source offer and map attribution. You can reopen Tutorial here any time it is enabled. You’re ready to explore." },
-] as const;
+/**
+ * Tutorial content.
+ *
+ * Targets are semantic `data-tutorial` anchors, never coordinates. Only
+ * controls that are always present are included: conditional runtime states
+ * such as backpressure indicators or transient notifications are never
+ * tutorial targets, because they may not exist while the tour is running.
+ * The last step is the playback group, and its action starts the simulation.
+ */
+export const TUTORIAL_VERSION = "2";
+
+export interface TutorialStep {
+  target: string;
+  title: string;
+  body: string;
+}
+
+export const tutorialSteps: readonly TutorialStep[] = [
+  {
+    target: "map",
+    title: "The network",
+    body: "This is the live road network. Drag to pan and scroll to zoom. Hover a road, signal or place for its current state. Green is clear, amber moderate, red severe, and blue is flooded.",
+  },
+  {
+    target: "zoom",
+    title: "Map tools",
+    body: "Zoom, fit the whole network, and search for a place by name. Geometry is in real metres, so zooming changes the picture and never the model.",
+  },
+  {
+    target: "focus",
+    title: "Auto Focus",
+    body: "Auto Focus follows incidents, flooding and rain, framing each event's full extent. Rain is re-framed as it grows. Double-click to choose Round-Robin or Latest.",
+  },
+  {
+    target: "dnd",
+    title: "Do Not Disturb",
+    body: "Silences the notification categories you choose in Settings. Events are still recorded, listed in telemetry and included in the report.",
+  },
+  {
+    target: "settings",
+    title: "Settings",
+    body: "Auto Focus, Do Not Disturb categories, time format, reduced motion and the playback step sizes are all here.",
+  },
+  {
+    target: "telemetry",
+    title: "Live telemetry",
+    body: "Network measures at the current instant, with Stack, News, Queue and Incidents below. Stack shows each subsystem; Queue lists scheduled and executed events.",
+  },
+  {
+    target: "layers",
+    title: "Layers",
+    body: "Choose what the map draws: traffic, signals, buildings, weather, flooding and more. Layers change the picture only, never the simulation.",
+  },
+  {
+    target: "clock",
+    title: "Time and progress",
+    body: "The current simulation time. The outline fills as the day completes; hover for the percentage. Click to switch between 12 and 24 hour time everywhere.",
+  },
+  {
+    target: "rate",
+    title: "Speed",
+    body: "Choose 0.25× to 5× the configured pace. The applied speed can be held lower while the interface catches up; your choice is restored automatically.",
+  },
+  {
+    target: "seed",
+    title: "Seed and new worlds",
+    body: "The seed determines the city, district, weather and incidents. Click it to copy. The arrows generate a new world from a fresh seed.",
+  },
+  {
+    target: "status",
+    title: "Runtime status",
+    body: "Online when data is current, Degraded when the interface is catching up, Offline when the simulator cannot be reached.",
+  },
+  {
+    target: "transport",
+    title: "You're ready.",
+    body: "Back and Forward skip through the day, Step advances and holds, and Reset returns to 00:00. Start the simulation when you are ready to begin.",
+  },
+];

@@ -325,6 +325,46 @@ def main():
             assert code == 200 and seek["simulated_seconds"] == 55800 and seek["lifecycle"] == "PAUSED"
             assertions += 1
 
+            # 18b. Step: exact increments that always leave the run paused.
+            code, step = call(base, "/api/v1/playback/step", "POST", {"seconds": 60})
+            assert code == 200 and step["simulated_seconds"] == 55860 and step["lifecycle"] == "PAUSED"
+            assert step["stepped_seconds"] == 60
+            code, step = call(base, "/api/v1/playback/step", "POST", {})
+            assert code == 200 and step["simulated_seconds"] == 55920, "default step is one minute"
+            for bad in (0, -5, 3601):
+                code, err = call(base, "/api/v1/playback/step", "POST", {"seconds": bad})
+                assert code == 400 and err["error"]["code"] == "INVALID_REQUEST", bad
+            assertions += 5
+
+            # 18c. World regeneration: a fresh seed, the operator's configuration,
+            # started paused, reported through a pollable job.
+            code, status_before = call(base, "/api/v1/playback/status")
+            old_run, old_seed = status_before["run_id"], status_before["global_seed"]
+            code, idle = call(base, "/api/v1/world/status")
+            assert code == 200 and idle["data"]["enabled"] is True
+            code, stale = call(base, "/api/v1/world/regenerate", "POST", {"expected_run_id": "run_elsewhere"})
+            assert code == 409 and stale["error"]["code"] == "LIFECYCLE_CONFLICT"
+            code, job = call(base, "/api/v1/world/regenerate", "POST", {"expected_run_id": old_run})
+            assert code == 202 and job["data"]["seed"] and job["data"]["seed"] != old_seed
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:
+                code, job = call(base, "/api/v1/world/status")
+                if job["data"]["state"] != "generating":
+                    break
+                time.sleep(0.05)
+            assert job["data"]["state"] == "ready" and job["data"]["error"] is None, job
+            code, status_after = call(base, "/api/v1/playback/status")
+            assert status_after["run_id"] == job["data"]["run_id"] != old_run
+            assert status_after["global_seed"] == job["data"]["seed"]
+            assert status_after["data"]["lifecycle"] == "PAUSED"
+            assert status_after["clock"]["virtual_day_seconds"] == 0
+            code, topo = call(base, "/api/v1/view/topology")
+            assert code == 200 and topo["run_id"] == job["data"]["run_id"] and topo["data"]["edges"]
+            assertions += 8
+            # Later sections expect a run positioned mid-day, as before.
+            code, seek = call(base, "/api/v1/playback/seek", "POST", {"target_time": "15:30:00"})
+            assert code == 200 and seek["lifecycle"] == "PAUSED"
+
             # Rich JSON uses negotiated compression, including its exact media type.
             request = urllib.request.Request(base + "/api/v1/view/topology", headers={"Accept-Encoding": "gzip"})
             with urllib.request.urlopen(request) as compressed:

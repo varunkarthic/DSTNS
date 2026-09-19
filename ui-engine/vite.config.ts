@@ -9,6 +9,8 @@ export default defineConfig({
   build: { chunkSizeWarningLimit: 1300 },
   server: {
     port: 5173,
+    // The UI and its tests read the operator defaults in ../config.
+    fs: { allow: ['.', '../config'] },
     proxy: {
       '/api': { target: apiTarget },
       '/health': { target: apiTarget },

@@ -36,6 +36,16 @@ public:
     nlohmann::json start(Seed128 seed,const ScenarioConfig& config,std::uint32_t start_virtual_s=0);
     nlohmann::json play(const nlohmann::json& guard = {}); nlohmann::json pause(const nlohmann::json& guard = {}); nlohmann::json stop(); nlohmann::json reset();
     nlohmann::json seek(std::uint32_t target_virtual_s,bool resume_after);
+    // Advance exactly `seconds` of virtual time and leave the run paused, so an
+    // operator can inspect one increment at a time. Clamped at 24:00.
+    nlohmann::json step(std::uint32_t seconds);
+    // Replace the active world with one derived from a fresh secure seed and the
+    // current run's configuration. The new world is compiled (and its map
+    // downloaded) without holding the engine lock, so the current world keeps
+    // running and is left untouched if generation fails. Returns immediately;
+    // progress is reported by world_status().
+    nlohmann::json regenerate_world(const nlohmann::json& request = {});
+    [[nodiscard]] nlohmann::json world_status() const;
     nlohmann::json set_tick_rate(double value); nlohmann::json set_day(int value);
     nlohmann::json set_module(const std::string& module,bool enabled);
     nlohmann::json add_weather(NodeId epicenter,double intensity,double radius_m,std::uint32_t duration_min,double flood_gain);
@@ -93,6 +103,26 @@ private:
     std::vector<const SignalPlan*> signal_by_node_;
     std::map<std::uint32_t, int> signal_overrides_;
     std::uint64_t config_revision_{}; bool terminate_requested_{};
+
+    // Shared by start() and world regeneration: adopt a compiled scenario as
+    // the active world. Caller holds mutex_.
+    void install_scenario(Scenario scenario, double tick_rate, std::uint32_t start_virtual_s);
+
+    // World regeneration job. Guarded by world_mutex_, never by mutex_, so its
+    // status stays readable while the engine is busy installing a world.
+    struct WorldJob {
+        std::string state{"idle"};   // idle | generating | ready | failed
+        std::string stage{"idle"};   // seed | compiling | installing | ready | failed
+        std::string seed, previous_run_id, run_id, error_code, error;
+        std::uint64_t generation{};
+        std::chrono::steady_clock::time_point started{}, finished{};
+    };
+    mutable std::mutex world_mutex_;
+    WorldJob world_job_;
+    std::uint64_t world_generation_counter_{};
+    [[nodiscard]] nlohmann::json world_status_locked() const;
+    // Declared last so it is joined before anything it touches is destroyed.
+    std::jthread world_worker_;
 };
 
 } // namespace dstns

@@ -114,9 +114,14 @@ export const LOGO_RAW = raw;
 /** The exact same source-derived artwork used by the UI and PDF exporter. */
 export const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${LOGO.viewBox}" width="${Math.round(LOGO.aspect * 256)}" height="256">${LOGO.body}</svg>`;
 
-export async function logoPng(): Promise<string> {
+/**
+ * The mark as a PNG data URL. `tint` recolours the artwork, so the same file
+ * serves dark surfaces as drawn and white print pages in a dark ink.
+ */
+export async function logoPng(tint?: string): Promise<string> {
+  const svg = tint ? LOGO_SVG.replace(/fill="#[0-9a-fA-F]{3,8}"/g, `fill="${tint}"`) : LOGO_SVG;
   const image = new Image();
-  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(LOGO_SVG)}`;
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   await image.decode();
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(LOGO.aspect * 256);
