@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   METRES_PER_DEGREE_LAT,
+  STRIP_SPACE,
+  deckSpace,
   fitGeographicPoint,
   formatCoordinate,
   longitudeScaleAt,
@@ -98,16 +100,22 @@ describe('fit layout', () => {
     expect(wide.available).toBe(1440 - 420 - 110);
   });
 
-  it('uses the whole width once the deck is hidden', () => {
+  it('keeps only the collapsed strip docked below 1024px', () => {
     const narrow = mapFitLayout(900, 700);
-    expect(narrow.centerX).toBeCloseTo(450);
-    expect(narrow.available).toBe(800);
+    expect(narrow.centerX).toBeCloseTo((900 - STRIP_SPACE) / 2);
+    expect(narrow.available).toBe(900 - STRIP_SPACE - 110);
   });
 
   it('matches the deck width at each breakpoint', () => {
     expect(mapFitLayout(1280, 800).centerX).toBeCloseTo((1280 - 340) / 2);
     expect(mapFitLayout(1281, 800).centerX).toBeCloseTo((1281 - 420) / 2);
-    expect(mapFitLayout(1024, 800).centerX).toBeCloseTo(512);
+    expect(mapFitLayout(1024, 800).centerX).toBeCloseTo((1024 - STRIP_SPACE) / 2);
+  });
+
+  it('frees the right side when the deck is collapsed to its strip', () => {
+    expect(deckSpace(1440, true)).toBe(STRIP_SPACE);
+    expect(mapFitLayout(1440, 900, true).centerX).toBeCloseTo((1440 - STRIP_SPACE) / 2);
+    expect(mapFitLayout(1440, 900, true).available).toBeGreaterThan(mapFitLayout(1440, 900).available);
   });
 
   it('never collapses below a usable width', () => {
@@ -121,7 +129,8 @@ describe('map insets', () => {
     const { mapInsets } = await import('../src/mapProjection');
     expect(mapInsets(1440, 900)).toEqual({ top: 24, left: 76, right: 444, bottom: 150 });
     expect(mapInsets(1200, 800)).toEqual({ top: 24, left: 76, right: 364, bottom: 150 });
-    expect(mapInsets(1000, 800)).toEqual({ top: 24, left: 76, right: 24, bottom: 150 });
-    expect(mapInsets(600, 800)).toEqual({ top: 24, left: 16, right: 24, bottom: 196 });
+    expect(mapInsets(1000, 800)).toEqual({ top: 24, left: 76, right: STRIP_SPACE + 24, bottom: 150 });
+    expect(mapInsets(600, 800)).toEqual({ top: 24, left: 16, right: STRIP_SPACE + 24, bottom: 196 });
+    expect(mapInsets(1440, 900, true)).toEqual({ top: 24, left: 76, right: STRIP_SPACE + 24, bottom: 150 });
   });
 });

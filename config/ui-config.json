@@ -6,6 +6,7 @@
     "signals": true,
     "labels": false,
     "place_names": false,
+    "other_places": false,
     "traffic": true,
     "vehicles": true,
     "buildings": true,

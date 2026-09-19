@@ -104,43 +104,50 @@ export function insideFootprint(x: number, y: number, points: Point[]) {
 // The core reports a feature's `category` as the raw OpenStreetMap tag value,
 // which is whatever a mapper happened to type: "company", "retail",
 // "apartments", "kindergarten". Normalising it here gives every place a short
-// human name and a consistent glyph, and means an unnamed building reads as
-// "School" rather than "Unnamed kindergarten".
+// human name and one glyph, so an unnamed building reads as "School" rather
+// than "Unnamed kindergarten".
+//
+// This taxonomy is presentation only. Whether a place has modelled demand is
+// decided by the core and reported per feature as `demand_type` (school,
+// office, mall or store); it is never inferred from the kind here.
 // ---------------------------------------------------------------------------
 
 export interface PlaceKind {
+  /** Stable identifier, used by the legend and tests. */
+  id: string;
   label: string;
+  /** One-character glyph drawn on the map marker. Unique per kind. */
   icon: string;
-  /** Places whose demand is modelled; only these take the demand colour ramp. */
-  demand: boolean;
+  /** "other" kinds are drawn as plain dots and sit behind their own layer. */
+  group: "place" | "other";
 }
 
-const PLACE_KINDS: [RegExp, PlaceKind][] = [
-  [/^(school|kindergarten|childcare)$/, { label: "School", icon: "S", demand: true }],
-  [/^(university|college)$/, { label: "University", icon: "U", demand: true }],
-  [/^(hospital|clinic|doctors)$/, { label: "Hospital", icon: "H", demand: true }],
-  [/^(mall|shopping_centre|shopping_center|marketplace|department_store)$/,
-    { label: "Shopping Mall", icon: "M", demand: true }],
-  [/^(supermarket|convenience|retail)$/, { label: "Shops", icon: "R", demand: true }],
-  [/^(office|offices|company|commercial|government|bank|townhall|courthouse)$/,
-    { label: "Office", icon: "O", demand: true }],
-  [/^(station|bus_station|railway|train_station|subway|halt|platform)$/,
-    { label: "Transport Hub", icon: "T", demand: true }],
-  [/^(restaurant|cafe|fast_food|bar|pub|food_court)$/, { label: "Food & Drink", icon: "F", demand: true }],
-  [/^(hotel|hostel|guest_house)$/, { label: "Hotel", icon: "L", demand: true }],
-  [/^(park|garden|playground|pitch|recreation_ground|grass|forest)$/,
-    { label: "Park", icon: "P", demand: false }],
-  [/^(stadium|sports_centre|sports_center|arena)$/, { label: "Stadium", icon: "A", demand: true }],
-  [/^(church|place_of_worship|mosque|synagogue|temple)$/, { label: "Place of Worship", icon: "W", demand: false }],
-  [/^(museum|library|theatre|cinema|arts_centre|gallery)$/, { label: "Culture", icon: "C", demand: true }],
-  [/^(pharmacy|chemist)$/, { label: "Pharmacy", icon: "R", demand: true }],
-  [/^(parking|garage|garages|fuel)$/, { label: "Parking", icon: "K", demand: false }],
-  [/^(industrial|warehouse|works|factory)$/, { label: "Industrial", icon: "I", demand: true }],
-  [/^(residential|apartments|house|detached|dormitory|terrace)$/,
-    { label: "Residential", icon: "·", demand: false }],
+/** Kinds in legend order. Each glyph appears exactly once. */
+export const PLACE_KINDS: readonly (PlaceKind & { pattern: RegExp })[] = [
+  { id: "hospital", label: "Hospital", icon: "H", group: "place", pattern: /^(hospital|clinic|doctors)$/ },
+  { id: "school", label: "School", icon: "S", group: "place", pattern: /^(school|kindergarten|childcare)$/ },
+  { id: "university", label: "University", icon: "U", group: "place", pattern: /^(university|college)$/ },
+  { id: "office", label: "Office", icon: "O", group: "place", pattern: /^(office|offices|company|commercial|government|bank|townhall|courthouse)$/ },
+  { id: "mall", label: "Shopping Mall", icon: "M", group: "place", pattern: /^(mall|shopping_centre|shopping_center|marketplace|department_store)$/ },
+  { id: "shops", label: "Shops", icon: "R", group: "place", pattern: /^(supermarket|convenience|retail)$/ },
+  { id: "food", label: "Food and Drink", icon: "F", group: "place", pattern: /^(restaurant|cafe|fast_food|bar|pub|food_court)$/ },
+  { id: "transport", label: "Transport Hub", icon: "T", group: "place", pattern: /^(station|bus_station|railway|train_station|subway|halt|platform)$/ },
+  { id: "hotel", label: "Hotel", icon: "L", group: "place", pattern: /^(hotel|hostel|guest_house)$/ },
+  { id: "culture", label: "Culture", icon: "C", group: "place", pattern: /^(museum|library|theatre|cinema|arts_centre|gallery)$/ },
+  { id: "stadium", label: "Sports Venue", icon: "A", group: "place", pattern: /^(stadium|sports_centre|sports_center|arena)$/ },
+  { id: "pharmacy", label: "Pharmacy", icon: "+", group: "place", pattern: /^(pharmacy|chemist)$/ },
+  { id: "worship", label: "Place of Worship", icon: "W", group: "place", pattern: /^(church|place_of_worship|mosque|synagogue|temple)$/ },
+  { id: "industrial", label: "Industrial", icon: "I", group: "place", pattern: /^(industrial|warehouse|works|factory)$/ },
+  { id: "park", label: "Park", icon: "P", group: "place", pattern: /^(park|garden|playground|pitch|recreation_ground|grass|forest)$/ },
+  { id: "parking", label: "Parking", icon: "K", group: "place", pattern: /^(parking|garage|garages|fuel)$/ },
+  { id: "residential", label: "Residential", icon: "·", group: "other", pattern: /^(residential|apartments|house|detached|dormitory|terrace)$/ },
 ];
 
+/** OpenStreetMap features with no DSTNS place type: benches, stops, rail lines. */
+export const UNCLASSIFIED: PlaceKind = { id: "unclassified", label: "Unclassified", icon: "•", group: "other" };
+
 const GENERIC = new Set(["building", "yes", "", "landuse", "leisure", "amenity"]);
+const strip = ({ pattern: _pattern, ...kind }: PlaceKind & { pattern: RegExp }): PlaceKind => kind;
 
 export function placeKind(feature: {
   category: string;
@@ -161,10 +168,57 @@ export function placeKind(feature: {
   ];
   for (const value of candidates) {
     if (!value || GENERIC.has(value)) continue;
-    for (const [pattern, kind] of PLACE_KINDS)
-      if (pattern.test(value)) return kind;
+    for (const kind of PLACE_KINDS) if (kind.pattern.test(value)) return strip(kind);
   }
-  return { label: "Building", icon: "•", demand: false };
+  // Any other shop=* value (clothes, bakery, hairdresser) is still a shop.
+  const shop = feature.tags?.shop;
+  if (shop && !GENERIC.has(shop)) return strip(PLACE_KINDS.find((k) => k.id === "shops")!);
+  return UNCLASSIFIED;
+}
+
+/**
+ * Whether a feature is drawn as a map marker at all. Points and lines are;
+ * footprints are drawn as shapes and only carry a marker when the core models
+ * demand for them.
+ */
+export function hasMarker(feature: { polygon: boolean; demand_type?: string | null }): boolean {
+  return !feature.polygon || !!feature.demand_type;
+}
+
+/** The core's demand types, as the legend names them. */
+export const DEMAND_TYPE_LABEL: Record<string, string> = {
+  school: "School",
+  office: "Office",
+  mall: "Retail",
+  store: "Commercial",
+};
+
+/**
+ * What a place's hover card says. The kind and demand wording match the place
+ * legend exactly, so the two never disagree.
+ */
+export function placeInspection(
+  feature: { id: string; name: string; category: string; polygon: boolean; tags?: Record<string, string>; demand_type?: string | null },
+  demand: { multiplier: number; active: boolean; radius_m: number } | undefined,
+): Inspection {
+  const kind = placeKind(feature);
+  const modelled = feature.demand_type ? DEMAND_TYPE_LABEL[feature.demand_type] ?? feature.demand_type : null;
+  return {
+    title: placeTitle(feature),
+    category: kind.label,
+    status: !modelled ? "No modelled demand" : demand?.active ? "Demand raised" : "Baseline demand",
+    description: feature.id,
+    metrics: modelled
+      ? [
+          ["Demand model", modelled],
+          ["Demand multiplier", `${(demand?.multiplier ?? 1).toFixed(2)}×`],
+          ["Influence radius", demand ? `${demand.radius_m} m` : "Unavailable"],
+        ]
+      : [
+          ["OSM tag", feature.category.replace(/_/g, " ")],
+          ["Geometry", feature.polygon ? "OSM footprint" : "OSM point"],
+        ],
+  };
 }
 
 /** A place's display title: its real name, else what kind of place it is. */

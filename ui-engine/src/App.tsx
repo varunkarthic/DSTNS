@@ -8,6 +8,9 @@ import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
 import { Splash, splashStageFor } from "./Splash";
+import { usePresence } from "./LoadingSurface";
+import { PlaceLegend, RoadLegend } from "./Legends";
+import { NotificationHistory } from "./notificationHistory";
 import {
   AboutCard,
   AutoFocusPrompt,
@@ -50,16 +53,36 @@ import "@fontsource/space-grotesk/600.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/600.css";
-// style.css carries the map canvas and base rules; theme.css the design
-// tokens and shell; hud.css the floating instrumentation and wins overlaps.
+// style.css carries the map canvas and base rules; theme.css the shell;
+// hud.css the floating instrumentation; system.css the shared tokens and
+// redesigned surfaces, and wins overlaps.
 import "./style.css";
 import "./theme.css";
 import "./hud.css";
+import "./system.css";
 
-export const VERSION = "2.1.0";
+export const VERSION = "2.2.0";
+
+const DECK_KEY = "dstns.telemetry-mode.v1";
+
+function useMediaQuery(query: string): boolean {
+  const get = () => (typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(query).matches : false);
+  const [matches, setMatches] = useState(get);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const list = window.matchMedia(query);
+    const onChange = () => setMatches(list.matches);
+    onChange();
+    list.addEventListener?.("change", onChange);
+    return () => list.removeEventListener?.("change", onChange);
+  }, [query]);
+  return matches;
+}
 
 /** Dialogs are mutually exclusive; one slot keeps them from stacking. */
 type DialogKind = "about" | "reset" | "terminate" | "auto-focus" | "regenerate" | "complete" | null;
+
+const NO_FEATURES: MapFeature[] = [];
 
 type FocusRequest = { bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number };
 
@@ -172,7 +195,33 @@ export default function App() {
   const runtime = runtimeStatus({ connected: !!sim.snapshot, stale: sim.stale, error: !!sim.error, asb });
 
   const [tutorialTarget, setTutorialTarget] = useState("");
+  // Below 1024px the full deck opens over the map on request; above it the
+  // viewer chooses between the panel and its collapsed strip.
   const [telemetryOpen, setTelemetryOpen] = useState(false);
+  const [deckCollapsed, setDeckCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(DECK_KEY) === "compact";
+    } catch {
+      return false;
+    }
+  });
+  const narrow = useMediaQuery("(max-width: 1024px)");
+  const deckCompact = narrow ? !telemetryOpen : deckCollapsed;
+  const setCollapsed = useCallback(
+    (collapsed: boolean) => {
+      if (narrow) {
+        setTelemetryOpen(!collapsed);
+        return;
+      }
+      setDeckCollapsed(collapsed);
+      try {
+        localStorage.setItem(DECK_KEY, collapsed ? "compact" : "full");
+      } catch {
+        /* A remembered layout is a convenience only. */
+      }
+    },
+    [narrow],
+  );
   const tutorial = useTutorial({
     config: config.tutorial,
     ready: configLoaded && valid && !!sim.topology && ["RUNNING", "PAUSED"].includes(lifecycle),
@@ -323,7 +372,7 @@ export default function App() {
     }),
     [config.notifications, dnd],
   );
-  const { shown, silenced } = useMemo(() => {
+  const { shown } = useMemo(() => {
     const focus = { enabled: autoFocus, targetKey: activeKey };
     const visible = notifications.filter((n) => shouldDisplayNotification(n, policy, focus));
     let list: UiNotification[] = orderForDisplay(visible, activeKey);
@@ -331,10 +380,41 @@ export default function App() {
     // news that announced it has expired or was muted.
     if (autoFocus && active && sim.snapshot && !dismissedFocus.has(active.key) && !list.some((n) => focusMatches(n.focusKey, activeKey)))
       list = [focusNotification(active, sim.snapshot.data, sim.topology, virtual), ...list];
-    return { shown: list, silenced: notifications.length - visible.length };
+    return { shown: list };
     // Rebuilt when inputs change; the virtual clock alone does not warrant it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notifications, policy, autoFocus, activeKey, active?.key, sim.snapshot, sim.topology, dismissedFocus]);
+  // ---- Notification history ------------------------------------------------
+  // Every notification-worthy event is kept, whether or not it was shown.
+  const historyStore = useRef(new NotificationHistory());
+  const [historyRevision, setHistoryRevision] = useState(0);
+  useEffect(() => {
+    historyStore.current.reset(runId);
+    setHistoryRevision(historyStore.current.revision);
+  }, [runId]);
+  useEffect(() => {
+    const store = historyStore.current;
+    if (!runId || store.runId !== runId) return;
+    const byId = new Map(sim.toasts.map((n) => [n.news_id, n]));
+    const shownIds = new Set(shown.map((n) => n.id));
+    const ctx = {
+      shownIds,
+      enabled: policy.enabled,
+      focusKey: autoFocus ? activeKey : null,
+      wouldShow: (n: UiNotification) => shouldDisplayNotification(n, policy, { enabled: false, targetKey: null }),
+    };
+    let changed = store.recordNotifications(notifications, byId, sim.topology, ctx);
+    // The synthesised Auto Focus record, when one is on screen.
+    changed = store.recordNotifications(shown.filter((n) => !n.newsIds.length), byId, sim.topology, ctx) || changed;
+    changed = store.recordBacklog(sim.news, sim.topology) || changed;
+    if (autoFocus) changed = store.markFocused(activeKey) || changed;
+    if (changed) setHistoryRevision(store.revision);
+  }, [runId, notifications, shown, sim.news, sim.toasts, sim.topology, policy, autoFocus, activeKey]);
+  const historyFeed = useMemo(
+    () => ({ entries: historyStore.current.list(), counts: historyStore.current.counts(), revision: historyRevision }),
+    [historyRevision],
+  );
+
   const dismissNotification = useCallback(
     (n: UiNotification) => {
       if (n.newsIds.length) sim.dismissToasts(n.newsIds);
@@ -594,8 +674,12 @@ export default function App() {
   const scaleBar = scaleBarFor(view.metresPerPixel);
   const mapError = /MAP_FETCH_FAILED|OSM download|map tile/i.test(sim.error || actionError);
   const asbInfo = describeAsb(asb);
-  const splashStage = splashStageFor(mapStatus as never, lifecycle, sim.stage, !!sim.topology);
+  const splashStage = splashStageFor(mapStatus as never, lifecycle, sim.stage, !!sim.topology, !!sim.status);
   const showSplash = !splashDismissed && !!splashStage && !sim.error && !world.active;
+  // The start-up screen dissolves over the rendered map rather than vanishing.
+  const lastSplash = useRef(splashStage);
+  if (splashStage) lastSplash.current = splashStage;
+  const splash = usePresence(showSplash, 520);
   const statusDetail = [
     ...(asb ? [`${formatRate(asb.throughput?.bytes_per_s ?? 0)}`, `${(asb.throughput?.snapshots_per_s ?? 0).toFixed(1)} snapshots/s`] : []),
     ...(sim.latencyMs !== null ? [`${sim.latencyMs} ms round trip`] : []),
@@ -608,7 +692,7 @@ export default function App() {
       <div
         inert={tutorial.active || undefined}
         data-tour-target={tutorial.active ? tutorialTarget : undefined}
-        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}`}
+        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${showSplash ? " booting" : ""}${world.active ? " world-busy" : ""}`}
       >
         {asb && asb.state !== "NORMAL" && (
           <div className={`asb-banner ${asbInfo.tone}`} role="status">
@@ -634,9 +718,6 @@ export default function App() {
                 </span>
               </Tooltip>
             )}
-            <button className="btn telemetry-toggle" onClick={() => setTelemetryOpen((v) => !v)} aria-pressed={telemetryOpen}>
-              Telemetry
-            </button>
             {configLoaded && config.tutorial.enabled && (
               <button
                 className="btn"
@@ -674,6 +755,7 @@ export default function App() {
               controls={mapControls}
               onView={setView}
               onCursor={setCursor}
+              deckCompact={deckCompact}
             />
           </div>
 
@@ -737,51 +819,55 @@ export default function App() {
             virtualTime={virtual}
             runId={runId}
             asb={asb}
+            history={historyFeed}
+            compact={deckCompact}
+            onCollapse={() => setCollapsed(true)}
+            onExpand={() => setCollapsed(false)}
           />
 
           <div className="bottom-stack">
-            <div className="lower-cluster">
-              {!suspended && !tutorial.active && (
-                <NotificationCapsule items={shown} focusedKey={autoFocus ? activeKey : null} silenced={silenced} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
-              )}
-              <div className="layers-anchor">
-                {layersOpen && (
-                  <LayersPopover
-                    layers={layers}
-                    defaults={operatorConfig.layers}
-                    onChange={changeLayers}
-                    onClose={() => setLayersOpen(false)}
-                    topology={sim.topology}
-                    snapshot={sim.snapshot?.data ?? null}
-                  />
+            <div className="lower-hud">
+              <div className="hud-zone hud-left">
+                {!suspended && !tutorial.active && (
+                  <NotificationCapsule items={shown} focusedKey={autoFocus ? activeKey : null} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
                 )}
-                <button
-                  className={`cluster-btn${layersOpen ? " active" : ""}`}
-                  data-tutorial="layers"
-                  data-layers-trigger
-                  aria-expanded={layersOpen}
-                  onClick={() => setLayersOpen((v) => !v)}
-                  disabled={suspended}
-                >
-                  <Icon name="layers" size={16} />
-                  <span>Layers</span>
-                </button>
               </div>
-              <div className="legend" aria-label="Road state legend" data-tutorial="legend" data-tip-avoid>
-                {[
-                  ["var(--state-clear)", "Clear"],
-                  ["var(--state-moderate)", "Moderate"],
-                  ["var(--state-severe)", "Severe"],
-                  ["var(--state-flooded)", "Flooded"],
-                ].map(([color, label]) => (
-                  <span key={label}>
-                    <i style={{ background: color }} />
-                    {label}
-                  </span>
-                ))}
+              <div className="hud-zone hud-center">
+                <div className="layers-anchor">
+                  {layersOpen && (
+                    <LayersPopover
+                      layers={layers}
+                      defaults={operatorConfig.layers}
+                      onChange={changeLayers}
+                      onClose={() => setLayersOpen(false)}
+                      topology={sim.topology}
+                      snapshot={sim.snapshot?.data ?? null}
+                    />
+                  )}
+                  <button
+                    className={`hud-pill hud-button${layersOpen ? " active" : ""}`}
+                    data-tutorial="layers"
+                    data-layers-trigger
+                    aria-expanded={layersOpen}
+                    onClick={() => setLayersOpen((v) => !v)}
+                    disabled={suspended}
+                  >
+                    <Icon name="layers" size={16} />
+                    <span>Layers</span>
+                  </button>
+                </div>
+                <RoadLegend />
+                <PlaceLegend
+                  features={sim.topology?.features ?? NO_FEATURES}
+                  demand={sim.snapshot?.data.demand}
+                  visible={layers.buildings}
+                  showOther={layers.other_places}
+                  onShowOther={(on) => changeLayers({ ...layers, other_places: on })}
+                />
               </div>
-              <div className="map-hud" data-tutorial="hud">
-                <span className="hud-chip mono">
+              <div className="hud-zone hud-right map-hud" data-tutorial="hud">
+                <span className="hud-pill hud-readout mono" aria-label="Pointer coordinates" data-tip-avoid>
+                  <Icon name="pin" size={14} />
                   {cursor
                     ? formatCoordinate(cursor.lat, cursor.lon)
                     : location
@@ -790,9 +876,9 @@ export default function App() {
                         ? formatCoordinate(origin.origin_lat, origin.origin_lon)
                         : "No coordinates"}
                 </span>
-                <span className="scale-bar" aria-label={`Map scale ${scaleBar.label}`}>
+                <span className="hud-pill hud-readout scale-readout" aria-label={`Map scale ${scaleBar.label}`} data-tip-avoid>
                   <i style={{ width: Math.round(scaleBar.pixels) }} />
-                  <span>{scaleBar.label}</span>
+                  <span className="mono">{scaleBar.label}</span>
                 </span>
               </div>
             </div>
@@ -849,7 +935,9 @@ export default function App() {
             </div>
           )}
 
-          {showSplash && splashStage && <Splash stage={splashStage} reduceMotion={reduceMotion} onDismiss={() => setSplashDismissed(true)} />}
+          {splash.mounted && lastSplash.current && (
+            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} onDismiss={() => setSplashDismissed(true)} />
+          )}
 
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} />}
           {dialog === "reset" && (
@@ -933,6 +1021,7 @@ export default function App() {
               error={world.error}
               onRetry={() => void requestWorld()}
               onCancel={() => setWorld(NO_WORLD_JOB)}
+              reduceMotion={reduceMotion}
             />
           )}
 

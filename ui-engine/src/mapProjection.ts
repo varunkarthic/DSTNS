@@ -102,30 +102,40 @@ export interface MapFitLayout {
   centerY: number;
 }
 
-export function mapFitLayout(width: number, height: number): MapFitLayout {
-  // Below 1024px the deck is hidden entirely (see theme.css).
-  const deck = width <= 1024 ? 0 : width <= 1280 ? 340 : 420;
-  const margin = deck ? 110 : 100;
+/** Width of the collapsed telemetry strip plus its margin from the edge. */
+export const STRIP_SPACE = 72;
+
+/**
+ * Horizontal space the telemetry deck takes from the right of the map. Below
+ * 1024px only the collapsed strip is docked; the full panel opens over the map.
+ */
+export function deckSpace(width: number, compact = false): number {
+  if (compact || width <= 1024) return STRIP_SPACE;
+  return width <= 1280 ? 340 : 420;
+}
+
+export function mapFitLayout(width: number, height: number, compact = false): MapFitLayout {
+  const deck = deckSpace(width, compact);
+  const margin = 110;
   return {
     available: Math.max(280, width - deck - margin),
     centerX: (width - deck) / 2,
-    // The playback dock occupies the bottom; bias the network above it.
+    // The command rail occupies the bottom; bias the network above it.
     centerY: (height - 60) / 2,
   };
 }
 
 /**
  * Pixels of the map covered by interface chrome on each side: the tool dock on
- * the left, the telemetry deck on the right (when shown) and the command rail
- * with the lower cluster at the bottom. Framing an event inside what remains
+ * the left, the telemetry deck or its strip on the right, and the command rail
+ * with the lower HUD at the bottom. Framing an event inside what remains
  * keeps it clear of the controls.
  */
-export function mapInsets(width: number, _height: number) {
-  const deck = width <= 1024 ? 0 : width <= 1280 ? 340 : 420;
+export function mapInsets(width: number, _height: number, compact = false) {
   return {
     top: 24,
     left: width <= 720 ? 16 : 76,
-    right: deck + 24,
+    right: deckSpace(width, compact) + 24,
     bottom: width <= 720 ? 196 : 150,
   };
 }

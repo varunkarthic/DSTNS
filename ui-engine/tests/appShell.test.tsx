@@ -101,6 +101,7 @@ type Mock = {
   news: Record<string, unknown>[];
   world: Record<string, unknown>;
   worldQueue: Record<string, unknown>[];
+  topology?: unknown;
 };
 let state: Mock;
 
@@ -156,12 +157,18 @@ function mockApi(overrides: Partial<Mock> = {}) {
     let data: unknown = {};
     if (path.includes("/playback/status"))
       data = { lifecycle: state.lifecycle, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v2", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1 };
-    else if (path.includes("/view/topology")) data = topology;
+    else if (path.includes("/view/topology")) data = state.topology ?? topology;
     else if (path.includes("/view/snapshot")) data = state.snapshot;
     else if (path.includes("/news")) {
       const since = Number(new URL(path, "http://x").searchParams.get("since_news_id") ?? 0);
       data = { items: state.news.filter((n) => (n.news_id as number) > since) };
     } else if (path.includes("/view/congestion")) data = { ...state.snapshot.congestion, history: [] };
+    else if (path.includes("/view/event-queue")) {
+      const category = new URL(path, "http://x").searchParams.get("category") ?? "all";
+      const items = [{ id: 1, virtual_s: 25200, entity: 3, category: "signals", description: "Signal 3 → NS green", status: "pending", phase: 1, value: 0 }];
+      const shown = items.filter((i) => category === "all" || i.category === category);
+      data = { items: shown, total: shown.length, pending_count: shown.length, executed_count: 0, history_retention: 500 };
+    }
     return json(envelope(data));
   });
 }
@@ -193,15 +200,17 @@ describe("observer shell", () => {
   it("renders live telemetry from the snapshot", async () => {
     mockApi();
     render(<App />);
-    expect(await screen.findByText("Live telemetry")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("14%")).toBeInTheDocument());
+    expect(await screen.findByRole("heading", { name: "Live Telemetry" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText("14%").length).toBeGreaterThan(0));
   });
 
   it("does not offer playback control while the core is idle", async () => {
     mockApi({ lifecycle: "IDLE" });
     render(<App />);
-    expect(await screen.findByText("Awaiting a run")).toBeInTheDocument();
-    expect(screen.getByText(/Start a simulation from the CLI/)).toBeInTheDocument();
+    expect(await screen.findByText("Waiting for a simulation")).toBeInTheDocument();
+    expect(screen.getByText(/Start a run from the DSTNS CLI/)).toBeInTheDocument();
+    // Waiting for a run is not presented as loading progress.
+    expect(screen.queryByRole("list", { name: "Progress" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Pause simulation")).toBeDisabled();
   });
 
@@ -258,13 +267,13 @@ describe("command rail", () => {
     await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 0)).toBe(true));
   });
 
-  it("offers exactly the six supported speeds and sets the real engine rate", async () => {
+  it("offers exactly the seven supported speeds and sets the real engine rate", async () => {
     mockApi();
     render(<App />);
     await ready();
     const group = screen.getByRole("radiogroup", { name: "Simulation speed" });
     const options = within(group).getAllByRole("radio");
-    expect(options.map((o) => o.textContent)).toEqual(["0.25×", "0.5×", "1×", "2×", "3×", "5×"]);
+    expect(options.map((o) => o.textContent)).toEqual(["0.25×", "0.5×", "1×", "2×", "3×", "5×", "10×"]);
     expect(within(group).getByRole("radio", { name: "1 times speed" })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(within(group).getByRole("radio", { name: "3 times speed" }));
     await waitFor(() => {
@@ -456,12 +465,43 @@ describe("notifications", () => {
     expect(calls).toEqual([]);
   }, 15000);
 
-  it("shows a silenced count when everything is muted", async () => {
+  it("keeps silenced events in the Notifications history instead of announcing them", async () => {
     mockApi({ uiConfig: { auto_focus: { mode: "disable" }, notifications: { dnd: true } } });
     render(<App />);
     await arrive(rain(), crash());
-    expect(await screen.findByText("2 silenced")).toBeInTheDocument();
+    const tab = await screen.findByRole("tab", { name: "Notifications, 2 silenced" }, { timeout: 4000 });
     expect(screen.queryByRole("article", { name: "Notifications" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d+ silenced/)).not.toBeInTheDocument();
+    fireEvent.click(tab);
+    const panel = screen.getByRole("tabpanel");
+    expect(within(panel).getByRole("radio", { name: "Silenced, 2" })).toBeInTheDocument();
+    // Both events are kept, each marked as held back rather than shown.
+    for (const title of [/Heavy rain/, /Collision/]) {
+      const row = within(panel).getByRole("button", { name: title });
+      expect(within(row).getByText("Silenced")).toBeInTheDocument();
+    }
+    // Each record expands to its details and technical fields.
+    const [first] = within(panel).getAllByRole("button", { name: /Collision|Heavy rain/ });
+    fireEvent.click(first);
+    expect(first).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(within(panel).getByRole("button", { name: "Technical details" }));
+    expect(within(panel).getByText("Template")).toBeInTheDocument();
+  }, 15000);
+
+  it("records shown notifications once, in the global time format", async () => {
+    mockApi({ uiConfig: { auto_focus: { mode: "disable" }, clock: { hour12: true } } });
+    render(<App />);
+    await arrive(rain());
+    await screen.findByRole("article", { name: "Notifications" }, { timeout: 4000 });
+    fireEvent.click(screen.getByRole("tab", { name: /Notifications/ }));
+    const panel = screen.getByRole("tabpanel");
+    await waitFor(() => expect(within(panel).getAllByRole("button", { name: /Heavy rain/ })).toHaveLength(1));
+    const row = within(panel).getByRole("button", { name: /Heavy rain/ });
+    expect(within(row).getByText("Shown")).toBeInTheDocument();
+    expect(within(row).getByText("6:00:00 AM")).toBeInTheDocument();
+    // Further polls re-render the same event without duplicating it.
+    await new Promise((r) => setTimeout(r, 1300));
+    expect(within(panel).getAllByRole("button", { name: /Heavy rain/ })).toHaveLength(1);
   }, 15000);
 
   it("lets the auto-focused event through DND, and only that event", async () => {
@@ -605,8 +645,127 @@ describe("layers and legend", () => {
     mockApi();
     render(<App />);
     await ready();
-    const legend = screen.getByLabelText("Road state legend");
+    const legend = screen.getByRole("list", { name: "Road state legend" });
     expect(legend).toHaveTextContent(/Clear.*Moderate.*Severe.*Flooded/);
+    // The compact form opens the same legend in a popover.
+    fireEvent.click(screen.getByRole("button", { name: "Road state legend" }));
+    expect(await screen.findByRole("dialog", { name: "Road state legend" })).toHaveTextContent(/Clear.*Flooded/);
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Road state legend" })).not.toBeInTheDocument());
+  });
+});
+
+describe("telemetry collapse", () => {
+  const deck = () => screen.getByRole("complementary", { name: "Live telemetry" });
+
+  it("collapses to a compact strip and opens detail views in a side panel", async () => {
+    const snapshot = structuredClone(baseSnapshot);
+    snapshot.edges = Array.from({ length: 1 }, () => ({ ...baseSnapshot.edges[0], vehicle_count: 1240 }));
+    snapshot.active_weather = [{ id: 3, x_m: 0, y_m: 0, radius_m: 900, intensity: 0.8, phase: 0.4 }];
+    mockApi({ snapshot });
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByRole("tab", { name: /Queue/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse live telemetry" }));
+    expect(deck()).toHaveClass("compact");
+    expect(localStorage.getItem("dstns.telemetry-mode.v1")).toBe("compact");
+
+    const strip = screen.getByRole("navigation", { name: "Telemetry summary" });
+    // Compact figures, with names that do not depend on the tooltip.
+    expect(within(strip).getByRole("button", { name: /^Vehicles: 1,240/ })).toHaveTextContent("1.2K");
+    expect(within(strip).getByRole("button", { name: "Weather: Heavy rain, 1 active cell, 6.4 mm/h" })).toBeInTheDocument();
+
+    // Stack opens a side panel; Incidents and Queue switch it without closing it.
+    fireEvent.click(within(strip).getByRole("button", { name: "Stack" }));
+    const panel = await screen.findByRole("dialog", { name: "Stack" });
+    expect(panel).toHaveTextContent("Road network");
+    fireEvent.click(within(strip).getByRole("button", { name: "Incidents" }));
+    expect(await screen.findByRole("dialog", { name: "Incidents" })).toBe(panel);
+    fireEvent.click(within(strip).getByRole("button", { name: "Queue" }));
+    expect(await screen.findByRole("dialog", { name: "Queue" })).toBe(panel);
+    expect(deck()).toHaveClass("compact");
+
+    // Escape closes the panel and returns focus to the strip.
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Queue" })).not.toBeInTheDocument());
+    expect(within(strip).getByRole("button", { name: "Queue" })).toHaveFocus();
+
+    // Expanding restores the full panel on the tab it was left on.
+    fireEvent.click(within(strip).getByRole("button", { name: "Expand live telemetry" }));
+    expect(deck()).not.toHaveClass("compact");
+    expect(screen.getByRole("tab", { name: /Queue/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("remembers the collapsed layout across reloads", async () => {
+    localStorage.setItem("dstns.telemetry-mode.v1", "compact");
+    mockApi();
+    render(<App />);
+    await ready();
+    expect(deck()).toHaveClass("compact");
+  });
+
+  it("uses a custom dropdown for the queue category", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByRole("tab", { name: /Queue/ }));
+    const trigger = screen.getByRole("button", { name: "Event category: All categories" });
+    expect(document.querySelector(".telemetry-deck select")).toBeNull();
+    fireEvent.click(trigger);
+    const list = await screen.findByRole("listbox", { name: "Event category" });
+    fireEvent.keyDown(list, { key: "ArrowDown" });
+    fireEvent.keyDown(list, { key: "Enter" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Event category: Signals" })).toBeInTheDocument());
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+});
+
+describe("place legend", () => {
+  const at = { x_m: 100, y_m: 100, lat: 52.5, lon: 13.4 };
+  const feature = (id: string, category: string, tags: Record<string, string>, demand_type: string | null = null) => ({
+    id, name: "", category, polygon: false, position: at, geometry: [at], tags, demand_type,
+  });
+  const withPlaces = () => ({
+    ...topology,
+    features: [
+      feature("s1", "school", { amenity: "school" }, "school"),
+      feature("s2", "school", { amenity: "school" }, "school"),
+      feature("h1", "hospital", { amenity: "hospital" }, "store"),
+      feature("p1", "pharmacy", { amenity: "pharmacy" }),
+      feature("b1", "bench", { amenity: "bench" }),
+      feature("b2", "bench", { amenity: "bench" }),
+    ],
+  });
+
+  it("lists the markers on the map with the core's demand, and hides unclassified places by default", async () => {
+    const snapshot = structuredClone(baseSnapshot) as Omit<typeof baseSnapshot, "demand"> & {
+      demand: { feature_id: string; multiplier: number; active: boolean; radius_m: number }[];
+    };
+    snapshot.demand = [
+      { feature_id: "s1", multiplier: 1.62, active: true, radius_m: 400 },
+      { feature_id: "s2", multiplier: 1, active: false, radius_m: 400 },
+      { feature_id: "h1", multiplier: 1.15, active: true, radius_m: 400 },
+    ];
+    mockApi({ topology: withPlaces(), snapshot: snapshot as typeof baseSnapshot });
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Place legend" }));
+    const legend = await screen.findByRole("dialog", { name: "Place legend" });
+    const rows = within(legend).getAllByRole("listitem");
+    expect(rows.map((r) => r.textContent)).toEqual([
+      expect.stringMatching(/^HHospital1Peak 1\.15×$/),
+      expect.stringMatching(/^SSchool2Peak 1\.62×$/),
+      expect.stringMatching(/^\+Pharmacy1Not modelled$/),
+    ]);
+    // Unclassified dots are off by default and can be turned on here or in Layers.
+    const toggle = within(legend).getByRole("switch", { name: "Show unclassified places" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(within(legend).getAllByRole("listitem")).toHaveLength(4));
+    expect(within(legend).getAllByRole("listitem")[3]).toHaveTextContent(/Unclassified2Not modelled/);
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Layers" }));
+    expect(screen.getByRole("switch", { name: "Unclassified places" })).toHaveAttribute("aria-checked", "true");
   });
 });
 
@@ -616,12 +775,19 @@ describe("dialogs and suspension", () => {
     render(<App />);
     await ready();
     fireEvent.click(screen.getByLabelText("About DSTNS, licence and source"));
-    const dialog = await screen.findByRole("dialog", { name: "DSTNS" });
+    const dialog = await screen.findByRole("dialog", { name: /Deterministic Spatiotemporal Transport Network Simulator/ });
     expect(dialog).toHaveTextContent("Varun Karthic");
     expect(dialog).toHaveTextContent(/Affero General Public License/);
-    expect(screen.getByRole("link", { name: /Source/ })).toHaveAttribute("href", "/api/v1/system/source");
+    expect(dialog).toHaveTextContent(/Version \d+\.\d+\.\d+/);
+    expect(screen.getByRole("link", { name: /Source code/ })).toHaveAttribute("href", "/api/v1/system/source");
+    // The licence is a custom disclosure, closed until asked for.
+    const licence = within(dialog).getByRole("button", { name: /Licence and attribution/ });
+    expect(licence).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(licence);
+    expect(licence).toHaveAttribute("aria-expanded", "true");
+    expect(within(dialog).getByRole("button", { name: "Copy seed" })).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "DSTNS" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Deterministic Spatiotemporal/ })).not.toBeInTheDocument());
   });
 
   it("announces completion and offers the report", async () => {

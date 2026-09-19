@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Icon } from "./Icons";
 import { Tooltip } from "./Tooltip";
@@ -16,7 +16,7 @@ import type { Clock, Lifecycle } from "./types";
  */
 
 /** Speeds offered, as multiples of the configured playback pace. */
-export const RATES = [0.25, 0.5, 1, 2, 3, 5] as const;
+export const RATES = [0.25, 0.5, 1, 2, 3, 5, 10] as const;
 
 /** Index of the offered rate nearest to `rate`. */
 export function rateIndexOf(rate: number): number {
@@ -32,18 +32,21 @@ export function rateIndexOf(rate: number): number {
   return best;
 }
 
+/** A segment's measured box within the speed control. */
+export interface Slot {
+  x: number;
+  width: number;
+}
+
 /**
- * Fractional position of any rate along the offered steps. An offered rate
- * lands exactly on its step; a rate between two steps (which backpressure can
- * apply) lands proportionally between them, so the highlight glides rather
- * than jumping when the applied rate changes.
+ * Where the selection highlight sits: exactly over the measured segment of
+ * the offered rate nearest the applied one. Measuring the rendered segments,
+ * rather than assuming equal widths, keeps it aligned at every viewport size
+ * and font. Returns null until the segments have been measured.
  */
-export function ratePosition(rate: number): number {
-  if (!Number.isFinite(rate) || rate <= RATES[0]) return 0;
-  if (rate >= RATES[RATES.length - 1]) return RATES.length - 1;
-  const upper = RATES.findIndex((r) => r >= rate);
-  const lower = upper - 1;
-  return lower + (rate - RATES[lower]) / (RATES[upper] - RATES[lower]);
+export function pillGeometry(slots: readonly Slot[], rate: number): Slot | null {
+  const slot = slots[rateIndexOf(rate)];
+  return slot && slot.width > 0 ? slot : null;
 }
 
 export function rateLabel(rate: number): string {
@@ -269,9 +272,23 @@ function SpeedControl({
 }) {
   const group = useRef<HTMLDivElement>(null);
   const index = rateIndexOf(rate);
-  const position = ratePosition(rate);
   const governed = requested !== undefined && Math.abs(requested - rate) > 1e-6;
   const requestedIndex = governed ? rateIndexOf(requested!) : -1;
+  const [slots, setSlots] = useState<Slot[]>([]);
+  useLayoutEffect(() => {
+    const el = group.current;
+    if (!el) return;
+    const measure = () =>
+      setSlots(
+        Array.from(el.querySelectorAll<HTMLButtonElement>("[role='radio']")).map((b) => ({ x: b.offsetLeft, width: b.offsetWidth })),
+      );
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const pill = pillGeometry(slots, rate);
 
   const move = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
     const delta = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : 0;
@@ -297,9 +314,13 @@ function SpeedControl({
         aria-label="Simulation speed"
         aria-disabled={disabled}
         data-tutorial="rate"
-        style={{ ["--pos" as string]: position, ["--count" as string]: RATES.length }}
+        style={{ ["--count" as string]: RATES.length }}
       >
-        <span className="speed-pill" aria-hidden="true" />
+        <span
+          className={`speed-pill${pill ? " placed" : ""}`}
+          aria-hidden="true"
+          style={pill ? { transform: `translateX(${pill.x}px)`, width: pill.width } : undefined}
+        />
         {RATES.map((value, i) => (
           <button
             key={value}

@@ -23,6 +23,9 @@ using EventId = StrongId<EventTag, std::uint64_t>;
 
 enum class RoadClass { Motorway, Primary, Secondary, Tertiary, Residential, Service };
 enum class BuildingType { School, Office, Mall, Store };
+
+/// Highest playback multiplier accepted from the CLI, the API and the UI.
+inline constexpr double kMaxTickRate = 10.0;
 enum class IncidentType { RoadClosure, Accident, Congestion, VehicleBreakdown, HazardSpill };
 enum class IncidentLifecycle { Scheduled, Active, Resolved };
 

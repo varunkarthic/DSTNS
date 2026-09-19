@@ -69,6 +69,8 @@ export interface MapFeature {
   position: Point;
   geometry: Point[];
   tags: Record<string, string>;
+  /** The core's demand model for this place, or null when it has none. */
+  demand_type?: "school" | "office" | "mall" | "store" | null;
 }
 // Where on earth this graph was cut from. Positions elsewhere in the topology
 // are true metres from the projection origin; the UI compresses only for display.
@@ -235,6 +237,8 @@ export interface Layers {
   /** Names of places. Buildings stay visible when this is off; only their
    *  names are withheld, so the map keeps its shape without the clutter. */
   place_names: boolean;
+  /** Places with no DSTNS type (benches, stops, rail lines), drawn as dots. */
+  other_places: boolean;
 }
 export const defaultLayers: Layers = {
   traffic: true,
@@ -250,6 +254,8 @@ export const defaultLayers: Layers = {
   labels: false,
   // Off by default: names are dense enough to obscure the network they sit on.
   place_names: false,
+  // Off by default: thousands of unclassified points bury the typed places.
+  other_places: false,
 };
 export interface Inspection {
   title: string;

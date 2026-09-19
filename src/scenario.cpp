@@ -65,7 +65,7 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
     if(config.demand_bin_virtual_s==0||config.demand_bin_virtual_s>86400)throw std::invalid_argument("invalid demand bin");
     if(config.playback_duration_s<60||config.playback_duration_s>3600)throw std::invalid_argument("playback_duration_s must be in [60,3600]");
     auto effective_config = config;
-    if(!(effective_config.tick_rate>0&&effective_config.tick_rate<=5))throw std::invalid_argument("tick_rate must be in (0,5]");
+    if(!(effective_config.tick_rate>0&&effective_config.tick_rate<=kMaxTickRate))throw std::invalid_argument("tick_rate must be in (0,10]");
     // "auto" means: let the seed choose a real place and fetch it on demand.
     // The tile is cached under its seed-derived name, so re-running one seed is
     // offline and free while a re-rolled seed necessarily downloads a new map.

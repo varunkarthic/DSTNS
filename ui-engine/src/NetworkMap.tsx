@@ -16,8 +16,9 @@ import {
   demandColor,
   distanceToSegment,
   insideFootprint,
+  hasMarker,
+  placeInspection,
   placeKind,
-  placeTitle,
   roadInspection,
   roadState,
   stateColors,
@@ -61,6 +62,8 @@ type Props = {
   controls?: RefObject<MapControls | null>;
   onView?: (view: MapView) => void;
   onCursor?: (position: { lat: number; lon: number } | null) => void;
+  /** The telemetry deck is collapsed to its strip, freeing the right side. */
+  deckCompact?: boolean;
 };
 type View = { x: number; y: number; scale: number };
 type Geo = {
@@ -70,6 +73,9 @@ type Geo = {
   minY: number;
   maxY: number;
 };
+/** Kinds kept on screen when zoomed out, because they orient the viewer. */
+const LANDMARKS = new Set(["school", "university", "hospital", "mall", "transport"]);
+
 function geometry(points: Point[], closed = false): Geo {
   const path = new Path2D();
   let minX = Infinity,
@@ -99,6 +105,7 @@ function NetworkMap({
   controls,
   onView,
   onCursor,
+  deckCompact = false,
 }: Props) {
   const host = useRef<HTMLDivElement>(null),
     base = useRef<HTMLCanvasElement>(null),
@@ -159,10 +166,14 @@ function NetworkMap({
     () => (topology ? topology.features.map((f) => placeKind(f)) : []),
     [topology],
   );
+  // Read through a ref: collapsing the deck changes where the next framing
+  // lands, but must not refit or move the map the operator is looking at.
+  const compactRef = useRef(deckCompact);
+  compactRef.current = deckCompact;
   /** The view that frames `bounds` (metres, y north) clear of the chrome. */
   const viewForBounds = useCallback(
     (bounds: Bounds, padding: number, minSpan?: number): View => {
-      const v = viewportFor(bounds, { width: size.w, height: size.h, insets: mapInsets(size.w, size.h) }, { padding, maxScale: 8, minScale: 0.025, minSpan });
+      const v = viewportFor(bounds, { width: size.w, height: size.h, insets: mapInsets(size.w, size.h, compactRef.current) }, { padding, maxScale: 8, minScale: 0.025, minSpan });
       return { scale: v.scale, x: v.screen.x - v.centre.x * v.scale, y: v.screen.y + v.centre.y * v.scale };
     },
     [size],
@@ -375,17 +386,16 @@ function NetworkMap({
           if (!visible(cached.features[i])) return;
           const demand = state.demand.get(f.id);
           const kind = kinds[i];
+          if (kind.group === "other" && !layers.other_places) return;
           // Zoomed out, keep only the landmarks that orient the operator and
           // anything currently drawing traffic.
           if (
             view.scale < 0.65 &&
             !demand?.active &&
-            !["School", "University", "Hospital", "Shopping Mall", "Transport Hub"].includes(
-              kind.label,
-            )
+            !LANDMARKS.has(kind.id)
           )
             return;
-          if (f.polygon && !demand) return;
+          if (!hasMarker(f)) return;
           const p = screen(f.position);
           const cell = `${Math.floor(p.x / 28)},${Math.floor(p.y / 28)}`;
           if (poiCells.has(cell)) return;
@@ -393,7 +403,8 @@ function NetworkMap({
           // Modelled places carry the demand ramp: white at rest, warming
           // through amber to red at peak, then cooling back the same way.
           const multiplier = demand?.multiplier ?? 1;
-          const warm = kind.demand && multiplier > 1.01;
+          // Demand exists only where the core models it for this feature.
+          const warm = !!demand && multiplier > 1.01;
           const tint = warm ? demandColor(multiplier) : "#162e3b";
           ctx.fillStyle = tint;
           ctx.strokeStyle = warm ? tint : "#638591";
@@ -574,7 +585,7 @@ function NetworkMap({
           // Interpolate zoom geometrically so it feels uniform in speed.
           const scale = from.scale * Math.pow(target.scale / from.scale, k);
           // Keep the point under the moving centre on a straight path.
-          const layout = mapFitLayout(size.w, size.h);
+          const layout = mapFitLayout(size.w, size.h, compactRef.current);
           const fromCentre = { x: (layout.centerX - from.x) / from.scale, y: (layout.centerY - from.y) / from.scale };
           const toCentre = { x: (layout.centerX - target.x) / target.scale, y: (layout.centerY - target.y) / target.scale };
           const cx = fromCentre.x + (toCentre.x - fromCentre.x) * k;
@@ -594,7 +605,7 @@ function NetworkMap({
       return;
     }
     if (focus.x_m === undefined || focus.y_m === undefined) return;
-    const layout = mapFitLayout(size.w, size.h);
+    const layout = mapFitLayout(size.w, size.h, compactRef.current);
     const scale = focus.scale ?? viewRef.current.scale;
     glideTo({ scale, x: layout.centerX - focus.x_m * scale, y: layout.centerY + focus.y_m * scale });
     // Only a new token starts a glide; view changes during it must not restart it.
@@ -707,6 +718,7 @@ function NetworkMap({
       for (let i = topology.features.length - 1; i >= 0; i--) {
         const f = topology.features[i],
           g = cached.features[i];
+        if (kinds[i]?.group === "other" && !layers.other_places && !f.polygon) continue;
         if (
           Math.hypot(f.position.x_m - x, -f.position.y_m - y) * view.scale <
             12 ||
@@ -717,20 +729,8 @@ function NetworkMap({
             y <= g.maxY &&
             insideFootprint(x, y, f.geometry))
         ) {
-          const d = state.demand.get(f.id);
           key = f.id;
-          info = {
-            title: placeTitle(f),
-            category: f.category,
-            status: d?.active ? "Demand increase" : "Normal",
-            description: f.id,
-            metrics: d
-              ? [
-                  ["Demand multiplier", `${d.multiplier.toFixed(2)}×`],
-                  ["Influence radius", `${d.radius_m} m`],
-                ]
-              : [["Geometry", f.polygon ? "OSM footprint" : "OSM point"]],
-          };
+          info = placeInspection(f, state.demand.get(f.id));
           // A road remains inspectable when it crosses a larger park/land-use outline.
           if (
             Math.hypot(f.position.x_m - x, -f.position.y_m - y) * view.scale >=
@@ -834,22 +834,12 @@ function NetworkMap({
       inspectFeature: (id: string) => {
         const feature = topology?.features.find((f) => f.id === id);
         if (!feature) return;
-        const kind = placeKind(feature);
-        const demand = state.demand.get(feature.id);
         // Anchored at the centre of the visible map area, where the camera is
         // gliding to, rather than at a stale pointer position.
-        const layout = mapFitLayout(size.w, size.h);
+        const layout = mapFitLayout(size.w, size.h, compactRef.current);
         const rect = host.current?.getBoundingClientRect();
         setHover({
-          info: {
-            title: placeTitle(feature),
-            category: kind.label,
-            description: feature.id,
-            metrics: [
-              ["Demand multiplier", `${(demand?.multiplier ?? 1).toFixed(2)}×`],
-              ["Demand active", demand?.active ? "Yes" : "No"],
-            ],
-          },
+          info: placeInspection(feature, state.demand.get(feature.id)),
           x: (rect?.left ?? 0) + layout.centerX + 18,
           y: (rect?.top ?? 0) + layout.centerY,
         });

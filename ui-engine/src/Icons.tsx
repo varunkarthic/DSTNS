@@ -229,6 +229,67 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M8 11V8a4 4 0 018 0v3" />
     </>
   ),
+  panelCollapse: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <path d="M15 4.5v15M8.5 9.5L11 12l-2.5 2.5" />
+    </>
+  ),
+  panelExpand: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <path d="M15 4.5v15M11 9.5L8.5 12l2.5 2.5" />
+    </>
+  ),
+  vehicle: (
+    <>
+      <path d="M5 16.5V12l1.8-4.6A2 2 0 018.7 6h6.6a2 2 0 011.9 1.4L19 12v4.5" />
+      <path d="M4 12h16v4.5H4z" />
+      <path d="M7 16.5V19M17 16.5V19" />
+      <circle cx="8" cy="14.2" r=".6" />
+      <circle cx="16" cy="14.2" r=".6" />
+    </>
+  ),
+  stack: (
+    <>
+      <rect x="4" y="4" width="16" height="4.5" rx="1.5" />
+      <rect x="4" y="9.75" width="16" height="4.5" rx="1.5" />
+      <rect x="4" y="15.5" width="16" height="4.5" rx="1.5" />
+    </>
+  ),
+  news: (
+    <>
+      <rect x="4" y="4.5" width="16" height="15" rx="2.5" />
+      <path d="M8 9h8M8 12.5h8M8 16h5" />
+    </>
+  ),
+  queue: (
+    <>
+      <path d="M4 6.5h9M4 12h6M4 17.5h9" />
+      <circle cx="17" cy="14.5" r="3.5" />
+      <path d="M17 12.8v1.9l1.2.8" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M4.5 12a7.5 7.5 0 102.2-5.3L4.5 9" />
+      <path d="M4.5 4.5V9H9" />
+      <path d="M12 8v4.2l2.8 1.8" />
+    </>
+  ),
+  external: (
+    <>
+      <path d="M14 4.5h5.5V10M19.5 4.5L11 13" />
+      <path d="M17.5 14v3.5a2 2 0 01-2 2h-9a2 2 0 01-2-2v-9a2 2 0 012-2H10" />
+    </>
+  ),
+  legend: (
+    <>
+      <rect x="4" y="5" width="4" height="4" rx="1" />
+      <rect x="4" y="15" width="4" height="4" rx="1" />
+      <path d="M11 7h9M11 17h9" />
+    </>
+  ),
 };
 
 export type IconName = keyof typeof PATHS;
