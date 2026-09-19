@@ -972,14 +972,16 @@ export default function App() {
           {dialog === "regenerate" && (
             <ConfirmCard
               title="Generate New World?"
-              body="A new seed will be generated and a new district prepared, which may need a map download. The current simulation keeps running until the new world is ready, then is replaced. The new world starts paused."
+              body="A new seed will be generated and a new district prepared, which may need a map download. The current simulation pauses and stays loaded until the new world is ready, then is replaced. The new world starts paused at 00:00:00."
               confirmLabel="Generate"
               icon="reroll"
               closing={dialogClosing}
               onCancel={closeDialog}
               onConfirm={() => {
                 closeDialog();
-                void requestWorld();
+                // Let the dialog finish leaving before the world overlay
+                // arrives, so the two are never on screen together.
+                window.setTimeout(() => void requestWorld(), 190);
               }}
             />
           )}

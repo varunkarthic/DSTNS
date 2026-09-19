@@ -1830,6 +1830,7 @@ body:has(.reduce-motion) .floating {
 
 /* The interface fades up as the start-up screen dissolves, rather than
  * appearing all at once. */
+.app-shell .app-header,
 .app-shell .rail,
 .app-shell .lower-hud,
 .app-shell .telemetry-deck,
@@ -1843,6 +1844,12 @@ body:has(.reduce-motion) .floating {
 .app-shell.booting .map-dock {
   opacity: 0;
   transform: translateY(8px);
+}
+/* The shell's own chrome arrives with everything else, rather than framing an
+ * empty page while the world is still being prepared. */
+.app-shell.booting .app-header {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 .app-shell.booting .telemetry-deck {
   opacity: 0;

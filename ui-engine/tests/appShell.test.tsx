@@ -411,7 +411,7 @@ describe("world regeneration", () => {
     const overlay = await screen.findByRole("alertdialog");
     expect(await within(overlay).findByText("World generation failed", {}, { timeout: 3000 })).toBeInTheDocument();
     expect(overlay).toHaveTextContent(/could not be downloaded from OpenStreetMap\. Overpass returned HTTP 429/);
-    expect(overlay).toHaveTextContent("The previous world is still running");
+    expect(overlay).toHaveTextContent("The previous world is unchanged");
     expect(overlay).not.toHaveTextContent(/at .*\.cpp|stack/i);
     expect(errors).toHaveBeenCalled();
     // Retry issues a fresh request; Return closes without touching the run.

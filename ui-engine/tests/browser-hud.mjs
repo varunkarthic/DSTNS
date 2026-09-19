@@ -50,8 +50,6 @@ try {
     await wait(100);
   }
   const token = readFileSync(path.join(out, "operator.token"), "utf8").trim();
-  const started = await call("/api/v1/playback/start", { seed: "0x2a17", playback_duration_seconds: 600, map: { osm_file: "data/fixtures/real_network.osm.xml" } }, token);
-  assert.equal(started.code, 202, JSON.stringify(started.body));
 
   browser = await chromium.launch({ executablePath: process.env.CHROME_BIN || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
@@ -59,9 +57,39 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+
+  // The interface opens before the run exists, as the CLI now launches it, and
+  // reports the stages the core reaches. This is the first thing an operator
+  // sees, so it is the first thing checked.
   await page.goto(base);
+  const startup = page.getByRole("status", { name: /Waiting for a simulation|Starting interface/ });
+  await startup.waitFor({ timeout: 20000 });
+  assert.match(await startup.innerText(), /Waiting for a simulation/);
+  assert.equal(await page.getByRole("progressbar").count(), 0, "no progress is claimed before a run exists");
+  assert.equal(await page.locator(".loading-steps").count(), 0, "no stages are listed before a run exists");
+  // The shell's chrome arrives with the interface, not before it.
+  const headerOpacity = await page.evaluate(() => Number(getComputedStyle(document.querySelector(".app-header")).opacity));
+  assert.ok(headerOpacity < 0.2, `the header waits for the interface (opacity ${headerOpacity})`);
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: path.join(out, "startup-waiting.png") });
+
+  const started = await call("/api/v1/playback/start", { seed: "10775", playback_duration_seconds: 600, map: { osm_file: "data/fixtures/real_network.osm.xml" } }, token);
+  assert.equal(started.code, 202, JSON.stringify(started.body));
   await page.getByRole("button", { name: "Pause simulation" }).waitFor({ timeout: 30000 });
   await page.waitForTimeout(1500);
+  assert.equal(await page.locator(".loading-surface").count(), 0, "the start-up screen leaves once the map is up");
+
+  check("the browser icon is the mark", async () => {
+    const icon = await page.evaluate(() => document.querySelector("link[rel='icon']")?.getAttribute("href"));
+    assert.equal(icon, "/favicon.svg", "the page references the icon");
+    const res = await fetch(base + "/favicon.svg");
+    assert.equal(res.status, 200, "the server serves it");
+    const body = await res.text();
+    assert.match(res.headers.get("content-type") || "", /svg/);
+    assert.match(body, /<path/, "it carries the mark's geometry");
+    assert.ok(body.length < 8000, "it is a small vector, not an embedded bitmap");
+  });
+
 
   const box = (locator) => locator.boundingBox();
   const layout = async (label) => {
@@ -267,9 +295,17 @@ try {
     const before = (await call("/api/v1/playback/status")).body;
     await page.getByRole("button", { name: "Generate new world" }).click();
     await page.getByRole("button", { name: "Generate", exact: true }).click();
-    await page.getByRole("alertdialog").waitFor();
+    const overlay = page.getByRole("alertdialog");
+    await overlay.waitFor();
+    // The current world is paused for the swap and its controls rest.
+    assert.match((await call("/api/v1/playback/status")).body.data.lifecycle, /PAUSED|PREPARING/);
+    assert.ok(await page.locator(".app-shell.world-busy").count(), "the controls show they are busy");
+    assert.match(await overlay.innerText(), /Generating new world/);
+    // Nothing of the confirmation is left behind it.
+    assert.equal(await page.locator(".scrim:not(.loading-surface) .dialog").count(), 0, "the confirmation has left");
+    await page.waitForTimeout(300);
     await page.screenshot({ path: path.join(out, "world-generating.png") });
-    await page.getByRole("alertdialog").waitFor({ state: "detached", timeout: 30000 });
+    await overlay.waitFor({ state: "detached", timeout: 30000 });
     const after = (await call("/api/v1/playback/status")).body;
     assert.notEqual(after.run_id, before.run_id, "new run");
     assert.notEqual(after.seed, before.seed, "new seed");
