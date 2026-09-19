@@ -1,0 +1,195 @@
+# ASB — Adaptive Simulation Backpressure
+
+## The problem
+
+The core advances virtual time on its own clock. The observer consumes
+snapshots over HTTP and draws them. Nothing couples the two, so on a slow
+machine, a dense district, or a high rate multiplier they drift apart: the
+picture on screen stops corresponding to the state the core is actually in.
+
+Left alone this fails badly. The operator reads stale numbers as current ones,
+the map animates traffic that has already cleared, and the usual response — turn
+the speed up because it looks slow — makes it worse.
+
+ASB measures that drift, scores it, and throttles the simulation to close it.
+
+## The score
+
+One number in `[0, 1]`, recomputed on each report. Three symptoms are measured
+and **the worst one wins** — averaging would let a severe problem in one
+dimension hide behind health in the others.
+
+| Symptom | Meaning | Scored against |
+| --- | --- | --- |
+| `virtual_lag_s` | Virtual seconds between the snapshot the observer last rendered and the state the core holds | `1.5 × tick_rate`, floored at 1 s, over a 4× window |
+| `client_frame_s` | Wall-clock interval between the observer's own frames | 33 ms healthy → 233 ms saturated |
+| `since_poll_s` | Seconds since the observer last managed to poll | 2 s healthy → 8 s saturated |
+
+Lag is judged *relative to the rate*, because at 20× the observer is expected to
+be several virtual seconds behind simply because each poll covers more ground.
+A fixed threshold would declare every fast run unhealthy.
+
+Thresholds (`include/dstns/asb.hpp`, exported so tests state the contract in the
+same terms the implementation does):
+
+```
+kAsbSyncedScore    0.35   below this: in sync
+kAsbStressedScore  0.60   above this: drift is real
+kAsbCriticalScore  0.85   above this: recovery is overdue
+kAsbEscalateAfterS 3.0    stressed this long -> act
+kAsbRestrictedHoldS 5.0   minimum time in Restricted
+kAsbRecoverAfterS  3.0    healthy this long -> relax
+```
+
+Between `synced` and `stressed` is a deliberate dead band: the controller holds
+position rather than flapping on noise.
+
+## The ladder
+
+Strictly ordered. Each rung is entered only after the previous one has been
+given a fixed window to recover, and recovery is always explicit.
+
+```
+                    stressed > 3s, first time
+   NORMAL ──────────────────────────────────► default state (still Normal)
+      ▲                                              │ did not recover
+      │ healthy 3s                                   ▼
+      │                                        RESTRICTED
+      │                                              │ did not recover
+      │ healthy 3s (after a 5s hold)                 ▼
+      └───────────────────────────────────────    ASYNC
+                       healthy 6s
+```
+
+### Normal
+
+Full operator control. Two responses, in order of cost:
+
+1. **Proportional throttle.** The moment the score passes `stressed`, the rate
+   ceiling drops to `tick_rate × (1 − score)`, never below 1×. This is
+   continuous, cheap, and usually enough. The operator's *requested* multiplier
+   is remembered throughout, so it returns on its own.
+2. **The default state**, once, after 3 s of sustained stress. Forces 1×,
+   switches the display layers off, and soft-restarts the observer — the
+   equivalent of Ctrl+R without reloading the page. The recovery gets its own
+   3 s window.
+
+### Restricted
+
+Entered when the default state did not restore synchronization. The rate is
+**locked at 1×** and **reduced motion is forced on**, both shown in the
+interface as locked rather than simply changed. Held for **at least 5 s**
+regardless of how quickly things improve, so the system gets a genuine chance to
+settle before being judged again.
+
+### Async
+
+Entered when Restricted also failed. The observer's GUI is **suspended**:
+
+> This simulation's interface has been suspended by the ASB (Adaptive Simulation
+> Backpressure) because the simulation and the GUI were out of sync and failed to
+> re-establish synchronization.
+
+**The simulation is not affected.** It keeps running and keeps streaming data.
+Exactly four controls remain: play/pause, reset, terminate, and nothing else.
+The interface resumes on its own after 6 s of sustained health.
+
+## API
+
+### `GET /api/v1/system/backpressure`
+
+Read the current state without reporting anything.
+
+### `POST /api/v1/system/backpressure`
+
+The observer reports its own health; the response is the authoritative state,
+so one round trip both informs and instructs.
+
+```json
+{ "virtual_lag_s": 12.4, "client_frame_s": 0.048, "since_poll_s": 1.02 }
+```
+
+```json
+{
+  "state": "NORMAL",
+  "score": 0.41,
+  "synced": false,
+  "rate_locked": false,
+  "motion_locked": false,
+  "gui_suspended": false,
+  "rate_capped": true,
+  "rate_cap": 11.8,
+  "applied_tick_rate": 11.8,
+  "requested_tick_rate": 20,
+  "stressed_for_s": 0,
+  "state_for_s": 143.2,
+  "throughput": { "snapshots_per_s": 1.02, "bytes_per_s": 1842365 },
+  "actions": [
+    {
+      "at_s": 141.8,
+      "action": "throttle",
+      "reason": "observer behind; reducing the rate ceiling to close the gap",
+      "score": 0.41,
+      "rate_before": -1,
+      "rate_after": 11.8
+    }
+  ],
+  "thresholds": { "synced": 0.35, "stressed": 0.6, "critical": 0.85, ... }
+}
+```
+
+Notes on the contract:
+
+- `rate_cap` and an action's `rate_before`/`rate_after` are `-1` when no ceiling
+  is in force. JSON has no infinity, and `-1` is unambiguous against a domain
+  that is always positive.
+- `applied_tick_rate` is what the simulation is running at; `requested_tick_rate`
+  is what the operator asked for. They differ exactly while ASB is governing.
+- `throughput` is the measured delivery rate of snapshots, which is what the
+  link is actually sustaining.
+- `actions` is bounded to the last 24 transitions. Every one carries a reason in
+  plain language, so a rate that changed is explainable rather than mysterious.
+
+## Observer side
+
+`ui-engine/src/useBackpressure.ts`:
+
+- Frame cost is sampled from animation frames the browser is producing anyway —
+  measurement never drives rendering.
+- The exponential mean (`0.85 / 0.15`) is responsive to a sustained stall but
+  unmoved by one slow frame caused by something outside the app.
+- A malformed or unrecognised response is treated as *no report*, exactly as
+  being offline already is. `isBackpressure()` validates the shape; an old core
+  or a proxy error page cannot crash the interface.
+- The default state raises a soft-restart token once per action, not on every
+  poll that still mentions it.
+
+## Configuration
+
+`config/ui-config.json`:
+
+```json
+"asb": { "enabled": true, "report_interval_ms": 1000 }
+```
+
+Disabling it stops the observer reporting, which leaves the core ungoverned —
+appropriate for a display-only deployment on known-good hardware, and a bad idea
+anywhere else.
+
+## Testing
+
+`tests/unit/asb_tests.cpp` drives the controller with **injected time**, so
+every window is exercised exactly rather than by sleeping and hoping. Fourteen
+groups cover: a healthy observer never being interfered with; the score being
+normalized and monotone in the drift; each symptom registering alone;
+throttling preceding escalation; the default state being tried exactly once;
+Restricted locking rate and motion and honouring its minimum hold; Async
+suspending the GUI while the simulation runs; recovery requiring a *sustained*
+good spell; alternating marginal samples never escalating; the action log being
+bounded and always explained; throughput reporting; and `reset()` fully clearing
+state so one run cannot colour the next.
+
+The observer side is covered in `ui-engine/tests/appShell.test.tsx`, which
+asserts the Async overlay's exact promise (suspended interface, running
+simulation, four controls) and that Restricted genuinely locks the rate slider
+and the motion toggle.

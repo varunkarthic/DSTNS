@@ -35,6 +35,8 @@ export type MapControls = {
   zoomIn: () => void;
   zoomOut: () => void;
   fit: () => void;
+  /** Show the inspection card for a place, as hovering it would. */
+  inspectFeature: (id: string) => void;
 };
 export type MapView = {
   scale: number;
@@ -98,11 +100,10 @@ function NetworkMap({
   const [size, setSize] = useState({ w: 1000, h: 700 }),
     [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
   const [hover, setHover] = useState<{
-      info: Inspection;
-      x: number;
-      y: number;
-    } | null>(null),
-    [query, setQuery] = useState("");
+    info: Inspection;
+    x: number;
+    y: number;
+  } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined),
     hoverKey = useRef(""),
     drag = useRef<{ x: number; y: number; view: View } | null>(null);
@@ -397,7 +398,7 @@ function NetworkMap({
           ctx.fillStyle = warm && multiplier > 1.35 ? "#071420" : warm ? "#31210a" : "#d7e4f5";
           ctx.fillText(kind.icon, p.x, p.y + 3);
           ctx.textAlign = "start";
-          if (view.scale > 1 && f.name) {
+          if (layers.place_names && view.scale > 1 && f.name) {
             ctx.fillStyle = "#bbc9ce";
             ctx.fillText(f.name.slice(0, 24), p.x + 12, p.y + 3);
           }
@@ -801,9 +802,33 @@ function NetworkMap({
       zoomIn: () => zoom(1.3),
       zoomOut: () => zoom(1 / 1.3),
       fit,
+      inspectFeature: (id: string) => {
+        const feature = topology?.features.find((f) => f.id === id);
+        if (!feature) return;
+        const kind = placeKind(feature);
+        const demand = state.demand.get(feature.id);
+        // Anchored at the centre of the visible map area, where the camera is
+        // gliding to, rather than at a stale pointer position.
+        const layout = mapFitLayout(size.w, size.h);
+        const rect = host.current?.getBoundingClientRect();
+        setHover({
+          info: {
+            title: placeTitle(feature),
+            category: kind.label,
+            description: feature.id,
+            metrics: [
+              ["Demand multiplier", `${(demand?.multiplier ?? 1).toFixed(2)}×`],
+              ["Demand active", demand?.active ? "Yes" : "No"],
+            ],
+          },
+          x: (rect?.left ?? 0) + layout.centerX + 18,
+          y: (rect?.top ?? 0) + layout.centerY,
+        });
+      },
     }),
-    // zoom closes over the current size, so refresh the handle when either changes.
-    [fit, size.w, size.h],
+    // zoom and inspection close over the current size and state, so refresh
+    // the handle when any of them changes.
+    [fit, size.w, size.h, topology, state],
   );
   // view.scale is pixels per metre, so its reciprocal is metres per pixel: the
   // figure the scale bar and the coordinate readout are drawn from.
@@ -824,19 +849,6 @@ function NetworkMap({
       onCursor(metresToGeographic(x_m, y_m, projection));
     },
     [onCursor, topology?.projection, view.x, view.y, view.scale],
-  );
-  const results = useMemo(
-    () =>
-      query.trim() && topology
-        ? topology.features
-            .filter((f) =>
-              (f.name + " " + f.category + " " + f.id)
-                .toLowerCase()
-                .includes(query.toLowerCase()),
-            )
-            .slice(0, 6)
-        : [],
-    [topology, query],
   );
   let hoverInfo = hover?.info;
   if (hover && topology) {
@@ -896,7 +908,7 @@ function NetworkMap({
         ref={dynamic}
         className="map-canvas"
         tabIndex={0}
-        aria-label="Simulation map. Drag to pan, scroll or press plus and minus to zoom. Hover entities to inspect. Search places for keyboard inspection."
+        aria-label="Simulation map. Drag to pan, scroll or press plus and minus to zoom, arrow keys to move. Hover entities to inspect. Place search is in the map dock."
         onWheel={(e) => {
           cancelGlide();
           const r = e.currentTarget.getBoundingClientRect();
@@ -946,54 +958,6 @@ function NetworkMap({
           }
         }}
       />
-      <div className="place-search glass">
-        <label className="sr-only" htmlFor="place-search">
-          Search places
-        </label>
-        <input
-          id="place-search"
-          placeholder="Search places / POIs"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        {results.length > 0 && (
-          <ul>
-            {results.map((f) => (
-              <li key={f.id}>
-                <button
-                  onClick={() => {
-                    setView((v) => ({
-                      ...v,
-                      scale: Math.max(v.scale, 1),
-                      x: size.w / 2 - f.position.x_m * Math.max(v.scale, 1),
-                      y: size.h / 2 + f.position.y_m * Math.max(v.scale, 1),
-                    }));
-                    setHover({
-                      info: {
-                        title: placeTitle(f),
-                        category: placeKind(f).label,
-                        description: f.id,
-                        metrics: [
-                          [
-                            "Demand multiplier",
-                            `${(state.demand.get(f.id)?.multiplier ?? 1).toFixed(2)}×`,
-                          ],
-                        ],
-                      },
-                      x: size.w / 2 + 18,
-                      y: size.h / 2,
-                    });
-                    setQuery("");
-                  }}
-                >
-                  {f.name || f.category}
-                  <small>{f.id}</small>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
       <div className="map-attribution">
         © OpenStreetMap contributors · {topology?.source || "Awaiting network"}
       </div>

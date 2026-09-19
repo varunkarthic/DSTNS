@@ -85,6 +85,131 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/v1/system/backpressure:
+    get:
+      tags:
+      - System
+      operationId: backpressureStatus
+      summary: Current Adaptive Simulation Backpressure state
+      description: >-
+        Read the backpressure state without reporting anything. Includes the
+        measured snapshot and byte delivery rate. See docs/asb.md.
+      responses:
+        '200':
+          description: Backpressure state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Backpressure'
+    post:
+      tags:
+      - System
+      operationId: reportBackpressure
+      summary: Report observer health and receive the resulting governance
+      description: >-
+        The observer reports how far behind it is; the response is the
+        authoritative backpressure state, so one round trip both informs and
+        instructs. Reporting is presentation-side only: it changes the rate at
+        which virtual time advances, never what the simulation computes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                virtual_lag_s:
+                  type: number
+                  minimum: 0
+                  description: Virtual seconds between the rendered snapshot and the core's state.
+                client_frame_s:
+                  type: number
+                  minimum: 0
+                  description: Wall-clock seconds between the observer's own frames.
+                since_poll_s:
+                  type: number
+                  minimum: 0
+                  description: Seconds since the observer last polled.
+      responses:
+        '200':
+          description: Backpressure state after this report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Backpressure'
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /api/v1/system/map-status:
+    get:
+      tags:
+      - System
+      operationId: mapStatus
+      summary: Progress of a map download in flight
+      description: >-
+        Observational only. Reports the city, phase and byte progress of a
+        district download so the CLI and the splash screen can show it.
+      responses:
+        '200':
+          description: Download progress, or an inactive report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      active: { type: boolean }
+                      city: { type: string }
+                      country: { type: string }
+                      phase:
+                        type: string
+                        enum: [connect, download, parse, retry]
+                      bytes: { type: integer }
+                      total:
+                        type: integer
+                        description: 0 when Overpass sent no Content-Length.
+                      elapsed_s: { type: number }
+
+  /api/v1/system/ui-config:
+    get:
+      tags:
+      - System
+      operationId: uiConfig
+      summary: Observer presentation defaults
+      description: >-
+        Serves config/ui-config.json. Presentation only; see
+        docs/ui-configuration.md. A malformed file yields UI_CONFIG_INVALID and
+        the observer falls back to its built-in defaults.
+      responses:
+        '200':
+          description: Configuration, or an empty object when none is installed
+          content:
+            application/json:
+              schema:
+                type: object
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /api/v1/system/source:
+    get:
+      tags:
+      - System
+      operationId: sourceOffer
+      summary: Licence and corresponding-source offer
+      description: >-
+        GNU AGPL section 13. Because this program is offered over a network,
+        every user interacting with it must be told where to obtain the
+        corresponding source of the version they are running.
+      responses:
+        '200':
+          description: Programme, version, licence and source offer
+          content:
+            application/json:
+              schema:
+                type: object
+
   /api/v1/playback/pause:
     post:
       tags:
@@ -736,6 +861,65 @@ components:
               type: string
               default: data/maps
               description: Directory holding downloaded tiles, keyed by city and anchor.
+    Backpressure:
+      type: object
+      required: [state, score, synced, gui_suspended, applied_tick_rate, throughput, actions]
+      properties:
+        state:
+          type: string
+          enum: [NORMAL, RESTRICTED, ASYNC]
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Normalized backpressure; the worst of lag, frame cost and poll silence.
+        synced: { type: boolean }
+        rate_locked:
+          type: boolean
+          description: True outside NORMAL, where the multiplier is pinned at 1x.
+        motion_locked:
+          type: boolean
+          description: True outside NORMAL, where reduced motion is forced on.
+        gui_suspended:
+          type: boolean
+          description: True in ASYNC. The simulation continues; only the interface is stood down.
+        rate_capped:
+          type: boolean
+          description: Whether ASB is imposing a ceiling on the multiplier at all.
+        rate_cap:
+          type: number
+          description: The ceiling in force, or -1 when none is (JSON has no infinity).
+        applied_tick_rate:
+          type: number
+          description: What the simulation is actually running at.
+        requested_tick_rate:
+          type: number
+          description: What the operator asked for. Retained and restored on recovery.
+        stressed_for_s: { type: number }
+        state_for_s: { type: number }
+        throughput:
+          type: object
+          properties:
+            snapshots_per_s: { type: number }
+            bytes_per_s: { type: number }
+        actions:
+          type: array
+          description: The last 24 transitions, each with a plain-language reason.
+          items:
+            type: object
+            properties:
+              at_s: { type: number }
+              action:
+                type: string
+                enum: [throttle, default_state, restrict, suspend, release]
+              reason: { type: string }
+              score: { type: number }
+              rate_before: { type: number }
+              rate_after: { type: number }
+        thresholds:
+          type: object
+          additionalProperties: { type: number }
+
     StartResponse:
       type: object
       required:

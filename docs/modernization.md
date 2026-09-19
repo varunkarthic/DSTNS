@@ -74,6 +74,28 @@ Physics uses fixed one-second virtual steps. Playback speed changes wall-clock p
 
 Flood thresholds produce event-history observations. Incident and weather schedules also appear in future/history views; weather field calculations and active incident composition retain the existing core implementation. Congestion does not manufacture an incident ID or fictional expiry.
 
+## Traffic signals
+
+Controllers belong at intersections, and OpenStreetMap does not put them there.
+It tags `highway=traffic_signals` on the **stop-line node of one approach**, a
+few metres back from the junction, which in this graph has degree 2. Taking the
+tag literally scattered controllers along straight roads; requiring a real
+junction degree deleted every one of them. In a Berlin district all 49 tagged
+nodes had degree 2.
+
+So each tagged node is snapped to the nearest junction (degree >= 3) within 45
+metres, and several approaches to one junction collapse onto the single
+controller that governs it. That district's 49 stop lines become 30 controllers,
+all at degree 3-5 junctions, none mid-block.
+
+Phasing was already an ordered two-group alternation — opposing approaches share
+a green, then amber, then all-red, then the cross street. What looked random was
+the **offset**: each controller drew its own at random, so neighbours changed
+independently. Offsets now follow travel time from the network's centre at a
+nominal 50 km/h, wrapped into the cycle, which is how a real corridor is timed:
+a platoon released at one junction arrives at the next on green. Adjacent
+signals therefore turn over in sequence rather than flickering.
+
 ## Congestion and state semantics
 
 For traversable directed edges, using DSTNS aggregate model outputs:
@@ -102,19 +124,90 @@ Map data retrieved from Overpass is © OpenStreetMap contributors under ODbL 1.0
 
 ## Observer shell
 
-The layout follows `ui-engine-alpha/templates/index.html`: a fixed header, a full-bleed map, a floating control dock at top-left, a coordinate and scale HUD at bottom-left, a glass telemetry deck on the right, and a two-tier playback controller along the bottom. The mockup expressed its tokens through a Tailwind CDN config; they are transcribed into `src/theme.css` as custom properties, so the app keeps its existing plain-CSS build and gains no utility-CSS dependency. The three mockup typefaces (Inter, Space Grotesk, JetBrains Mono) were already vendored through `@fontsource`.
+The layout follows `ui-engine-alpha/templates/index.html`: a fixed header, a
+full-bleed map, a floating control dock at top-left, a coordinate and scale HUD
+above the controls, a glass telemetry deck on the right, and a two-tier playback
+controller along the bottom. The mockup's tokens are transcribed into
+`src/theme.css` as custom properties, so the app keeps its plain-CSS build and
+gains no utility-CSS dependency.
 
-Components: `TelemetryDeck` (metric tiles, congestion meter, and Stack/News/Queue/Incidents tabs), `PlaybackDock` (scrubber, clock with 12/24-hour toggle, rate slider, transport controls), `LayersPopover` (display layers), and `NetworkMap`, which now exposes an imperative `MapControls` handle so the zoom and fit buttons can live in the dock, plus `onView`/`onCursor` callbacks that feed the HUD.
+**Structure.** The bottom chrome — HUD row, control strip and playback dock — is
+one bottom-anchored flex column, so their spacing is structural rather than a
+stack of hand-tuned offsets that drift apart. Stacking order is named once in
+`--z-*` variables; Display Layers sits above notifications deliberately, so a
+burst of events can never bury the control being used.
 
-**What reaches the core, and what does not.** The playback controls are genuinely remote: play, pause, step, reset and the rate slider call `/api/v1/playback/*` and `/api/v1/control/tick-rate`. Everything about presentation stays local. Display layers, the 12/24-hour clock format, reduced motion, the seed expansion toggle, map pan/zoom and the legend are frontend state only; toggling a layer changes what is drawn and never what is computed. `tests/appShell.test.tsx` asserts this directly by recording every non-GET request and requiring the list to be empty after a layer is toggled.
+**Components.** `MapDock` (zoom, fit, search, auto-focus, do-not-disturb,
+reduced motion), `TelemetryDeck` (metrics, congestion, and Stack/News/Queue/
+Incidents tabs), `PlaybackDock` (scrubber, clock, rate, transport), `Dialogs`
+(About, confirmations, the auto-focus offer, the ASB suspension overlay),
+`Splash`, `Logo`, and `NetworkMap`, which exposes an imperative `MapControls`
+handle plus `onView`/`onCursor` callbacks.
 
-The header names the seed-selected district (`Berlin, Germany`) and the HUD reports live coordinates under the cursor, falling back to the tile anchor, then the projection origin. A run started from an explicit `--osm-file` has no seed-derived location; the core still emits the block with empty strings, and the UI treats that as absent rather than displaying 0.0000 N, 0.0000 E. A `MAP_FETCH_FAILED` response is surfaced as its own alert style rather than a generic connection error.
+**Search** is an icon in the dock that expands beside it, rather than a bar
+occupying the top of the map: the map keeps its full width until someone
+actually wants to look something up.
+
+**Motion.** Two named curves carry the whole interface: `--ease-out` for things
+arriving and `--spring` for things responding to a press. Controls scale down
+slightly when pressed, the play button lifts and glows on hover, the reset glyph
+rotates, and every dialog has a paired entry and exit transition so nothing
+appears or vanishes abruptly. Modals blur the map behind rather than hiding it.
+All of it is disabled under reduced motion.
+
+**The rate slider** is indexed, not linear. The handle sits at the index of the
+value and the tick labels are drawn from the same array at the same offsets, so
+the label under the handle is always the value the handle sets. When ASB pulls
+the rate down the handle *eases* to its new mark over several frames, so a
+governed change reads as deceleration rather than a jump.
+
+**What reaches the core, and what does not.** Playback — play, pause, step,
+reset and the rate — calls the core. Everything about presentation stays local:
+display layers, place names, clock format, reduced motion, do-not-disturb,
+auto-focus, the seed toggle, pan and zoom. `tests/appShell.test.tsx` asserts
+this directly by recording every non-GET request and requiring the list to be
+empty after a layer is toggled and after do-not-disturb is engaged.
+
+**Destructive actions confirm.** Reset and Terminate open a dialog first; the
+click alone never reaches the core, which the tests assert.
+
+**Places.** A feature's `category` is the raw OSM tag value — whatever a mapper
+typed. `placeKind()` normalises it to a short kind and a glyph, so an unnamed
+building reads as **School**, not "Unnamed kindergarten". Roads do the same
+through `roadTitle()`: a nameless service road is a "Service road".
+
+## Splash and boot
+
+The interface starts before the core has a map — a district is often being
+downloaded, which takes tens of seconds. Rather than an empty page, the splash
+assembles the mark and reports the stage the core is actually in, read from
+`/api/v1/system/map-status`: contacting Overpass, downloading with a byte count
+and a real percentage when Content-Length is known, validating, compiling. It
+sweeps rather than inventing a percentage when the total is unknown. After
+twelve seconds it offers a way past, so a stalled download never traps anyone.
 
 ## Accessibility and reporting
 
 Reduce Motion starts from `prefers-reduced-motion`, supports an explicit persistent override, hides all vehicle-flow markers and disables nonessential animation/transitions. Roads, static POI alerts, incidents, weather and signal state remain visible. Delayed custom tooltips are shared across map entities and controls. Controls support focus/keyboard interaction; map pan/zoom is keyboard operable and place search provides keyboard inspection. No browser `title` tooltips are used.
 
-Export Report downloads a three-page PDF generated locally from observed state: configuration/congestion history, current geographic map, and event/effect summary. It shares the dark palette, typography hierarchy, panels and semantic colors. An embedded local Inter font makes export independent of font services and retains Latin diacritics; optional logo failure does not block export. Current map viewport and layer visibility are preserved.
+Export Report downloads a four-page PDF generated locally from observed state, on one grid and one type scale across all four pages: **Run and provenance** (seed, lifecycle, graph hash, and which real city the seed resolved to, with its coordinates and whether the extract was downloaded or cached), **Congestion** (current, moving average, delta, the day's curve, the road-state mix, and the most congested roads that are actually carrying traffic — closures score 1.0 with nothing on them and are counted separately), **Geographic network** (the map as rendered, road classes by length, and places by kind), and **Events and runtime** (weather, flooding, incidents, demand, the ASB state and throughput, and recent events). The DSTNS mark is drawn as vectors, so the report needs no image asset and cannot fail on a missing one. It shares the dark palette, typography hierarchy, panels and semantic colors. An embedded local Inter font makes export independent of font services and retains Latin diacritics; optional logo failure does not block export. Current map viewport and layer visibility are preserved.
+
+## Startup verification
+
+`./launcher` verifies the install before it starts anything. Twelve checks, in
+increasing cost, each reporting what it found rather than only pass or fail:
+host platform, Node, Python 3, the licence, both configuration files parsing,
+the map fetcher compiling, the map cache being writable, the core binary and its
+version, whether the observer bundle is older than its sources, the API port,
+and **both test suites**.
+
+Running the suites at startup is deliberate: it makes "the system is good to go"
+a statement about this machine rather than about CI. They are the fast ones —
+roughly 3 s for the core and 8 s for the observer.
+
+A `fail` stops startup and names what failed; a `warn` continues and says what
+is reduced (a stale bundle, for instance, is rebuilt on start). The same checks
+are available programmatically from `dstns-operator-cli/preflight.mjs`.
 
 ## Transit migration and model boundaries
 

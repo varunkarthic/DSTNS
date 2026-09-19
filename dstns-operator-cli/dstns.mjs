@@ -107,30 +107,6 @@ function formatDuration(ms) {
   return `${(ms / 60_000).toFixed(1)} min`
 }
 
-function execQuick(cmd, timeoutMs = 2500) {
-  return new Promise((resolve) => {
-    try {
-      const child = spawn(cmd, { shell: true, stdio: ['ignore', 'pipe', 'ignore'], cwd: ROOT })
-      let out = ''
-      const timer = setTimeout(() => {
-        try { child.kill('SIGKILL') } catch {}
-        resolve(out.trim())
-      }, timeoutMs)
-      child.stdout?.on('data', (chunk) => { out += chunk.toString() })
-      child.once('close', () => {
-        clearTimeout(timer)
-        resolve(out.trim())
-      })
-      child.once('error', () => {
-        clearTimeout(timer)
-        resolve('')
-      })
-    } catch {
-      resolve('')
-    }
-  })
-}
-
 function getOsInfo() {
   const p = os.platform()
   const name = p === 'darwin' ? 'macOS' : p === 'linux' ? 'Linux' : p === 'win32' ? 'Windows' : p
@@ -163,7 +139,7 @@ function licenceNotice() {
   ]
 }
 
-async function runSplashScreen() {
+async function runSplashScreen(options = {}) {
   clearScreen()
 
   // Wordmark reveals a line at a time: a short, deliberate boot rather than a
@@ -179,98 +155,42 @@ async function runSplashScreen() {
   for (const line of licenceNotice()) process.stdout.write(`  ${line}\n`)
   process.stdout.write('\n')
 
-  process.stdout.write(`  ${ui.colors.bold(ui.colors.cyan('SYSTEM BOOTSTRAP & PREREQUISITES VERIFICATION'))}\n`)
+  process.stdout.write(`  ${ui.colors.bold(ui.colors.cyan('SYSTEM VERIFICATION'))}\n`)
   process.stdout.write(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────\n'))
 
-  const osInfo = getOsInfo()
-  const checks = [
-    {
-      name: 'Host OS & Platform',
-      run: async () => ({
-        ok: osInfo.isCompatible,
-        detail: `${osInfo.name} ${osInfo.release} (${osInfo.arch}, ${osInfo.cores} cores, ${osInfo.memGb} GB RAM) · ${osInfo.isCompatible ? 'COMPATIBLE' : 'UNTESTED'}`,
-      }),
+  const { preflight, OK, WARN } = await import('./preflight.mjs')
+  const summary = await preflight(ROOT, {
+    suites: !options?.skipTests,
+    onResult: (r) => {
+      const icon =
+        r.level === OK ? ui.colors.green('✔') : r.level === WARN ? ui.colors.yellow('⚠') : ui.colors.red('✖')
+      const name = ui.colors.bold(r.name.padEnd(24))
+      const detail = r.level === OK ? ui.colors.dim(r.detail) : ui.colors.yellow(r.detail)
+      process.stdout.write(`  ${icon}  ${name} ${detail}\n`)
+      if (r.hint) process.stdout.write(`     ${ui.colors.dim(r.hint)}\n`)
     },
-    {
-      name: 'C++20 Toolchain',
-      run: async () => {
-        const out = await execQuick('clang++ --version || g++ --version')
-        if (!out) return { ok: false, detail: 'Neither clang++ nor g++ detected on PATH' }
-        return { ok: true, detail: trimText(out.split('\n')[0], 55) }
-      },
-    },
-    {
-      name: 'Build System (CMake)',
-      run: async () => {
-        const out = await execQuick('cmake --version')
-        if (!out) return { ok: false, detail: 'CMake not found on PATH' }
-        return { ok: true, detail: trimText(out.split('\n')[0], 55) }
-      },
-    },
-    {
-      name: 'Scripting Runtime',
-      run: async () => {
-        const out = await execQuick('python3 --version')
-        if (!out) return { ok: false, detail: 'Python 3 not found on PATH' }
-        return { ok: true, detail: `${trimText(out.split('\n')[0], 35)} (SQLite3 WAL mode enabled)` }
-      },
-    },
-    {
-      name: 'Frontend Engine',
-      run: async () => {
-        return { ok: true, detail: `Node.js ${process.version} · npm ready` }
-      },
-    },
-    {
-      name: 'Microscopic Simulator',
-      run: async () => {
-        const sumo = await detectSumo()
-        if (sumo) {
-          const out = await execQuick(`${sumo.sumo} --version`)
-          const ver = out ? out.split('\n')[0] : 'Eclipse SUMO'
-          return { ok: true, detail: `${trimText(ver, 50)} (found)` }
-        }
-        return { ok: true, detail: 'Optional fallback (standalone export ready)' }
-      },
-    },
-    {
-      name: 'C++ Simulation Core',
-      run: async () => {
-        const exists = existsSync(SERVER)
-        return {
-          ok: exists,
-          detail: exists
-            ? `${path.relative(ROOT, SERVER)} (compiled & ready)`
-            : `${path.relative(ROOT, SERVER)} (will auto-compile on start)`,
-        }
-      },
-    },
-    {
-      name: 'Web UI Assets',
-      run: async () => {
-        const exists = existsSync(UI_DIST)
-        return {
-          ok: exists,
-          detail: exists
-            ? `${path.relative(ROOT, UI_DIST)} (production bundle ready)`
-            : `${path.relative(ROOT, UI_DIST)} (will auto-build on start)`,
-        }
-      },
-    },
-  ]
+  })
 
-  for (const check of checks) {
-    const res = await check.run()
-    const icon = res.ok ? ui.colors.green('✔') : ui.colors.yellow('⚠')
-    const nameStr = ui.colors.bold(check.name.padEnd(24))
-    const detailStr = res.ok ? ui.colors.dim(res.detail) : ui.colors.yellow(res.detail)
-    process.stdout.write(`  ${icon}  ${nameStr} ${detailStr}\n`)
-    await new Promise((resolve) => setTimeout(resolve, 55))
+  process.stdout.write(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────\n'))
+  if (!summary.ok) {
+    // A failed check means the system cannot be trusted to run. Say exactly
+    // what failed and stop, rather than starting and failing later in a way
+    // that looks like a simulation bug.
+    process.stdout.write(`  ${ui.colors.red('●')}  ${ui.colors.bold('Verification failed.')} DSTNS will not start.\n\n`)
+    for (const f of summary.failures)
+      process.stdout.write(`     ${ui.colors.red('✖')} ${f.name}: ${f.detail}\n`)
+    process.stdout.write('\n')
+    throw new Error('Startup verification failed')
   }
-
-  process.stdout.write(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────\n'))
-  process.stdout.write(`  ${ui.colors.green('●')}  ${ui.colors.bold('All prerequisites verified.')} ${ui.colors.dim('Launching operator console…')}\n\n`)
-  await new Promise((resolve) => setTimeout(resolve, 500))
+  const warned = summary.warnings.length
+  process.stdout.write(
+    `  ${ui.colors.green('●')}  ${ui.colors.bold('System verified.')} ` +
+      ui.colors.dim(
+        `${summary.results.length} checks passed${warned ? `, ${warned} with warnings` : ''}. Launching operator console…`,
+      ) +
+      '\n\n',
+  )
+  await sleep(450)
   clearScreen()
 }
 
@@ -312,50 +232,65 @@ async function selectMenu({
   const render = async () => {
     const lines = []
 
+    // A fixed-width frame, like a system installer: the panel does not reflow
+    // as the highlight moves, so only the selected row ever changes.
+    const width = Math.min(Math.max(process.stdout.columns || 92, 76), 100)
+    const inner = width - 4
+    const fit = (s, n) => {
+      // Measure without ANSI, so colouring never changes the column count.
+      const plain = s.replace(/\x1b\[[0-9;]*m/g, '')
+      if (plain.length <= n) return s + ' '.repeat(n - plain.length)
+      return s.slice(0, Math.max(0, s.length - (plain.length - n) - 1)) + '…'
+    }
+    const top = ui.colors.dim(`  ┌${'─'.repeat(width - 2)}┐`)
+    const sep = ui.colors.dim(`  ├${'─'.repeat(width - 2)}┤`)
+    const bottom = ui.colors.dim(`  └${'─'.repeat(width - 2)}┘`)
+    const bar = (content) => `  ${ui.colors.dim('│')} ${fit(content, inner)} ${ui.colors.dim('│')}`
+
     if (beforeRender) {
       const header = await beforeRender({ cursorIndex, selectedIndex })
       if (header) lines.push(header)
     }
 
-    if (title) {
-      lines.push(`  ${ui.colors.bold(ui.colors.cyan(title))}`)
-      lines.push(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────'))
-    }
+    lines.push(top)
+    lines.push(bar(ui.colors.bold(ui.colors.cyan(title || 'DSTNS OPERATOR'))))
+    lines.push(sep)
 
-    const maxLabelLen = items.reduce((max, it) => Math.max(max, it.label.length), 0) + 2
+    const labelWidth = Math.min(
+      34,
+      items.reduce((max, it) => Math.max(max, it.label.length), 0) + 2,
+    )
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
       const isFocused = i === cursorIndex
       const isSelected = i === selectedIndex
 
-      const cursor = isFocused ? ui.colors.bold(ui.colors.cyan('❯ ')) : '  '
-      const mark = isSelected ? ui.colors.bold(ui.colors.green('[●] ')) : ui.colors.dim('[ ] ')
-      const pad = ' '.repeat(Math.max(2, maxLabelLen - item.label.length))
+      const mark = isSelected ? ui.colors.green('(•)') : ui.colors.dim('( )')
+      const label = fit(item.label, labelWidth)
+      const desc = item.description ?? ''
+      const body = `${mark} ${label} ${ui.colors.dim(desc)}`
 
-      let label
-      let desc
       if (isFocused) {
-        label = ui.colors.bold(ui.colors.white(item.label))
-        desc = ui.colors.cyan(item.description ?? '')
+        // The whole row inverts, so the cursor is unmissable at a glance.
+        const plain = `${isSelected ? '(•)' : '( )'} ${label} ${desc}`
+        lines.push(
+          `  ${ui.colors.dim('│')} ${ui.colors.inverse(fit(plain, inner))} ${ui.colors.dim('│')}`,
+        )
       } else {
-        label = isSelected ? ui.colors.white(item.label) : ui.colors.dim(item.label)
-        desc = ui.colors.dim(item.description ?? '')
+        lines.push(bar(body))
       }
-
-      lines.push(`${cursor}${mark}${label}${pad}${desc}`)
     }
 
-    lines.push('')
-    lines.push(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────'))
+    lines.push(sep)
     const exitLabel = cancelId === 'exit' ? 'Exit' : 'Back'
     lines.push(
-      `  ${ui.colors.bold(ui.colors.cyan('[↑/↓]'))} Navigate    ` +
-      `  ${ui.colors.bold(ui.colors.cyan('[Space]'))} Select    ` +
-      `  ${ui.colors.bold(ui.colors.cyan('[Enter]'))} Execute Selected    ` +
-      `  ${ui.colors.bold(ui.colors.dim('[Esc]'))} ${exitLabel}`
+      bar(
+        `${ui.colors.cyan('↑↓')} Move   ${ui.colors.cyan('Space')} Select   ` +
+        `${ui.colors.cyan('Enter')} Confirm   ${ui.colors.dim('Esc')} ${exitLabel}`,
+      ),
     )
-    lines.push(ui.colors.dim('  ──────────────────────────────────────────────────────────────────────────'))
+    lines.push(bottom)
 
     // In-place line rewriting with \x1b[H and \x1b[K to guarantee ZERO screen flashing
     const flattened = lines.join('\n').split('\n')

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Tooltip } from "./Tooltip";
 import { api } from "./api";
 import type {
+  Backpressure,
   Congestion,
   EventPage,
   News,
@@ -21,6 +22,8 @@ type Props = {
   connected: boolean;
   virtualTime: number;
   runId: string;
+  /** Live backpressure, shown as its own pipeline stage. */
+  asb: Backpressure | null;
 };
 
 /** Events the operator should see as incidents rather than routine traffic news. */
@@ -61,6 +64,7 @@ export function TelemetryDeck({
   connected,
   virtualTime,
   runId,
+  asb,
 }: Props) {
   const [tab, setTab] = useState<
     "stack" | "events" | "queue" | "incidents"
@@ -155,6 +159,22 @@ export function TelemetryDeck({
         right: weather.detail,
       },
       {
+        key: "asb",
+        badge: "",
+        tone: asb && asb.state !== "NORMAL" ? "red" : "mint",
+        title: "Adaptive Backpressure",
+        tag: asb ? asb.state : "IDLE",
+        left: asb
+          ? `${(asb.score * 100).toFixed(0)}% backpressure · ${(asb.throughput?.snapshots_per_s ?? 0).toFixed(1)}/s`
+          : "Not reporting",
+        right: asb
+          ? asb.rate_capped
+            ? `${asb.applied_tick_rate}× of ${asb.requested_tick_rate}×`
+            : `${asb.applied_tick_rate}×`
+          : "—",
+        meter: asb ? asb.score : undefined,
+      },
+      {
         key: "signals",
         badge: "",
         tone: "violet",
@@ -172,6 +192,7 @@ export function TelemetryDeck({
       snapshot,
       weather.detail,
       virtualTime,
+      asb,
     ],
   );
 

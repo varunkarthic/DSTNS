@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { defaultLayers } from "./types";
 import type { Layers, Snapshot, Topology } from "./types";
 
 /**
@@ -9,6 +8,8 @@ import type { Layers, Snapshot, Topology } from "./types";
  */
 type Props = {
   layers: Layers;
+  /** The operator's configured defaults, which Reset returns to. */
+  defaults: Layers;
   onChange: (layers: Layers) => void;
   onClose: () => void;
   topology: Topology | null;
@@ -19,6 +20,7 @@ type Group = { title: string; items: [keyof Layers, string][] };
 
 export function LayersPopover({
   layers,
+  defaults,
   onChange,
   onClose,
   topology,
@@ -56,6 +58,7 @@ export function LayersPopover({
         ["roads", "Roads & links"],
         ["signals", "Traffic signals"],
         ["labels", "Street names"],
+        ["place_names", "Place names"],
       ],
     },
     {
@@ -106,7 +109,7 @@ export function LayersPopover({
           <button
             type="button"
             className="text-button muted"
-            onClick={() => onChange({ ...defaultLayers })}
+            onClick={() => onChange({ ...defaults })}
           >
             Reset
           </button>
