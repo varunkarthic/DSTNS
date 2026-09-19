@@ -23,46 +23,17 @@ Related references: [configuration](ui-configuration.md), [API](api.md),
 11. [Sidebar and settings](#sidebar-and-settings)
 12. [Layers and legends](#layers-and-legends)
 13. [Telemetry](#telemetry)
-14. [Minimum screen size](#minimum-screen-size)
-13. [Tooltips](#tooltips)
-14. [Tutorial](#tutorial)
-15. [Simulation complete](#simulation-complete)
-16. [Report](#report)
-17. [Dialogs, errors and empty states](#dialogs-errors-and-empty-states)
-18. [Motion](#motion)
-19. [Accessibility](#accessibility)
-20. [Architecture](#architecture)
-21. [Performance](#performance)
-22. [Verification](#verification)
-
-## Start-up
-
-The interface opens first and the world is prepared behind it. The CLI starts
-the core, opens the browser, waits for the page to be served
-(`GET /system/observer`), and only then requests the run, so the wait is spent
-watching the interface report what is happening rather than a blank tab.
-
-The start-up screen shows the stages the core actually reports, in order:
-
-| Stage | Entered when |
-|---|---|
-| Starting interface | before the first status arrives |
-| Selecting world | the compile is resolving the seed to a place |
-| Downloading map | a map is being requested, downloaded or validated |
-| Generating world | the graph, signals and schedules are being built |
-| Initializing simulation | the run exists and the first network is arriving |
-
-`GET /system/map-status` carries both the live download figures and, in
-`preparation`, what the compile is doing; it stays readable while a compile
-holds the engine lock, which is what lets the interface follow a blocking
-preparation. A percentage is shown only for a download whose total size the
-core knows. Nothing is invented: when no run has been started the screen says
-so and shows no progress at all.
-
-The mark draws itself, the stages settle in beneath it, and once the first
-network arrives the screen dissolves while the map renders behind it, with the
-instrumentation fading up in place. The same surface, in an overlay form, is
-used for world generation and for failures.
+14. [Tooltips](#tooltips)
+15. [Tutorial](#tutorial)
+16. [Simulation complete](#simulation-complete)
+17. [Report](#report)
+18. [Minimum screen size](#minimum-screen-size)
+19. [Dialogs, errors and empty states](#dialogs-errors-and-empty-states)
+20. [Motion](#motion)
+21. [Accessibility](#accessibility)
+22. [Architecture](#architecture)
+23. [Performance](#performance)
+24. [Verification](#verification)
 
 ## Layout
 

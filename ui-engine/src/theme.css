@@ -2496,16 +2496,8 @@ a.btn { text-decoration: none; }
 .tutorial-actions .btn { padding: 8px 12px; }
 @keyframes tutorial-in { from { opacity: 0; transform: translateY(4px); } }
 .tutorial-overlay.reduce-motion *, .reduce-motion .dock-icon, .reduce-motion .toast { animation: none !important; transition: none !important; transform: none !important; }
-.telemetry-toggle { display: none; }
-@media (max-width: 1024px) {
-  .telemetry-toggle { display: inline-flex; }
-  .telemetry-open .telemetry-deck,
-  [data-tour-target="telemetry"] .telemetry-deck,
-  [data-tour-target="congestion"] .telemetry-deck,
-  [data-tour-target="weather"] .telemetry-deck,
-  [data-tour-target="events"] .telemetry-deck,
-  [data-tour-target="asb"] .telemetry-deck { display: flex; top: 12px; right: 12px; width: min(380px, calc(100% - 84px)); max-height: 48vh; }
-}
+/* Telemetry docks as its strip below 1024px and expands over the map on
+ * request; system.css governs both forms. */
 @media (max-width: 720px) {
   .app-header { padding-inline: 10px; gap: 8px; }
   .app-header .dstns-logo { width: 85px; }
