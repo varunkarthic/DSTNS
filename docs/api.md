@@ -1,6 +1,6 @@
 # Supported DSTNS API
 
-Version prefix remains `/api/v1`; read views retain `{api_version, run_id, global_seed, state_revision, config_revision, clock, data}`. `clock.simulation_percentage` is a **fraction in [0,1]**, preserved for compatibility. Clients multiply by 100 for a percentage display.
+Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed, global_seed, state_revision, config_revision, clock, data}`. `seed` is the run's decimal seed, the number an operator types and reads back; `global_seed` is the same value in the internal hexadecimal form used for hashing and sub-seed derivation. `clock.simulation_percentage` is a **fraction in [0,1]**, preserved for compatibility. Clients multiply by 100 for a percentage display.
 
 | Method | Route | Behavior |
 |---|---|---|
@@ -13,7 +13,7 @@ Version prefix remains `/api/v1`; read views retain `{api_version, run_id, globa
 | POST | `/api/v1/playback/step` | Advance `seconds` (1 to 3600, default 60) of virtual time and hold paused |
 | POST | `/api/v1/world/regenerate` | Replace the world with one from a fresh secure seed; HTTP 202, progress via `/world/status` |
 | GET | `/api/v1/world/status` | State of the current or last world generation job |
-| PUT | `/api/v1/control/tick-rate` | Rate in (0, 5]; the interface offers 0.25, 0.5, 1, 2, 3 and 5 |
+| PUT | `/api/v1/control/tick-rate` | Rate in (0, 10]; the interface offers 0.25, 0.5, 1, 2, 3, 5 and 10 |
 | GET | `/api/v1/view/topology` | Immutable geographic graph, road names/tags, features, bounds, projection |
 | GET | `/api/v1/view/snapshot` | Dynamic roads, signals, demand, weather, actual incidents, congestion |
 | GET | `/api/v1/view/congestion` | Current/average/delta and minute-sampled history |
@@ -42,6 +42,23 @@ completed day returns HTTP 409. `seconds` outside 1 to 3600 returns HTTP 400
 `INVALID_REQUEST`. Stepping and seeking to the same time produce identical
 state.
 
+## Seeds
+
+A seed is a 128-bit number and is written as a decimal integer everywhere an
+operator sees it. `POST /api/v1/playback/start` and `/prepare` accept it as a
+JSON number, as a decimal string, or as `0x...` for the internal hexadecimal
+form; `auto`, `random`, an empty string or `0` draw a fresh 64-bit seed, short
+enough to read off the screen and retype. Responses report both forms: `seed`
+(decimal) names the run, `global_seed`/`seed_hex` carries the hexadecimal one.
+
+## World selection
+
+`map.osm_file: "auto"` resolves the seed to a real place through the
+`urban-crfg-v3` map selection: one of 181 urban centres across every inhabited
+continent, then a district anchor inside that city's extract. The catalogue and
+its order are part of the version, so seeds saved under an earlier version are
+rejected rather than silently resolving somewhere else.
+
 ## World regeneration
 
 `POST /api/v1/world/regenerate` accepts an optional `{"expected_run_id": "..."}`
@@ -52,10 +69,16 @@ scenario configuration stays with the CLI. For a seed-selected map the new seed
 chooses its own district (a map download may follow); an operator-pinned map
 file stays pinned.
 
-The new world is compiled without holding the engine lock. The current world
-keeps running until the new one is installed, and is left completely unchanged
-if generation fails. A regenerated world starts `PAUSED` at 00:00:00 with the
-operator's requested speed.
+Requesting a new world pauses the current one first, so nothing is computed
+against a world that is being replaced. The new world is then compiled without
+holding the engine lock, and the old one is left completely unchanged if
+generation fails. The swap is atomic and a regenerated world starts `PAUSED` at
+00:00:00 with the operator's requested speed.
+
+Adaptive Simulation Backpressure ignores what the observer reports while a
+world is being prepared, and for three seconds after the swap: lag measured
+across a world change describes the world that has gone, not an interface
+failing to keep up.
 
 `GET /api/v1/world/status` returns:
 
@@ -63,7 +86,8 @@ operator's requested speed.
 |---|---|
 | `state` | `idle`, `generating`, `ready` or `failed` |
 | `stage` | `compiling`, `requesting`, `downloading`, `validating`, `building`, `installing`, `ready` or `failed`. Map stages come from the live downloader |
-| `seed` | The new seed, available as soon as the request is accepted |
+| `seed` | The new decimal seed, available as soon as the request is accepted |
+| `seed_hex` | The same seed in the internal hexadecimal form |
 | `previous_run_id`, `run_id` | The world replaced, and the world installed |
 | `map` | While downloading: `city`, `country`, `phase`, `bytes`, `total` (0 when unknown), `elapsed_s` |
 | `error` | On failure: `{code, message}`; `MAP_FETCH_FAILED` or `WORLD_GENERATION_FAILED` |
@@ -74,6 +98,13 @@ A second request while one is generating, or with a stale `expected_run_id`,
 returns HTTP 409 `LIFECYCLE_CONFLICT`. Operators can disable the endpoint with
 `DSTNS_DISABLE_WORLD_REGENERATION=1`, which returns HTTP 403
 `WORLD_REGENERATION_DISABLED`.
+
+`GET /api/v1/system/map-status` reports the live map download and, in
+`preparation`, what a compile is doing when no map is moving: `selecting`
+(resolving the seed to a place), `acquiring` (obtaining its map) or `building`
+(constructing the graph, signals and schedules). It is empty when nothing is
+being compiled, and it is readable while a compile holds the engine lock, which
+is what lets the interface narrate start-up.
 
 **Retired compatibility behavior:** `POST /api/v1/control/transit/route` returns HTTP 410 / `TRANSIT_API_RETIRED`. It is not part of the supported API. Internal route planning remains unchanged. Legacy `/api/v1/view/events` retains its weather-catalog response; new event consumers must use `event-queue`.
 

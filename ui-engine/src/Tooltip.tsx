@@ -29,9 +29,12 @@ export function avoidRegions(anchor: Element | null, reach = 220): Rect[] {
     // Only neighbours close enough for the tooltip to reach matter.
     if (a && (r.right < a.left - reach || r.left > a.right + reach || r.bottom < a.top - reach || r.top > a.bottom + reach)) continue;
     // Covering a control costs more than covering a readout: a hidden button
-    // blocks an action, a hidden label only delays reading it.
+    // blocks an action, a hidden label only delays reading it. Playback
+    // outranks the rest, so a tooltip slides over a legend rather than over
+    // the transport controls beside the one it explains.
     const interactive = el.matches("button, [role='slider'], [role='radio'], input, select");
-    out.push({ ...toRect(r), weight: interactive ? 10 : 1 });
+    const weight = el.closest(".rail") ? 10 : interactive ? 3 : 1;
+    out.push({ ...toRect(r), weight });
   }
   return out;
 }

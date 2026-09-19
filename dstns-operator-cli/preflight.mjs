@@ -174,12 +174,35 @@ export function checks(root, options = {}) {
         for (const v of c.notifications?.dnd_categories ?? []) oneOf(v, categories, 'notifications.dnd_categories')
         for (const v of c.notifications?.dnd_severities ?? []) oneOf(v, severities, 'notifications.dnd_severities')
         for (const [k, v] of Object.entries(c.layers ?? {})) if (typeof v !== 'boolean') problems.push(`layers.${k} is not true or false`)
+        // Layers the interface does not know about are simply not drawn.
+        const layerNames = ['roads', 'signals', 'labels', 'place_names', 'other_places', 'traffic', 'vehicles', 'buildings', 'weather', 'flooding', 'incidents', 'events']
+        for (const k of Object.keys(c.layers ?? {})) if (!layerNames.includes(k)) problems.push(`layers.${k} is not a layer`)
         return {
           level: problems.length ? WARN : OK,
           detail: problems.length
             ? `ignored: ${problems.join(', ')}`
-            : `auto focus ${c.auto_focus?.mode ?? 'default'}, road names ${c.layers?.labels ? 'shown' : 'hidden'}, DND ${c.notifications?.dnd ? 'on' : 'off'}`,
+            : `auto focus ${c.auto_focus?.mode ?? 'default'}, road names ${c.layers?.labels ? 'shown' : 'hidden'}, unclassified places ${c.layers?.other_places ? 'shown' : 'hidden'}, DND ${c.notifications?.dnd ? 'on' : 'off'}`,
           hint: problems.length ? 'Correct these values in config/ui-config.json; the defaults apply meanwhile.' : '',
+        }
+      },
+    },
+    {
+      name: 'Interface bundle',
+      run: async () => {
+        const dist = path.join(root, 'ui-engine', 'dist')
+        if (!existsSync(path.join(dist, 'index.html')))
+          return { level: WARN, detail: 'ui-engine/dist not built yet', hint: 'The launcher builds it before starting.' }
+        const missing = ['favicon.svg', 'index.html'].filter((f) => !existsSync(path.join(dist, f)))
+        if (missing.length)
+          return {
+            level: WARN,
+            detail: `dist is missing ${missing.join(', ')}`,
+            hint: 'Run npm run build --prefix ui-engine (favicon.svg comes from scripts/make-favicon.mjs).',
+          }
+        const html = readFileSync(path.join(dist, 'index.html'), 'utf8')
+        return {
+          level: html.includes('favicon.svg') ? OK : WARN,
+          detail: html.includes('favicon.svg') ? 'index.html and the browser icon are in place' : 'index.html does not reference the icon',
         }
       },
     },

@@ -46,7 +46,7 @@ try {
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(base);
-  await page.getByText("Awaiting a run").waitFor();
+  await page.getByText("Waiting for a simulation").waitFor();
   assert.equal(
     await page
       .getByRole("button", { name: "Reduce motion" })
@@ -153,16 +153,16 @@ try {
     { timeout: 10000 },
   );
   await page.getByRole("tab", { name: /Queue/ }).click();
-  await page.getByRole("button", { name: "Upcoming" }).click();
-  await page
-    .getByRole("combobox", { name: "Event category" })
-    .selectOption("signals");
+  await page.getByRole("radio", { name: "Upcoming" }).click();
+  // The category is a custom listbox, not a native select.
+  await page.getByRole("button", { name: /^Event category/ }).click();
+  await page.getByRole("option", { name: "Signals" }).click();
   await page.waitForFunction(
     () => document.querySelectorAll(".stream .stream-card").length > 0,
   );
   assert.ok((await page.locator(".stream .stream-card").count()) <= 30);
   assert.match(await page.locator(".stream").innerText(), /scheduled/);
-  await page.getByRole("button", { name: "Executed" }).click();
+  await page.getByRole("radio", { name: "Executed" }).click();
   await page.waitForFunction(() =>
     document.querySelector(".stream")?.textContent.includes("executed"),
   );
@@ -234,10 +234,11 @@ try {
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Fit network to viewport" }).click();
   await page.screenshot({ path: path.join(dir, "desktop.png") });
+  // Supported sizes keep the whole interface; below the minimum it is
+  // replaced by the notice rather than squeezed (see Viewport.tsx).
   for (const [width, height] of [
-    [1280, 633],
-    [800, 700],
-    [390, 844],
+    [1280, 800],
+    [1024, 640],
   ]) {
     await page.setViewportSize({ width, height });
     await wait(300);
@@ -250,6 +251,20 @@ try {
     const box = await page.locator(".rail").boundingBox();
     assert.ok(
       box.x >= 0 && box.x + box.width <= width && box.y + box.height <= height,
+    );
+    await page.screenshot({ path: path.join(dir, `viewport-${width}.png`) });
+  }
+  for (const [width, height] of [
+    [800, 700],
+    [390, 844],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await wait(300);
+    assert.equal(await page.locator(".rail").count(), 0, `no squeezed interface at ${width}`);
+    assert.match(await page.getByRole("alert").innerText(), /not optimized for this screen size/i);
+    assert.ok(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      "the notice does not overflow either",
     );
     await page.screenshot({ path: path.join(dir, `viewport-${width}.png`) });
   }
@@ -306,7 +321,7 @@ try {
     await page.getByRole("button", { name: "Pause simulation" }).isDisabled(),
   );
   await call("/api/v1/playback/reset", {});
-  await page.getByText("Awaiting a run").waitFor();
+  await page.getByText("Waiting for a simulation").waitFor();
   const reused = spawnSync(
     "node",
     [

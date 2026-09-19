@@ -125,7 +125,9 @@ export function PlaceLegend({
 
   return (
     <div className="legend-place">
-      <Tooltip label="Place legend" detail={visible ? "What each marker stands for, with live demand." : "Buildings are hidden in Layers."}>
+      {/* The tooltip explains the control; once the legend is open it would
+          only repeat what is already on screen. */}
+      <Tooltip label="Place legend" detail={visible ? "What each marker stands for, with live demand." : "Buildings are hidden in Layers."} disabled={open}>
         <button
           ref={trigger}
           type="button"
