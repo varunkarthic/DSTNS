@@ -98,3 +98,76 @@ Large-map probe on the seed-derived San Francisco district (5,881 nodes / 12,870
 End-to-end seed behaviour through the live server and CLI: `0x4cafe` -> Berlin 52.5011, 13.4421, downloaded in ~35 s, 4,872 nodes; the same seed again -> "(cached)" in ~3 s with an identical graph; `0x15cafe` -> San Francisco 37.7915, -122.4035, fresh download in ~20 s, 5,881 nodes.
 
 Not verified here: the Compose container path (Docker daemon down). The Dockerfile now copies `scripts/` into the image and creates `/app/data/maps`, without which a seeded start inside the container would fail with `MAP_FETCH_FAILED`; that change is unexercised.
+
+## 2026-09-19 v2: backpressure, configuration, signals, licence
+
+Worked through `TODO` (20 items) on branch `dstns-v2`.
+
+### Adaptive Simulation Backpressure (items 11, 16, 20)
+
+New subsystem: `include/dstns/asb.hpp`, `src/asb.cpp`, `tests/unit/asb_tests.cpp`, `ui-engine/src/useBackpressure.ts`, documented in full at `docs/asb.md`.
+
+The observer reports three symptoms it alone can see — how stale its rendered snapshot is, how long its own frames are taking, and how long since it managed to poll. The core scores the worst of them in [0,1] and governs itself. Ladder: Normal (proportional throttle, then one forced default state) → Restricted (rate pinned at 1×, reduced motion forced, minimum 5 s hold) → Async (GUI suspended; simulation keeps running and streaming; only play/pause, reset and terminate remain). Recovery requires a *sustained* healthy spell at every rung, so a marginal machine cannot oscillate.
+
+Two design points worth recording:
+
+- **The operator's request is never discarded.** `requested_tick_rate_` is remembered while `tick_rate_` is governed, so the multiplier returns on its own when synchronization recovers instead of having to be re-entered. The API reports both.
+- **The rate ceiling starts at infinity, not 1.** The first implementation initialised it to 1.0, which silently capped a perfectly healthy system to real time; the test `reset restores full operator control` caught it. `rate_capped`/`rate_cap` now say whether a ceiling exists at all, and JSON carries `-1` for "none" since it has no infinity.
+
+Time is injected throughout, so the 14 test groups exercise every window exactly rather than by sleeping.
+
+### Map sourcing (items 1, 8)
+
+One **city extract** per city (5 km square, `map.city_extent_m`), cached as `<city>_x<extent>.osm.xml` and shared by every district of that city. The seed's anchor picks where inside it the district grows — the loader starts from the junction nearest the anchor. Re-rolling therefore usually moves to a different part of an already-downloaded city at no cost; only crossing to a new city downloads. Verified: four Berlin seeds → four different districts, one 60 MB download.
+
+The cache is swept at startup (`--map-cache prune|clear|keep`, default prune keeping the newest). Interrupted `.part` files are always discarded.
+
+### Traffic signals (item 9)
+
+OSM tags `highway=traffic_signals` on the **stop-line node of one approach**, not the junction: all 49 tagged nodes in a Berlin district had degree 2. Taking the tag literally scatters controllers mid-block; requiring degree ≥ 3 deleted all of them. Tagged nodes are now snapped to the nearest junction within 45 m and multiple approaches collapse onto one controller — 49 stop lines → 30 controllers, all at degree 3–5 junctions. Offsets follow travel time from the network centre instead of being random, so a corridor turns green in sequence.
+
+### Demand (item 6)
+
+Windows were identical per building type, so every school ramped at 07:45 together, in three hard steps. Each feature now gets a deterministic ±20 min offset and a 0.8–1.2× stretch from its own identity, and the multiplier follows a raised cosine in eight steps. Measured: active places climb 14 → 37 → 60 → 99 → 149 → 170 across the morning and fall away again. `demandColor()` maps the multiplier onto white → amber → red, so the visible progression falls out of the model rather than being animated separately.
+
+`placeKind()`/`placeTitle()` normalise the raw OSM tag (`company`, `retail`, `kindergarten`) into a kind and a glyph — an unnamed building reads as **School**, never "Unnamed kindergarten". `roadTitle()` does the same for roads.
+
+### Configuration (item 3)
+
+`config/ui-config.json`, served at `/api/v1/system/ui-config`, resolved over built-in defaults and under this viewer's choices. Documented at `docs/ui-configuration.md`.
+
+**Viewer overrides are stored as deltas.** The first implementation stored a full snapshot, which silently pinned every field — a test asserting that an operator's edit still reaches a viewer who had changed something unrelated caught it. `diffConfig()` now records only what differs, and returning to defaults clears the entry.
+
+### Observer shell (items 1, 2, 5, 6, 7, 12, 13, 15, 17, 18)
+
+Modern tooltips with measured placement and a caret; place names separated from the buildings layer; compact bottom dock with spring micro-interactions; Display Layers above notifications by explicit z-order; About as a card; reset with a rewind glyph and a confirmation; do-not-disturb; blurred animated dialogs; search as a dock icon; auto-focus modes and a double-click strategy menu.
+
+Layout bugs found by screenshotting real runs, not by reading code: `position: relative` in a later rule silently took the map dock out of its corner and let it fill the map; NetworkMap still rendered its own search box after the dock took over; and its canvas `aria-label` still advertised a search it no longer had.
+
+### Report (items 4, 14)
+
+Rewritten on one grid and one type scale over four pages, with the mark drawn as **vectors** — the previous version fetched `/media/logo.png`, which 404s. Adds map provenance, road-class and place breakdowns, the ASB state and throughput, and ranks "most congested" among roads actually carrying traffic, because a closed road scores 1.0 with nothing on it.
+
+### Startup verification (meta)
+
+`dstns-operator-cli/preflight.mjs`: 12 checks including **both test suites**, ~12 s total. A failure stops startup and names the cause. Two bugs in the checker itself surfaced immediately: `--reporter=basic` is not a valid vitest reporter here, and ctest omits the "N failed" clause when nothing fails.
+
+### Deprecations
+
+Transit dispatch was already retired (410); the UI's "Public Bus Fleet" layer is gone, and dead layer toggles that the renderer never honoured were either wired up or removed. Docker is marked deprecated in `Dockerfile`, `docker-compose.yml` and `docs/DOCKER.md`, with the reasons stated: runtime map downloads need network access, a writable cache and the Python fetcher, none of which the image made obvious.
+
+### Licence (item 10)
+
+AGPL-3.0-or-later, © 2026 Varun Karthic. `LICENSE` (canonical FSF text) and `COPYRIGHT`. AGPL §13 is served by `/api/v1/system/source` and a header link; the CLI prints the notice at every start and answers `--version`/`--license`; the server answers `--version`. Versions aligned at 2.0.0.
+
+### Verification
+
+| Suite | Result |
+| --- | --- |
+| CTest | 7/7 (adds `dstns_asb`) |
+| vitest | 60/60 (adds `uiConfig`, extends `appShell`) |
+| API smoke | 89 assertions |
+| CLI suites | 5 + 1 + 1 |
+| Browser (live Chrome) | passed |
+| Startup preflight | 12/12 |
+| Docker Compose browser | **not run** — daemon unavailable |

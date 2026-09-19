@@ -1,3 +1,4 @@
+# DEPRECATED in 2.0.0 - unmaintained and untested; see docs/DOCKER.md.
 # Stage 1: Build React/Vite UI
 FROM node:22-bookworm-slim AS ui-build
 ARG NPM_REGISTRY=https://registry.npmjs.org

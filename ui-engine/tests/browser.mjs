@@ -46,10 +46,10 @@ try {
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(base);
-  await page.getByRole("heading", { name: "Awaiting CLI startup" }).waitFor();
+  await page.getByText("Awaiting a run").waitFor();
   assert.equal(
     await page
-      .getByRole("button", { name: "Toggle reduced motion" })
+      .getByRole("button", { name: "Reduce motion" })
       .getAttribute("aria-pressed"),
     "true",
     "OS motion preference",
@@ -93,6 +93,13 @@ try {
     },
   );
   assert.equal(run.status, 0, run.stdout + run.stderr);
+  // ui-config's default auto-focus mode is "enable", so the interface offers
+  // the choice once the run's topology arrives. Decline it: the rest of this
+  // suite drives the camera itself.
+  await page.getByRole("button", { name: "Disable" }).click({ timeout: 60000 });
+  await page
+    .getByText("This simulation supports Auto-Focus")
+    .waitFor({ state: "detached" });
   await page.getByRole("button", { name: "Pause simulation" }).waitFor();
   await page.waitForFunction(
     () => !document.querySelector('[aria-label="Pause simulation"]').disabled,
@@ -129,13 +136,13 @@ try {
     "rate slider drives the core",
   );
   const motionToggle = page.getByRole("button", {
-    name: "Toggle reduced motion",
+    name: "Reduce motion",
   });
   await motionToggle.hover();
   await page.getByRole("tooltip").waitFor();
   assert.match(
     await page.getByRole("tooltip").innerText(),
-    /visual motion sensitivity/,
+    /non-essential motion/,
   );
   await motionToggle.click();
   assert.equal(await motionToggle.getAttribute("aria-pressed"), "false");
@@ -143,7 +150,7 @@ try {
   await page.waitForFunction(
     () =>
       document
-        .querySelector('[aria-label="Toggle reduced motion"]')
+        .querySelector('[aria-label="Reduce motion"]')
         ?.getAttribute("aria-pressed") === "false",
     undefined,
     { timeout: 10000 },
@@ -237,8 +244,9 @@ try {
   await page.screenshot({ path: path.join(dir, "demand-toast.png") });
   const place = topo.features.find((f) => f.name && f.name.length > 3);
   assert.ok(place);
-  await page.getByRole("textbox", { name: "Search places" }).fill(place.name);
-  await page.locator(".place-search li button").first().click();
+  await page.getByRole("button", { name: "Search places" }).click();
+  await page.getByPlaceholder("Search places…").fill(place.name);
+  await page.locator(".dock-search li button").first().click();
   await page.getByRole("tooltip").waitFor();
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Fit network to viewport" }).click();
@@ -317,7 +325,7 @@ try {
     await page.getByRole("button", { name: "Pause simulation" }).isDisabled(),
   );
   await call("/api/v1/playback/reset", {});
-  await page.getByRole("heading", { name: "Awaiting CLI startup" }).waitFor();
+  await page.getByText("Awaiting a run").waitFor();
   const reused = spawnSync(
     "node",
     [

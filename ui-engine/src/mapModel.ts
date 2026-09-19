@@ -20,6 +20,17 @@ export function roadState(s?: EdgeState): keyof typeof stateColors {
   if (s.congestion >= 0.35) return "moderate";
   return "clear";
 }
+/**
+ * A road's display name: its real name, else what kind of road it is.
+ * "Service road" tells the reader something; "Unnamed service" does not.
+ */
+export function roadTitle(edge: { name: string; road_class: string }): string {
+  if (edge.name?.trim()) return edge.name.trim();
+  const kind = edge.road_class.replace(/_/g, " ");
+  const label = kind.charAt(0).toUpperCase() + kind.slice(1);
+  return /road|street|link|way/i.test(label) ? label : `${label} road`;
+}
+
 export function roadInspection(
   e: TopologyEdge,
   s: EdgeState | undefined,
@@ -42,7 +53,7 @@ export function roadInspection(
           .join(", "),
     );
   return {
-    title: e.name || `Unnamed ${e.road_class} road`,
+    title: roadTitle(e),
     category: `Road · E-${e.id}`,
     status: s ? roadState(s) : "State unavailable",
     description: causes.join(" · ") || "No active effects recorded.",

@@ -101,17 +101,50 @@ const snapshot = {
   active_incidents: [],
 };
 
+const backpressure = {
+  state: "NORMAL",
+  score: 0.02,
+  synced: true,
+  rate_locked: false,
+  motion_locked: false,
+  gui_suspended: false,
+  rate_capped: false,
+  rate_cap: -1,
+  applied_tick_rate: 1,
+  requested_tick_rate: 1,
+  stressed_for_s: 0,
+  state_for_s: 12,
+  throughput: { snapshots_per_s: 1.1, bytes_per_s: 65536 },
+  actions: [],
+  thresholds: {},
+};
+
 /** Record every mutating call so tests can assert what reached the core. */
 let calls: { path: string; method: string; body: string }[] = [];
 
-function mockApi(overrides: { lifecycle?: string; runId?: string } = {}) {
+/**
+ * With auto_focus.mode "enable" the shell offers auto-focus once per run.
+ * Tests that are not about that prompt dismiss it first.
+ */
+async function dismissAutoFocusPrompt() {
+  const decline = await screen.findByRole("button", { name: "Disable" }, { timeout: 3000 });
+  fireEvent.click(decline);
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: "Disable" })).not.toBeInTheDocument(),
+  );
+}
+
+function mockApi(
+  overrides: { lifecycle?: string; runId?: string; backpressure?: typeof backpressure } = {},
+) {
   const runId = overrides.runId ?? "run_1";
   const lifecycle = overrides.lifecycle ?? "RUNNING";
+  const asbBody = overrides.backpressure ?? backpressure;
   vi.spyOn(globalThis, "fetch").mockImplementation(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
       const method = init?.method ?? "GET";
-      if (method !== "GET")
+      if (method !== "GET" && !path.includes("/system/backpressure"))
         calls.push({ path, method, body: String(init?.body ?? "") });
       const envelope = (data: unknown) => ({
         api_version: "1.0",
@@ -122,6 +155,20 @@ function mockApi(overrides: { lifecycle?: string; runId?: string } = {}) {
         clock,
         data,
       });
+      // Endpoints that are not enveloped.
+      if (path.includes("/system/ui-config"))
+        return new Response(JSON.stringify({ api_version: "1.0", data: {} }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      if (path.includes("/system/map-status"))
+        return new Response(JSON.stringify({ api_version: "1.0", data: { active: false } }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      if (path.includes("/system/backpressure"))
+        return new Response(JSON.stringify(asbBody), {
+          headers: { "Content-Type": "application/json" },
+        });
+
       let data: unknown = {};
       if (path.includes("/playback/status"))
         data = {
@@ -145,6 +192,9 @@ function mockApi(overrides: { lifecycle?: string; runId?: string } = {}) {
 
 beforeEach(() => {
   calls = [];
+  // The shell remembers per run whether auto-focus was offered, so each test
+  // starts from a clean slate rather than inheriting the previous one's answer.
+  localStorage.clear();
 });
 afterEach(() => {
   cleanup();
@@ -160,12 +210,12 @@ describe("observer shell", () => {
     expect(
       await screen.findByText(/52\.5050° N, 13\.4235° E/),
     ).toBeInTheDocument();
-    expect(await screen.findByText(/TILE 4 km/)).toBeInTheDocument();
   });
 
   it("renders live telemetry from the snapshot", async () => {
     mockApi();
     render(<App />);
+    await dismissAutoFocusPrompt();
     expect(await screen.findByText("LIVE TELEMETRY")).toBeDefined();
     await waitFor(() =>
       expect(screen.getByText("14%")).toBeInTheDocument(),
@@ -175,6 +225,7 @@ describe("observer shell", () => {
   it("drives playback through the core API", async () => {
     mockApi();
     render(<App />);
+    await dismissAutoFocusPrompt();
     fireEvent.click(await screen.findByLabelText("Pause simulation"));
     await waitFor(() =>
       expect(calls.some((c) => c.path.includes("/playback/pause"))).toBe(true),
@@ -188,23 +239,39 @@ describe("observer shell", () => {
       expect(JSON.parse(seek!.body).target_time).toBe(21660);
     });
 
-    fireEvent.click(
-      screen.getByLabelText("Reset simulation to the start of the day"),
-    );
+    // Reset is destructive enough to confirm first, so the click alone must
+    // not reach the core.
+    calls.length = 0;
+    fireEvent.click(screen.getByLabelText("Reset simulation to the start of the day"));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Reset the simulation?");
+    expect(calls).toEqual([]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset to 00:00:00" }));
     await waitFor(() =>
       expect(
         calls.some(
-          (c) =>
-            c.path.includes("/playback/seek") &&
-            JSON.parse(c.body).target_time === 0,
+          (c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 0,
         ),
       ).toBe(true),
     );
   });
 
+  it("abandons a reset when the confirmation is cancelled", async () => {
+    mockApi();
+    render(<App />);
+    await dismissAutoFocusPrompt();
+    calls.length = 0;
+    fireEvent.click(screen.getByLabelText("Reset simulation to the start of the day"));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(calls).toEqual([]);
+  });
+
   it("keeps display layers entirely in the frontend", async () => {
     mockApi();
     render(<App />);
+    await dismissAutoFocusPrompt();
     const map = await screen.findByTestId("map");
     expect(map.getAttribute("data-layers")).toContain("weather");
 
@@ -225,9 +292,8 @@ describe("observer shell", () => {
   it("does not offer playback control while the core is idle", async () => {
     mockApi({ lifecycle: "IDLE" });
     render(<App />);
-    expect(
-      await screen.findByText("./launcher start --seed 382923"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Awaiting a run")).toBeInTheDocument();
+    expect(screen.getByText(/Start a simulation from the CLI/)).toBeInTheDocument();
     expect(screen.getByLabelText("Pause simulation")).toBeDisabled();
   });
 
@@ -249,5 +315,157 @@ describe("observer shell", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/OSM download failed for Berlin/);
     expect(alert.className).toContain("map-error");
+  });
+});
+
+describe("v2 surfaces", () => {
+  it("offers auto-focus once per run and remembers the answer", async () => {
+    mockApi();
+    render(<App />);
+    // The offer appears because ui-config's default mode is "enable".
+    expect(await screen.findByText("This simulation supports Auto-Focus")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
+    await waitFor(() =>
+      expect(screen.queryByText("This simulation supports Auto-Focus")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText("Auto-focus on live events")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // It is an offer, not a nag: it does not return for the same run.
+    await new Promise((r) => setTimeout(r, 120));
+    expect(screen.queryByText("This simulation supports Auto-Focus")).not.toBeInTheDocument();
+  });
+
+  it("shows the About card with the licence and a source offer", async () => {
+    mockApi();
+    render(<App />);
+    await dismissAutoFocusPrompt();
+    fireEvent.click(screen.getByLabelText("About DSTNS, licence and source"));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Varun Karthic");
+    expect(dialog).toHaveTextContent(/Affero General Public License/);
+    expect(dialog).toHaveTextContent(/OpenStreetMap/);
+    // AGPL section 13: the source offer must be reachable from the interface.
+    expect(screen.getByRole("link", { name: /Source/ })).toHaveAttribute(
+      "href",
+      "/api/v1/system/source",
+    );
+  });
+
+  it("closes a dialog on Escape", async () => {
+    mockApi();
+    render(<App />);
+    await dismissAutoFocusPrompt();
+    fireEvent.click(screen.getByLabelText("About DSTNS, licence and source"));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("silences notifications under do-not-disturb without touching the core", async () => {
+    mockApi();
+    render(<App />);
+    await dismissAutoFocusPrompt();
+    calls.length = 0;
+    fireEvent.click(screen.getByLabelText("Do not disturb"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Do not disturb")).toHaveAttribute("aria-pressed", "true"),
+    );
+    // Silencing is a presentation choice; it must never reach the simulation.
+    expect(calls).toEqual([]);
+  });
+
+  it("keeps buildings drawn when place names are switched off", async () => {
+    mockApi();
+    render(<App />);
+    await dismissAutoFocusPrompt();
+    fireEvent.click(screen.getByRole("button", { name: /Display Layers/ }));
+    fireEvent.click(await screen.findByLabelText("Place names"));
+    await waitFor(() => {
+      const drawn = screen.getByTestId("map").getAttribute("data-layers") ?? "";
+      expect(drawn).not.toContain("place_names");
+      expect(drawn).toContain("buildings");
+    });
+  });
+
+  it("opens the auto-focus strategy menu on a double click", async () => {
+    mockApi();
+    render(<App />);
+    await dismissAutoFocusPrompt();
+    fireEvent.doubleClick(screen.getByLabelText("Auto-focus on live events"));
+    const menu = await screen.findByRole("menu", { name: "Auto-focus strategy" });
+    expect(menu).toBeInTheDocument();
+    // Round-Robin is the documented default.
+    expect(screen.getByRole("menuitemradio", { name: /Round-Robin/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /Latest/ }));
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+  });
+
+  it("expands search from the dock rather than occupying the map", async () => {
+    mockApi();
+    render(<App />);
+    await dismissAutoFocusPrompt();
+    // No search field until it is asked for.
+    expect(screen.queryByLabelText("Search places")).toBeInstanceOf(HTMLButtonElement);
+    fireEvent.click(screen.getByLabelText("Search places"));
+    const field = await screen.findByPlaceholderText("Search places…");
+    expect(field).toBeInTheDocument();
+  });
+
+  it("suspends the interface when ASB reports Async, leaving the run alive", async () => {
+    mockApi({
+      backpressure: {
+        ...backpressure,
+        state: "ASYNC",
+        score: 1,
+        synced: false,
+        rate_locked: true,
+        motion_locked: true,
+        gui_suspended: true,
+      },
+    });
+    render(<App />);
+    const alert = await screen.findByRole("alertdialog", {}, { timeout: 4000 });
+    expect(alert).toHaveTextContent(/suspended by the ASB/i);
+    expect(alert).toHaveTextContent(/still running and still streaming/i);
+    // Exactly the controls the design promises remain.
+    const within = alert as HTMLElement;
+    const overlayButton = (name: RegExp) =>
+      Array.from(within.querySelectorAll("button")).find((b) => name.test(b.textContent ?? ""));
+    expect(overlayButton(/^Terminate session$/)).toBeEnabled();
+    expect(overlayButton(/^Reset$/)).toBeEnabled();
+    expect(overlayButton(/^(Pause|Resume) simulation$/)).toBeEnabled();
+    // And the ordinary chrome is stood down.
+    expect(screen.getByRole("button", { name: /Display Layers/ })).toBeDisabled();
+  });
+
+  it("locks rate and motion while ASB is Restricted", async () => {
+    mockApi({
+      backpressure: {
+        ...backpressure,
+        state: "RESTRICTED",
+        score: 0.9,
+        synced: false,
+        rate_locked: true,
+        motion_locked: true,
+        applied_tick_rate: 1,
+        requested_tick_rate: 20,
+      },
+    });
+    render(<App />);
+    // Wait for ASB itself to be reported, not merely for controls to be
+    // unavailable: they are also unavailable before any data has arrived.
+    await screen.findByText("ASB · Restricted", {}, { timeout: 4000 });
+    expect(screen.getByLabelText("Simulation rate multiplier")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    const motion = screen.getByLabelText("Reduce motion");
+    expect(motion).toBeDisabled();
+    expect(motion).toHaveAttribute("aria-pressed", "true");
   });
 });

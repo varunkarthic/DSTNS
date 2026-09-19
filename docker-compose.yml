@@ -1,3 +1,9 @@
+# DEPRECATED in 2.0.0 - see docs/DOCKER.md.
+#
+# This path is unmaintained and untested. Maps are downloaded at run time, so a
+# container needs outbound access to the Overpass API, the Python fetcher on its
+# path, and a writable cache volume it will otherwise fill. Use the operator CLI
+# instead: ./launcher
 services:
   dstns:
     platform: linux/amd64

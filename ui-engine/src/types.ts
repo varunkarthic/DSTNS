@@ -76,7 +76,7 @@ export interface MapLocation {
   country: string;
   anchor_lat: number;
   anchor_lon: number;
-  tile_radius_m: number;
+  city_extent_m: number;
   downloaded: boolean;
 }
 export interface Topology {
