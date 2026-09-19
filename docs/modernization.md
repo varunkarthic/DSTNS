@@ -27,44 +27,40 @@ An explicit day/map/speed override changes the effective run; exact replay requi
 
 ## Real geography
 
-The seed chooses the place. `seed.derive("map.city")` selects one of sixteen metropolitan areas and `seed.derive("map.anchor")` selects latitude and longitude inside its dense core; the core then downloads a tile of `map.tile_radius_m` (2 km by default, so 4 km across) around that anchor and caches it at `data/maps/<city>_<lat>_<lon>_r<radius>.osm.xml`.
+The seed chooses the place. `seed.derive("map.city")` selects one of sixteen metropolitan areas and `seed.derive("map.anchor")` selects coordinates inside it.
 
-Because the filename is derived from the seed, one seed always denotes one district: re-running it reuses the cache and touches no network, while re-rolling names a file that does not exist yet and therefore forces a fresh download.
+**One download per city, many districts.** The download unit is a *city extract*: a square of `map.city_extent_m` (5 km by default) centred on the city, cached at `data/maps/<city>_x<extent>.osm.xml`. Because that name depends only on the city, every district of that city reads the same file. The seed's anchor then picks where inside it the district grows: the road loader starts from the junction nearest the anchor and grows a connected district of `map.district_nodes` (3,000 by default). So re-rolling usually lands on a different part of an already-downloaded city and costs nothing, and only crossing to a new city triggers a download.
 
 ```
-./launcher start --seed 0x4cafe     # Berlin 52.5011, 13.4421 - downloads, then caches
-./launcher start --seed 0x4cafe     # same district, served from cache
-./launcher start --seed 0x15cafe    # San Francisco 37.7915, -122.4035 - new download
+./launcher start --seed 0x4cafe     # Berlin, downloads the 5 km extract once (~60 MB)
+./launcher start --seed 0x18cafe    # Berlin again, different district, no download
+./launcher start --seed 0x15cafe    # San Francisco, one new extract
 ```
 
 Catalog: Tokyo, London, New York, Paris, Berlin, Singapore, Sydney, Toronto, Mumbai, Seoul, Sao Paulo, Cairo, San Francisco, Amsterdam, Stockholm and Dubai. The boxes are inner-urban extents rather than administrative boundaries, pulled in off coastlines and harbours so a seeded anchor cannot land mostly on water.
 
-A download that fails is a hard failure: HTTP 503 `MAP_FETCH_FAILED`, naming the city, the coordinates and the cause (offline, Overpass rate limiting, or a district under 400 junctions because the area is water or unmapped). No bundled map is substituted, because quietly serving a different map would break the correspondence between a seed and the place it denotes. Partial downloads are removed rather than cached.
+The district is deliberately a fraction of the extract. `district_nodes` is the operative cap; a 60 % share of available nodes only binds when the source is itself small, where taking all of it would make every seed produce the same map. Keeping districts to ~3,000 junctions also bounds how much geometry the browser must draw.
+
+**Cache hygiene.** City extracts are tens of megabytes, so the server sweeps the cache once at startup (`--map-cache`, default `prune`):
+
+| Policy | Effect |
+| --- | --- |
+| `prune` | Keep the `--map-cache-keep` newest extracts (default 1), delete the rest |
+| `clear` | Delete every cached extract |
+| `keep` | Never delete; the operator manages the directory |
+
+Interrupted `.part` downloads are discarded under every policy. Pruning means a long-lived install cannot accumulate one extract per city it has ever visited, while re-running the city you were last using stays offline.
+
+**Failure is failure.** A download that cannot complete raises HTTP 503 `MAP_FETCH_FAILED`, naming the city, the coordinates and the cause (offline, Overpass rate limiting, or a district under 400 junctions because the area is water or unmapped). No bundled map is substituted, because quietly serving a different map would break the correspondence between a seed and the place it denotes. Partial downloads are removed rather than cached.
 
 An explicit source still overrides the seed entirely, which is what the test suites use:
 
 ```
 python3 scripts/fetch_osm.py --anchor 52.4981,13.4412 --radius-m 1200 --output data/maps/custom.osm.xml
-python3 scripts/fetch_osm.py --bbox 52.49,13.36,52.55,13.46 --output data/maps/another-source.osm.xml
-./launcher start --osm-file data/maps/another-source.osm.xml --seed 42
+./launcher start --osm-file data/maps/custom.osm.xml --seed 42
 ```
 
-The importer queries public Overpass, retries 429/502/503/504 with backoff, validates the XML, refuses overwrites, writes source/license/query/checksum metadata, and writes via a temporary file then renames so an interrupted download cannot be mistaken for a complete map. See [Overpass QL](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL) and [OSM attribution](https://www.openstreetmap.org/copyright). Downloads are never performed by the browser, and never at server boot: the server compiles no scenario until a run starts, so `/api/v1/view/topology` is empty while IDLE.
-
-The loader uses a linear XML token scan, stable source IDs and a seed-selected geographic sector/anchor. A Dijkstra frontier selects 4,000–6,000 road geometry nodes from sufficiently large sources, bounded by `max_nodes`. Smaller sources use approximately 55–75% of available road nodes where possible; disconnected sources choose the largest candidate reached during deterministic attempts. Tiny fixtures retain all their nodes, so different seeds cannot create geographic diversity absent from the input.
-
-Road names, categories, one-way provenance and tags survive. OSM ways retain building/land-use/park outlines and named or unnamed POIs; point amenities, shops, offices and stations survive separately from road nodes. Signals tagged on road nodes receive actual controllers even when degree is below four. No synthetic buildings/signals are added to real OSM data. Reverse twins retained for canonical topology are excluded from traffic, incidents, routing and weighted metrics.
-
-All geometry uses the same local equirectangular metric projection:
-
-```
-x = (longitude - origin_longitude) × 111320 × cos(origin_latitude)
-y = (latitude - origin_latitude) × 111320
-```
-
-Distances are true metres, and the backend works in them throughout. Two junctions a kilometre apart are exactly 1000 apart in `x_m`/`y_m`, and an edge's `length_m` equals the walked length of its metre geometry. `tests/unit/map_sourcing_tests.cpp` checks both against haversine ground truth: worst node-pair error 0.13%, worst edge-length error 0%. Routing, speeds, capacities, weather kernel radii and incident extents all consume those metres directly.
-
-Screen scale is a display concern and nothing else. The canvas multiplies metre coordinates by one uniform factor, preserving aspect ratio and relative distance, so zooming compresses the picture and never the model; no rendering state is sent back to the core. The coordinate readout and scale bar in the UI invert that same factor through `metresToGeographic` and `scaleBarFor` rather than inventing their own. This is a local planar approximation appropriate to urban districts, not a global projection. Static paths are preprocessed once, buildings rendered in a separate canvas, geometry culled against viewport bounds and labels/POIs limited by zoom and collision cells. No per-entity DOM nodes or per-tick topology reconstruction are used. HTTP compression is required for the rich map/state payloads.
+The importer queries public Overpass, retries 429/502/503/504 with backoff, validates the XML, refuses overwrites, writes source/license/query/checksum metadata, streams the response while publishing progress to a `.progress` sidecar, and writes via a temporary file then renames so an interrupted download cannot be mistaken for a complete map. `GET /api/v1/system/map-status` reports that progress, which is what the operator CLI renders as a progress bar. See [Overpass QL](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL) and [OSM attribution](https://www.openstreetmap.org/copyright). Downloads are never performed by the browser, and never at server boot: the server compiles no scenario until a run starts, so `/api/v1/view/topology` is empty while IDLE.
 
 ## Events, signals and demand
 
@@ -95,6 +91,14 @@ Average = alpha × Current + (1-alpha) × previous_Average
 The first observation initializes the EMA. Both values stay within 0–100%; history is sampled each virtual minute, independent of UI refresh. The UI labels the difference in percentage points (`pp`). Synthetic reverse edges never contribute weight. Zero traffic yields zero congestion except genuinely closed infrastructure.
 
 Primary color precedence: known flood (`flood > 0.01`, blue), blocked/severe incident or congestion (`C >= 0.70`, red), moderate (`C >= 0.35`, amber), clear (green). Tooltips expose simultaneous flood, rain, incident, signal and POI-demand effects. Rain existence alone never colors a road red. Weather regions show actual radius/intensity separately.
+
+## Licence
+
+DSTNS is licensed under the **GNU Affero General Public License v3 or later**, copyright (C) 2026 Varun Karthic. The full text is in `LICENSE`; `COPYRIGHT` carries the notice and the third-party data terms.
+
+Because the program is normally operated over a network, AGPL section 13 applies: anyone interacting with a modified version remotely must be offered the corresponding source of that version. Two things implement that offer — `GET /api/v1/system/source` returns the program, version, licence and source offer as JSON, and the observer header links to it. The operator CLI prints the notice at every start and answers `--version` and `--license`; the server answers `--version`.
+
+Map data retrieved from Overpass is © OpenStreetMap contributors under ODbL 1.0, which is separate from and not superseded by this program's licence. Downloaded extracts under `data/maps/` are therefore data, not source, and each carries a `.manifest.json` recording its origin and checksum.
 
 ## Observer shell
 

@@ -45,6 +45,16 @@ std::string fixed6(double value) {
 
 } // namespace
 
+std::string City::slug() const {
+    std::string out;
+    for (const char c : name) {
+        if (c == ' ') out.push_back('-');
+        else if (std::isalnum(static_cast<unsigned char>(c)))
+            out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    }
+    return out;
+}
+
 const std::vector<City>& city_catalog() { return kCities; }
 
 double metres_per_degree_lon(double latitude) {
@@ -52,10 +62,13 @@ double metres_per_degree_lon(double latitude) {
     return kMetresPerDegreeLat * std::max(0.01, std::cos(latitude * std::numbers::pi / 180.0));
 }
 
-double MapLocation::min_lat() const { return anchor_lat - radius_m / kMetresPerDegreeLat; }
-double MapLocation::max_lat() const { return anchor_lat + radius_m / kMetresPerDegreeLat; }
-double MapLocation::min_lon() const { return anchor_lon - radius_m / metres_per_degree_lon(anchor_lat); }
-double MapLocation::max_lon() const { return anchor_lon + radius_m / metres_per_degree_lon(anchor_lat); }
+// The extract is a square of extent_m centred on the city, so its bounds depend
+// only on the city and the extent. Every district of that city reads the same
+// file.
+double MapLocation::min_lat() const { return centre_lat - extent_m / 2 / kMetresPerDegreeLat; }
+double MapLocation::max_lat() const { return centre_lat + extent_m / 2 / kMetresPerDegreeLat; }
+double MapLocation::min_lon() const { return centre_lon - extent_m / 2 / metres_per_degree_lon(centre_lat); }
+double MapLocation::max_lon() const { return centre_lon + extent_m / 2 / metres_per_degree_lon(centre_lat); }
 
 std::string MapLocation::bbox() const {
     return fixed6(min_lat()) + "," + fixed6(min_lon()) + "," + fixed6(max_lat()) + "," + fixed6(max_lon());
@@ -65,35 +78,42 @@ std::string MapLocation::cache_key() const {
     std::string slug;
     for (const char c : city) {
         if (c == ' ') slug.push_back('-');
-        else if (std::isalnum(static_cast<unsigned char>(c))) slug.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        else if (std::isalnum(static_cast<unsigned char>(c)))
+            slug.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
     }
-    return slug + "_" + trim_zeros(fixed6(anchor_lat)) + "_" + trim_zeros(fixed6(anchor_lon))
-         + "_r" + std::to_string(static_cast<long long>(std::llround(radius_m)));
+    return slug + "_x" + std::to_string(static_cast<long long>(std::llround(extent_m)));
 }
 
 std::filesystem::path MapLocation::cache_path(const std::filesystem::path& directory) const {
     return directory / (cache_key() + ".osm.xml");
 }
 
-MapLocation select_map_location(Seed128 seed, double radius_m) {
-    if (!(radius_m > 0.0) || radius_m > 20000.0) {
-        throw std::invalid_argument("tile radius must be in (0, 20000] metres");
+MapLocation select_map_location(Seed128 seed, double extent_m) {
+    if (!(extent_m >= 500.0) || extent_m > 20000.0) {
+        throw std::invalid_argument("city extract extent must be in [500, 20000] metres");
     }
     const DeterministicRng city_rng{seed.derive("map.city")};
     const auto& city = kCities.at(city_rng.bounded({RngDomain::MapSelection, 0, 0, 0},
                                                    static_cast<std::uint32_t>(kCities.size())));
 
-    // The anchor ranges over the whole urban box. The tile is allowed to extend
-    // past that box: the box marks where the dense core is, and a city does not
-    // stop at its edge. Insetting instead would collapse the compact boxes to a
-    // single point and make every seed for that city pick the same district.
-    const DeterministicRng anchor_rng{seed.derive("map.anchor")};
     MapLocation location;
     location.city = city.name;
     location.country = city.country;
-    location.anchor_lat = city.min_lat + (city.max_lat - city.min_lat) * anchor_rng.uniform01({RngDomain::MapSelection, 0, 1, 0});
-    location.anchor_lon = city.min_lon + (city.max_lon - city.min_lon) * anchor_rng.uniform01({RngDomain::MapSelection, 0, 2, 0});
-    location.radius_m = radius_m;
+    location.extent_m = extent_m;
+    location.centre_lat = city.centre_lat();
+    location.centre_lon = city.centre_lon();
+
+    // The anchor ranges over the extract, inset by a quarter so a district grown
+    // around it stays largely inside the downloaded area instead of running off
+    // the edge. Different seeds for one city therefore pick genuinely different
+    // districts of the same file.
+    const DeterministicRng anchor_rng{seed.derive("map.anchor")};
+    const double lat_span = (location.max_lat() - location.min_lat()) * 0.5;
+    const double lon_span = (location.max_lon() - location.min_lon()) * 0.5;
+    location.anchor_lat = location.centre_lat - lat_span / 2
+        + lat_span * anchor_rng.uniform01({RngDomain::MapSelection, 0, 1, 0});
+    location.anchor_lon = location.centre_lon - lon_span / 2
+        + lon_span * anchor_rng.uniform01({RngDomain::MapSelection, 0, 2, 0});
     return location;
 }
 

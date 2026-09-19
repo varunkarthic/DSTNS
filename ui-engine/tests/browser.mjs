@@ -190,7 +190,10 @@ try {
       (-p.y_m - (Math.max(...ys) + Math.min(...ys)) / 2) * scale,
   });
   const signals = (await call("/api/v1/view/snapshot")).body.data.signals;
-  const exposed = (p) => p.x > 370 && p.x < 1050 && p.y > 220 && p.y < 800;
+  // The part of the canvas no floating panel covers: right of the map dock,
+  // left of the telemetry deck, below the header and search, above the bottom
+  // stack. A pointer aimed outside this lands on a panel, not the map.
+  const exposed = (p) => p.x > 120 && p.x < 900 && p.y > 200 && p.y < 620;
   const signal = signals.find((s) =>
     exposed(project(topo.nodes[s.junction_id].position)),
   );

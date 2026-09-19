@@ -209,7 +209,7 @@ describe("observer shell", () => {
     expect(map.getAttribute("data-layers")).toContain("weather");
 
     fireEvent.click(screen.getByRole("button", { name: /Display Layers/ }));
-    const weather = await screen.findByLabelText("Weather (DWS)");
+    const weather = await screen.findByLabelText("Weather cells");
     fireEvent.click(weather);
 
     // The canvas stops drawing the layer...

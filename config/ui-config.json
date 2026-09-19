@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "_comment": "Defaults for the observer interface. Every value here is presentation only: nothing in this file changes what the simulation computes. A viewer's own choices are stored in their browser and override these; Reset in the Display Layers panel returns to exactly this file.",
+
+  "layers": {
+    "roads": true,
+    "signals": true,
+    "labels": true,
+    "place_names": true,
+    "traffic": true,
+    "vehicles": true,
+    "buildings": true,
+    "weather": true,
+    "flooding": true,
+    "incidents": true,
+    "events": true
+  },
+
+  "reduce_motion": "auto",
+
+  "auto_focus": {
+    "mode": "enable",
+    "strategy": "round-robin",
+    "dwell_seconds": 9,
+    "zoom": 1.6
+  },
+
+  "notifications": {
+    "enabled": true,
+    "dnd": false,
+    "max_visible": 3,
+    "dwell_ms": 7000
+  },
+
+  "clock": {
+    "hour12": false
+  },
+
+  "asb": {
+    "enabled": true,
+    "report_interval_ms": 1000
+  },
+
+  "_enums": {
+    "reduce_motion": ["auto", "on", "off"],
+    "auto_focus.mode": ["disable", "enable", "enable-force"],
+    "auto_focus.strategy": ["round-robin", "latest"]
+  }
+}

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 1.0.0 LANGUAGES CXX)
+project(dstns VERSION 2.0.0 LANGUAGES CXX)
 
 option(DSTNS_BUILD_TESTS "Build DSTNS tests" ON)
 option(DSTNS_ENABLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
@@ -26,12 +26,13 @@ else()
 endif()
 
 add_library(dstns_core
-  src/rng.cpp src/graph.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp)
+  src/rng.cpp src/graph.cpp src/asb.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp)
 target_include_directories(dstns_core PUBLIC include)
 target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib)
 if(APPLE)
   target_link_libraries(dstns_core PUBLIC "-framework CoreFoundation" "-framework CFNetwork")
 endif()
+target_compile_definitions(dstns_core PUBLIC DSTNS_VERSION="${PROJECT_VERSION}")
 target_compile_options(dstns_core PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 
 if(DSTNS_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
@@ -40,6 +41,7 @@ if(DSTNS_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 
 add_executable(dstns_server apps/dstns_server/main.cpp)
+target_compile_definitions(dstns_server PRIVATE DSTNS_VERSION="${PROJECT_VERSION}")
 target_link_libraries(dstns_server PRIVATE dstns_core)
 add_executable(dstns_scenario_export tools/scenario-inspect/main.cpp)
 target_link_libraries(dstns_scenario_export PRIVATE dstns_core)
@@ -63,6 +65,12 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_modern_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_modernization COMMAND dstns_modern_tests)
   set_tests_properties(dstns_modernization PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_executable(dstns_asb_tests tests/unit/asb_tests.cpp)
+  target_link_libraries(dstns_asb_tests PRIVATE dstns_core)
+  target_compile_options(dstns_asb_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_asb COMMAND dstns_asb_tests)
+  set_tests_properties(dstns_asb PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_executable(dstns_map_tests tests/unit/map_sourcing_tests.cpp)
   target_link_libraries(dstns_map_tests PRIVATE dstns_core)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import NetworkMap from "./NetworkMap";
 import type { MapControls, MapView } from "./NetworkMap";
 import { TelemetryDeck } from "./TelemetryDeck";
@@ -18,8 +18,10 @@ import "@fontsource/space-grotesk/600.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/600.css";
-import "./theme.css";
+// style.css is the legacy sheet (map canvas, tooltips, PDF report chrome);
+// theme.css carries the alpha design and must win where the two overlap.
 import "./style.css";
+import "./theme.css";
 
 const motionInfo = {
   title: "Reduce Motion",
@@ -55,6 +57,15 @@ export default function App() {
     null,
   );
   const [view, setView] = useState<MapView>({ scale: 1, metresPerPixel: 1 });
+  const [autoFocus, setAutoFocus] = useState(() => {
+    try {
+      return localStorage.getItem("dstns.auto-focus.v1") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [focusIndex, setFocusIndex] = useState(0);
+  const focusToken = useRef(0);
   const mapControls = useRef<MapControls | null>(null);
 
   const status = sim.status?.data;
@@ -154,6 +165,74 @@ export default function App() {
       await api.terminate();
     });
 
+  // Places worth watching: real disruption only. Signals cycle constantly and
+  // would just make the camera twitch, so they are deliberately excluded.
+  const focusTargets = useMemo(() => {
+    const snap = sim.snapshot?.data;
+    const topo = sim.topology;
+    if (!snap || !topo) return [];
+    const geometry = new Map(topo.edges.map((e) => [e.id, e.geometry]));
+    const out: { key: string; label: string; x_m: number; y_m: number; rank: number }[] = [];
+    for (const incident of snap.active_incidents) {
+      const line = geometry.get(incident.edge_id);
+      if (!line?.length) continue;
+      const mid = line[Math.floor(line.length / 2)];
+      const flooded = incident.flood > 0.01;
+      out.push({
+        key: `incident-${incident.incident_id ?? incident.id ?? incident.edge_id}`,
+        label: flooded ? "Flooding" : incident.closed ? "Road closed" : "Incident",
+        x_m: mid.x_m,
+        y_m: mid.y_m,
+        rank: flooded ? 0 : incident.closed ? 1 : 2,
+      });
+    }
+    for (const cell of snap.active_weather) {
+      out.push({
+        key: `weather-${cell.id}`,
+        label: "Weather cell",
+        x_m: cell.x_m,
+        y_m: cell.y_m,
+        rank: 3,
+      });
+    }
+    // Stable order so the camera cycles predictably rather than jumping about.
+    return out.sort((a, b) => a.rank - b.rank || a.key.localeCompare(b.key));
+  }, [sim.snapshot, sim.topology]);
+
+  const focusKeys = focusTargets.map((t) => t.key).join("|");
+  useEffect(() => {
+    // Restart the cycle whenever the set of live events changes.
+    setFocusIndex(0);
+  }, [focusKeys]);
+  useEffect(() => {
+    if (!autoFocus || focusTargets.length < 2) return;
+    const timer = setInterval(
+      () => setFocusIndex((i) => (i + 1) % focusTargets.length),
+      9000,
+    );
+    return () => clearInterval(timer);
+  }, [autoFocus, focusTargets.length]);
+
+  const active = autoFocus ? focusTargets[focusIndex % Math.max(1, focusTargets.length)] : undefined;
+  const activeKey = active?.key;
+  const focus = useMemo(() => {
+    if (!active) return null;
+    focusToken.current += 1;
+    return { x_m: active.x_m, y_m: active.y_m, scale: 1.6, token: focusToken.current };
+    // A new token is only minted when the camera should actually move.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey]);
+
+  const toggleAutoFocus = () =>
+    setAutoFocus((v) => {
+      try {
+        localStorage.setItem("dstns.auto-focus.v1", String(!v));
+      } catch {
+        /* Storage may be disabled. */
+      }
+      return !v;
+    });
+
   const seed = sim.status?.global_seed ?? "";
   const shortSeed =
     seed.length > 14 ? `${seed.slice(0, 8)}…${seed.slice(-4)}` : seed;
@@ -202,6 +281,24 @@ export default function App() {
               ◌
             </button>
           </Tooltip>
+          {/* AGPL section 13: anyone interacting with this program over a
+              network must be offered its corresponding source. */}
+          <Tooltip
+            info={{
+              title: "DSTNS " + (import.meta.env.VITE_DSTNS_VERSION ?? "2.0.0"),
+              category: "About",
+              description:
+                "Copyright (C) 2026 Varun Karthic. Licensed under the GNU Affero General Public License v3 or later. You may obtain the complete corresponding source of this running version, and map data is © OpenStreetMap contributors under ODbL.",
+            }}
+          >
+            <a
+              className="btn icon"
+              href="/api/v1/system/source"
+              aria-label="Licence and source"
+            >
+              ⓘ
+            </a>
+          </Tooltip>
         </div>
       </header>
 
@@ -214,6 +311,8 @@ export default function App() {
             reduceMotion={motion}
             running={valid && lifecycle === "RUNNING"}
             virtualTime={clock?.virtual_day_seconds ?? 0}
+            tickRate={clock?.tick_rate ?? 1}
+            focus={focus}
             controls={mapControls}
             onView={setView}
             onCursor={setCursor}
@@ -235,6 +334,23 @@ export default function App() {
             </button>
           </Tooltip>
           <div className="divider" aria-hidden="true" />
+          <Tooltip
+            info={{
+              title: "Auto-focus on events",
+              category: "Map control",
+              description:
+                "Glides the camera to live incidents, flooding and weather cells, cycling between them. Traffic signals are ignored. Any manual pan or zoom takes over immediately.",
+            }}
+          >
+            <button
+              aria-label="Auto-focus on live events"
+              aria-pressed={autoFocus}
+              className={autoFocus ? "active" : ""}
+              onClick={toggleAutoFocus}
+            >
+              ◎
+            </button>
+          </Tooltip>
           <Tooltip info={{ title: "Fit network", category: "Map control" }}>
             <button
               aria-label="Fit network to viewport"
@@ -245,6 +361,29 @@ export default function App() {
           </Tooltip>
         </div>
 
+        {layersOpen && (
+          <LayersPopover
+            layers={layers}
+            onChange={setLayers}
+            onClose={() => setLayersOpen(false)}
+            topology={sim.topology}
+            snapshot={sim.snapshot?.data ?? null}
+          />
+        )}
+
+        <TelemetryDeck
+          status={status}
+          snapshot={sim.snapshot?.data ?? null}
+          topology={sim.topology}
+          congestion={congestion}
+          history={history}
+          news={sim.news}
+          connected={valid}
+          virtualTime={clock?.virtual_day_seconds ?? 0}
+          runId={sim.status?.run_id ?? ""}
+        />
+
+        <div className="bottom-stack">
         <div className="map-hud">
           <div className="hud-chip">
             <span aria-hidden="true" style={{ color: "var(--primary)" }}>
@@ -273,29 +412,20 @@ export default function App() {
             <i style={{ width: Math.round(scaleBar.pixels) }} />
             <span>{scaleBar.label}</span>
           </div>
+          <div className="legend" aria-label="Road state legend">
+            {[
+              ["var(--state-clear)", "Clear"],
+              ["var(--state-moderate)", "Moderate"],
+              ["var(--state-severe)", "Severe"],
+              ["var(--state-flooded)", "Flooded"],
+            ].map(([color, label]) => (
+              <span key={label}>
+                <i style={{ background: color }} />
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
-
-        {layersOpen && (
-          <LayersPopover
-            layers={layers}
-            onChange={setLayers}
-            onClose={() => setLayersOpen(false)}
-            topology={sim.topology}
-            snapshot={sim.snapshot?.data ?? null}
-          />
-        )}
-
-        <TelemetryDeck
-          status={status}
-          snapshot={sim.snapshot?.data ?? null}
-          topology={sim.topology}
-          congestion={congestion}
-          history={history}
-          news={sim.news}
-          connected={valid}
-          virtualTime={clock?.virtual_day_seconds ?? 0}
-          runId={sim.status?.run_id ?? ""}
-        />
 
         <div className="control-strip">
           <Tooltip
@@ -366,20 +496,8 @@ export default function App() {
           onRate={(rate) => action(() => api.tick(rate))}
           onReset={() => action(() => api.seek(0))}
         />
-
-        <div className="legend glass" aria-label="Road state legend">
-          {[
-            ["var(--state-clear)", "Clear"],
-            ["var(--state-moderate)", "Moderate"],
-            ["var(--state-severe)", "Severe / blocked"],
-            ["var(--state-flooded)", "Flooded"],
-          ].map(([color, label]) => (
-            <span key={label}>
-              <i style={{ background: color }} />
-              {label}
-            </span>
-          ))}
         </div>
+
 
         <div className="toasts" aria-live="polite">
           {sim.toasts.map((n) => (

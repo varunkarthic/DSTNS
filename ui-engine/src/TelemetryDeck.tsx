@@ -285,7 +285,9 @@ export function TelemetryDeck({
             ["stack", "Stack", 0],
             ["events", "News", news.length],
             ["queue", "Queue", queue?.pending_count ?? 0],
-            ["incidents", "Incidents", incidents.length],
+            // Count what is live on the network, matching the metric tile above,
+            // rather than every incident-shaped message ever received.
+            ["incidents", "Incidents", openIncidents.length],
           ] as const
         ).map(([key, label, count]) => (
           <button

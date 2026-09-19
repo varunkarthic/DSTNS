@@ -1,0 +1,39 @@
+DSTNS — Deterministic Spatiotemporal Transport Network Simulator
+
+Copyright (C) 2026 Varun Karthic
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+The full licence text is in LICENSE.
+
+Because DSTNS is normally operated over a network, section 13 of the
+AGPL applies: anyone interacting with a modified version of this program
+remotely must be offered the corresponding source of that version.
+
+---
+
+Third-party data and components
+
+Map data is retrieved at runtime from the OpenStreetMap Overpass API.
+OpenStreetMap data is © OpenStreetMap contributors and is licensed under
+the Open Database License (ODbL) 1.0, which is separate from and not
+superseded by this program's licence. See
+<https://www.openstreetmap.org/copyright>.
+
+Downloaded map tiles under data/maps/ are therefore ODbL data, not part
+of this program's source, and each carries a .manifest.json recording its
+source, licence, query and checksum.
+
+Eclipse SUMO is used as an optional external batch-validation tool and is
+licensed separately under EPL-2.0.

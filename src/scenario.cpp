@@ -50,6 +50,14 @@ static constexpr CityAnchor kCityCatalog[] = {
 // Below this a district is not a street network worth simulating.
 constexpr std::size_t kMinimumDistrictNodes = 400;
 
+// A signal controller belongs where at least three ways meet. Below that the
+// OSM tag denotes a crossing or a gate, not an intersection.
+constexpr std::uint32_t kMinimumSignalDegree = 3;
+
+// How far a tagged stop line may sit from the junction it governs. Approach
+// stop lines are typically within a few car lengths of the intersection.
+constexpr double kSignalSnapRadiusM = 45.0;
+
 Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& config)const{
     if(config.max_nodes<2||config.max_nodes>50000)throw std::invalid_argument("max_nodes must be in [2,50000]");
     if(config.map_selection_version!="urban-crfg-v2")throw std::invalid_argument("unsupported map selection version");
@@ -57,14 +65,14 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
     if(config.demand_bin_virtual_s==0||config.demand_bin_virtual_s>86400)throw std::invalid_argument("invalid demand bin");
     if(config.playback_duration_s<60||config.playback_duration_s>3600)throw std::invalid_argument("playback_duration_s must be in [60,3600]");
     auto effective_config = config;
-    if(!(effective_config.tick_rate>0&&effective_config.tick_rate<=100))throw std::invalid_argument("tick_rate must be in (0,100]");
+    if(!(effective_config.tick_rate>0&&effective_config.tick_rate<=50))throw std::invalid_argument("tick_rate must be in (0,50]");
     // "auto" means: let the seed choose a real place and fetch it on demand.
     // The tile is cached under its seed-derived name, so re-running one seed is
     // offline and free while a re-rolled seed necessarily downloads a new map.
     MapLocation location{};
     bool located = false, downloaded = false;
     if(effective_config.osm_file == "auto") {
-        location = select_map_location(seed_value, effective_config.map_tile_radius_m);
+        location = select_map_location(seed_value, effective_config.map_city_extent_m);
         located = true;
         const auto tile = acquire_map_tile(location, effective_config.map_cache_dir);
         effective_config.osm_file = tile.file.string();
@@ -93,13 +101,15 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
         build_canonical_grid(s,map_rng);
         s.map_hash="sha256:"+sha256("dstns/offline-road-fixture/v1");
     }else{
-        auto road=OsmRoadLoader{}.load_xml(effective_config.osm_file,effective_config.max_nodes,map_rng);
+        DistrictAnchor district{};
+        if(located){district.valid=true;district.lat=location.anchor_lat;district.lon=location.anchor_lon;district.target_nodes=effective_config.map_district_nodes;}
+        auto road=OsmRoadLoader{}.load_xml(effective_config.osm_file,effective_config.max_nodes,map_rng,district);
         s.root=road.root;s.nodes=std::move(road.nodes);s.edges=std::move(road.edges);s.map_hash=std::move(road.source_hash);s.features=std::move(road.features);s.projection_lat=road.projection_lat;s.projection_lon=road.projection_lon;
         s.map_source_file=effective_config.osm_file;
         if(located){
             s.map_city=location.city;s.map_country=location.country;
             s.map_anchor_lat=location.anchor_lat;s.map_anchor_lon=location.anchor_lon;
-            s.map_tile_radius_m=location.radius_m;s.map_downloaded=downloaded;
+            s.map_city_extent_m=location.extent_m;s.map_downloaded=downloaded;
             // A tile that lands on water, parkland or an unmapped area yields a
             // network too thin to simulate. Say so plainly instead of running a
             // degenerate scenario that looks like a working one.
@@ -195,20 +205,87 @@ void ScenarioCompiler::place_buildings(Scenario&s,const DeterministicRng&rng)con
 
 void ScenarioCompiler::plan_signals(Scenario& s) const {
     DeterministicRng rng(s.seed.derive("signals"));
+    // Approach capacity per axis: [0] = north-south, [1] = east-west. Green time
+    // is split between the two opposing groups in proportion to what arrives.
     std::vector<std::array<double,2>> demand(s.nodes.size(), {1.0,1.0});
     for(const auto& e:s.edges) if(is_source_direction_allowed(e)) {
         const auto& a=s.nodes[e.from.value].position;const auto& b=s.nodes[e.to.value].position;
         demand[e.to.value][std::abs(b.y_m-a.y_m)>=std::abs(b.x_m-a.x_m)?0:1]+=e.base_capacity_vph;
     }
-    for(auto& n:s.nodes) if(n.signal || (s.config.osm_file.empty() && n.degree>=4 && n.id.value%3==0)) {
-        n.signal=true;
+
+    // Place controllers at intersections, not mid-block.
+    //
+    // OpenStreetMap almost never tags `highway=traffic_signals` on the shared
+    // junction node: it tags the stop-line node a few metres back along one
+    // approach, which in this graph has degree 2. Taking the tags literally
+    // scatters signals along straight roads; discarding everything below degree
+    // three deletes all of them. So each tagged node is snapped to the nearest
+    // real junction within kSignalSnapRadiusM, and several approaches to one
+    // junction collapse to the single controller that governs it.
+    std::vector<NodeId> junctions;
+    for(const auto& n:s.nodes) if(n.degree>=kMinimumSignalDegree) junctions.push_back(n.id);
+
+    // Bucket junctions so snapping stays linear in the number of tagged nodes.
+    std::map<std::pair<int,int>,std::vector<NodeId>> junction_cells;
+    const double cell=kSignalSnapRadiusM;
+    for(const auto id:junctions){
+        const auto& p=s.nodes[id.value].position;
+        junction_cells[{int(std::floor(p.x_m/cell)),int(std::floor(p.y_m/cell))}].push_back(id);
+    }
+
+    std::vector<bool> controls(s.nodes.size(),false);
+    const auto snap=[&](const NodeStatic& tagged){
+        const auto& p=tagged.position;
+        const int cx=int(std::floor(p.x_m/cell)), cy=int(std::floor(p.y_m/cell));
+        double best=kSignalSnapRadiusM*kSignalSnapRadiusM; NodeId chosen{}; bool found=false;
+        for(int dx=-1;dx<=1;++dx)for(int dy=-1;dy<=1;++dy){
+            const auto it=junction_cells.find({cx+dx,cy+dy});
+            if(it==junction_cells.end())continue;
+            for(const auto id:it->second){
+                const auto& q=s.nodes[id.value].position;
+                const double d=(q.x_m-p.x_m)*(q.x_m-p.x_m)+(q.y_m-p.y_m)*(q.y_m-p.y_m);
+                // Ties resolve by id so the choice never depends on iteration order.
+                if(d<best||(d==best&&found&&id.value<chosen.value)){best=d;chosen=id;found=true;}
+            }
+        }
+        return std::pair{found,chosen};
+    };
+
+    for(const auto& n:s.nodes){
+        const bool synthetic = s.config.osm_file.empty() && n.degree>=4 && n.id.value%3==0;
+        if(synthetic){ controls[n.id.value]=true; continue; }
+        if(!n.signal) continue;
+        if(n.degree>=kMinimumSignalDegree){ controls[n.id.value]=true; continue; }
+        const auto [found,at]=snap(n);
+        // A tagged node with no junction nearby is a pedestrian crossing or a
+        // gated driveway. Those are real, but they are not intersections.
+        if(found) controls[at.value]=true;
+    }
+    for(auto& n:s.nodes) n.signal=controls[n.id.value];
+
+    // Offsets form a progression along the dominant travel axis rather than being
+    // drawn at random. Signals a block apart then turn green in sequence - the
+    // "green wave" a real corridor is timed for - instead of flickering
+    // independently. The reference speed is a nominal 50 km/h arterial.
+    constexpr double kProgressionSpeedMps = 13.9;
+    double origin_x = 0, origin_y = 0;
+    std::size_t controllers = 0;
+    for(const auto& n:s.nodes) if(n.signal) { origin_x+=n.position.x_m; origin_y+=n.position.y_m; ++controllers; }
+    if(controllers) { origin_x/=double(controllers); origin_y/=double(controllers); }
+
+    for(auto& n:s.nodes) if(n.signal) {
         const auto id=static_cast<std::uint64_t>(n.osm_node_id);
         const double total=demand[n.id.value][0]+demand[n.id.value][1];
         const auto cycle=std::uint16_t(std::clamp(45.0+4.0*n.degree+total/1200.0+20.0*rng.uniform01({RngDomain::TrafficSignals,id,0,0}),50.0,120.0));
         const auto green=std::uint16_t(std::clamp(double(cycle-8)*demand[n.id.value][0]/total,12.0,double(cycle-20)));
         const auto other=std::uint16_t(cycle-8-green);
         n.signal_cycle_s=cycle;n.signal_green_s=green;
-        n.signal_offset_s=std::uint16_t(rng.bounded({RngDomain::TrafficSignals,id,1,0},cycle));
+        // Travel time from the network's centre to this junction, wrapped into
+        // the cycle. Neighbouring junctions differ by the time it takes to drive
+        // between them, so a platoon released at one arrives at the next on green.
+        const double distance=std::hypot(n.position.x_m-origin_x,n.position.y_m-origin_y);
+        const double travel=distance/kProgressionSpeedMps;
+        n.signal_offset_s=std::uint16_t(std::llround(std::fmod(travel,double(cycle))));
         s.signals.push_back({n.id,cycle,{green,3,1,other,3,1},n.signal_offset_s});
     }
 }

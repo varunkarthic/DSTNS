@@ -212,11 +212,13 @@ export interface Layers {
   buildings: boolean;
   signals: boolean;
   roads: boolean;
-  nodes: boolean;
   vehicles: boolean;
-  transit: boolean;
   incidents: boolean;
+  /** Street-name labels on roads. */
   labels: boolean;
+  /** Names of places. Buildings stay visible when this is off; only their
+   *  names are withheld, so the map keeps its shape without the clutter. */
+  place_names: boolean;
 }
 export const defaultLayers: Layers = {
   traffic: true,
@@ -226,11 +228,10 @@ export const defaultLayers: Layers = {
   buildings: true,
   signals: true,
   roads: true,
-  nodes: true,
   vehicles: true,
-  transit: true,
   incidents: true,
-  labels: false,
+  labels: true,
+  place_names: true,
 };
 export interface Inspection {
   title: string;
@@ -238,4 +239,34 @@ export interface Inspection {
   status?: string;
   description?: string;
   metrics?: [string, string][];
+}
+
+// ---------------------------------------------------------------------------
+// Adaptive Simulation Backpressure
+// ---------------------------------------------------------------------------
+export type AsbState = "NORMAL" | "RESTRICTED" | "ASYNC";
+export interface AsbAction {
+  at_s: number;
+  action: string;
+  reason: string;
+  score: number;
+  rate_before: number;
+  rate_after: number;
+}
+export interface Backpressure {
+  state: AsbState;
+  score: number;
+  synced: boolean;
+  rate_locked: boolean;
+  motion_locked: boolean;
+  gui_suspended: boolean;
+  rate_capped: boolean;
+  rate_cap: number;
+  applied_tick_rate: number;
+  requested_tick_rate: number;
+  stressed_for_s: number;
+  state_for_s: number;
+  throughput: { snapshots_per_s: number; bytes_per_s: number };
+  actions: AsbAction[];
+  thresholds: Record<string, number>;
 }

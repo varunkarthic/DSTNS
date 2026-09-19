@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <numbers>
+#include <map>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -45,14 +46,17 @@ int main() {
         check(first.cache_key() == again.cache_key(), "one seed always names one cache file");
 
         // ---- Re-rolling the seed genuinely moves the map ------------------
-        std::set<std::string> cities, keys;
+        std::set<std::string> cities, keys, anchors;
         for (unsigned i = 0; i < 200; ++i) {
             const auto location = select_map_location(Seed128::parse("0x" + std::to_string(i + 1) + "a5f"));
             cities.insert(location.city);
             keys.insert(location.cache_key());
+            anchors.insert(std::to_string(location.anchor_lat) + "," + std::to_string(location.anchor_lon));
         }
         check(cities.size() >= 8, "seeds spread across the city catalog");
-        check(keys.size() >= 195, "distinct seeds name distinct tiles, so a re-roll forces a new download");
+        check(keys.size() <= city_catalog().size(),
+              "extracts are per city, not per seed, so re-rolling rarely re-downloads");
+        check(anchors.size() >= 195, "distinct seeds still pick distinct districts");
 
         // ---- The anchor always sits inside its city's urban box -----------
         for (unsigned i = 0; i < 300; ++i) {
@@ -61,34 +65,51 @@ int main() {
             for (const auto& candidate : city_catalog())
                 if (candidate.name == location.city) city = &candidate;
             check(city != nullptr, "resolved city is in the catalog");
-            check(location.anchor_lat >= city->min_lat && location.anchor_lat <= city->max_lat,
-                  "anchor latitude stays inside the urban box");
-            check(location.anchor_lon >= city->min_lon && location.anchor_lon <= city->max_lon,
-                  "anchor longitude stays inside the urban box");
+            check(location.anchor_lat > location.min_lat() && location.anchor_lat < location.max_lat(),
+                  "anchor latitude stays inside the downloaded extract");
+            check(location.anchor_lon > location.min_lon() && location.anchor_lon < location.max_lon(),
+                  "anchor longitude stays inside the downloaded extract");
+            check(std::abs(location.anchor_lat - city->centre_lat()) < location.extent_m / kMetresPerDegreeLat,
+                  "anchor stays near the city centre");
         }
 
-        // ---- The requested tile really is the requested size in metres ----
-        for (const double radius : {500.0, 2000.0, 5000.0}) {
+        // ---- The extract really is the requested size in metres ----------
+        for (const double extent : {1000.0, 5000.0, 10000.0}) {
             for (const auto& city : city_catalog()) {
                 MapLocation tile;
                 tile.city = city.name;
-                tile.anchor_lat = (city.min_lat + city.max_lat) / 2;
-                tile.anchor_lon = (city.min_lon + city.max_lon) / 2;
-                tile.radius_m = radius;
-                const double north = haversine_m(tile.anchor_lat, tile.anchor_lon, tile.max_lat(), tile.anchor_lon);
-                const double east = haversine_m(tile.anchor_lat, tile.anchor_lon, tile.anchor_lat, tile.max_lon());
-                check(std::abs(north - radius) < radius * 0.01, "tile half-height matches the requested metres");
-                check(std::abs(east - radius) < radius * 0.01, "tile half-width matches the requested metres");
+                tile.centre_lat = city.centre_lat();
+                tile.centre_lon = city.centre_lon();
+                tile.extent_m = extent;
+                const double height = haversine_m(tile.min_lat(), tile.centre_lon, tile.max_lat(), tile.centre_lon);
+                const double width = haversine_m(tile.centre_lat, tile.min_lon(), tile.centre_lat, tile.max_lon());
+                check(std::abs(height - extent) < extent * 0.01, "extract height matches the requested metres");
+                check(std::abs(width - extent) < extent * 0.01, "extract width matches the requested metres");
             }
         }
+
+        // ---- One extract per city, shared by every district ---------------
+        // Two seeds that land in the same city must name the same file, or the
+        // whole point of downloading a city once is lost.
+        std::map<std::string, std::string> per_city;
+        std::size_t shared = 0;
+        for (unsigned i = 0; i < 400; ++i) {
+            const auto where = select_map_location(Seed128::parse("0x" + std::to_string(i + 11) + "d0e"));
+            auto [it, inserted] = per_city.emplace(where.city, where.cache_key());
+            if (!inserted) {
+                check(it->second == where.cache_key(), "all districts of a city share one extract file");
+                ++shared;
+            }
+        }
+        check(shared > 100, "many seeds reused an already-downloaded city");
 
         // ---- Cache keys are filesystem safe ------------------------------
         for (const auto& city : city_catalog()) {
             MapLocation tile;
             tile.city = city.name;
-            tile.anchor_lat = city.min_lat;
-            tile.anchor_lon = city.min_lon;
-            tile.radius_m = 2000;
+            tile.centre_lat = city.centre_lat();
+            tile.centre_lon = city.centre_lon();
+            tile.extent_m = 5000;
             const auto key = tile.cache_key();
             check(!key.empty(), "cache key is never empty");
             check(key.find('/') == std::string::npos && key.find(' ') == std::string::npos,
@@ -111,7 +132,15 @@ int main() {
         check(reused.file == first.cache_path(sandbox), "the reused tile is the seed-derived file");
 
         // ---- A failed download is a hard error, never a silent fallback ---
-        const auto missing = select_map_location(Seed128::parse("0xdeadbeefcafe"));
+        // Deliberately choose a seed landing in a *different* city, so the
+        // planted extract above cannot satisfy it and the check is not vacuous.
+        MapLocation missing{};
+        for (unsigned i = 1; i < 500 && missing.city.empty(); ++i) {
+            const auto candidate = select_map_location(Seed128::parse("0x" + std::to_string(i) + "dead"));
+            if (candidate.city != first.city) missing = candidate;
+        }
+        check(!missing.city.empty() && missing.city != first.city,
+              "found a seed resolving to a city other than the planted one");
         bool raised = false;
         try {
             (void)acquire_map_tile(missing, sandbox);
@@ -141,7 +170,44 @@ int main() {
         }
         check(rejected, "a truncated cache entry is re-fetched rather than loaded as a map");
         ::unsetenv("DSTNS_PYTHON");
-        std::filesystem::remove_all(sandbox);
+
+        // ---- The cache is swept on boot so extracts cannot accumulate -----
+        // City extracts are tens of megabytes each; without this a long-lived
+        // install grows one per city ever visited.
+        {
+            std::filesystem::remove_all(sandbox);
+            std::filesystem::create_directories(sandbox);
+            const auto plant = [&](const std::string& name) {
+                std::ofstream out(sandbox / (name + ".osm.xml"));
+                out << std::string(20000, 'x');
+                std::ofstream side(sandbox / (name + ".osm.manifest.json"));
+                side << "{}";
+            };
+            for (const auto* name : {"alpha_x5000", "beta_x5000", "gamma_x5000"}) plant(name);
+            std::ofstream(sandbox / "interrupted.osm.xml.part") << "partial";
+
+            check(parse_cache_policy("keep") == CachePolicy::Keep, "policy parses");
+            const auto untouched = sweep_map_cache(sandbox, CachePolicy::Keep);
+            check(untouched.removed == 0, "keep policy deletes nothing");
+
+            const auto pruned = sweep_map_cache(sandbox, CachePolicy::Prune, 1);
+            check(pruned.kept == 1 && pruned.removed == 2, "prune keeps only the newest extract");
+            check(pruned.freed_bytes >= 40000, "prune reports the space it reclaimed");
+            std::size_t remaining = 0, manifests = 0, partials = 0;
+            for (const auto& item : std::filesystem::directory_iterator(sandbox)) {
+                const auto name = item.path().filename().string();
+                if (name.ends_with(".osm.xml")) ++remaining;
+                else if (name.ends_with(".manifest.json")) ++manifests;
+                else if (name.ends_with(".part")) ++partials;
+            }
+            check(remaining == 1, "exactly one extract survives a prune");
+            check(manifests == 1, "an extract's manifest is removed with it");
+            check(partials == 0, "interrupted downloads are always discarded");
+
+            const auto cleared = sweep_map_cache(sandbox, CachePolicy::Clear);
+            check(cleared.removed == 1 && cleared.kept == 0, "clear policy empties the cache");
+            std::filesystem::remove_all(sandbox);
+        }
 
         // ---- The graph is stored at true scale ---------------------------
         // Every node position must be the real metre offset from the projection
