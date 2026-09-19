@@ -1856,3 +1856,124 @@ body:has(.reduce-motion) .floating {
     margin-right: calc(var(--deck-space) - 8px);
   }
 }
+
+/* ---- Minimum viewport --------------------------------------------------- */
+
+.viewport-notice {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-splash) + 10);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background:
+    radial-gradient(ellipse at 50% 38%, rgb(14 42 58 / 92%), rgb(3 13 23 / 99%) 70%),
+    #030d17;
+  animation: fade-in 220ms var(--ease);
+}
+.viewport-card {
+  width: min(400px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 24px;
+  border-radius: var(--r-xl);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-line-strong);
+  box-shadow: var(--glass-shadow);
+  animation: dialog-in 280ms var(--ease);
+}
+.viewport-card h1 {
+  margin: 4px 0 0;
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 24px;
+  color: var(--text);
+}
+.viewport-card p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--text-dim);
+}
+.viewport-facts {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 2px 0 0;
+}
+.viewport-facts > div {
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+}
+.viewport-facts dt {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.viewport-facts dd {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--text);
+}
+.viewport-facts dd span {
+  color: var(--text-faint);
+}
+.viewport-facts dd.short {
+  color: var(--amber);
+}
+.viewport-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--text-faint) !important;
+}
+.viewport-notice.still,
+.viewport-notice.still .viewport-card {
+  animation: none;
+}
+
+/* ---- Preloader entrance -------------------------------------------------
+ * The mark draws itself, then the stages and status settle in beneath it, so
+ * start-up reads as one movement rather than a screen appearing at once.
+ */
+
+.loading-surface.boot .loading-card > *:not(.loading-mark) {
+  animation: boot-settle 420ms var(--ease) both;
+}
+.loading-surface.boot .loading-ring {
+  animation-delay: 420ms;
+}
+.loading-surface.boot h2 {
+  animation-delay: 500ms;
+}
+.loading-surface.boot .loading-seed {
+  animation-delay: 540ms;
+}
+.loading-surface.boot .loading-steps {
+  animation-delay: 580ms;
+}
+.loading-surface.boot .loading-status,
+.loading-surface.boot .loading-progress {
+  animation-delay: 660ms;
+}
+.loading-surface.boot .loading-actions {
+  animation-delay: 740ms;
+}
+@keyframes boot-settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.loading-surface.boot.still .loading-card > * {
+  animation: none;
+}

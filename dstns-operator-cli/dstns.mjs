@@ -1792,14 +1792,22 @@ async function launchSimulation(options) {
   const started=await startServer()
   if(started.process){managedServer=started.process;managedServerPort=started.port}
   const explicitRun=['seed','saved-seed','save-seed','day-type','osm-file','max-nodes','duration','speed'].some(key=>options[key]!==undefined)
-  if(['RUNNING','PAUSED'].includes(started.health?.lifecycle) && !explicitRun) {
+  const url=`http://127.0.0.1:${started.port}/`
+  const observing=['RUNNING','PAUSED'].includes(started.health?.lifecycle) && !explicitRun
+  // The interface comes up first and narrates the rest: world selection, the
+  // map, generation and initialization all happen with the observer watching,
+  // rather than behind a terminal spinner on a blank browser tab.
+  if(options.open && !observing){
+    await openBrowser(url)
+    ui.logger.info('Observer open', {suffix:`${url} · preparing the world`})
+  }
+  if(observing) {
     const current=await apiCall(started.port,'/api/v1/view/topology')
     if(current.body?.data?.source!=='OpenStreetMap')throw new Error('The active server is running a synthetic fixture. Stop that run before launching an OSM simulation.')
     ui.logger.info('Observing the existing real OSM simulation')
   } else await startRun(started.port,payload)
-  const url=`http://127.0.0.1:${started.port}/`
   ui.logger.info('Observer ready', {suffix:url})
-  if(options.open)await openBrowser(url)
+  if(options.open && observing)await openBrowser(url)
   return started
 }
 async function activePort() {

@@ -34,7 +34,8 @@ constexpr std::uint32_t kMinimumSignalDegree = 3;
 // stop lines are typically within a few car lengths of the intersection.
 constexpr double kSignalSnapRadiusM = 45.0;
 
-Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& config)const{
+Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& config,const Progress& progress)const{
+    const auto report=[&](Stage stage){ if(progress) progress(stage); };
     if(config.max_nodes<2||config.max_nodes>50000)throw std::invalid_argument("max_nodes must be in [2,50000]");
     if(config.map_selection_version!="urban-crfg-v3")throw std::invalid_argument("unsupported map selection version");
     if(config.day < -1 || config.day>1)throw std::invalid_argument("invalid day type");
@@ -48,14 +49,17 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
     MapLocation location{};
     bool located = false, downloaded = false;
     if(effective_config.osm_file == "auto") {
+        report(Stage::Selecting);
         location = select_map_location(seed_value, effective_config.map_city_extent_m);
         located = true;
+        report(Stage::Acquiring);
         const auto tile = acquire_map_tile(location, effective_config.map_cache_dir);
         effective_config.osm_file = tile.file.string();
         downloaded = tile.downloaded;
     }
     if(effective_config.osm_file.empty()&&(effective_config.grid_width<3||effective_config.grid_height<3||std::uint64_t(effective_config.grid_width)*effective_config.grid_height>effective_config.max_nodes))throw std::invalid_argument("invalid grid dimensions or max_nodes");
     if(effective_config.dws_frequency>0&&std::uint64_t(effective_config.dws_frequency-1)*5>=effective_config.playback_duration_s)throw std::invalid_argument("DWS frequency violates five-playback-second spacing");
+    report(Stage::Building);
     Scenario s; s.seed=seed_value;s.config=effective_config;
 
     // Cryptographically derived domain-separated sub-seeds

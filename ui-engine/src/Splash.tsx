@@ -10,12 +10,18 @@ import { LoadingSurface } from "./LoadingSurface";
  * into the map once the first network has arrived.
  */
 
-/** Stages the interface can observe on the way to a live map, in order. */
+/**
+ * The stages between opening the interface and watching a live world, in
+ * order. Each one is entered only when the core reports it: the world is
+ * chosen while the scenario compiles, the map is downloaded only when it is
+ * not already cached, and the last stage ends when the first network arrives.
+ */
 export const BOOT_STEPS = [
-  { id: "connect", label: "Connecting interface" },
-  { id: "map", label: "Loading map data" },
-  { id: "world", label: "Preparing world" },
-  { id: "network", label: "Loading network" },
+  { id: "interface", label: "Starting interface" },
+  { id: "select", label: "Selecting world" },
+  { id: "download", label: "Downloading map" },
+  { id: "generate", label: "Generating world" },
+  { id: "initialize", label: "Initializing simulation" },
 ] as const;
 
 export interface SplashStage {
@@ -92,6 +98,8 @@ export function splashStageFor(
     phase?: string;
     bytes?: number;
     total?: number;
+    /** What the core's compile is doing: selecting, acquiring or building. */
+    preparation?: string;
   } | null,
   lifecycle: string,
   clientStage: string,
@@ -99,14 +107,16 @@ export function splashStageFor(
   connected = true,
 ): SplashStage | null {
   if (hasTopology) return null;
+  if (!connected) return { step: 0, label: "Starting interface", detail: clientStage || "Connecting to the simulation" };
 
+  // A map is being fetched: the one stage that can report real progress.
   if (mapStatus?.active) {
     const city = mapStatus.city || "the district";
     const mib = (n: number) => (n / (1024 * 1024)).toFixed(1);
     if (mapStatus.phase === "download") {
       const known = (mapStatus.total ?? 0) > 0;
       return {
-        step: 1,
+        step: 2,
         label: `Downloading ${city}`,
         detail: known
           ? `${mib(mapStatus.bytes ?? 0)} of ${mib(mapStatus.total!)} MiB from OpenStreetMap`
@@ -114,13 +124,18 @@ export function splashStageFor(
         progress: known ? (mapStatus.bytes ?? 0) / mapStatus.total! : undefined,
       };
     }
-    if (mapStatus.phase === "parse") return { step: 1, label: `Validating ${city}`, detail: "Checking the downloaded map" };
-    return { step: 1, label: `Requesting ${city}`, detail: "Waiting for OpenStreetMap to prepare the extract" };
+    if (mapStatus.phase === "parse") return { step: 2, label: `Validating ${city}`, detail: "Checking the downloaded map" };
+    return { step: 2, label: `Requesting ${city}`, detail: "Waiting for OpenStreetMap to prepare the extract" };
   }
 
-  if (!connected) return { step: 0, label: "Connecting to the simulation", detail: clientStage || undefined };
-  if (lifecycle === "IDLE") return { step: 0, waiting: true, label: "Waiting for a simulation", detail: "Start a run from the DSTNS CLI." };
-  if (lifecycle === "PREPARING") return { step: 2, label: "Preparing world", detail: "Building the road graph, signals and schedules" };
-  if (/network|buildings/i.test(clientStage)) return { step: 3, label: "Loading network", detail: "Receiving roads and places" };
-  return { step: 0, label: "Connecting to the simulation" };
+  // What the core says its compile is doing, whether or not a map is moving.
+  const preparation = mapStatus?.preparation ?? "";
+  if (preparation === "selecting") return { step: 1, label: "Selecting world", detail: "Resolving the seed to a city district" };
+  if (preparation === "acquiring") return { step: 2, label: "Preparing map", detail: "Reading the district's map data" };
+  if (preparation === "building") return { step: 3, label: "Generating world", detail: "Building the road graph, signals and schedules" };
+
+  if (lifecycle === "IDLE") return { step: 1, waiting: true, label: "Waiting for a simulation", detail: "Start a run from the DSTNS CLI." };
+  if (lifecycle === "PREPARING") return { step: 3, label: "Generating world", detail: "Building the road graph, signals and schedules" };
+  if (/network|buildings/i.test(clientStage)) return { step: 4, label: "Initializing simulation", detail: "Receiving roads, places and the first state" };
+  return { step: 4, label: "Initializing simulation", detail: clientStage || undefined };
 }

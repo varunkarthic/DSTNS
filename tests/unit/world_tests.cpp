@@ -204,6 +204,45 @@ int main() {
         std::filesystem::remove(pinned);
     }
 
+    std::cout << "regeneration lifecycle\n";
+    {
+        SimulationEngine engine(logger);
+        engine.start(seed, fixture());
+        check(lifecycle(engine) == "RUNNING", "the world is running before the request");
+        engine.regenerate_world();
+        // The world being replaced stops advancing the moment it is replaced,
+        // so nothing is computed against a world on its way out.
+        check(lifecycle(engine) == "PAUSED" || lifecycle(engine) == "PREPARING",
+              "requesting a new world pauses the current one");
+        const auto at_request = virtual_s(engine);
+
+        // Backpressure cannot build up across the swap: reports that would
+        // otherwise look like a badly lagging observer are not counted while
+        // the replacement is being prepared.
+        int reported = 0;
+        bool stayed_normal = true, never_suspended = true, never_locked = true;
+        while (engine.world_generating()) {
+            auto during = engine.report_backpressure(900.0, 5.0, 5.0);
+            ++reported;
+            stayed_normal = stayed_normal && during["state"] == "NORMAL";
+            never_suspended = never_suspended && during["gui_suspended"] == false;
+            never_locked = never_locked && during["rate_locked"] == false;
+        }
+        check(reported > 0, "the observer kept reporting while the world was prepared");
+        check(stayed_normal, "backpressure stays normal while a world is being prepared");
+        check(never_suspended, "the interface is not suspended by the swap");
+        check(never_locked, "the rate is not locked by the swap");
+
+        auto done = wait_for_world(engine);
+        check(done["state"] == "ready", "the replacement is installed");
+        check(lifecycle(engine) == "PAUSED", "the new world is left paused and ready");
+        check(virtual_s(engine) == 0, "the new world starts at the beginning of its day");
+        check(at_request >= 0, "the replaced world had advanced before it was paused");
+        auto after = engine.backpressure();
+        check(after["score"].get<double>() < 0.5, "the new world starts with a clear backpressure window");
+        engine.terminate();
+    }
+
     std::cout << "seed representation\n";
     {
         // The seed an operator types is a number, and the run is named by that

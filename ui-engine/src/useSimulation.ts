@@ -32,9 +32,21 @@ export function useSimulation(dwellMs = 7000) {
     async function refresh() {
       try {
         const sent = performance.now();
-        const [st, snap] = await Promise.all([api.status(), api.snapshot()]);
+        // Status first, and published as soon as it arrives. While the core is
+        // compiling a world there is no snapshot or topology to fetch yet, and
+        // the interface still has to be able to say what is happening.
+        const st = await api.status();
         if (cancelled) return;
         setLatencyMs(Math.round(performance.now() - sent));
+        setStatus(st);
+        if (["PREPARING", "ERROR"].includes(st.data.lifecycle)) {
+          setStage("Preparing the world");
+          setError("");
+          setLastUpdated(Date.now());
+          return;
+        }
+        const snap = await api.snapshot();
+        if (cancelled) return;
         if (st.run_id !== snap.run_id)
           throw new Error("Synchronizing a new simulation…");
         if (st.data.lifecycle === "IDLE" || !st.run_id) {
