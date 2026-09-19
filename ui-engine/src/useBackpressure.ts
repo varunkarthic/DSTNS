@@ -34,16 +34,13 @@ export function isBackpressure(value: unknown): value is Backpressure {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   const throughput = v.throughput as Record<string, unknown> | undefined;
+  const finite = (key: string) => typeof v[key] === "number" && Number.isFinite(v[key]);
   return (
     (v.state === "NORMAL" || v.state === "RESTRICTED" || v.state === "ASYNC") &&
-    typeof v.score === "number" &&
-    typeof v.gui_suspended === "boolean" &&
-    typeof v.rate_locked === "boolean" &&
-    typeof v.applied_tick_rate === "number" &&
-    !!throughput &&
-    typeof throughput.snapshots_per_s === "number" &&
-    typeof throughput.bytes_per_s === "number" &&
-    Array.isArray(v.actions)
+    ["score", "applied_tick_rate", "requested_tick_rate", "rate_cap", "stressed_for_s", "state_for_s"].every(finite) &&
+    ["synced", "gui_suspended", "rate_locked", "motion_locked", "rate_capped"].every(key => typeof v[key] === "boolean") &&
+    !!throughput && Number.isFinite(throughput.snapshots_per_s) && Number.isFinite(throughput.bytes_per_s) &&
+    Array.isArray(v.actions) && v.actions.every(a => a && typeof a.action === "string" && Number.isFinite(a.at_s))
   );
 }
 
@@ -54,20 +51,34 @@ export function useBackpressure(options: {
   renderedVirtualSecond: number;
   /** Virtual second the core reports it is at. */
   coreVirtualSecond: number;
-  /** Whether a run is live; there is nothing to synchronize otherwise. */
+  /**
+   * When the observer last received fresh simulation data, as a
+   * `performance.now()` timestamp. This is the staleness signal: an interface
+   * whose data has stopped arriving is desynchronized by definition, which is
+   * exactly the case ASB exists to catch.
+   */
+  lastDataAt: number;
+  /**
+   * Whether there is a run to synchronize with. Deliberately *not* "is the
+   * data currently valid": reporting must continue while data is stale, or
+   * backpressure would switch itself off in the one situation it is for.
+   */
   active: boolean;
+  runId?: string;
 }): BackpressureClient {
-  const { enabled, intervalMs, renderedVirtualSecond, coreVirtualSecond, active } = options;
+  const { enabled, intervalMs, renderedVirtualSecond, coreVirtualSecond, lastDataAt, active, runId } =
+    options;
   const [asb, setAsb] = useState<Backpressure | null>(IDLE);
   const [resetToken, setResetToken] = useState(0);
 
   // Rolling frame cost, sampled from animation frames the browser is already
   // producing. A starved tab reports long frames even when its lag looks small.
   const frameCost = useRef(0.016);
-  const lastPoll = useRef(performance.now());
   // Inputs are read inside the interval, so they must not restart it.
   const lag = useRef(0);
   lag.current = Math.max(0, coreVirtualSecond - renderedVirtualSecond);
+  const freshAt = useRef(lastDataAt);
+  freshAt.current = lastDataAt;
 
   useEffect(() => {
     let raf = 0;
@@ -77,7 +88,7 @@ export function useBackpressure(options: {
       previous = now;
       // Exponential mean: responsive to a sustained stall, unmoved by one
       // slow frame caused by something outside the app.
-      if (delta > 0 && delta < 5) frameCost.current = frameCost.current * 0.85 + delta * 0.15;
+      if (delta > 0) frameCost.current = frameCost.current * 0.85 + Math.min(delta, 30) * 0.15;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -89,6 +100,8 @@ export function useBackpressure(options: {
   const lastAction = useRef<number>(-1);
 
   useEffect(() => {
+    lastAction.current = -1;
+    setAsb(IDLE);
     if (!enabled || !active) {
       setAsb(IDLE);
       return;
@@ -97,11 +110,12 @@ export function useBackpressure(options: {
     let timer: ReturnType<typeof setTimeout>;
 
     const report = async () => {
-      const now = performance.now();
-      const sincePoll = (now - lastPoll.current) / 1000;
+      // Seconds since fresh simulation data last arrived. Measured against the
+      // data feed, not against this reporter's own success: backpressure POSTs
+      // can keep succeeding long after snapshots have stopped.
+      const sinceData = Math.max(0, (performance.now() - freshAt.current) / 1000);
       try {
-        const next = await api.backpressure(lag.current, frameCost.current, sincePoll);
-        lastPoll.current = performance.now();
+        const next = await api.backpressure(lag.current, frameCost.current, sinceData);
         if (cancelled) return;
         if (!isBackpressure(next)) return;
         setAsb(next);
@@ -124,7 +138,7 @@ export function useBackpressure(options: {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [enabled, active, intervalMs]);
+  }, [enabled, active, intervalMs, runId]);
 
   return { asb, resetToken };
 }

@@ -1,16 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { Envelope, News, Snapshot, Status, Topology } from "./types";
-export function useSimulation() {
+export function useSimulation(dwellMs = 7000) {
   const [status, setStatus] = useState<Envelope<Status> | null>(null),
     [snapshot, setSnapshot] = useState<Envelope<Snapshot> | null>(null),
     [topology, setTopology] = useState<Topology | null>(null);
   const [error, setError] = useState(""),
     [stage, setStage] = useState("Connecting to simulation…"),
     [lastUpdated, setLastUpdated] = useState(0),
+    // performance.now() alongside it: a monotonic clock, so a system time
+    // change cannot make freshly arrived data look ancient.
+    [lastDataAt, setLastDataAt] = useState(() => performance.now()),
     [now, setNow] = useState(Date.now());
   const [news, setNews] = useState<News[]>([]),
     [toasts, setToasts] = useState<News[]>([]);
+  const receivedAt = useRef(new Map<number, number>());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -20,7 +24,8 @@ export function useSimulation() {
       timer: ReturnType<typeof setTimeout>,
       run = "",
       since = 0,
-      initial = true;
+      initial = true,
+      lastVirtual = -1;
     async function refresh() {
       try {
         const [st, snap] = await Promise.all([api.status(), api.snapshot()]);
@@ -38,7 +43,9 @@ export function useSimulation() {
           initial = true;
           setNews([]);
           setToasts([]);
+          receivedAt.current.clear();
           setLastUpdated(Date.now());
+          setLastDataAt(performance.now());
         } else {
           if (
             !Array.isArray(snap.data.edges) ||
@@ -67,7 +74,23 @@ export function useSimulation() {
             initial = true;
             setNews([]);
             setToasts([]);
+            receivedAt.current.clear();
           }
+          // Publish fresh simulation data independently of the auxiliary news feed.
+          setStatus(st);
+          setSnapshot(snap);
+          setLastUpdated(Date.now());
+          setLastDataAt(performance.now());
+          setStage("");
+          setError("");
+          if (snap.clock.virtual_day_seconds < lastVirtual) {
+            since = 0;
+            initial = true;
+            setNews([]);
+            setToasts([]);
+            receivedAt.current.clear();
+          }
+          lastVirtual = snap.clock.virtual_day_seconds;
           const messages = await api.news(since);
           if (cancelled) return;
           if (messages.run_id === run) {
@@ -82,20 +105,18 @@ export function useSimulation() {
                   "FLOOD_STARTED",
                 ].includes(n.template_id),
               );
-              if (important.length)
-                setToasts((old) =>
-                  [...important.slice(-3), ...old].slice(0, 3),
-                );
+              // Keep the burst intact: grouping collapses it for display, so
+              // truncating here would throw away the count before it is shown.
+              if (important.length) {
+                for (const n of important)
+                  if (!receivedAt.current.has(n.news_id)) receivedAt.current.set(n.news_id, performance.now());
+                setToasts((old) => mergeNews(important, old, 200));
+              }
             }
-            setNews((old) => [...items.reverse(), ...old].slice(0, 200));
+            setNews((old) => mergeNews(items, old, 200));
             since = Math.max(since, ...items.map((n) => n.news_id));
             initial = false;
           }
-          setStatus(st);
-          setSnapshot(snap);
-          setLastUpdated(Date.now());
-          setStage("");
-          setError("");
         }
       } catch (e) {
         if (!cancelled)
@@ -112,9 +133,14 @@ export function useSimulation() {
   }, []);
   useEffect(() => {
     if (!toasts.length) return;
-    const timer = setTimeout(() => setToasts([]), 7000);
+    const nextExpiry = Math.min(...toasts.map(n => (receivedAt.current.get(n.news_id) ?? 0) + dwellMs));
+    const timer = setTimeout(() => {
+      const now = performance.now();
+      setToasts(old => old.filter(n => now < (receivedAt.current.get(n.news_id) ?? 0) + dwellMs));
+      for (const [id, at] of receivedAt.current) if (now >= at + dwellMs) receivedAt.current.delete(id);
+    }, Math.max(0, nextExpiry - performance.now()));
     return () => clearTimeout(timer);
-  }, [toasts]);
+  }, [toasts, dwellMs]);
   return {
     status,
     snapshot,
@@ -122,10 +148,22 @@ export function useSimulation() {
     error,
     stage,
     lastUpdated,
+    lastDataAt,
     stale: !!lastUpdated && now - lastUpdated > 5000,
     news,
     toasts,
     dismissToast: (id: number) =>
       setToasts((old) => old.filter((n) => n.news_id !== id)),
+    /** Dismiss a whole group at once. */
+    dismissToasts: (ids: number[]) => {
+      const drop = new Set(ids);
+      setToasts((old) => old.filter((n) => !drop.has(n.news_id)));
+    },
   };
+}
+
+/** Stable identity and bounded history even if a poll repeats messages. */
+export function mergeNews(incoming: News[], previous: News[], limit: number): News[] {
+  return [...new Map([...previous, ...incoming].map(n => [n.news_id, n])).values()]
+    .sort((a, b) => b.news_id - a.news_id).slice(0, limit);
 }

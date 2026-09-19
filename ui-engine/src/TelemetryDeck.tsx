@@ -17,13 +17,13 @@ type Props = {
   snapshot: Snapshot | null;
   topology: Topology | null;
   congestion: Congestion | undefined;
-  history: Congestion | null;
   news: News[];
   connected: boolean;
   virtualTime: number;
   runId: string;
   /** Live backpressure, shown as its own pipeline stage. */
   asb: Backpressure | null;
+  tutorialTarget?: string;
 };
 
 /** Events the operator should see as incidents rather than routine traffic news. */
@@ -59,16 +59,17 @@ export function TelemetryDeck({
   snapshot,
   topology,
   congestion,
-  history,
   news,
   connected,
   virtualTime,
   runId,
   asb,
+  tutorialTarget,
 }: Props) {
   const [tab, setTab] = useState<
     "stack" | "events" | "queue" | "incidents"
   >("stack");
+  useEffect(() => { if (tutorialTarget === "asb") setTab("stack"); }, [tutorialTarget]);
   // The scheduled-event queue is paged server-side; only poll the open tab.
   const [queueView, setQueueView] = useState<"future" | "history">("future");
   const [queueCategory, setQueueCategory] = useState("all");
@@ -119,7 +120,6 @@ export function TelemetryDeck({
     () => rainfallSummary(snapshot?.active_weather ?? []),
     [snapshot],
   );
-  const baseline = history?.average ?? congestion?.average ?? 0;
 
   // "Stack" mirrors the alpha's pipeline view: what the core is doing right now.
   const stack = useMemo(
@@ -197,7 +197,7 @@ export function TelemetryDeck({
   );
 
   return (
-    <aside className="telemetry-deck glass" aria-label="Live telemetry">
+    <aside data-tutorial="telemetry" className="telemetry-deck glass" aria-label="Live telemetry">
       <div className="deck-header">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span className="live-dot" aria-hidden="true">
@@ -252,7 +252,7 @@ export function TelemetryDeck({
           </div>
         </div>
 
-        <div className="metric">
+        <div className="metric" data-tutorial="weather">
           <div className="metric-top">
             <span>Weather Cell</span>
           </div>
@@ -262,45 +262,35 @@ export function TelemetryDeck({
           </div>
         </div>
 
-        <div className="metric wide">
+        <div className="metric wide" data-tutorial="congestion">
           <div className="metric-top">
             <span>Congestion Index</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span
-                className="mono"
-                style={{
-                  fontSize: 18,
-                  fontWeight: 600,
-                  color: "var(--secondary)",
-                }}
-              >
-                {congestion ? `${congestion.current.toFixed(0)}%` : "—"}
-              </span>
-              {congestion && (
-                <span className="tag mint">
-                  {congestion.delta >= 0 ? "↑" : "↓"}{" "}
-                  {Math.abs(congestion.delta).toFixed(1)} pp
-                </span>
-              )}
-            </div>
+            <span
+              className="mono"
+              style={{ fontSize: 18, fontWeight: 600, color: "var(--secondary)" }}
+            >
+              {congestion ? `${congestion.current.toFixed(0)}%` : "—"}
+            </span>
           </div>
           <Tooltip
             info={{
               title: "Congestion model",
               category: "Analytics",
               description:
-                "Speed loss (60%), queue ratio (25%) and occupancy (15%). Network weighted by road length × lanes. The marker is the 15-minute virtual-time moving average.",
+                "Speed loss (60%), queue ratio (25%) and occupancy (15%), weighted by road length × lanes. This is the network's state right now — no smoothing, no moving average, so what is shown is what the model computed for this instant.",
             }}
           >
+            {/* Reports the instant, nothing else. A smoothed companion invited
+                the reading that congestion was "above" or "below" some norm,
+                which the model does not claim to know. */}
             <div className="meter" role="img" aria-label="Congestion index">
               <i style={{ width: `${Math.min(100, congestion?.current ?? 0)}%` }} />
-              <b style={{ left: `${Math.min(100, baseline)}%` }} />
             </div>
           </Tooltip>
         </div>
       </div>
 
-      <div className="tab-row" role="tablist" aria-label="Telemetry detail">
+      <div data-tutorial="events" className="tab-row" role="tablist" aria-label="Telemetry detail">
         {(
           [
             ["stack", "Stack", 0],
@@ -338,7 +328,7 @@ export function TelemetryDeck({
       <div className="stream" role="tabpanel">
         {tab === "stack" &&
           stack.map((row) => (
-            <div key={row.key} className="stream-card active">
+            <div key={row.key} data-tutorial={row.key === "asb" ? "asb" : undefined} className="stream-card active">
               <div className="stream-head">
                 <div className="stream-title">
                   <span className={`badge ${row.tone}`} aria-hidden="true">

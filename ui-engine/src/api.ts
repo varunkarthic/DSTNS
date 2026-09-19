@@ -49,6 +49,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return result as T;
 }
+export type PlaybackGuard = { expected_run_id?: string; expected_playback_revision?: number; require_asb_normal?: boolean };
 export const api = {
   status: () => request<Envelope<Status>>("/api/v1/playback/status"),
   topology: () => request<Envelope<Topology>>("/api/v1/view/topology"),
@@ -62,9 +63,9 @@ export const api = {
       `/api/v1/view/event-queue?view=${encodeURIComponent(view)}&category=${encodeURIComponent(category)}&offset=${offset}&limit=30`,
     ),
   congestion: () => request<Envelope<Congestion>>("/api/v1/view/congestion"),
-  pause: () =>
-    request("/api/v1/playback/pause", { method: "POST", body: "{}" }),
-  play: () => request("/api/v1/playback/play", { method: "POST", body: "{}" }),
+  pause: (guard: PlaybackGuard = {}) =>
+    request<{ changed: boolean; playback_revision: number; run_id: string }>("/api/v1/playback/pause", { method: "POST", body: JSON.stringify(guard) }),
+  play: (guard: PlaybackGuard = {}) => request("/api/v1/playback/play", { method: "POST", body: JSON.stringify(guard) }),
   tick: (tick_rate: number) =>
     request("/api/v1/control/tick-rate", {
       method: "PUT",

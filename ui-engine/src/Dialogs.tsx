@@ -103,9 +103,11 @@ export function AboutCard({
   return (
     <Scrim onClose={onClose} labelledBy="about-title" closing={closing}>
       <div className="about-head">
-        <Logo size={48} />
         <div>
-          <h2 id="about-title">DSTNS</h2>
+          <h2 id="about-title" className="sr-only">
+            DSTNS
+          </h2>
+          <Logo height={30} />
           <p>Deterministic Spatiotemporal Transport Network Simulator</p>
           <span className="chip">v{version}</span>
         </div>

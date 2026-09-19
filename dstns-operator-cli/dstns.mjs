@@ -428,8 +428,8 @@ function validateConfig(cfg) {
   if (!Number.isInteger(duration) || duration < 60 || duration > 3600) {
     throw new Error('playback.duration_seconds must be an integer in [60, 3600]')
   }
-  if (!Number.isFinite(tick) || tick <= 0 || tick > 100) {
-    throw new Error('playback.tick_rate must be in (0, 100]')
+  if (!Number.isFinite(tick) || tick <= 0 || tick > 5) {
+    throw new Error('playback.tick_rate must be in (0, 5]')
   }
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('api.port must be an integer in [1, 65535]')
@@ -1017,7 +1017,7 @@ async function editConfig() {
     const cfg = await loadConfig()
     const CONFIG_ITEMS = [
       { id: 'duration', label: `Playback Duration (${cfg.playback.duration_seconds}s)`, description: 'Configured duration in seconds [60–3600]' },
-      { id: 'tick', label: `Tick Rate (${cfg.playback.tick_rate} Hz)`, description: 'Simulation frequency in Hertz (0, 100]' },
+      { id: 'tick', label: `Playback rate (${cfg.playback.tick_rate}×)`, description: 'Playback multiplier (0, 5]' },
       { id: 'host', label: `API Host (${cfg.api.host})`, description: 'Bind network interface (e.g. 127.0.0.1)' },
       { id: 'port', label: `API Port (${cfg.api.port})`, description: 'Network listening port [1–65535]' },
       { id: 'back', label: 'Done (Return to Dashboard)', description: 'Finish configuring and return to main menu' },
@@ -1036,7 +1036,7 @@ async function editConfig() {
           `  ${c.bold(c.cyan('CURRENT SETTINGS'))}`,
           c.dim('  ──────────────────────────────────────────────────────────────────────────'),
           `  ●  ${c.bold('Duration  ')} ${String(cfg.playback.duration_seconds).padEnd(10)} ${c.dim('seconds per simulation cycle [60–3600]')}`,
-          `  ●  ${c.bold('Tick Rate ')} ${String(cfg.playback.tick_rate).padEnd(10)} ${c.dim('simulation update frequency in Hz (0, 100]')}`,
+          `  ●  ${c.bold('Tick Rate ')} ${String(cfg.playback.tick_rate).padEnd(10)} ${c.dim('playback multiplier (0, 5]')}`,
           `  ●  ${c.bold('API Host  ')} ${String(cfg.api.host).padEnd(10)} ${c.dim('listening address')}`,
           `  ●  ${c.bold('API Port  ')} ${String(cfg.api.port).padEnd(10)} ${c.dim('REST API port [1–65535]')}`,
           c.dim('  ──────────────────────────────────────────────────────────────────────────'),
@@ -1061,14 +1061,14 @@ async function editConfig() {
       }
       await pressEnter()
     } else if (choice.id === 'tick') {
-      const val = await promptText('Enter new tick rate (Hz)', String(cfg.playback.tick_rate))
+      const val = await promptText('Enter playback multiplier', String(cfg.playback.tick_rate))
       const num = Number(val)
-      if (Number.isFinite(num) && num > 0 && num <= 100) {
+      if (Number.isFinite(num) && num > 0 && num <= 5) {
         cfg.playback.tick_rate = num
         await writeFile(CONFIG, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8')
-        ui.logger.success('Tick rate updated', { suffix: `${num} Hz` })
+        ui.logger.success('Tick rate updated', { suffix: `${num}×` })
       } else {
-        ui.logger.error(new Error('Invalid tick rate: must be in (0, 100]'))
+        ui.logger.error(new Error('Invalid tick rate: must be in (0, 5]'))
       }
       await pressEnter()
     } else if (choice.id === 'host') {
@@ -1682,11 +1682,12 @@ async function runConfig(options) {
   if (options['osm-file']) config.map.osm_file = path.resolve(ROOT, options['osm-file'])
   if (config.map.osm_file !== 'auto' && !existsSync(config.map.osm_file)) throw new Error('OSM data unavailable; provide --osm-file PATH')
   if (options['day-type']) config.day = options['day-type'] === 'weekend' ? 1 : 0
-  for (const [arg,key,min,max] of [['duration','playback_duration_seconds',60,3600],['speed','tick_rate',0.01,100],['max-nodes','max_nodes',2,50000]]) {
+  for (const [arg,key,min,max] of [['duration','playback_duration_seconds',60,3600],['speed','tick_rate',0.01,5],['max-nodes','max_nodes',2,50000]]) {
     if (!options[arg]) continue
     const v = Number(options[arg]); if (!Number.isFinite(v) || v < min || v > max || (arg !== 'speed' && !Number.isInteger(v))) throw new Error(`--${arg} must be in [${min},${max}]`)
     if (arg === 'max-nodes') config.map.max_nodes=v; else config[key]=v
   }
+  if (typeof config.tick_rate !== 'number' || !Number.isFinite(config.tick_rate) || config.tick_rate <= 0 || config.tick_rate > 5) throw new Error('tick_rate must be in (0, 5]')
   return config
 }
 

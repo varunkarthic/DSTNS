@@ -115,6 +115,7 @@ SimulationEngine::~SimulationEngine() {
 void SimulationEngine::transition(Lifecycle next) {
     const auto old = lifecycle_;
     lifecycle_ = next;
+    ++playback_revision_;
     logger_.lifecycle(run_id_, to_string(old), to_string(next), graph_ ? graph_->state_revision() : 0);
 }
 
@@ -331,21 +332,40 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
     }
 }
 
-nlohmann::json SimulationEngine::pause() {
+void SimulationEngine::check_playback_guard(const nlohmann::json& guard) const {
+    if (guard.is_null()) return;
+    if (!guard.is_object()) throw std::invalid_argument("playback guard must be an object");
+    if (guard.contains("expected_playback_revision") && !guard.at("expected_playback_revision").is_number_unsigned())
+        throw std::invalid_argument("expected_playback_revision must be a non-negative integer");
+    if (guard.contains("expected_run_id") && guard.at("expected_run_id").get<std::string>() != run_id_)
+        throw std::logic_error("run changed; playback action cancelled");
+    if (guard.contains("expected_playback_revision") && guard.at("expected_playback_revision") != playback_revision_)
+        throw std::logic_error("playback changed; action cancelled");
+    if (guard.value("require_asb_normal", false) && asb_.state() != AsbState::Normal)
+        throw std::logic_error("ASB intervention prevents automatic playback restoration");
+}
+
+nlohmann::json SimulationEngine::pause(const nlohmann::json& guard) {
     std::lock_guard lock(mutex_);
-    if (lifecycle_ == Lifecycle::Paused) return {{"changed", false}, {"lifecycle", "PAUSED"}};
+    check_playback_guard(guard);
+    if (lifecycle_ == Lifecycle::Paused) {
+        if (guard.empty()) ++playback_revision_; // An explicit pause supersedes a tutorial's lease.
+        return {{"changed", false}, {"lifecycle", "PAUSED"}, {"playback_revision", playback_revision_}, {"run_id", run_id_}};
+    }
     if (lifecycle_ != Lifecycle::Running) throw std::logic_error("simulation is not running");
     transition(Lifecycle::Paused);
     return {
         {"changed", true},
         {"lifecycle", "PAUSED"},
+        {"playback_revision", playback_revision_}, {"run_id", run_id_},
         {"simulated_seconds", virtual_s_},
         {"state_revision", graph_->state_revision()}
     };
 }
 
-nlohmann::json SimulationEngine::play() {
+nlohmann::json SimulationEngine::play(const nlohmann::json& guard) {
     std::lock_guard lock(mutex_);
+    check_playback_guard(guard);
     if (lifecycle_ == Lifecycle::Running) return {{"changed", false}, {"lifecycle", "RUNNING"}};
     if (lifecycle_ != Lifecycle::Paused) {
         throw std::logic_error("simulation cannot play from current lifecycle");
@@ -384,6 +404,8 @@ nlohmann::json SimulationEngine::reset() {
     next_news_id_ = 1;
     next_event_id_ = 1'000'000;
     config_revision_ = 0;
+    asb_.reset();
+    tick_rate_ = requested_tick_rate_ = 1.0;
     transition(Lifecycle::Idle);
     return {{"ok", true}, {"lifecycle", "IDLE"}};
 }
@@ -483,19 +505,20 @@ nlohmann::json SimulationEngine::backpressure_json() const {
 
 nlohmann::json SimulationEngine::set_tick_rate(double v) {
     std::lock_guard lock(mutex_);
-    if (!std::isfinite(v) || v <= 0 || v > 50) throw std::invalid_argument("tick_rate must be finite and in (0,50]");
+    if (!std::isfinite(v) || v <= 0 || v > 5) throw std::invalid_argument("tick_rate must be finite and in (0,5]");
     if (lifecycle_ == Lifecycle::Running) {
         const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
         step_to(std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(elapsed * (day_s / double(graph_->scenario().config.playback_duration_s)) * tick_rate_)));
     }
     const auto old = tick_rate_;
+    const auto old_request = requested_tick_rate_;
     requested_tick_rate_ = v;
     // ASB may hold the applied rate below the request while the observer is
     // behind. The request is remembered so the rate returns on its own once
     // synchronization recovers, rather than needing the operator to re-ask.
     tick_rate_ = asb_.govern_tick_rate(v, asb_now());
     ++config_revision_;
-    auto& c = record("tick_rate", {{"tick_rate", old}}, {{"tick_rate", tick_rate_}});
+    auto& c = record("tick_rate", {{"tick_rate", old_request}}, {{"tick_rate", requested_tick_rate_}});
     anchor_wall_clock();
     return {
         {"command_id", c.id},
@@ -504,7 +527,7 @@ nlohmann::json SimulationEngine::set_tick_rate(double v) {
         {"requested_tick_rate", v},
         {"rate_governed_by_asb", tick_rate_ < v},
         {"base_rate", graph_ ? day_s / double(graph_->scenario().config.playback_duration_s) : 0},
-        {"target_virtual_rate", graph_ ? day_s / double(graph_->scenario().config.playback_duration_s) * v : 0}
+        {"target_virtual_rate", graph_ ? day_s / double(graph_->scenario().config.playback_duration_s) * tick_rate_ : 0}
     };
 }
 
@@ -599,8 +622,8 @@ nlohmann::json SimulationEngine::override_edge(EdgeId id, double sm, double cm, 
 void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
     const auto& v = forward ? c.after : c.before;
     if (c.type == "tick_rate") {
-        tick_rate_ = v.at("tick_rate");
-        requested_tick_rate_ = tick_rate_;
+        requested_tick_rate_ = v.at("tick_rate");
+        tick_rate_ = asb_.govern_tick_rate(requested_tick_rate_, asb_now());
         anchor_wall_clock();
     } else if (c.type == "day") {
         const_cast<ScenarioConfig&>(graph_->scenario().config).day = v.at("day");
@@ -999,6 +1022,7 @@ nlohmann::json SimulationEngine::status() const {
     std::lock_guard lock(mutex_);
     return envelope({
         {"lifecycle", to_string(lifecycle_)},
+        {"playback_revision", playback_revision_},
         {"run_id", run_id_},
         {"day", graph_ ? graph_->scenario().config.day : -1},
         {"saved_seed_id", graph_ ? graph_->scenario().config.saved_seed_id : ""},
@@ -1757,6 +1781,7 @@ nlohmann::json SimulationEngine::global_view() const {
         {"product", "Deterministic Simulated Environment"},
         {"version", "1.0.0"},
         {"lifecycle", to_string(lifecycle_)},
+        {"playback_revision", playback_revision_},
         {"run_id", run_id_},
         {"global_seed", sc.seed.hex()},
         {"state_revision", graph_->state_revision()},

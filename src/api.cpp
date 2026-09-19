@@ -370,8 +370,8 @@ void ApiServer::routes() {
         auto res = engine_.start(seed, c, start);
         send(r, res, 202);
     });
-    server_->Post("/api/v1/playback/pause", [this](const auto&, auto& r) { send(r, engine_.pause()); });
-    server_->Post("/api/v1/playback/play", [this](const auto&, auto& r) { send(r, engine_.play()); });
+    server_->Post("/api/v1/playback/pause", [this](const auto& req, auto& r) { send(r, engine_.pause(body(req))); });
+    server_->Post("/api/v1/playback/play", [this](const auto& req, auto& r) { send(r, engine_.play(body(req))); });
     server_->Post("/api/v1/playback/stop", [this](const auto&, auto& r) { send(r, engine_.stop()); });
     server_->Post("/stop", [this](const auto&, auto& r) { send(r, engine_.stop()); });
     server_->Post("/api/v1/playback/reset", [this](const auto&, auto& r) { send(r, engine_.reset()); });

@@ -9,6 +9,9 @@ import { Logo } from "./Logo";
 import { Splash, splashStageFor } from "./Splash";
 import { AboutCard, AutoFocusPrompt, ConfirmCard, SuspendedOverlay } from "./Dialogs";
 import { Tooltip } from "./Tooltip";
+import { Tutorial } from "./Tutorial";
+import { useTutorial } from "./useTutorial";
+import { Notifications } from "./Notifications";
 import { useSimulation } from "./useSimulation";
 import { useBackpressure, describeAsb, formatRate } from "./useBackpressure";
 import { api } from "./api";
@@ -35,10 +38,11 @@ const VERSION = "2.0.0";
 type DialogKind = "about" | "reset" | "terminate" | "auto-focus" | null;
 
 export default function App() {
-  const sim = useSimulation();
 
   // ---- Configuration ----------------------------------------------------
   const [config, setConfig] = useState<UiConfig>(BUILT_IN);
+  const sim = useSimulation(config.notifications.dwell_ms);
+  const [operatorConfig, setOperatorConfig] = useState<UiConfig>(BUILT_IN);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [layers, setLayers] = useState<Layers>(BUILT_IN.layers);
   const [motionChoice, setMotionChoice] = useState(() =>
@@ -49,9 +53,10 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    void loadConfig().then(({ config: resolved }) => {
+    void loadConfig().then(({ config: resolved, operator }) => {
       if (cancelled) return;
       setConfig(resolved);
+      setOperatorConfig(operator);
       setLayers(resolved.layers);
       setMotionChoice(resolveReduceMotion(resolved.reduce_motion));
       setDnd(resolved.notifications.dnd);
@@ -63,15 +68,15 @@ export default function App() {
     };
   }, []);
 
-  // Persist the viewer's choices as deltas from the built-in defaults, so a
+  // Persist the viewer's choices as deltas from the operator defaults, so a
   // later edit to config/ui-config.json still reaches fields they never touched.
   const persist = useCallback((patch: Partial<UiConfig>) => {
     setConfig((current) => {
       const next = { ...current, ...patch };
-      writeOverrides(next, BUILT_IN);
+      writeOverrides(next, operatorConfig);
       return next;
     });
-  }, []);
+  }, [operatorConfig]);
 
   // ---- Shell state ------------------------------------------------------
   const [layersOpen, setLayersOpen] = useState(false);
@@ -109,12 +114,24 @@ export default function App() {
     intervalMs: config.asb.report_interval_ms,
     renderedVirtualSecond: sim.snapshot?.clock.virtual_day_seconds ?? 0,
     coreVirtualSecond: sim.status?.clock.virtual_day_seconds ?? 0,
-    active: valid && !!sim.topology,
+    lastDataAt: sim.lastDataAt,
+    // A run exists, so keep reporting even while its data is stale - that is
+    // precisely the condition backpressure is meant to detect and act on.
+    active: !!runId && !["IDLE", "TERMINATING"].includes(lifecycle),
+    runId,
   });
   const suspended = asb?.gui_suspended === true;
   const rateLocked = asb?.rate_locked === true;
   const motionLocked = asb?.motion_locked === true;
   const reduceMotion = motionChoice || motionLocked;
+
+  const [tutorialTarget, setTutorialTarget] = useState("");
+  const [telemetryOpen, setTelemetryOpen] = useState(false);
+  const tutorial = useTutorial({
+    config: config.tutorial, ready: configLoaded && valid && !!sim.topology && ["RUNNING", "PAUSED"].includes(lifecycle),
+    runId, suspended: suspended || rateLocked, playbackRevision: status?.playback_revision,
+    blocked: !!dialog || layersOpen || pending, onError: setActionError,
+  });
 
   // ASB's default state: strip the presentation back to a minimum and soft
   // restart, as a Ctrl+R would, without reloading the page itself.
@@ -133,13 +150,19 @@ export default function App() {
     setDialog(null);
     mapControls.current?.fit();
   }, []);
+  const beforeAsbLayers = useRef<Layers | null>(null);
   const seenReset = useRef(resetToken);
   useEffect(() => {
     if (resetToken !== seenReset.current) {
       seenReset.current = resetToken;
+      if (!beforeAsbLayers.current) beforeAsbLayers.current = layers;
       softReset();
     }
-  }, [resetToken, softReset]);
+    if (asb?.state === "NORMAL" && asb.synced && !asb.rate_capped && beforeAsbLayers.current) {
+      setLayers(beforeAsbLayers.current);
+      beforeAsbLayers.current = null;
+    }
+  }, [resetToken, softReset, asb?.state, asb?.synced, asb?.rate_capped, layers]);
 
   // ---- Auto-focus -------------------------------------------------------
   const mode = config.auto_focus.mode;
@@ -173,12 +196,12 @@ export default function App() {
   // "enable" offers the choice once per run rather than deciding for the operator.
   useEffect(() => {
     if (mode !== "enable" || !configLoaded) return;
-    if (!runId || !sim.topology || suspended) return;
+    if (!runId || !sim.topology || suspended || tutorial.busy || dialog) return;
     if (promptedRun === runId) return;
     setPromptedRun(runId);
     rememberAnswer(runId);
     setDialog((current) => current ?? "auto-focus");
-  }, [mode, configLoaded, runId, sim.topology, suspended, promptedRun, rememberAnswer]);
+  }, [mode, configLoaded, runId, sim.topology, suspended, promptedRun, rememberAnswer, tutorial.busy, dialog]);
 
   const focusTargets = useMemo(() => {
     const snap = sim.snapshot?.data;
@@ -214,7 +237,7 @@ export default function App() {
   useEffect(() => setFocusIndex(0), [focusKeys]);
   useEffect(() => {
     // Round-Robin cycles; Latest stays on the newest, so it needs no timer.
-    if (!autoFocus || config.auto_focus.strategy !== "round-robin") return;
+    if (tutorial.busy || !autoFocus || config.auto_focus.strategy !== "round-robin") return;
     if (focusTargets.length < 2) return;
     const timer = setInterval(
       () => setFocusIndex((i) => (i + 1) % focusTargets.length),
@@ -223,6 +246,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [
     autoFocus,
+    tutorial.busy,
     config.auto_focus.strategy,
     config.auto_focus.dwell_seconds,
     focusTargets.length,
@@ -377,18 +401,34 @@ export default function App() {
   const showSplash = !splashDismissed && !!splashStage && !sim.error;
 
   return (
+    <>
     <div
-      className={`app-shell ${reduceMotion ? "reduce-motion" : ""}${suspended ? " suspended-shell" : ""}`}
+      inert={tutorial.active || undefined}
+      data-tour-target={tutorial.active ? tutorialTarget : undefined}
+      className={`app-shell ${reduceMotion ? "reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}`}
     >
-      <header className="app-header">
-        <div className="brand">
-          <Logo size={30} />
-          <div>
-            <h1>DSTNS</h1>
-            <p>Deterministic Spatiotemporal Transport Network Simulator</p>
-          </div>
+      {/* Item 4: Restricted and Async are session-wide conditions, so they are
+          announced across the top of the interface, not tucked into a chip. */}
+      {asb && asb.state !== "NORMAL" && (
+        <div className={`asb-banner ${asbInfo.tone}`} role="status">
+          <span className="asb-dot" aria-hidden="true" />
+          <strong>{asbInfo.label}</strong>
+          <span className="asb-detail">{asbInfo.detail}</span>
+          <span className="asb-figure mono">
+            {(asb.score * 100).toFixed(0)}% · {asb.applied_tick_rate}×
+          </span>
         </div>
-        <div className="header-actions">
+      )}
+      <header className="app-header" data-tutorial="header">
+        <div className="brand">
+          {/* The mark is a wordmark, so it replaces the title rather than
+              sitting beside a second copy of the same word. */}
+          <Logo height={22} title="DSTNS" />
+          <p>Deterministic Spatiotemporal Transport Network Simulator</p>
+        </div>
+        <div className="header-actions" data-tutorial="help">
+          <button className="btn telemetry-toggle" onClick={() => setTelemetryOpen(v => !v)} aria-pressed={telemetryOpen}>Telemetry</button>
+          {configLoaded && config.tutorial.enabled && <button className="btn" onClick={() => void tutorial.start()} disabled={!valid || tutorial.busy || suspended || rateLocked || pending || !!dialog || !["RUNNING", "PAUSED"].includes(lifecycle)} aria-label="Start tutorial">Tutorial</button>}
           {location?.city && (
             <Tooltip
               info={{
@@ -402,13 +442,7 @@ export default function App() {
               </span>
             </Tooltip>
           )}
-          {asb && asb.state !== "NORMAL" && (
-            <Tooltip
-              info={{ title: asbInfo.label, category: "Backpressure", description: asbInfo.detail }}
-            >
-              <span className={`chip asb ${asbInfo.tone}`}>{asbInfo.label}</span>
-            </Tooltip>
-          )}
+
           <button className="btn" onClick={report} disabled={!valid || pending || suspended}>
             <span aria-hidden="true">↓</span> <span>Export Report</span>
           </button>
@@ -425,7 +459,7 @@ export default function App() {
       </header>
 
       <main className="workspace">
-        <div className="map-layer">
+        <div className="map-layer" data-tutorial="map">
           <NetworkMap
             topology={sim.topology}
             snapshot={sim.snapshot?.data ?? null}
@@ -434,7 +468,7 @@ export default function App() {
             running={valid && lifecycle === "RUNNING" && !suspended}
             virtualTime={clock?.virtual_day_seconds ?? 0}
             tickRate={clock?.tick_rate ?? 1}
-            focus={manualFocus ?? focus}
+            focus={tutorial.busy ? null : manualFocus ?? focus}
             controls={mapControls}
             onView={setView}
             onCursor={setCursor}
@@ -466,7 +500,7 @@ export default function App() {
         {layersOpen && (
           <LayersPopover
             layers={layers}
-            defaults={config.layers}
+            defaults={operatorConfig.layers}
             onChange={changeLayers}
             onClose={() => setLayersOpen(false)}
             topology={sim.topology}
@@ -479,16 +513,16 @@ export default function App() {
           snapshot={sim.snapshot?.data ?? null}
           topology={sim.topology}
           congestion={congestion}
-          history={history}
           news={sim.news}
           connected={valid}
           virtualTime={clock?.virtual_day_seconds ?? 0}
           runId={runId}
           asb={asb}
+          tutorialTarget={tutorial.active ? tutorialTarget : ""}
         />
 
         <div className="bottom-stack">
-          <div className="map-hud">
+          <div className="map-hud" data-tutorial="hud">
             <div className="hud-chip">
               <span aria-hidden="true" className="accent">
                 ⌖
@@ -578,6 +612,7 @@ export default function App() {
 
             <button
               className={`btn pill${layersOpen ? " active" : ""}`}
+              data-tutorial="layers"
               data-layers-trigger
               aria-expanded={layersOpen}
               onClick={() => setLayersOpen((v) => !v)}
@@ -595,6 +630,8 @@ export default function App() {
             hour12={hour12}
             onHour12={changeHour12}
             rateLocked={rateLocked}
+            reduceMotion={reduceMotion}
+            requestedRate={asb?.requested_tick_rate}
             onPlayPause={() => action(lifecycle === "PAUSED" ? api.play : api.pause)}
             onSeek={(seconds) => action(() => api.seek(seconds))}
             onRate={(rate) => action(() => api.tick(rate))}
@@ -602,24 +639,15 @@ export default function App() {
           />
         </div>
 
-        {/* Notifications: silenced by DND, and never shown while suspended. */}
-        {!dnd && config.notifications.enabled && !suspended && (
-          <div className="toasts" aria-live="polite">
-            {sim.toasts.slice(0, config.notifications.max_visible).map((n) => (
-              <article className="toast glass" key={n.news_id}>
-                <div>
-                  <span className="eyebrow">{n.category}</span>
-                  <button
-                    aria-label="Dismiss notification"
-                    onClick={() => sim.dismissToast(n.news_id)}
-                  >
-                    ×
-                  </button>
-                </div>
-                <p>{n.message.replace(/^\[.*?\]\s*/, "")}</p>
-              </article>
-            ))}
-          </div>
+        {/* Notifications: grouped by kind, silenced by DND, never shown while
+            suspended. */}
+        {!dnd && config.notifications.enabled && !suspended && !tutorial.active && (
+          <Notifications
+            items={sim.toasts}
+            maxVisible={config.notifications.max_visible}
+            onDismiss={sim.dismissToasts}
+            reduceMotion={reduceMotion}
+          />
         )}
 
         {(sim.error || sim.stale || actionError) && !suspended && (
@@ -703,5 +731,7 @@ export default function App() {
         )}
       </main>
     </div>
+    {tutorial.active && <Tutorial onClose={() => void tutorial.finish()} reduceMotion={reduceMotion} onTarget={setTutorialTarget} />}
+    </>
   );
 }
