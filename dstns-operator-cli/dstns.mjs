@@ -1763,6 +1763,17 @@ function followMapDownload(port) {
   }
 }
 
+/** Resolve once the observer page has been served, or when the wait runs out. */
+async function waitForObserver(port, timeoutMs) {
+  const until = Date.now() + timeoutMs
+  while (Date.now() < until) {
+    const r = await apiCall(port, '/api/v1/system/observer').catch(() => null)
+    if (r?.body?.data?.loaded) return true
+    await sleep(150)
+  }
+  return false
+}
+
 async function startRun(port,payload) {
   const onDemand = payload.map.osm_file === 'auto'
   ui.logger.info(
@@ -1799,7 +1810,13 @@ async function launchSimulation(options) {
   // rather than behind a terminal spinner on a blank browser tab.
   if(options.open && !observing){
     await openBrowser(url)
-    ui.logger.info('Observer open', {suffix:`${url} · preparing the world`})
+    // Wait for the page to actually load before asking for a world, so the
+    // whole sequence (selection, download, generation, initialization) is
+    // watched in the interface rather than happening behind a blank tab.
+    const waited = await waitForObserver(started.port, 12000)
+    ui.logger.info(waited ? 'Observer open' : 'Observer opening', {
+      suffix: `${url} · preparing the world`,
+    })
   }
   if(observing) {
     const current=await apiCall(started.port,'/api/v1/view/topology')

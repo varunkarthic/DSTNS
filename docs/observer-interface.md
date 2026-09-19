@@ -38,8 +38,9 @@ Related references: [configuration](ui-configuration.md), [API](api.md),
 ## Start-up
 
 The interface opens first and the world is prepared behind it. The CLI starts
-the core, opens the browser, and only then requests the run, so the wait is
-spent watching the interface report what is happening rather than a blank tab.
+the core, opens the browser, waits for the page to be served
+(`GET /system/observer`), and only then requests the run, so the wait is spent
+watching the interface report what is happening rather than a blank tab.
 
 The start-up screen shows the stages the core actually reports, in order:
 
