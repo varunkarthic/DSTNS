@@ -66,15 +66,22 @@ try {
   const box = await page.locator(".map-layer").boundingBox(),
     xs = topo.nodes.map((n) => n.position.x_m),
     ys = topo.nodes.map((n) => -n.position.y_m);
-  // Mirrors mapFitLayout() in src/mapProjection.ts, which is unit tested there.
-  // Kept in sync so these suites can aim real pointer events at real entities.
+  // Mirrors the network fit in NetworkMap (mapInsets() and viewportFor(),
+  // both unit tested). The fit pads the network by 3% on each side.
+  const focusButton = page.getByRole("button", { name: "Auto Focus on live events" });
+  if ((await focusButton.getAttribute("aria-pressed")) === "true") await focusButton.click();
+  await page.getByRole("button", { name: "Fit network to viewport" }).click();
+  await page.waitForTimeout(1600);
   const deckPx = box.width <= 1024 ? 0 : box.width <= 1280 ? 340 : 420;
-  const available = Math.max(280, box.width - deckPx - (deckPx ? 110 : 100));
-  const centerX = (box.width - deckPx) / 2;
+  const insets = { top: 24, left: box.width <= 720 ? 16 : 76, right: deckPx + 24, bottom: box.width <= 720 ? 196 : 150 };
+  const usableW = box.width - insets.left - insets.right;
+  const usableH = box.height - insets.top - insets.bottom;
   const scale = Math.min(
-    available / (Math.max(...xs) - Math.min(...xs)),
-    (box.height - 150) / (Math.max(...ys) - Math.min(...ys)),
+    usableW / ((Math.max(...xs) - Math.min(...xs)) * 1.06),
+    usableH / ((Math.max(...ys) - Math.min(...ys)) * 1.06),
   );
+  const centerX = insets.left + usableW / 2;
+  const centerY = insets.top + usableH / 2;
   let roadInspected = false;
   for (const edge of topo.edges.filter(
     (e) => !e.synthetic_reverse && e.length_m > 50,
@@ -87,7 +94,7 @@ try {
         ((a.x_m + b.x_m) / 2 - (Math.max(...xs) + Math.min(...xs)) / 2) * scale,
       y =
         box.y +
-        (box.height - 60) / 2 +
+        centerY +
         (-(a.y_m + b.y_m) / 2 - (Math.max(...ys) + Math.min(...ys)) / 2) *
           scale;
     // Only aim at canvas no floating panel covers (see browser.mjs).
@@ -131,7 +138,7 @@ try {
   await page.waitForTimeout(1500);
   await page.getByRole("button", { name: "Resume simulation" }).click();
   await page
-    .locator(".toast")
+    .locator(".capsule")
     .filter({ hasText: /School|demand|commute|Retail/i })
     .first()
     .waitFor();

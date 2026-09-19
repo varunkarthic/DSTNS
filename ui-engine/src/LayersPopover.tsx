@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
+import type { KeyboardEvent } from "react";
+import { Icon } from "./Icons";
+import type { IconName } from "./Icons";
 import type { Layers, Snapshot, Topology } from "./types";
 
 /**
- * Display layers are a frontend concern only. Toggling one changes what the
- * canvas draws; none of it is sent to the simulation core, and none of it
- * changes what the core computes.
+ * The Layers panel. Toggling a layer changes what the map draws and nothing
+ * else: no layer state is sent to the simulation core.
  */
 type Props = {
   layers: Layers;
@@ -16,136 +18,109 @@ type Props = {
   snapshot: Snapshot | null;
 };
 
-type Group = { title: string; items: [keyof Layers, string][] };
+type Item = { key: keyof Layers; label: string; icon: IconName; count?: string };
 
-export function LayersPopover({
-  layers,
-  defaults,
-  onChange,
-  onClose,
-  topology,
-  snapshot,
-}: Props) {
+export function LayersPopover({ layers, defaults, onChange, onClose, topology, snapshot }: Props) {
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onPointer = (e: PointerEvent) => {
       const target = e.target as Node | null;
-      // The trigger button toggles the popover itself; ignore clicks on it.
-      if (target instanceof Element && target.closest("[data-layers-trigger]"))
-        return;
+      if (target instanceof Element && target.closest("[data-layers-trigger]")) return;
       if (target && !panel.current?.contains(target)) onClose();
     };
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent | globalThis.KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
+    panel.current?.querySelector<HTMLElement>("[role='switch']")?.focus();
     return () => {
       document.removeEventListener("pointerdown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
   }, [onClose]);
 
-  const vehicles =
-    snapshot?.edges.reduce((sum, e) => sum + e.vehicle_count, 0) ?? 0;
+  const vehicles = snapshot?.edges.reduce((sum, e) => sum + e.vehicle_count, 0) ?? 0;
+  const noData = !topology;
 
-  // Every layer the renderer honours, listed exactly once.
-  const groups: Group[] = [
+  const groups: { title: string; items: Item[] }[] = [
     {
       title: "Network",
       items: [
-        ["roads", "Roads & links"],
-        ["signals", "Traffic signals"],
-        ["labels", "Street names"],
-        ["place_names", "Place names"],
+        { key: "roads", label: "Roads", icon: "road" },
+        { key: "traffic", label: "Traffic", icon: "traffic" },
+        { key: "vehicles", label: "Flow markers", icon: "pulse", count: vehicles ? vehicles.toLocaleString() : undefined },
+        { key: "signals", label: "Signals", icon: "signal", count: snapshot ? String(snapshot.signals.length) : undefined },
       ],
     },
     {
-      title: "Traffic",
+      title: "Places",
       items: [
-        ["traffic", "Congestion colouring"],
-        ["vehicles", `Flow markers (${vehicles.toLocaleString()} veh)`],
-        ["buildings", `Places (${(topology?.features.length ?? 0).toLocaleString()})`],
+        { key: "buildings", label: "Buildings", icon: "building", count: topology ? topology.features.length.toLocaleString() : undefined },
+        { key: "place_names", label: "Place names", icon: "label" },
+        { key: "labels", label: "Street names", icon: "label" },
       ],
     },
     {
-      title: "Environment",
+      title: "Environment and events",
       items: [
-        ["weather", "Weather cells"],
-        ["flooding", "Flood hazard"],
-      ],
-    },
-    {
-      title: "Events",
-      items: [
-        ["incidents", `Incidents (${snapshot?.active_incidents.length ?? 0})`],
-        ["events", "Demand events"],
+        { key: "weather", label: "Weather", icon: "rain", count: snapshot ? String(snapshot.active_weather.length) : undefined },
+        { key: "flooding", label: "Flooding", icon: "flood" },
+        { key: "incidents", label: "Incidents", icon: "incident", count: snapshot ? String(snapshot.active_incidents.length) : undefined },
+        { key: "events", label: "Demand", icon: "demand" },
       ],
     },
   ];
 
-  const setAll = (value: boolean) =>
-    onChange(
-      Object.fromEntries(
-        Object.keys(layers).map((k) => [k, value]),
-      ) as unknown as Layers,
-    );
+  const navigate = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const switches = Array.from(panel.current?.querySelectorAll<HTMLButtonElement>("[role='switch']") ?? []);
+    const i = switches.indexOf(document.activeElement as HTMLButtonElement);
+    const next = switches[(i + (e.key === "ArrowDown" ? 1 : -1) + switches.length) % switches.length];
+    if (next) {
+      e.preventDefault();
+      next.focus();
+    }
+  };
 
   return (
-    <div
-      ref={panel}
-      className="layers-popover"
-      role="dialog"
-      aria-label="Display layers"
-    >
+    <div ref={panel} className="layers-panel" role="dialog" aria-label="Layers" onKeyDown={navigate} data-tip-avoid>
       <header>
-        <span className="title">Display Layers</span>
-        <div className="actions">
-          <button type="button" className="text-button" onClick={() => setAll(true)}>
-            Enable All
+        <span className="layers-title">Layers</span>
+        <div className="layers-actions">
+          <button type="button" className="text-button" onClick={() => onChange(Object.fromEntries(Object.keys(layers).map((k) => [k, true])) as unknown as Layers)}>
+            All on
           </button>
-          <span style={{ color: "var(--outline-variant)" }}>•</span>
-          <button
-            type="button"
-            className="text-button muted"
-            onClick={() => onChange({ ...defaults })}
-          >
+          <button type="button" className="text-button muted" onClick={() => onChange({ ...defaults })}>
             Reset
           </button>
         </div>
       </header>
-      <div className="layer-groups">
-        {groups.map((group) => (
-          <div className="layer-group" key={group.title}>
-            <span className="eyebrow">{group.title}</span>
-            {group.items.map(([key, label]) => (
-              <label key={key}>
-                <input
-                  type="checkbox"
-                  checked={layers[key]}
-                  onChange={(e) =>
-                    onChange({ ...layers, [key]: e.target.checked })
-                  }
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-        ))}
-      </div>
-      <p
-        className="t-body-sm"
-        style={{
-          margin: "12px 0 0",
-          color: "var(--on-surface-variant)",
-          borderTop: "1px solid rgb(60 73 77 / 30%)",
-          paddingTop: 10,
-        }}
-      >
-        Display only — these toggles change what is drawn, never what the
-        simulation computes.
-      </p>
+      {noData && <p className="layers-empty">Layers apply once a map is loaded.</p>}
+      {groups.map((group) => (
+        <div className="layer-group" key={group.title} role="group" aria-label={group.title}>
+          <span className="layer-group-title">{group.title}</span>
+          {group.items.map((item) => (
+            <div className={`layer-row${layers[item.key] ? " on" : ""}`} key={item.key}>
+              <Icon name={item.icon} size={16} />
+              <span className="layer-name">{item.label}</span>
+              {item.count !== undefined && <span className="layer-count mono">{item.count}</span>}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={layers[item.key]}
+                aria-label={item.label}
+                className={`switch${layers[item.key] ? " on" : ""}`}
+                onClick={() => onChange({ ...layers, [item.key]: !layers[item.key] })}
+              >
+                <i aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ))}
+      <p className="layers-note">Layers change what is drawn, never what the simulation computes.</p>
     </div>
   );
 }

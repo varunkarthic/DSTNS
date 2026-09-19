@@ -178,7 +178,7 @@ export function describeAsb(asb: Backpressure | null): {
 
 /** Format a byte rate for the throughput readout. */
 export function formatRate(bytesPerSecond: number): string {
-  if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return "—";
+  if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return "No data";
   const mb = bytesPerSecond / (1024 * 1024);
   if (mb >= 1) return `${mb.toFixed(1)} MiB/s`;
   return `${(bytesPerSecond / 1024).toFixed(0)} KiB/s`;

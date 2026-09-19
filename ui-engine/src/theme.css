@@ -1675,7 +1675,7 @@ button:disabled {
   --z-dock: 20;
   --z-deck: 30;
   --z-toast: 45;
-  --z-popover: 60;   /* Display Layers sits above notifications (item 6) */
+  --z-popover: 60;   /* Display Layers sits above notifications */
   --z-scrim: 80;
   --z-splash: 90;
 }
@@ -1812,7 +1812,7 @@ button:disabled {
 }
 @keyframes fade-in { from { opacity: 0; } }
 
-/* ---- Tooltips (item 1) --------------------------------------------------
+/* ---- Tooltips --------------------------------------------------
  * Glass card, accent rail, caret at the anchor, and an entry transition.
  */
 .tooltip {
@@ -1905,7 +1905,7 @@ button:disabled {
   text-align: right;
 }
 
-/* ---- Map dock (items 13, 17, 18) ----------------------------------------
+/* ---- Map dock ----------------------------------------
  * Positioning stays with the original rule; only the stacking order and the
  * interaction feel are added here. Re-declaring `position` would take the dock
  * out of its fixed corner and let it fill the map. */
@@ -1996,7 +1996,7 @@ button:disabled {
 .dock-search li small { font-size: 9px; color: var(--outline); font-family: var(--font-mono); }
 .dock-empty { margin: 8px 0 0; font-size: 11px; color: var(--on-surface-variant); }
 
-/* ---- Display Layers above everything (item 6) --------------------------- */
+/* ---- Display Layers above everything --------------------------- */
 .layers-popover {
   z-index: var(--z-popover);
   animation: dialog-in 180ms var(--ease-out);
@@ -2009,7 +2009,7 @@ button:disabled {
 }
 .layer-group label:hover { background: rgb(31 43 56 / 60%); }
 
-/* ---- Dialogs (items 7, 12, 15) ------------------------------------------ */
+/* ---- Dialogs ------------------------------------------ */
 .scrim {
   position: fixed;
   inset: 0;
@@ -2018,7 +2018,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   padding: var(--space-lg);
-  /* Item 15: the map stays visible behind, softened rather than hidden. */
+  /* the map stays visible behind, softened rather than hidden. */
   background: rgb(3 10 18 / 55%);
   backdrop-filter: blur(7px) saturate(115%);
   animation: fade-in 170ms var(--ease-out);
@@ -2132,7 +2132,7 @@ a.btn { text-decoration: none; }
 .scrim.suspended { background: rgb(3 10 18 / 78%); backdrop-filter: blur(10px); }
 .suspended-shell .workspace > *:not(.scrim) { filter: saturate(0.5) brightness(0.75); }
 
-/* ---- Playback dock, compact with micro-interactions (items 5, 16) ------- */
+/* ---- Playback dock, compact with micro-interactions ------- */
 .playback-dock { padding: 12px 16px; gap: 2px; }
 .scrubber-row { padding-bottom: 8px; margin-bottom: 2px; gap: 10px; }
 .scrubber-row .time { font-size: 9px; letter-spacing: 0.04em; }
@@ -2167,7 +2167,7 @@ a.btn { text-decoration: none; }
 .rate-pod.locked .rate-slider { cursor: not-allowed; }
 
 /* Ticks are absolutely placed at the same offsets the handle uses, so the
- * label under the handle is always the value the handle sets (item 16). */
+ * label under the handle is always the value the handle sets. */
 .rate-pod .ticks {
   position: relative;
   height: 14px;
@@ -2236,7 +2236,7 @@ a.btn { text-decoration: none; }
 .reduce-motion .btn { transition: none; transform: none !important; }
 .hud-chip .accent { color: var(--primary); }
 
-/* ---- Error banner (item 15) --------------------------------------------- */
+/* ---- Error banner --------------------------------------------- */
 .error-banner {
   animation: dialog-in 200ms var(--ease-out);
 }
@@ -2294,7 +2294,7 @@ a.btn { text-decoration: none; }
   border: 0;
 }
 
-/* ---- ASB banner (item 4) -------------------------------------------------
+/* ---- ASB banner -------------------------------------------------
  * Restricted and Async are conditions of the whole session, so they are
  * announced across the top rather than tucked into a chip among others.
  */
@@ -2363,7 +2363,7 @@ a.btn { text-decoration: none; }
   animation: none;
 }
 
-/* ---- Dock icons (items 2, 8) --------------------------------------------
+/* ---- Dock icons --------------------------------------------
  * One drawn set on a shared grid, so every glyph carries the same weight and
  * occupies the same optical size - which mixed text characters never did.
  */
@@ -2389,7 +2389,7 @@ a.btn { text-decoration: none; }
   animation: none !important;
 }
 
-/* ---- Playback: step size (item 5) --------------------------------------- */
+/* ---- Playback: step size --------------------------------------- */
 .step-pod {
   display: flex;
   flex-direction: column;
@@ -2412,7 +2412,7 @@ a.btn { text-decoration: none; }
   transform: translateX(-50%);
 }
 
-/* ---- Notification stacks (item 3) ---------------------------------------
+/* ---- Notification stacks ---------------------------------------
  * A burst collapses to one card that says how many it stands for. The cards
  * beneath show as offset shoulders, so depth is visible rather than merely
  * stated.

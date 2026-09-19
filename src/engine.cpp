@@ -1,5 +1,6 @@
 #include "dstns/engine.hpp"
 #include "dstns/sumo_bridge.hpp"
+#include "dstns/osm_fetch.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -241,6 +242,66 @@ nlohmann::json SimulationEngine::trigger_surge(NodeId node, double factor, doubl
     };
 }
 
+void SimulationEngine::install_scenario(Scenario scenario, double tick_rate, std::uint32_t start) {
+    run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
+    graph_ = std::make_unique<GraphStore>(std::move(scenario));
+    tick_rate_ = tick_rate;
+    requested_tick_rate_ = tick_rate;
+    asb_.reset();
+    virtual_s_ = 0;
+    start_virtual_s_ = std::min(start, day_s);
+    manual_weather_.clear();
+    active_surges_.clear();
+    signal_overrides_.clear();
+    news_.clear();
+    commands_.clear();
+    redo_.clear();
+    checkpoints_.clear();
+    next_command_id_ = 1;
+    next_news_id_ = 1;
+    next_event_id_ = 1'000'000;
+    config_revision_ = 1;
+    signal_by_node_.assign(graph_->scenario().nodes.size(), nullptr);
+    for (const auto& sig : graph_->scenario().signals) {
+        if (sig.node.value < signal_by_node_.size()) {
+            signal_by_node_[sig.node.value] = &sig;
+        }
+    }
+    events_.initialize(graph_->scenario());
+    congestion_ = {};
+    transition(Lifecycle::Ready);
+    add_news(0, "system", "info", "SCENARIO_INITIALIZED",
+             "[" + hhmmss(virtual_s_) + "] Scenario initialized with Seed " + graph_->scenario().seed.hex(),
+             {{"scenario_hash", graph_->scenario().scenario_hash}});
+    add_news(1, "system", "info", "NETWORK_TOPOLOGY_LOADED",
+             "[" + hhmmss(virtual_s_) + "] Road network loaded: " + std::to_string(graph_->edges().size()) +
+             " directional edges, " + std::to_string(graph_->nodes().size()) + " intersections.",
+             {{"edges", graph_->edges().size()}, {"nodes", graph_->nodes().size()}});
+    if (graph_->scenario().config.dws && !graph_->scenario().dws_events.empty()) {
+        add_news(2, "weather", "info", "WEATHER_FORECAST",
+                 "[" + hhmmss(virtual_s_) + "] Weather forecast: " + std::to_string(graph_->scenario().dws_events.size()) +
+                 " rain storm events scheduled for today across network nodes.",
+                 {{"event_count", graph_->scenario().dws_events.size()}});
+        for (const auto& e : graph_->scenario().dws_events) {
+            const auto ev_start = std::uint32_t(std::uint64_t(e.start_ppm) * day_s / ppm);
+            add_news(e.id.value, "weather", "info", "DWS_RAIN_SCHEDULED",
+                     "[" + hhmmss(virtual_s_) + "] Forecast: Rain storm scheduled at " + hhmmss(ev_start) + " around Node " +
+                     std::to_string(e.epicenter.value) + " (Radius: " + std::to_string(static_cast<int>(e.radius_m)) + "m)",
+                     {{"epicenter", e.epicenter.value}, {"radius_m", e.radius_m}, {"start_time", hhmmss(ev_start)}});
+        }
+    }
+    if (graph_->scenario().config.signals && !graph_->scenario().signals.empty()) {
+        add_news(3, "signals", "info", "SIGNALS_ONLINE",
+                 "[" + hhmmss(virtual_s_) + "] Traffic light timing controllers online across " +
+                 std::to_string(graph_->scenario().signals.size()) + " intersections.",
+                 {{"signal_count", graph_->scenario().signals.size()}});
+    }
+    add_news(4, "traffic", "info", "PHYSICS_ENGINE_ACTIVE",
+             "[" + hhmmss(virtual_s_) + "] Aggregate traffic model active with deterministic queue dynamics.");
+    capture_checkpoint();
+    if (start_virtual_s_) restore_to(start_virtual_s_);
+}
+
 nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& config, std::uint32_t start) {
     std::lock_guard lock(mutex_);
     if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused || lifecycle_ == Lifecycle::Preparing) {
@@ -248,64 +309,7 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
     }
     transition(Lifecycle::Preparing);
     try {
-        auto scenario = compiler_.compile(seed, config);
-        run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
-        graph_ = std::make_unique<GraphStore>(std::move(scenario));
-        tick_rate_ = config.tick_rate;
-        requested_tick_rate_ = config.tick_rate;
-        asb_.reset();
-        virtual_s_ = 0;
-        start_virtual_s_ = std::min(start, day_s);
-        manual_weather_.clear();
-        active_surges_.clear();
-        signal_overrides_.clear();
-        news_.clear();
-        commands_.clear();
-        redo_.clear();
-        checkpoints_.clear();
-        next_command_id_ = 1;
-        next_news_id_ = 1;
-        next_event_id_ = 1'000'000;
-        config_revision_ = 1;
-        signal_by_node_.assign(graph_->scenario().nodes.size(), nullptr);
-        for (const auto& sig : graph_->scenario().signals) {
-            if (sig.node.value < signal_by_node_.size()) {
-                signal_by_node_[sig.node.value] = &sig;
-            }
-        }
-        events_.initialize(graph_->scenario());
-        congestion_ = {};
-        transition(Lifecycle::Ready);
-        add_news(0, "system", "info", "SCENARIO_INITIALIZED",
-                 "[" + hhmmss(virtual_s_) + "] Scenario initialized with Seed " + graph_->scenario().seed.hex(),
-                 {{"scenario_hash", graph_->scenario().scenario_hash}});
-        add_news(1, "system", "info", "NETWORK_TOPOLOGY_LOADED",
-                 "[" + hhmmss(virtual_s_) + "] Road network loaded: " + std::to_string(graph_->edges().size()) +
-                 " directional edges, " + std::to_string(graph_->nodes().size()) + " intersections.",
-                 {{"edges", graph_->edges().size()}, {"nodes", graph_->nodes().size()}});
-        if (graph_->scenario().config.dws && !graph_->scenario().dws_events.empty()) {
-            add_news(2, "weather", "info", "WEATHER_FORECAST",
-                     "[" + hhmmss(virtual_s_) + "] Weather forecast: " + std::to_string(graph_->scenario().dws_events.size()) +
-                     " rain storm events scheduled for today across network nodes.",
-                     {{"event_count", graph_->scenario().dws_events.size()}});
-            for (const auto& e : graph_->scenario().dws_events) {
-                const auto ev_start = std::uint32_t(std::uint64_t(e.start_ppm) * day_s / ppm);
-                add_news(e.id.value, "weather", "info", "DWS_RAIN_SCHEDULED",
-                         "[" + hhmmss(virtual_s_) + "] Forecast: Rain storm scheduled at " + hhmmss(ev_start) + " around Node " +
-                         std::to_string(e.epicenter.value) + " (Radius: " + std::to_string(static_cast<int>(e.radius_m)) + "m)",
-                         {{"epicenter", e.epicenter.value}, {"radius_m", e.radius_m}, {"start_time", hhmmss(ev_start)}});
-            }
-        }
-        if (graph_->scenario().config.signals && !graph_->scenario().signals.empty()) {
-            add_news(3, "signals", "info", "SIGNALS_ONLINE",
-                     "[" + hhmmss(virtual_s_) + "] Traffic light timing controllers online across " +
-                     std::to_string(graph_->scenario().signals.size()) + " intersections.",
-                     {{"signal_count", graph_->scenario().signals.size()}});
-        }
-        add_news(4, "traffic", "info", "PHYSICS_ENGINE_ACTIVE",
-                 "[" + hhmmss(virtual_s_) + "] Aggregate traffic model active with deterministic queue dynamics.");
-        capture_checkpoint();
-        if (start_virtual_s_) restore_to(start_virtual_s_);
+        install_scenario(compiler_.compile(seed, config), config.tick_rate, start);
         transition(Lifecycle::Running);
         anchor_wall_clock();
         cv_.notify_all();
@@ -425,6 +429,152 @@ nlohmann::json SimulationEngine::seek(std::uint32_t target, bool resume) {
         {"simulated_seconds", target},
         {"lifecycle", to_string(lifecycle_)},
         {"state_revision", graph_->state_revision()}
+    };
+}
+
+nlohmann::json SimulationEngine::step(std::uint32_t seconds) {
+    std::lock_guard lock(mutex_);
+    if (!graph_) throw std::logic_error("no active simulation");
+    if (seconds == 0 || seconds > 3600) throw std::invalid_argument("step seconds must be in [1, 3600]");
+    if (lifecycle_ == Lifecycle::Terminating || lifecycle_ == Lifecycle::Preparing)
+        throw std::logic_error("simulation cannot step from current lifecycle");
+    if (virtual_s_ >= day_s) throw std::logic_error("simulation has reached the end of the virtual day");
+    const auto from = virtual_s_;
+    transition(Lifecycle::Seeking);
+    step_to(std::min(day_s, virtual_s_ + seconds));
+    // A step always leaves the run paused; the last one completes the day.
+    transition(virtual_s_ >= day_s ? Lifecycle::Completed : Lifecycle::Paused);
+    anchor_wall_clock();
+    cv_.notify_all();
+    return {
+        {"from_seconds", from},
+        {"simulated_seconds", virtual_s_},
+        {"stepped_seconds", virtual_s_ - from},
+        {"target_time", hhmmss(virtual_s_)},
+        {"lifecycle", to_string(lifecycle_)},
+        {"playback_revision", playback_revision_},
+        {"state_revision", graph_->state_revision()}
+    };
+}
+
+nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request) {
+    Seed128 seed = Seed128::secure();
+    ScenarioConfig config;
+    std::string previous;
+    double rate = 1.0;
+    {
+        std::lock_guard lock(mutex_);
+        if (!request.is_null() && !request.is_object()) throw std::invalid_argument("request must be an object");
+        if (!graph_) throw std::logic_error("no active simulation to regenerate");
+        if (terminate_requested_ || lifecycle_ == Lifecycle::Terminating) throw std::logic_error("simulation is terminating");
+        if (request.is_object() && request.contains("expected_run_id") &&
+            request.at("expected_run_id").get<std::string>() != run_id_)
+            throw std::logic_error("run changed; world generation cancelled");
+        config = graph_->scenario().config;
+        // A seed-selected world stores the path of the tile it resolved to.
+        // Re-rolling must let the new seed choose its own place, so restore
+        // the "auto" source; an operator-pinned map file stays pinned.
+        if (!graph_->scenario().map_city.empty()) config.osm_file = "auto";
+        previous = run_id_;
+        rate = requested_tick_rate_;
+    }
+    config.tick_rate = rate;
+    std::lock_guard job_lock(world_mutex_);
+    if (world_job_.state == "generating") throw std::logic_error("world generation already in progress");
+    world_job_ = WorldJob{};
+    world_job_.state = "generating";
+    world_job_.stage = "compiling";
+    world_job_.seed = seed.hex();
+    world_job_.previous_run_id = previous;
+    world_job_.generation = ++world_generation_counter_;
+    world_job_.started = std::chrono::steady_clock::now();
+    const auto generation = world_job_.generation;
+    logger_.system("INFO", "world", "Generating new world with seed " + seed.hex());
+    // Assigning joins the previous (already finished) worker, if any.
+    world_worker_ = std::jthread([this, seed, config, generation](std::stop_token) {
+        auto fail = [&](const std::string& code, const std::string& message) {
+            std::lock_guard l(world_mutex_);
+            if (world_job_.generation != generation) return;
+            world_job_.state = "failed";
+            world_job_.stage = "failed";
+            world_job_.error_code = code;
+            world_job_.error = message;
+            world_job_.finished = std::chrono::steady_clock::now();
+            logger_.system("ERROR", "world", code + ": " + message);
+        };
+        try {
+            auto scenario = compiler_.compile(seed, config);
+            {
+                std::lock_guard l(world_mutex_);
+                world_job_.stage = "installing";
+            }
+            std::string run;
+            {
+                std::lock_guard lock(mutex_);
+                if (terminate_requested_) return fail("TERMINATING", "The session ended before the world was ready.");
+                transition(Lifecycle::Preparing);
+                install_scenario(std::move(scenario), config.tick_rate, 0);
+                // A regenerated world waits for the operator rather than
+                // running away while its map is still being drawn.
+                transition(Lifecycle::Paused);
+                anchor_wall_clock();
+                cv_.notify_all();
+                run = run_id_;
+            }
+            std::lock_guard l(world_mutex_);
+            if (world_job_.generation != generation) return;
+            world_job_.state = "ready";
+            world_job_.stage = "ready";
+            world_job_.run_id = run;
+            world_job_.finished = std::chrono::steady_clock::now();
+            logger_.system("INFO", "world", "World " + run + " ready");
+        } catch (const MapFetchError& e) {
+            fail("MAP_FETCH_FAILED", e.what());
+        } catch (const std::exception& e) {
+            fail("WORLD_GENERATION_FAILED", e.what());
+        }
+    });
+    return world_status_locked();
+}
+
+nlohmann::json SimulationEngine::world_status() const {
+    std::lock_guard lock(world_mutex_);
+    return world_status_locked();
+}
+
+nlohmann::json SimulationEngine::world_status_locked() const {
+    const auto& j = world_job_;
+    const auto end = j.state == "generating" ? std::chrono::steady_clock::now() : j.finished;
+    const double elapsed = j.state == "idle" ? 0.0 : std::chrono::duration<double>(end - j.started).count();
+    auto stage = j.stage;
+    nlohmann::json map = nullptr;
+    if (j.state == "generating" && j.stage == "compiling") {
+        // Compilation spends most of its time fetching the map; report that
+        // phase exactly as the downloader does rather than estimating it.
+        const auto fetch = current_map_fetch();
+        if (fetch.active) {
+            stage = fetch.phase == "parse" ? "validating" : fetch.phase == "download" ? "downloading" : "requesting";
+            map = {{"city", fetch.city}, {"country", fetch.country}, {"phase", fetch.phase},
+                   {"bytes", fetch.bytes}, {"total", fetch.total}, {"elapsed_s", fetch.elapsed_s}};
+        } else {
+            stage = "building";
+        }
+    }
+    nlohmann::json error = nullptr;
+    if (j.state == "failed") error = {{"code", j.error_code}, {"message", j.error}};
+    return {
+        {"api_version", "1.0"},
+        {"data", {
+            {"state", j.state},
+            {"stage", stage},
+            {"seed", j.seed},
+            {"previous_run_id", j.previous_run_id},
+            {"run_id", j.run_id},
+            {"generation", j.generation},
+            {"elapsed_s", elapsed},
+            {"map", map},
+            {"error", error}
+        }}
     };
 }
 

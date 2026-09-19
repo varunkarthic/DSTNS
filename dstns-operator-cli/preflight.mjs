@@ -148,6 +148,42 @@ export function checks(root, options = {}) {
       },
     },
     {
+      name: 'Interface configuration',
+      run: async () => {
+        const full = path.join(root, 'config/ui-config.json')
+        if (!existsSync(full)) return { level: WARN, detail: 'ui-config.json missing; built-in defaults apply' }
+        let c
+        try {
+          c = JSON.parse(readFileSync(full, 'utf8'))
+        } catch {
+          return { level: WARN, detail: 'ui-config.json unreadable; built-in defaults apply' }
+        }
+        // Values outside these sets are ignored by the interface, which falls
+        // back to its defaults for them. Report them so the operator knows.
+        const problems = []
+        const oneOf = (value, allowed, name) => {
+          if (value !== undefined && !allowed.includes(value)) problems.push(`${name} "${value}"`)
+        }
+        const categories = ['weather', 'flooding', 'incident', 'traffic', 'demand', 'signals', 'system']
+        const severities = ['info', 'warning', 'alert']
+        oneOf(c.reduce_motion, ['auto', 'on', 'off'], 'reduce_motion')
+        oneOf(c.auto_focus?.mode, ['disable', 'enable', 'enable-force'], 'auto_focus.mode')
+        oneOf(c.auto_focus?.strategy, ['round-robin', 'latest'], 'auto_focus.strategy')
+        oneOf(c.playback?.skip_seconds, [60, 300, 900, 3600], 'playback.skip_seconds')
+        oneOf(c.playback?.step_seconds, [1, 10, 60, 300], 'playback.step_seconds')
+        for (const v of c.notifications?.dnd_categories ?? []) oneOf(v, categories, 'notifications.dnd_categories')
+        for (const v of c.notifications?.dnd_severities ?? []) oneOf(v, severities, 'notifications.dnd_severities')
+        for (const [k, v] of Object.entries(c.layers ?? {})) if (typeof v !== 'boolean') problems.push(`layers.${k} is not true or false`)
+        return {
+          level: problems.length ? WARN : OK,
+          detail: problems.length
+            ? `ignored: ${problems.join(', ')}`
+            : `auto focus ${c.auto_focus?.mode ?? 'default'}, road names ${c.layers?.labels ? 'shown' : 'hidden'}, DND ${c.notifications?.dnd ? 'on' : 'off'}`,
+          hint: problems.length ? 'Correct these values in config/ui-config.json; the defaults apply meanwhile.' : '',
+        }
+      },
+    },
+    {
       name: 'Map fetcher',
       run: async () => {
         const script = path.join(root, 'scripts', 'fetch_osm.py')
@@ -273,6 +309,22 @@ export function checks(root, options = {}) {
                 ? `${total}/${total} suites passed in ${(r.ms / 1000).toFixed(1)}s`
                 : `${failed} suite(s) failed`,
             hint: failed ? 'The core is not behaving as specified; do not rely on this run.' : '',
+          }
+        },
+      },
+      {
+        name: 'API contract suite',
+        run: async () => {
+          const server = path.join(root, 'build', 'dstns_server')
+          const script = path.join(root, 'tests', 'api', 'api_smoke.py')
+          if (!existsSync(server) || !existsSync(script)) return { level: WARN, detail: 'core not built; skipped' }
+          // Runs against a private server on a free port, never the live one.
+          const r = await run('python3', [script, '--server', server], { cwd: root, timeout: 180_000 })
+          const match = r.out.match(/PASSED:\s*(\d+) assertions/)
+          return {
+            level: r.code === 0 ? OK : FAIL,
+            detail: r.code === 0 ? `${match ? match[1] : 'all'} HTTP assertions passed in ${(r.ms / 1000).toFixed(1)}s` : 'HTTP contract violated',
+            hint: r.code === 0 ? '' : 'Run python3 tests/api/api_smoke.py for details.',
           }
         },
       },

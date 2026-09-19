@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   BUILT_IN,
   clearOverrides,
+  diffConfig,
   loadConfig,
   mergeConfig,
   readOverrides,
   resolveReduceMotion,
   writeOverrides,
 } from "../src/uiConfig";
+import shipped from "../../config/ui-config.json?raw";
 
 beforeEach(() => clearOverrides());
 afterEach(() => {
@@ -204,5 +206,53 @@ describe("reduced motion resolution", () => {
     expect(resolveReduceMotion("auto")).toBe(true);
     withPreference(false);
     expect(resolveReduceMotion("auto")).toBe(false);
+  });
+});
+
+describe("notification and playback preferences", () => {
+  it("ships with road names hidden and every category muted under DND", () => {
+    expect(BUILT_IN.layers.labels).toBe(false);
+    expect(BUILT_IN.notifications.dnd).toBe(false);
+    expect(BUILT_IN.notifications.dnd_categories).toEqual([
+      "weather", "flooding", "incident", "traffic", "demand", "signals", "system",
+    ]);
+    expect(BUILT_IN.notifications.dnd_severities).toEqual([]);
+    expect(BUILT_IN.playback).toEqual({ skip_seconds: 900, step_seconds: 60 });
+  });
+
+  it("keeps only known categories and severities, in canonical order", () => {
+    const merged = mergeConfig(BUILT_IN, {
+      notifications: { dnd_categories: ["system", "bogus", "weather", "weather"], dnd_severities: ["alert", "loud", "info"] },
+    });
+    expect(merged.notifications.dnd_categories).toEqual(["weather", "system"]);
+    expect(merged.notifications.dnd_severities).toEqual(["info", "alert"]);
+  });
+
+  it("falls back when the lists are not arrays", () => {
+    const merged = mergeConfig(BUILT_IN, { notifications: { dnd_categories: "weather", dnd_severities: 3 } });
+    expect(merged.notifications.dnd_categories).toEqual(BUILT_IN.notifications.dnd_categories);
+    expect(merged.notifications.dnd_severities).toEqual([]);
+  });
+
+  it("allows an empty mute list", () => {
+    expect(mergeConfig(BUILT_IN, { notifications: { dnd_categories: [] } }).notifications.dnd_categories).toEqual([]);
+  });
+
+  it("accepts only the offered skip and step intervals", () => {
+    expect(mergeConfig(BUILT_IN, { playback: { skip_seconds: 3600, step_seconds: 1 } }).playback).toEqual({ skip_seconds: 3600, step_seconds: 1 });
+    expect(mergeConfig(BUILT_IN, { playback: { skip_seconds: 7, step_seconds: "60" } }).playback).toEqual(BUILT_IN.playback);
+  });
+
+  it("does not record an unchanged list as a viewer change", () => {
+    const same = mergeConfig(BUILT_IN, { notifications: { dnd_categories: [...BUILT_IN.notifications.dnd_categories] } });
+    expect(diffConfig(BUILT_IN, same)).toEqual({});
+    const changed = mergeConfig(BUILT_IN, { notifications: { dnd_categories: ["weather"] } });
+    expect(diffConfig(BUILT_IN, changed)).toEqual({ notifications: { dnd_categories: ["weather"] } });
+  });
+
+  it("matches the shipped config/ui-config.json", async () => {
+    const file = JSON.parse(shipped);
+    // The operator file and the built-in defaults describe the same starting state.
+    expect(mergeConfig(BUILT_IN, file)).toEqual(BUILT_IN);
   });
 });

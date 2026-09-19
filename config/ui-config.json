@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0",
-  "_comment": "Defaults for the observer interface. Every value here is presentation only: nothing in this file changes what the simulation computes. A viewer's own choices are stored in their browser and override these; Reset in the Display Layers panel returns to exactly this file.",
+  "_comment": "Defaults for the observer interface. Every value here is presentation only: nothing in this file changes what the simulation computes. A viewer's own choices are stored in their browser and override these. Reset in the Layers panel returns the layers to exactly this file.",
   "layers": {
     "roads": true,
     "signals": true,
-    "labels": true,
+    "labels": false,
     "place_names": false,
     "traffic": true,
     "vehicles": true,
@@ -24,8 +24,22 @@
   "notifications": {
     "enabled": true,
     "dnd": false,
+    "dnd_categories": [
+      "weather",
+      "flooding",
+      "incident",
+      "traffic",
+      "demand",
+      "signals",
+      "system"
+    ],
+    "dnd_severities": [],
     "max_visible": 3,
     "dwell_ms": 7000
+  },
+  "playback": {
+    "skip_seconds": 900,
+    "step_seconds": 60
   },
   "tutorial": {
     "enabled": true,
@@ -52,6 +66,32 @@
     "auto_focus.strategy": [
       "round-robin",
       "latest"
+    ],
+    "notifications.dnd_categories": [
+      "weather",
+      "flooding",
+      "incident",
+      "traffic",
+      "demand",
+      "signals",
+      "system"
+    ],
+    "notifications.dnd_severities": [
+      "info",
+      "warning",
+      "alert"
+    ],
+    "playback.skip_seconds": [
+      60,
+      300,
+      900,
+      3600
+    ],
+    "playback.step_seconds": [
+      1,
+      10,
+      60,
+      300
     ]
   }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { NOTIFY_TEMPLATES } from "./notificationModel";
 import type { Envelope, News, Snapshot, Status, Topology } from "./types";
 export function useSimulation(dwellMs = 7000) {
   const [status, setStatus] = useState<Envelope<Status> | null>(null),
@@ -11,7 +12,9 @@ export function useSimulation(dwellMs = 7000) {
     // performance.now() alongside it: a monotonic clock, so a system time
     // change cannot make freshly arrived data look ancient.
     [lastDataAt, setLastDataAt] = useState(() => performance.now()),
-    [now, setNow] = useState(Date.now());
+    [now, setNow] = useState(Date.now()),
+    // Round trip for the status and snapshot requests of the latest poll.
+    [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [news, setNews] = useState<News[]>([]),
     [toasts, setToasts] = useState<News[]>([]);
   const receivedAt = useRef(new Map<number, number>());
@@ -28,8 +31,10 @@ export function useSimulation(dwellMs = 7000) {
       lastVirtual = -1;
     async function refresh() {
       try {
+        const sent = performance.now();
         const [st, snap] = await Promise.all([api.status(), api.snapshot()]);
         if (cancelled) return;
+        setLatencyMs(Math.round(performance.now() - sent));
         if (st.run_id !== snap.run_id)
           throw new Error("Synchronizing a new simulation…");
         if (st.data.lifecycle === "IDLE" || !st.run_id) {
@@ -96,15 +101,7 @@ export function useSimulation(dwellMs = 7000) {
           if (messages.run_id === run) {
             const items = messages.data.items;
             if (!initial) {
-              const important = items.filter((n) =>
-                [
-                  "DEMAND_CHANGED",
-                  "DWS_RAIN_STARTED",
-                  "INCIDENT_ACTIVATED",
-                  "INCIDENT_RESOLVED",
-                  "FLOOD_STARTED",
-                ].includes(n.template_id),
-              );
+              const important = items.filter((n) => NOTIFY_TEMPLATES.has(n.template_id));
               // Keep the burst intact: grouping collapses it for display, so
               // truncating here would throw away the count before it is shown.
               if (important.length) {
@@ -149,6 +146,7 @@ export function useSimulation(dwellMs = 7000) {
     stage,
     lastUpdated,
     lastDataAt,
+    latencyMs,
     stale: !!lastUpdated && now - lastUpdated > 5000,
     news,
     toasts,

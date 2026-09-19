@@ -89,3 +89,13 @@ describe("Footprint inspection", () => {
     expect(insideFootprint(3, 3, points)).toBe(false);
   });
 });
+
+describe("world endpoints", () => {
+  it("accepts world status, which is not a simulation envelope", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ api_version: "1.0", data: { state: "generating", stage: "building" } }), { headers: { "Content-Type": "application/json" } }),
+    );
+    await expect(api.worldStatus()).resolves.toMatchObject({ data: { stage: "building" } });
+    vi.restoreAllMocks();
+  });
+});

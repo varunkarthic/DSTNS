@@ -78,6 +78,12 @@ if(DSTNS_BUILD_TESTS)
   add_test(NAME dstns_map_sourcing COMMAND dstns_map_tests)
   set_tests_properties(dstns_map_sourcing PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+  add_executable(dstns_world_tests tests/unit/world_tests.cpp)
+  target_link_libraries(dstns_world_tests PRIVATE dstns_core)
+  target_compile_options(dstns_world_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_world_and_stepping COMMAND dstns_world_tests)
+  set_tests_properties(dstns_world_and_stepping PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
   add_executable(dstns_prop_tests tests/property/property_tests.cpp)
   target_link_libraries(dstns_prop_tests PRIVATE dstns_core)
   target_compile_options(dstns_prop_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)

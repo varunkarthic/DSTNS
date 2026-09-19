@@ -61,17 +61,29 @@ export function useTutorial(options: {
     }
   }, []);
 
-  const finish = useCallback(async () => {
+  /**
+   * Close the tour. `start` is the final step's action and plays the run
+   * whatever its state; otherwise playback resumes only if the tour itself
+   * paused it and nothing has changed since.
+   */
+  const finish = useCallback(async (start = false) => {
     if (!lease.current) return;
     const owned = lease.current;
     lease.current = null;
     try { localStorage.setItem(DONE_KEY, "done"); } catch { /* Session still remembers. */ }
     setPhase("finishing");
     try {
-      if (owned.resume && !latest.current.suspended && latest.current.runId === owned.run)
+      if (latest.current.runId !== owned.run || latest.current.suspended) return;
+      if (start) await api.play({ expected_run_id: owned.run });
+      else if (owned.resume)
         await api.play({ expected_run_id: owned.run, expected_playback_revision: owned.revision, require_asb_normal: true });
     } catch {
-      if (mounted.current) latest.current.onError("Tutorial closed. Playback was left unchanged because runtime state changed or could not be confirmed.");
+      if (mounted.current)
+        latest.current.onError(
+          start
+            ? "The simulation could not be started. Use Play to start it."
+            : "Tutorial closed. Playback was left unchanged because the runtime state changed.",
+        );
     } finally {
       busy.current = false;
       if (mounted.current) setPhase("closed");

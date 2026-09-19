@@ -58,7 +58,7 @@ node dstns-operator-cli/dstns.mjs
 ./launcher seeds list
 ```
 
-Open the URL printed by the CLI (normally `http://127.0.0.1:8090`). The browser observes the active run and offers pause/resume and speed. Startup and weekday/weekend configuration belong to the CLI; weekday is the default. The UI no longer injects incidents, closes roads or dispatches Transit routes.
+Open the URL printed by the CLI (normally `http://127.0.0.1:8090`). The browser observes the active run and offers playback (back, step, play and pause, forward, reset), speed, and generating a new world from a fresh seed. Startup and weekday/weekend configuration belong to the CLI; weekday is the default. The UI no longer injects incidents, closes roads or dispatches Transit routes.
 
 For a larger pinned OSM source, run `python3 scripts/fetch_osm.py`, then `./launcher start`. The importer keeps a checksum manifest and refuses to overwrite existing data. Use `--osm-file PATH` to select an existing source. Saved seeds retain source bytes and deterministic configuration in a SQLite registry.
 
@@ -77,6 +77,7 @@ npm ci --prefix ui-engine
 npm test --prefix ui-engine
 npm run build --prefix ui-engine
 node ui-engine/tests/browser.mjs
+node ui-engine/tests/browser-hud.mjs
 ```
 
 Browser tests use installed Chrome (`CHROME_BIN` can override the executable), an isolated server on port 18191, and write screenshots/PDF evidence to `artifacts/modernization/browser/`.
@@ -88,6 +89,8 @@ Browser tests use installed Chrome (`CHROME_BIN` can override the executable), a
 The existing live runtime uses an aggregate traffic model; SUMO export/batch simulation is a separate adapter. UI flow dots represent modeled edge flow, not individual SUMO telemetry. All stochastic simulation behavior is seed derived; playback speed changes pacing without changing physics.
 
 - [Modernization guide](docs/modernization.md): architecture, saved seeds, OSM, event queue, signals, demand, formulas, accessibility, reporting and limitations.
+- [Observer interface guide](docs/observer-interface.md): command rail, time and progress, speed, seed and world regeneration, notifications, Do Not Disturb, Auto Focus, settings, tooltips, tutorial and the report
+- [Observer configuration](docs/ui-configuration.md)
 - [API reference](docs/api.md)
 - [Validation and implementation journal](context/03_IMPLEMENTATION_PROGRESS.md)
 - [Final requirement checklist](context/modernization_validation.md)

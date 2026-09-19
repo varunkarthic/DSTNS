@@ -58,11 +58,11 @@ export function roadInspection(
     status: s ? roadState(s) : "State unavailable",
     description: causes.join(" · ") || "No active effects recorded.",
     metrics: [
-      ["Speed", s ? `${(s.mean_speed_mps * 3.6).toFixed(1)} km/h` : "—"],
+      ["Speed", s ? `${(s.mean_speed_mps * 3.6).toFixed(1)} km/h` : "Unavailable"],
       ["Free flow", `${(e.free_speed_mps * 3.6).toFixed(1)} km/h`],
-      ["Congestion", s ? `${(s.congestion * 100).toFixed(0)}%` : "—"],
-      ["Vehicles", String(s?.vehicle_count ?? "—")],
-      ["Demand", s ? `${s.demand_vph.toFixed(0)} veh/h` : "—"],
+      ["Congestion", s ? `${(s.congestion * 100).toFixed(0)}%` : "Unavailable"],
+      ["Vehicles", String(s?.vehicle_count ?? "Unavailable")],
+      ["Demand", s ? `${s.demand_vph.toFixed(0)} veh/h` : "Unavailable"],
       ["Length", `${e.length_m.toFixed(0)} m`],
     ],
   };

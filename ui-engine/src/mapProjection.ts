@@ -71,7 +71,7 @@ export function scaleBarFor(
   targetPx = 96,
 ): { metres: number; pixels: number; label: string } {
   if (!Number.isFinite(metresPerPixel) || metresPerPixel <= 0)
-    return { metres: 0, pixels: 0, label: "—" };
+    return { metres: 0, pixels: 0, label: "No scale" };
   const raw = metresPerPixel * targetPx;
   const magnitude = 10 ** Math.floor(Math.log10(raw));
   const normalized = raw / magnitude;
@@ -111,5 +111,21 @@ export function mapFitLayout(width: number, height: number): MapFitLayout {
     centerX: (width - deck) / 2,
     // The playback dock occupies the bottom; bias the network above it.
     centerY: (height - 60) / 2,
+  };
+}
+
+/**
+ * Pixels of the map covered by interface chrome on each side: the tool dock on
+ * the left, the telemetry deck on the right (when shown) and the command rail
+ * with the lower cluster at the bottom. Framing an event inside what remains
+ * keeps it clear of the controls.
+ */
+export function mapInsets(width: number, _height: number) {
+  const deck = width <= 1024 ? 0 : width <= 1280 ? 340 : 420;
+  return {
+    top: 24,
+    left: width <= 720 ? 16 : 76,
+    right: deck + 24,
+    bottom: width <= 720 ? 196 : 150,
   };
 }

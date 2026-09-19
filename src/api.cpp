@@ -380,6 +380,38 @@ void ApiServer::routes() {
         send(r, engine_.seek(time_value(j.at("target_time")), j.value("play", false)));
     });
 
+    // Advance a fixed amount of virtual time and hold there.
+    server_->Post("/api/v1/playback/step", [this](const auto& req, auto& r) {
+        const auto j = body(req);
+        const auto seconds = j.contains("seconds") ? j.at("seconds").template get<std::int64_t>() : 60;
+        if (seconds < 1 || seconds > 3600) throw std::invalid_argument("seconds must be in [1, 3600]");
+        send(r, engine_.step(static_cast<std::uint32_t>(seconds)));
+    });
+
+    // World regeneration. The observer may ask for a new world, but may not
+    // choose anything about it: the seed comes from the secure generator and
+    // every other parameter is copied from the run the operator started. That
+    // keeps scenario configuration with the CLI. Operators can disable this
+    // entirely with DSTNS_DISABLE_WORLD_REGENERATION=1.
+    const bool regeneration_disabled = [] {
+        const char* v = std::getenv("DSTNS_DISABLE_WORLD_REGENERATION");
+        return v && std::string(v) == "1";
+    }();
+    server_->Post("/api/v1/world/regenerate", [this, regeneration_disabled](const auto& req, auto& r) {
+        if (regeneration_disabled) {
+            send(r, {{"api_version", "1.0"},
+                     {"error", {{"code", "WORLD_REGENERATION_DISABLED"},
+                                {"message", "World regeneration is disabled by the operator."}}}}, 403);
+            return;
+        }
+        send(r, engine_.regenerate_world(body(req)), 202);
+    });
+    server_->Get("/api/v1/world/status", [this, regeneration_disabled](const auto&, auto& r) {
+        auto status = engine_.world_status();
+        status["data"]["enabled"] = !regeneration_disabled;
+        send(r, status);
+    });
+
     // Control API
     server_->Put("/api/v1/control/tick-rate", [this](const auto& req, auto& r) {
         send(r, engine_.set_tick_rate(body(req).at("tick_rate")));

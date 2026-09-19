@@ -85,6 +85,117 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/v1/playback/step:
+    post:
+      tags:
+      - Playback
+      operationId: stepPlayback
+      summary: Advance a fixed amount of virtual time and hold
+      description: >-
+        Advances the model by exactly `seconds` of virtual time using the normal
+        one-second physics, then leaves the run paused. A step that reaches
+        24:00:00 completes the run. Stepping and seeking to the same time
+        produce identical state.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                seconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                  default: 60
+      responses:
+        '200':
+          description: Stepped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from_seconds: {type: integer}
+                  simulated_seconds: {type: integer}
+                  stepped_seconds: {type: integer}
+                  target_time: {type: string, example: '06:01:00'}
+                  lifecycle: {type: string, enum: [PAUSED, COMPLETED]}
+                  playback_revision: {type: integer}
+                  state_revision: {type: integer}
+        '400':
+          description: seconds outside 1 to 3600
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: No active simulation, or the virtual day is already complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/world/regenerate:
+    post:
+      tags:
+      - World
+      operationId: regenerateWorld
+      summary: Replace the world with one from a fresh seed
+      description: >-
+        Accepted immediately; progress is reported by /api/v1/world/status. The
+        seed comes from the secure generator and every other parameter is
+        copied from the current run, so the caller chooses nothing about the
+        new world. The current world keeps running until the new one is
+        installed and is unchanged if generation fails. The new world starts
+        paused at 00:00:00. Disabled with DSTNS_DISABLE_WORLD_REGENERATION=1.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expected_run_id:
+                  type: string
+                  description: Cancel with 409 if the active run is no longer this one.
+      responses:
+        '202':
+          description: Generation started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version: {type: string}
+                  data:
+                    $ref: '#/components/schemas/WorldStatus'
+        '403':
+          description: Regeneration disabled by the operator (WORLD_REGENERATION_DISABLED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: No active world, a generation already in progress, or a stale run guard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/world/status:
+    get:
+      tags:
+      - World
+      operationId: worldStatus
+      summary: Progress of the current or last world generation
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version: {type: string}
+                  data:
+                    $ref: '#/components/schemas/WorldStatus'
   /api/v1/system/backpressure:
     get:
       tags:
@@ -705,6 +816,36 @@ components:
         minimum: 0
         default: 0
   schemas:
+    WorldStatus:
+      type: object
+      properties:
+        state: {type: string, enum: [idle, generating, ready, failed]}
+        stage:
+          type: string
+          enum: [idle, compiling, requesting, downloading, validating, building, installing, ready, failed]
+          description: Map stages are reported by the live downloader, not estimated.
+        seed: {type: string, description: The new world's seed, known as soon as the job starts.}
+        previous_run_id: {type: string}
+        run_id: {type: string, description: The installed world, once ready.}
+        generation: {type: integer}
+        elapsed_s: {type: number}
+        enabled: {type: boolean}
+        map:
+          nullable: true
+          type: object
+          properties:
+            city: {type: string}
+            country: {type: string}
+            phase: {type: string}
+            bytes: {type: integer}
+            total: {type: integer, description: 0 when the size is not known.}
+            elapsed_s: {type: number}
+        error:
+          nullable: true
+          type: object
+          properties:
+            code: {type: string, enum: [MAP_FETCH_FAILED, WORLD_GENERATION_FAILED, TERMINATING]}
+            message: {type: string}
     Health:
       type: object
       required:

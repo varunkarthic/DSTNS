@@ -84,7 +84,7 @@ describe('scale bar', () => {
   });
 
   it('degrades safely before the map has a scale', () => {
-    expect(scaleBarFor(0).label).toBe('—');
+    expect(scaleBarFor(0).label).toBe('No scale');
     expect(scaleBarFor(Number.NaN).pixels).toBe(0);
   });
 });
@@ -113,5 +113,15 @@ describe('fit layout', () => {
   it('never collapses below a usable width', () => {
     expect(mapFitLayout(1100, 600).available).toBeGreaterThanOrEqual(280);
     expect(mapFitLayout(1030, 600).available).toBeGreaterThanOrEqual(280);
+  });
+});
+
+describe('map insets', () => {
+  it('reserves the dock, deck and rail at each breakpoint', async () => {
+    const { mapInsets } = await import('../src/mapProjection');
+    expect(mapInsets(1440, 900)).toEqual({ top: 24, left: 76, right: 444, bottom: 150 });
+    expect(mapInsets(1200, 800)).toEqual({ top: 24, left: 76, right: 364, bottom: 150 });
+    expect(mapInsets(1000, 800)).toEqual({ top: 24, left: 76, right: 24, bottom: 150 });
+    expect(mapInsets(600, 800)).toEqual({ top: 24, left: 16, right: 24, bottom: 196 });
   });
 });

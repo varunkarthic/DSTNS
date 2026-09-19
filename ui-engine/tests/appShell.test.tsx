@@ -1,10 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App from "../src/App";
+import App, { worldErrorMessage } from "../src/App";
 
-// The canvas is exercised by the browser suites; here it only needs to mount.
+// The canvas is exercised by the browser suites; here it only needs to mount,
+// and to expose what it was asked to draw and where the camera was sent.
 vi.mock("../src/NetworkMap", () => ({
-  default: ({ layers }: { layers: Record<string, boolean> }) => (
+  default: ({ layers, focus }: { layers: Record<string, boolean>; focus?: { bounds?: unknown; token: number } | null }) => (
     <div
       data-testid="map"
       data-layers={Object.entries(layers)
@@ -12,11 +13,12 @@ vi.mock("../src/NetworkMap", () => ({
         .map(([k]) => k)
         .sort()
         .join(",")}
+      data-focus={focus?.bounds ? JSON.stringify(focus.bounds) : ""}
     />
   ),
 }));
 
-const clock = {
+const baseClock = {
   playback_state: "RUNNING",
   playback_duration_seconds: 3600,
   simulation_percentage: 0.25,
@@ -29,75 +31,41 @@ const clock = {
 const topology = {
   graph_hash: "sha256:abc123",
   nodes: [
-    {
-      id: 0,
-      position: { x_m: 0, y_m: 0, lat: 52.5, lon: 13.4 },
-      degree: 2,
-      signal: false,
-      osm_node_id: 1,
-    },
+    { id: 0, position: { x_m: 0, y_m: 0, lat: 52.5, lon: 13.4 }, degree: 2, signal: false, osm_node_id: 1 },
+    { id: 1, position: { x_m: 2000, y_m: 2000, lat: 52.52, lon: 13.43 }, degree: 2, signal: false, osm_node_id: 2 },
   ],
   edges: [
     {
-      id: 0,
-      from: 0,
-      to: 0,
-      reverse_twin: -1,
-      synthetic_reverse: false,
-      name: "Test Road",
-      road_class: "residential",
-      length_m: 100,
-      lanes: 1,
-      free_speed_mps: 13.9,
-      geometry: [],
+      id: 0, from: 0, to: 1, reverse_twin: -1, synthetic_reverse: false, name: "Test Road", road_class: "residential",
+      length_m: 100, lanes: 1, free_speed_mps: 13.9,
+      geometry: [
+        { x_m: 0, y_m: 0, lat: 52.5, lon: 13.4 },
+        { x_m: 2000, y_m: 2000, lat: 52.52, lon: 13.43 },
+      ],
     },
   ],
   features: [],
   source: "OpenStreetMap",
   map_selection_version: "urban-crfg-v2",
   bounds: { min_lat: 52.4, max_lat: 52.6, min_lon: 13.3, max_lon: 13.5 },
-  projection: {
-    name: "local equirectangular",
-    origin_lat: 52.5,
-    origin_lon: 13.4,
-    units: "metres",
-  },
-  location: {
-    city: "Berlin",
-    country: "Germany",
-    anchor_lat: 52.505,
-    anchor_lon: 13.4235,
-    tile_radius_m: 2000,
-    downloaded: true,
-  },
+  projection: { name: "local equirectangular", origin_lat: 52.5, origin_lon: 13.4, units: "metres" },
+  location: { city: "Berlin", country: "Germany", anchor_lat: 52.505, anchor_lon: 13.4235, city_extent_m: 5000, downloaded: true },
 };
 
-const snapshot = {
+const baseSnapshot = {
   topology_revision: 1,
   nodes: [],
   edges: [
     {
-      id: 0,
-      congestion: 0.2,
-      rainfall: 0,
-      flood: 0,
-      effective_speed_mps: 11,
-      mean_speed_mps: 11,
-      vehicle_count: 7,
-      halting_count: 1,
-      closed: false,
-      incident_closed: false,
-      incident_speed_multiplier: 1,
-      signal_multiplier: 1,
-      demand_vph: 300,
-      effective_capacity_vph: 900,
-      demand_causes: [],
+      id: 0, congestion: 0.2, rainfall: 0, flood: 0, effective_speed_mps: 11, mean_speed_mps: 11, vehicle_count: 7,
+      halting_count: 1, closed: false, incident_closed: false, incident_speed_multiplier: 1, signal_multiplier: 1,
+      demand_vph: 300, effective_capacity_vph: 900, demand_causes: [],
     },
   ],
   signals: [],
   demand: [],
   congestion: { current: 14, average: 20, delta: -6, source: "model" },
-  active_weather: [],
+  active_weather: [] as { id: number; x_m: number; y_m: number; radius_m: number; intensity: number; phase?: number }[],
   active_incidents: [],
 };
 
@@ -119,90 +87,99 @@ const backpressure = {
   thresholds: {},
 };
 
-/** Record every mutating call so tests can assert what reached the core. */
+/** Every mutating call, so tests can assert exactly what reached the core. */
 let calls: { path: string; method: string; body: string }[] = [];
 
-/** ui-config that asks before enabling auto-focus, rather than forcing it on. */
+type Mock = {
+  lifecycle: string;
+  runId: string;
+  seed: string;
+  clock: typeof baseClock;
+  snapshot: typeof baseSnapshot;
+  backpressure: typeof backpressure;
+  uiConfig: Record<string, unknown>;
+  news: Record<string, unknown>[];
+  world: Record<string, unknown>;
+  worldQueue: Record<string, unknown>[];
+};
+let state: Mock;
+
 const ASKS_FIRST = { auto_focus: { mode: "enable" } };
 
 /** Wait until the run has loaded and its controls are live. */
 async function ready() {
-  await waitFor(() => expect(screen.getByLabelText("Pause simulation")).toBeEnabled(), {
-    timeout: 4000,
+  await waitFor(() => expect(screen.getByLabelText("Pause simulation")).toBeEnabled(), { timeout: 4000 });
+}
+
+function mockApi(overrides: Partial<Mock> = {}) {
+  state = {
+    lifecycle: "RUNNING",
+    runId: "run_1",
+    seed: "0x5089050192221083c848bf3e12e22a4f",
+    clock: { ...baseClock },
+    snapshot: structuredClone(baseSnapshot),
+    backpressure,
+    uiConfig: {},
+    news: [],
+    world: { state: "idle", stage: "idle", seed: "", previous_run_id: "", run_id: "", generation: 0, elapsed_s: 0, map: null, error: null, enabled: true },
+    worldQueue: [],
+    ...overrides,
+  };
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input);
+    const method = init?.method ?? "GET";
+    if (method !== "GET" && !path.includes("/system/backpressure")) calls.push({ path, method, body: String(init?.body ?? "") });
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    const envelope = (data: unknown) => ({
+      api_version: "1.0",
+      run_id: state.runId,
+      global_seed: state.seed,
+      state_revision: 1,
+      config_revision: 1,
+      clock: { ...state.clock, playback_state: state.lifecycle },
+      data,
+    });
+    if (path.includes("/system/ui-config")) return json({ api_version: "1.0", data: state.uiConfig });
+    if (path.includes("/system/map-status")) return json({ api_version: "1.0", data: { active: false } });
+    if (path.includes("/system/backpressure")) return json(state.backpressure);
+    if (path.includes("/world/regenerate")) {
+      state.world = { ...state.world, state: "generating", stage: "compiling", seed: "0xabcdef0123456789abcdef0123456789", previous_run_id: state.runId };
+      return json({ api_version: "1.0", data: state.world }, 202);
+    }
+    if (path.includes("/world/status")) {
+      // Progress only advances once a generation has been requested.
+      if (state.world.state === "generating" && state.worldQueue.length) state.world = { ...state.world, ...state.worldQueue.shift() };
+      return json({ api_version: "1.0", data: state.world });
+    }
+    if (path.includes("/playback/step")) return json({ simulated_seconds: state.clock.virtual_day_seconds + 60, stepped_seconds: 60, lifecycle: "PAUSED" });
+    let data: unknown = {};
+    if (path.includes("/playback/status"))
+      data = { lifecycle: state.lifecycle, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v2", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1 };
+    else if (path.includes("/view/topology")) data = topology;
+    else if (path.includes("/view/snapshot")) data = state.snapshot;
+    else if (path.includes("/news")) {
+      const since = Number(new URL(path, "http://x").searchParams.get("since_news_id") ?? 0);
+      data = { items: state.news.filter((n) => (n.news_id as number) > since) };
+    } else if (path.includes("/view/congestion")) data = { ...state.snapshot.congestion, history: [] };
+    return json(envelope(data));
   });
 }
 
-function mockApi(
-  overrides: {
-    lifecycle?: string;
-    runId?: string;
-    backpressure?: typeof backpressure;
-    uiConfig?: Record<string, unknown>;
-  } = {},
-) {
-  const runId = overrides.runId ?? "run_1";
-  const lifecycle = overrides.lifecycle ?? "RUNNING";
-  const asbBody = overrides.backpressure ?? backpressure;
-  const uiConfig = overrides.uiConfig ?? {};
-  vi.spyOn(globalThis, "fetch").mockImplementation(
-    async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = String(input);
-      const method = init?.method ?? "GET";
-      if (method !== "GET" && !path.includes("/system/backpressure"))
-        calls.push({ path, method, body: String(init?.body ?? "") });
-      const envelope = (data: unknown) => ({
-        api_version: "1.0",
-        run_id: runId,
-        global_seed: "0x5089050192221083c848bf3e12e22a4f",
-        state_revision: 1,
-        config_revision: 1,
-        clock,
-        data,
-      });
-      // Endpoints that are not enveloped.
-      if (path.includes("/system/ui-config"))
-        return new Response(JSON.stringify({ api_version: "1.0", data: uiConfig }), {
-          headers: { "Content-Type": "application/json" },
-        });
-      if (path.includes("/system/map-status"))
-        return new Response(JSON.stringify({ api_version: "1.0", data: { active: false } }), {
-          headers: { "Content-Type": "application/json" },
-        });
-      if (path.includes("/system/backpressure"))
-        return new Response(JSON.stringify(asbBody), {
-          headers: { "Content-Type": "application/json" },
-        });
-
-      let data: unknown = {};
-      if (path.includes("/playback/status"))
-        data = {
-          lifecycle,
-          day: 0,
-          saved_seed_id: "",
-          map_selection_version: "urban-crfg-v2",
-          modules: { traffic: true, signals: true, dws: true },
-        };
-      else if (path.includes("/view/topology")) data = topology;
-      else if (path.includes("/view/snapshot")) data = snapshot;
-      else if (path.includes("/news")) data = { items: [] };
-      else if (path.includes("/view/congestion"))
-        data = { ...snapshot.congestion, history: [] };
-      return new Response(JSON.stringify(envelope(data)), {
-        headers: { "Content-Type": "application/json" },
-      });
-    },
-  );
+let newsId = 1;
+function news(partial: Record<string, unknown>) {
+  const id = newsId++;
+  return { news_id: id, event_id: id, virtual_day_s: 21600, simulated_current_time: "06:00:00", category: "system", severity: "info", template_id: "X", message: "", data: {}, ...partial };
 }
 
 beforeEach(() => {
   calls = [];
-  // The shell remembers per run whether auto-focus was offered, so each test
-  // starts from a clean slate rather than inheriting the previous one's answer.
   localStorage.clear();
 });
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("observer shell", () => {
@@ -210,86 +187,14 @@ describe("observer shell", () => {
     mockApi();
     render(<App />);
     expect(await screen.findByText("Berlin, Germany")).toBeInTheDocument();
-    // The HUD falls back to the tile anchor until the pointer moves over the map.
-    expect(
-      await screen.findByText(/52\.5050° N, 13\.4235° E/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/52\.5050° N, 13\.4235° E/)).toBeInTheDocument();
   });
 
   it("renders live telemetry from the snapshot", async () => {
     mockApi();
     render(<App />);
-    expect(await screen.findByText("LIVE TELEMETRY")).toBeDefined();
-    await waitFor(() =>
-      expect(screen.getByText("14%")).toBeInTheDocument(),
-    );
-  });
-
-  it("drives playback through the core API", async () => {
-    mockApi();
-    render(<App />);
-    await ready();
-    fireEvent.click(await screen.findByLabelText("Pause simulation"));
-    await waitFor(() =>
-      expect(calls.some((c) => c.path.includes("/playback/pause"))).toBe(true),
-    );
-
-    fireEvent.click(screen.getByLabelText("Step forward 1m"));
-    await waitFor(() => {
-      const seek = calls.find((c) => c.path.includes("/playback/seek"));
-      expect(seek).toBeDefined();
-      // 06:00:00 plus one minute.
-      expect(JSON.parse(seek!.body).target_time).toBe(21660);
-    });
-
-    // Reset is destructive enough to confirm first, so the click alone must
-    // not reach the core.
-    calls.length = 0;
-    fireEvent.click(screen.getByLabelText("Reset simulation to the start of the day"));
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Reset the simulation?");
-    expect(calls).toEqual([]);
-
-    fireEvent.click(screen.getByRole("button", { name: "Reset to 00:00:00" }));
-    await waitFor(() =>
-      expect(
-        calls.some(
-          (c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 0,
-        ),
-      ).toBe(true),
-    );
-  });
-
-  it("abandons a reset when the confirmation is cancelled", async () => {
-    mockApi();
-    render(<App />);
-    await ready();
-    calls.length = 0;
-    fireEvent.click(screen.getByLabelText("Reset simulation to the start of the day"));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(calls).toEqual([]);
-  });
-
-  it("keeps display layers entirely in the frontend", async () => {
-    mockApi();
-    render(<App />);
-    await ready();
-    const map = await screen.findByTestId("map");
-    expect(map.getAttribute("data-layers")).toContain("weather");
-
-    fireEvent.click(screen.getByRole("button", { name: /Display Layers/ }));
-    const weather = await screen.findByLabelText("Weather cells");
-    fireEvent.click(weather);
-
-    // The canvas stops drawing the layer...
-    await waitFor(() =>
-      expect(screen.getByTestId("map").getAttribute("data-layers")).not.toContain(
-        "weather",
-      ),
-    );
-    // ...and nothing about it was ever sent to the simulation core.
-    expect(calls).toEqual([]);
+    expect(await screen.findByText("Live telemetry")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("14%")).toBeInTheDocument());
   });
 
   it("does not offer playback control while the core is idle", async () => {
@@ -301,19 +206,12 @@ describe("observer shell", () => {
   });
 
   it("surfaces a map download failure as an alert", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: {
-            code: "MAP_FETCH_FAILED",
-            message:
-              "OSM download failed for Berlin (Germany) at 52.505, 13.423: Overpass returned HTTP 429",
-          },
-        }),
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(
+        JSON.stringify({ ok: false, error: { code: "MAP_FETCH_FAILED", message: "OSM download failed for Berlin (Germany) at 52.505, 13.423: Overpass returned HTTP 429" } }),
         { status: 503, headers: { "Content-Type": "application/json" } },
-      );
-    });
+      ),
+    );
     render(<App />);
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/OSM download failed for Berlin/);
@@ -321,159 +219,467 @@ describe("observer shell", () => {
   });
 });
 
-describe("v2 surfaces", () => {
-  it("offers auto-focus once per run and remembers the answer", async () => {
-    mockApi({ uiConfig: ASKS_FIRST });
+describe("command rail", () => {
+  it("drives play, pause, back, step and forward through the core", async () => {
+    mockApi();
     render(<App />);
-    // The offer appears because ui-config's default mode is "enable".
-    expect(await screen.findByText("This simulation supports Auto-Focus")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
-    await waitFor(() =>
-      expect(screen.queryByText("This simulation supports Auto-Focus")).not.toBeInTheDocument(),
-    );
-    expect(screen.getByLabelText("Auto-focus on live events")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    // It is an offer, not a nag: it does not return for the same run.
-    await new Promise((r) => setTimeout(r, 120));
-    expect(screen.queryByText("This simulation supports Auto-Focus")).not.toBeInTheDocument();
+    await ready();
+    fireEvent.click(screen.getByLabelText("Pause simulation"));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/pause"))).toBe(true));
+
+    // Back and Forward skip 15 minutes by default, through real seeks.
+    fireEvent.click(screen.getByLabelText("Back 15 min"));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 21600 - 900)).toBe(true));
+    fireEvent.click(screen.getByLabelText("Forward 15 min"));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 21600 + 900)).toBe(true));
+
+    // Step uses the core's step operation, which holds the run afterwards.
+    fireEvent.click(screen.getByLabelText("Step 1 min"));
+    await waitFor(() => {
+      const step = calls.find((c) => c.path.includes("/playback/step"));
+      expect(step && JSON.parse(step.body)).toEqual({ seconds: 60 });
+    });
   });
 
+  it("confirms before resetting and does nothing when cancelled", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    calls.length = 0;
+    fireEvent.click(screen.getByLabelText("Reset simulation to the start of the day"));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Reset the simulation?");
+    expect(calls).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(calls).toEqual([]);
+
+    fireEvent.click(screen.getByLabelText("Reset simulation to the start of the day"));
+    fireEvent.click(await screen.findByRole("button", { name: "Reset to 00:00:00" }));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 0)).toBe(true));
+  });
+
+  it("offers exactly the six supported speeds and sets the real engine rate", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    const group = screen.getByRole("radiogroup", { name: "Simulation speed" });
+    const options = within(group).getAllByRole("radio");
+    expect(options.map((o) => o.textContent)).toEqual(["0.25×", "0.5×", "1×", "2×", "3×", "5×"]);
+    expect(within(group).getByRole("radio", { name: "1 times speed" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(within(group).getByRole("radio", { name: "3 times speed" }));
+    await waitFor(() => {
+      const tick = calls.find((c) => c.path.includes("/control/tick-rate"));
+      expect(tick && JSON.parse(tick.body)).toEqual({ tick_rate: 3 });
+    });
+    // Arrow keys move between the offered steps.
+    calls.length = 0;
+    fireEvent.keyDown(within(group).getByRole("radio", { name: "1 times speed" }), { key: "ArrowLeft" });
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/control/tick-rate") && JSON.parse(c.body).tick_rate === 0.5)).toBe(true));
+  });
+
+  it("shows progress and switches 12/24 hour time everywhere from one control", async () => {
+    mockApi({ news: [news({ category: "weather", template_id: "WEATHER_FORECAST", message: "[14:30:00] Forecast issued at 14:30:00", virtual_day_s: 52200 })] });
+    render(<App />);
+    await ready();
+    const time = screen.getByRole("button", { name: /Simulation time 06:00:00, 25 percent complete/ });
+    expect(time).toHaveTextContent("25% complete");
+    // The News tab lists the event in 24 hour time.
+    fireEvent.click(screen.getByRole("tab", { name: /News/ }));
+    expect(await screen.findByText("Forecast issued at 14:30:00")).toBeInTheDocument();
+
+    fireEvent.click(time);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Simulation time 6:00:00 AM/ })).toBeInTheDocument());
+    // Text composed by the core and timestamps elsewhere follow the same preference.
+    expect(await screen.findByText("Forecast issued at 2:30:00 PM")).toBeInTheDocument();
+    expect(screen.getAllByText("2:30:00 PM").length).toBeGreaterThan(0);
+    // And the preference persists as a viewer choice.
+    expect(JSON.parse(localStorage.getItem("dstns.ui-config.v1") ?? "{}")).toMatchObject({ clock: { hour12: true } });
+  });
+
+  it("marks the paused state on the time control", async () => {
+    mockApi({ lifecycle: "PAUSED" });
+    render(<App />);
+    await waitFor(() => expect(screen.getByLabelText("Resume simulation")).toBeEnabled(), { timeout: 4000 });
+    const time = screen.getByRole("button", { name: /Simulation time/ });
+    expect(time.className).toContain("paused");
+    expect(time).toHaveAccessibleName(/paused/);
+  });
+
+  it("keeps a long seed visible and copies it on click", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    mockApi();
+    render(<App />);
+    await ready();
+    const seed = screen.getByRole("button", { name: /Copy seed 0x5089050192221083c848bf3e12e22a4f/ });
+    expect(seed).toHaveTextContent("50890501…2a4f");
+    fireEvent.click(seed);
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("0x5089050192221083c848bf3e12e22a4f"));
+    expect(await within(seed).findByText("Copied")).toBeInTheDocument();
+    // Copying is local; nothing reaches the core.
+    expect(calls).toEqual([]);
+  });
+
+  it("shows runtime status as Online, and Degraded while ASB intervenes", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    expect(screen.getByRole("status", { name: "Runtime status Online" })).toBeInTheDocument();
+    expect(screen.queryByText(/1 Hz/)).not.toBeInTheDocument();
+    cleanup();
+    mockApi({ backpressure: { ...backpressure, rate_capped: true, applied_tick_rate: 1, requested_tick_rate: 3 } });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("status", { name: "Runtime status Degraded" })).toBeInTheDocument(), { timeout: 4000 });
+  });
+
+  it("confirms before terminating", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    calls.length = 0;
+    fireEvent.click(screen.getByRole("button", { name: "Terminate" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Terminate this session?");
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("world regeneration", () => {
+  it("asks first, then runs the real pipeline with staged progress until the new world loads", async () => {
+    mockApi({
+      worldQueue: [
+        { stage: "downloading", elapsed_s: 2, map: { city: "Oslo", country: "Norway", phase: "download", bytes: 2 * 1048576, total: 8 * 1048576, elapsed_s: 1 } },
+        { stage: "building", elapsed_s: 4 },
+        { stage: "installing", elapsed_s: 5 },
+        { state: "ready", stage: "ready", run_id: "run_2", elapsed_s: 6 },
+      ],
+    });
+    render(<App />);
+    await ready();
+    calls.length = 0;
+    fireEvent.click(screen.getByLabelText("Generate new world"));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Generate New World?");
+    expect(calls).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+
+    const overlay = await screen.findByRole("alertdialog");
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/world/regenerate") && JSON.parse(c.body).expected_run_id === "run_1")).toBe(true));
+    expect(await within(overlay).findByText("0xabcdef0123456789abcdef0123456789")).toBeInTheDocument();
+    // Real download progress is shown when the core knows the size.
+    expect(await within(overlay).findByText(/Downloading Oslo, Norway: 2\.0 of 8\.0 MiB/, {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(within(overlay).getByRole("progressbar", { name: "Download progress" })).toHaveAttribute("aria-valuenow", "25");
+    expect(await within(overlay).findByText("Constructing the graph, signals and schedules", {}, { timeout: 3000 })).toBeInTheDocument();
+
+    // The core swaps worlds: the interface picks the new run up and the overlay leaves.
+    state.runId = "run_2";
+    state.seed = "0xabcdef0123456789abcdef0123456789";
+    state.lifecycle = "PAUSED";
+    expect(await screen.findByText("New world ready", {}, { timeout: 5000 })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(), { timeout: 4000 });
+    expect(screen.getByRole("button", { name: /Copy seed 0xabcdef/ })).toBeInTheDocument();
+  }, 20000);
+
+  it("reports a failed generation and keeps the current world", async () => {
+    mockApi({ worldQueue: [{ state: "failed", stage: "failed", error: { code: "MAP_FETCH_FAILED", message: "OSM download failed for Oslo: Overpass returned HTTP 429" } }] });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByLabelText("Generate new world"));
+    fireEvent.click(await screen.findByRole("button", { name: "Generate" }));
+    const overlay = await screen.findByRole("alertdialog");
+    expect(await within(overlay).findByText("World generation failed", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(overlay).toHaveTextContent(/could not be downloaded from OpenStreetMap\. Overpass returned HTTP 429/);
+    expect(overlay).toHaveTextContent("The previous world is still running");
+    expect(overlay).not.toHaveTextContent(/at .*\.cpp|stack/i);
+    expect(errors).toHaveBeenCalled();
+    // Retry issues a fresh request; Return closes without touching the run.
+    calls.length = 0;
+    fireEvent.click(within(overlay).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/world/regenerate"))).toBe(true));
+    state.worldQueue = [{ state: "failed", stage: "failed", error: { code: "WORLD_GENERATION_FAILED", message: "x" } }];
+    fireEvent.click(await screen.findByRole("button", { name: "Return to current world" }, { timeout: 3000 }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /Copy seed 0x5089/ })).toBeInTheDocument();
+  }, 15000);
+
+  it("phrases generation errors for operators", () => {
+    expect(worldErrorMessage("WORLD_REGENERATION_DISABLED", "")).toBe("World generation is disabled for this deployment.");
+    expect(worldErrorMessage("WORLD_GENERATION_FAILED", "std::runtime_error at engine.cpp:120")).not.toMatch(/cpp/);
+  });
+});
+
+describe("notifications", () => {
+  const rain = () =>
+    news({ category: "weather", severity: "warning", template_id: "DWS_RAIN_STARTED", event_id: 4, message: "[06:00:00] Rain storm initiated at Node 1 (Radius: 800m, Intensity: 80%)", data: { epicenter: 1, radius_m: 800, intensity: 0.8 } });
+  const crash = () =>
+    news({ category: "incident", severity: "alert", template_id: "INCIDENT_ACTIVATED", message: "[06:00:00] Multi-vehicle collision: lane blocked on Edge #0 near Node #0. (HIGH SEVERITY)", data: { incident_id: 9, type: "accident", edge_id: 0, closed: true } });
+
+  /** News only becomes a notification after the first poll, as it does live. */
+  async function arrive(...items: Record<string, unknown>[]) {
+    await ready();
+    await act(async () => {
+      state.news.push(...items);
+      await new Promise((r) => setTimeout(r, 1300));
+    });
+  }
+
+  it("shows one compact capsule with a count badge and expands in place", async () => {
+    mockApi({ uiConfig: { auto_focus: { mode: "disable" } } });
+    render(<App />);
+    await arrive(rain(), crash());
+    const capsule = await screen.findByRole("article", { name: "Notifications" });
+    const head = within(capsule).getByRole("button", { expanded: false });
+    // The most severe event leads; the other is counted, not stacked.
+    expect(head).toHaveTextContent("Collision");
+    expect(head).toHaveTextContent("+1");
+    expect(head).not.toHaveTextContent(/Edge #0|Node #0/);
+    fireEvent.click(head);
+    expect(head).toHaveAttribute("aria-expanded", "true");
+    expect(capsule).toHaveTextContent("Multi-vehicle collision on Test Road. Lane blocked.");
+    expect(capsule).toHaveTextContent("Severity");
+    // Raw fields stay behind the technical disclosure.
+    fireEvent.click(within(capsule).getByRole("button", { name: /Technical details/ }));
+    expect(capsule).toHaveTextContent("INCIDENT_ACTIVATED");
+    // The other event is one click away.
+    fireEvent.click(within(capsule).getByRole("button", { name: /Heavy rain/ }));
+    expect(capsule).toHaveTextContent(/Heavy rainfall has developed over/);
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(within(capsule).getByRole("button", { expanded: false })).toBeInTheDocument());
+  }, 15000);
+
+  it("silences muted categories under Do Not Disturb without touching the core", async () => {
+    mockApi({ uiConfig: { auto_focus: { mode: "disable" }, notifications: { dnd: true, dnd_categories: ["weather"] } } });
+    render(<App />);
+    await arrive(rain(), crash());
+    const capsule = await screen.findByRole("article", { name: "Notifications" });
+    expect(capsule).toHaveTextContent("Collision");
+    expect(capsule).not.toHaveTextContent("+1");
+    expect(calls).toEqual([]);
+  }, 15000);
+
+  it("shows a silenced count when everything is muted", async () => {
+    mockApi({ uiConfig: { auto_focus: { mode: "disable" }, notifications: { dnd: true } } });
+    render(<App />);
+    await arrive(rain(), crash());
+    expect(await screen.findByText("2 silenced")).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: "Notifications" })).not.toBeInTheDocument();
+  }, 15000);
+
+  it("lets the auto-focused event through DND, and only that event", async () => {
+    const snapshot = structuredClone(baseSnapshot);
+    snapshot.active_weather = [{ id: 4, x_m: 500, y_m: 500, radius_m: 800, intensity: 0.8, phase: 0.1 }];
+    mockApi({ snapshot, uiConfig: { notifications: { dnd: true } } });
+    render(<App />);
+    await arrive(rain(), crash());
+    const capsule = await screen.findByRole("article", { name: "Notifications" });
+    // Weather is muted, but it is what the camera is following.
+    expect(capsule).toHaveTextContent("Heavy rain");
+    expect(capsule).not.toHaveTextContent("+1");
+    fireEvent.click(within(capsule).getByRole("button", { expanded: false }));
+    expect(capsule).toHaveTextContent("Following");
+  }, 15000);
+});
+
+describe("auto focus", () => {
+  it("frames a rain cell by its footprint and follows it as it grows", async () => {
+    const snapshot = structuredClone(baseSnapshot);
+    snapshot.active_weather = [{ id: 4, x_m: 500, y_m: 500, radius_m: 300, intensity: 0.5, phase: 0.05 }];
+    mockApi({ snapshot });
+    render(<App />);
+    await ready();
+    const focus = () => JSON.parse(screen.getByTestId("map").getAttribute("data-focus") || "null");
+    await waitFor(() => expect(focus()).toEqual({ minX: 200, maxX: 800, minY: 200, maxY: 800 }));
+    // The cell grows: the framing widens to keep the whole cloud in view.
+    await act(async () => {
+      state.snapshot = { ...state.snapshot, active_weather: [{ id: 4, x_m: 520, y_m: 500, radius_m: 900, intensity: 0.8, phase: 0.2 }] };
+      await new Promise((r) => setTimeout(r, 1300));
+    });
+    await waitFor(() => expect(focus()).toEqual({ minX: -380, maxX: 1420, minY: -400, maxY: 1400 }));
+  }, 15000);
+
+  it("returns to the whole network when nothing needs attention", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    await waitFor(() => expect(JSON.parse(screen.getByTestId("map").getAttribute("data-focus") || "null")).toEqual({ minX: 0, maxX: 2000, minY: 0, maxY: 2000 }));
+  });
+
+  it("offers Auto Focus once per run and remembers the answer", async () => {
+    mockApi({ uiConfig: ASKS_FIRST });
+    render(<App />);
+    expect(await screen.findByText("This simulation supports Auto Focus")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
+    await waitFor(() => expect(screen.queryByText("This simulation supports Auto Focus")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Auto Focus on live events")).toHaveAttribute("aria-pressed", "true");
+    await new Promise((r) => setTimeout(r, 120));
+    expect(screen.queryByText("This simulation supports Auto Focus")).not.toBeInTheDocument();
+  });
+
+  it("opens the order menu on a double click", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    fireEvent.doubleClick(screen.getByLabelText("Auto Focus on live events"));
+    await screen.findByRole("menu", { name: "Auto Focus order" });
+    expect(screen.getByRole("menuitemradio", { name: /Round-Robin/ })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /Latest/ }));
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+  });
+});
+
+describe("settings", () => {
+  it("slides a drawer in from the sidebar with Auto Focus and DND categories", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    const drawer = document.querySelector<HTMLElement>(".settings-drawer")!;
+    expect(drawer).toHaveAttribute("aria-hidden", "true");
+    expect(drawer.className).not.toContain("open");
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(drawer.className).toContain("open");
+    expect(drawer).toHaveAttribute("aria-hidden", "false");
+
+    const autoFocus = within(drawer).getByRole("switch", { name: "Auto Focus Events" });
+    expect(autoFocus).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(autoFocus);
+    expect(autoFocus).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByLabelText("Auto Focus on live events")).toHaveAttribute("aria-pressed", "false");
+
+    const dnd = within(drawer).getByRole("switch", { name: "Do Not Disturb" });
+    fireEvent.click(dnd);
+    expect(screen.getByRole("button", { name: "Do Not Disturb" })).toHaveAttribute("aria-pressed", "true");
+    const weather = within(drawer).getByRole("checkbox", { name: /Weather updates/ });
+    expect(weather).toBeChecked();
+    fireEvent.click(weather);
+    expect(weather).not.toBeChecked();
+    expect(JSON.parse(localStorage.getItem("dstns.ui-config.v1") ?? "{}").notifications.dnd_categories).not.toContain("weather");
+
+    // Presentation only: none of this reaches the core.
+    expect(calls).toEqual([]);
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(drawer.className).not.toContain("open"));
+  });
+
+  it("changes the skip and step intervals used by the rail", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const drawer = screen.getByRole("dialog", { name: "Settings" });
+    fireEvent.click(within(within(drawer).getByRole("radiogroup", { name: "Skip interval" })).getByRole("radio", { name: "1h" }));
+    fireEvent.click(within(within(drawer).getByRole("radiogroup", { name: "Step interval" })).getByRole("radio", { name: "10s" }));
+    expect(screen.getByLabelText("Back 1 h 00 min")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Step 10 s"));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/step") && JSON.parse(c.body).seconds === 10)).toBe(true));
+  });
+});
+
+describe("layers and legend", () => {
+  it("keeps layers entirely in the frontend", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    expect(screen.getByTestId("map").getAttribute("data-layers")).toContain("weather");
+    fireEvent.click(screen.getByRole("button", { name: /Layers/ }));
+    fireEvent.click(await screen.findByRole("switch", { name: "Weather" }));
+    await waitFor(() => expect(screen.getByTestId("map").getAttribute("data-layers")).not.toContain("weather"));
+    expect(calls).toEqual([]);
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Layers" })).not.toBeInTheDocument());
+  });
+
+  it("ships with road and place names hidden while drawing roads and buildings", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    const drawn = () => screen.getByTestId("map").getAttribute("data-layers") ?? "";
+    expect(drawn()).not.toContain("labels");
+    expect(drawn()).not.toContain("place_names");
+    expect(drawn()).toContain("roads");
+    expect(drawn()).toContain("buildings");
+    fireEvent.click(screen.getByRole("button", { name: /Layers/ }));
+    fireEvent.click(await screen.findByRole("switch", { name: "Place names" }));
+    await waitFor(() => expect(drawn()).toContain("place_names"));
+  });
+
+  it("shows the road-state legend beside the layers control", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    const legend = screen.getByLabelText("Road state legend");
+    expect(legend).toHaveTextContent(/Clear.*Moderate.*Severe.*Flooded/);
+  });
+});
+
+describe("dialogs and suspension", () => {
   it("shows the About card with the licence and a source offer", async () => {
     mockApi();
     render(<App />);
     await ready();
     fireEvent.click(screen.getByLabelText("About DSTNS, licence and source"));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("dialog", { name: "DSTNS" });
     expect(dialog).toHaveTextContent("Varun Karthic");
     expect(dialog).toHaveTextContent(/Affero General Public License/);
-    expect(dialog).toHaveTextContent(/OpenStreetMap/);
-    // AGPL section 13: the source offer must be reachable from the interface.
-    expect(screen.getByRole("link", { name: /Source/ })).toHaveAttribute(
-      "href",
-      "/api/v1/system/source",
-    );
-  });
-
-  it("closes a dialog on Escape", async () => {
-    mockApi();
-    render(<App />);
-    await ready();
-    fireEvent.click(screen.getByLabelText("About DSTNS, licence and source"));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Source/ })).toHaveAttribute("href", "/api/v1/system/source");
     fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "DSTNS" })).not.toBeInTheDocument());
   });
 
-  it("silences notifications under do-not-disturb without touching the core", async () => {
-    mockApi();
+  it("announces completion and offers the report", async () => {
+    mockApi({ lifecycle: "COMPLETED", clock: { ...baseClock, virtual_day_seconds: 86400, simulation_percentage: 1 }, news: [news({ template_id: "INCIDENT_ACTIVATED", severity: "alert", category: "incident" }), news({ template_id: "DWS_RAIN_STARTED", severity: "warning", category: "weather" })] });
     render(<App />);
-    await ready();
-    calls.length = 0;
-    fireEvent.click(screen.getByLabelText("Do not disturb"));
-    await waitFor(() =>
-      expect(screen.getByLabelText("Do not disturb")).toHaveAttribute("aria-pressed", "true"),
-    );
-    // Silencing is a presentation choice; it must never reach the simulation.
-    expect(calls).toEqual([]);
+    const dialog = await screen.findByRole("dialog", { name: "Simulation Complete" }, { timeout: 5000 });
+    expect(dialog).toHaveTextContent("24:00:00");
+    await waitFor(() => expect(dialog).toHaveTextContent(/Incidents\s*1/));
+    expect(dialog).toHaveTextContent(/Rain events\s*1/);
+    expect(dialog).toHaveTextContent("0x5089050192221083c848bf3e12e22a4f");
+    expect(within(dialog).getByRole("button", { name: /Download Report/ })).toBeEnabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Simulation Complete" })).not.toBeInTheDocument());
   });
 
-  it("ships with place names off while still drawing the buildings", async () => {
-    mockApi();
+  it("suspends the interface when ASB reports Async, leaving the run alive", async () => {
+    mockApi({ backpressure: { ...backpressure, state: "ASYNC", score: 1, synced: false, rate_locked: true, motion_locked: true, gui_suspended: true } });
     render(<App />);
-    await ready();
-    const drawn = () => screen.getByTestId("map").getAttribute("data-layers") ?? "";
-    // The shipped default: the network keeps its shape without the clutter.
-    expect(drawn()).not.toContain("place_names");
-    expect(drawn()).toContain("buildings");
-
-    // And the two are independent, so names can be turned on on their own.
-    fireEvent.click(screen.getByRole("button", { name: /Display Layers/ }));
-    fireEvent.click(await screen.findByLabelText("Place names"));
-    await waitFor(() => {
-      expect(drawn()).toContain("place_names");
-      expect(drawn()).toContain("buildings");
-    });
+    const alert = await screen.findByRole("alertdialog", {}, { timeout: 4000 });
+    expect(alert).toHaveTextContent(/suspended by the ASB/i);
+    expect(alert).toHaveTextContent(/still running and still streaming/i);
+    const button = (name: RegExp) => Array.from(alert.querySelectorAll("button")).find((b) => name.test(b.textContent ?? ""));
+    expect(button(/^Terminate session$/)).toBeEnabled();
+    expect(button(/^Reset$/)).toBeEnabled();
+    expect(button(/^(Pause|Resume) simulation$/)).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Layers/ })).toBeDisabled();
   });
 
-  it("opens the auto-focus strategy menu on a double click", async () => {
-    mockApi();
+  it("locks speed and motion while ASB is Restricted", async () => {
+    mockApi({ backpressure: { ...backpressure, state: "RESTRICTED", score: 0.9, synced: false, rate_locked: true, motion_locked: true, applied_tick_rate: 1, requested_tick_rate: 3 } });
     render(<App />);
-    await ready();
-    fireEvent.doubleClick(screen.getByLabelText("Auto-focus on live events"));
-    const menu = await screen.findByRole("menu", { name: "Auto-focus strategy" });
-    expect(menu).toBeInTheDocument();
-    // Round-Robin is the documented default.
-    expect(screen.getByRole("menuitemradio", { name: /Round-Robin/ })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    fireEvent.click(screen.getByRole("menuitemradio", { name: /Latest/ }));
-    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    await screen.findByText("ASB · Restricted", {}, { timeout: 4000 });
+    expect(screen.getByRole("radiogroup", { name: "Simulation speed" })).toHaveAttribute("aria-disabled", "true");
+    const motion = screen.getByRole("button", { name: "Reduce motion" });
+    expect(motion).toBeDisabled();
+    expect(motion).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("status", { name: "Runtime status Degraded" })).toBeInTheDocument();
   });
 
   it("expands search from the dock rather than occupying the map", async () => {
     mockApi();
     render(<App />);
     await ready();
-    // No search field until it is asked for.
     expect(screen.queryByLabelText("Search places")).toBeInstanceOf(HTMLButtonElement);
     fireEvent.click(screen.getByLabelText("Search places"));
-    const field = await screen.findByPlaceholderText("Search places…");
-    expect(field).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText("Search places")).toBeInTheDocument();
   });
+});
 
-  it("suspends the interface when ASB reports Async, leaving the run alive", async () => {
-    mockApi({
-      backpressure: {
-        ...backpressure,
-        state: "ASYNC",
-        score: 1,
-        synced: false,
-        rate_locked: true,
-        motion_locked: true,
-        gui_suspended: true,
-      },
-    });
+describe("professional copy", () => {
+  it("uses no em dashes or development-history wording in the rendered interface", async () => {
+    mockApi();
     render(<App />);
-    const alert = await screen.findByRole("alertdialog", {}, { timeout: 4000 });
-    expect(alert).toHaveTextContent(/suspended by the ASB/i);
-    expect(alert).toHaveTextContent(/still running and still streaming/i);
-    // Exactly the controls the design promises remain.
-    const within = alert as HTMLElement;
-    const overlayButton = (name: RegExp) =>
-      Array.from(within.querySelectorAll("button")).find((b) => name.test(b.textContent ?? ""));
-    expect(overlayButton(/^Terminate session$/)).toBeEnabled();
-    expect(overlayButton(/^Reset$/)).toBeEnabled();
-    expect(overlayButton(/^(Pause|Resume) simulation$/)).toBeEnabled();
-    // And the ordinary chrome is stood down.
-    expect(screen.getByRole("button", { name: /Display Layers/ })).toBeDisabled();
-  });
-
-  it("locks rate and motion while ASB is Restricted", async () => {
-    mockApi({
-      backpressure: {
-        ...backpressure,
-        state: "RESTRICTED",
-        score: 0.9,
-        synced: false,
-        rate_locked: true,
-        motion_locked: true,
-        applied_tick_rate: 1,
-        requested_tick_rate: 20,
-      },
-    });
-    render(<App />);
-    // Wait for ASB itself to be reported, not merely for controls to be
-    // unavailable: they are also unavailable before any data has arrived.
-    await screen.findByText("ASB · Restricted", {}, { timeout: 4000 });
-    expect(screen.getByLabelText("Simulation rate multiplier")).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-    const motion = screen.getByLabelText("Reduce motion");
-    expect(motion).toBeDisabled();
-    expect(motion).toHaveAttribute("aria-pressed", "true");
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: /Layers/ }));
+    const text = document.body.textContent ?? "";
+    expect(text).not.toContain("—");
+    expect(text).not.toMatch(/\b(no longer|previously|new version|moving average|as requested)\b/i);
   });
 });

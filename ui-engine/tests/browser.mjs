@@ -93,14 +93,16 @@ try {
     },
   );
   assert.equal(run.status, 0, run.stdout + run.stderr);
-  // ui-config's default auto-focus mode is "enable", so the interface offers
-  // the choice once the run's topology arrives. Decline it: the rest of this
-  // suite drives the camera itself.
-  await page.getByRole("button", { name: "Disable" }).click({ timeout: 60000 });
-  await page
-    .getByText("This simulation supports Auto-Focus")
-    .waitFor({ state: "detached" });
-  await page.getByRole("button", { name: "Pause simulation" }).waitFor();
+  // This suite drives the camera itself, so Auto Focus is turned off: declined
+  // if the deployment asks, switched off if it is enabled by default.
+  await page.getByRole("button", { name: "Pause simulation" }).waitFor({ timeout: 60000 });
+  const offer = page.getByRole("button", { name: "Disable" });
+  if (await offer.isVisible().catch(() => false)) await offer.click();
+  const focusButton = page.getByRole("button", { name: "Auto Focus on live events" });
+  if ((await focusButton.getAttribute("aria-pressed")) === "true") {
+    await focusButton.click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Auto Focus on live events"]')?.getAttribute("aria-pressed") === "false");
+  }
   await page.waitForFunction(
     () => !document.querySelector('[aria-label="Pause simulation"]').disabled,
   );
@@ -124,26 +126,21 @@ try {
   );
   await page.getByRole("button", { name: "Pause simulation" }).click();
   await page.getByRole("button", { name: "Resume simulation" }).waitFor();
-  const rate = page.getByRole("slider", {
-    name: "Simulation rate multiplier",
-  });
+  const rate = page.getByRole("radio", { name: "1 times speed" });
   await rate.focus();
   await rate.press("ArrowRight");
   await wait(1200);
   assert.equal(
     (await call("/api/v1/playback/status")).body.clock.tick_rate,
     2,
-    "rate slider drives the core",
+    "speed control drives the core",
   );
   const motionToggle = page.getByRole("button", {
     name: "Reduce motion",
   });
   await motionToggle.hover();
   await page.getByRole("tooltip").waitFor();
-  assert.match(
-    await page.getByRole("tooltip").innerText(),
-    /non-essential motion/,
-  );
+  assert.match(await page.getByRole("tooltip").innerText(), /Reduce motion/);
   await motionToggle.click();
   assert.equal(await motionToggle.getAttribute("aria-pressed"), "false");
   await page.reload();
@@ -161,15 +158,13 @@ try {
     .getByRole("combobox", { name: "Event category" })
     .selectOption("signals");
   await page.waitForFunction(
-    () => document.querySelectorAll(".event-row").length > 0,
+    () => document.querySelectorAll(".stream .stream-card").length > 0,
   );
-  assert.ok((await page.locator(".event-row").count()) <= 30);
+  assert.ok((await page.locator(".stream .stream-card").count()) <= 30);
   assert.match(await page.locator(".stream").innerText(), /scheduled/);
   await page.getByRole("button", { name: "Executed" }).click();
   await page.waitForFunction(() =>
-    document
-      .querySelector(".event-row small")
-      ?.textContent.includes("executed"),
+    document.querySelector(".stream")?.textContent.includes("executed"),
   );
   await page.getByRole("tab", { name: "Stack" }).click();
   const topo = (await call("/api/v1/view/topology")).body.data;
@@ -177,24 +172,22 @@ try {
   const bounds = await page.locator(".map-layer").boundingBox();
   const xs = topo.nodes.map((n) => n.position.x_m),
     ys = topo.nodes.map((n) => -n.position.y_m);
-  // Mirrors mapFitLayout() in src/mapProjection.ts, which is unit tested there.
-  // Kept in sync so these suites can aim real pointer events at real entities.
+  // Mirrors the network fit in NetworkMap (mapInsets() and viewportFor(),
+  // both unit tested), so this suite can aim real pointer events at real
+  // entities. The fit pads the network by 3% on each side.
+  await page.getByRole("button", { name: "Fit network to viewport" }).click();
+  await wait(1600);
   const deckPx = bounds.width <= 1024 ? 0 : bounds.width <= 1280 ? 340 : 420;
-  const available = Math.max(280, bounds.width - deckPx - (deckPx ? 110 : 100));
-  const centerX = (bounds.width - deckPx) / 2;
+  const insets = { top: 24, left: bounds.width <= 720 ? 16 : 76, right: deckPx + 24, bottom: bounds.width <= 720 ? 196 : 150 };
+  const usableW = bounds.width - insets.left - insets.right;
+  const usableH = bounds.height - insets.top - insets.bottom;
   const scale = Math.min(
-    available / (Math.max(...xs) - Math.min(...xs)),
-    (bounds.height - 150) / (Math.max(...ys) - Math.min(...ys)),
+    usableW / ((Math.max(...xs) - Math.min(...xs)) * 1.06),
+    usableH / ((Math.max(...ys) - Math.min(...ys)) * 1.06),
   );
   const project = (p) => ({
-    x:
-      bounds.x +
-      centerX +
-      (p.x_m - (Math.max(...xs) + Math.min(...xs)) / 2) * scale,
-    y:
-      bounds.y +
-      (bounds.height - 60) / 2 +
-      (-p.y_m - (Math.max(...ys) + Math.min(...ys)) / 2) * scale,
+    x: bounds.x + insets.left + usableW / 2 + (p.x_m - (Math.max(...xs) + Math.min(...xs)) / 2) * scale,
+    y: bounds.y + insets.top + usableH / 2 + (-p.y_m - (Math.max(...ys) + Math.min(...ys)) / 2) * scale,
   });
   const signals = (await call("/api/v1/view/snapshot")).body.data.signals;
   // The part of the canvas no floating panel covers: right of the map dock,
@@ -223,19 +216,9 @@ try {
   await call("/api/v1/playback/seek", { target_time: demand.virtual_s - 3 });
   await wait(1800);
   await page.getByRole("button", { name: "Resume simulation" }).click();
-  await page
-    .locator(".toast")
-    .filter({ hasText: /demand|commute|Retail/i })
-    .first()
-    .waitFor();
-  assert.match(
-    await page
-      .locator(".toast")
-      .filter({ hasText: /demand|commute|Retail/i })
-      .first()
-      .innerText(),
-    /demand|commute|Retail/i,
-  );
+  const capsule = page.locator(".capsule").filter({ hasText: /demand/i });
+  await capsule.waitFor({ timeout: 20000 });
+  assert.match(await capsule.innerText(), /demand/i);
   await page.getByRole("button", { name: "Pause simulation" }).click();
   await page.getByRole("button", { name: "Resume simulation" }).waitFor();
   const demandState = (await call("/api/v1/view/snapshot")).body.data;
@@ -245,7 +228,7 @@ try {
   const place = topo.features.find((f) => f.name && f.name.length > 3);
   assert.ok(place);
   await page.getByRole("button", { name: "Search places" }).click();
-  await page.getByPlaceholder("Search places…").fill(place.name);
+  await page.getByPlaceholder("Search places").fill(place.name);
   await page.locator(".dock-search li button").first().click();
   await page.getByRole("tooltip").waitFor();
   await page.keyboard.press("Escape");
@@ -264,7 +247,7 @@ try {
       ),
       "no horizontal overflow",
     );
-    const box = await page.locator(".playback-dock").boundingBox();
+    const box = await page.locator(".rail").boundingBox();
     assert.ok(
       box.x >= 0 && box.x + box.width <= width && box.y + box.height <= height,
     );
@@ -306,17 +289,15 @@ try {
     "COMPLETED",
     "seeking to the end completes the run",
   );
-  // The scrubber reports the full day, and transport controls are inert.
+  // The time control reports the full day, completion is announced, and
+  // transport controls are inert.
   await page.waitForFunction(
-    () =>
-      Number(
-        document
-          .querySelector('[aria-label="Virtual day position"]')
-          ?.getAttribute("aria-valuenow") ?? 0,
-      ) >= 86399,
+    () => Number(document.querySelector(".time-control")?.getAttribute("data-seconds") ?? 0) >= 86399,
     undefined,
     { timeout: 10000 },
   );
+  await page.getByRole("dialog", { name: "Simulation Complete" }).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Close" }).click();
   assert.ok(
     await page.getByRole("button", { name: "Pause simulation" }).isDisabled(),
     "completed run offers no pause",
@@ -363,6 +344,6 @@ try {
     "Browser verification passed: CLI-only start, weekend, pause/resume/speed, OS and persisted motion, tooltips, event pages, place inspection, responsive layouts, PDF download, malformed data, completion and backend termination.",
   );
 } finally {
-  await browser?.close();
   server.kill("SIGTERM");
+  await browser?.close().catch(() => {});
 }

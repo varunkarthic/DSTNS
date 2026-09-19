@@ -39,7 +39,9 @@ export function notificationKind(item: News): string {
     .replace(/\b(edge|node|junction|road|link|signal|incident|cell)\s+#?\d+/gi, "$1")
     .replace(/#\d+/g, "")
     .replace(/\b\d+[.:]\d+[.:]?\d*\b/g, "")
-    .replace(/\b\d+(\.\d+)?\s?(%|km\/h|m|km|mm\/h|s|min)\b/gi, "")
+    // A lookahead rather than \b: "%" is not a word character, so \b after it
+    // only matches before a letter and "40% at" would keep its number.
+    .replace(/\b\d+(\.\d+)?\s?(%|km\/h|mm\/h|km|min|m|s)(?![\w])/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
