@@ -1,3 +1,4 @@
+import { useScrollFade } from "./scrollFade";
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { Icon, categoryIcon } from "./Icons";
@@ -85,25 +86,12 @@ const VIEW_TITLE: Record<PanelView, string> = {
  */
 function FadeScroll({ children, resetKey, labelledBy }: { children: ReactNode; resetKey: string; labelledBy?: string }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [atEnd, setAtEnd] = useState(true);
-  const measure = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    setAtEnd(el.scrollHeight - el.scrollTop - el.clientHeight < 4);
-  }, []);
-  useEffect(() => {
-    measure();
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  });
+  const scroll = useScrollFade<HTMLDivElement>();
   useEffect(() => {
     if (ref.current) ref.current.scrollTop = 0;
   }, [resetKey]);
   return (
-    <div ref={ref} className={`stream${atEnd ? " at-end" : ""}`} role="tabpanel" aria-labelledby={labelledBy} tabIndex={0} onScroll={measure}>
+    <div {...scroll} ref={useCallback((el: HTMLDivElement | null) => { ref.current = el; scroll.ref(el); }, [scroll.ref])} className={`stream ${scroll.className}`} role="tabpanel" aria-labelledby={labelledBy} tabIndex={0}>
       {children}
     </div>
   );
@@ -722,20 +710,6 @@ function TelemetryDeckImpl(props: Props) {
     return () => observer.disconnect();
   }, []);
 
-  const metric = (view: PanelView, icon: ReactNode, value: string, label: string, extra = "") => (
-    <Tooltip label={label} side={["left", "bottom", "top"]}>
-      <button
-        type="button"
-        className={`strip-metric${extra}${panel === view ? " active" : ""}`}
-        aria-label={label}
-        aria-expanded={panel === view}
-        onClick={(e) => openPanel(view, e.currentTarget)}
-      >
-        {icon}
-        <span className="mono">{value}</span>
-      </button>
-    </Tooltip>
-  );
 
   return (
     <aside ref={deck} className={`telemetry-deck${compact ? " compact" : ""}`} aria-label="Live telemetry">
@@ -771,16 +745,15 @@ function TelemetryDeckImpl(props: Props) {
           <i aria-hidden="true" />
         </span>
         <span className="strip-rule" aria-hidden="true" />
-        {metric("overview", <Icon name="road" size={16} />, formatCompact(figures.edges), `Road edges: ${figures.edges.toLocaleString()}, ${figures.flowingEdges.toLocaleString()} carrying flow`)}
-        {metric("overview", <Icon name="vehicle" size={16} />, formatCompact(figures.vehicles), `Vehicles: ${figures.vehicles.toLocaleString()}, ${figures.halting.toLocaleString()} halting`)}
-        {metric("overview", <Icon name="gauge" size={16} />, `${figures.congestion.toFixed(0)}%`, `Congestion index: ${figures.congestion.toFixed(0)} percent`)}
-        {metric(
-          "overview",
-          <WeatherGlyph weather={weather} />,
-          weather.cells ? String(weather.cells) : "0",
-          `Weather: ${weather.label}${weather.cells ? `, ${weather.cells} active cell${weather.cells === 1 ? "" : "s"}, ${weather.rate}` : ""}`,
-          ` wx-metric wx-${weather.level}`,
-        )}
+        <Tooltip label="Network overview" detail="Roads, vehicles, congestion and weather." side={["left", "bottom"]}>
+          <button type="button" className={`strip-overview${panel === "overview" ? " active" : ""}`}
+            aria-label="Network overview" aria-expanded={panel === "overview"} onClick={(e) => openPanel("overview", e.currentTarget)}>
+            <span className="strip-metric" aria-label={`Road edges: ${figures.edges.toLocaleString()}, ${figures.flowingEdges.toLocaleString()} carrying flow`}><Icon name="road" size={16}/><span className="mono">{formatCompact(figures.edges)}</span></span>
+            <span className="strip-metric" aria-label={`Vehicles: ${figures.vehicles.toLocaleString()}, ${figures.halting.toLocaleString()} halting`}><Icon name="vehicle" size={16}/><span className="mono">{formatCompact(figures.vehicles)}</span></span>
+            <span className="strip-metric" aria-label={`Congestion index: ${figures.congestion.toFixed(0)} percent`}><Icon name="gauge" size={16}/><span className="mono">{figures.congestion.toFixed(0)}%</span></span>
+            <span className={`strip-metric wx-metric wx-${weather.level}`} aria-label={`Weather: ${weather.label}${weather.cells ? `, ${weather.cells} active cell${weather.cells === 1 ? "" : "s"}, ${weather.rate}` : ""}`}><WeatherGlyph weather={weather}/><span className="mono">{weather.cells || 0}</span></span>
+          </button>
+        </Tooltip>
         <span className="strip-rule" aria-hidden="true" />
         {TABS.map((t) => (
           <Tooltip key={t.id} label={t.label} side={["left", "bottom", "top"]}>

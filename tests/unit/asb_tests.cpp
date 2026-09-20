@@ -157,7 +157,11 @@ int main() {
         check(asb.state() == AsbState::Normal, "a sustained recovery returns to Normal");
         const auto s = asb.status(t);
         check(!s.gui_suspended && !s.rate_locked, "returning to Normal lifts every lock");
-        check(asb.govern_tick_rate(5.0, t) == 5.0, "recovery restores the requested rate");
+        check(asb.govern_tick_rate(5.0,t)==1.0,"leaving Async does not abruptly restore full speed");
+        t=feed(asb,healthy(5.0),t+0.25,kAsbRateHoldS);
+        check(asb.govern_tick_rate(5.0,t)==2.0,"recovery climbs one offered rate after the hold");
+        t=feed(asb,healthy(5.0),t+0.25,kAsbRateHoldS*2+1);
+        check(asb.govern_tick_rate(5.0,t)==5.0,"stable recovery eventually restores the operator request");
     }
 
     // ---- Noise must not flap the state ------------------------------------

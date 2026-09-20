@@ -1,3 +1,4 @@
+import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "./Icons";
@@ -29,6 +30,7 @@ export interface SettingsValues {
 }
 
 export interface SettingsActions {
+  onReset: () => void;
   onAutoFocus: (on: boolean) => void;
   onStrategy: (s: AutoFocusStrategy) => void;
   onDnd: (on: boolean) => void;
@@ -134,6 +136,7 @@ export function SettingsDrawer({
   values: SettingsValues;
   actions: SettingsActions;
 }) {
+  const scroll = useScrollFade<HTMLDivElement>();
   const panel = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -180,7 +183,8 @@ export function SettingsDrawer({
         </button>
       </header>
 
-      <div className="settings-scroll">
+      <div {...scroll} className={`settings-scroll ${scroll.className}`} tabIndex={0} aria-label="Settings preferences">
+        <button type="button" className="btn" onClick={actions.onReset}><Icon name="reset" size={16} />Reset settings</button>
         <Section title="Auto Focus">
           <Row
             title="Auto Focus Events"

@@ -2253,6 +2253,7 @@ void SimulationEngine::request_terminate() {
     // Deliberately lock-free: a compile may hold the mutex for the length of a
     // map download, and quitting must not queue behind it.
     if (terminate_requested_.exchange(true)) return;
+    cancel_map_download();
     // compile_generation_ is guarded by the mutex, so it is deliberately not
     // touched here. The flag and the stop request are enough to wind the worker
     // down; the HTTP layer guarantees the process exits regardless.

@@ -219,9 +219,13 @@ int main() {
             std::vector<MapFeature> across{stop("node/1", 0, 0), stop("node/2", 150, 0)};
             check(thin_bus_stops(across, {7, 9}) == 0, "150 m apart on two streets is two stops");
 
+            std::vector<MapFeature> close_parallel{stop("node/11", 0, 0), stop("node/12", 0, 40)};
+            check(thin_bus_stops(close_parallel, {7,9}) == 0, "valid stops 40 m apart on parallel streets survive");
+
             // But a duplicate is a duplicate whatever corridor it claims: two
             // nodes 8 m apart are the same pole however they are tagged.
             std::vector<MapFeature> kerbs{stop("node/1", 0, 0), stop("node/2", 8, 0)};
+            kerbs[0].tags["ref"]="shared-stop"; kerbs[1].tags["ref"]="shared-stop";
             check(thin_bus_stops(kerbs, {7, 9}) == 1, "facing kerbs merge across corridors");
 
             // A route's stops still thin along it even when a cross street's
@@ -342,6 +346,7 @@ int main() {
         std::vector<EdgeDynamic> edges(scenario.edges.size());
 
         runtime.recouple(scenario, edges, 30600);
+        for(int tick=0;tick<8;++tick)runtime.recouple(scenario,edges,30600);
         std::vector<double> calm = runtime.demand;
 
         // Now shut everything and flood it, and look again.
@@ -384,6 +389,39 @@ int main() {
         for (std::size_t i = 0; i < settled.size(); ++i)
             check(std::fabs(runtime.demand[i] - settled[i]) < 1e-9,
                   "a settled network stays settled");
+    }
+
+    // Every modelled kind participates even without the legacy four-kind tag.
+    {
+        Scenario s;
+        s.config.buildings = true;
+        s.nodes.resize(4);
+        for (std::size_t i=0;i<s.nodes.size();++i) { s.nodes[i].id={static_cast<std::uint32_t>(i)}; s.nodes[i].position={double(i)*60,0,0,0}; }
+        for (std::uint32_t i=0;i<3;++i) {
+            EdgeStatic e; e.id={i}; e.from={i==2?2u:0u}; e.to={i==2?3u:i+1};
+            e.length_m=60; s.edges.push_back(e);
+        }
+        auto stop=tagged({{"highway","bus_stop"}}, "bus_stop"); stop.id="stop"; stop.center={0,0,0,0};
+        auto school=tagged({{"amenity","school"}}, "school"); school.id="school"; school.center={0,0,0,0};
+        s.features={stop,school};
+        EventRuntime runtime; runtime.initialize(s);
+        std::vector<EdgeDynamic> edges(s.edges.size());
+        runtime.recouple(s,edges,0); const auto night=runtime.demand;
+        runtime.recouple(s,edges,28800); const auto morning=runtime.demand;
+        check(morning[0]>night[0], "bus-stop profile changes through the day without a legacy tag");
+        check(morning[1]>night[1], "school profile is sampled continuously without a legacy tag");
+        const double alternate=runtime.demand_effect({1});
+        edges[0].closed=true; edges[0].incident_closed=true;
+        runtime.recouple(s,edges,28800);
+        check(runtime.demand_effect({0})==0, "closed roads receive no place demand");
+        check(runtime.demand_effect({1})>alternate, "school closure pressure moves to a reachable alternate road");
+        for(auto& e:edges) e.rainfall=1;
+        runtime.recouple(s,edges,28800);
+        bool shelter=false;for(const auto& f:runtime.demand_factors(0))if(std::string(f.name)=="shelter")shelter=true;
+        check(shelter, "bus stops respond to rain on their indexed roads");
+        for(auto& e:edges) e=EdgeDynamic{};
+        runtime.recouple(s,edges,72000);
+        check(runtime.baseline_demand(1)<morning[1], "profiles fall again rather than retaining their morning maximum");
     }
 
     if (failures) {

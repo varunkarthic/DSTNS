@@ -1,3 +1,4 @@
+import { useScrollFade } from "./scrollFade";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, categoryIcon } from "./Icons";
 import { focusMatches, SEVERITY_LABEL } from "./notificationModel";
@@ -14,7 +15,8 @@ import { formatDuration } from "./timeFormat";
  * technical fields and the other current events. The list shown while it is
  * open is held steady, so an expiring notification cannot vanish mid-read.
  */
-export function NotificationCapsule({
+export function NotificationCapsule(
+{
   items,
   focusedKey,
   reduceMotion,
@@ -36,6 +38,7 @@ export function NotificationCapsule({
   const [technical, setTechnical] = useState(false);
   const [held, setHeld] = useState<UiNotification[] | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const bodyScroll = useScrollFade<HTMLDivElement>();
 
   // While open, keep what the operator is reading, and add anything new.
   const list = useMemo(() => {
@@ -78,8 +81,8 @@ export function NotificationCapsule({
   }, [open]);
 
   useEffect(() => {
-    if (!list.length && open) collapse();
-  }, [list.length, open]);
+    if (!systemError && !list.length && open) collapse();
+  }, [systemError, list.length, open]);
 
   // Nothing to show: the slot keeps its place in the HUD, empty. Silenced
   // events are reviewed in the Notifications tab, not announced here.
@@ -95,7 +98,7 @@ export function NotificationCapsule({
         aria-live={urgent ? "assertive" : "polite"}
       >
         <div className="capsule-body" aria-hidden={!open} inert={!open || undefined}>
-          <div className="capsule-body-inner">
+          <div {...bodyScroll} className={`capsule-body-inner ${bodyScroll.className}`}>
               <>
                 <div className="capsule-detail-head">
                   <span className="capsule-kind">

@@ -52,6 +52,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 export type PlaybackGuard = { expected_run_id?: string; expected_playback_revision?: number; require_asb_normal?: boolean };
 export const api = {
+  systemInfo: () => request<{version?: string; build?: {compiler?: string; cpp_standard?: number}; sumo?: {available?: boolean; version?: string}}>("/api/v1/system/info"),
   status: () => request<Envelope<Status>>("/api/v1/playback/status"),
   topology: () => request<Envelope<Topology>>("/api/v1/view/topology"),
   snapshot: () => request<Envelope<Snapshot>>("/api/v1/view/snapshot"),

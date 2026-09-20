@@ -256,3 +256,11 @@ describe("notification and playback preferences", () => {
     expect(mergeConfig(BUILT_IN, file)).toEqual(BUILT_IN);
   });
 });
+
+it("represents an absent place override as visible when the operator hid it", () => {
+  const base = mergeConfig(BUILT_IN, {places: {school: false}});
+  const next = {...base, places: {}};
+  const patch = diffConfig(base, next);
+  expect(patch.places).toMatchObject({school: true});
+  expect(mergeConfig(base, JSON.parse(JSON.stringify(patch))).places.school).toBe(true);
+});

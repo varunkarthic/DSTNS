@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import type { RefObject } from "react";
+import { canvasGlyph } from "./placeGlyphs";
 import { mapFitLayout, mapInsets, metresToGeographic } from "./mapProjection";
 import { viewportFor } from "./autoFocus";
 import type { Bounds } from "./autoFocus";
@@ -26,6 +27,7 @@ import {
 import type {
   Inspection,
   Layers,
+  PlaceVisibility,
   Point,
   Snapshot,
   Topology,
@@ -49,6 +51,8 @@ type Props = {
   topology: Topology | null;
   snapshot: Snapshot | null;
   layers: Layers;
+  /** Which place kinds to draw; a kind absent from this is drawn. */
+  places: PlaceVisibility;
   reduceMotion: boolean;
   running: boolean;
   virtualTime: number;
@@ -97,6 +101,7 @@ function NetworkMap({
   topology,
   snapshot,
   layers,
+  places,
   reduceMotion,
   running,
   virtualTime,
@@ -387,6 +392,9 @@ function NetworkMap({
           const demand = state.demand.get(f.id);
           const kind = kinds[i];
           if (kind.group === "other" && !layers.other_places) return;
+          // A kind absent from the record is drawn, so a kind added to the
+          // taxonomy shows up without anyone having to opt in to it.
+          if (places[kind.id] === false) return;
           // Zoomed out, keep only the landmarks that orient the operator and
           // anything currently drawing traffic.
           if (
@@ -413,11 +421,29 @@ function NetworkMap({
           ctx.roundRect(p.x - 8, p.y - 8, 16, 16, 5);
           ctx.fill();
           ctx.stroke();
-          ctx.font = "bold 10px Inter";
-          ctx.textAlign = "center";
           // Keep the glyph readable against whatever the ramp produced.
-          ctx.fillStyle = warm && multiplier > 1.35 ? "#071420" : warm ? "#31210a" : "#d7e4f5";
-          ctx.fillText(kind.icon, p.x, p.y + 3);
+          const ink = warm && multiplier > 1.35 ? "#071420" : warm ? "#31210a" : "#d7e4f5";
+          const glyph = canvasGlyph(kind.id);
+          if (glyph) {
+            // The glyphs are drawn in the icon set's 24-unit box; scale that
+            // box onto the marker so the map and the legend show one shape.
+            ctx.save();
+            ctx.translate(p.x - 7, p.y - 7);
+            ctx.scale(14 / 24, 14 / 24);
+            ctx.strokeStyle = ink;
+            ctx.lineWidth = 2.6;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            for (const path of glyph) ctx.stroke(path);
+            ctx.restore();
+          } else {
+            // No Path2D here: a dot still says a place is present.
+            ctx.fillStyle = ink;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.font = "bold 10px Inter";
           ctx.textAlign = "start";
           if (layers.place_names && view.scale > 1 && f.name) {
             ctx.fillStyle = "#bbc9ce";
@@ -546,6 +572,7 @@ function NetworkMap({
     view,
     size,
     layers,
+    places,
     reduceMotion,
     running,
     virtualTime,

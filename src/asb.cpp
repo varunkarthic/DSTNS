@@ -75,7 +75,9 @@ void AdaptiveBackpressure::escalate(AsbState next, const std::string& reason, do
     stressed_since_ = -1;
     healthy_since_ = -1;
     const double before = cap_;
-    cap_ = next == AsbState::Normal ? std::numeric_limits<double>::infinity() : 1.0;
+    // Release the UI locks immediately, but restore speed one held rung at a time.
+    cap_ = 1.0;
+    cap_changed_at_ = now_s;
     note(next == AsbState::Restricted ? "restrict"
          : next == AsbState::Async    ? "suspend"
                                       : "release",

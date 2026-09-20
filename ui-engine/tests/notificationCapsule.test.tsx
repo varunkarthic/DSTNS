@@ -25,3 +25,11 @@ it('retains a stable notification anchor when no event is present',()=>{
   expect(container.querySelector('[data-tutorial="notifications"]')).toBeInTheDocument();
   expect(screen.getByText('No new events')).toBeInTheDocument();
 });
+it('keeps a lone system error expanded until recovery',()=>{
+  const props={items:[],focusedKey:null,reduceMotion:true,onDismiss:vi.fn()};
+  const {rerender}=render(<NotificationCapsule {...props} systemError="Connection failed"/>);
+  fireEvent.click(screen.getByRole('button',{name:/Expand notification/}));
+  expect(screen.getByRole('button',{name:/Collapse notification/})).toBeInTheDocument();
+  rerender(<NotificationCapsule {...props}/>);
+  expect(screen.queryByRole('alert')).toBeNull();
+});

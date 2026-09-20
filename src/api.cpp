@@ -8,6 +8,7 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <chrono>
+#include <charconv>
 #include <cstdlib>
 #include <cmath>
 #include <fstream>
@@ -26,6 +27,17 @@ void send(httplib::Response& r, const json& j, int status = 200) {
     r.status = status;
     // JSON is UTF-8 by definition; the exact media type enables httplib compression.
     r.set_content(dump_json(copy), "application/json");
+}
+
+std::size_t page_parameter(const httplib::Request& request, const char* key,
+                           std::size_t fallback, std::size_t ceiling) {
+    if (!request.has_param(key)) return fallback;
+    const auto value=request.get_param_value(key);
+    std::size_t parsed=0;
+    const auto [end,error]=std::from_chars(value.data(),value.data()+value.size(),parsed);
+    if(value.empty()||error!=std::errc{}||end!=value.data()+value.size()||(std::string_view(key)=="limit"&&parsed==0))
+        throw std::invalid_argument(std::string(key)+" must be a non-negative integer (limit must be positive)");
+    return std::min(parsed,ceiling);
 }
 
 // The run's seed as the operator wrote it.
@@ -127,6 +139,7 @@ ApiServer::ApiServer(SimulationEngine& e, RuntimeLogger& l)
 
 ApiServer::~ApiServer() {
     stop();
+    if (shutdown_worker_.joinable()) shutdown_worker_.join();
 }
 
 void ApiServer::routes() {
@@ -254,8 +267,8 @@ void ApiServer::routes() {
             {"ok", true},
             {"service", "dstns"},
             {"observer_ui_version", "observer-v2"},
-            {"product", "Deterministic Simulated Environment"},
-            {"version", "1.0.0"},
+            {"product", "Deterministic Spatiotemporal Transport Network Simulator"},
+            {"version", DSTNS_VERSION},
             {"lifecycle", to_string(engine_.lifecycle())}
         });
     };
@@ -267,8 +280,9 @@ void ApiServer::routes() {
         send(r, {
             {"ok", true},
             {"service", "dstns"},
-            {"product", "Deterministic Simulated Environment"},
-            {"version", "1.0.0"},
+            {"product", "Deterministic Spatiotemporal Transport Network Simulator"},
+            {"version", DSTNS_VERSION},
+            {"build", {{"compiler", __VERSION__}, {"cpp_standard", __cplusplus}}},
             {"lifecycle", to_string(engine_.lifecycle())},
             {"sumo", {
                 {"available", env.available},
@@ -299,10 +313,14 @@ void ApiServer::routes() {
                 {{"GET","/api/v1/system/map-status","What map is loaded and where it came from"}},
                 {{"GET","/api/v1/system/source","Source offer under AGPL-3.0 section 13"}},
                 {{"GET","/api/v1/system/backpressure","Adaptive backpressure score and mode"}},
+                {{"POST","/api/v1/system/backpressure","Report observer health"}},
+                {{"GET","/api/v1/system/ui-config","Operator defaults for the interface"}},
+                {{"GET","/api/v1/system/observer","Observer page-load count"}},
                 {{"POST","/api/v1/system/terminate","Stop the simulation and exit the process"}}}),
             group("playback","Moving through simulated time",{
                 {{"GET","/api/v1/playback/status","Clock, rate and lifecycle"}},
                 {{"POST","/api/v1/playback/start","Begin a run"}},
+                {{"POST","/api/v1/playback/prepare","Prepare without starting playback"}},
                 {{"POST","/api/v1/playback/play","Resume"}},
                 {{"POST","/api/v1/playback/pause","Hold the clock"}},
                 {{"POST","/api/v1/playback/stop","End the run"}},
@@ -318,7 +336,8 @@ void ApiServer::routes() {
                 {{"GET","/api/v1/view/stops","Bus stops, thinned to realistic spacing"}},
                 {{"GET","/api/v1/view/snapshot","Per-tick dynamic state for every node and edge"}},
                 {{"GET","/api/v1/view/global","Topology and snapshot in one response"}},
-                {{"POST","/api/v1/world/regenerate","Build a new world from a seed"}}}),
+                {{"POST","/api/v1/world/regenerate","Build a new world from a seed"}},
+                {{"GET","/api/v1/world/status","Preparation progress and durable errors"}}}),
             group("control","Acting on the running simulation",{
                 {{"PUT","/api/v1/control/tick-rate","Set the simulation rate multiplier"}},
                 {{"POST","/api/v1/control/day","Switch between a weekday and a weekend"}},
@@ -326,7 +345,7 @@ void ApiServer::routes() {
                 {{"POST","/api/v1/control/events/weather","Inject rain or a flood"}},
                 {{"POST","/api/v1/control/events/traffic","Inject an incident or a closure"}},
                 {{"POST","/api/v1/control/events/surge","Inject a demand surge"}},
-                {{"PUT","/api/v1/control/edges/{id}","Override one edge"}},
+                {{"PUT","/api/v1/control/edges/{id}/override","Override one edge"}},
                 {{"POST","/api/v1/control/undo","Undo the last control action"}},
                 {{"POST","/api/v1/control/redo","Redo it"}},
                 {{"GET","/api/v1/control/history","The control history"}}}),
@@ -339,10 +358,10 @@ void ApiServer::routes() {
                 {{"GET","/api/v1/view/logs/api","API access log"}}}),
         });
     };
-    server_->Get("/api/v1/system/endpoints", [this, index_of_api](const auto&, auto& r) {
+    server_->Get("/api/v1/system/endpoints", [index_of_api](const auto&, auto& r) {
         send(r, {{"ok",true},{"version","v1"},{"base","/api/v1"},{"groups",index_of_api()}});
     });
-    server_->Get("/api/v1", [this, index_of_api](const auto&, auto& r) {
+    server_->Get("/api/v1", [index_of_api](const auto&, auto& r) {
         send(r, {{"ok",true},{"version","v1"},{"base","/api/v1"},{"groups",index_of_api()}});
     });
 
@@ -364,7 +383,7 @@ void ApiServer::routes() {
         send(r, {
             {"ok", true},
             {"service", "dstns"},
-            {"product", "Deterministic Simulated Environment"},
+            {"product", "Deterministic Spatiotemporal Transport Network Simulator"},
             {"status", "TERMINATING"},
             {"message", "Deterministic Simulated Environment server is shutting down gracefully."}
         });
@@ -377,12 +396,15 @@ void ApiServer::routes() {
         // exits even if a long-running compile is still unwinding.
         engine_.request_terminate();
         logger_.system("INFO", "api", "Termination requested; shutting down");
-        std::thread([this]() {
+        if (termination_started_.exchange(true)) return;
+        shutdown_worker_ = std::thread([this]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(150));
-            server_->stop();
+            stop();
+        });
+        // No captured object: this fallback can outlive ApiServer safely. The
+        // owned downloader group was already cancelled before starting it.
+        std::thread([] {
             std::this_thread::sleep_for(std::chrono::seconds(3));
-            // Still here: something is mid-flight and will not finish promptly.
-            // Flush what is written and leave; the caller asked to quit.
             std::fflush(nullptr);
             std::_Exit(0);
         }).detach();
@@ -628,14 +650,14 @@ void ApiServer::routes() {
 
     server_->Get("/api/v1/view/nodes", [this](const auto& req, auto& r) {
         send(r, engine_.nodes(
-            req.has_param("offset") ? std::stoul(req.get_param_value("offset")) : 0,
-            req.has_param("limit") ? std::min<std::size_t>(1000, std::stoul(req.get_param_value("limit"))) : 250
+            page_parameter(req,"offset",0,std::numeric_limits<std::size_t>::max()),
+            page_parameter(req,"limit",250,1000)
         ));
     });
     server_->Get("/api/v1/view/edges", [this](const auto& req, auto& r) {
         send(r, engine_.edges(
-            req.has_param("offset") ? std::stoul(req.get_param_value("offset")) : 0,
-            req.has_param("limit") ? std::min<std::size_t>(1000, std::stoul(req.get_param_value("limit"))) : 250
+            page_parameter(req,"offset",0,std::numeric_limits<std::size_t>::max()),
+            page_parameter(req,"limit",250,1000)
         ));
     });
     server_->Get(R"(/api/v1/view/nodes/(\d+))", [this](const auto& req, auto& r) {
@@ -659,8 +681,8 @@ void ApiServer::routes() {
             throw std::invalid_argument("invalid place kind");
         send(r, engine_.places(
             kind,
-            req.has_param("offset") ? std::stoul(req.get_param_value("offset")) : 0,
-            req.has_param("limit") ? std::min<std::size_t>(2000, std::stoul(req.get_param_value("limit"))) : 500
+            page_parameter(req,"offset",0,std::numeric_limits<std::size_t>::max()),
+            page_parameter(req,"limit",500,2000)
         ));
     };
     server_->Get("/api/v1/view/places", places_handler);
@@ -670,8 +692,8 @@ void ApiServer::routes() {
     // transit client need not know the taxonomy to ask the obvious question.
     server_->Get("/api/v1/view/stops", [this](const httplib::Request& req, httplib::Response& r) {
         send(r, engine_.places("bus_stop",
-            req.has_param("offset") ? std::stoul(req.get_param_value("offset")) : 0,
-            req.has_param("limit") ? std::min<std::size_t>(2000, std::stoul(req.get_param_value("limit"))) : 500));
+            page_parameter(req,"offset",0,std::numeric_limits<std::size_t>::max()),
+            page_parameter(req,"limit",500,2000)));
     });
 
     for (const auto* kind : {"traffic", "weather", "buildings", "bus-stops", "signals", "events", "metrics", "incidents", "congestion"}) {
@@ -720,17 +742,7 @@ void ApiServer::routes() {
         r.set_content("retry: 1000\nevent: news\ndata: " + dump_json(engine_.news(0, 100)) + "\n\n", "text/event-stream");
     });
 
-    // Terminate
-    auto terminate = [this](const auto&, auto& r) {
-        send(r, {{"ok", true}, {"message", "DSTNS terminating gracefully"}});
-        engine_.terminate();
-        std::thread([this] {
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            stop();
-        }).detach();
-    };
-    server_->Post("/api/v1/system/terminate", terminate);
-    server_->Post("/terminate", terminate);
+
 }
 
 void ApiServer::listen(const std::string& host, std::uint16_t port) {

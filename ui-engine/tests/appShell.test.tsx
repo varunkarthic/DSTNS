@@ -5,9 +5,10 @@ import App, { worldErrorMessage } from "../src/App";
 // The canvas is exercised by the browser suites; here it only needs to mount,
 // and to expose what it was asked to draw and where the camera was sent.
 vi.mock("../src/NetworkMap", () => ({
-  default: ({ layers, focus }: { layers: Record<string, boolean>; focus?: { bounds?: unknown; token: number } | null }) => (
+  default: ({ layers, places, focus }: { places: Record<string, boolean>; layers: Record<string, boolean>; focus?: { bounds?: unknown; token: number } | null }) => (
     <div
       data-testid="map"
+      data-places={JSON.stringify(places)}
       data-layers={Object.entries(layers)
         .filter(([, on]) => on)
         .map(([k]) => k)
@@ -774,8 +775,8 @@ describe("telemetry collapse", () => {
 
     const strip = screen.getByRole("navigation", { name: "Telemetry summary" });
     // Compact figures, with names that do not depend on the tooltip.
-    expect(within(strip).getByRole("button", { name: /^Vehicles: 1,240/ })).toHaveTextContent("1.2K");
-    expect(within(strip).getByRole("button", { name: "Weather: Heavy rain, 1 active cell, 6.4 mm/h" })).toBeInTheDocument();
+    expect(within(strip).getByLabelText(/^Vehicles: 1,240/)).toHaveTextContent("1.2K");
+    expect(within(strip).getByLabelText("Weather: Heavy rain, 1 active cell, 6.4 mm/h")).toBeInTheDocument();
 
     // Stack opens a side panel; Incidents and Queue switch it without closing it.
     fireEvent.click(within(strip).getByRole("button", { name: "Stack" }));
@@ -854,11 +855,14 @@ describe("place legend", () => {
     fireEvent.click(screen.getByRole("button", { name: "Place legend" }));
     const legend = await screen.findByRole("dialog", { name: "Place legend" });
     const rows = within(legend).getAllByRole("listitem");
+    // Kinds are drawn, not lettered: the row carries its name and figures,
+    // and the glyph beside it is the shape the map draws.
     expect(rows.map((r) => r.textContent)).toEqual([
-      expect.stringMatching(/^HHospital1Peak 1\.15×$/),
-      expect.stringMatching(/^SSchool2Peak 1\.62×$/),
-      expect.stringMatching(/^\+Pharmacy1Not modelled$/),
+      "Hospital1Peak 1.15×",
+      "School2Peak 1.62×",
+      "Pharmacy1Not modelled",
     ]);
+    for (const row of rows) expect(row.querySelector(".place-glyph svg path")).toBeTruthy();
     // Unclassified dots are off by default and can be turned on here or in Layers.
     const toggle = within(legend).getByRole("switch", { name: "Show unclassified places" });
     expect(toggle).toHaveAttribute("aria-checked", "false");
@@ -868,6 +872,42 @@ describe("place legend", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Layers" }));
     expect(screen.getByRole("switch", { name: "Unclassified places" })).toHaveAttribute("aria-checked", "true");
+  });
+  it("hides a kind from the map and remembers the choice", async () => {
+    mockApi({ topology: withPlaces() });
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Place legend" }));
+    const legend = await screen.findByRole("dialog", { name: "Place legend" });
+    const school = within(legend).getByRole("switch", { name: /^School,/ });
+    expect(school).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(school);
+    await waitFor(() => expect(school).toHaveAttribute("aria-checked", "false"));
+    // The choice is a viewer preference, so it is kept locally rather than
+    // sent to the core - and it survives a reload.
+    await waitFor(() => {
+      const saved = Object.keys(localStorage)
+        .map((k) => localStorage.getItem(k) ?? "")
+        .find((v) => v.includes("places"));
+      expect(saved && JSON.parse(saved).places).toMatchObject({ school: false });
+    });
+    // It is hidden, not removed: the count is still there to turn back on.
+    expect(school).toHaveTextContent("School");
+    expect(JSON.parse(screen.getByTestId("map").getAttribute("data-places")!)).toMatchObject({school: false});
+  });
+
+  it("starts with the unmodelled kinds hidden, and can restore the defaults", async () => {
+    mockApi({ topology: withPlaces() });
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Place legend" }));
+    const legend = await screen.findByRole("dialog", { name: "Place legend" });
+    // Turn one off, then ask for the defaults back.
+    const hospital = within(legend).getByRole("switch", { name: /^Hospital,/ });
+    fireEvent.click(hospital);
+    await waitFor(() => expect(hospital).toHaveAttribute("aria-checked", "false"));
+    fireEvent.click(within(legend).getByRole("button", { name: /Use Defaults/ }));
+    await waitFor(() => expect(hospital).toHaveAttribute("aria-checked", "true"));
   });
 });
 
@@ -902,8 +942,8 @@ describe("dialogs and suspension", () => {
     expect(dialog).toHaveTextContent("17310766248549826767");
     // A finished run offers all three next moves, not just a way out.
     expect(within(dialog).getByRole("button", { name: /Save Report/ })).toBeEnabled();
-    expect(within(dialog).getByRole("button", { name: /Watch It Again/ })).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: /New World/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /Restart same simulation/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /Generate a new world/ })).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Not Now" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "The day is complete" })).not.toBeInTheDocument());
   });
@@ -960,7 +1000,7 @@ describe("a finished run's next move", () => {
     mockApi({ lifecycle: "COMPLETED", clock: { ...baseClock, virtual_day_seconds: 86400, simulation_percentage: 1 } });
     render(<App />);
     const dialog = await screen.findByRole("dialog", { name: "The day is complete" }, { timeout: 5000 });
-    fireEvent.click(within(dialog).getByRole("button", { name: /Watch It Again/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /Restart same simulation/ }));
     // The same seed and map: it confirms a replay, not a new world.
     const confirm = await screen.findByRole("dialog", { name: /Reset the simulation/ }, { timeout: 4000 });
     expect(confirm).toHaveTextContent(/same day again/i);
@@ -970,10 +1010,43 @@ describe("a finished run's next move", () => {
     mockApi({ lifecycle: "COMPLETED", clock: { ...baseClock, virtual_day_seconds: 86400, simulation_percentage: 1 } });
     render(<App />);
     const dialog = await screen.findByRole("dialog", { name: "The day is complete" }, { timeout: 5000 });
-    fireEvent.click(within(dialog).getByRole("button", { name: /New World/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /Generate a new world/ }));
     const confirm = await screen.findByRole("dialog", { name: /new world/i }, { timeout: 4000 });
     expect(confirm).toHaveTextContent(/new seed/i);
     // Nothing has been regenerated merely by asking.
     expect(calls.some((c) => c.path.includes("/world/regenerate"))).toBe(false);
+  });
+});
+
+
+describe("preference resets", () => {
+  it("resets settings to operator defaults without changing layers or places", async () => {
+    mockApi({uiConfig: {clock: {hour12: true}, notifications: {dnd: true}}});
+    localStorage.setItem("dstns.ui-config.v1", JSON.stringify({clock: {hour12: false}, notifications: {dnd: false}, layers: {roads: false}, places: {school: false}}));
+    render(<App/>); await ready();
+    fireEvent.click(screen.getByRole("button", {name: "Settings"}));
+    fireEvent.click(screen.getByRole("button", {name: "Reset settings"}));
+    expect(screen.getByRole("radio", {name: "12 h"})).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", {name: "Do Not Disturb"})).toHaveAttribute("aria-checked", "true");
+    expect(JSON.parse(localStorage.getItem("dstns.ui-config.v1")!)).toEqual({layers: {roads: false}, places: {school: false}});
+    expect(calls).toEqual([]);
+  });
+  it("globally restores UI defaults without touching unrelated storage or playback", async () => {
+    mockApi({uiConfig: {layers: {labels: true}, places: {school: false}}});
+    localStorage.setItem("dstns.ui-config.v1", JSON.stringify({layers: {roads: false}, places: {hospital: false}, notifications: {dnd: true}}));
+    localStorage.setItem("dstns.telemetry-mode.v1", "compact");
+    localStorage.setItem("dstns.telemetry-tab.v1", "queue");
+    localStorage.setItem("unrelated", "keep");
+    render(<App/>); await ready();
+    fireEvent.click(screen.getByLabelText("About DSTNS, licence and source"));
+    fireEvent.click(screen.getByRole("button", {name: "Reset all preferences"}));
+    expect(localStorage.getItem("dstns.ui-config.v1")).toBeNull();
+    expect(localStorage.getItem("dstns.telemetry-tab.v1")).toBeNull();
+    expect(localStorage.getItem("unrelated")).toBe("keep");
+    expect(screen.getByTestId("map").getAttribute("data-layers")).toContain("roads");
+    expect(screen.getByTestId("map").getAttribute("data-layers")).toContain("labels");
+    expect(JSON.parse(screen.getByTestId("map").getAttribute("data-places")!)).toMatchObject({school: false});
+    expect(screen.getByText("Interface preferences restored.")).toBeInTheDocument();
+    expect(calls).toEqual([]);
   });
 });

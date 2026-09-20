@@ -1,6 +1,6 @@
-import { defaultLayers } from "./types";
+import { defaultLayers, defaultPlaceVisibility } from "./types";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from "./notificationModel";
-import type { Layers } from "./types";
+import type { Layers, PlaceVisibility } from "./types";
 
 // ---------------------------------------------------------------------------
 // Observer configuration
@@ -28,6 +28,8 @@ export type AutoFocusStrategy = "round-robin" | "latest";
 
 export interface UiConfig {
   layers: Layers;
+  /** Which place kinds are drawn. Absent means shown. */
+  places: PlaceVisibility;
   reduce_motion: ReduceMotionSetting;
   auto_focus: {
     mode: AutoFocusMode;
@@ -58,6 +60,7 @@ export interface UiConfig {
 
 export const BUILT_IN: UiConfig = {
   layers: { ...defaultLayers },
+  places: { ...defaultPlaceVisibility },
   reduce_motion: "auto",
   auto_focus: {
     mode: "enable-force",
@@ -132,8 +135,16 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
   for (const key of Object.keys(base.layers) as (keyof Layers)[])
     layers[key] = bool(layersPatch[key], base.layers[key]);
 
+  // Places are open-ended: any key the file names is taken as a kind, because
+  // the taxonomy is whatever the loaded district turned out to contain.
+  const places = { ...base.places };
+  const placesPatch = (p.places ?? {}) as Record<string, unknown>;
+  for (const key of Object.keys(placesPatch))
+    if (typeof placesPatch[key] === "boolean") places[key] = placesPatch[key] as boolean;
+
   return {
     layers,
+    places,
     reduce_motion: oneOf(p.reduce_motion, REDUCE_MOTION, base.reduce_motion),
     auto_focus: {
       mode: oneOf(focus.mode, MODES, base.auto_focus.mode),
@@ -190,6 +201,11 @@ export function diffConfig(base: UiConfig, next: UiConfig): Record<string, unkno
   for (const key of Object.keys(base.layers) as (keyof Layers)[])
     if (base.layers[key] !== next.layers[key]) layers[key] = next.layers[key];
   if (Object.keys(layers).length) patch.layers = layers;
+
+  const places: Record<string, boolean> = {};
+  for (const key of new Set([...Object.keys(base.places), ...Object.keys(next.places)]))
+    if ((base.places[key] !== false) !== (next.places[key] !== false)) places[key] = next.places[key] !== false;
+  if (Object.keys(places).length) patch.places = places;
 
   if (base.reduce_motion !== next.reduce_motion) patch.reduce_motion = next.reduce_motion;
 

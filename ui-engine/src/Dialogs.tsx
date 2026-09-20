@@ -1,3 +1,5 @@
+import { api } from "./api";
+import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "./Icons";
@@ -5,7 +7,7 @@ import { Logo } from "./Logo";
 import { LoadingSurface } from "./LoadingSurface";
 import { useTimeFormat } from "./preferences";
 import { formatDuration, formatWallDuration } from "./timeFormat";
-import type { Backpressure, WorldStatus } from "./types";
+import type { Backpressure, WorldStatus, Envelope, Status, Topology } from "./types";
 
 /**
  * Modal surfaces.
@@ -98,14 +100,25 @@ export function AboutCard({
   onClose,
   closing,
   location,
-  seed,
+  seed, status, topology, onResetPreferences,
 }: {
+  status?: Envelope<Status> | null;
+  topology?: Topology | null;
+  onResetPreferences?: () => void;
   version: string;
   onClose: () => void;
   closing?: boolean;
   location?: { city: string; country: string } | null;
   seed?: string;
 }) {
+  const scroll = useScrollFade<HTMLDivElement>();
+  const [system, setSystem] = useState<Awaited<ReturnType<typeof api.systemInfo>> | null>(null);
+  useEffect(() => {
+    let cancelled=false;
+    void api.systemInfo().then((info) => { if(!cancelled && typeof info?.version === "string")setSystem(info); }).catch(() => {});
+    return () => { cancelled=true; };
+  }, []);
+  const [resetDone, setResetDone] = useState(false);
   const [licence, setLicence] = useState(false);
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -137,6 +150,7 @@ export function AboutCard({
         <span className="badge">AGPL-3.0-or-later</span>
       </div>
 
+      <div {...scroll} className={`about-scroll ${scroll.className}`} tabIndex={0} aria-label="System details">
       <dl className="about-facts">
         <div>
           <dt>Simulating</dt>
@@ -153,6 +167,18 @@ export function AboutCard({
             )}
           </dd>
         </div>
+        <div><dt>Coordinates</dt><dd className="mono">{topology?.location ? `${topology.location.anchor_lat.toFixed(6)}, ${topology.location.anchor_lon.toFixed(6)}` : "Unavailable"}</dd></div>
+        <div><dt>Run</dt><dd className="mono">{status?.run_id || "No run"}</dd></div>
+        <div><dt>Lifecycle</dt><dd>{status?.data.lifecycle || "Unavailable"}</dd></div>
+        <div><dt>Engine version</dt><dd>{system?.version || "Unavailable"}</dd></div>
+        <div><dt>Compiler</dt><dd>{typeof system?.build?.compiler === "string" ? system.build.compiler : "Unavailable"}</dd></div>
+        <div><dt>C++ standard</dt><dd>{typeof system?.build?.cpp_standard === "number" ? system.build.cpp_standard : "Unavailable"}</dd></div>
+        <div><dt>SUMO adapter</dt><dd>{system?.sumo?.available ? system.sumo.version || "Available" : system ? "Not installed" : "Unavailable"}</dd></div>
+        <div><dt>API version</dt><dd>{status?.api_version || "Unavailable"}</dd></div>
+        <div><dt>Map source</dt><dd>{topology?.source || "Unavailable"}</dd></div>
+        <div><dt>Map selection</dt><dd>{topology?.map_selection_version || "Unavailable"}</dd></div>
+        <div><dt>Graph hash</dt><dd className="mono">{topology?.graph_hash || "Unavailable"}</dd></div>
+        <div><dt>Network</dt><dd>{topology ? `${topology.nodes.length.toLocaleString()} nodes · ${topology.edges.length.toLocaleString()} edges · ${topology.features.length.toLocaleString()} places` : "Unavailable"}</dd></div>
       </dl>
 
       <div className={`disclosure${licence ? " open" : ""}`}>
@@ -184,7 +210,7 @@ export function AboutCard({
           <Icon name="download" size={16} />
           <span>
             Source code
-            <small>Complete corresponding source for this version</small>
+            <small>Source offer for this version</small>
           </span>
         </a>
         <a className="link-row" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer noopener">
@@ -196,6 +222,12 @@ export function AboutCard({
         </a>
       </div>
 
+      </div>
+      <div className="about-reset">
+        <div><strong>Interface preferences</strong><p>Restore settings, Layers, Places and telemetry layout to the operator’s defaults. Your simulation and recorded events stay as they are.</p></div>
+        <button className="btn" onClick={() => { onResetPreferences?.(); setResetDone(true); }}><Icon name="reset" size={16} />Reset all preferences</button>
+        <span role="status">{resetDone ? "Interface preferences restored." : ""}</span>
+      </div>
       <div className="dialog-actions">
         <button className="btn primary" onClick={onClose}>
           Close
@@ -430,13 +462,13 @@ export function CompletionDialog({
         {onReplay && (
           <button className="btn" onClick={onReplay}>
             <Icon name="reset" size={16} />
-            Watch It Again
+            Restart same simulation
           </button>
         )}
         {onNewWorld && (
           <button className="btn" onClick={onNewWorld} disabled={!canGenerate}>
             <Icon name="reroll" size={16} />
-            New World
+            Generate a new world
           </button>
         )}
         <button className="btn ghost" onClick={onClose}>

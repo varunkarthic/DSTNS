@@ -22,7 +22,7 @@ def main():
         tmp = Path(tmp)
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
-        server = subprocess.Popen([str(ROOT/'build/dstns_server'), '--host', '127.0.0.1', '--port', str(port), '--logs', str(tmp), '--map-cache', 'keep'], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        server = subprocess.Popen([os.environ.get('DSTNS_SERVER', str(ROOT/'build/dstns_server')), '--host', '127.0.0.1', '--port', str(port), '--logs', str(tmp), '--map-cache', 'keep'], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         token = ''
         def call(route, data=None, timeout=2):
             req = urllib.request.Request(f'http://127.0.0.1:{port}'+route, data=None if data is None else json.dumps(data).encode(), headers={'Content-Type':'application/json', 'X-DSTNS-Operator':token})

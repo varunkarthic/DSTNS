@@ -54,6 +54,13 @@ target_link_libraries(dstns_benchmark PRIVATE dstns_core)
 
 if(DSTNS_BUILD_TESTS)
   enable_testing()
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  foreach(smoke loading termination)
+    add_test(NAME dstns_http_${smoke}
+      COMMAND ${CMAKE_COMMAND} -E env "DSTNS_SERVER=$<TARGET_FILE:dstns_server>"
+        ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/api/${smoke}_smoke.py")
+    set_tests_properties(dstns_http_${smoke} PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 45)
+  endforeach()
   add_executable(dstns_tests tests/unit/test_main.cpp)
   target_link_libraries(dstns_tests PRIVATE dstns_core)
   target_compile_options(dstns_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)

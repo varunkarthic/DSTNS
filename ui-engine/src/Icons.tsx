@@ -410,13 +410,11 @@ export function ActionIcon({
   reduceMotion?: boolean;
 }) {
   const [playing, setPlaying] = useState(false);
-  const first = useRef(true);
+  const previous = useRef(signal);
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    if (reduceMotion) return;
+    const changed = !Object.is(previous.current, signal);
+    previous.current = signal;
+    if (reduceMotion || !changed) { setPlaying(false); return; }
     setPlaying(true);
     const timer = setTimeout(() => setPlaying(false), 460);
     return () => clearTimeout(timer);

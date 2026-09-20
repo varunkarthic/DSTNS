@@ -76,7 +76,7 @@ try {
   const started = await call("/api/v1/playback/start", { seed: "10775", playback_duration_seconds: 600, map: { osm_file: "data/fixtures/real_network.osm.xml" } }, token);
   assert.equal(started.code, 202, JSON.stringify(started.body));
   await page.getByRole("button", { name: "Pause simulation" }).waitFor({ timeout: 30000 });
-  await page.waitForTimeout(1500);
+  await page.locator(".loading-surface").waitFor({state: "detached", timeout: 10000});
   assert.equal(await page.locator(".loading-surface").count(), 0, "the start-up screen leaves once the map is up");
 
   check("the browser icon is the mark", async () => {
@@ -339,7 +339,7 @@ try {
 
     const strip = page.getByRole("navigation", { name: "Telemetry summary" });
     // Compact figures use the shared abbreviation.
-    const roads = await strip.getByRole("button", { name: /^Road edges/ }).innerText();
+    const roads = await strip.getByLabel(/^Road edges/).innerText();
     assert.match(roads, /^\d+(\.\d+)?K?$/, `compact road count reads ${roads}`);
 
     await strip.getByRole("button", { name: "Stack" }).click();
@@ -375,7 +375,8 @@ try {
     assert.ok(rows.length >= 3, `the legend lists the kinds on the map (${rows.length})`);
     // Every glyph the legend shows is one the map actually draws.
     const glyphs = await legend.locator(".place-glyph").allInnerTexts();
-    assert.ok(glyphs.every((g) => g.trim().length === 1), `glyphs are single characters: ${glyphs.join()}`);
+    assert.ok(glyphs.every((g) => g.trim().length === 0), "place glyphs contain no letter abbreviations");
+    assert.equal(await legend.locator(".place-glyph svg").count(), glyphs.length, "every kind uses a vector glyph");
     assert.ok(rows.some((r) => /Not modelled|At rest|Peak \d/.test(r)), "demand is reported per kind");
     await page.screenshot({ path: path.join(out, "place-legend.png") });
     const toggle = legend.getByRole("switch", { name: "Show unclassified places" });

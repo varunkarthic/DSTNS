@@ -1,3 +1,4 @@
+import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef, useState } from "react";
 import { Icon, ActionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
@@ -42,6 +43,7 @@ export interface MapDockProps {
 }
 
 export function MapDock(props: MapDockProps) {
+  const searchScroll = useScrollFade<HTMLUListElement>();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -232,7 +234,7 @@ export function MapDock(props: MapDockProps) {
             onChange={(e) => setQuery(e.target.value)}
           />
           {results.length > 0 && (
-            <ul>
+            <ul {...searchScroll} tabIndex={0} aria-label="Matching places">
               {results.map((f) => (
                 <li key={f.id}>
                   <button

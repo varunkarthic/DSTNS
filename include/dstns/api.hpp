@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <thread>
 
 namespace httplib { class Server; }
 
@@ -18,6 +19,8 @@ public:
 private:
     void routes();
     SimulationEngine& engine_; RuntimeLogger& logger_; std::unique_ptr<httplib::Server> server_; std::atomic_bool stopping_{};
+    std::atomic_bool termination_started_{};
+    std::thread shutdown_worker_;
     // How many times the observer page has been served, so the launcher can
     // wait for the interface to be open before it asks for a world.
     std::atomic<std::uint64_t> observer_loads_{};
