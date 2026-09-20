@@ -30,6 +30,17 @@ def call(base: str, path: str, method: str = "GET", payload: dict | list | None 
             body = {"error": exc.read().decode("utf-8", errors="replace")}
         return exc.code, body
 
+def wait_for_preparation(base: str) -> dict:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        code, status = call(base, "/api/v1/playback/status")
+        assert code == 200, status
+        lifecycle = status["data"]["lifecycle"]
+        if lifecycle != "PREPARING":
+            return status
+        time.sleep(0.02)
+    raise AssertionError("world preparation did not finish")
+
 def wait_health(base: str, process: subprocess.Popen) -> None:
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
@@ -65,7 +76,7 @@ def main():
         print(f"[test] Spawning test server on {base}...")
         tmp_dir = tempfile.TemporaryDirectory(prefix="dstns-api-test-")
         logs = tmp_dir.name
-        process = subprocess.Popen([args.server, "--host", "127.0.0.1", "--port", str(port), "--logs", logs],
+        process = subprocess.Popen([args.server, "--host", "127.0.0.1", "--port", str(port), "--logs", logs, "--map-cache", "keep"],
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     assertions = 0
@@ -125,8 +136,8 @@ def main():
                 "map": {"osm_file": "tests/fixtures/roads.osm.xml", "max_nodes": 50},
             })
             code, started = call(base, "/api/v1/playback/start", "POST", decimal_start)
-            assert code == 202, started
-            code, seeded = call(base, "/api/v1/playback/status")
+            assert code == 202 and started["data"]["lifecycle"] == "PREPARING", started
+            seeded = wait_for_preparation(base)
             assert seeded["seed"] == "1311768467294899695", seeded["seed"]
             # 0x1234567890abcdef is the same number written in hexadecimal.
             assert seeded["global_seed"] == "0x00000000000000001234567890abcdef"
@@ -154,7 +165,9 @@ def main():
                 "dws": {"frequency": 4}
             }
             code, start = call(base, "/api/v1/playback/start", "POST", req_start)
-            assert code == 202 and start["lifecycle"] == "RUNNING"
+            assert code == 202 and start["data"]["lifecycle"] == "PREPARING"
+            start = wait_for_preparation(base)
+            assert start["data"]["lifecycle"] == "RUNNING"
             assertions += 1
 
             # The map now exists, is geographically spread, and reports both the
@@ -453,6 +466,7 @@ def main():
 
             code, sumo_exp = call(base, "/api/v1/playback/start", "POST", req_start)
             assert code == 202
+            wait_for_preparation(base)
             code, sumo_out = call(base, "/api/v1/export/sumo", "POST", {"directory": str(Path(logs) / "sumo_exp")})
             assert code == 200 and sumo_out["data"]["ok"] is True
             assert (Path(logs) / "sumo_exp" / "network.nod.xml").exists()

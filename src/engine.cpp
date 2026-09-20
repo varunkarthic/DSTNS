@@ -15,6 +15,18 @@
 
 namespace dstns {
 namespace {
+// A reservation may move from the HTTP thread to the regeneration worker.
+// Use an atomic lease, not a mutex unlocked by a different thread.
+struct CompileLease {
+    std::atomic<bool>& busy;
+    explicit CompileLease(std::atomic<bool>& flag): busy(flag) {
+        bool expected = false;
+        if (!busy.compare_exchange_strong(expected, true))
+            throw std::logic_error("world generation already in progress");
+    }
+    ~CompileLease() { busy.store(false); }
+};
+
 constexpr std::uint32_t day_s = 86400, ppm = 1'000'000;
 std::string hhmmss(std::uint32_t s) {
     s %= day_s;
@@ -113,6 +125,10 @@ SimulationEngine::SimulationEngine(RuntimeLogger& logger)
 
 SimulationEngine::~SimulationEngine() {
     terminate();
+    // Join before graph/state members are destroyed (worker_ is declared
+    // before those members and would otherwise be destroyed after them).
+    if (worker_.joinable()) worker_.join();
+    if (world_worker_.joinable()) world_worker_.join();
 }
 
 void SimulationEngine::transition(Lifecycle next) {
@@ -128,13 +144,21 @@ void SimulationEngine::anchor_wall_clock() {
 }
 
 nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& config) {
-    std::lock_guard lock(mutex_);
+    auto compile_lease = std::make_shared<CompileLease>(compiling_);
+    std::unique_lock lock(mutex_);
+    if (terminate_requested_) throw std::logic_error("simulation is terminating");
     if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused) {
         stop();
     }
     transition(Lifecycle::Preparing);
+    const auto generation = ++compile_generation_;
+    preparation_error_.clear();
     try {
+        lock.unlock();
         auto scenario = compiler_.compile(seed, config, compile_progress());
+        lock.lock();
+        if (generation != compile_generation_ || terminate_requested_)
+            throw std::logic_error("world preparation cancelled by runtime change");
         preparing_stage_.store(0);
         run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
         graph_ = std::make_unique<GraphStore>(std::move(scenario));
@@ -180,8 +204,12 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
             {"lifecycle", "READY"}
         };
     } catch (...) {
+        if (!lock.owns_lock()) lock.lock();
         preparing_stage_.store(0);
-        transition(Lifecycle::Idle);
+        if (generation == compile_generation_ && !terminate_requested_) {
+            try { throw; } catch (const std::exception& error) { preparation_error_ = error.what(); } catch (...) { preparation_error_ = "World preparation failed."; }
+            transition(Lifecycle::Idle);
+        }
         throw;
     }
 }
@@ -309,13 +337,22 @@ void SimulationEngine::install_scenario(Scenario scenario, double tick_rate, std
 }
 
 nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& config, std::uint32_t start) {
-    std::lock_guard lock(mutex_);
+    auto compile_lease = std::make_shared<CompileLease>(compiling_);
+    std::unique_lock lock(mutex_);
+    if (terminate_requested_) throw std::logic_error("simulation is terminating");
     if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused || lifecycle_ == Lifecycle::Preparing) {
         throw std::logic_error("a simulation is already active");
     }
     transition(Lifecycle::Preparing);
+    const auto generation = ++compile_generation_;
+    preparation_error_.clear();
     try {
-        install_scenario(compiler_.compile(seed, config, compile_progress()), config.tick_rate, start);
+        lock.unlock();
+        auto scenario = compiler_.compile(seed, config, compile_progress());
+        lock.lock();
+        if (generation != compile_generation_ || terminate_requested_)
+            throw std::logic_error("world preparation cancelled by runtime change");
+        install_scenario(std::move(scenario), config.tick_rate, start);
         preparing_stage_.store(0);
         transition(Lifecycle::Running);
         anchor_wall_clock();
@@ -339,10 +376,61 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
             }}
         };
     } catch (...) {
+        if (!lock.owns_lock()) lock.lock();
         preparing_stage_.store(0);
-        transition(Lifecycle::Idle);
+        if (generation == compile_generation_ && !terminate_requested_) {
+            try { throw; } catch (const std::exception& error) { preparation_error_ = error.what(); } catch (...) { preparation_error_ = "World preparation failed."; }
+            transition(Lifecycle::Idle);
+        }
         throw;
     }
+}
+
+nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig& config, std::uint32_t start) {
+    auto compile_lease = std::make_shared<CompileLease>(compiling_);
+    std::uint64_t generation;
+    {
+        std::lock_guard lock(mutex_);
+        if (terminate_requested_) throw std::logic_error("simulation is terminating");
+        if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused || lifecycle_ == Lifecycle::Preparing)
+            throw std::logic_error("a simulation is already active");
+        transition(Lifecycle::Preparing);
+        generation = ++compile_generation_;
+        preparation_error_.clear();
+    }
+
+    // Do not make the HTTP worker own map download latency. The same worker is
+    // also used by regeneration, so the compile lease prevents overlap while
+    // status and map-progress requests remain independently serviceable.
+    world_worker_ = std::jthread([this, seed, config, start, generation, compile_lease](std::stop_token) {
+        try {
+            auto scenario = compiler_.compile(seed, config, compile_progress());
+            std::lock_guard lock(mutex_);
+            if (generation != compile_generation_ || terminate_requested_)
+                throw std::logic_error("world preparation cancelled by runtime change");
+            install_scenario(std::move(scenario), config.tick_rate, start);
+            preparing_stage_.store(0);
+            transition(Lifecycle::Running);
+            anchor_wall_clock();
+            cv_.notify_all();
+        } catch (...) {
+            std::lock_guard lock(mutex_);
+            preparing_stage_.store(0);
+            if (generation == compile_generation_ && !terminate_requested_) {
+                try { throw; } catch (const std::exception& error) { preparation_error_ = error.what(); }
+                catch (...) { preparation_error_ = "World preparation failed."; }
+                transition(Lifecycle::Idle);
+            }
+        }
+    });
+    return {
+        {"ok", true},
+        {"api_version", "1.0"},
+        {"run_id", ""},
+        {"data", {
+            {"accepted", true}, {"lifecycle", "PREPARING"}, {"seed", seed.decimal()}, {"seed_hex", seed.hex()}
+        }}
+    };
 }
 
 void SimulationEngine::check_playback_guard(const nlohmann::json& guard) const {
@@ -399,6 +487,8 @@ nlohmann::json SimulationEngine::stop() {
 
 nlohmann::json SimulationEngine::reset() {
     std::lock_guard lock(mutex_);
+    ++compile_generation_;
+    preparation_error_.clear();
     if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused) stop();
     graph_.reset();
     run_id_.clear();
@@ -467,6 +557,8 @@ nlohmann::json SimulationEngine::step(std::uint32_t seconds) {
 }
 
 nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request) {
+    auto compile_lease = std::make_shared<CompileLease>(compiling_);
+    std::uint64_t compile_generation;
     // Short enough for an operator to read off the screen and retype.
     Seed128 seed = Seed128::secure64();
     ScenarioConfig config;
@@ -494,6 +586,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         if (!graph_->scenario().map_city.empty()) config.osm_file = "auto";
         previous = run_id_;
         rate = requested_tick_rate_;
+        compile_generation = ++compile_generation_;
     }
     config.tick_rate = rate;
     std::lock_guard job_lock(world_mutex_);
@@ -510,7 +603,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
     const auto generation = world_job_.generation;
     logger_.system("INFO", "world", "Generating new world with seed " + seed.hex());
     // Assigning joins the previous (already finished) worker, if any.
-    world_worker_ = std::jthread([this, seed, config, generation](std::stop_token) {
+    world_worker_ = std::jthread([this, seed, config, generation, compile_generation, compile_lease](std::stop_token) {
         auto fail = [&](const std::string& code, const std::string& message) {
             world_generating_.store(false);
             preparing_stage_.store(0);
@@ -532,7 +625,8 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
             std::string run;
             {
                 std::lock_guard lock(mutex_);
-                if (terminate_requested_) return fail("TERMINATING", "The session ended before the world was ready.");
+                if (terminate_requested_ || compile_generation != compile_generation_)
+                    return fail("WORLD_CANCELLED", "Runtime changed before the world was ready; the replacement was not installed.");
                 transition(Lifecycle::Preparing);
                 install_scenario(std::move(scenario), config.tick_rate, 0);
                 // A regenerated world waits for the operator rather than
@@ -656,7 +750,7 @@ nlohmann::json SimulationEngine::report_backpressure(double virtual_lag_s, doubl
     // The settling window also covers the report that was already in flight
     // when the swap completed, which describes the world that has just gone.
     const auto since_install = std::chrono::duration<double>(std::chrono::steady_clock::now() - installed_at_).count();
-    if (world_generating_.load() || since_install < kWorldSettleS) {
+    if (lifecycle_ == Lifecycle::Preparing || world_generating_.load() || since_install < kWorldSettleS) {
         asb_.reset();
         return backpressure_json();
     }
@@ -1234,6 +1328,7 @@ nlohmann::json SimulationEngine::status() const {
     std::lock_guard lock(mutex_);
     return envelope({
         {"lifecycle", to_string(lifecycle_)},
+        {"preparation_error", preparation_error_},
         {"playback_revision", playback_revision_},
         {"run_id", run_id_},
         {"day", graph_ ? graph_->scenario().config.day : -1},
@@ -2074,6 +2169,7 @@ nlohmann::json SimulationEngine::sumo_simulate(const std::filesystem::path& dire
 void SimulationEngine::terminate() {
     std::lock_guard lock(mutex_);
     if (terminate_requested_) return;
+    ++compile_generation_;
     transition(Lifecycle::Terminating);
     terminate_requested_ = true;
     cv_.notify_all();

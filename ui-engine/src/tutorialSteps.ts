@@ -1,13 +1,11 @@
 /**
  * Tutorial content.
  *
- * Targets are semantic `data-tutorial` anchors, never coordinates. Only
- * controls that are always present are included: conditional runtime states
- * such as backpressure indicators or transient notifications are never
- * tutorial targets, because they may not exist while the tour is running.
+ * Targets are semantic `data-tutorial` anchors, never coordinates. Persistent controls and notification slots are anchored directly. Telemetry
+ * details are revealed for their step and the previous layout is restored.
  * The last step is the playback group, and its action starts the simulation.
  */
-export const TUTORIAL_VERSION = "3";
+export const TUTORIAL_VERSION = "4";
 
 export interface TutorialStep {
   target: string;
@@ -16,69 +14,34 @@ export interface TutorialStep {
 }
 
 export const tutorialSteps: readonly TutorialStep[] = [
-  {
-    target: "map",
-    title: "The network",
-    body: "This is the live road network. Drag to pan and scroll to zoom. Hover a road, signal or place for its current state. Green is clear, amber moderate, red severe, and blue is flooded.",
-  },
-  {
-    target: "zoom",
-    title: "Map tools",
-    body: "Zoom, fit the whole network, and search for a place by name. Geometry is in real metres, so zooming changes the picture and never the model.",
-  },
-  {
-    target: "focus",
-    title: "Auto Focus",
-    body: "Auto Focus follows incidents, flooding and rain, framing each event's full extent. Rain is re-framed as it grows. Double-click to choose Round-Robin or Latest.",
-  },
-  {
-    target: "dnd",
-    title: "Do Not Disturb",
-    body: "Silences the notification categories you choose in Settings. Every event is still recorded and can be reviewed, silenced or not, in the Notifications tab.",
-  },
-  {
-    target: "settings",
-    title: "Settings",
-    body: "Auto Focus, Do Not Disturb categories, time format, reduced motion and the playback step sizes are all here.",
-  },
-  {
-    target: "telemetry",
-    title: "Live telemetry",
-    body: "Network measures at the current instant, with Stack, News, Queue, Incidents and Notifications below. It collapses to a strip of compact figures, and each list then opens beside it without reopening the panel.",
-  },
-  {
-    target: "layers",
-    title: "Layers",
-    body: "Choose what the map draws: traffic, signals, buildings, weather, flooding and more. Layers change the picture only, never the simulation.",
-  },
-  {
-    target: "places",
-    title: "Place legend",
-    body: "Every marker the map draws, what it stands for, how many there are, and the demand the simulation models for it. Unclassified points are hidden until you ask for them.",
-  },
-  {
-    target: "clock",
-    title: "Time and progress",
-    body: "The current simulation time. The outline fills as the day completes; hover for the percentage. Click to switch between 12 and 24 hour time everywhere.",
-  },
-  {
-    target: "rate",
-    title: "Speed",
-    body: "Choose 0.25× to 10× the configured pace. The applied speed can be held lower while the interface catches up; your choice is restored automatically.",
-  },
-  {
-    target: "seed",
-    title: "Seed and new worlds",
-    body: "The seed determines the city, district, weather and incidents. Click it to copy. The arrows generate a new world from a fresh seed.",
-  },
-  {
-    target: "status",
-    title: "Runtime status",
-    body: "Online when data is current, Degraded when the interface is catching up, Offline when the simulator cannot be reached.",
-  },
-  {
-    target: "transport",
-    title: "You're ready.",
-    body: "Back and Forward skip through the day, Step advances and holds, and Reset returns to 00:00. Start the simulation when you are ready to begin.",
-  },
+  { target: "map", title: "The live network", body: "Drag to pan and scroll to zoom. Hover roads, signals and places to inspect their current state. Distances are real metres. Vehicle markers represent aggregate flow samples; they are not individually tracked journeys." },
+  { target: "zoom", title: "Zoom and fit", body: "The plus and minus buttons change magnification. Fit returns the whole district to view. These camera tools change only the picture, never simulated traffic or time." },
+  { target: "search", title: "Find a place", body: "Open Search and type a place name or kind. Selecting a result moves the camera and opens its details. Place names come from the loaded map, so availability varies between districts." },
+  { target: "focus", title: "Auto Focus", body: "Follows incidents, flooding and rain, framing the full event extent. Double-click to choose Round-Robin, which cycles through active events, or Latest. The tour temporarily holds the camera so it cannot pull you away from a step." },
+  { target: "dnd", title: "Do Not Disturb", body: "Mutes the categories and severities selected in Settings. Events remain in notification history. The event Auto Focus is following may still appear. System errors always take priority and cannot be silenced by DND." },
+  { target: "motion", title: "Reduced motion", body: "Stops nonessential camera, control and decorative animation. It does not change simulation physics or playback speed. Backpressure can hold reduced motion on while the interface catches up." },
+  { target: "settings", title: "Your viewing preferences", body: "Settings controls Auto Focus, DND categories and severity, clock format, motion, and playback skip and step intervals. Choices are remembered in this browser. Map layers remain independent of the simulation modules." },
+  { target: "notifications", title: "The notification capsule", body: "New events appear here without moving the neighboring controls. Related events group together. Expand a capsule to read its description, time, severity, location and technical details, then select another event or dismiss it. Expiry never removes a message while you are reading it." },
+  { target: "notifications", title: "System errors and history", body: "A connection failure or failed action replaces the capsule headline immediately, even with DND enabled or another event open. Connection errors clear when service returns. Action errors can be dismissed. Review simulation events later in the telemetry Notifications tab." },
+  { target: "layers", title: "Choose what the map draws", body: "Layers independently controls roads, traffic, vehicles, signals, buildings, names, weather and flooding. Hiding a layer does not disable that model. Restore defaults returns to the operator's configured layer choices." },
+  { target: "legend", title: "Road legend", body: "Green indicates congestion below 35%, amber 35% to 70%, and red 70% or more, or closure. Blue marks flooded roads. Open Roads for the legend when there is not enough room for the labels inline." },
+  { target: "places", title: "Place legend", body: "Click Places to see each map marker's meaning and count. Modelled demand is a multiplier on base demand, with activity and peak shown per kind. Not modelled means the map contains the place but the traffic model has no demand schedule for it." },
+  { target: "hud", title: "Coordinates and scale", body: "Coordinates follow the pointer over the map, falling back to the district anchor when no pointer location is available. The scale bar describes the distance represented at this zoom. Both keep a reserved slot as their values change." },
+  { target: "telemetry", title: "Live telemetry", body: "This panel reads the latest simulation snapshot. The top cards show network totals, with detailed views beneath. Collapse keeps a narrow summary strip; its buttons open temporary detail panels. The tour expands the panel temporarily and restores your layout afterwards." },
+  { target: "telemetry-roads", title: "Road edges", body: "Counts directional edges in the loaded topology. Two travel directions can be two edges of the same road. Carrying flow counts snapshot edges with at least one vehicle; it is not the number of distinct streets or trips." },
+  { target: "telemetry-vehicles", title: "Vehicles and queues", body: "Vehicles sums the model's current per-edge vehicle counts. Halting sums the per-edge queue counts. These are instantaneous model totals, not unique vehicles observed during the whole day." },
+  { target: "telemetry-incidents-metric", title: "Active incidents", body: "The headline counts active scheduled incidents. Closed counts those active incidents that close a road. It does not include every flooded road; consult the map and incident details to understand the affected area." },
+  { target: "telemetry-weather", title: "Weather", body: "Shows the strongest active rain cell and the number of cells. Intensity is normalized from zero to one; the displayed rate is an indicative intensity × 8 mm/h. Overlapping cells are not added together in this headline." },
+  { target: "telemetry-congestion", title: "How congestion is calculated", body: "Each road combines 60% speed loss, 25% halting-to-vehicle ratio and 15% occupancy, bounded between zero and one. Closed roads score one. The network index weights traversable directions by length × lanes and shows the current instant, without moving-average smoothing." },
+  { target: "telemetry-stack", title: "Stack: model and runtime", body: "Shows road-network identity, traffic activity, weather, signals, demand and runtime/backpressure state. ASB measures lag, frame time and stale data, can reduce the applied rate, and escalates through Restricted and Async if recovery fails. Async suspends the interface while the simulation keeps running." },
+  { target: "telemetry-events", title: "News: recent activity", body: "Lists recent core messages in virtual-time order: model initialization, demand changes, weather, incidents and controls. A quiet list means no recent messages, not that the engine has stopped." },
+  { target: "telemetry-queue", title: "Queue: scheduled and executed events", body: "Switch between Upcoming and Executed and filter by category. Upcoming lists scheduled transitions such as signal phases and demand changes. Executed is bounded history. Paging limits the amount loaded without changing the simulation schedule." },
+  { target: "telemetry-incidents", title: "Incidents: disruptions", body: "Collects incident, safety, closure and flooding messages with their time and available location. This is an event history, so resolved incidents can still appear here even when the active-incidents headline has returned to zero." },
+  { target: "telemetry-notifications", title: "Notifications: delivery history", body: "Review events that were shown, grouped, silenced or auto-focused. Filters explain why a message did or did not appear. Expand an entry for details. DND changes delivery, not whether simulation events occur." },
+  { target: "clock", title: "Time and day progress", body: "The clock shows virtual simulation time; its outline fills across the 24-hour day. Hover for the percentage and click to switch the whole interface between 12 and 24 hour format. The clock is not a seek control." },
+  { target: "rate", title: "Requested and applied speed", body: "Select 0.25× to 10× the configured playback pace. ASB can temporarily apply a lower rate while retaining your requested rate for recovery. A lock means the core is holding the speed; the browser cannot override it." },
+  { target: "seed", title: "Reproducible worlds", body: "The seed determines the city district and deterministic scenario. Click the number to copy it. Generate asks for confirmation, pauses the old run and prepares a replacement. The old world remains available if preparation fails; a successful replacement starts paused at 00:00." },
+  { target: "status", title: "Connection and runtime status", body: "Online means current data is arriving. Degraded means stale data or backpressure; Offline means the simulator is unreachable. Hover for measured latency and throughput. Errors appear in the notification capsule, with priority over simulation updates." },
+  { target: "help", title: "Reports and help", body: "Export Report saves an observation of the loaded run, including its provenance, model figures and recorded events. About contains the license and source link. Tutorial can be opened again from here without starting a new world." },
+  { target: "transport", title: "Ready to explore", body: "Back and Forward move by the skip interval from Settings. Step advances by the step interval and holds paused. Play resumes; Reset asks before returning to 00:00. Start Simulation finishes the tour and plays this world. Skip restores the prior playback state only if no newer runtime action has superseded the tour." },
 ];

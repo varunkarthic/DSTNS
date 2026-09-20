@@ -23,6 +23,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import {
   mkdir,
+  readdir,
   readFile,
   rm,
   stat,
@@ -1774,7 +1775,45 @@ async function waitForObserver(port, timeoutMs) {
   return false
 }
 
+/** Maps already on disk, newest first, as `--osm-file` arguments. */
+async function cachedMaps() {
+  const cfg = await loadConfig().catch(() => null)
+  const dir = path.resolve(ROOT, cfg?.map?.cache_dir || 'data/maps')
+  try {
+    const names = (await readdir(dir)).filter((n) => n.endsWith('.osm.xml'))
+    return names.map((n) => path.relative(ROOT, path.join(dir, n)))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * A map download failure ends the run, because substituting another city would
+ * break the correspondence between a seed and the place it denotes. Say what
+ * can be done instead: fix the network, point at another Overpass, or run one
+ * of the districts already on disk.
+ */
+async function mapRecoveryLines() {
+  const cached = await cachedMaps()
+  const lines = [
+    'The seed could not be resolved to a district, and no other city is substituted for it.',
+    'Check the network, VPN or proxy, or set DSTNS_OVERPASS_ENDPOINTS to a reachable Overpass instance.',
+  ]
+  if (cached.length) {
+    lines.push(`Already downloaded: ${cached.slice(0, 4).join(', ')}${cached.length > 4 ? `, and ${cached.length - 4} more` : ''}.`)
+    lines.push(`Run one of them offline with: ./launcher start --osm-file ${cached[0]}`)
+  }
+  return lines
+}
+
+let mapRecovery = []
+
+function withMapRecovery(message) {
+  return [message, ...mapRecovery].join('\n  ')
+}
+
 async function startRun(port,payload) {
+  mapRecovery = payload.map.osm_file === 'auto' ? await mapRecoveryLines() : []
   const onDemand = payload.map.osm_file === 'auto'
   ui.logger.info(
     onDemand ? 'Resolving the seed to a city district' : 'Loading real OpenStreetMap district',
@@ -1783,11 +1822,27 @@ async function startRun(port,payload) {
   const stopFollowing = onDemand ? followMapDownload(port) : () => {}
   let result
   try {
+    // All configured mirrors may take longer than a normal API request.
     result = await apiCall(port,'/api/v1/playback/start','POST',payload)
+    if(result.code===202){
+      const deadline=Date.now()+30*60*1000
+      while(Date.now()<deadline){
+        const status=await apiCall(port,'/api/v1/playback/status')
+        const lifecycle=status.body?.data?.lifecycle
+        if(['RUNNING','PAUSED','READY'].includes(lifecycle))break
+        if(lifecycle==='IDLE' && status.body?.data?.preparation_error)
+          return {code:503,body:{error:{code:'MAP_FETCH_FAILED',message:status.body.data.preparation_error}}}
+        if(lifecycle==='ERROR')break
+        await sleep(180)
+      }
+    }
   } finally {
     stopFollowing()
   }
-  if(result.code!==202)throw new Error(result.body?.error?.message || `Startup failed: HTTP ${result.code}`)
+  if(result.code!==202){
+    const message = result.body?.error?.message || `Startup failed: HTTP ${result.code}`
+    throw new Error(result.body?.error?.code === 'MAP_FETCH_FAILED' ? withMapRecovery(message) : message)
+  }
   const topology=await apiCall(port,'/api/v1/view/topology')
   const map=topology.body?.data
   if(topology.code!==200 || map?.source!=='OpenStreetMap' || !map.nodes?.length || !map.edges?.length)throw new Error('The server did not load a usable real OSM network.')

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { tutorialSteps } from "./tutorialSteps";
 
-type Rect = { left: number; top: number; width: number; height: number };
+type Rect = { left: number; top: number; width: number; height: number; radius?: string };
 const GAP = 14;
 const EDGE = 12;
 
@@ -39,7 +39,10 @@ function measureTarget(name: string): Rect | null {
   const box = el?.getBoundingClientRect();
   const w = window.innerWidth, h = window.innerHeight;
   if (!box || box.width <= 0 || box.height <= 0 || box.bottom <= 0 || box.right <= 0 || box.top >= h || box.left >= w) return null;
-  const pad = 6;
+  const pad = 4;
+  const style = el ? getComputedStyle(el) : null;
+  const rawRadius = style?.borderTopLeftRadius || style?.borderRadius || "0";
+  const round = rawRadius.includes("%") ? box.height * parseFloat(rawRadius) / 100 : parseFloat(rawRadius) || 0;
   const left = Math.max(4, box.left - pad);
   const top = Math.max(4, box.top - pad);
   return {
@@ -47,6 +50,7 @@ function measureTarget(name: string): Rect | null {
     top,
     width: Math.max(0, Math.min(w - 4, box.right + pad) - left),
     height: Math.max(0, Math.min(h - 4, box.bottom + pad) - top),
+    radius: `${Math.min(box.width / 2, box.height / 2, round) + pad}px`,
   };
 }
 
@@ -79,6 +83,7 @@ export function Tutorial({
   actions.current = { onSkip, onStart };
 
   useEffect(() => onTarget(step.target), [onTarget, step.target]);
+  useEffect(() => () => onTarget(""), [onTarget]);
   useEffect(() => {
     const prior = document.activeElement as HTMLElement | null;
     return () => {
@@ -144,7 +149,7 @@ export function Tutorial({
       <div
         className={`tour-spotlight${rect ? "" : " none"}`}
         aria-hidden="true"
-        style={{ transform: `translate(${spot.left}px, ${spot.top}px)`, width: spot.width, height: spot.height }}
+        style={{ transform: `translate(${spot.left}px, ${spot.top}px)`, width: spot.width, height: spot.height, borderRadius: rect?.radius ?? "0" }}
       />
       <div
         ref={panel}
@@ -158,7 +163,7 @@ export function Tutorial({
       >
         <div className="tour-progress" aria-hidden="true">
           {tutorialSteps.map((s, i) => (
-            <i key={s.target} className={i < index ? "done" : i === index ? "on" : ""} />
+            <i key={`${s.target}-${i}`} className={i < index ? "done" : i === index ? "on" : ""} />
           ))}
         </div>
         <span className="tour-count">

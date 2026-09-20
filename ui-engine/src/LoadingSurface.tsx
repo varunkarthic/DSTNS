@@ -79,7 +79,7 @@ export function LoadingSurface({
             style={{ strokeDasharray: `${failed || done ? 100 : known ? Math.max(4, percent) : 26} 100` }}
           />
         </svg>
-        <Icon name={failed ? "incident" : done ? "check" : "pulse"} size={18} />
+        {failed ? <Icon name="incident" size={18} /> : <img className="loading-favicon" src="/favicon.svg" alt="" />}
       </div>
       <h2 id={titleId}>{title}</h2>
       {seed && (

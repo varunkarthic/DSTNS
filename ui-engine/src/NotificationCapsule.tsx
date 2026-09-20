@@ -19,9 +19,13 @@ export function NotificationCapsule({
   focusedKey,
   reduceMotion,
   onDismiss,
+  systemError = "",
+  onDismissError,
 }: {
   /** Visible notifications, most relevant first. */
   items: UiNotification[];
+  systemError?: string;
+  onDismissError?: () => void;
   focusedKey: string | null;
   reduceMotion: boolean;
   onDismiss: (n: UiNotification) => void;
@@ -41,7 +45,14 @@ export function NotificationCapsule({
     return [...kept, ...items.filter((n) => !held.some((h) => h.id === n.id))];
   }, [held, items]);
 
-  const current = list.find((n) => n.id === selected) ?? list[0];
+  // Runtime failures always preempt a selected/held simulation event. They
+  // are not inserted into the held list, so recovery removes them immediately.
+  const urgent: UiNotification | null = systemError ? {
+    id: "runtime-error", type: "RUNTIME_ERROR", category: "system", severity: "alert",
+    newsIds: [], timestamp: 0, startedAt: 0, title: "System error", summary: systemError,
+    details: [], technical: [], count: 1,
+  } : null;
+  const current = urgent ?? list.find((n) => n.id === selected) ?? list[0];
   const others = list.filter((n) => n !== current);
 
   const collapse = () => {
@@ -72,15 +83,16 @@ export function NotificationCapsule({
 
   // Nothing to show: the slot keeps its place in the HUD, empty. Silenced
   // events are reviewed in the Notifications tab, not announced here.
-  if (!current) return <div className="capsule-slot empty" aria-hidden="true" />;
+  if (!current) return <div className="capsule-slot empty" data-tutorial="notifications"><span className="hud-pill notification-idle"><Icon name="bell" size={16} /><span>Notifications</span><small>No new events</small></span></div>;
 
   const focused = focusMatches(current.focusKey, focusedKey);
   return (
-    <div className="capsule-slot" ref={root} data-tip-avoid>
+    <div className="capsule-slot" data-tutorial="notifications" ref={root} data-tip-avoid>
       <article
         className={`capsule sev-${current.severity}${open ? " open" : ""}${reduceMotion ? " still" : ""}`}
         aria-label="Notifications"
-        aria-live="polite"
+        role={urgent ? "alert" : undefined}
+        aria-live={urgent ? "assertive" : "polite"}
       >
         <div className="capsule-body" aria-hidden={!open} inert={!open || undefined}>
           <div className="capsule-body-inner">
@@ -90,9 +102,9 @@ export function NotificationCapsule({
                     {current.category === "incident" ? "Incident" : current.category.charAt(0).toUpperCase() + current.category.slice(1)}
                     {focused && <em className="capsule-following">Following</em>}
                   </span>
-                  <button type="button" className="capsule-icon-btn" aria-label="Dismiss notification" onClick={() => onDismiss(current)}>
+                  {(!urgent || onDismissError) && <button type="button" className="capsule-icon-btn" aria-label={urgent ? "Dismiss error" : "Dismiss notification"} onClick={() => urgent ? onDismissError?.() : onDismiss(current)}>
                     <Icon name="close" size={14} />
-                  </button>
+                  </button>}
                 </div>
                 <p className="capsule-summary">{time.text(current.summary)}</p>
                 <dl className="capsule-facts">
@@ -183,7 +195,7 @@ export function NotificationCapsule({
             <strong>{current.title}</strong>
             <span className="capsule-line">{current.location ?? time.text(current.summary)}</span>
           </span>
-          <span className="capsule-time mono">{time.time(current.timestamp, { seconds: false })}</span>
+          {!urgent && <span className="capsule-time mono">{time.time(current.timestamp, { seconds: false })}</span>}
           {others.length > 0 && (
             <span className="capsule-badge" key={others.length} aria-hidden="true">
               +{others.length}

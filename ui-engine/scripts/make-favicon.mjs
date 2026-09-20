@@ -70,8 +70,16 @@ const x = d.minX - pad - (box - (d.maxX - d.minX)) / 2 + pad;
 const y = d.minY - pad - (box - (d.maxY - d.minY)) / 2 + pad;
 const round = (n) => Number(n.toFixed(2));
 
+// No plate behind the mark: the icon is transparent, so it sits on whatever
+// the browser, the tab strip or the bookmark bar puts behind it. The mark is
+// light, which would disappear on a light tab strip, so the fill follows the
+// browser's colour scheme. Browsers without SVG icons fall back to the
+// declared fill.
 const icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${round(x)} ${round(y)} ${round(box)} ${round(box)}" width="64" height="64">
-  <rect x="${round(x)}" y="${round(y)}" width="${round(box)}" height="${round(box)}" rx="${round(box * 0.22)}" fill="#071420"/>
+  <style>
+    path { fill: ${fill}; }
+    @media (prefers-color-scheme: light) { path { fill: #0b1c28; } }
+  </style>
   <path d="${d.parts.join("")}" fill="${fill}"/>
 </svg>
 `;

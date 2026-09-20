@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Floating, useDismiss } from "./Popover";
+import { Icon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 import { demandColor } from "./mapModel";
 import { demandDetail, demandSummary, placeCensus, placeLegend } from "./placeLegend";
@@ -120,7 +121,6 @@ export function PlaceLegend({
   const census = useMemo(() => placeCensus(features), [features]);
   // Demand is only read while the legend is open, so ticks cost nothing when closed.
   const entries = useMemo(() => placeLegend(census, open ? demand : undefined, showOther), [census, demand, open, showOther]);
-  const preview = census.entries.filter((e) => e.group === "place").slice(0, 4);
   const hiddenOther = census.entries.filter((e) => e.group === "other").reduce((n, e) => n + e.count, 0);
 
   return (
@@ -138,12 +138,10 @@ export function PlaceLegend({
           disabled={!census.entries.length}
           onClick={() => setOpen((v) => !v)}
         >
-          <span className="glyph-preview" aria-hidden="true">
-            {preview.map((e) => (
-              <PlaceGlyph key={e.id} icon={e.icon} />
-            ))}
-          </span>
-          Places
+          <Icon name="pin" size={16} />
+          <span>Places</span>
+          <span className="legend-button-hint">Legend</span>
+          <Icon name="chevronUp" size={12} />
         </button>
       </Tooltip>
       <Floating anchor={trigger} open={open} className="legend-popover places" panelRef={panel} label="Place legend">
