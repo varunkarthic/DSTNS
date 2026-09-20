@@ -31,6 +31,7 @@ export interface Envelope<T> {
   data: T;
 }
 export interface Status {
+  preparation_error?: string;
   playback_revision?: number;
   lifecycle: Lifecycle;
   day: number;

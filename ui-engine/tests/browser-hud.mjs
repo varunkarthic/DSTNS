@@ -96,6 +96,11 @@ try {
     const vw = page.viewportSize();
     const rail = await box(page.locator(".rail"));
     const cluster = page.locator(".lower-hud .hud-zone > *:visible");
+    const aligned = page.locator(".lower-hud .hud-pill:visible, .lower-hud .capsule:visible");
+    const baseline = [];
+    for (const el of await aligned.all()) baseline.push(await el.boundingBox());
+    assert.ok(baseline.every(b => Math.abs(b.height - 42) < 1), "all lower HUD surfaces share 42px height");
+    assert.ok(Math.max(...baseline.map(b => b.y)) - Math.min(...baseline.map(b => b.y)) < 1, "all lower HUD surfaces share the baseline");
     const pieces = [];
     for (let i = 0; i < (await cluster.count()); i++) pieces.push(await cluster.nth(i).boundingBox());
     // The painted surface, not the panel's full box: collapsed, only the
@@ -249,12 +254,12 @@ try {
     await call("/api/v1/playback/play", {});
     await page.getByRole("button", { name: "Pause simulation" }).waitFor();
     await page.getByRole("button", { name: "Start tutorial" }).click();
-    const card = page.getByRole("dialog", { name: /The network/ });
+    const card = page.getByRole("dialog", { name: /The live network/ });
     await card.waitFor();
     await page.waitForTimeout(400);
     assert.equal((await call("/api/v1/playback/status")).body.data.lifecycle, "PAUSED", "tutorial pauses the run");
     const targets = [];
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 40; i++) {
       targets.push(await page.locator("[data-tutorial-step]").getAttribute("data-tutorial-step"));
       const start = page.getByRole("button", { name: "Start Simulation" });
       if (await start.count()) break;
@@ -264,7 +269,16 @@ try {
       const c = await page.locator(".tour-card").boundingBox();
       const vw = page.viewportSize();
       assert.ok(c.x >= 0 && c.y >= 0 && c.x + c.width <= vw.width && c.y + c.height <= vw.height, "tour card inside viewport");
-      if (i === 6) await page.screenshot({ path: path.join(out, "tutorial.png") });
+      assert.equal(await page.locator(".tour-missing").count(), 0, "every tutorial target is visible");
+      const target = await page.locator("[data-tutorial-step]").getAttribute("data-tutorial-step");
+      if (["focus", "notifications", "telemetry-congestion", "telemetry-notifications"].includes(target))
+        await page.screenshot({ path: path.join(out, `tutorial-${target}.png`) });
+      if (target === "focus") {
+        const shape = await page.locator(".tour-spotlight").evaluate(el => ({ r: parseFloat(getComputedStyle(el).borderRadius), w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height }));
+        assert.ok(Math.abs(shape.w - shape.h) < 1 && shape.r >= shape.w / 2 - 1, "circular control has circular spotlight");
+        const spot = await box(page.locator(".tour-spotlight"));
+        assert.ok(!overlap(spot, await box(page.locator('.map-dock [data-tutorial="dnd"]'))), "focus spotlight clears next sidebar button");
+      }
     }
     assert.equal(targets[targets.length - 1], "transport", "tour ends at playback");
     assert.ok(!targets.includes("asb"), "tour has no conditional backpressure step");
@@ -370,6 +384,21 @@ try {
     }
     await page.keyboard.press("Escape");
     await legend.waitFor({ state: "detached" });
+  });
+
+  check("runtime errors preempt notifications and DND without shifting status", async () => {
+    await page.getByRole("button", { name: "Do Not Disturb", exact: true }).click();
+    const before = await box(page.locator(".rail .runtime"));
+    await page.route("**/api/v1/view/snapshot", route => route.abort());
+    const error = page.getByRole("alert").filter({ hasText: "Simulator unavailable" });
+    await error.waitFor({ timeout: 10000 });
+    assert.ok(await error.evaluate(el => !!el.closest(".hud-left")), "errors use the simulation notification area");
+    const after = await box(page.locator(".rail .runtime"));
+    assert.ok(Math.abs(before.width - after.width) < 1 && Math.abs(before.x - after.x) < 1, "status geometry is reserved across state changes");
+    await page.screenshot({ path: path.join(out, "system-error-dnd.png") });
+    await page.unroute("**/api/v1/view/snapshot");
+    await error.waitFor({ state: "detached", timeout: 10000 });
+    await page.getByRole("button", { name: "Do Not Disturb", exact: true }).click();
   });
 
   check("report downloads as a multi-page PDF", async () => {

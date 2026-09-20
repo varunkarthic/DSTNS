@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 import os
+import socket
 import sys
 import time
 from datetime import datetime, timezone
@@ -24,7 +25,16 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-ENDPOINT = 'https://overpass-api.de/api/interpreter'
+# Overpass mirrors, tried in order. One host refusing connections, rate
+# limiting or timing out must not end a run, so the fetcher fails over rather
+# than depending on a single volunteer-run server. Override with --endpoint
+# (repeatable) or DSTNS_OVERPASS_ENDPOINTS to use a private instance.
+DEFAULT_ENDPOINTS = (
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter',
+    'https://overpass.osm.jp/api/interpreter',
+)
 MAX_BYTES = 200 * 1024 * 1024
 MAX_AREA_SQ_DEG = 0.05
 METRES_PER_DEGREE_LAT = 111320.0
@@ -34,7 +44,9 @@ parser.add_argument('--bbox', help='south,west,north,east')
 parser.add_argument('--anchor', help='lat,lon centre point; use with --radius-m')
 parser.add_argument('--radius-m', type=float, default=2500.0, help='half-extent around --anchor (default: 2500)')
 parser.add_argument('--output', type=Path, default=Path('data/maps/berlin-urban.osm.xml'))
-parser.add_argument('--retries', type=int, default=2, help='extra attempts after a transient failure')
+parser.add_argument('--retries', type=int, default=1, help='extra attempts per endpoint after a transient failure')
+parser.add_argument('--endpoint', action='append', default=[],
+                    help='Overpass endpoint to use instead of the built-in mirrors; repeat for failover')
 parser.add_argument('--timeout', type=int, default=180)
 args = parser.parse_args()
 
@@ -90,11 +102,19 @@ query = (
     + f'node["highway"="traffic_signals"]({box});'
     + ');(._;>;);out body;'
 )
-request = urllib.request.Request(
-    ENDPOINT,
-    data=urllib.parse.urlencode({'data': query}).encode(),
-    headers={'User-Agent': 'DSTNS urban source importer'},
-)
+payload = urllib.parse.urlencode({'data': query}).encode()
+
+
+def endpoints():
+    """Endpoints to try, in order: the flag, then the environment, then the mirrors."""
+    chosen = list(args.endpoint)
+    if not chosen:
+        chosen = [e.strip() for e in os.environ.get('DSTNS_OVERPASS_ENDPOINTS', '').split(',') if e.strip()]
+    return chosen or list(DEFAULT_ENDPOINTS)
+
+
+def host_of(url):
+    return urllib.parse.urlsplit(url).netloc or url
 
 # Progress is published beside the target so the operator CLI can render a bar
 # for what is otherwise a silent multi-minute wait inside the core.
@@ -132,31 +152,56 @@ def read_streaming(response):
 
 
 content = None
-last_error = ''
+used_endpoint = ''
 publish('connect')
-for attempt in range(args.retries + 1):
-    try:
-        with urllib.request.urlopen(request, timeout=args.timeout + 40) as response:
-            content = read_streaming(response)
+# Per-endpoint outcome, so a failure can say what every mirror actually said
+# rather than only the last one.
+outcomes = []
+refused_everywhere = True
+for endpoint in endpoints():
+    request = urllib.request.Request(
+        endpoint,
+        data=payload,
+        headers={'User-Agent': 'DSTNS urban source importer'},
+    )
+    reason = ''
+    for attempt in range(args.retries + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=args.timeout + 40) as response:
+                content = read_streaming(response)
+            break
+        except ValueError:
+            progress_path.unlink(missing_ok=True)
+            fail(f'OSM response exceeds {MAX_BYTES // (1024 * 1024)} MiB; reduce the extent')
+        except urllib.error.HTTPError as error:
+            # 429 and 5xx are Overpass shedding load; anything else is our request.
+            reason = f'HTTP {error.code} {error.reason}'
+            refused_everywhere = False
+            if error.code not in (429, 500, 502, 503, 504):
+                break
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            inner = getattr(error, 'reason', error)
+            reason = str(inner)
+            if not isinstance(inner, (ConnectionRefusedError, socket.gaierror)):
+                refused_everywhere = False
+        if content is not None or attempt == args.retries:
+            break
+        publish('retry')
+        time.sleep(2 ** attempt * 3)
+    if content is not None:
+        used_endpoint = endpoint
         break
-    except ValueError:
-        progress_path.unlink(missing_ok=True)
-        fail(f'OSM response exceeds {MAX_BYTES // (1024 * 1024)} MiB; reduce the extent')
-    except urllib.error.HTTPError as error:
-        # 429 (too many requests) and 504 (gateway timeout) are Overpass load shedding.
-        last_error = f'Overpass returned HTTP {error.code} {error.reason}'
-        retryable = error.code in (429, 502, 503, 504)
-    except (urllib.error.URLError, TimeoutError, OSError) as error:
-        last_error = f'network error contacting Overpass: {error}'
-        retryable = True
-    if not retryable or attempt == args.retries:
-        progress_path.unlink(missing_ok=True)
-        fail(last_error)
-    publish('retry')
-    time.sleep(2 ** attempt * 5)
+    outcomes.append(f'{host_of(endpoint)} ({reason or "no response"})')
+    publish('connect')
 
 if content is None:
-    fail(last_error or 'no response from Overpass')
+    detail = '; '.join(outcomes) or 'no endpoints configured'
+    if refused_everywhere:
+        fail('no route to Overpass from this host: ' + detail
+             + '. Check the network connection, VPN or proxy, or set DSTNS_OVERPASS_ENDPOINTS '
+               'to a reachable Overpass instance. An already cached city can be used with --osm-file.')
+    fail('every Overpass endpoint failed: ' + detail)
+
 if len(content) > MAX_BYTES:
     fail(f'OSM response exceeds {MAX_BYTES // (1024 * 1024)} MiB; reduce --radius-m')
 
@@ -187,7 +232,7 @@ manifest = {
     'source': 'OpenStreetMap contributors',
     'license': 'ODbL 1.0',
     'url': 'https://www.openstreetmap.org/copyright',
-    'endpoint': ENDPOINT,
+    'endpoint': used_endpoint,
     'bbox': [south, west, north, east],
     'retrieved_at': datetime.now(timezone.utc).isoformat(),
     'sha256': hashlib.sha256(content).hexdigest(),

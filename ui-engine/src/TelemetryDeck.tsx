@@ -45,6 +45,7 @@ type Props = {
   asb: Backpressure | null;
   history: HistoryFeed;
   compact: boolean;
+  tutorialTarget?: string;
   onCollapse: () => void;
   onExpand: () => void;
 };
@@ -188,35 +189,35 @@ function Overview({ snapshot, topology, congestion }: Pick<Props, "snapshot" | "
   const value = congestion?.current ?? 0;
   return (
     <div className="metric-grid">
-      <div className="metric">
+      <div className="metric" data-tutorial="telemetry-roads">
         <span className="metric-label">
           <Icon name="road" size={14} /> Road edges
         </span>
         <span className="metric-value">{f.edges.toLocaleString()}</span>
         <span className="metric-sub">{f.flowingEdges.toLocaleString()} carrying flow</span>
       </div>
-      <div className="metric">
+      <div className="metric" data-tutorial="telemetry-vehicles">
         <span className="metric-label">
           <Icon name="vehicle" size={14} /> Vehicles
         </span>
         <span className="metric-value accent">{f.vehicles.toLocaleString()}</span>
         <span className="metric-sub">{f.halting.toLocaleString()} halting</span>
       </div>
-      <div className="metric">
+      <div className="metric" data-tutorial="telemetry-incidents-metric">
         <span className="metric-label">
           <Icon name="incident" size={14} /> Incidents
         </span>
         <span className={`metric-value${f.incidents ? " error" : ""}`}>{f.incidents}</span>
         <span className="metric-sub">{f.closed} closed</span>
       </div>
-      <div className="metric" data-tutorial="weather">
+      <div className="metric" data-tutorial="telemetry-weather">
         <span className="metric-label">
           <WeatherGlyph weather={weather} size={14} /> Weather
         </span>
         <span className="metric-value small">{weather.label}</span>
         <span className="metric-sub">{weather.cells ? `${weather.cells} cell${weather.cells === 1 ? "" : "s"} · ${weather.rate}` : weather.rate}</span>
       </div>
-      <div className="metric wide" data-tutorial="congestion">
+      <div className="metric wide" data-tutorial="telemetry-congestion">
         <div className="metric-row">
           <span className="metric-label">
             <Icon name="gauge" size={14} /> Congestion index
@@ -606,6 +607,7 @@ function Tabs({ tab, onTab, counts, idPrefix }: { tab: TelemetryTab; onTab: (t: 
           key={t.id}
           id={`${idPrefix}-${t.id}`}
           role="tab"
+          data-tutorial={`telemetry-${t.id}`}
           type="button"
           aria-selected={tab === t.id}
           tabIndex={tab === t.id ? 0 : -1}
@@ -630,7 +632,7 @@ function Tabs({ tab, onTab, counts, idPrefix }: { tab: TelemetryTab; onTab: (t: 
 
 function TelemetryDeckImpl(props: Props) {
   const { snapshot, topology, runtime, compact, history } = props;
-  const [tab, setTab] = useState<TelemetryTab>(() => {
+  const [chosenTab, setTab] = useState<TelemetryTab>(() => {
     try {
       const saved = localStorage.getItem("dstns.telemetry-tab.v1") as TelemetryTab | null;
       return saved && TABS.some((t) => t.id === saved) ? saved : "stack";
@@ -638,6 +640,8 @@ function TelemetryDeckImpl(props: Props) {
       return "stack";
     }
   });
+  const tourTab = TABS.find(t => props.tutorialTarget === `telemetry-${t.id}`)?.id;
+  const tab = tourTab ?? chosenTab;
   const chooseTab = (t: TelemetryTab) => {
     setTab(t);
     try {

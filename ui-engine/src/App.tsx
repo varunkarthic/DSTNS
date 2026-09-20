@@ -98,8 +98,13 @@ const NO_WORLD_JOB: WorldJob = { active: false, requestedSeed: "", status: null,
 
 /** A concise, operator-facing reason for a failed world generation. */
 export function worldErrorMessage(code: string, message: string): string {
-  if (code === "MAP_FETCH_FAILED")
-    return `The map for the new seed could not be downloaded from OpenStreetMap. ${message.split(":").slice(-1)[0].trim()}`.trim();
+  if (code === "MAP_FETCH_FAILED") {
+    // The core prefixes the city and coordinates, and the downloader its own
+    // name; what follows is the cause, which may name several mirrors and what
+    // to do about them, so it is kept whole.
+    const cause = message.replace(/^.*?fetch_osm:\s*/s, "").replace(/^OSM download failed[^:]*:\s*/s, "").trim();
+    return `The map for this seed could not be downloaded from OpenStreetMap. ${cause || message}`.trim();
+  }
   if (code === "WORLD_REGENERATION_DISABLED") return "World generation is disabled for this deployment.";
   if (code === "LIFECYCLE_CONFLICT") return message.charAt(0).toUpperCase() + message.slice(1) + ".";
   return "The new world could not be generated. Retry, or return to the current world.";
@@ -210,7 +215,8 @@ export default function App() {
     }
   });
   const narrow = useMediaQuery("(max-width: 1024px)");
-  const deckCompact = narrow ? !telemetryOpen : deckCollapsed;
+  const touringTelemetry = tutorialTarget === "telemetry" || tutorialTarget.startsWith("telemetry-");
+  const deckCompact = !touringTelemetry && (narrow ? !telemetryOpen : deckCollapsed);
   const setCollapsed = useCallback(
     (collapsed: boolean) => {
       if (narrow) {
@@ -459,7 +465,7 @@ export default function App() {
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const res = await fetch("/api/v1/system/map-status");
+        const res = await fetch("/api/v1/system/map-status", { signal: AbortSignal.timeout(5000) });
         const body = await res.json();
         if (!cancel) setMapStatus(body?.data ?? null);
       } catch {
@@ -481,7 +487,10 @@ export default function App() {
     api
       .worldStatus()
       .then((r) => {
-        if (!cancel) setRegenerationEnabled(r.data.enabled !== false);
+        if (!cancel) {
+          setRegenerationEnabled(r.data.enabled !== false);
+          if (r.data.state === "generating") setWorld({ ...NO_WORLD_JOB, active: true, status: r.data, requestedSeed: r.data.seed });
+        }
       })
       .catch(() => {
         /* An older core without the endpoint: leave the control enabled; a request reports why it failed. */
@@ -630,7 +639,7 @@ export default function App() {
   }, [runId, logControl]);
 
   const worldLoaded =
-    world.status?.state === "ready" && !!sim.topology && sim.status?.run_id === world.status.run_id;
+    world.status?.state === "ready" && !!sim.topology && sim.snapshot?.run_id === world.status.run_id && sim.status?.run_id === world.status.run_id;
   useEffect(() => {
     if (!world.active || world.error || worldLoaded) return;
     let cancel = false;
@@ -676,7 +685,7 @@ export default function App() {
 
   // ---- Derived presentation ---------------------------------------------------
   const scaleBar = scaleBarFor(view.metresPerPixel);
-  const mapError = /MAP_FETCH_FAILED|OSM download|map tile/i.test(sim.error || actionError);
+  const systemError = sim.error || (sim.stale ? "Simulation data is stale. Reconnecting." : "") || actionError;
   const asbInfo = describeAsb(asb);
   const splashStage = splashStageFor(mapStatus as never, lifecycle, sim.stage, !!sim.topology, !!sim.status);
   const showSplash = !splashDismissed && !!splashStage && !sim.error && !world.active;
@@ -835,6 +844,7 @@ export default function App() {
             asb={asb}
             history={historyFeed}
             compact={deckCompact}
+            tutorialTarget={tutorial.active ? tutorialTarget : undefined}
             onCollapse={() => setCollapsed(true)}
             onExpand={() => setCollapsed(false)}
           />
@@ -842,9 +852,7 @@ export default function App() {
           <div className="bottom-stack">
             <div className="lower-hud">
               <div className="hud-zone hud-left">
-                {!suspended && !tutorial.active && (
-                  <NotificationCapsule items={shown} focusedKey={autoFocus ? activeKey : null} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
-                )}
+                <NotificationCapsule items={suspended || tutorial.active ? [] : shown} systemError={systemError} onDismissError={!sim.error && !sim.stale && actionError ? () => setActionError("") : undefined} focusedKey={autoFocus ? activeKey : null} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
               </div>
               <div className="hud-zone hud-center">
                 <div className="layers-anchor">
@@ -936,18 +944,6 @@ export default function App() {
               onTerminate={() => setDialog("terminate")}
             />
           </div>
-
-          {(sim.error || sim.stale || actionError) && !suspended && !world.active && (
-            <div role="alert" className={`error-banner${mapError ? " map-error" : ""}`}>
-              <Icon name="incident" size={16} />
-              <span>{actionError || sim.error || "Simulation data is stale. Reconnecting."}</span>
-              {actionError && (
-                <button aria-label="Dismiss error" onClick={() => setActionError("")}>
-                  <Icon name="close" size={14} />
-                </button>
-              )}
-            </div>
-          )}
 
           {splash.mounted && lastSplash.current && (
             <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} onDismiss={() => setSplashDismissed(true)} />

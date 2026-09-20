@@ -608,34 +608,6 @@ body:has(.reduce-motion) .floating {
     display: inline-flex;
   }
 }
-@container lower-hud (max-width: 860px) {
-  .hud-center .hud-button > span:not(.glyph-preview):not(.legend-swatches),
-  .hud-center .legend-place .hud-button {
-    font-size: 0;
-    gap: 0;
-  }
-  .hud-center .hud-button {
-    padding: 0 11px;
-  }
-  .hud-center .layers-anchor .hud-button {
-    gap: 0;
-  }
-  .hud-readout.scale-readout {
-    display: none;
-  }
-}
-@container lower-hud (max-width: 620px) {
-  .lower-hud {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .hud-left {
-    grid-column: 1 / -1;
-  }
-  .hud-center {
-    justify-content: flex-start;
-  }
-}
-
 /* ---- Command rail: speed ------------------------------------------------ */
 
 .speed-pill {
@@ -2006,3 +1978,39 @@ body:has(.reduce-motion) .floating {
 .loading-surface.boot.still .loading-card > * {
   animation: none;
 }
+
+/* One baseline and a reserved slot for every HUD control. */
+.loading-favicon { width: 22px; height: 22px; object-fit: contain; display: block; }
+.legend-button-hint { color: var(--text-faint); font-size: 10px; }
+
+:root { --hud-row-h: 42px; }
+.lower-hud { margin-right: 0; grid-template-columns: minmax(160px, 1fr) auto auto; align-items: center; gap: 8px; }
+.hud-zone { align-items: center; height: var(--hud-row-h); }
+.hud-pill, .lower-hud .capsule-slot, .lower-hud .capsule-slot.empty { height: var(--hud-row-h); box-sizing: border-box; }
+.lower-hud .capsule-slot { width: 100%; flex: 1; }
+.lower-hud .capsule-slot.empty { pointer-events: auto; }
+.notification-idle { width: 100%; gap: 8px; color: var(--text-dim); overflow: hidden; }
+.notification-idle small { font-size: 10px; color: var(--text-faint); white-space: nowrap; }
+.capsule-head { height: calc(var(--hud-row-h) - 2px); gap: 6px; }
+.capsule-text { line-height: 14px; }
+.capsule-text strong { font-size: 11px; }
+.capsule-icon { width: 25px; height: 25px; }
+.lower-hud .hud-readout[aria-label="Pointer coordinates"] { width: 226px; justify-content: center; }
+.lower-hud .scale-readout { display: inline-flex; width: 152px; justify-content: flex-end; }
+.scale-readout i { max-width: 78px; flex-shrink: 0; }
+.scale-readout span { width: 47px; text-align: right; }
+.runtime { width: 100px; justify-content: center; flex-shrink: 0; box-sizing: border-box; }
+.runtime.small { width: 84px; }
+.telemetry-deck { bottom: calc(16px + var(--rail-h) + 12px + var(--hud-row-h) + 10px); }
+.map-dock { gap: 12px; }
+.map-dock > .divider { margin: 0; }
+@media (max-width: 1180px) {
+  .lower-hud { gap: 6px; }
+  .hud-zone { gap: 6px; }
+  .hud-pill { padding: 0 10px; }
+  .legend-button-hint, .notification-idle small { display: none; }
+  .lower-hud .hud-readout[aria-label="Pointer coordinates"] { width: 205px; font-size: 10px; }
+  .lower-hud .scale-readout { width: 135px; }
+}
+
+.loading-ring > .icon { position: static; transform: none; }

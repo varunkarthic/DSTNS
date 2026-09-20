@@ -38,22 +38,25 @@ export function useSimulation(dwellMs = 7000) {
         const st = await api.status();
         if (cancelled) return;
         setLatencyMs(Math.round(performance.now() - sent));
+        if (run !== st.run_id || st.data.lifecycle === "PREPARING") {
+          setTopology(null);
+          setSnapshot(null);
+          // A same-seed preparation still needs a fresh topology afterwards.
+          if (st.data.lifecycle === "PREPARING") run = "";
+        }
         setStatus(st);
-        if (["PREPARING", "ERROR"].includes(st.data.lifecycle)) {
+        if (st.data.lifecycle === "ERROR") throw new Error(st.data.preparation_error || "World preparation failed.");
+        if (st.data.lifecycle === "PREPARING") {
           setStage("Preparing the world");
           setError("");
           setLastUpdated(Date.now());
           return;
         }
-        const snap = await api.snapshot();
-        if (cancelled) return;
-        if (st.run_id !== snap.run_id)
-          throw new Error("Synchronizing a new simulation…");
         if (st.data.lifecycle === "IDLE" || !st.run_id) {
           setTopology(null);
           setSnapshot(null);
           setStatus(st);
-          setError("");
+          setError(st.data.preparation_error || "");
           setStage("Awaiting CLI startup");
           run = "";
           since = 0;
@@ -64,6 +67,9 @@ export function useSimulation(dwellMs = 7000) {
           setLastUpdated(Date.now());
           setLastDataAt(performance.now());
         } else {
+          const snap = await api.snapshot();
+          if (cancelled) return;
+          if (st.run_id !== snap.run_id) throw new Error("Synchronizing a new simulation…");
           if (
             !Array.isArray(snap.data.edges) ||
             !Array.isArray(snap.data.signals) ||

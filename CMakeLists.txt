@@ -84,6 +84,12 @@ if(DSTNS_BUILD_TESTS)
   add_test(NAME dstns_map_sourcing COMMAND dstns_map_tests)
   set_tests_properties(dstns_map_sourcing PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+  add_executable(dstns_loading_tests tests/unit/loading_tests.cpp)
+  target_link_libraries(dstns_loading_tests PRIVATE dstns_core)
+  target_compile_options(dstns_loading_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_loading_concurrency COMMAND dstns_loading_tests)
+  set_tests_properties(dstns_loading_concurrency PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 20)
+
   add_executable(dstns_world_tests tests/unit/world_tests.cpp)
   target_link_libraries(dstns_world_tests PRIVATE dstns_core)
   target_compile_options(dstns_world_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)

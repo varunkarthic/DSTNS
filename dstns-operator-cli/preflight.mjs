@@ -352,6 +352,14 @@ export function checks(root, options = {}) {
         },
       },
       {
+        name: 'Loading concurrency suite',
+        run: async () => {
+          if (!existsSync(server)) return { level: WARN, detail: 'core not built; skipped' }
+          const r = await run('python3', [path.join(root, 'tests/api/loading_smoke.py')], { cwd: root, timeout: 45000 })
+          return { level: r.code === 0 ? OK : FAIL, detail: r.code === 0 ? 'slow-map startup, concurrent polling, regeneration and cancellation passed' : 'loading regression failed', hint: r.code === 0 ? '' : r.out.slice(-1000) }
+        },
+      },
+      {
         name: 'Observer test suites',
         run: async () => {
           const uiDir = path.join(root, 'ui-engine')

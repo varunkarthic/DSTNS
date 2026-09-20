@@ -75,6 +75,8 @@ ScenarioConfig config_from(const json& j) {
     if (j.contains("playback_duration_seconds")) c.playback_duration_s = j.at("playback_duration_seconds");
     if (j.contains("simulation_time")) c.playback_duration_s = j.at("simulation_time");
     if (j.contains("tick_rate")) c.tick_rate = j.at("tick_rate");
+    if (!(c.tick_rate > 0 && c.tick_rate <= kMaxTickRate))
+        throw std::invalid_argument("tick_rate must be in (0,10]");
     if (j.contains("day")) {
         if (j.at("day").is_string() && j.at("day") == "auto") c.day = -1;
         else c.day = j.at("day");
@@ -396,7 +398,7 @@ void ApiServer::routes() {
         const auto seed = seed_from(j);
         auto c = config_from(j);
         const auto start = j.contains("start_virtual_time") ? time_value(j.at("start_virtual_time")) : 0;
-        auto res = engine_.start(seed, c, start);
+        auto res = engine_.start_async(seed, c, start);
         send(r, res, 202);
     });
     server_->Post("/api/v1/playback/pause", [this](const auto& req, auto& r) { send(r, engine_.pause(body(req))); });

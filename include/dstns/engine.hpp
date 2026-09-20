@@ -34,6 +34,9 @@ public:
 
     nlohmann::json prepare(Seed128 seed,const ScenarioConfig& config);
     nlohmann::json start(Seed128 seed,const ScenarioConfig& config,std::uint32_t start_virtual_s=0);
+    // Accept initial preparation immediately; compilation and map I/O continue
+    // on the background world worker and publish through status/map-status.
+    nlohmann::json start_async(Seed128 seed,const ScenarioConfig& config,std::uint32_t start_virtual_s=0);
     nlohmann::json play(const nlohmann::json& guard = {}); nlohmann::json pause(const nlohmann::json& guard = {}); nlohmann::json stop(); nlohmann::json reset();
     nlohmann::json seek(std::uint32_t target_virtual_s,bool resume_after);
     // Advance exactly `seconds` of virtual time and leave the run paused, so an
@@ -96,6 +99,9 @@ private:
 
     RuntimeLogger& logger_; mutable std::recursive_mutex mutex_; std::condition_variable_any cv_; std::jthread worker_;
     Lifecycle lifecycle_{Lifecycle::Idle}; ScenarioCompiler compiler_; std::unique_ptr<GraphStore> graph_;
+    std::atomic<bool> compiling_{false}; // Concurrent compiles fail without occupying HTTP workers.
+    std::uint64_t compile_generation_{}; // Guarded by mutex_; reset/terminate invalidate a pending install.
+    std::string preparation_error_;
     std::string run_id_; std::uint32_t virtual_s_{}; std::uint32_t start_virtual_s_{}; double tick_rate_{1};
     std::chrono::steady_clock::time_point anchor_wall_{}; std::uint32_t anchor_virtual_s_{};
     std::chrono::steady_clock::time_point last_global_dump_{};

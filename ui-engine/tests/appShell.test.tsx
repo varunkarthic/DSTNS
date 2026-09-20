@@ -235,7 +235,8 @@ describe("observer shell", () => {
     render(<App />);
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/OSM download failed for Berlin/);
-    expect(alert.className).toContain("map-error");
+    expect(alert.className).toContain("capsule");
+    expect(alert).toHaveAttribute("aria-live", "assertive");
   });
 });
 
@@ -427,6 +428,23 @@ describe("world regeneration", () => {
   it("phrases generation errors for operators", () => {
     expect(worldErrorMessage("WORLD_REGENERATION_DISABLED", "")).toBe("World generation is disabled for this deployment.");
     expect(worldErrorMessage("WORLD_GENERATION_FAILED", "std::runtime_error at engine.cpp:120")).not.toMatch(/cpp/);
+  });
+
+  it("keeps the whole cause of a failed map download, and what to do about it", () => {
+    const fromCore =
+      "OSM download failed for San Jose (Costa Rica) at 9.934443, -84.081511: fetch_osm: no route to Overpass from this host: " +
+      "overpass-api.de (Connection refused); overpass.kumi.systems (Connection refused). Check the network connection, VPN or proxy, " +
+      "or set DSTNS_OVERPASS_ENDPOINTS to a reachable Overpass instance. An already cached city can be used with --osm-file.";
+    const shown = worldErrorMessage("MAP_FETCH_FAILED", fromCore);
+    // The cause survives in full: both mirrors, and the ways out.
+    expect(shown).toMatch(/could not be downloaded from OpenStreetMap/);
+    expect(shown).toMatch(/overpass-api.de \(Connection refused\)/);
+    expect(shown).toMatch(/overpass.kumi.systems/);
+    expect(shown).toMatch(/DSTNS_OVERPASS_ENDPOINTS/);
+    expect(shown).toMatch(/--osm-file/);
+    // Without the core's own prefixes, which say nothing to an operator.
+    expect(shown).not.toMatch(/fetch_osm:/);
+    expect(shown).not.toMatch(/^OSM download failed/);
   });
 });
 

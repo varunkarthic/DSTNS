@@ -7,7 +7,7 @@ Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed,
 | GET | `/health`, `/api/v1/system/health` | Liveness/lifecycle |
 | GET | `/api/v1/system/info` | Product and optional SUMO availability |
 | GET | `/api/v1/playback/status` | Lifecycle, clock, day, saved seed ID, map version, modules |
-| POST | `/api/v1/playback/start` | CLI operator credential required; HTTP 202 |
+| POST | `/api/v1/playback/start` | CLI operator credential required; HTTP 202, preparation/download continues in the background and is observed through status/map-status |
 | POST | `/api/v1/playback/pause`, `/play` | Pause/resume active run |
 | POST | `/api/v1/playback/seek` | Move to `target_time` (seconds or `HH:MM:SS`); earlier times restore a checkpoint and replay |
 | POST | `/api/v1/playback/step` | Advance `seconds` (1 to 3600, default 60) of virtual time and hold paused |
@@ -29,6 +29,12 @@ Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed,
 `event-queue` accepts `view=future|history`, `category=all|signals|demand|incidents|weather|flooding|system`, `offset=0..100000`, `limit=1..200`. It returns `items`, filtered `total`, `pending_count`, `executed_count`, and `history_retention`. Events contain stable execution sequence IDs, category, entity, virtual second, description, status and state value. Future flooding is not predicted; actual flood threshold crossings appear in history.
 
 Startup uses `X-DSTNS-Operator` from the private local CLI credential. No browser startup key is exposed. Missing/incorrect startup credentials return HTTP 403 with `CLI_START_REQUIRED`. The payload supports `saved_seed_id` and `map_selection_version=urban-crfg-v3` in addition to existing configuration. Saved seed creation/deletion remains local CLI functionality rather than a public mutation API.
+
+Initial preparation is accepted before scenario compilation begins. While the map is
+being selected, downloaded and compiled, `GET /api/v1/playback/status` reports
+`PREPARING` and `GET /api/v1/system/map-status` reports the current fetch phase
+and byte progress. The operator CLI waits for the terminal lifecycle; the
+observer can remain responsive and narrate the work throughout.
 
 Existing operator stop/reset/seek, explicit world controls, module controls, history/undo/redo and log routes remain available; the browser has no clients or controls for world edits. See the implementation for compatibility routes. Do not interpret logical undo of a world override as a complete physical replay.
 
