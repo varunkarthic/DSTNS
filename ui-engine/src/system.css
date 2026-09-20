@@ -2146,3 +2146,100 @@ body:has(.reduce-motion) .floating {
 }
 
 .loading-ring > .icon { position: static; transform: none; }
+
+/* ---- Places: per-kind visibility ----------------------------------------
+ *
+ * Each row is the switch for its own kind, so turning a kind off is done
+ * where you are already reading about it rather than in a separate list. A
+ * hidden kind stays legible and keeps its count - it is off, not gone.
+ */
+.place-toggle {
+  display: contents;
+  text-align: left;
+  color: inherit;
+}
+.place-rows li.hidden-kind .place-glyph {
+  opacity: 0.35;
+}
+.place-rows li.hidden-kind .place-name,
+.place-rows li.hidden-kind .place-count,
+.place-rows li.hidden-kind .place-demand {
+  opacity: 0.45;
+}
+.place-rows li .place-toggle:hover .place-name {
+  color: var(--text);
+}
+.floating-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--well-line);
+}
+.btn.small {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+/* ---- Scrollable lists: a soft edge, not a cut ----------------------------
+ *
+ * A list that runs past its panel used to stop dead at the border, which
+ * reads as the end of the list rather than as more to come. A progressive
+ * blur over the last few rows fades the content out instead, so the edge
+ * says "there is more" without a scrollbar having to say it.
+ *
+ * The mask is what actually fades the content; the blurred overlay sits
+ * behind it so the rows dissolve into the panel rather than into whatever is
+ * behind the window. Browsers without mask support simply show a hard edge,
+ * which is what they show today.
+ */
+.scroll-fade {
+  position: relative;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  /* Only fade when there is something below: a list that fits is not clipped. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent 100%);
+}
+.scroll-fade.at-end {
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+.legend-popover.places .place-rows {
+  max-height: min(42vh, 420px);
+}
+/* The places panel must be readable over the telemetry deck it can overlap,
+   so it carries its own surface rather than relying on the map behind it. */
+.legend-popover.places {
+  background: var(--hud-bg-strong, rgb(9 20 30 / 96%));
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+/* Keep headers/actions visible while the shared continuation mask follows the list. */
+.layers-scroll { max-height: min(52vh, 520px); }
+.stream.scroll-fade.at-end { mask-image: none; -webkit-mask-image: none; }
+
+/* Two readable map groups on the shared HUD baseline. */
+.hud-center, .hud-right { gap: 0; border-radius: var(--r-pill); background: var(--glass-strong); border: 0; box-shadow: inset 0 0 0 1px var(--glass-line); }
+.hud-center .hud-pill, .hud-right .hud-pill { background: transparent; border-color: transparent; box-shadow: none; }
+.hud-center > * + *, .hud-right > * + * { border-left: 1px solid var(--well-line); }
+.hud-right .layers-anchor { flex-shrink: 0; }
+.about-dialog { width: min(760px, calc(100vw - 48px)); padding: 24px; display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
+.about-scroll { min-height: 0; }
+.dialog .about-title { font-size: 20px; line-height: 1.4; max-width: 600px; }
+.about-dialog .about-facts > div { display: grid; grid-template-columns: 132px minmax(0, 1fr); align-items: start; padding: 12px 0; }
+.about-dialog .about-facts dd { text-align: left; overflow-wrap: anywhere; line-height: 1.6; }
+.about-seed .mono { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.about-seed .icon-btn { flex-shrink: 0; }
+.about-reset { padding-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 18px; align-items: center; }
+.about-reset strong { font-size: 13px; }
+.about-reset p, .about-reset [role="status"] { font-size: 11px; line-height: 1.6; color: var(--text-dim); }
+.about-reset p { margin: 5px 0 0; }
+.about-reset [role="status"] { min-height: 18px; grid-column: 1 / -1; }
+@media (max-height: 720px) { .about-dialog { padding: 18px; } .about-reset { padding-top: 10px; } }
+.strip-overview { display: flex; flex-direction: column; border-radius: calc(var(--strip-item) / 2); padding: 3px 0; color: var(--text-dim); transition: background var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+.strip-overview:hover { background: var(--hover); }
+.strip-overview.active { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.strip-overview .strip-metric { pointer-events: none; }

@@ -30,7 +30,7 @@ import { useSimulation } from "./useSimulation";
 import { useBackpressure, describeAsb, formatRate } from "./useBackpressure";
 import { api } from "./api";
 import { formatCoordinate, scaleBarFor } from "./mapProjection";
-import { BUILT_IN, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
+import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
 import type { UiConfig, AutoFocusStrategy } from "./uiConfig";
 import { TimeFormatProvider } from "./preferences";
 import { boundsOf, chooseTarget, focusTargets, framingSignature, networkBounds } from "./autoFocus";
@@ -45,7 +45,7 @@ import type { UiNotification } from "./notificationModel";
 import { focusNotification } from "./focusNotification";
 import { TelemetryRecorder, runtimeStatus, sampleFrom } from "./telemetryRecorder";
 import { DAY_SECONDS, formatDuration } from "./timeFormat";
-import type { Congestion, Layers, MapFeature, News, WorldStatus } from "./types";
+import type { Congestion, Layers, MapFeature, News, PlaceVisibility, WorldStatus } from "./types";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
@@ -117,6 +117,7 @@ export default function App() {
   const [operatorConfig, setOperatorConfig] = useState<UiConfig>(BUILT_IN);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [layers, setLayers] = useState<Layers>(BUILT_IN.layers);
+  const [places, setPlaces] = useState<PlaceVisibility>(BUILT_IN.places);
   const [motionChoice, setMotionChoice] = useState(() => resolveReduceMotion(BUILT_IN.reduce_motion));
 
   useEffect(() => {
@@ -126,6 +127,7 @@ export default function App() {
       setConfig(resolved);
       setOperatorConfig(operator);
       setLayers(resolved.layers);
+      setPlaces(resolved.places);
       setMotionChoice(resolveReduceMotion(resolved.reduce_motion));
       setConfigLoaded(true);
     });
@@ -152,6 +154,7 @@ export default function App() {
 
   // ---- Shell state ------------------------------------------------------
   const [layersOpen, setLayersOpen] = useState(false);
+  const [preferencesEpoch, setPreferencesEpoch] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [dialogClosing, setDialogClosing] = useState(false);
@@ -564,6 +567,36 @@ export default function App() {
     setLayers(next);
     persist({ layers: next });
   };
+  const changePlaces = (next: PlaceVisibility) => {
+    setPlaces(next);
+    persist({ places: next });
+  };
+  const togglePlace = (kind: string, on: boolean) => changePlaces({ ...places, [kind]: on });
+  /** Back to the kinds shown out of the box, forgetting every per-kind choice. */
+  const resetPlaces = () => changePlaces({ ...operatorConfig.places });
+  const resetSettings = () => {
+    const { auto_focus, notifications, playback, clock, reduce_motion } = operatorConfig;
+    persist({ auto_focus, notifications, playback, clock, reduce_motion });
+    setMotionChoice(resolveReduceMotion(reduce_motion));
+    setAutoFocus(auto_focus.mode === "enable-force");
+    setManualFocus(null);
+  };
+  const resetAllPreferences = () => {
+    clearOverrides();
+    setConfig(operatorConfig);
+    setLayers({ ...operatorConfig.layers });
+    setPlaces({ ...operatorConfig.places });
+    setMotionChoice(resolveReduceMotion(operatorConfig.reduce_motion));
+    setAutoFocus(operatorConfig.auto_focus.mode === "enable-force");
+    setManualFocus(null);
+    setDeckCollapsed(false);
+    setTelemetryOpen(false);
+    try {
+      localStorage.removeItem(DECK_KEY);
+      localStorage.removeItem("dstns.telemetry-tab.v1");
+    } catch { /* Session preferences still reset when storage is unavailable. */ }
+    setPreferencesEpoch((n) => n + 1);
+  };
   const toggleAutoFocus = (on: boolean) => {
     setAutoFocus(on);
     setManualFocus(null);
@@ -784,6 +817,7 @@ export default function App() {
               topology={sim.topology}
               snapshot={sim.snapshot?.data ?? null}
               layers={layers}
+              places={places}
               reduceMotion={reduceMotion}
               running={valid && lifecycle === "RUNNING" && !suspended}
               virtualTime={virtual}
@@ -834,6 +868,7 @@ export default function App() {
               stepSeconds: config.playback.step_seconds,
             }}
             actions={{
+              onReset: resetSettings,
               onAutoFocus: toggleAutoFocus,
               onStrategy: setStrategy,
               onDnd: setDnd,
@@ -847,6 +882,7 @@ export default function App() {
           />
 
           <TelemetryDeck
+            key={preferencesEpoch}
             status={status}
             snapshot={sim.snapshot?.data ?? null}
             topology={sim.topology}
@@ -869,6 +905,19 @@ export default function App() {
                 <NotificationCapsule items={suspended || tutorial.active ? [] : shown} systemError={systemError} onDismissError={!sim.error && !sim.stale && actionError ? () => setActionError("") : undefined} focusedKey={autoFocus ? activeKey : null} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
               </div>
               <div className="hud-zone hud-center">
+                <RoadLegend />
+                <PlaceLegend
+                  features={sim.topology?.features ?? NO_FEATURES}
+                  demand={sim.snapshot?.data.demand}
+                  visible={layers.buildings}
+                  showOther={layers.other_places}
+                  onShowOther={(on) => changeLayers({ ...layers, other_places: on })}
+                  places={places}
+                  onTogglePlace={togglePlace}
+                  onResetPlaces={resetPlaces}
+                />
+              </div>
+              <div className="hud-zone hud-right map-hud" data-tutorial="hud">
                 <div className="layers-anchor">
                   {layersOpen && (
                     <LayersPopover
@@ -892,16 +941,6 @@ export default function App() {
                     <span>Layers</span>
                   </button>
                 </div>
-                <RoadLegend />
-                <PlaceLegend
-                  features={sim.topology?.features ?? NO_FEATURES}
-                  demand={sim.snapshot?.data.demand}
-                  visible={layers.buildings}
-                  showOther={layers.other_places}
-                  onShowOther={(on) => changeLayers({ ...layers, other_places: on })}
-                />
-              </div>
-              <div className="hud-zone hud-right map-hud" data-tutorial="hud">
                 <span className="hud-pill hud-readout mono" aria-label="Pointer coordinates" data-tip-avoid>
                   <Icon name="pin" size={14} />
                   {cursor
@@ -964,7 +1003,7 @@ export default function App() {
           )}
           {!splash.mounted && welcome.mounted && <Welcome closing={welcome.closing} reduceMotion={reduceMotion} />}
 
-          {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} />}
+          {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} onResetPreferences={resetAllPreferences} />}
           {dialog === "reset" && (
             <ConfirmCard
               title="Reset the simulation?"
@@ -1035,7 +1074,8 @@ export default function App() {
               onReplay={() => {
                 setCompletion(null);
                 closeDialog();
-                setDialog("reset");
+                logControl("restart");
+                void action(() => api.seek(0, true));
               }}
               onNewWorld={() => {
                 setCompletion(null);

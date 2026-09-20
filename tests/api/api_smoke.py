@@ -315,12 +315,12 @@ def main():
             assert code == 400
             assertions += 1
 
-            code, tick = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 10.0})
-            assert code == 200 and tick["requested_tick_rate"] == 10.0, "10x is the highest offered rate"
+            code, tick = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 5.0})
+            assert code == 200 and tick["requested_tick_rate"] == 5.0, "5x is the highest offered rate"
             assertions += 1
 
-            code, err = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 10.5})
-            assert code == 400, "rates above 10x are rejected"
+            code, err = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 5.5})
+            assert code == 400, "rates above 5x are rejected"
             assertions += 1
 
             code, tick = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 0.5})
@@ -460,6 +460,24 @@ def main():
             assertions += 1
 
             # 22. System Info & SUMO Integration
+            # The discoverable place API accepts only complete unsigned integers.
+            for route in ["/api/v1/view/places", "/api/v1/view/stops", "/api/v1/view/nodes", "/api/v1/view/edges"]:
+                for query in ["offset=-1", "offset=1junk", "limit=0", "limit=nan", "offset=999999999999999999999999999"]:
+                    code, invalid = call(base, route + "?" + query)
+                    assert code == 400, (route, query, code, invalid)
+                    assertions += 1
+            code, kinds = call(base, "/api/v1/view/place-kinds")
+            assert code == 200 and len(kinds["data"]["items"]) == 18, kinds
+            assertions += 1
+            code, places = call(base, "/api/v1/view/places?kind=bus_stop&limit=2001")
+            assert code == 200 and places["data"]["limit"] == 2000, places
+            code, stops = call(base, "/api/v1/view/stops?limit=2000")
+            assert code == 200 and stops["data"]["items"] == places["data"]["items"], stops
+            assertions += 2
+            code, index = call(base, "/api/v1/system/endpoints")
+            routes = [(e["method"],e["path"]) for g in index["groups"] for e in g["endpoints"]]
+            assert ("GET", "/api/v1/world/status") in routes and ("PUT", "/api/v1/control/edges/{id}/override") in routes
+            assertions += 1
             code, sys_info = call(base, "/api/v1/system/info")
             assert code == 200 and ("Deterministic" in sys_info["product"] or "DSTNS" in sys_info["product"]) and "sumo" in sys_info
             assertions += 1

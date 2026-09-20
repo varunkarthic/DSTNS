@@ -42,6 +42,9 @@ struct MapFetchStatus {
 
 [[nodiscard]] MapFetchStatus current_map_fetch();
 
+// Cancel only the downloader process group owned by this server session.
+void cancel_map_download();
+
 // How the map cache is trimmed when the server boots.
 enum class CachePolicy {
     Keep,   // never delete; the operator manages the directory

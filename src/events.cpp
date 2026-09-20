@@ -24,6 +24,7 @@ void EventRuntime::initialize(const Scenario& s) {
     }
     demand.assign(s.features.size(),1.0);
     baseline_.assign(s.features.size(),1.0);
+    scheduled_baseline_ = baseline_;
     factors_.assign(s.features.size(),{});
     kinds_.clear();kinds_.reserve(s.features.size());
     for(const auto& f:s.features)kinds_.push_back(classify_place(f));
@@ -83,12 +84,13 @@ void EventRuntime::initialize(const Scenario& s) {
     }
     // Precompute only spatial neighbours once; no geometric scans in the physics loop.
     std::map<std::pair<int,int>,std::vector<std::uint32_t>> cells;
-    for(std::size_t i=0;i<s.features.size();++i) if(s.features[i].demand_type) {
+    for(std::size_t i=0;i<s.features.size();++i) if(is_modelled(kinds_[i])) {
         const auto& p=s.features[i].center;cells[{int(std::floor(p.x_m/400)),int(std::floor(p.y_m/400))}].push_back(static_cast<std::uint32_t>(i));
     }
     auto edge_features_holder = std::make_shared<EdgeFeatures>(s.edges.size());
     edge_demand_.assign(s.edges.size(), 0);
     for(const auto& e:s.edges) {
+        if(!is_source_direction_allowed(e))continue;
         const auto& a=s.nodes[e.from.value].position;const auto& b=s.nodes[e.to.value].position;
         Point mid{(a.x_m+b.x_m)/2,(a.y_m+b.y_m)/2,0,0};int x=int(std::floor(mid.x_m/400)),y=int(std::floor(mid.y_m/400));
         for(int dx=-1;dx<=1;++dx)for(int dy=-1;dy<=1;++dy) {
@@ -129,7 +131,7 @@ void EventRuntime::initialize(const Scenario& s) {
     // follows the shops it serves; a stop follows what it serves.
     auto peers=std::make_shared<std::vector<std::vector<std::uint32_t>>>(s.features.size());
     for(std::size_t i=0;i<s.features.size();++i) {
-        if(!s.features[i].demand_type&&kinds_[i]==PlaceKind::Other)continue;
+        if(!is_modelled(kinds_[i]))continue;
         const auto& p=s.features[i].center;
         const int x=int(std::floor(p.x_m/400)),y=int(std::floor(p.y_m/400));
         for(int dx=-1;dx<=1;++dx)for(int dy=-1;dy<=1;++dy){
@@ -158,6 +160,19 @@ void EventRuntime::initialize(const Scenario& s) {
     edge_features_ = edge_features_holder;
     feature_edges_ = std::move(per_feature);
     feature_peers_ = std::move(peers);
+    edge_available_.resize(s.edges.size());
+    for(const auto& e:s.edges) {
+        edge_available_[e.id.value]=is_source_direction_allowed(e);
+        edge_endpoints_.push_back({e.from,e.to});
+    }
+    feature_origins_.assign(s.features.size(),NodeId{});
+    for(const auto i:responders_) {
+        const auto& near=(*feature_edges_)[i];
+        if(near.empty())continue;
+        const auto best=std::max_element(near.begin(),near.end(),[](const auto& a,const auto& b){return a.second<b.second;});
+        feature_origins_[i]=s.edges[best->first].from;
+    }
+    rebuild_delivery();
     for(std::size_t i=0;i<s.incidents.size();++i){const auto& e=s.incidents[i];push({e.start_virtual_s,static_cast<std::uint32_t>(i),0,0,"incidents",e.description,1});push({e.end_virtual_s,static_cast<std::uint32_t>(i),0,0,"incidents","Incident resolved",0});}
     for(std::size_t i=0;i<s.dws_events.size();++i){const auto& e=s.dws_events[i];push({std::uint32_t(std::uint64_t(e.start_ppm)*86400/1000000),static_cast<std::uint32_t>(i),0,0,"weather","Rain region begins",e.intensity});push({std::uint32_t(std::uint64_t(e.end_ppm)*86400/1000000),static_cast<std::uint32_t>(i),0,0,"weather","Rain region ends",0});}
     (void)advance(s,0);
@@ -170,7 +185,7 @@ std::vector<ScheduledEvent> EventRuntime::advance(const Scenario& s,std::uint32_
         if(e.category=="signals") {
             auto& state=signals[e.entity];const auto& plan=s.signals[e.entity];state.phase=e.phase;state.phase_started=e.time;state.next_transition=e.time+plan.phases_s[e.phase];
             if(state.next_transition<=86400)push({state.next_transition,e.entity,(e.phase+1)%6,0,"signals","Signal "+std::to_string(plan.node.value)+" → "+phases[(e.phase+1)%6],0});
-        } else if(e.category=="demand") {baseline_[e.entity]=e.value;demand[e.entity]=e.value;demand_changed=true;important.push_back(e);}
+        } else if(e.category=="demand") {scheduled_baseline_[e.entity]=e.value;baseline_[e.entity]=e.value;demand[e.entity]=e.value;demand_changed=true;important.push_back(e);}
         history_.push_back(e);if(history_.size()>2000)history_.pop_front();
     }
     if (demand_changed) rebuild_edge_demand();
@@ -190,12 +205,45 @@ nlohmann::json EventRuntime::signal_json(const Scenario& s,std::uint32_t time) c
         items.push_back({{"signal_id",p.node.value},{"junction_id",p.node.value},{"phase",state.phase},{"phase_name",phases[state.phase]},{"group_a",a},{"group_b",b},{"phase_started_at",state.phase_started},{"time_in_phase",static_cast<std::int64_t>(time)-state.phase_started},{"next_transition_at",state.next_transition},{"cycle_length",p.cycle_s},{"phases_s",p.phases_s},{"enabled",s.config.signals}});
     }return items;
 }
-void EventRuntime::rebuild_edge_demand() {
-    for (std::size_t i=0;i<edge_demand_.size();++i) {
-        double effect=0;
-        for (auto [id,weight] : (*edge_features_)[i]) effect += weight*(demand[id]-1);
-        edge_demand_[i]=std::min(2.0,effect);
+void EventRuntime::rebuild_delivery() {
+    delivery_.assign(demand.size(),{});
+    if(!feature_edges_)return;
+    for(const auto i:responders_) {
+        const auto& near=(*feature_edges_)[i];
+        // The induced local graph has at most 24 edges. Traverse only open,
+        // allowed directions, so a disconnected parallel road cannot receive
+        // the displaced pressure merely because it is geographically close.
+        std::vector<NodeId> reached{feature_origins_[i]};
+        for(std::size_t round=0;round<near.size();++round) {
+            bool added=false;
+            for(auto [edge,weight]:near) {
+                (void)weight;
+                const auto [from,to]=edge_endpoints_[edge];
+                if(edge_available_[edge] && std::find(reached.begin(),reached.end(),from)!=reached.end()
+                    && std::find(reached.begin(),reached.end(),to)==reached.end()) {
+                    reached.push_back(to);added=true;
+                }
+            }
+            if(!added)break;
+        }
+        double total=0,open=0;
+        for(auto [edge,w]:near) {
+            total+=w;
+            if(edge_available_[edge] && std::find(reached.begin(),reached.end(),edge_endpoints_[edge].first)!=reached.end())open+=w;
+        }
+        if(open<=0)continue;
+        const double redistribution=std::min(3.0,total/open);
+        for(auto [edge,w]:near)
+            if(edge_available_[edge] && std::find(reached.begin(),reached.end(),edge_endpoints_[edge].first)!=reached.end())
+                delivery_[i].push_back({edge,w*redistribution});
     }
+}
+
+void EventRuntime::rebuild_edge_demand() {
+    std::fill(edge_demand_.begin(),edge_demand_.end(),0.0);
+    for(const auto i:responders_)
+        for(auto [edge,w]:delivery_[i])
+            edge_demand_[edge]=std::min(2.0,edge_demand_[edge]+w*(demand[i]-1));
 }
 
 std::vector<DemandFactor> EventRuntime::demand_factors(std::size_t feature) const {
@@ -204,7 +252,12 @@ std::vector<DemandFactor> EventRuntime::demand_factors(std::size_t feature) cons
 
 void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time) {
     if(!s.config.buildings||!feature_edges_||demand.empty())return;
-    (void)time;
+    bool network_changed=false;
+    for(const auto& e:s.edges) {
+        const bool available=is_source_direction_allowed(e)&&!edges[e.id.value].closed&&!edges[e.id.value].incident_closed;
+        if(edge_available_[e.id.value]!=available)network_changed=true;
+        edge_available_[e.id.value]=available;
+    }
 
     // Pass one: read the network around each place. Everything a coupling needs
     // is already in the edge dynamics the operator is shown, so the model and
@@ -255,12 +308,14 @@ void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& ed
     bool changed=false;
     for(const auto i:responders_){
         factors_[i].clear();
+        baseline_[i]=std::max(scheduled_baseline_[i],diurnal_demand(kinds_[i],time,s.config.day));
         const double next=couple_demand(kinds_[i],baseline_[i],context[i],&factors_[i]);
         if(std::fabs(next-demand[i])>1e-6)changed=true;
         demand[i]=next;
     }
     (void)count;
-    if(changed)rebuild_edge_demand();
+    if(network_changed)rebuild_delivery();
+    if(changed||network_changed)rebuild_edge_demand();
 }
 
 nlohmann::json EventRuntime::demand_json(const Scenario& s) const {

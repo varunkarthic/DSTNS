@@ -15,6 +15,12 @@
 #include <vector>
 
 #include <sys/wait.h>
+#include <spawn.h>
+#include <unistd.h>
+#include <signal.h>
+#include <cerrno>
+#include <thread>
+extern char** environ;
 
 namespace dstns {
 namespace {
@@ -38,15 +44,59 @@ std::string python_interpreter() {
     return "python3";
 }
 
-// Run a command, capturing stdout and stderr together for the error message.
+// A private process group lets session termination stop the downloader and its
+// descendants without touching the launcher's terminal or unrelated processes.
+std::mutex child_mutex;
+pid_t download_pid = 0;
+bool download_cancelled = false;
 int run_capture(const std::string& command, std::string& output) {
     output.clear();
-    std::FILE* pipe = ::popen((command + " 2>&1").c_str(), "r");
-    if (!pipe) return -1;
-    std::array<char, 512> buffer{};
-    while (std::fgets(buffer.data(), static_cast<int>(buffer.size()), pipe)) output += buffer.data();
-    const int status = ::pclose(pipe);
-    return status == -1 ? -1 : (WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+    int pipefd[2];
+    if (::pipe(pipefd) != 0) return -1;
+    posix_spawn_file_actions_t actions;
+    posix_spawn_file_actions_init(&actions);
+    posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDOUT_FILENO);
+    posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDERR_FILENO);
+    posix_spawn_file_actions_addclose(&actions, pipefd[0]);
+    posix_spawn_file_actions_addclose(&actions, pipefd[1]);
+    posix_spawnattr_t attr;
+    posix_spawnattr_init(&attr);
+    posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETPGROUP);
+    posix_spawnattr_setpgroup(&attr, 0);
+    char* argv[] = {const_cast<char*>("sh"), const_cast<char*>("-c"), const_cast<char*>(command.c_str()), nullptr};
+    pid_t pid = 0;
+    int error;
+    {
+        std::lock_guard lock(child_mutex);
+        error = download_cancelled ? ECANCELED : posix_spawnp(&pid, "sh", &actions, &attr, argv, environ);
+        if (!error) download_pid = pid;
+    }
+    posix_spawn_file_actions_destroy(&actions);
+    posix_spawnattr_destroy(&attr);
+    ::close(pipefd[1]);
+    if (error) { ::close(pipefd[0]); return -1; }
+    std::array<char, 4096> buffer{};
+    for (;;) {
+        const auto n = ::read(pipefd[0], buffer.data(), buffer.size());
+        if (n > 0) {
+            output.append(buffer.data(), static_cast<std::size_t>(n));
+            if (output.size() > 65536) output.erase(0, output.size() - 65536);
+        } else if (n < 0 && errno == EINTR) continue;
+        else break;
+    }
+    ::close(pipefd[0]);
+    int status = 0;
+    for (;;) {
+        {
+            std::lock_guard lock(child_mutex);
+            const auto reaped = ::waitpid(pid, &status, WNOHANG);
+            if (reaped == pid || (reaped < 0 && errno != EINTR)) {
+                download_pid = 0;
+                return reaped == pid && WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
 }
 
 // Keep only the last few lines: Overpass errors are terse, Python tracebacks are not.
@@ -97,6 +147,15 @@ void read_progress(MapFetchStatus& status) {
 }
 
 } // namespace
+
+void cancel_map_download() {
+    std::lock_guard lock(child_mutex);
+    download_cancelled = true;
+    if (download_pid > 0) {
+        ::kill(-download_pid, SIGTERM);
+        ::kill(-download_pid, SIGKILL);
+    }
+}
 
 MapFetchStatus current_map_fetch() {
     std::lock_guard lock(g_fetch_mutex);

@@ -261,6 +261,26 @@ export const defaultLayers: Layers = {
   // Off by default: thousands of unclassified points bury the typed places.
   other_places: false,
 };
+/**
+ * Which kinds of place are drawn, by taxonomy id.
+ *
+ * Kept apart from Layers because it is a taxonomy rather than a fixed set of
+ * switches: the kinds come from the map, and a district with no university
+ * should not need a layer for one. A kind missing from the record is shown,
+ * so a new kind appears on the map the day it is added rather than waiting
+ * for everyone's saved settings to catch up.
+ */
+export type PlaceVisibility = Record<string, boolean>;
+
+/**
+ * Kinds hidden until asked for. These are the ones the demand model says
+ * nothing about, so their markers add clutter without adding information.
+ */
+export const defaultPlaceVisibility: PlaceVisibility = {
+  worship: false,
+  residential: false,
+};
+
 export interface Inspection {
   title: string;
   category: string;

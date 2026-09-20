@@ -388,7 +388,7 @@ std::size_t thin_bus_stops(std::vector<MapFeature>& features,
         return i < corridors.size() ? corridors[i] : 0;
     };
 
-    struct Kept { Point at; std::uint64_t corridor; };
+    struct Kept { Point at; std::uint64_t corridor; std::size_t feature; };
     std::vector<Kept> kept;
     std::vector<bool> drop(features.size(), false);
     std::size_t removed = 0;
@@ -399,14 +399,20 @@ std::size_t thin_bus_stops(std::vector<MapFeature>& features,
             const double gap = point_distance(k.at, here);
             // Same street: hold to route spacing. Any street: never allow two
             // stops so close that they are the same stop mapped twice.
-            const double limit = k.corridor == corridor ? spacing.along_corridor_m : spacing.duplicate_m;
+            const auto& first=features[k.feature];
+            const auto& second=features[index];
+            const auto a=first.tags.find("ref"), b=second.tags.find("ref");
+            const bool same_ref=a!=first.tags.end()&&b!=second.tags.end()&&!a->second.empty()&&a->second==b->second;
+            const bool known_distinct=k.corridor&&corridor&&k.corridor!=corridor;
+            const double limit = k.corridor == corridor ? spacing.along_corridor_m
+                : known_distinct&&!same_ref ? 0.0 : spacing.duplicate_m;
             return gap < limit;
         });
         if (crowded) {
             drop[index] = true;
             ++removed;
         } else {
-            kept.push_back({here, corridor});
+            kept.push_back({here, corridor, index});
         }
     }
     if (removed == 0) return 0;

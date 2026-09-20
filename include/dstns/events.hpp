@@ -62,10 +62,15 @@ private:
     using EdgeFeatures = std::vector<std::vector<std::pair<std::uint32_t,double>>>;
     std::shared_ptr<const EdgeFeatures> edge_features_;
     std::vector<double> edge_demand_;
+    std::vector<std::vector<std::pair<std::uint32_t,double>>> delivery_;
+    void rebuild_delivery();
 
     // Demand model. baseline_ is what the schedule asked for; demand is that
     // after couplings. Both are kept so a figure can be explained.
-    std::vector<double> baseline_;
+    std::vector<double> baseline_, scheduled_baseline_;
+    std::vector<bool> edge_available_;
+    std::vector<NodeId> feature_origins_;
+    std::vector<std::pair<NodeId, NodeId>> edge_endpoints_;
     std::vector<PlaceKind> kinds_;
     // Inverse of edge_features_: which edges each place draws from, and which
     // other places are close enough to influence it.

@@ -3,9 +3,11 @@ import { Floating, useDismiss } from "./Popover";
 import { Icon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 import { demandColor } from "./mapModel";
+import { glyphFor } from "./placeGlyphs";
+import { useScrollFade } from "./scrollFade";
 import { demandDetail, demandSummary, placeCensus, placeLegend } from "./placeLegend";
 import type { PlaceLegendEntry } from "./placeLegend";
-import type { DemandState, MapFeature } from "./types";
+import type { DemandState, MapFeature, PlaceVisibility } from "./types";
 
 /** Road states in the order they worsen, matching the map's colours. */
 export const ROAD_STATES = [
@@ -76,11 +78,26 @@ export function RoadLegend() {
   );
 }
 
-/** A marker glyph drawn as the map draws it. */
-export function PlaceGlyph({ icon, tint }: { icon: string; tint?: string }) {
+/**
+ * A marker glyph drawn as the map draws it.
+ *
+ * Both take their strokes from placeGlyphs, so a legend entry cannot end up
+ * showing a shape the map does not draw. `kind` selects the glyph; `icon` is
+ * the old single-letter fallback, kept for anything outside the taxonomy.
+ */
+export function PlaceGlyph({ kind, icon, tint }: { kind?: string; icon?: string; tint?: string }) {
+  const strokes = kind ? glyphFor(kind) : null;
   return (
     <span className="place-glyph" style={tint ? { ["--tint" as string]: tint } : undefined} aria-hidden="true">
-      {icon}
+      {strokes ? (
+        <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+          {strokes.map((d: string) => (
+            <path key={d} d={d} />
+          ))}
+        </svg>
+      ) : (
+        icon
+      )}
     </span>
   );
 }
@@ -106,6 +123,9 @@ export function PlaceLegend({
   visible,
   showOther,
   onShowOther,
+  places,
+  onTogglePlace,
+  onResetPlaces,
 }: {
   features: readonly MapFeature[];
   demand: readonly DemandState[] | undefined;
@@ -113,11 +133,16 @@ export function PlaceLegend({
   visible: boolean;
   showOther: boolean;
   onShowOther: (on: boolean) => void;
+  /** Which kinds are drawn; a kind absent from this is drawn. */
+  places: PlaceVisibility;
+  onTogglePlace: (kind: string, on: boolean) => void;
+  onResetPlaces: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), [trigger, panel]);
+  const rowScroll = useScrollFade<HTMLUListElement>();
   const census = useMemo(() => placeCensus(features), [features]);
   // Demand is only read while the legend is open, so ticks cost nothing when closed.
   const entries = useMemo(() => placeLegend(census, open ? demand : undefined, showOther), [census, demand, open, showOther]);
@@ -150,18 +175,32 @@ export function PlaceLegend({
           <span className="floating-sub">Demand is the multiplier on base demand the core applies.</span>
         </div>
         {!visible && <p className="floating-note">Buildings are hidden in Layers. Markers return when the layer is on.</p>}
-        <ul className="place-rows">
-          {entries.map((e) => (
-            <li key={e.id} className={e.group === "other" ? "other" : undefined}>
-              <PlaceGlyph icon={e.icon} />
-              <span className="place-name">{e.label}</span>
-              <span className="place-count mono">{e.count.toLocaleString()}</span>
-              <span className="place-demand" aria-label={demandDetail(e)} title={demandDetail(e)}>
-                <DemandBar entry={e} />
-                <span className="mono">{demandSummary(e)}</span>
-              </span>
-            </li>
-          ))}
+        <ul {...rowScroll} className={`place-rows ${rowScroll.className}`}>
+          {entries.map((e) => {
+            // A kind not named in the record is shown: new kinds appear the
+            // day they are added rather than waiting for saved settings.
+            const shown = places[e.id] !== false;
+            return (
+              <li key={e.id} className={`${e.group === "other" ? "other" : ""}${shown ? "" : " hidden-kind"}`.trim() || undefined}>
+                <button
+                  type="button"
+                  className="place-toggle"
+                  role="switch"
+                  aria-checked={shown}
+                  aria-label={`${e.label}, ${e.count.toLocaleString()} on the map`}
+                  onClick={() => onTogglePlace(e.id, !shown)}
+                >
+                  <PlaceGlyph kind={e.id} icon={e.icon} />
+                  <span className="place-name">{e.label}</span>
+                  <span className="place-count mono">{e.count.toLocaleString()}</span>
+                </button>
+                <span className="place-demand" aria-label={demandDetail(e)} title={demandDetail(e)}>
+                  <DemandBar entry={e} />
+                  <span className="mono">{demandSummary(e)}</span>
+                </span>
+              </li>
+            );
+          })}
         </ul>
         {hiddenOther > 0 && (
           <div className="floating-foot">
@@ -181,6 +220,12 @@ export function PlaceLegend({
             </button>
           </div>
         )}
+        <div className="floating-actions">
+          <button type="button" className="btn ghost small" onClick={onResetPlaces}>
+            <Icon name="reset" size={14} />
+            Use Defaults
+          </button>
+        </div>
       </Floating>
     </div>
   );
