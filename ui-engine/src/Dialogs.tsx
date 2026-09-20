@@ -359,13 +359,24 @@ export interface CompletionSummary {
   city?: string;
 }
 
-/** Shown once when the virtual day reaches its end. */
+/**
+ * Shown once when the virtual day reaches its end.
+ *
+ * A finished run leaves the operator with three reasonable next moves - look
+ * at what happened, watch the same day again, or go somewhere new - so the
+ * screen offers all three rather than only a way out of the dialog. Replaying
+ * the same seed is the safe one and leads; a new world discards this district
+ * and is set apart from it.
+ */
 export function CompletionDialog({
   summary,
   closing,
   pending,
   reportError,
   onDownload,
+  onReplay,
+  onNewWorld,
+  canGenerate = true,
   onClose,
 }: {
   summary: CompletionSummary;
@@ -373,6 +384,11 @@ export function CompletionDialog({
   pending: boolean;
   reportError?: string;
   onDownload: () => void;
+  /** Replay this same scenario from the start of the day. */
+  onReplay?: () => void;
+  /** Leave this district and build a world from a fresh seed. */
+  onNewWorld?: () => void;
+  canGenerate?: boolean;
   onClose: () => void;
 }) {
   const time = useTimeFormat();
@@ -387,9 +403,9 @@ export function CompletionDialog({
       <span className="dialog-icon ok" aria-hidden="true">
         <Icon name="check" size={20} strokeWidth={2.2} />
       </span>
-      <h2 id="complete-title">Simulation Complete</h2>
+      <h2 id="complete-title">The day is complete</h2>
       <p className="dialog-body">
-        The virtual day has finished{summary.city ? ` for ${summary.city}` : ""}. The full record is available as a report.
+        {summary.city ? `A full day in ${summary.city} has finished.` : "A full day has finished."} Here is how it went.
       </p>
       <dl className="summary-grid">
         {fact("Final time", <span className="mono">{time.time(summary.finalTime)}</span>)}
@@ -406,13 +422,25 @@ export function CompletionDialog({
           {reportError}
         </p>
       )}
-      <div className="dialog-actions">
-        <button className="btn" onClick={onClose}>
-          Close
-        </button>
+      <div className="dialog-actions completion-actions">
         <button className="btn primary" onClick={onDownload} disabled={pending}>
           <Icon name="download" size={16} />
-          {pending ? "Preparing report" : "Download Report"}
+          {pending ? "Preparing report" : "Save Report"}
+        </button>
+        {onReplay && (
+          <button className="btn" onClick={onReplay}>
+            <Icon name="reset" size={16} />
+            Watch It Again
+          </button>
+        )}
+        {onNewWorld && (
+          <button className="btn" onClick={onNewWorld} disabled={!canGenerate}>
+            <Icon name="reroll" size={16} />
+            New World
+          </button>
+        )}
+        <button className="btn ghost" onClick={onClose}>
+          Not Now
         </button>
       </div>
     </Scrim>

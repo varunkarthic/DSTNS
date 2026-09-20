@@ -82,10 +82,17 @@
 .btn:active:not(:disabled) {
   transform: translateY(1px);
 }
+/* The location tag sits among the header's pill buttons, so it follows the
+   same rule they do: a radius of half its height, which makes its ends true
+   semicircles rather than a rounded rectangle that almost matches. Matching
+   the control height keeps the row level as well as concentric. */
 .city-chip {
   display: inline-flex;
   align-items: center;
+  height: var(--ctl);
+  padding: 0 14px;
   gap: 6px;
+  border-radius: var(--r-pill);
 }
 
 /* ---- Bottom stack ----------------------------------------------------------- */
@@ -853,6 +860,12 @@
   border-radius: 10px;
   display: grid;
   place-items: center;
+  /* A grid centres the line box, not the glyphs: with an inherited line-height
+     taller than the text the number sits low in the pill. Collapsing the line
+     box onto the text is what actually centres the digits, and tabular figures
+     keep the badge from resizing as the count ticks over. */
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   font-weight: 700;
   color: #04212b;
@@ -2194,4 +2207,80 @@
     bottom: 8px;
     left: 8px;
   }
+}
+
+/* ---- Icons that acknowledge their action ---------------------------------
+ *
+ * A control that changes something shows that it did. The movement says which
+ * kind of change it was: a toggle settles into place, stepping through time
+ * moves in the direction it travels, and a reset turns over. All are short
+ * enough to read as feedback rather than as decoration, and all are suppressed
+ * under reduced motion, where the state change alone has to carry the message.
+ */
+.icon-action {
+  display: inline-grid;
+  place-items: center;
+}
+.icon-action.playing .icon {
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease);
+}
+.icon-action.act-toggle.playing .icon {
+  animation-name: icon-toggle;
+}
+.icon-action.act-back.playing .icon {
+  animation-name: icon-back;
+}
+.icon-action.act-forward.playing .icon {
+  animation-name: icon-forward;
+}
+.icon-action.act-spin.playing .icon {
+  animation-name: icon-spin;
+}
+@keyframes icon-toggle {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(0.82);
+  }
+  70% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes icon-back {
+  0% {
+    transform: translateX(0);
+  }
+  40% {
+    transform: translateX(-4px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+@keyframes icon-forward {
+  0% {
+    transform: translateX(0);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+@keyframes icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+.reduce-motion .icon-action .icon {
+  animation: none !important;
 }
