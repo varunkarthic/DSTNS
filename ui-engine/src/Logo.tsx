@@ -1,4 +1,4 @@
-import { LOGO } from "./logoAsset";
+import { LOGO, MARK } from "./logoAsset";
 
 /**
  * The DSTNS mark, rendered from `src/assets/logo.svg`.
@@ -29,6 +29,35 @@ export function Logo({
       aria-label={title}
       preserveAspectRatio="xMidYMid meet"
       dangerouslySetInnerHTML={{ __html: LOGO.body }}
+    />
+  );
+}
+
+/**
+ * The D on its own, at the size the start-up screen wants it.
+ *
+ * The same glyph the browser icon uses, cut from the same file, so the tab and
+ * the start-up screen always show one mark.
+ */
+export function Mark({
+  size = 88,
+  className = "",
+  title = "DSTNS",
+}: {
+  size?: number;
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <svg
+      className={`dstns-mark${className ? ` ${className}` : ""}`}
+      height={size}
+      width={Math.round(size * MARK.aspect)}
+      viewBox={MARK.viewBox}
+      role="img"
+      aria-label={title}
+      preserveAspectRatio="xMidYMid meet"
+      dangerouslySetInnerHTML={{ __html: MARK.body }}
     />
   );
 }

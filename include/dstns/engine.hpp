@@ -69,6 +69,21 @@ public:
     [[nodiscard]] nlohmann::json snapshot() const; [[nodiscard]] nlohmann::json nodes(std::size_t offset,std::size_t limit) const;
     [[nodiscard]] nlohmann::json edges(std::size_t offset,std::size_t limit) const; [[nodiscard]] nlohmann::json manifest() const;
     [[nodiscard]] nlohmann::json catalog(const std::string& kind) const;
+
+    /**
+     * Places, classified and paginated, with their live demand.
+     *
+     * The topology endpoint returns every mapped feature; this returns the
+     * places the demand model actually reasons about, each with its kind, its
+     * scheduled baseline, the couplings currently acting on it, and where it
+     * sits. `kind` filters to one classified kind ("school", "bus_stop", ...)
+     * and an empty string returns all of them.
+     */
+    [[nodiscard]] nlohmann::json places(const std::string& kind,std::size_t offset,std::size_t limit) const;
+
+    /// The place taxonomy: every kind the classifier can produce, whether it is
+    /// modelled, and how many of each this world holds.
+    [[nodiscard]] nlohmann::json place_kinds() const;
     [[nodiscard]] nlohmann::json news(std::uint64_t since,std::size_t limit) const; [[nodiscard]] nlohmann::json history() const;
     [[nodiscard]] nlohmann::json global_view() const;
     [[nodiscard]] nlohmann::json export_sumo(const std::filesystem::path& directory) const;
@@ -83,6 +98,17 @@ public:
     [[nodiscard]] std::uint64_t state_revision() const;
     [[nodiscard]] Lifecycle lifecycle() const;
     void terminate();
+    /**
+     * Ask the core to stop without waiting for the engine lock.
+     *
+     * Ordinary termination takes the engine mutex, which a scenario compile
+     * holds for its whole duration - and a compile that is downloading a city
+     * extract holds it for tens of seconds. An operator who has asked to quit
+     * should not have to wait out a download, so this sets the flag alone and
+     * lets the compile notice it.
+     */
+    void request_terminate();
+    [[nodiscard]] bool terminating() const { return terminate_requested_.load(); }
 private:
     struct Checkpoint { std::uint32_t virtual_s{}; std::vector<NodeDynamic> nodes; std::vector<EdgeDynamic> edges; std::size_t news_size{}; std::uint64_t next_news_id{1}; EventRuntime events; CongestionTracker congestion; };
     struct ActiveSurgeZone { std::uint32_t id{}; NodeId node{}; std::uint32_t start_s{}; std::uint32_t end_s{}; double factor{1.8}; double radius_m{300}; std::string label; };
@@ -98,7 +124,9 @@ private:
     void apply_command(const AppliedCommand& command,bool forward);
 
     RuntimeLogger& logger_; mutable std::recursive_mutex mutex_; std::condition_variable_any cv_; std::jthread worker_;
-    Lifecycle lifecycle_{Lifecycle::Idle}; ScenarioCompiler compiler_; std::unique_ptr<GraphStore> graph_;
+    Lifecycle lifecycle_{Lifecycle::Idle};
+    // Lock-free mirror of lifecycle_, written only by transition().
+    std::atomic<Lifecycle> lifecycle_mirror_{Lifecycle::Idle}; ScenarioCompiler compiler_; std::unique_ptr<GraphStore> graph_;
     std::atomic<bool> compiling_{false}; // Concurrent compiles fail without occupying HTTP workers.
     std::uint64_t compile_generation_{}; // Guarded by mutex_; reset/terminate invalidate a pending install.
     std::string preparation_error_;
@@ -115,7 +143,9 @@ private:
     CongestionTracker congestion_;
     std::vector<const SignalPlan*> signal_by_node_;
     std::map<std::uint32_t, int> signal_overrides_;
-    std::uint64_t config_revision_{}; bool terminate_requested_{};
+    std::uint64_t config_revision_{};
+    // Read without the lock by request_terminate() and by long-running compiles.
+    std::atomic<bool> terminate_requested_{false};
 
     // Shared by start() and world regeneration: adopt a compiled scenario as
     // the active world. Caller holds mutex_.

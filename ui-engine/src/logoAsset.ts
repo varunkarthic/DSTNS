@@ -108,6 +108,56 @@ function parse(svg: string): Parsed {
 
 export const LOGO = parse(raw);
 
+/**
+ * The D alone, cut from the same wordmark.
+ *
+ * The start-up screen shows the mark rather than the full name, so it needs the
+ * first glyph on its own. The wordmark is a single path holding every letter;
+ * its sub-paths are grouped by horizontal extent and the leftmost group is the
+ * D - the same cut `scripts/make-favicon.mjs` makes for the browser icon, so
+ * the icon and the start-up screen can never disagree. Falls back to the whole
+ * mark if the artwork is not shaped the way this expects.
+ */
+function cutMark(parsed: Parsed): Parsed {
+  const paths = parsed.body.match(/<path\b[^>]*\/>|<path\b[^>]*>[\s\S]*?<\/path>/g);
+  if (!paths || paths.length !== 1) return parsed;
+  const d = paths[0].match(/\bd="([^"]+)"/)?.[1];
+  if (!d) return parsed;
+
+  // Each letter is one or more sub-paths; group them by overlapping x ranges.
+  const parts = d
+    .split(/(?=M)/)
+    .map((piece) => ({ d: piece, box: bounds(piece) }))
+    .filter((piece): piece is { d: string; box: NonNullable<ReturnType<typeof bounds>> } => !!piece.box)
+    .sort((a, b) => a.box.minX - b.box.minX);
+  if (!parts.length) return parsed;
+
+  const first = { parts: [parts[0].d], ...parts[0].box };
+  for (const part of parts.slice(1)) {
+    if (part.box.minX > first.maxX) break; // a gap: the next letter has started
+    first.parts.push(part.d);
+    first.maxX = Math.max(first.maxX, part.box.maxX);
+    first.minY = Math.min(first.minY, part.box.minY);
+    first.maxY = Math.max(first.maxY, part.box.maxY);
+  }
+  // One glyph only: if the grouping swallowed the whole wordmark it did not
+  // find letter boundaries, and a squashed wordmark is worse than no mark.
+  const w = first.maxX - first.minX;
+  const h = first.maxY - first.minY;
+  if (!(w > 0) || !(h > 0) || w > h * 1.6) return parsed;
+
+  const attributes = paths[0].match(/<path\b([^>]*?)\sd="/)?.[1] ?? "";
+  const pad = Math.max(w, h) * 0.04;
+  return {
+    body: `<path${attributes} d="${first.parts.join("")}"/>`,
+    viewBox: `${(first.minX - pad).toFixed(2)} ${(first.minY - pad).toFixed(2)} ${(w + pad * 2).toFixed(2)} ${(h + pad * 2).toFixed(2)}`,
+    aspect: (w + pad * 2) / (h + pad * 2),
+  };
+}
+
+/** The D on its own, for the start-up screen. */
+export const MARK = cutMark(LOGO);
+
 /** The file verbatim, for anywhere the backdrop is wanted. */
 export const LOGO_RAW = raw;
 

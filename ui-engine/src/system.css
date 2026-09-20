@@ -1584,9 +1584,104 @@ body:has(.reduce-motion) .floating {
   opacity: 0;
   pointer-events: none;
 }
-.loading-surface.boot.closing .loading-card {
-  transform: scale(1.03);
-  filter: blur(2px);
+/* The start-up screen does not vanish: it dissolves. The surface lifts and
+   blurs as it fades, so the map behind it resolves into focus rather than
+   being switched on. */
+.loading-surface.boot.closing .loading-card,
+.loading-surface.boot.closing .welcome-body {
+  transform: scale(1.04);
+  filter: blur(6px);
+}
+.loading-surface.boot.closing {
+  filter: blur(3px);
+}
+.loading-surface.boot.still.closing,
+.loading-surface.boot.still.closing .loading-card,
+.loading-surface.boot.still.closing .welcome-body {
+  filter: none;
+  transform: none;
+}
+
+/* Boot takes the whole screen, so the card carries no panel of its own - the
+   mark, the ring and the stages sit directly on the backdrop. */
+.loading-surface.boot .loading-card {
+  width: min(460px, 100%);
+  gap: 12px;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.loading-surface.boot .loading-steps {
+  margin-top: 14px;
+  padding: 14px 16px;
+  gap: 10px;
+}
+
+/* The welcome screen: the mark, the name, and the licence at the foot. */
+.loading-surface.welcome {
+  justify-content: center;
+}
+.welcome-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  animation: welcome-in 620ms var(--ease) both;
+  transition:
+    transform 720ms var(--ease),
+    filter 720ms var(--ease);
+}
+.welcome-mark {
+  filter: drop-shadow(0 0 34px rgb(53 215 255 / 30%));
+}
+.welcome-mark.animated {
+  animation: mark-settle 820ms var(--ease) both;
+}
+.loading-surface.welcome h2 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.welcome-sub {
+  max-width: 34ch;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+@keyframes welcome-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mark-settle {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.loading-surface.still .welcome-body,
+.loading-surface.still .welcome-mark {
+  animation: none !important;
 }
 .loading-card {
   width: min(400px, 100%);
@@ -1605,8 +1700,30 @@ body:has(.reduce-motion) .floating {
     filter 480ms var(--ease);
 }
 .loading-mark {
-  margin: 2px 0 8px;
-  filter: drop-shadow(0 0 22px rgb(53 215 255 / 28%));
+  margin: 2px 0 10px;
+  filter: drop-shadow(0 0 26px rgb(53 215 255 / 26%));
+}
+/* The mark breathes while there is work outstanding: slow enough to read as
+   patience rather than as a progress indicator, which the ring already is. */
+.loading-mark.animated {
+  animation: mark-breathe 3.4s var(--ease) infinite;
+}
+@keyframes mark-breathe {
+  0%,
+  100% {
+    opacity: 0.86;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.025);
+  }
+}
+.loading-surface.still .loading-mark {
+  animation: none !important;
+}
+.dstns-mark path {
+  fill: var(--text);
 }
 .loading-card h2 {
   margin: 0;
@@ -1793,6 +1910,9 @@ body:has(.reduce-motion) .floating {
   letter-spacing: 0.02em;
   text-align: center;
   color: var(--text-faint);
+}
+.welcome-licence {
+  bottom: 26px;
 }
 .loading-surface.still,
 .loading-surface.still .loading-card {

@@ -627,6 +627,64 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+  /api/v1/view/places:
+    get:
+      tags:
+      - View
+      summary: Classified places with live demand
+      description: >-
+        Every mapped place the demand model reasons about, each with its kind,
+        its scheduled baseline, the couplings currently acting on it, and where
+        it sits. Filter with kind; page with offset and limit.
+      parameters:
+      - $ref: '#/components/parameters/Offset'
+      - $ref: '#/components/parameters/Limit'
+      - name: kind
+        in: query
+        required: false
+        description: Restrict to one classified kind, e.g. school or bus_stop.
+        schema:
+          type: string
+          pattern: '^[a-z_]{1,32}$'
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/place-kinds:
+    get:
+      tags:
+      - View
+      summary: The place taxonomy and this world's counts
+      description: >-
+        Every kind the classifier can produce, whether the demand model speaks
+        for it, and how many of each this world holds.
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/stops:
+    get:
+      tags:
+      - View
+      summary: Bus stops, thinned to realistic route spacing
+      description: >-
+        Equivalent to places with kind=bus_stop. Stops sharing a street are held
+        at least 300 m apart; stops on different streets need only clear 60 m.
+      parameters:
+      - $ref: '#/components/parameters/Offset'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/system/endpoints:
+    get:
+      tags:
+      - System
+      summary: Machine-readable index of the API
+      description: >-
+        Every group and route the server exposes, with one line on what each is
+        for. Also served at /api/v1.
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/bus-stops:
     get:
       tags:

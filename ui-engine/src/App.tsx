@@ -7,7 +7,7 @@ import { LayersPopover } from "./LayersPopover";
 import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
-import { Splash, splashStageFor } from "./Splash";
+import { Splash, Welcome, splashStageFor, WELCOME_MS, WELCOME_EXIT_MS } from "./Splash";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
 import { NotificationHistory } from "./notificationHistory";
@@ -693,6 +693,20 @@ export default function App() {
   const lastSplash = useRef(splashStage);
   if (splashStage) lastSplash.current = splashStage;
   const splash = usePresence(showSplash, 520);
+
+  // Once the stages are done, hold the welcome screen for a beat before the
+  // map appears. It is shown on every load, including a reload, because it is
+  // the hand-over from start-up and a reload starts up again.
+  const [welcomeDone, setWelcomeDone] = useState(false);
+  const bootedOnce = useRef(false);
+  if (showSplash) bootedOnce.current = true;
+  const showWelcome = bootedOnce.current && !showSplash && !welcomeDone && !sim.error;
+  const welcome = usePresence(showWelcome, WELCOME_EXIT_MS);
+  useEffect(() => {
+    if (!showWelcome) return;
+    const timer = setTimeout(() => setWelcomeDone(true), WELCOME_MS);
+    return () => clearTimeout(timer);
+  }, [showWelcome]);
   const statusDetail = [
     ...(asb ? [`${formatRate(asb.throughput?.bytes_per_s ?? 0)}`, `${(asb.throughput?.snapshots_per_s ?? 0).toFixed(1)} snapshots/s`] : []),
     ...(sim.latencyMs !== null ? [`${sim.latencyMs} ms round trip`] : []),
@@ -715,7 +729,7 @@ export default function App() {
       <div
         inert={tutorial.active || undefined}
         data-tour-target={tutorial.active ? tutorialTarget : undefined}
-        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${showSplash ? " booting" : ""}${world.active ? " world-busy" : ""}`}
+        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${showSplash || showWelcome ? " booting" : ""}${world.active ? " world-busy" : ""}`}
       >
         {asb && asb.state !== "NORMAL" && (
           <div className={`asb-banner ${asbInfo.tone}`} role="status">
@@ -948,6 +962,7 @@ export default function App() {
           {splash.mounted && lastSplash.current && (
             <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} onDismiss={() => setSplashDismissed(true)} />
           )}
+          {!splash.mounted && welcome.mounted && <Welcome closing={welcome.closing} reduceMotion={reduceMotion} />}
 
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} />}
           {dialog === "reset" && (

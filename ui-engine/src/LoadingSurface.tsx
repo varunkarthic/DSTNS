@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "./Icons";
-import { Logo } from "./Logo";
+import { Mark } from "./Logo";
 
 /**
  * The loading surface.
@@ -11,6 +11,10 @@ import { Logo } from "./Logo";
  * stages it has passed, a concise status line, and a percentage only where a
  * real total is known. Failures replace the stages with an explanation and a
  * way forward.
+ *
+ * "boot" takes the whole screen and leads with the mark, because at that point
+ * there is nothing behind it to see. "overlay" floats a card over the dimmed
+ * map, because there is.
  */
 
 export interface LoadingStep {
@@ -63,8 +67,8 @@ export function LoadingSurface({
   const body = (
     <div className="loading-card" data-tip-avoid>
       {mode === "boot" && (
-        <div className="loading-mark">
-          <Logo height={40} animated={!reduceMotion} />
+        <div className={`loading-mark${reduceMotion ? "" : " animated"}`}>
+          <Mark size={96} />
         </div>
       )}
       <div className={`loading-ring${failed ? " failed" : ""}${done ? " done" : ""}${known ? " known" : ""}`} aria-hidden="true">
@@ -79,7 +83,9 @@ export function LoadingSurface({
             style={{ strokeDasharray: `${failed || done ? 100 : known ? Math.max(4, percent) : 26} 100` }}
           />
         </svg>
-        {failed ? <Icon name="incident" size={18} /> : <img className="loading-favicon" src="/favicon.svg" alt="" />}
+        {/* Boot already leads with the mark; repeating it inside the ring
+            would show the same D twice. */}
+        {failed ? <Icon name="incident" size={18} /> : mode === "boot" ? null : <img className="loading-favicon" src="/favicon.svg" alt="" />}
       </div>
       <h2 id={titleId}>{title}</h2>
       {seed && (

@@ -14,8 +14,12 @@ Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed,
 | POST | `/api/v1/world/regenerate` | Replace the world with one from a fresh secure seed; HTTP 202, progress via `/world/status` |
 | GET | `/api/v1/world/status` | State of the current or last world generation job |
 | GET | `/api/v1/system/observer` | Whether the observer page has been served yet, and how many times |
-| PUT | `/api/v1/control/tick-rate` | Rate in (0, 10]; the interface offers 0.25, 0.5, 1, 2, 3, 5 and 10 |
+| PUT | `/api/v1/control/tick-rate` | Rate in (0, 5]; the interface offers 0.25, 0.5, 1, 2, 3 and 5 |
+| GET | `/api/v1` , `/api/v1/system/endpoints` | Machine-readable index of every group and route |
 | GET | `/api/v1/view/topology` | Immutable geographic graph, road names/tags, features, bounds, projection |
+| GET | `/api/v1/view/places`, `/api/v1/places` | Classified places with live demand and the couplings acting on them |
+| GET | `/api/v1/view/place-kinds` | The place taxonomy, what is modelled, and this world's counts |
+| GET | `/api/v1/view/stops` | Bus stops, thinned to realistic route spacing |
 | GET | `/api/v1/view/snapshot` | Dynamic roads, signals, demand, weather, actual incidents, congestion |
 | GET | `/api/v1/view/congestion` | Current/average/delta and minute-sampled history |
 | GET | `/api/v1/view/event-queue` | Paginated future or executed events |
@@ -37,6 +41,65 @@ and byte progress. The operator CLI waits for the terminal lifecycle; the
 observer can remain responsive and narrate the work throughout.
 
 Existing operator stop/reset/seek, explicit world controls, module controls, history/undo/redo and log routes remain available; the browser has no clients or controls for world edits. See the implementation for compatibility routes. Do not interpret logical undo of a world override as a complete physical replay.
+
+## Discovery
+
+`GET /api/v1` returns the API describing itself: every group, every route and one
+line on what each is for. A client that has the base URL needs nothing else to
+find its way around, and the index cannot drift from the server the way a
+document can. `GET /api/v1/system/endpoints` returns the same payload.
+
+## Places
+
+The world is more than a road graph. `GET /api/v1/view/places` returns every
+mapped place the demand model reasons about, classified into a fixed taxonomy
+and carrying its live demand:
+
+```json
+{
+  "id": "node/12108766525",
+  "name": "Camden Street",
+  "kind": "bus_stop",
+  "modelled": true,
+  "generator": false,
+  "commercial": false,
+  "position": { "x_m": 412.7, "y_m": -883.1, "lat": 53.3371, "lon": -6.2653 },
+  "anchor_node": 1884,
+  "demand": {
+    "multiplier": 1.42,
+    "baseline": 1.18,
+    "factors": [ { "cause": "stop follows nearby demand", "multiplier": 1.21 } ],
+    "radius_m": 400.0
+  }
+}
+```
+
+`multiplier` is what the place is drawing now; `baseline` is what its schedule
+alone asked for; `factors` decomposes the difference into the named couplings
+that produced it, so any figure on screen can be explained rather than trusted.
+`?kind=` narrows to one kind and `?offset=`/`?limit=` page the result (limit caps
+at 2000, default 500). `total` counts what matched the filter, not the world.
+
+`GET /api/v1/view/place-kinds` returns the taxonomy itself - every kind the
+classifier can produce, whether the demand model speaks for it, and how many of
+each this world holds. Kinds that are not modelled (`residential`, `worship`,
+`other`) sit at 1.0 for the whole run and are hidden from the places legend by
+default.
+
+### Stops
+
+`GET /api/v1/view/stops` is `places?kind=bus_stop`, so a transit client need not
+learn the taxonomy to ask the obvious question.
+
+OpenStreetMap records a stop per kerb, per platform and per operator, so one
+place on the ground can arrive as half a dozen nodes metres apart. Stops are
+therefore thinned on load, against the street each one serves: stops sharing a
+corridor are held at least 300 m apart, the spacing a real route uses, while two
+stops on parallel streets only have to clear 60 m, because they are two stops
+serving two corridors. Where a cluster is collapsed, the best-attested member
+survives - a named station outranks a named stop, which outranks an unnamed
+node - and ties break on feature id, so the same extract always thins to the
+same stops.
 
 ## Stepping
 

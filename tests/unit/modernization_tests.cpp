@@ -2,6 +2,8 @@
 #include "dstns/engine.hpp"
 #include "dstns/osm.hpp"
 #include <chrono>
+#include <thread>
+#include <atomic>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
@@ -34,5 +36,41 @@ int main(){try{
     // Stress one pending transition per controller, independent of browser transport.
     Scenario large=s;large.signals.clear();for(unsigned i=0;i<10000;++i)large.signals.push_back({NodeId{i%unsigned(s.nodes.size())},60,{26,3,1,26,3,1},std::uint16_t(i%60)});
     EventRuntime stress;begin=std::chrono::steady_clock::now();stress.initialize(large);(void)stress.advance(large,300);check(stress.executed_count>100000,"large event volume");check(stress.inspect(false,"all",0,30)["items"].size()==30,"bounded history transport");std::cout<<"10k controllers / "<<stress.executed_count<<" executions: "<<std::chrono::duration<double>(std::chrono::steady_clock::now()-begin).count()<<"s\n";
+    // Quitting must not queue behind a long operation.
+    //
+    // A scenario compile holds the engine lock for its whole duration, and a
+    // compile that downloads a city extract holds it for tens of seconds. An
+    // operator who has asked to quit should not wait that out, so the request
+    // is lock-free: it is exercised here with the lock deliberately held.
+    {
+        const auto dir=std::filesystem::temp_directory_path()/"dstns-terminate-test";
+        RuntimeLogger tl(dir);
+        SimulationEngine te(tl);
+        check(!te.terminating(),"a fresh engine is not terminating");
+
+        // Occupy the engine the way a compile does, then ask it to quit.
+        std::atomic<bool> holding{false}, release{false};
+        std::thread occupier([&]{
+            ScenarioConfig busy;busy.osm_file="data/fixtures/real_network.osm.xml";
+            busy.playback_duration_s=3600;busy.max_nodes=50000;
+            holding=true;
+            try{(void)te.prepare(Seed128::parse("0xfeed"),busy);}catch(...){}
+            release=true;
+        });
+        while(!holding)std::this_thread::yield();
+
+        const auto asked=std::chrono::steady_clock::now();
+        te.request_terminate();
+        const auto waited=std::chrono::duration<double>(std::chrono::steady_clock::now()-asked).count();
+        check(te.terminating(),"the request is recorded immediately");
+        check(waited<0.5,"the request returns without waiting for the engine lock");
+        te.request_terminate();
+        check(te.terminating(),"asking twice is harmless");
+
+        occupier.join();
+        te.terminate();
+        std::filesystem::remove_all(dir);
+    }
+
     std::cout<<"Modernization invariants passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
