@@ -968,8 +968,8 @@ export default function App() {
           {dialog === "reset" && (
             <ConfirmCard
               title="Reset the simulation?"
-              body="The run returns to 00:00:00. The scenario, its seed and its map are unchanged, so the same day replays from the beginning."
-              confirmLabel="Reset to 00:00:00"
+              body="The day starts over from the beginning. The scenario, its seed and its map stay as they are, so you will see the same day again."
+              confirmLabel="Start Over"
               icon="reset"
               closing={dialogClosing}
               onCancel={closeDialog}
@@ -983,7 +983,7 @@ export default function App() {
           {dialog === "regenerate" && (
             <ConfirmCard
               title="Generate New World?"
-              body="A new seed will be generated and a new district prepared, which may need a map download. The current simulation pauses and stays loaded until the new world is ready, then is replaced. The new world starts paused at 00:00:00."
+              body="A new seed picks a new district, which may need a map download. The current simulation stays where it is until the new world is ready, then hands over. The new world begins paused at the start of the day."
               confirmLabel="Generate"
               icon="reroll"
               closing={dialogClosing}
@@ -1032,6 +1032,17 @@ export default function App() {
               pending={pending}
               reportError={reportError}
               onDownload={() => void report()}
+              onReplay={() => {
+                setCompletion(null);
+                closeDialog();
+                setDialog("reset");
+              }}
+              onNewWorld={() => {
+                setCompletion(null);
+                closeDialog();
+                setDialog("regenerate");
+              }}
+              canGenerate={regenerationEnabled && !world.active && !suspended}
               onClose={() => {
                 setCompletion(null);
                 closeDialog();

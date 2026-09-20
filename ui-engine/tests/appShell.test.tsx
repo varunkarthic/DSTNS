@@ -275,7 +275,7 @@ describe("command rail", () => {
     expect(calls).toEqual([]);
 
     fireEvent.click(screen.getByLabelText("Reset simulation to the start of the day"));
-    fireEvent.click(await screen.findByRole("button", { name: "Reset to 00:00:00" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start Over" }));
     await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 0)).toBe(true));
   });
 
@@ -895,14 +895,17 @@ describe("dialogs and suspension", () => {
   it("announces completion and offers the report", async () => {
     mockApi({ lifecycle: "COMPLETED", clock: { ...baseClock, virtual_day_seconds: 86400, simulation_percentage: 1 }, news: [news({ template_id: "INCIDENT_ACTIVATED", severity: "alert", category: "incident" }), news({ template_id: "DWS_RAIN_STARTED", severity: "warning", category: "weather" })] });
     render(<App />);
-    const dialog = await screen.findByRole("dialog", { name: "Simulation Complete" }, { timeout: 5000 });
+    const dialog = await screen.findByRole("dialog", { name: "The day is complete" }, { timeout: 5000 });
     expect(dialog).toHaveTextContent("24:00:00");
     await waitFor(() => expect(dialog).toHaveTextContent(/Incidents\s*1/));
     expect(dialog).toHaveTextContent(/Rain events\s*1/);
     expect(dialog).toHaveTextContent("17310766248549826767");
-    expect(within(dialog).getByRole("button", { name: /Download Report/ })).toBeEnabled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Simulation Complete" })).not.toBeInTheDocument());
+    // A finished run offers all three next moves, not just a way out.
+    expect(within(dialog).getByRole("button", { name: /Save Report/ })).toBeEnabled();
+    expect(within(dialog).getByRole("button", { name: /Watch It Again/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /New World/ })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Not Now" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "The day is complete" })).not.toBeInTheDocument());
   });
 
   it("suspends the interface when ASB reports Async, leaving the run alive", async () => {
@@ -949,5 +952,28 @@ describe("professional copy", () => {
     const text = document.body.textContent ?? "";
     expect(text).not.toContain("—");
     expect(text).not.toMatch(/\b(no longer|previously|new version|moving average|as requested)\b/i);
+  });
+});
+
+describe("a finished run's next move", () => {
+  it("replays the same scenario when asked to watch it again", async () => {
+    mockApi({ lifecycle: "COMPLETED", clock: { ...baseClock, virtual_day_seconds: 86400, simulation_percentage: 1 } });
+    render(<App />);
+    const dialog = await screen.findByRole("dialog", { name: "The day is complete" }, { timeout: 5000 });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Watch It Again/ }));
+    // The same seed and map: it confirms a replay, not a new world.
+    const confirm = await screen.findByRole("dialog", { name: /Reset the simulation/ }, { timeout: 4000 });
+    expect(confirm).toHaveTextContent(/same day again/i);
+  });
+
+  it("offers a new world, which is a different question and asks separately", async () => {
+    mockApi({ lifecycle: "COMPLETED", clock: { ...baseClock, virtual_day_seconds: 86400, simulation_percentage: 1 } });
+    render(<App />);
+    const dialog = await screen.findByRole("dialog", { name: "The day is complete" }, { timeout: 5000 });
+    fireEvent.click(within(dialog).getByRole("button", { name: /New World/ }));
+    const confirm = await screen.findByRole("dialog", { name: /new world/i }, { timeout: 4000 });
+    expect(confirm).toHaveTextContent(/new seed/i);
+    // Nothing has been regenerated merely by asking.
+    expect(calls.some((c) => c.path.includes("/world/regenerate"))).toBe(false);
   });
 });

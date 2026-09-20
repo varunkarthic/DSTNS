@@ -873,6 +873,9 @@ body:has(.reduce-motion) .floating {
   padding: 0 5px;
   justify-content: center;
   border-radius: var(--r-pill);
+  /* See .capsule-badge: centre the digits, not the line box. */
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   font-size: 9.5px;
   font-weight: 600;
@@ -1173,28 +1176,34 @@ body:has(.reduce-motion) .floating {
 }
 
 /* Collapsed strip. */
+/* Collapsed, the deck is a pill of width --strip-w, so its corner radius is
+   half that. An item inset by --strip-inset from each side is concentric with
+   that corner exactly when its own radius is (--strip-w / 2 - --strip-inset) -
+   which, at this width, is half the item: a circle. So the hover reads as part
+   of the container's curve rather than a rectangle pasted inside it, and the
+   relation holds if --strip-w ever changes. */
+.deck-strip {
+  --strip-inset: 6px;
+  --strip-item: calc(var(--strip-w) - var(--strip-inset) * 2);
+}
 .strip-expand,
 .strip-metric,
 .strip-view {
   position: relative;
-  width: 44px;
+  width: var(--strip-item);
+  height: var(--strip-item);
   display: grid;
   place-items: center;
-  border-radius: var(--r-md);
+  border-radius: 50%;
   color: var(--text-dim);
   transition:
     background var(--t-fast) var(--ease),
     color var(--t-fast) var(--ease),
     transform var(--t-fast) var(--ease);
 }
-.strip-expand,
-.strip-view {
-  height: 40px;
-}
 .strip-metric {
-  height: 46px;
   align-content: center;
-  gap: 3px;
+  gap: 2px;
 }
 .strip-metric .mono {
   font-size: 10.5px;
@@ -1258,6 +1267,9 @@ body:has(.reduce-motion) .floating {
   display: grid;
   place-items: center;
   border-radius: var(--r-pill);
+  /* See .capsule-badge: centre the digits, not the line box. */
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;

@@ -64,7 +64,7 @@ export const TABS: { id: TelemetryTab; label: string; icon: IconName }[] = [
   { id: "events", label: "News", icon: "news" },
   { id: "queue", label: "Queue", icon: "queue" },
   { id: "incidents", label: "Incidents", icon: "incident" },
-  { id: "notifications", label: "Notifications", icon: "history" },
+  { id: "notifications", label: "Notifications", icon: "notificationHistory" },
 ];
 const VIEW_TITLE: Record<PanelView, string> = {
   overview: "Network",
@@ -169,7 +169,11 @@ function Empty({ icon, children }: { icon: IconName; children: ReactNode }) {
 export function WeatherGlyph({ weather, size = 16 }: { weather: WeatherSummary; size?: 14 | 16 | 18 }) {
   return (
     <span className={`wx wx-${weather.level}`} aria-hidden="true">
-      <Icon name={weather.level === "clear" ? "pulse" : "rain"} size={size} />
+      {/* The glyph says what the sky is doing: a waveform did not. */}
+      <Icon
+        name={weather.level === "clear" ? "sun" : weather.level === "heavy" ? "cloudHeavy" : "cloudRain"}
+        size={size}
+      />
       <span className="wx-bars">
         {[1, 2, 3].map((i) => (
           <i key={i} className={i <= weather.bars ? "on" : ""} />

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { Icon } from "./Icons";
+import { Icon, ActionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 import { useTimeFormat } from "./preferences";
 import { DAY_SECONDS, formatDuration } from "./timeFormat";
@@ -142,20 +142,25 @@ export function CommandRail(props: CommandRailProps) {
   const live = enabled && !pending;
   const playable = live && (lifecycle === "RUNNING" || lifecycle === "PAUSED");
   const skip = formatDuration(props.skipSeconds);
+  // Back and forward do not latch, so there is no state to watch: count the
+  // presses instead. The clock will not do - it moves on its own while the
+  // simulation runs, which would leave both arrows twitching all the way
+  // through a playback.
+  const [pressed, setPressed] = useState({ back: 0, forward: 0 });
   const step = formatDuration(props.stepSeconds);
 
   return (
     <section className="rail" aria-label="Simulation controls">
       <div className="rail-group transport" data-tutorial="transport" role="group" aria-label="Playback">
-        <Tooltip label="Reset to 00:00" detail="Replays the same scenario from the start of the day. Asks first.">
+        <Tooltip label="Start over" detail="Returns to the beginning of the day and replays the same scenario. You will be asked first.">
           <button type="button" className="rail-btn" aria-label="Reset simulation to the start of the day" disabled={!live || lifecycle === "IDLE"} onClick={props.onReset}>
             <Icon name="reset" size={16} />
           </button>
         </Tooltip>
         <span className="rail-sep" aria-hidden="true" />
         <Tooltip label={`Back ${skip}`} detail="Restores the nearest checkpoint and replays deterministically.">
-          <button type="button" className="rail-btn" aria-label={`Back ${skip}`} disabled={!live || virtual <= 0} onClick={props.onBack}>
-            <Icon name="back" size={18} />
+          <button type="button" className="rail-btn" aria-label={`Back ${skip}`} disabled={!live || virtual <= 0} onClick={() => { setPressed((p) => ({ ...p, back: p.back + 1 })); props.onBack(); }}>
+            <ActionIcon name="back" size={18} signal={pressed.back} motion="back" reduceMotion={props.reduceMotion} />
           </button>
         </Tooltip>
         <Tooltip label={`Step ${step}`} detail="Advances by one step and holds, so each change can be inspected.">
@@ -177,8 +182,8 @@ export function CommandRail(props: CommandRailProps) {
           </button>
         </Tooltip>
         <Tooltip label={`Forward ${skip}`} detail="Advances the model by the skip interval.">
-          <button type="button" className="rail-btn" aria-label={`Forward ${skip}`} disabled={!live || virtual >= DAY_SECONDS} onClick={props.onForward}>
-            <Icon name="forward" size={18} />
+          <button type="button" className="rail-btn" aria-label={`Forward ${skip}`} disabled={!live || virtual >= DAY_SECONDS} onClick={() => { setPressed((p) => ({ ...p, forward: p.forward + 1 })); props.onForward(); }}>
+            <ActionIcon name="forward" size={18} signal={pressed.forward} motion="forward" reduceMotion={props.reduceMotion} />
           </button>
         </Tooltip>
       </div>

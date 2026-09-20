@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "./Icons";
+import { Icon, ActionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 import type { AutoFocusStrategy } from "./uiConfig";
 import type { MapFeature } from "./types";
@@ -142,7 +142,7 @@ export function MapDock(props: MapDockProps) {
             setSearchOpen(false);
           }}
         >
-          <Icon name="focus" size={18} />
+          <ActionIcon name="focus" size={18} signal={props.autoFocus} reduceMotion={props.reduceMotion} />
         </button>
       </Tooltip>
 
@@ -159,7 +159,7 @@ export function MapDock(props: MapDockProps) {
           onClick={props.onToggleDnd}
           disabled={props.disabled}
         >
-          <Icon name={props.dnd ? "bellOff" : "bell"} size={18} />
+          <ActionIcon name={props.dnd ? "bellOff" : "bell"} size={18} signal={props.dnd} reduceMotion={props.reduceMotion} />
         </button>
       </Tooltip>
 
@@ -176,7 +176,7 @@ export function MapDock(props: MapDockProps) {
           onClick={props.onToggleMotion}
           disabled={props.disabled || props.motionLocked}
         >
-          <Icon name={props.reduceMotion ? "motionOff" : "motion"} size={18} />
+          <ActionIcon name={props.reduceMotion ? "motionOff" : "motion"} size={18} signal={props.reduceMotion} reduceMotion={props.reduceMotion} />
         </button>
       </Tooltip>
 

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 /**
@@ -182,9 +183,13 @@ const PATHS: Record<string, ReactNode> = {
   ),
   gauge: (
     <>
-      <path d="M4.2 17a9 9 0 1115.6 0" />
-      <path d="M12 13l4-4" />
-      <circle cx="12" cy="13" r="1.2" />
+      {/* A dial: an arc, a needle off a hub, and just the two end marks plus
+          the top. Finer ticks than this fall below a pixel at 16px and read as
+          noise rather than as a scale. */}
+      <path d="M3.8 17.5a8.7 8.7 0 0116.4 0" />
+      <path d="M4.1 14.2l1.7-.5M12 6.3V8M19.9 14.2l-1.7-.5" />
+      <path d="M12 16.9l3.9-4.6" />
+      <circle cx="12" cy="16.9" r="1.4" />
     </>
   ),
   demand: (
@@ -229,16 +234,19 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M8 11V8a4 4 0 018 0v3" />
     </>
   ),
+  /* Collapsing and expanding the deck is a direction, not a diagram: a pair of
+     chevrons against the edge they move towards says it with far less ink than
+     an outlined panel. */
   panelCollapse: (
     <>
-      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
-      <path d="M15 4.5v15M8.5 9.5L11 12l-2.5 2.5" />
+      <path d="M19.5 5v14" />
+      <path d="M6 8l4 4-4 4M11.5 8l4 4-4 4" />
     </>
   ),
   panelExpand: (
     <>
-      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
-      <path d="M15 4.5v15M11 9.5L8.5 12l2.5 2.5" />
+      <path d="M19.5 5v14" />
+      <path d="M10 8l-4 4 4 4M15.5 8l-4 4 4 4" />
     </>
   ),
   vehicle: (
@@ -268,6 +276,32 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M4 6.5h9M4 12h6M4 17.5h9" />
       <circle cx="17" cy="14.5" r="3.5" />
       <path d="M17 12.8v1.9l1.2.8" />
+    </>
+  ),
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4.2" />
+      <path d="M12 3v2.3M12 18.7V21M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M3 12h2.3M18.7 12H21M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7" />
+    </>
+  ),
+  cloudRain: (
+    <>
+      <path d="M7.2 16.5a3.7 3.7 0 01-.2-7.4 5 5 0 019.6-1.2 3.8 3.8 0 01.4 7.5" />
+      <path d="M9.5 18.5l-.9 2.2M13 18.5l-.9 2.2" />
+    </>
+  ),
+  cloudHeavy: (
+    <>
+      <path d="M7.2 15a3.7 3.7 0 01-.2-7.4 5 5 0 019.6-1.2 3.8 3.8 0 01.4 7.5" />
+      <path d="M8 17l-1.2 3M11.3 17l-1.2 3M14.6 17l-1.2 3M17.9 17l-1.2 3" />
+    </>
+  ),
+  /* Past notifications, which must not read as "reset": a tray the bell's
+     messages have already dropped into, rather than another clock-and-arrow. */
+  notificationHistory: (
+    <>
+      <path d="M4 13.5h4l1.4 2.4h5.2L16 13.5h4" />
+      <path d="M4 13.5l2.4-7.1A2 2 0 018.3 5h7.4a2 2 0 011.9 1.4L20 13.5v4a2 2 0 01-2 2H6a2 2 0 01-2-2z" />
     </>
   ),
   history: (
@@ -344,4 +378,52 @@ export function categoryIcon(category: string): IconName {
     default:
       return "system";
   }
+}
+
+/**
+ * An icon that acknowledges its own action.
+ *
+ * A control that changes something should show that it did. `signal` is
+ * whatever value the action changes - a toggle's own state, or a counter the
+ * caller bumps for a control that fires without latching. When it changes the
+ * glyph plays a short movement chosen by `motion`, so engaging Do Not Disturb
+ * looks different from stepping back through time.
+ *
+ * The first render never animates: arriving on the page is not an action, and
+ * a screen that twitches as it loads reads as a fault. Reduced motion skips
+ * the movement entirely rather than shortening it.
+ */
+export function ActionIcon({
+  name,
+  size = 18,
+  signal,
+  motion = "toggle",
+  strokeWidth,
+  reduceMotion = false,
+}: {
+  name: IconName;
+  size?: number;
+  /** Any value that changes when the action fires. */
+  signal: unknown;
+  motion?: "toggle" | "back" | "forward" | "spin";
+  strokeWidth?: number;
+  reduceMotion?: boolean;
+}) {
+  const [playing, setPlaying] = useState(false);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (reduceMotion) return;
+    setPlaying(true);
+    const timer = setTimeout(() => setPlaying(false), 460);
+    return () => clearTimeout(timer);
+  }, [signal, reduceMotion]);
+  return (
+    <span className={`icon-action${playing ? ` playing act-${motion}` : ""}`} aria-hidden="true">
+      <Icon name={name} size={size} strokeWidth={strokeWidth} />
+    </span>
+  );
 }
