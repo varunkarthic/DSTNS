@@ -76,7 +76,7 @@ ScenarioConfig config_from(const json& j) {
     if (j.contains("simulation_time")) c.playback_duration_s = j.at("simulation_time");
     if (j.contains("tick_rate")) c.tick_rate = j.at("tick_rate");
     if (!(c.tick_rate > 0 && c.tick_rate <= kMaxTickRate))
-        throw std::invalid_argument("tick_rate must be in (0,10]");
+        throw std::invalid_argument("tick_rate must be in (0,5]");
     if (j.contains("day")) {
         if (j.at("day").is_string() && j.at("day") == "auto") c.day = -1;
         else c.day = j.at("day");
@@ -280,6 +280,72 @@ void ApiServer::routes() {
         });
     });
 
+    // An index of the API, served by the API. A client that has the base URL
+    // can discover everything else from here rather than from a document that
+    // may have drifted.
+    auto index_of_api = [] {
+        auto group = [](const char* name, const char* purpose, std::initializer_list<std::array<const char*,3>> routes) {
+            auto items = nlohmann::json::array();
+            for (const auto& [method, path, note] : routes)
+                items.push_back({{"method",method},{"path",path},{"description",note}});
+            return nlohmann::json{{"group",name},{"purpose",purpose},{"endpoints",std::move(items)}};
+        };
+        return nlohmann::json::array({
+            group("system","Service identity, health and lifecycle",{
+                {{"GET","/api/v1/system/health","Liveness, with the engine's lifecycle state"}},
+                {{"GET","/api/v1/system/info","Service identity, version and SUMO availability"}},
+                {{"GET","/api/v1/system/status","The full run status"}},
+                {{"GET","/api/v1/system/endpoints","This index"}},
+                {{"GET","/api/v1/system/map-status","What map is loaded and where it came from"}},
+                {{"GET","/api/v1/system/source","Source offer under AGPL-3.0 section 13"}},
+                {{"GET","/api/v1/system/backpressure","Adaptive backpressure score and mode"}},
+                {{"POST","/api/v1/system/terminate","Stop the simulation and exit the process"}}}),
+            group("playback","Moving through simulated time",{
+                {{"GET","/api/v1/playback/status","Clock, rate and lifecycle"}},
+                {{"POST","/api/v1/playback/start","Begin a run"}},
+                {{"POST","/api/v1/playback/play","Resume"}},
+                {{"POST","/api/v1/playback/pause","Hold the clock"}},
+                {{"POST","/api/v1/playback/stop","End the run"}},
+                {{"POST","/api/v1/playback/reset","Return to the start"}},
+                {{"POST","/api/v1/playback/seek","Jump to a virtual second"}},
+                {{"POST","/api/v1/playback/step","Advance a fixed number of ticks"}}}),
+            group("world","The generated world and its topology",{
+                {{"GET","/api/v1/view/topology","Nodes, edges, features, projection and bounds"}},
+                {{"GET","/api/v1/view/nodes","Paginated nodes; /{id} for one"}},
+                {{"GET","/api/v1/view/edges","Paginated edges; /{id} for one"}},
+                {{"GET","/api/v1/view/places","Classified places with live demand; ?kind= filters"}},
+                {{"GET","/api/v1/view/place-kinds","The place taxonomy and this world's counts"}},
+                {{"GET","/api/v1/view/stops","Bus stops, thinned to realistic spacing"}},
+                {{"GET","/api/v1/view/snapshot","Per-tick dynamic state for every node and edge"}},
+                {{"GET","/api/v1/view/global","Topology and snapshot in one response"}},
+                {{"POST","/api/v1/world/regenerate","Build a new world from a seed"}}}),
+            group("control","Acting on the running simulation",{
+                {{"PUT","/api/v1/control/tick-rate","Set the simulation rate multiplier"}},
+                {{"POST","/api/v1/control/day","Switch between a weekday and a weekend"}},
+                {{"PUT","/api/v1/control/modules/{module}","Enable or disable a subsystem"}},
+                {{"POST","/api/v1/control/events/weather","Inject rain or a flood"}},
+                {{"POST","/api/v1/control/events/traffic","Inject an incident or a closure"}},
+                {{"POST","/api/v1/control/events/surge","Inject a demand surge"}},
+                {{"PUT","/api/v1/control/edges/{id}","Override one edge"}},
+                {{"POST","/api/v1/control/undo","Undo the last control action"}},
+                {{"POST","/api/v1/control/redo","Redo it"}},
+                {{"GET","/api/v1/control/history","The control history"}}}),
+            group("observation","Logs, events and news",{
+                {{"GET","/api/v1/view/event-queue","Scheduled or executed events, filtered and paged"}},
+                {{"GET","/api/v1/news","The operator news feed"}},
+                {{"GET","/api/v1/news/stream","The same feed, as server-sent events"}},
+                {{"GET","/api/v1/view/logs/system","System log"}},
+                {{"GET","/api/v1/view/logs/events","Event log"}},
+                {{"GET","/api/v1/view/logs/api","API access log"}}}),
+        });
+    };
+    server_->Get("/api/v1/system/endpoints", [this, index_of_api](const auto&, auto& r) {
+        send(r, {{"ok",true},{"version","v1"},{"base","/api/v1"},{"groups",index_of_api()}});
+    });
+    server_->Get("/api/v1", [this, index_of_api](const auto&, auto& r) {
+        send(r, {{"ok",true},{"version","v1"},{"base","/api/v1"},{"groups",index_of_api()}});
+    });
+
     // SUMO Microscopic Export & Simulation
     server_->Post("/api/v1/export/sumo", [this](const auto& req, auto& r) {
         auto j = body(req);
@@ -302,10 +368,23 @@ void ApiServer::routes() {
             {"status", "TERMINATING"},
             {"message", "Deterministic Simulated Environment server is shutting down gracefully."}
         });
-        engine_.terminate();
+        // Terminating means quitting: the process goes away, not just the run.
+        //
+        // The request is made lock-free because a scenario compile can hold the
+        // engine lock for the length of a map download, and an operator who has
+        // asked to quit should not wait that out. The listener is then stopped
+        // so main() can return normally, and a backstop guarantees the process
+        // exits even if a long-running compile is still unwinding.
+        engine_.request_terminate();
+        logger_.system("INFO", "api", "Termination requested; shutting down");
         std::thread([this]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(150));
             server_->stop();
+            std::this_thread::sleep_for(std::chrono::seconds(3));
+            // Still here: something is mid-flight and will not finish promptly.
+            // Flush what is written and leave; the caller asked to quit.
+            std::fflush(nullptr);
+            std::_Exit(0);
         }).detach();
     };
     server_->Get("/terminate", terminate_handler);
@@ -570,6 +649,29 @@ void ApiServer::routes() {
         auto result = engine_.edges(id, 1);
         if (result["data"]["items"].empty()) throw std::out_of_range("unknown edge");
         send(r, result);
+    });
+
+    // Places. The classified view of the world's features: what each one is,
+    // what the demand model believes about it, and why.
+    auto places_handler = [this](const httplib::Request& req, httplib::Response& r) {
+        const auto kind = req.has_param("kind") ? req.get_param_value("kind") : std::string{};
+        if (!kind.empty() && !std::regex_match(kind, std::regex("[a-z_]{1,32}")))
+            throw std::invalid_argument("invalid place kind");
+        send(r, engine_.places(
+            kind,
+            req.has_param("offset") ? std::stoul(req.get_param_value("offset")) : 0,
+            req.has_param("limit") ? std::min<std::size_t>(2000, std::stoul(req.get_param_value("limit"))) : 500
+        ));
+    };
+    server_->Get("/api/v1/view/places", places_handler);
+    server_->Get("/api/v1/places", places_handler);
+    server_->Get("/api/v1/view/place-kinds", [this](const auto&, auto& r) { send(r, engine_.place_kinds()); });
+    // Stops are places too; this is the same data narrowed to one kind, so a
+    // transit client need not know the taxonomy to ask the obvious question.
+    server_->Get("/api/v1/view/stops", [this](const httplib::Request& req, httplib::Response& r) {
+        send(r, engine_.places("bus_stop",
+            req.has_param("offset") ? std::stoul(req.get_param_value("offset")) : 0,
+            req.has_param("limit") ? std::min<std::size_t>(2000, std::stoul(req.get_param_value("limit"))) : 500));
     });
 
     for (const auto* kind : {"traffic", "weather", "buildings", "bus-stops", "signals", "events", "metrics", "incidents", "congestion"}) {

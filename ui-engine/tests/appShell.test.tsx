@@ -279,13 +279,15 @@ describe("command rail", () => {
     await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 0)).toBe(true));
   });
 
-  it("offers exactly the seven supported speeds and sets the real engine rate", async () => {
+  it("offers exactly the six supported speeds and sets the real engine rate", async () => {
     mockApi();
     render(<App />);
     await ready();
     const group = screen.getByRole("radiogroup", { name: "Simulation speed" });
     const options = within(group).getAllByRole("radio");
-    expect(options.map((o) => o.textContent)).toEqual(["0.25×", "0.5×", "1×", "2×", "3×", "5×", "10×"]);
+    // 5x is the ceiling the core enforces; the rail never offers a speed the
+    // core would refuse.
+    expect(options.map((o) => o.textContent)).toEqual(["0.25×", "0.5×", "1×", "2×", "3×", "5×"]);
     expect(within(group).getByRole("radio", { name: "1 times speed" })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(within(group).getByRole("radio", { name: "3 times speed" }));
     await waitFor(() => {
@@ -700,8 +702,10 @@ describe("start-up", () => {
     state.preparation = "selecting";
     state.topologyDelay = true;
     render(<App />);
-    const surface = await screen.findByRole("status", { name: /Selecting world|Starting interface/ }, { timeout: 4000 });
-    await waitFor(() => expect(within(surface).getByRole("heading")).toHaveTextContent("Selecting world"), { timeout: 4000 });
+    // The heading reassures; the stage itself is named in the status line and
+    // marked in the step list below it.
+    const surface = await screen.findByRole("status", { name: /Getting things ready|This will only take a moment|Almost there/ }, { timeout: 4000 });
+    await waitFor(() => expect(surface.querySelector(".loading-status")).toHaveTextContent(/Selecting world/), { timeout: 4000 });
     const steps = within(surface).getByRole("list", { name: "Progress" });
     expect(within(steps).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       "Starting interface",
@@ -714,15 +718,19 @@ describe("start-up", () => {
     expect(within(steps).getByText("Starting interface").closest("li")).toHaveClass("done");
 
     state.preparation = "building";
-    await waitFor(() => expect(within(surface).getByRole("heading")).toHaveTextContent("Generating world"), { timeout: 4000 });
+    await waitFor(() => expect(surface.querySelector(".loading-status")).toHaveTextContent(/Generating world/), { timeout: 4000 });
     expect(within(steps).getByText("Selecting world").closest("li")).toHaveClass("done");
 
-    // The map arrives: the start-up screen leaves rather than disappearing.
+    // The map arrives: the stages give way to the welcome screen, which hands
+    // over to the map rather than the map simply appearing.
     state.preparation = "";
     state.lifecycle = "RUNNING";
     state.topologyDelay = false;
     await ready();
-    await waitFor(() => expect(document.querySelector(".loading-surface")).toBeNull(), { timeout: 4000 });
+    await waitFor(() => expect(document.querySelector(".loading-surface.welcome")).toBeTruthy(), { timeout: 4000 });
+    expect(document.querySelector(".loading-surface.welcome")).toHaveTextContent("Starting DSTNS");
+    // And then it leaves rather than disappearing.
+    await waitFor(() => expect(document.querySelector(".loading-surface")).toBeNull(), { timeout: 6000 });
   }, 20000);
 
   it("does not claim progress before a run exists", async () => {

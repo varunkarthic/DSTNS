@@ -47,6 +47,26 @@ inline constexpr double kAsbEscalateAfterS = 3.0;    // stressed for this long -
 inline constexpr double kAsbRestrictedHoldS = 5.0;   // minimum time in Restricted
 inline constexpr double kAsbRecoverAfterS = 3.0;     // healthy for this long -> relax
 
+// Damping.
+//
+// The raw score is instantaneous, and a simulated day is full of instants: one
+// incident, one storm cell, one heavy snapshot, and a single sample spikes.
+// Acting on that directly made the multiplier twitch whenever anything
+// happened, which is both distracting and useless - by the time the rate has
+// changed, the spike is over.
+//
+// So the score the controller acts on is a time-constant exponential mean of
+// the raw one. Rising is deliberately slower than falling: a problem must
+// persist to be believed, while a recovery is credited promptly once the
+// evidence for the problem has gone.
+inline constexpr double kAsbRiseTauS = 2.5;   // time constant while worsening
+inline constexpr double kAsbFallTauS = 1.8;   // time constant while improving
+
+// The throttle is quantised and held. The ceiling snaps to the multipliers the
+// operator can themselves select, and does not move again for this long, so a
+// governed rate lands on a value that looks deliberate and stays put.
+inline constexpr double kAsbRateHoldS = 4.0;
+
 // One observation of how far the observer is behind.
 struct AsbSample {
     // Seconds between the snapshot the observer last rendered and the state the
@@ -75,7 +95,8 @@ struct AsbAction {
 
 struct AsbStatus {
     AsbState state{AsbState::Normal};
-    double score{};               // normalized backpressure, 0..1
+    double score{};               // damped backpressure the controller acts on, 0..1
+    double raw_score{};           // the latest instantaneous reading, 0..1
     bool synced{true};
     bool rate_locked{false};      // Restricted and Async lock the multiplier at 1x
     bool motion_locked{false};    // Restricted forces reduced motion
@@ -122,7 +143,13 @@ private:
               double before, double after);
 
     AsbState state_{AsbState::Normal};
+    // The damped score the controller acts on, and the instantaneous one it was
+    // derived from. Both are published: the first explains the behaviour, the
+    // second explains the first.
     double score_{};
+    double raw_score_{};
+    bool seeded_{false};
+    double cap_changed_at_{-1e9};
     double stressed_since_{-1};
     double healthy_since_{-1};
     double state_entered_{};

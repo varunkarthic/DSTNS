@@ -25,7 +25,10 @@ enum class RoadClass { Motorway, Primary, Secondary, Tertiary, Residential, Serv
 enum class BuildingType { School, Office, Mall, Store };
 
 /// Highest playback multiplier accepted from the CLI, the API and the UI.
-inline constexpr double kMaxTickRate = 10.0;
+// The fastest the operator may drive the clock. Above this the physics step
+// outruns what the observer can draw and what ASB can measure, so the extra
+// speed buys a less trustworthy picture rather than a faster one.
+inline constexpr double kMaxTickRate = 5.0;
 enum class IncidentType { RoadClosure, Accident, Congestion, VehicleBreakdown, HazardSpill };
 enum class IncidentLifecycle { Scheduled, Active, Resolved };
 

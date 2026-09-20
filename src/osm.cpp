@@ -1,4 +1,5 @@
 #include "dstns/osm.hpp"
+#include "dstns/demand.hpp"
 
 #include "dstns/utf8.hpp"
 #include "dstns/graph.hpp"
@@ -457,6 +458,22 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
     for(const auto& w:feature_ways){std::vector<Point> g;bool complete=true;for(auto id:w.refs){auto it=raw_nodes.find(id);if(it==raw_nodes.end()){complete=false;break;}g.push_back(project(it->second.lat,it->second.lon));}if(complete)add_feature("way/"+std::to_string(w.id),w.tags,std::move(g),w.refs.size()>3&&w.refs.front()==w.refs.back());}
     for(const auto& [id,n]:raw_nodes) if(n.tags.contains("amenity")||n.tags.contains("shop")||n.tags.contains("office")||n.tags.contains("leisure")||n.tags.contains("railway")||n.tags.contains("public_transport")||n.bus_stop) add_feature("node/"+std::to_string(id),n.tags,{project(n.lat,n.lon)},false);
     std::sort(out.features.begin(),out.features.end(),[](const auto& a,const auto& b){return a.id<b.id;});
+    // OSM records a stop per kerb, per platform and per operator; on the ground
+    // those are one place. Thin them so stops sit apart the way a route spaces
+    // them - which means knowing the street each stop serves, since two stops
+    // on parallel roads are two stops however close they look on a map.
+    {
+        std::vector<std::uint64_t> corridors(out.features.size(), 0);
+        for (std::size_t i = 0; i < out.features.size(); ++i) {
+            if (!is_bus_stop(out.features[i])) continue;
+            double nearest = 1e20;
+            for (const auto& e : out.edges) {
+                const auto d = point_distance(e.geometry.front(), out.features[i].center);
+                if (d < nearest) { nearest = d; corridors[i] = e.osm_way_id; }
+            }
+        }
+        thin_bus_stops(out.features, corridors);
+    }
     out.source_hash = "sha256:" + sha256(xml);
     return out;
 }

@@ -134,6 +134,10 @@ SimulationEngine::~SimulationEngine() {
 void SimulationEngine::transition(Lifecycle next) {
     const auto old = lifecycle_;
     lifecycle_ = next;
+    // Mirror the state where a reader can see it without the engine mutex, so
+    // a health probe still answers while a map download holds that mutex for
+    // minutes. Every transition goes through here, so the mirror cannot drift.
+    lifecycle_mirror_.store(next, std::memory_order_relaxed);
     ++playback_revision_;
     logger_.lifecycle(run_id_, to_string(old), to_string(next), graph_ ? graph_->state_revision() : 0);
 }
@@ -790,6 +794,7 @@ nlohmann::json SimulationEngine::backpressure_json() const {
     return {
         {"state", to_string(s.state)},
         {"score", s.score},
+        {"raw_score", s.raw_score},
         {"synced", s.synced},
         {"rate_locked", s.rate_locked},
         {"motion_locked", s.motion_locked},
@@ -810,7 +815,7 @@ nlohmann::json SimulationEngine::backpressure_json() const {
 
 nlohmann::json SimulationEngine::set_tick_rate(double v) {
     std::lock_guard lock(mutex_);
-    if (!std::isfinite(v) || v <= 0 || v > kMaxTickRate) throw std::invalid_argument("tick_rate must be finite and in (0,10]");
+    if (!std::isfinite(v) || v <= 0 || v > kMaxTickRate) throw std::invalid_argument("tick_rate must be finite and in (0,5]");
     if (lifecycle_ == Lifecycle::Running) {
         const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
         step_to(std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(elapsed * (day_s / double(graph_->scenario().config.playback_duration_s)) * tick_rate_)));
@@ -1212,6 +1217,10 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
     }
 
     congestion_.update(sc,graph_->edge_states(),virtual_s_,dt);
+    // Places respond to the conditions this tick produced: roads shut, rain
+    // falling, an incident nearby. Run last, so couplings read the same state
+    // the operator is about to be shown rather than the previous tick's.
+    events_.recouple(sc,graph_->edge_states(),virtual_s_);
     graph_->commit();
 }
 
@@ -1657,6 +1666,79 @@ nlohmann::json SimulationEngine::manifest() const {
     });
 }
 
+nlohmann::json SimulationEngine::places(const std::string& kind,std::size_t offset,std::size_t limit) const {
+    std::lock_guard lock(mutex_);
+    if (!graph_) return envelope({{"items",nlohmann::json::array()},{"total",0},{"offset",offset},{"limit",limit}});
+    const auto& sc = graph_->scenario();
+    const auto& kinds = events_.place_kinds();
+
+    // Select first, then page, so `total` counts the filter's matches and not
+    // the whole world - a caller paging schools should not have to walk every
+    // untagged building to find them.
+    std::vector<std::size_t> selected;
+    for (std::size_t i = 0; i < sc.features.size(); ++i) {
+        const auto k = i < kinds.size() ? kinds[i] : PlaceKind::Other;
+        if (!kind.empty() && kind != to_string(k)) continue;
+        selected.push_back(i);
+    }
+
+    auto items = nlohmann::json::array();
+    for (std::size_t n = offset; n < selected.size() && n < offset + limit; ++n) {
+        const auto i = selected[n];
+        const auto& f = sc.features[i];
+        const auto k = i < kinds.size() ? kinds[i] : PlaceKind::Other;
+        auto factors = nlohmann::json::array();
+        for (const auto& factor : events_.demand_factors(i))
+            factors.push_back({{"cause",factor.name},{"multiplier",factor.multiplier}});
+        items.push_back({
+            {"id",f.id},
+            {"name",f.name},
+            {"kind",to_string(k)},
+            {"category",f.category},
+            {"modelled",is_modelled(k)},
+            {"generator",is_generator(k)},
+            {"commercial",is_commercial(k)},
+            {"polygon",f.polygon},
+            {"position",point_json(f.center)},
+            {"anchor_node",f.anchor.value},
+            {"tags",f.tags},
+            {"demand",{
+                {"multiplier",sc.config.buildings && i < events_.demand.size() ? events_.demand[i] : 1.0},
+                {"baseline",sc.config.buildings ? events_.baseline_demand(i) : 1.0},
+                {"factors",std::move(factors)},
+                {"radius_m",kCouplingRadiusM}}}
+        });
+    }
+    return envelope({{"items",std::move(items)},
+                     {"total",selected.size()},
+                     {"offset",offset},
+                     {"limit",limit},
+                     {"kind",kind.empty()?"all":kind}});
+}
+
+nlohmann::json SimulationEngine::place_kinds() const {
+    std::lock_guard lock(mutex_);
+    // Counts come from this world; the taxonomy itself does not, so a caller
+    // learns every kind the classifier can produce even when none are present.
+    std::map<std::string,std::size_t> counts;
+    if (graph_) for (const auto k : events_.place_kinds()) counts[to_string(k)]++;
+
+    auto items = nlohmann::json::array();
+    for (const auto k : {PlaceKind::School,PlaceKind::University,PlaceKind::Office,PlaceKind::Retail,
+                         PlaceKind::Mall,PlaceKind::Hospital,PlaceKind::Pharmacy,PlaceKind::Food,
+                         PlaceKind::Transport,PlaceKind::BusStop,PlaceKind::Parking,PlaceKind::Park,
+                         PlaceKind::Industrial,PlaceKind::Residential,PlaceKind::Worship,
+                         PlaceKind::Culture,PlaceKind::Hotel,PlaceKind::Other}) {
+        const std::string name = to_string(k);
+        items.push_back({{"kind",name},
+                         {"modelled",is_modelled(k)},
+                         {"generator",is_generator(k)},
+                         {"commercial",is_commercial(k)},
+                         {"count",counts.count(name)?counts.at(name):0}});
+    }
+    return envelope({{"items",std::move(items)},{"stop_spacing_m",kBusStopSpacingM}});
+}
+
 nlohmann::json SimulationEngine::catalog(const std::string& kind) const {
     std::lock_guard lock(mutex_);
     if (!graph_) return envelope(nlohmann::json::object());
@@ -1828,8 +1910,9 @@ std::uint64_t SimulationEngine::state_revision() const {
 }
 
 Lifecycle SimulationEngine::lifecycle() const {
-    std::lock_guard lock(mutex_);
-    return lifecycle_;
+    // Deliberately lock-free: liveness must be observable while the engine is
+    // busy compiling a world. See transition().
+    return lifecycle_mirror_.load(std::memory_order_relaxed);
 }
 
 nlohmann::json SimulationEngine::global_view() const {
@@ -2166,12 +2249,22 @@ nlohmann::json SimulationEngine::sumo_simulate(const std::filesystem::path& dire
     return envelope(std::move(res));
 }
 
+void SimulationEngine::request_terminate() {
+    // Deliberately lock-free: a compile may hold the mutex for the length of a
+    // map download, and quitting must not queue behind it.
+    if (terminate_requested_.exchange(true)) return;
+    // compile_generation_ is guarded by the mutex, so it is deliberately not
+    // touched here. The flag and the stop request are enough to wind the worker
+    // down; the HTTP layer guarantees the process exits regardless.
+    cv_.notify_all();
+    worker_.request_stop();
+}
+
 void SimulationEngine::terminate() {
     std::lock_guard lock(mutex_);
-    if (terminate_requested_) return;
+    if (terminate_requested_.exchange(true)) return;
     ++compile_generation_;
     transition(Lifecycle::Terminating);
-    terminate_requested_ = true;
     cv_.notify_all();
     worker_.request_stop();
 }

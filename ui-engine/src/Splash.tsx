@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LoadingSurface } from "./LoadingSurface";
+import { Mark } from "./Logo";
 
 /**
  * Start-up screen.
@@ -24,6 +25,23 @@ export const BOOT_STEPS = [
   { id: "initialize", label: "Initializing simulation" },
 ] as const;
 
+/**
+ * What the screen says while it waits.
+ *
+ * The stage list already says what the machine is doing. This says what the
+ * person can expect, which is a different question and the one they are
+ * actually asking. It moves forward with the work and never promises a time.
+ */
+export function reassurance(step: number, total: number, waiting = false): string {
+  // Nothing is being got ready when nothing has been asked for: say what is
+  // true instead of reassuring about work that is not happening.
+  if (waiting) return "";
+  if (step <= 0) return "Getting things ready";
+  if (step >= total - 1) return "Almost there";
+  if (step >= total - 2) return "Just a moment";
+  return "This will only take a moment";
+}
+
 export interface SplashStage {
   /** Short phrase: what is happening right now. */
   label: string;
@@ -36,6 +54,41 @@ export interface SplashStage {
   /** No run exists yet, so there is nothing to load until one is started. */
   waiting?: boolean;
 }
+
+/**
+ * The welcome screen.
+ *
+ * Between the last stage finishing and the map appearing there is a beat where
+ * the work is done but nothing is ready to look at. Rather than flashing
+ * through it, the screen names the product, credits the licence, and hands over
+ * deliberately - the moment an operating system spends telling you it is
+ * yours before it shows you the desktop.
+ */
+export function Welcome({ closing = false, reduceMotion }: { closing?: boolean; reduceMotion: boolean }) {
+  return (
+    <div
+      className={`loading-surface boot welcome${closing ? " closing" : ""}${reduceMotion ? " still" : ""}`}
+      role="status"
+      aria-labelledby="welcome-title"
+    >
+      <div className="welcome-body">
+        <div className={`welcome-mark${reduceMotion ? "" : " animated"}`}>
+          <Mark size={104} />
+        </div>
+        <h2 id="welcome-title">Starting DSTNS</h2>
+        <p className="welcome-sub">Deterministic Spatiotemporal Transport Network Simulator</p>
+      </div>
+      <p className="loading-licence welcome-licence">
+        © 2026 Varun Karthic · Licensed under AGPL-3.0-or-later · Map data © OpenStreetMap contributors (ODbL)
+      </p>
+    </div>
+  );
+}
+
+/** How long the welcome screen is held before it dissolves into the map. */
+export const WELCOME_MS = 1600;
+/** How long its progressive blur takes to clear. */
+export const WELCOME_EXIT_MS = 720;
 
 export function Splash({
   stage,
@@ -59,8 +112,8 @@ export function Splash({
   return (
     <LoadingSurface
       mode="boot"
-      title={stage.label}
-      status={stage.detail}
+      title={reassurance(stage.step, BOOT_STEPS.length, stage.waiting) || stage.label}
+      status={stage.waiting ? stage.detail : stage.detail ? `${stage.label} · ${stage.detail}` : stage.label}
       steps={stage.waiting ? undefined : BOOT_STEPS}
       stepIndex={stage.step}
       progress={stage.progress}

@@ -1856,7 +1856,8 @@ async function launchSimulation(options) {
   let payload=await runConfig(options)
   if(options['save-seed'])payload=seedStore('save',{id:options['save-seed'],description:options.description,config:payload}).config
   const started=await startServer()
-  if(started.process){managedServer=started.process;managedServerPort=started.port}
+  if(started.process){managedServer=started.process;managedServerPort=started.port;endSessionWhenCoreExits(started.process)}
+  else if(started.external)endSessionWhenExternalCoreStops(started.port)
   const explicitRun=['seed','saved-seed','save-seed','day-type','osm-file','max-nodes','duration','speed'].some(key=>options[key]!==undefined)
   const url=`http://127.0.0.1:${started.port}/`
   const observing=['RUNNING','PAUSED'].includes(started.health?.lifecycle) && !explicitRun
@@ -1928,6 +1929,53 @@ function parseArgs(argv) {
   }
 }
 
+/**
+ * Follow a managed core process and end the whole session when it exits.
+ *
+ * Terminating from the observer is meant to end the session, not just the
+ * server: the console was otherwise left sitting in a menu, still holding the
+ * terminal, while the thing it was controlling had gone. Watching for the exit
+ * closes the console too, so one action ends one session.
+ */
+function endSessionWhenCoreExits(child) {
+  if (!child || child.exitCode !== null) return
+  child.once('exit', (code, signal) => {
+    if (shuttingDown) return
+    const deliberate = code === 0 || signal === 'SIGTERM'
+    process.stdout.write('\n')
+    if (deliberate) ui.logger.info('Simulation core stopped. Ending session.')
+    else ui.logger.error(new Error(`Simulation core exited unexpectedly (code ${code ?? signal}).`))
+    // The core is already gone, so cleanup only has the terminal to restore.
+    void cleanup().then(() => process.exit(deliberate ? 0 : 1))
+  })
+}
+
+/**
+ * The same for a core this console did not start.
+ *
+ * There is no child to watch, so health is polled instead. Several consecutive
+ * failures are required: one missed probe during a heavy compile is not a
+ * terminated session.
+ */
+function endSessionWhenExternalCoreStops(port) {
+  let misses = 0
+  const timer = setInterval(async () => {
+    if (shuttingDown) {
+      clearInterval(timer)
+      return
+    }
+    const health = await checkDstnsHealth(port)
+    misses = health ? 0 : misses + 1
+    if (misses < 3) return
+    clearInterval(timer)
+    process.stdout.write('\n')
+    ui.logger.info('Simulation core stopped. Ending session.')
+    void cleanup().then(() => process.exit(0))
+  }, 1500)
+  // Never hold the event loop open on this alone.
+  timer.unref?.()
+}
+
 async function cleanup() {
   if (shuttingDown) return
   shuttingDown = true
@@ -1970,7 +2018,13 @@ async function main() {
   if (command === 'start') {
     const started = await launchSimulation(options)
     if (process.stdin.isTTY) await controlSession(started.process, started.port)
-    else if (started.process) await new Promise(resolve => started.process.once('exit', resolve))
+    else if (started.process)
+      // Non-interactive: follow the core, and report its fate as our own.
+      return await new Promise((resolve) =>
+        started.process.once('exit', (code, signal) =>
+          resolve(code === 0 || signal === 'SIGTERM' ? 0 : 1),
+        ),
+      )
     return 0
   }
 

@@ -16,7 +16,10 @@ import type { Clock, Lifecycle } from "./types";
  */
 
 /** Speeds offered, as multiples of the configured playback pace. */
-export const RATES = [0.25, 0.5, 1, 2, 3, 5, 10] as const;
+// The rates the operator may choose. 5x is the ceiling the core enforces:
+// beyond it the step outruns what can be drawn and measured, so the speed
+// would cost more in fidelity than it returns in time.
+export const RATES = [0.25, 0.5, 1, 2, 3, 5] as const;
 
 /** Index of the offered rate nearest to `rate`. */
 export function rateIndexOf(rate: number): number {

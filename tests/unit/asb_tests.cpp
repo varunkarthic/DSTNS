@@ -208,6 +208,82 @@ int main() {
         check(asb.govern_tick_rate(5.0, 0) == 5.0, "reset restores full operator control");
     }
 
+    // ---- A transient spike must not move the rate -------------------------
+    // The motivating complaint: one simulated event should not change the
+    // simulation speed. A single bad sample among healthy ones barely moves the
+    // damped score, and never reaches the stressed threshold.
+    {
+        AdaptiveBackpressure asb;
+        double t = feed(asb, healthy(5.0), 0, 6);
+        const double settled = asb.score();
+        // One isolated spike, as an incident or a heavy snapshot would produce.
+        asb.observe(drowning(5.0), t + 0.25);
+        check(asb.status(t + 0.25).raw_score > kAsbStressedScore,
+              "the spike is visible in the raw reading");
+        check(asb.score() < kAsbStressedScore,
+              "one spike does not carry the damped score into stress");
+        check(asb.govern_tick_rate(5.0, t + 0.25) == 5.0,
+              "one spike does not change the multiplier");
+        // And it decays away once healthy samples resume.
+        t = feed(asb, healthy(5.0), t + 0.5, 6);
+        check(asb.score() <= settled + 0.05, "the spike decays out of the score");
+        check(asb.state() == AsbState::Normal, "a spike never changes state");
+    }
+
+    // ---- Sustained pressure is still believed -----------------------------
+    // Damping must slow the response, not defeat it.
+    {
+        AdaptiveBackpressure asb;
+        const double t = feed(asb, drowning(5.0), 0, 8);
+        check(asb.score() > kAsbStressedScore,
+              "sustained backpressure still crosses the stressed threshold");
+        check(asb.govern_tick_rate(5.0, t) < 5.0, "sustained backpressure still throttles");
+    }
+
+    // ---- Rising is slower than falling ------------------------------------
+    {
+        AdaptiveBackpressure rising, falling;
+        rising.observe(healthy(), 0);
+        falling.observe(drowning(), 0);
+        // Same elapsed time, opposite directions, from opposite extremes.
+        rising.observe(drowning(), 1.0);
+        falling.observe(healthy(), 1.0);
+        const double climbed = rising.score();              // from ~0 toward 1
+        const double dropped = 1.0 - falling.score();       // from ~1 toward 0
+        check(dropped > climbed,
+              "a recovery is credited faster than a problem is believed");
+    }
+
+    // ---- The governed rate is one the operator could have chosen ----------
+    {
+        AdaptiveBackpressure asb;
+        const double t = feed(asb, drowning(5.0), 0, 8);
+        const double governed = asb.govern_tick_rate(5.0, t);
+        bool offered = false;
+        for (const double r : {1.0, 2.0, 3.0, 5.0}) if (std::abs(governed - r) < 1e-9) offered = true;
+        check(offered, "a governed multiplier lands on an offered value");
+    }
+
+    // ---- Having moved, the ceiling is held --------------------------------
+    {
+        AdaptiveBackpressure asb;
+        double t = feed(asb, drowning(5.0), 0, 8);
+        const double first = asb.govern_tick_rate(5.0, t);
+        // Keep pressing immediately; the hold must prevent a second change.
+        t = feed(asb, drowning(5.0), t + 0.25, kAsbRateHoldS - 1.0);
+        check(asb.govern_tick_rate(5.0, t) == first,
+              "the ceiling is held rather than tracking every sample");
+    }
+
+    // ---- The raw reading is published alongside the damped one ------------
+    {
+        AdaptiveBackpressure asb;
+        asb.observe(drowning(), 0);
+        const auto s = asb.status(0);
+        check(s.raw_score >= s.score - 1e-9, "raw is reported and is at least the damped value here");
+        check(s.raw_score <= 1.0 && s.raw_score >= 0.0, "raw stays normalized");
+    }
+
     // ---- to_string covers every state -------------------------------------
     check(std::string(to_string(AsbState::Normal)) == "NORMAL", "Normal stringifies");
     check(std::string(to_string(AsbState::Restricted)) == "RESTRICTED", "Restricted stringifies");

@@ -31,6 +31,26 @@ double poll_component(const AsbSample& s) {
     return std::clamp((s.since_poll_s - 2.0) / 6.0, 0.0, 1.0);
 }
 
+// The multipliers the operator can select. A governed ceiling lands on one of
+// these, so the rate it produces is a value they recognise rather than an
+// arbitrary fraction.
+constexpr double kOfferedRates[] = {1.0, 2.0, 3.0, 5.0};
+
+// Largest offered multiplier at or below `wanted`, never below real time.
+double quantise_rate(double wanted) {
+    double out = kOfferedRates[0];
+    for (const double r : kOfferedRates)
+        if (r <= wanted + 1e-9) out = r;
+    return out;
+}
+
+// Next offered multiplier strictly above `from`.
+double next_rate_above(double from) {
+    for (const double r : kOfferedRates)
+        if (r > from + 1e-9) return r;
+    return std::numeric_limits<double>::infinity();
+}
+
 } // namespace
 
 const char* to_string(AsbState state) {
@@ -63,11 +83,27 @@ void AdaptiveBackpressure::escalate(AsbState next, const std::string& reason, do
 }
 
 void AdaptiveBackpressure::observe(const AsbSample& sample, double now_s) {
-    last_observed_ = now_s;
 
-    // The worst single symptom drives the score. Averaging would let a severe
-    // problem in one dimension hide behind health in the others.
-    score_ = std::max({lag_component(sample), frame_component(sample), poll_component(sample)});
+    // The worst single symptom drives the reading. Averaging across symptoms
+    // would let a severe problem in one dimension hide behind health in the
+    // others.
+    raw_score_ = std::max({lag_component(sample), frame_component(sample), poll_component(sample)});
+
+    // Damp it over time. The first sample seeds the mean outright; after that
+    // the score approaches the reading with a time constant, so how fast it
+    // moves depends on elapsed seconds rather than on how often the observer
+    // happens to report.
+    if (!seeded_) {
+        score_ = raw_score_;
+        seeded_ = true;
+    } else {
+        const double dt = std::clamp(now_s - last_observed_, 0.0, 5.0);
+        const double tau = raw_score_ > score_ ? kAsbRiseTauS : kAsbFallTauS;
+        const double alpha = tau > 0 ? 1.0 - std::exp(-dt / tau) : 1.0;
+        score_ += (raw_score_ - score_) * alpha;
+    }
+
+    last_observed_ = now_s;
 
     const bool stressed = score_ > kAsbStressedScore;
     const bool healthy = score_ < kAsbSyncedScore;
@@ -92,26 +128,31 @@ void AdaptiveBackpressure::observe(const AsbSample& sample, double now_s) {
         case AsbState::Normal: {
             if (!stressed) {
                 // Proportional release back towards what the operator asked for.
-                if (healthy && std::isfinite(cap_)) {
+                if (healthy && std::isfinite(cap_) && now_s - cap_changed_at_ >= kAsbRateHoldS) {
                     const double before = cap_;
-                    // Ease the ceiling up, and drop it entirely once it no
-                    // longer binds what the operator asked for.
-                    cap_ = cap_ * 1.5 + 0.5;
+                    // Step the ceiling up one offered multiplier at a time, and
+                    // drop it entirely once it no longer binds the request.
+                    cap_ = next_rate_above(cap_);
                     if (cap_ >= sample.tick_rate) cap_ = std::numeric_limits<double>::infinity();
+                    cap_changed_at_ = now_s;
                     note("throttle", "recovering; easing the rate ceiling back up",
                          now_s, before, cap_);
                 }
                 default_state_tried_ = healthy_for > kAsbRecoverAfterS ? false : default_state_tried_;
                 break;
             }
-            // Stressed: throttle proportionally straight away. This is the
-            // cheap, continuous response that usually suffices.
+            // Stressed: throttle. The target snaps to a multiplier the
+            // operator could have chosen themselves, and having moved, the
+            // ceiling is held - so the rate settles on a deliberate-looking
+            // value instead of drifting with every sample.
             const double before = cap_;
-            const double target = std::max(1.0, sample.tick_rate * (1.0 - score_));
-            cap_ = std::min(cap_, target);
-            if (cap_ < before)
+            const double target = quantise_rate(std::max(1.0, sample.tick_rate * (1.0 - score_)));
+            if (target < cap_ && now_s - cap_changed_at_ >= kAsbRateHoldS) {
+                cap_ = target;
+                cap_changed_at_ = now_s;
                 note("throttle", "observer behind; reducing the rate ceiling to close the gap",
                      now_s, before, cap_);
+            }
 
             if (stressed_for >= kAsbEscalateAfterS) {
                 if (!default_state_tried_) {
@@ -169,6 +210,7 @@ AsbStatus AdaptiveBackpressure::status(double now_s) const {
     AsbStatus out;
     out.state = state_;
     out.score = score_;
+    out.raw_score = raw_score_;
     out.synced = score_ < kAsbSyncedScore;
     out.rate_locked = state_ != AsbState::Normal;
     out.motion_locked = state_ != AsbState::Normal;
@@ -201,6 +243,9 @@ double AdaptiveBackpressure::govern_tick_rate(double requested, double now_s) co
 void AdaptiveBackpressure::reset() {
     state_ = AsbState::Normal;
     score_ = 0;
+    raw_score_ = 0;
+    seeded_ = false;
+    cap_changed_at_ = -1e9;
     stressed_since_ = -1;
     healthy_since_ = -1;
     state_entered_ = 0;
