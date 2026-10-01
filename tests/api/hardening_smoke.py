@@ -108,6 +108,14 @@ class Hardening(unittest.TestCase):
         code, _ = self.call('/api/v1/control/events/surge', 'POST', {'node_id': 0, 'factor': -3})
         self.assertEqual(code, 400)
 
+    def test_history_count_does_not_wrap(self):
+        # -1 read as unsigned is 4294967295: everything would be undone.
+        for count in (-1, 0):
+            code, body = self.call('/api/v1/control/undo', 'POST', {'count': count})
+            self.assertEqual(code, 400, body)
+            code, _ = self.call('/api/v1/control/redo', 'POST', {'count': count})
+            self.assertEqual(code, 400)
+
     def test_sumo_period_is_validated(self):
         code, _ = self.call('/api/v1/system/sumo-simulate', 'POST', {'begin_s': 3600, 'end_s': 60})
         self.assertEqual(code, 400)

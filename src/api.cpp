@@ -691,11 +691,18 @@ void ApiServer::routes() {
         send(r,{{"error",{{"code","TRANSIT_API_RETIRED"},{"message","Transit route dispatch is no longer supported."}}}},410);
     });
 
-    server_->Post("/api/v1/control/undo", [this](const auto& req, auto& r) {
-        send(r, engine_.undo(body(req).value("count", std::uint32_t{1})));
+    // Read as a signed integer: nlohmann converts -1 to an unsigned type by
+    // wrapping it, which would undo the whole history.
+    auto history_count = [](const json& j) {
+        const auto count = j.value("count", std::int64_t{1});
+        if (count < 1 || count > 10000) throw std::invalid_argument("count must be in [1, 10000]");
+        return static_cast<std::uint32_t>(count);
+    };
+    server_->Post("/api/v1/control/undo", [this, history_count](const auto& req, auto& r) {
+        send(r, engine_.undo(history_count(body(req))));
     });
-    server_->Post("/api/v1/control/redo", [this](const auto& req, auto& r) {
-        send(r, engine_.redo(body(req).value("count", std::uint32_t{1})));
+    server_->Post("/api/v1/control/redo", [this, history_count](const auto& req, auto& r) {
+        send(r, engine_.redo(history_count(body(req))));
     });
     server_->Get("/api/v1/control/history", [this](const auto&, auto& r) {
         send(r, engine_.history());
