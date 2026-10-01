@@ -81,14 +81,12 @@
     document.documentElement.classList.remove("dstns-hl-fading");
   }
   function fade() {
-    clearTimeout(timer);
+    clearTimeout(timer); timer = null;
     if (!marks().length || fading) return;
     document.documentElement.classList.add("dstns-hl-fading");
     fading = setTimeout(function () { fading = null; unwrap(); }, 1300);
   }
-  function start() {
-    clearTimeout(timer); clearTimeout(fading); fading = null;
-    document.documentElement.classList.remove("dstns-hl-fading");
+  function stripTerm() {
     try {
       var url = new URL(location.href);
       if (url.searchParams.has("h")) {
@@ -96,8 +94,26 @@
         history.replaceState(history.state, "", url.pathname + url.search + url.hash);
       }
     } catch (e) { /* leave the address alone */ }
-    if (marks().length) timer = setTimeout(fade, 4000);
   }
+  // Material inserts the highlights a moment after the page renders, so watch for them
+  // rather than looking once.
+  function arm() {
+    if (timer || fading || !marks().length) return;
+    timer = setTimeout(function () { timer = null; fade(); }, 4000);
+    setTimeout(stripTerm, 300);
+  }
+  function start() {
+    clearTimeout(timer); timer = null;
+    clearTimeout(fading); fading = null;
+    document.documentElement.classList.remove("dstns-hl-fading");
+    arm();
+  }
+  var queued = false;
+  new MutationObserver(function () {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () { queued = false; arm(); });
+  }).observe(document.documentElement, { childList: true, subtree: true });
   document.addEventListener("keydown", function (e) {
     var search = document.getElementById("__search");
     if (e.key === "Escape" && !(search && search.checked)) fade();
