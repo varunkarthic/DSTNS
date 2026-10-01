@@ -675,7 +675,7 @@
 .dstns-results { color: var(--dstns-panel-muted); font-size: 0.68rem; }
 .dstns-results :is(ol, ul) { list-style: none; margin: 0; padding: 0; }
 .dstns-results li { margin: 0; }
-.dstns-ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.dstns-ico { width: 1.1em; height: 1.1em; fill: currentColor; flex: none; }
 .dstns-results mark {
   background: var(--dstns-panel-mark);
   color: #4fd6ea;
@@ -982,3 +982,30 @@
   --md-footer-fg-color--lighter: rgb(237 241 244 / 45%);
 }
 .md-footer { border-top: 1px solid rgb(127 160 180 / 14%); }
+
+/* The clear button in the search field: a filled circle, quiet until hovered. */
+.md-search__options .md-search__icon[type="reset"] { color: rgb(237 241 244 / 55%); transition: color 140ms ease, transform 140ms ease; }
+.md-search__options .md-search__icon[type="reset"]:hover,
+.md-search__options .md-search__icon[type="reset"]:focus-visible { color: #4fd6ea; transform: scale(1.06); }
+.md-search__options .md-search__icon[type="reset"] svg { width: 1rem; height: 1rem; }
+
+/* "Skip to content" appears as a pill below the header, not on top of the logo. */
+.md-skip,
+.md-skip:focus {
+  position: fixed;
+  top: 3.7rem;
+  left: 50%;
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid rgb(79 214 234 / 55%);
+  border-radius: 999px;
+  background: #0b1c28;
+  color: #edf1f4;
+  font-size: 0.66rem;
+  font-weight: 600;
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 55%);
+}
+.md-skip { transform: translate(-50%, -0.4rem); }
+.md-skip:focus { transform: translate(-50%, 0); outline: 2px solid #4fd6ea; outline-offset: 2px; }
+/* The clear button sits above the input so it can be clicked. */
+.md-search__options { z-index: 4; }

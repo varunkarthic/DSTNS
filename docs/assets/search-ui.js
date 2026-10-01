@@ -19,14 +19,17 @@
   ];
   var ORDER = ["Getting started", "User guide", "Concepts", "API", "Deployment", "Help", "Reference"];
   var SECTIONS_SHOWN = 3;
+  // Icons from Material Design Icons (Apache 2.0), as shipped with Material for MkDocs:
+  // file-document-outline, pound, bullseye-arrow, format-title, text-search, chevron-right.
   var ICON = {
-    page: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
-    hash: '<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>',
-    exact: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/>',
-    title: '<path d="M5 6h14M12 6v13M9 19h6"/>',
-    content: '<path d="M4 6h16M4 11h16M4 16h10"/>',
-    more: '<path d="m9 6 6 6-6 6"/>'
+    page: "M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm0 2h7v5h5v11H6zm2 8v2h8v-2zm0 4v2h5v-2z",
+    hash: "m5.41 21 .71-4h-4l.35-2h4l1.06-6h-4l.35-2h4l.71-4h2l-.71 4h6l.71-4h2l-.71 4h4l-.35 2h-4l-1.06 6h4l-.35 2h-4l-.71 4h-2l.71-4h-6l-.71 4zM9.53 9l-1.06 6h6l1.06-6z",
+    exact: "M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10c0-1.16-.21-2.31-.61-3.39l-1.6 1.6c.14.59.21 1.19.21 1.79a8 8 0 0 1-8 8 8 8 0 0 1-8-8 8 8 0 0 1 8-8c.6 0 1.2.07 1.79.21L15.4 2.6C14.31 2.21 13.16 2 12 2m7 0-4 4v1.5l-2.55 2.55C12.3 10 12.15 10 12 10a2 2 0 0 0-2 2 2 2 0 0 0 2 2 2 2 0 0 0 2-2c0-.15 0-.3-.05-.45L16.5 9H18l4-4h-3zm-7 4a6 6 0 0 0-6 6 6 6 0 0 0 6 6 6 6 0 0 0 6-6h-2a4 4 0 0 1-4 4 4 4 0 0 1-4-4 4 4 0 0 1 4-4z",
+    title: "M5 4v3h5.5v12h3V7H19V4z",
+    content: "m19.31 18.9 3.08 3.1L21 23.39l-3.12-3.07c-.69.43-1.51.68-2.38.68-2.5 0-4.5-2-4.5-4.5s2-4.5 4.5-4.5 4.5 2 4.5 4.5c0 .88-.25 1.71-.69 2.4m-3.81.1a2.5 2.5 0 0 0 0-5 2.5 2.5 0 0 0 0 5M21 4v2H3V4zM3 16v-2h6v2zm0-5V9h18v2h-2.03c-1.01-.63-2.2-1-3.47-1s-2.46.37-3.47 1z",
+    more: "M8.59 16.58 13.17 12 8.59 7.41 10 6l6 6-6 6z"
   };
+
   var KIND = {
     exact: ["Exact", "The page title is exactly what you typed"],
     title: ["Title", "Your search appears in the page title"],
@@ -38,8 +41,12 @@
   function field() { return document.querySelector(".md-search__input"); }
   function box() { return document.querySelector(".md-search"); }
   function isField(e) { return e.target && e.target.classList && e.target.classList.contains("md-search__input"); }
-  function svg(name) { return '<svg class="dstns-ico" viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + "</svg>"; }
+  function svg(name) { return '<svg class="dstns-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="' + ICON[name] + '"/></svg>'; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  // Search snippets carry the TeX source of formulas; show the symbols without the markup.
+  function untex(html) {
+    return String(html || "").replace(/\\[()\[\]]/g, "").replace(/\\([a-zA-Z]+)/g, "$1");
+  }
   function plain(el) { return (el && el.textContent || "").replace(/\s+/g, " ").trim(); }
 
   // While the field is open, hide every tab it would cover, even partly, so nothing is
@@ -56,6 +63,26 @@
     Array.prototype.forEach.call(document.querySelectorAll(".md-header .md-tabs__item"), function (item) {
       item.classList.toggle("dstns-tab-out", item.getBoundingClientRect().right > fieldLeft - 0.9 * rem);
     });
+  }
+
+  // Leaving the search clears it, so the next visit starts from an empty field.
+  function toggle() { return document.getElementById("__search"); }
+  function clearSearch() {
+    var input = field();
+    if (!input || input.value === "") return;
+    input.value = "";
+    filter = "all";
+    expanded = {};
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    var host = document.querySelector(".dstns-results");
+    if (host) host.innerHTML = "";
+    syncEmpty();
+  }
+  function clearIfClosed() {
+    setTimeout(function () {
+      var t = toggle(), input = field();
+      if (t && !t.checked && document.activeElement !== input) clearSearch();
+    }, 120);
   }
 
   function syncEmpty() {
@@ -101,7 +128,7 @@
         href: first.getAttribute("href"),
         titleHtml: h1.innerHTML,
         title: plain(h1),
-        teaserHtml: teaser ? teaser.innerHTML : "",
+        teaserHtml: teaser ? untex(teaser.innerHTML) : "",
         sections: []
       };
       for (var i = 1; i < links.length; i++) {
@@ -110,8 +137,8 @@
         if (!head) continue;
         entry.sections.push({
           href: links[i].getAttribute("href"),
-          titleHtml: head.innerHTML,
-          teaserHtml: p ? p.innerHTML : ""
+          titleHtml: untex(head.innerHTML),
+          teaserHtml: p ? untex(p.innerHTML) : ""
         });
       }
       pages.push(entry);
@@ -283,7 +310,17 @@
   document.addEventListener("focusin", function (e) {
     if (isField(e)) { e.target.setAttribute("placeholder", OPEN); syncEmpty(); coverTabs(); attach(); schedule(); }
   });
-  document.addEventListener("focusout", function (e) { if (isField(e)) { e.target.setAttribute("placeholder", CLOSED); syncEmpty(); clearTabsSoon(); } });
+  document.addEventListener("focusout", function (e) { if (isField(e)) { e.target.setAttribute("placeholder", CLOSED); syncEmpty(); clearTabsSoon(); clearIfClosed(); } });
+  document.addEventListener("change", function (e) { if (e.target === toggle() && !e.target.checked) clearIfClosed(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") clearIfClosed(); });
+  // Opening a result navigates; the new page starts with an empty, closed search.
+  if (window.document$ && window.document$.subscribe) window.document$.subscribe(function () {
+    var t = toggle(), input = field();
+    if (t && t.checked) return;
+    if (input && document.activeElement === input) input.blur();
+    clearSearch();
+    clearTabs();
+  });
   window.addEventListener("resize", function () { if (document.activeElement === field()) coverTabs(); });
   document.addEventListener("input", function (e) { if (isField(e)) { filter = "all"; expanded = {}; syncEmpty(); attach(); schedule(); } });
   document.addEventListener("keyup", function (e) { if (isField(e)) syncEmpty(); });

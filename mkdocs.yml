@@ -30,6 +30,7 @@ theme:
   favicon: assets/logo.svg
   icon:
     repo: fontawesome/brands/github
+    close: material/close-circle
   palette:
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
