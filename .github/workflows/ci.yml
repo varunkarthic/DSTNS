@@ -50,6 +50,8 @@ jobs:
           node --test tests/cli/*.test.mjs
       - name: Replay verification
         run: ./build/dstns_replay_verify 382923
+      - name: Licence headers
+        run: python3 scripts/license-headers.py --check
 
   observer:
     name: Observer

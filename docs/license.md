@@ -5,7 +5,37 @@ version 3 or later** (AGPL-3.0-or-later).
 
 Copyright © 2026 Varun Karthic.
 
-## What that means in practice
+## How the licence is applied
+
+A licence needs three things: the licence text, a statement of who holds the
+copyright, and a notice attached to the work. DSTNS provides each, in the layered way
+the [GNU project](https://www.gnu.org/licenses/gpl-howto.html), the
+[SPDX](https://spdx.dev) standard and the [REUSE](https://reuse.software)
+specification recommend.
+
+| Where | What it does |
+|---|---|
+| [`LICENSE`](https://github.com/varunkarthic/DSTNS/blob/main/LICENSE) | The **unmodified** AGPL-3.0 text. It must stay verbatim, so it names the Free Software Foundation as its own author. The placeholder `Copyright (C) <year> <name of author>` near its end is the licence's *template* for authors to copy, not a field to fill in |
+| [`COPYRIGHT`](https://github.com/varunkarthic/DSTNS/blob/main/COPYRIGHT) | States the holder (Copyright (C) 2026 Varun Karthic), the licence notice, and the third-party data and tools |
+| Every source file | A two-line header: `SPDX-License-Identifier: AGPL-3.0-or-later` and `Copyright (C) 2026 Varun Karthic`. This keeps the licence and holder attached to a file copied out of the repository |
+| `package.json` files, README, About card | Declare the licence for package managers, readers and users of the running program |
+| `GET /api/v1/system/source` | The network source offer that AGPL section 13 requires |
+
+The header is enforced: `scripts/license-headers.py --check` runs in CI and fails if
+any source file lacks it, and `--fix` adds it. New files get the header from the same
+script.
+
+!!! note "Copyright exists without a notice"
+    Copyright arises automatically when a work is created; a notice is not required
+    for it to apply. The notices above remove any doubt about who the holder is and
+    on what terms the work may be used, which is what lets others rely on the licence.
+
+!!! info "Not legal advice"
+    This page describes how the project applies its licence. It is not legal advice.
+    For questions about ownership, relicensing or employer or institution claims,
+    consult a lawyer.
+
+## What the licence means in practice
 
 - You may use, study, change and share DSTNS.
 - If you distribute it, modified or not, you must do so under the same licence
@@ -34,3 +64,19 @@ and the notice in [`COPYRIGHT`](https://github.com/varunkarthic/DSTNS/blob/main/
 | [Inter](https://rsms.me/inter/), [JetBrains Mono](https://www.jetbrains.com/lp/mono/), [Space Grotesk](https://floriankarsten.github.io/space-grotesk/) | SIL OFL 1.1 | Typefaces |
 | [@poppinss/cliui](https://github.com/poppinss/cliui) | MIT | The operator CLI |
 | [Eclipse SUMO](https://eclipse.dev/sumo/) (optional, not bundled by default) | EPL-2.0 | Microscopic cross-check |
+
+## Contributions and copyright
+
+Contributors keep the copyright in their contributions and license them to the project
+under the same AGPL-3.0-or-later terms (see [Contributing](development/contributing.md)).
+There is no contributor licence agreement. The practical consequence is that
+relicensing the project later would need every contributor's consent, so consider this
+before accepting large contributions.
+
+## Data
+
+OpenStreetMap data, including the district bundled at
+`data/fixtures/real_network.osm.xml`, is © OpenStreetMap contributors under the
+[Open Database Licence 1.0](https://opendatacommons.org/licenses/odbl/1-0/). It is data,
+not part of the program, and the AGPL does not apply to it. Maps downloaded at run time
+carry a manifest recording their source, licence, query and checksum.

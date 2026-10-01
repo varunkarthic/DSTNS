@@ -81,7 +81,7 @@ gh api -X PUT repos/varunkarthic/DSTNS/branches/main/protection --input - <<'JSO
     "contexts": ["Core (C++ and HTTP)", "Observer", "Documentation", "Container image"]
   },
   "enforce_admins": false,
-  "required_pull_request_reviews": { "required_approving_review_count": 1, "require_code_owner_reviews": true },
+  "required_pull_request_reviews": { "required_approving_review_count": 0, "require_code_owner_reviews": false },
   "restrictions": null,
   "required_linear_history": true,
   "allow_force_pushes": false,
@@ -94,7 +94,8 @@ JSON
 |---|---|
 | `contexts` | A pull request cannot merge until these CI jobs pass |
 | `strict` | The branch must be up to date with `main` before merging |
-| `require_code_owner_reviews` | Changes to files in `CODEOWNERS` (the API guard, the SUMO bridge, the downloader, the Dockerfile) need the owner's review |
+| `required_approving_review_count: 0` | Changes must arrive as a pull request, but need no approval. GitHub does not let you approve your own pull request, so requiring 1 approval would make every change of a **solo maintainer** unmergeable. Raise it once there is a second maintainer |
+| `require_code_owner_reviews: false` | Same reason: you are the only code owner. Turn it on, so changes to the API guard, SUMO bridge, downloader and Dockerfile need the owner's review, once others can open pull requests |
 | `enforce_admins: false` | The owner can still merge their own work; set `true` once there are other maintainers |
 | `allow_force_pushes: false` | History cannot be rewritten |
 

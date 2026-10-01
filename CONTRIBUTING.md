@@ -64,4 +64,9 @@ Build and environment details: [Building from source](docs/development/building.
 ## Licence of contributions
 
 DSTNS is licensed under the [AGPL-3.0-or-later](LICENSE). By submitting a
-contribution you agree that it is licensed under the same terms.
+contribution you agree that it is licensed under the same terms, and you keep the
+copyright in your own contribution.
+
+Every source file starts with a two-line SPDX header. New files get it from
+`python3 scripts/license-headers.py --fix`, and CI fails if one is missing. When you add
+a substantial new file, you may put your own name on its copyright line.

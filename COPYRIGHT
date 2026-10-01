@@ -15,7 +15,10 @@ General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-The full licence text is in LICENSE.
+The full licence text is in LICENSE, which is the unmodified AGPL-3.0 text.
+Every source file also carries an SPDX-License-Identifier and a copyright
+line in its first lines, so the licence and holder stay attached to a file
+that is copied out of this repository.
 
 Because DSTNS is normally operated over a network, section 13 of the
 AGPL applies: anyone interacting with a modified version of this program
@@ -32,7 +35,8 @@ superseded by this program's licence. See
 <https://www.openstreetmap.org/copyright>.
 
 Downloaded map tiles under data/maps/ are therefore ODbL data, not part
-of this program's source, and each carries a .manifest.json recording its
+of this program's source, and the same applies to the recorded district
+bundled at data/fixtures/real_network.osm.xml, and each carries a .manifest.json recording its
 source, licence, query and checksum.
 
 Eclipse SUMO is used as an optional external batch-validation tool and is
