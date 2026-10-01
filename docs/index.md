@@ -13,8 +13,9 @@ hide:
 
 A seed picks a real city district from OpenStreetMap and simulates a full day
 of traffic on it: signals, demand, weather, flooding and incidents, on one
-authoritative virtual clock. The same seed always gives the same world and the
-same day.
+authoritative virtual clock. Reproducibility depends on the seed, configuration,
+map bytes and build; see
+[Reproducibility](concepts/reproducibility.md).
 
 [Quick start](getting-started/quick-start.md){ .md-button .md-button--primary }
 [Run with Docker](getting-started/docker.md){ .md-button }
@@ -28,59 +29,60 @@ same day.
 
 <div class="grid cards" markdown>
 
--   :material-earth: **Real places, chosen by a number**
+-   **Seed-based geographic selection**
 
     ---
 
     A seed resolves to one of 181 cities on every inhabited continent and a
     district inside it. The road network is downloaded once and cached.
 
-    [:octicons-arrow-right-24: Seeds and places](guide/seeds-and-places.md)
+    [Seeds and places](guide/seeds-and-places.md)
 
--   :material-dice-multiple: **Deterministic to the bit**
+-   **Deterministic simulation**
 
     ---
 
     SHA-256 sub-seeds per subsystem, fixed one-second physics, checkpoint
-    replay. Two engines with the same seed agree exactly.
+    replay. Matching inputs and compatible builds produce matching scenario
+    and runtime state.
 
-    [:octicons-arrow-right-24: Reproducibility](concepts/reproducibility.md)
+    [Reproducibility](concepts/reproducibility.md)
 
--   :material-traffic-light: **A living network**
+-   **Integrated traffic and environmental models**
 
     ---
 
     Signals coordinated in green waves, place-driven weekday and weekend
     demand, storms, flooding that closes roads, at least four incidents a day.
 
-    [:octicons-arrow-right-24: Simulation engine](concepts/simulation-engine.md)
+    [Simulation engine](concepts/simulation-engine.md)
 
--   :material-history: **Time travel**
+-   **Checkpoint replay**
 
     ---
 
     Pause, step, seek backwards and forwards through the day; undo and redo
     operator controls.
 
-    [:octicons-arrow-right-24: Playback control](guide/playback-control.md)
+    [Playback control](guide/playback-control.md)
 
--   :material-monitor-dashboard: **An observer built for watching**
+-   **Browser observer**
 
     ---
 
     Live map, telemetry, notifications, Auto Focus, a guided tutorial and a
     PDF report, kept in step by adaptive backpressure.
 
-    [:octicons-arrow-right-24: Observer interface](guide/observer-interface.md)
+    [Observer interface](guide/observer-interface.md)
 
--   :material-api: **A complete HTTP API**
+-   **HTTP API**
 
     ---
 
     Every view and control over JSON, with an index the server generates
     itself and an OpenAPI description.
 
-    [:octicons-arrow-right-24: API guide](api/index.md)
+    [API guide](api/index.md)
 
 </div>
 
@@ -123,3 +125,12 @@ flowchart LR
     segment, not individual vehicles. The observer's moving dots show modelled
     flow. Eclipse SUMO is available as a separate microscopic cross-check and
     never writes back into a live run.
+
+## Integration and maintenance
+
+| Task | Guide |
+|---|---|
+| Write an API client with checked results | [Python client walkthrough](api/client-walkthrough.md) |
+| Operate and recover a deployment | [Operations runbook](deployment/operations.md) |
+| Review dependency updates | [Dependency maintenance](development/dependencies.md) |
+| Report a security concern | [Security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md) |

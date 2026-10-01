@@ -102,3 +102,43 @@ Every new page goes into `nav:` in `mkdocs.yml`, or the build fails.
 
 Screenshots live in `docs/assets/screenshots/` and are taken from a real run
 at 1600 × 960. Add `{ .screenshot }` after the image for the framed style.
+
+## Documentation quality standard
+
+The existing sections follow the separation described by
+[Diátaxis](https://diataxis.fr/): tutorials teach a first successful task,
+how-to guides solve a specific problem, reference pages describe contracts, and
+concept pages explain design decisions. Use this as an authoring structure, not
+as a claim of external certification.
+
+- Use descriptive headings, sentence case and plain technical language. Avoid
+  decorative emojis, icon shortcodes, slogans and unsupported superlatives.
+- Preserve useful existing material. Extend it with prerequisites, explanations,
+  expected results and links; correct inaccurate instructions in place.
+- State whether paths are relative to the repository, server, host or container.
+  Identify the terminal and working directory when a workflow uses two processes.
+- Label destructive commands before the code block and explain recovery limits.
+- Follow a code example with what it does, why its parameters matter, and the
+  observable result. Separate copyable commands from illustrative output.
+- Use exact versions only when verified against the lockfile, configuration or
+  build. Date measurements and state the workload and platform.
+- Link to the security policy rather than duplicating reporting instructions.
+  Never publish credentials, private map data or unsanitized diagnostic bundles.
+
+## Review and validation
+
+```bash
+.venv-docs/bin/mkdocs build --strict
+git diff --check
+```
+
+The first command builds the configured site and rejects warnings, including
+broken internal links and missing navigation entries. It does not test external
+websites, prove a command succeeds, or verify the accuracy of prose. The second
+checks whitespace errors in the diff. Also inspect the generated pages in a
+browser for table layout, code wrapping and navigation.
+
+For executable examples, run them against an isolated server with the bundled
+map. Record the revision, command, expected result and actual outcome in the PR.
+If an example is illustrative or could not be run, say so. Do not turn an older
+audit's test counts into a claim about the current checkout.

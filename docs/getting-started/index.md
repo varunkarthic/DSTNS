@@ -5,7 +5,7 @@ simulator.
 
 <div class="grid cards" markdown>
 
--   :material-docker: **Docker**
+-   **Docker**
 
     ---
 
@@ -14,9 +14,9 @@ simulator.
 
     *Best for:* trying DSTNS, demos, servers.
 
-    [:octicons-arrow-right-24: Run with Docker](docker.md)
+    [Run with Docker](docker.md)
 
--   :material-console: **From source**
+-   **From source**
 
     ---
 
@@ -25,7 +25,7 @@ simulator.
 
     *Best for:* development, research, the full operator toolset.
 
-    [:octicons-arrow-right-24: Installation](installation.md)
+    [Installation](installation.md)
 
 </div>
 

@@ -47,3 +47,10 @@ curl -s -X POST localhost:8090/api/v1/playback/start \
 # Shut the server down
 curl -s -X POST localhost:8090/api/v1/system/terminate
 ```
+
+## Building an integration
+
+Follow the [Python client walkthrough](client-walkthrough.md) for a complete
+standard-library example with credential handling, asynchronous readiness,
+state guards, explicit failure handling and artifact capture. Use
+[Examples](examples.md) for individual curl operations.

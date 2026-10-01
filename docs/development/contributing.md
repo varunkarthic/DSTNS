@@ -84,3 +84,20 @@ Security problems: see [Security](../deployment/security.md#reporting-a-problem)
 
 DSTNS is AGPL-3.0-or-later. By contributing you agree that your contribution
 is licensed under the same terms. See [License](../license.md).
+
+## Review scope and acceptance criteria
+
+Apply the workflow above to the actual change. A documentation-only correction
+needs a strict site build, link review and validation of changed commands; it does
+not need a synthetic regression test that merely asserts the wording. Runtime
+behavior changes need tests that exercise the behavior and demonstrate the defect
+where practical. Dependency changes follow [Dependency maintenance](dependencies.md).
+
+A pull request description should state the problem, resulting behavior, affected
+interfaces, validation performed and material limitations. Include the commands
+and outcomes, and distinguish source inspection from an actual runtime test.
+Keep unrelated formatting, regenerated assets and local data out of the diff.
+
+Security-sensitive findings follow the repository's
+[security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md).
+Do not attach a working exploit to a public issue or dependency review.

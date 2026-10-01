@@ -7,9 +7,10 @@
 
 ### Deterministic Spatiotemporal Transport Network Simulator
 
-**A seed picks a real city district from OpenStreetMap and simulates a full day of
-traffic on it — signals, demand, weather, flooding and incidents — on one
-authoritative virtual clock. The same seed always gives the same world and the same day.**
+**DSTNS selects a city district from OpenStreetMap using a seed and simulates a
+virtual day of traffic, signals, demand, weather, flooding and incidents on one
+authoritative clock.** Reproducible results require the same seed, configuration,
+map bytes and compatible build; see [Reproducible experiments](#reproducible-experiments).
 
 [![CI](https://github.com/varunkarthic/DSTNS/actions/workflows/ci.yml/badge.svg)](https://github.com/varunkarthic/DSTNS/actions/workflows/ci.yml)
 [![Documentation](https://readthedocs.org/projects/dstns/badge/?version=latest)](https://dstns.readthedocs.io/en/latest/)
@@ -36,6 +37,7 @@ authoritative virtual clock. The same seed always gives the same world and the s
 ## Contents
 
 - [Highlights](#highlights)
+- [Scope and intended use](#scope-and-intended-use)
 - [Quick start](#quick-start)
 - [How it works](#how-it-works)
 - [Run with Docker](#run-with-docker)
@@ -43,6 +45,8 @@ authoritative virtual clock. The same seed always gives the same world and the s
 - [Using the observer](#using-the-observer)
 - [Using the API](#using-the-api)
 - [Configuration](#configuration)
+- [Reproducible experiments](#reproducible-experiments)
+- [Operations and security](#operations-and-security)
 - [Testing](#testing)
 - [Project layout](#project-layout)
 - [Documentation](#documentation)
@@ -52,21 +56,35 @@ authoritative virtual clock. The same seed always gives the same world and the s
 
 ## Highlights
 
-| | |
+| Capability | Description |
 |---|---|
-| 🌍 **Real places, chosen by a number** | A seed resolves to one of **181 cities** on every inhabited continent and a district inside it. The road network is downloaded from OpenStreetMap once and cached. |
-| 🎲 **Deterministic to the bit** | SHA-256 sub-seeds per subsystem, counter-based random numbers, fixed one-second physics, checkpoint replay. Two engines with the same seed agree exactly. |
-| 🚦 **A living network** | Signals snapped to real junctions and coordinated in green waves; place-driven weekday and weekend demand; storms with Wendland C² rain fields; flooding that closes roads; at least four incidents a day. |
-| ⏪ **Time travel** | Pause, step, seek backwards and forwards through the day; undo and redo operator controls. |
-| 🖥️ **An observer built for watching** | Live map, telemetry, notifications, Auto Focus, a guided tutorial and a PDF report, kept in step by adaptive backpressure. |
-| 🔌 **A complete HTTP API** | Every view and control over JSON, a self-describing route index, and an [OpenAPI 3.1 description](docs/api/openapi.yaml). |
-| 🐳 **Docker-ready** | A 234 MB multi-architecture image that starts a simulation with one command; optional TLS gateway and SUMO. |
-| 🔬 **SUMO cross-check** | Export any world to Eclipse SUMO and run it microscopically as a batch job. |
+| **Seed-based geographic selection** | A seed resolves to one of **181 cities** on every inhabited continent and a district inside it. The road network is downloaded from OpenStreetMap once and cached. |
+| **Deterministic simulation** | SHA-256 sub-seeds per subsystem, counter-based random numbers, fixed one-second physics, checkpoint replay. Matching inputs and compatible builds produce matching scenario and runtime state. |
+| **Integrated traffic and environmental models** | Signals snapped to real junctions and coordinated in green waves; place-driven weekday and weekend demand; storms with Wendland C² rain fields; flooding that closes roads; at least four incidents a day. |
+| **Checkpoint replay** | Pause, step, seek backwards and forwards through the day; undo and redo operator controls. |
+| **Browser observer** | Live map, telemetry, notifications, Auto Focus, a guided tutorial and a PDF report, kept in step by adaptive backpressure. |
+| **HTTP API** | Every view and control over JSON, a self-describing route index, and an [OpenAPI 3.1 description](docs/api/openapi.yaml). |
+| **Container deployment** | A multi-architecture image (234 MB in the recorded October 2026 build) that starts a simulation with one command; optional TLS gateway and SUMO. |
+| **SUMO integration** | Export any world to Eclipse SUMO and run it microscopically as a batch job. |
 
 > [!NOTE]
 > The live model is **aggregate** — flows and queues per directed road segment,
 > not individual vehicles — which is what makes a whole day of a 3,000-junction
-> district cheap enough to scrub back and forth interactively.
+> district efficient enough for interactive seeking and replay.
+
+## Scope and intended use
+
+DSTNS supports transport-model experimentation, algorithm integration, teaching,
+and repeatable demonstrations. The live engine models aggregate flows and queues
+on directed road segments. SUMO provides a separate microscopic export and
+validation workflow; it does not drive the live observer.
+
+A seed alone is insufficient to reproduce an old experiment if upstream map data
+or model code has changed. Retain the map, resolved configuration, source revision
+and operator actions alongside the seed. The model is a research and development
+tool; it has no documented calibration or certification for operational traffic
+control. See [Reproducibility](docs/concepts/reproducibility.md) for the exact
+inputs and floating-point limitations.
 
 ## Quick start
 
@@ -229,7 +247,9 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-ge
 ./launcher test                              # run the test suites
 ```
 
-The first build takes a few minutes; later starts take seconds. The launcher
+Build and map-fetch times depend on hardware, network access and cache state;
+the timings above are indicative. The first build typically takes a few minutes;
+later starts can take seconds. The launcher
 verifies the machine before every run and says what to fix when it cannot run.
 
 ### Build by hand
@@ -241,6 +261,12 @@ npm ci --prefix ui-engine && npm run build --prefix ui-engine
 ./build/dstns_server --port 8090          # then: ./launcher start --seed 382923
 ```
 
+The CMake commands configure and compile a release build with tests enabled.
+`npm ci` installs the observer from its lockfile, and `npm run build` type-checks
+and bundles it. The last command runs the server in the foreground; run the
+launcher in another terminal to submit a simulation. Server availability alone
+does not mean a run has started.
+
 Full details: [Installation](docs/getting-started/installation.md) and
 [Building from source](docs/development/building.md).
 
@@ -248,12 +274,12 @@ Full details: [Installation](docs/getting-started/installation.md) and
 
 | Do | Control |
 |---|---|
-| Play, pause | ▶ / ❚❚ in the command rail |
+| Play, pause | Play and Pause buttons in the command rail |
 | Faster or slower | 0.25× … 5× |
-| Jump 15 minutes back or forward | « / » (backwards is exact: checkpoint replay) |
-| Step one minute | ▸\| |
-| Start the day over | ⟲ |
-| A different city | ↻ next to the seed (**Generate a new world**) |
+| Jump 15 minutes back or forward | Back and Forward buttons (backward movement uses checkpoint replay) |
+| Step one minute | Step button |
+| Start the day over | Restart button |
+| A different city | **Generate a new world**, next to the seed |
 | Follow events automatically | **Auto Focus** in the sidebar |
 | Layers, legends | **Layers** in the lower bar |
 | A PDF of the day | **Export Report** |
@@ -282,15 +308,25 @@ curl -s localhost:8090/api/v1            # the server's own route index
 | Control | speed, day, modules, road overrides, signals, rain, surges, undo/redo |
 | System | health, info, map status, backpressure, terminate |
 
+These requests inspect playback, seek to a virtual time, read traffic, override
+a road and undo the most recent control. Edge `412` is illustrative: obtain a
+valid ID from `/api/v1/view/topology` for the current run. A seek may continue
+playback when the run is already running; pause first when collecting a fixed-time
+snapshot. See the [explained curl examples](docs/api/examples.md) for preconditions,
+error handling and operator credentials.
+
 Guide: [API](docs/api/index.md) · Reference: [routes](docs/api/reference.md) ·
 [OpenAPI](docs/api/openapi.yaml) · [Errors](docs/api/errors.md)
 
 > [!IMPORTANT]
 > There are no user accounts: anyone who can reach the port can watch and
-> control the run, and only the operator CLI (which holds `logs/operator.token`)
-> can start one. Browser pages on other origins cannot change anything. Bind to
-> `127.0.0.1` or use the TLS gateway on untrusted networks — see
-> [Security](docs/deployment/security.md).
+> control the run. Starting or preparing a run requires the operator credential
+> in `logs/operator.token`, used by the CLI and authorized local scripts. The browser origin guard rejects unapproved cross-origin writes, but is
+> not user authentication. The server defaults to `0.0.0.0`, and Compose publishes
+> port 8090 on all host interfaces. Use loopback for local work. Remote deployments
+> need access control as well as TLS; the bundled gateway supplies encryption,
+> not authentication. See [Security](docs/deployment/security.md) and
+> the [security policy](SECURITY.md).
 
 ## Configuration
 
@@ -304,15 +340,67 @@ Guide: [API](docs/api/index.md) · Reference: [routes](docs/api/reference.md) ·
 
 Every setting: [Configuration](docs/guide/configuration.md).
 
+## Reproducible experiments
+
+Start with the bundled map to remove the network download from the experiment:
+
+```bash
+./launcher start --seed 382923 --day-type weekday \
+  --osm-file data/fixtures/real_network.osm.xml --no-open
+```
+
+The launcher builds and starts the server, selects the specified map and submits
+an authenticated start request. Map paths are resolved on the server. Wait until
+`/api/v1/playback/status` reports `RUNNING`; an accepted start request only means
+preparation has begun.
+
+In another terminal, collect the run's provenance:
+
+```bash
+mkdir -p artifacts/experiment-382923
+curl --fail --silent --show-error http://127.0.0.1:8090/api/v1/view/manifest \
+  -o artifacts/experiment-382923/manifest.json
+git rev-parse HEAD > artifacts/experiment-382923/revision.txt
+./build/dstns_replay_verify 382923
+```
+
+The manifest describes the active scenario and its hashes. The revision identifies
+the source checkout. The replay verifier is an independent deterministic test using
+its own grid and OSM fixtures; it does not certify the currently running session.
+Retain the input map and configuration separately. Do not include
+`logs/operator.token` in experiment artifacts.
+
+For a complete script that starts, waits, pauses, seeks and saves a snapshot,
+see the [Python API walkthrough](docs/api/client-walkthrough.md).
+
+## Operations and security
+
+| Responsibility | Guidance |
+|---|---|
+| Report a suspected vulnerability | [Security policy](SECURITY.md): supported versions, confidential reporting, triage and disclosure |
+| Restrict access to the API | [Deployment security](docs/deployment/security.md): trust boundaries, credentials, origins and proxy requirements |
+| Verify a deployment and recover from failure | [Operations runbook](docs/deployment/operations.md): readiness, backups, updates and recovery |
+| Review automated dependency updates | [Dependency maintenance](docs/development/dependencies.md): lockfile review, tests and merge criteria |
+
+DSTNS runs one shared simulation per server. Every client with network access can
+control that simulation through endpoints other than the credential-protected
+start and prepare routes. Give access only to trusted operators and observers who
+are permitted to change the run.
+
 ## Testing
 
 ```bash
-./scripts/test.sh                                   # everything
-ctest --test-dir build --output-on-failure          # 14 native and HTTP suites
-npm test --prefix ui-engine                         # 286 observer tests
+./scripts/test.sh                                   # core, observer, API and selected CLI suites
+ctest --test-dir build --output-on-failure          # native and registered HTTP suites
+npm test --prefix ui-engine                         # observer unit and component tests
 python3 tests/api/api_smoke.py --server build/dstns_server
 ./build/dstns_replay_verify 382923                  # reproducibility check
 ```
+
+The commands above cover different layers: CTest validates registered native and
+HTTP suites, Vitest checks observer behavior, and the API smoke test starts an
+isolated server. Check the exit status of each command. Test counts can change;
+the output from the current checkout is authoritative.
 
 CI runs the native, HTTP, observer, documentation and Docker builds on every
 push. Details: [Testing](docs/development/testing.md).
@@ -366,8 +454,10 @@ More: [Troubleshooting](docs/troubleshooting.md) and [FAQ](docs/faq.md).
 ## Contributing
 
 Issues and pull requests are welcome. Please read
-[Contributing](docs/development/contributing.md): every change comes with a
-test that fails without it, all suites green, and documentation updated.
+[Contributing](docs/development/contributing.md): behavior changes need relevant
+regression coverage; documentation changes need a strict site build and verified
+examples. Keep applicable checks passing and document changes in the same PR.
+Security reports follow [SECURITY.md](SECURITY.md).
 
 ## License
 

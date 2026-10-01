@@ -11,7 +11,7 @@ flowchart TD
     Q1 -->|"Others on a network"| Q2{"Can you run containers?"}
     Q2 -->|Yes| Q3{"Need HTTPS?"}
     Q2 -->|No| Svc["Server process<br/>dstns_server under systemd + reverse proxy"]
-    Q3 -->|"Yes, or exposed beyond a trusted LAN"| TLS["Docker + TLS gateway<br/>docker compose --profile tls up"]
+    Q3 -->|"Yes, or exposed beyond a trusted LAN"| TLS["Access-controlled network or proxy<br/>plus Docker TLS gateway"]
     Q3 -->|"No, trusted LAN only"| Docker["Docker<br/>docker compose up"]
 ```
 
@@ -19,7 +19,7 @@ flowchart TD
 |---|---|---|---|
 | **Workstation** | `./launcher` | Development, research, one operator | Nothing special |
 | **Docker** | `docker compose up` | Demos, classrooms, a shared lab machine | Volumes, port, who can reach it |
-| **Docker + TLS** | `docker compose --profile tls up` | Anything reachable from an untrusted network | Certificates, exposing only 8443 |
+| **Docker + TLS** | `docker compose --profile tls up` | Remote use with separate access control | Authentication or VPN, certificates, backend isolation |
 | **Server process** | `dstns_server` behind nginx or Caddy | Hosts without containers | A service manager, the reverse proxy's `Host` header |
 
 ## What every deployment needs
@@ -36,9 +36,11 @@ flowchart TD
 
 There are no user accounts. Anyone who can reach the port can watch the run
 and use the playback and control API; only the holder of the operator token
-can start runs, and browsers on other origins cannot change anything. So:
-bind to loopback or put the TLS gateway in front, disable world regeneration
-if viewers should not replace the world, and read [Security](security.md).
+can start or prepare runs. Browser origin checks reject unapproved cross-origin
+writes, but do not authenticate non-browser callers. Bind to loopback for local
+work. Remote use needs network restrictions or an authenticated proxy as well as
+TLS; the gateway alone does not provide access control. Disable world regeneration
+if that workflow is unwanted, and read [Security](security.md).
 
 ## Running as a service (without Docker)
 
@@ -108,3 +110,10 @@ dstns.example.org {
 
 See [Docker](docker.md), [Security](security.md), [Logging](logging.md) and
 [Performance](performance.md).
+
+## Operational procedures
+
+Use the [Operations runbook](operations.md) for readiness checks, experiment
+provenance, backups, upgrade validation, rollback and persistent shutdown. The
+proxy examples above illustrate forwarding only; add authentication or a trusted
+network boundary before allowing remote access.

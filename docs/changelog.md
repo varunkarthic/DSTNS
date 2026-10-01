@@ -12,6 +12,11 @@ A full code evaluation is recorded in [Code evaluation, October
 
 ### Added
 
+- Expanded professional documentation with explained API examples, a runnable
+  Python client tutorial, an operations runbook and dependency-review procedures.
+- Repository security policy covering support, confidential reporting, triage,
+  deployment trust boundaries and incident response.
+
 - **Docker, supported.** A multi-architecture image (234 MB) with the engine,
   the observer, the map downloader and an offline district; auto-start
   configured by `DSTNS_*` variables; `dstns-run` for new runs; an optional TLS
@@ -25,6 +30,14 @@ A full code evaluation is recorded in [Code evaluation, October
   shutdown method, against a real server.
 
 ### Fixed
+
+- Observer dependency DOMPurify updated from 3.4.15 to 3.4.16 through
+  [Dependabot PR #1](https://github.com/varunkarthic/DSTNS/pull/1); see the
+  [upstream release notes](https://github.com/cure53/DOMPurify/releases/tag/3.4.16).
+
+- API start examples now include the required operator credential. Deployment
+  guidance distinguishes TLS, browser origin checks and access control, and
+  documents the default network exposure.
 
 - **Southern-hemisphere cities could never be downloaded** on Python before
   3.13 (Debian, Ubuntu, the container): the bounding box's leading minus sign
@@ -55,6 +68,11 @@ A full code evaluation is recorded in [Code evaluation, October
 ## 2.2.0 (observer) / 2.0.0 (engine) — September 2026
 
 ### Added
+
+- Expanded professional documentation with explained API examples, a runnable
+  Python client tutorial, an operations runbook and dependency-review procedures.
+- Repository security policy covering support, confidential reporting, triage,
+  deployment trust boundaries and incident response.
 
 - **Seed-selected real places:** a catalogue of 181 cities, on-demand
   OpenStreetMap downloads, CRFG district growth, true-metre projection.
