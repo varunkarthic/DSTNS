@@ -460,8 +460,7 @@ repository is published so that you can run it, read it, and build on your own c
 under the [AGPL-3.0-or-later](LICENSE) licence. It does not take outside contributions,
 bug reports or feature requests, and it is provided as is.
 
-If you fork or redistribute it, keep the licence and copyright notices, follow the
-[Code of Conduct](CODE_OF_CONDUCT.md) in the spaces you run, and see
+If you fork or redistribute it, keep the licence and copyright notices, and see
 [Building from source](docs/development/building.md) and
 [Testing](docs/development/testing.md) for how to build and verify your copy. A
 suspected security vulnerability should be reported **privately**, as described in
