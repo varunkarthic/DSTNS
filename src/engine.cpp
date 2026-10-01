@@ -142,6 +142,15 @@ void SimulationEngine::transition(Lifecycle next) {
     logger_.lifecycle(run_id_, to_string(old), to_string(next), graph_ ? graph_->state_revision() : 0);
 }
 
+// Advance a running simulation to where the wall clock says it should be, so
+// a rate change applies from now rather than retroactively from the anchor.
+void SimulationEngine::catch_up_to_wall_clock() {
+    if (lifecycle_ != Lifecycle::Running || !graph_) return;
+    const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
+    const auto rate = day_s / double(graph_->scenario().config.playback_duration_s) * tick_rate_;
+    step_to(std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(elapsed * rate)));
+}
+
 void SimulationEngine::anchor_wall_clock() {
     anchor_wall_ = std::chrono::steady_clock::now();
     anchor_virtual_s_ = virtual_s_;
@@ -240,11 +249,16 @@ nlohmann::json SimulationEngine::toggle_signal(NodeId node, std::optional<int> f
     std::lock_guard lock(mutex_);
     if (!graph_ || node.value >= graph_->nodes().size()) throw std::invalid_argument("invalid node for signal toggle");
     if (force_phase && *force_phase != 1 && *force_phase != 2) throw std::invalid_argument("signal phase must be 1 or 2");
-    int current_override = signal_overrides_.contains(node.value) ? signal_overrides_[node.value] : 1;
+    const bool had_override = signal_overrides_.contains(node.value);
+    int current_override = had_override ? signal_overrides_[node.value] : 1;
     int next_phase = force_phase.has_value() ? *force_phase : (current_override == 1 ? 2 : 1);
     signal_overrides_[node.value] = next_phase;
     ++config_revision_;
-    auto& c = record("signal_toggle", {{"node", node.value}, {"phase", current_override}}, {{"node", node.value}, {"phase", next_phase}});
+    // A null "before" phase means the signal was on its own timing plan, which
+    // is what undo must give back rather than a forced phase 1.
+    auto& c = record("signal_toggle",
+                     {{"node", node.value}, {"phase", had_override ? nlohmann::json(current_override) : nlohmann::json(nullptr)}},
+                     {{"node", node.value}, {"phase", next_phase}});
     add_news(c.id, "signals", "info", "SIGNAL_MANUAL_OVERRIDE",
              "[" + hhmmss(virtual_s_) + "] Manual controller override: Node #" + std::to_string(node.value) +
              " phase switched to " + (next_phase == 1 ? "Phase 1 (N-S Green / E-W Red)" : "Phase 2 (E-W Green / N-S Red)"),
@@ -260,8 +274,15 @@ nlohmann::json SimulationEngine::toggle_signal(NodeId node, std::optional<int> f
 nlohmann::json SimulationEngine::trigger_surge(NodeId node, double factor, double radius_m, std::uint32_t duration_s) {
     std::lock_guard lock(mutex_);
     if (!graph_ || node.value >= graph_->nodes().size()) throw std::invalid_argument("invalid node for surge");
+    if (!std::isfinite(factor) || factor <= 0 || factor > 10)
+        throw std::invalid_argument("surge factor must be finite and in (0,10]");
+    if (!std::isfinite(radius_m) || radius_m <= 0 || radius_m > 20000)
+        throw std::invalid_argument("surge radius_m must be finite and in (0,20000]");
+    if (duration_s == 0 || duration_s > day_s)
+        throw std::invalid_argument("surge duration_s must be in [1,86400]");
     const auto surge_id = static_cast<std::uint32_t>(next_event_id_++);
-    const auto end_s = std::min(day_s, virtual_s_ + duration_s);
+    // Widened so a long surge late in the day cannot wrap past midnight.
+    const auto end_s = static_cast<std::uint32_t>(std::min<std::uint64_t>(day_s, std::uint64_t(virtual_s_) + duration_s));
     active_surges_.push_back({surge_id, node, virtual_s_, end_s, factor, radius_m, "Commercial Demand Surge"});
     ++config_revision_;
     add_news(surge_id, "traffic", "warning", "TRAFFIC_SURGE_ACTIVE",
@@ -520,11 +541,15 @@ nlohmann::json SimulationEngine::reset() {
 nlohmann::json SimulationEngine::seek(std::uint32_t target, bool resume) {
     std::lock_guard lock(mutex_);
     if (!graph_ || target > day_s) throw std::invalid_argument("target time outside virtual day");
+    if (lifecycle_ == Lifecycle::Terminating || lifecycle_ == Lifecycle::Preparing)
+        throw std::logic_error("simulation cannot seek from current lifecycle");
     const auto was_running = lifecycle_ == Lifecycle::Running;
     transition(Lifecycle::Seeking);
     if (target >= virtual_s_) step_to(target);
     else restore_to(target);
-    transition((resume || was_running) ? Lifecycle::Running : Lifecycle::Paused);
+    // The end of the day is the end of the run, however it was reached.
+    if (virtual_s_ >= day_s) transition(Lifecycle::Completed);
+    else transition((resume || was_running) ? Lifecycle::Running : Lifecycle::Paused);
     anchor_wall_clock();
     cv_.notify_all();
     return {
@@ -762,11 +787,7 @@ nlohmann::json SimulationEngine::report_backpressure(double virtual_lag_s, doubl
     // Apply whatever ASB now permits, without losing the operator's request.
     const auto governed = asb_.govern_tick_rate(requested_tick_rate_, now);
     if (governed != tick_rate_) {
-        if (lifecycle_ == Lifecycle::Running) {
-            const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
-            step_to(std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(
-                elapsed * (day_s / double(graph_->scenario().config.playback_duration_s)) * tick_rate_)));
-        }
+        catch_up_to_wall_clock();
         tick_rate_ = governed;
         ++config_revision_;
         anchor_wall_clock();
@@ -816,10 +837,7 @@ nlohmann::json SimulationEngine::backpressure_json() const {
 nlohmann::json SimulationEngine::set_tick_rate(double v) {
     std::lock_guard lock(mutex_);
     if (!std::isfinite(v) || v <= 0 || v > kMaxTickRate) throw std::invalid_argument("tick_rate must be finite and in (0,5]");
-    if (lifecycle_ == Lifecycle::Running) {
-        const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
-        step_to(std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(elapsed * (day_s / double(graph_->scenario().config.playback_duration_s)) * tick_rate_)));
-    }
+    catch_up_to_wall_clock();
     const auto old = tick_rate_;
     const auto old_request = requested_tick_rate_;
     requested_tick_rate_ = v;
@@ -886,7 +904,7 @@ nlohmann::json SimulationEngine::set_module(const std::string& m, bool enabled) 
 nlohmann::json SimulationEngine::add_weather(NodeId epicenter, double intensity, double radius, std::uint32_t duration, double gain) {
     std::lock_guard lock(mutex_);
     if (!graph_ || epicenter.value >= graph_->nodes().size()) throw std::invalid_argument("unknown epicenter node");
-    if (!std::isfinite(intensity) || !std::isfinite(radius) || !std::isfinite(gain) || intensity < 0 || intensity > 1 || radius <= 0 || duration == 0 || gain < 0 || gain > 1) {
+    if (!std::isfinite(intensity) || !std::isfinite(radius) || !std::isfinite(gain) || intensity < 0 || intensity > 1 || radius <= 0 || duration == 0 || duration > 1440 || gain < 0 || gain > 1) {
         throw std::invalid_argument("invalid weather parameters");
     }
     const auto playback_now = virtual_s_ * graph_->scenario().config.playback_duration_s / double(day_s);
@@ -932,6 +950,7 @@ nlohmann::json SimulationEngine::override_edge(EdgeId id, double sm, double cm, 
 void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
     const auto& v = forward ? c.after : c.before;
     if (c.type == "tick_rate") {
+        catch_up_to_wall_clock();
         requested_tick_rate_ = v.at("tick_rate");
         tick_rate_ = asb_.govern_tick_rate(requested_tick_rate_, asb_now());
         anchor_wall_clock();
@@ -955,6 +974,11 @@ void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
         s.manual_capacity_multiplier = v.at("capacity_multiplier");
         s.manual_closed = v.at("closed");
         s.closed = s.manual_closed || s.flood >= .95;
+    } else if (c.type == "signal_toggle") {
+        const auto node = v.at("node").get<std::uint32_t>();
+        if (v.at("phase").is_null()) signal_overrides_.erase(node);
+        else signal_overrides_[node] = v.at("phase").get<int>();
+        ++config_revision_;
     } else if (c.type == "manual_weather") {
         const auto id = c.after.at("event_id").get<std::uint64_t>();
         for (auto& e : manual_weather_) {
@@ -1257,6 +1281,13 @@ void SimulationEngine::restore_to(std::uint32_t target) {
         return t < c.virtual_s;
     });
     if (it != checkpoints_.begin()) --it;
+    // Operator edge overrides stand until they are undone, as signal overrides
+    // and surges do; a checkpoint taken before one was made must not erase it.
+    struct ManualEdge { double speed, capacity; bool closed; };
+    std::vector<ManualEdge> manual;
+    manual.reserve(graph_->edge_states().size());
+    for (const auto& es : graph_->edge_states())
+        manual.push_back({es.manual_speed_multiplier, es.manual_capacity_multiplier, es.manual_closed});
     graph_->reset_dynamic();
     virtual_s_ = 0;
     if (it != checkpoints_.end()) {
@@ -1267,6 +1298,12 @@ void SimulationEngine::restore_to(std::uint32_t target) {
         next_news_id_ = it->next_news_id;
         events_ = it->events; congestion_ = it->congestion;
         checkpoints_.erase(std::next(it), checkpoints_.end());
+    }
+    for (std::size_t i = 0; i < manual.size() && i < graph_->edge_states().size(); ++i) {
+        auto& es = graph_->edge_state(EdgeId{static_cast<std::uint32_t>(i)});
+        es.manual_speed_multiplier = manual[i].speed;
+        es.manual_capacity_multiplier = manual[i].capacity;
+        es.manual_closed = manual[i].closed;
     }
     step_to(target);
 }
@@ -1807,6 +1844,7 @@ nlohmann::json SimulationEngine::catalog(const std::string& kind) const {
     } else if (kind == "traffic" || kind == "metrics") {
         double weighted = 0, length = 0, speed_sum = 0;
         std::uint64_t vehicles = 0, halting = 0, flooded = 0, closed = 0;
+        std::size_t counted = 0;
         std::vector<double> congestion;
         for (std::size_t i = 0; i < sc.edges.size(); ++i) {
             const auto& e = sc.edges[i];
@@ -1815,6 +1853,7 @@ nlohmann::json SimulationEngine::catalog(const std::string& kind) const {
             weighted += e.length_m * s.congestion;
             length += e.length_m;
             speed_sum += s.mean_speed_mps;
+            ++counted;
             vehicles += s.vehicle_count;
             halting += s.halting_count;
             flooded += s.flood > .01;
@@ -1828,7 +1867,7 @@ nlohmann::json SimulationEngine::catalog(const std::string& kind) const {
             {"network_congestion_p95", p95},
             {"flooded_edge_count", flooded},
             {"closed_edge_count", closed},
-            {"mean_vehicle_speed_mps", speed_sum / std::max<std::size_t>(1, sc.edges.size())},
+            {"mean_vehicle_speed_mps", speed_sum / std::max<std::size_t>(1, counted)},
             {"vehicle_count", vehicles},
             {"halting_vehicle_count", halting},
             {"active_dws_events", std::count_if(sc.dws_events.begin(), sc.dws_events.end(), [&](const auto& e) {
@@ -2047,6 +2086,7 @@ nlohmann::json SimulationEngine::global_view() const {
     const auto now_ppm = std::uint32_t(std::uint64_t(virtual_s_) * ppm / day_s);
 
     auto inspect_event = [&](const DwsEvent& ev) {
+        if (ev.epicenter.value >= graph_->nodes().size()) return;
         const auto start_s = std::uint32_t(std::uint64_t(ev.start_ppm) * day_s / ppm);
         const auto end_s = std::uint32_t(std::uint64_t(ev.end_ppm) * day_s / ppm);
         const auto& epic_node = graph_->nodes()[ev.epicenter.value];
@@ -2243,9 +2283,17 @@ nlohmann::json SimulationEngine::export_sumo(const std::filesystem::path& direct
 }
 
 nlohmann::json SimulationEngine::sumo_simulate(const std::filesystem::path& directory, std::uint32_t begin_s, std::uint32_t end_s) const {
+    if (end_s <= begin_s || end_s > day_s) throw std::invalid_argument("SUMO period must satisfy begin_s < end_s <= 86400");
+    // SUMO runs for as long as it takes; hold a copy of the scenario rather
+    // than the engine lock, so playback and the API carry on meanwhile.
+    std::optional<Scenario> scenario;
+    {
+        std::lock_guard lock(mutex_);
+        if (!graph_) throw std::logic_error("no active simulation");
+        scenario.emplace(graph_->scenario());
+    }
+    auto res = SumoBridge::simulate(*scenario, directory, begin_s, end_s);
     std::lock_guard lock(mutex_);
-    if (!graph_) throw std::logic_error("no active simulation");
-    auto res = SumoBridge::simulate(graph_->scenario(), directory, begin_s, end_s);
     return envelope(std::move(res));
 }
 

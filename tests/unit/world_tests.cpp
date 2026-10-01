@@ -10,6 +10,7 @@
 #include <chrono>
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -313,6 +314,60 @@ int main() {
         check(typed > 0, "the fixture has demand-modelled places");
         check(known, "demand types are school, office, mall or store");
         check(typed == demand.size(), "exactly the typed places carry a demand entry");
+        engine.terminate();
+    }
+
+    std::cout << "controls survive time travel and undo\n";
+    {
+        SimulationEngine engine(logger);
+        engine.prepare(seed, fixture());
+
+        // Seeking to the end of the day ends the run, as playing to it does.
+        engine.seek(86400, false);
+        check(lifecycle(engine) == "COMPLETED", "seeking to 24:00 completes the day");
+        engine.seek(3600, false);
+        check(lifecycle(engine) == "PAUSED", "seeking back from a completed day pauses there");
+
+        // An operator's edge override stands until undone, even when the
+        // operator seeks to a time before it was made.
+        engine.override_edge(EdgeId{0}, 0.5, 0.5, true);
+        engine.seek(120, false);
+        auto edge = engine.edges(0, 1)["data"]["items"][0];
+        check(edge["control"]["manual_speed_multiplier"].get<double>() == 0.5, "a backwards seek keeps a manual speed override");
+        check(edge["control"]["closed"].get<bool>(), "a backwards seek keeps a manual closure");
+        engine.undo(1);
+        edge = engine.edges(0, 1)["data"]["items"][0];
+        check(!edge["control"]["closed"].get<bool>(), "undo still removes the override after a seek");
+
+        // Undoing a signal toggle hands the junction back to its timing plan.
+        std::optional<std::uint32_t> junction;
+        const auto topology = engine.topology();
+        for (const auto& n : topology["data"]["nodes"])
+            if (n["signal"].get<bool>()) { junction = n["id"].get<std::uint32_t>(); break; }
+        check(junction.has_value(), "the fixture has a signalised junction");
+        if (junction) {
+            auto overridden = [&] {
+                const auto snapshot = engine.snapshot();
+                for (const auto& item : snapshot["data"]["signals"])
+                    if (item["junction_id"].get<std::uint32_t>() == *junction) return item["manual_override"].get<bool>();
+                return false;
+            };
+            engine.toggle_signal(NodeId{*junction});
+            check(overridden(), "a toggled signal is under manual override");
+            engine.undo(1);
+            check(!overridden(), "undoing the toggle restores the signal's own plan");
+            engine.redo(1);
+            check(overridden(), "redo applies the override again");
+        }
+
+        // Surge and weather parameters are bounded rather than trusted.
+        check(throws_invalid([&] { engine.trigger_surge(NodeId{0}, -1.0, 300, 600); }), "a negative surge factor is rejected");
+        check(throws_invalid([&] { engine.trigger_surge(NodeId{0}, 2.0, 300, 0); }), "a zero-length surge is rejected");
+        check(throws_invalid([&] { engine.trigger_surge(NodeId{0}, 2.0, 300, 4'000'000'000u); }), "a surge longer than a day is rejected");
+        engine.seek(86000, false);
+        const auto surge = engine.trigger_surge(NodeId{0}, 2.0, 300, 86400);
+        check(surge["end_time"] == "00:00:00", "a late surge ends at midnight instead of wrapping");
+        check(throws_invalid([&] { engine.add_weather(NodeId{0}, 0.5, 300, 5000, 0.5); }), "rain longer than a day is rejected");
         engine.terminate();
     }
 
