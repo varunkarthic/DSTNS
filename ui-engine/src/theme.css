@@ -1,6 +1,6 @@
 /* DSTNS observer theme.
  *
- * Design tokens transcribed from ui-engine-alpha/templates/index.html. The
+ * Design tokens transcribed from the original static design reference. The
  * mockup expressed them through a Tailwind config; they live here as custom
  * properties so the app carries no utility-CSS build step.
  */

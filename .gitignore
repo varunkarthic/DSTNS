@@ -31,3 +31,11 @@ data/maps/*.progress
 data/maps/*.tmp
 TODO
 prompt.md
+
+# Build and run outputs
+*.tsbuildinfo
+data/sumo_run/
+data/sumo_live_run/
+data/sumo_export/
+site/
+.venv-docs/
