@@ -65,6 +65,9 @@ theme:
     - content.tabs.link
     - content.tooltips
 
+hooks:
+  - hooks/cachebust.py
+
 extra_css:
   - assets/extra.css
 
