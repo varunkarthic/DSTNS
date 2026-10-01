@@ -23,8 +23,11 @@ constexpr std::array<std::uint32_t, 64> k{
 constexpr std::uint32_t rotr(std::uint32_t x, unsigned n) { return (x >> n) | (x << (32U - n)); }
 
 /// High 64 bits of a 64x64 bit product, for the decimal seed conversions.
+// __extension__ marks the 128-bit type as a deliberate GCC/Clang extension, so
+// -Wpedantic accepts it.
+__extension__ typedef unsigned __int128 uint128;
 std::uint64_t mul_high(std::uint64_t a, std::uint64_t b) {
-    return static_cast<std::uint64_t>((static_cast<unsigned __int128>(a) * b) >> 64);
+    return static_cast<std::uint64_t>((static_cast<uint128>(a) * b) >> 64);
 }
 
 std::array<std::uint32_t, 4> philox(std::array<std::uint32_t,4> c, std::array<std::uint32_t,2> key) {
