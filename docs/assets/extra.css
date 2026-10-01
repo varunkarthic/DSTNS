@@ -41,26 +41,99 @@
 }
 
 /* --------------------------------------------------------------------------
-   Header: the wordmark is the site title. Material also prints the site name
-   as text; hiding it avoids repeating the logo as plain type.
+   Header: one row. Wordmark on the left, section tabs beside it, then the
+   search field, theme toggle and repository link on the right. The wordmark is
+   the site title, so Material's plain-text site name is not shown.
    -------------------------------------------------------------------------- */
-.md-header__button.md-logo {
-  padding: 0.3rem 0.2rem;
-  margin-left: 0.2rem;
+:root { --dstns-grid: 76rem; }
+.md-grid { max-width: var(--dstns-grid); }
+.md-header {
+  background-color: var(--md-primary-fg-color);
+  border-bottom: 1px solid rgb(127 160 180 / 16%);
+  box-shadow: none;
 }
+.md-header__inner { align-items: center; gap: 0.15rem; height: 3.2rem; padding: 0 0.4rem; }
+.md-header__button.md-logo { padding: 0.3rem 0.4rem; margin: 0 0.9rem 0 0.2rem; }
 .md-header__button.md-logo img,
-.md-header__button.md-logo svg {
-  height: 1.45rem;
+.md-header__button.md-logo svg { height: 1.45rem; width: auto; }
+.md-header__title { display: none; }
+
+/* Tabs sit inside the header and take the free space. */
+.md-header .md-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
   width: auto;
+  background: none;
+  color: var(--md-primary-bg-color);
+  overflow: visible;
 }
-.md-header__title { visibility: hidden; }
+.md-header .md-tabs .md-grid { max-width: none; margin: 0; }
+/* Material fades tabs out on scroll; in the header they stay put. */
+.md-header .md-tabs[hidden] { pointer-events: auto; }
+.md-header .md-tabs[hidden] .md-tabs__link { opacity: 0.78; transform: none; }
+.md-header .md-tabs[hidden] .md-tabs__item--active .md-tabs__link { opacity: 1; }
+.md-header .md-tabs__list { display: flex; margin: 0; contain: none; }
+.md-header .md-tabs__item { height: auto; list-style: none; padding: 0; margin-right: 0.05rem; }
+.md-header .md-tabs__link {
+  display: block;
+  margin: 0;
+  padding: 0.38rem 0.6rem;
+  margin-top: 0;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  opacity: 0.78;
+  transition: background-color 160ms ease, opacity 160ms ease;
+}
+.md-header .md-tabs__link:hover,
+.md-header .md-tabs__link:focus-visible { opacity: 1; background-color: rgb(255 255 255 / 9%); }
+.md-header .md-tabs__item--active .md-tabs__link {
+  opacity: 1;
+  background-color: rgb(var(--dstns-accent-rgb, 79 214 234) / 18%);
+  color: #fff;
+}
+
+/* Search: a rounded pill with a hairline border and a focus ring. */
+.md-search { margin-left: 0.4rem; }
+.md-search__inner { width: 11rem; }
+.md-search__form {
+  height: 2rem;
+  border-radius: 999px;
+  background-color: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.md-search__form:hover { background-color: rgb(255 255 255 / 13%); }
+.md-search__input { height: 100%; padding-left: 2.3rem; font-size: 0.72rem; border-radius: 999px; }
+.md-search__icon[for="__search"] { top: 0.5rem; left: 0.7rem; }
+.md-search__icon[for="__search"] svg { width: 1rem; height: 1rem; }
+.md-search__options { top: 0.3rem; }
+[data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+  background-color: var(--md-default-bg-color);
+  border-color: var(--dstns-accent, #4fd6ea);
+  box-shadow: 0 0 0 3px rgb(var(--dstns-accent-rgb, 79 214 234) / 28%);
+}
+[data-md-toggle="search"]:checked ~ .md-header .md-search__input,
+[data-md-toggle="search"]:checked ~ .md-header .md-search__icon { color: var(--md-default-fg-color); }
+@media screen and (min-width: 60em) {
+  .md-search__inner { width: 11rem; transition: width 200ms ease; }
+  [data-md-toggle="search"]:checked ~ .md-header .md-search__inner { width: 22rem; }
+}
+.md-search__output { border-radius: 14px; margin-top: 0.4rem; border: 1px solid rgb(127 160 180 / 25%); }
+.md-search__scrollwrap { border-radius: 14px; }
+.md-header__option .md-icon,
+.md-header__source { margin-left: 0.2rem; }
+.md-header__source { width: auto; max-width: 9rem; }
+.md-source { border-radius: 999px; padding: 0.1rem 0.3rem; transition: background-color 160ms ease; }
+.md-source:hover { background-color: rgb(255 255 255 / 9%); opacity: 1; }
+
 /* Material hides the header logo on narrow screens and shows the site name
-   instead. With the name hidden, keep the wordmark visible there too. */
+   instead; keep the wordmark and put the menu button first. */
 @media screen and (max-width: 76.1875em) {
   .md-header__button.md-logo { display: block; }
-  /* Menu button first, then the wordmark, as on every other mobile header. */
   .md-header__button[for="__drawer"] { order: -1; }
-  .md-header__title { flex-grow: 1; }
+  .md-header .md-tabs { display: none; }
+  .md-header__title { display: block; visibility: hidden; flex-grow: 1; }
 }
 /* The mobile drawer prints the name beside the logo; collapse the text only. */
 .md-nav--primary > .md-nav__title { font-size: 0; }
@@ -178,8 +251,6 @@
 /* --------------------------------------------------------------------------
    Home page
    -------------------------------------------------------------------------- */
-/* The page-edit icons float into the headline; the home page has no use for them. */
-.md-content:has(.dstns-hero) .md-content__button { display: none; }
 .dstns-hero { text-align: center; padding: 1.4rem 0 0.6rem; }
 .dstns-hero h1 {
   margin: 0 auto 0.6rem;
@@ -220,3 +291,40 @@
   color: var(--dstns-accent);
 }
 .dstns-stats span { font-size: 0.68rem; color: var(--md-default-fg-color--light); }
+
+/* "Find what you need": a grid of whole-tile links. */
+.md-typeset .dstns-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.7rem;
+  margin: 1rem 0 1.5rem;
+}
+.md-typeset .dstns-tile {
+  position: relative;
+  padding: 0.85rem 1rem 0.9rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 12px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.md-typeset .dstns-tile p { margin: 0; }
+.md-typeset .dstns-tile p + p { margin-top: 0.25rem; font-size: 0.7rem; color: var(--md-default-fg-color--light); }
+.md-typeset .dstns-tile__title { font-weight: 600; font-size: 0.82rem; text-decoration: none; }
+.md-typeset .dstns-tile__title::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.md-typeset .dstns-tile__title::before {
+  content: "\2192";
+  position: absolute;
+  right: 1rem;
+  top: 0.8rem;
+  color: var(--dstns-accent);
+  transition: transform 160ms ease;
+}
+.md-typeset .dstns-tile:hover,
+.md-typeset .dstns-tile:focus-within {
+  border-color: rgb(var(--dstns-accent-rgb) / 70%);
+  box-shadow: 0 10px 28px -14px rgb(var(--dstns-accent-rgb) / 45%);
+  transform: translateY(-2px);
+}
+.md-typeset .dstns-tile:hover .dstns-tile__title::before { transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) {
+  .md-typeset .dstns-tile, .md-typeset .dstns-tile__title::before { transition: none; transform: none !important; }
+}
