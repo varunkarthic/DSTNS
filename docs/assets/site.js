@@ -79,6 +79,8 @@
       parent.normalize();
     });
     document.documentElement.classList.remove("dstns-hl-fading");
+    // Only now drop the term from the address: Material reads it to place the highlights.
+    stripTerm();
   }
   function fade() {
     clearTimeout(timer); timer = null;
@@ -100,7 +102,6 @@
   function arm() {
     if (timer || fading || !marks().length) return;
     timer = setTimeout(function () { timer = null; fade(); }, 4000);
-    setTimeout(stripTerm, 300);
   }
   function start() {
     clearTimeout(timer); timer = null;
