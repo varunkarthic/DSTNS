@@ -202,13 +202,6 @@ const std::vector<City> kCities{
     {"Christchurch", "New Zealand", -43.5321, 172.6362},
 };
 
-std::string trim_zeros(std::string value) {
-    if (value.find('.') == std::string::npos) return value;
-    while (!value.empty() && value.back() == '0') value.pop_back();
-    if (!value.empty() && value.back() == '.') value.pop_back();
-    return value;
-}
-
 std::string fixed6(double value) {
     char buffer[32];
     std::snprintf(buffer, sizeof buffer, "%.6f", value);
