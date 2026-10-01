@@ -1,185 +1,179 @@
-# Security policy
+# Security Policy
 
-This policy covers the DSTNS source repository, native server, observer, operator
-CLI, distributed container configuration and documentation. It defines how to
-report a suspected vulnerability, how reports are assessed, and the deployment
-boundaries operators must understand. It is not a security certification or a
-service-level agreement.
+DSTNS is an open-source simulator with a network-facing control API. This policy
+explains how to report a vulnerability, what you can expect in response, what is
+in scope, and where to find hardening guidance for operators. It follows the
+conventions of [coordinated vulnerability disclosure](https://cheatsheetseries.owasp.org/cheatsheets/Vulnerability_Disclosure_Cheat_Sheet.html)
+and GitHub's [security policy format](https://docs.github.com/en/code-security/getting-started/adding-a-security-policy-to-your-repository).
 
 ## Supported versions
 
-| Revision | Security maintenance |
-|---|---|
-| Current `main` | Primary target for investigation and fixes |
-| Latest release derived from `main` | Reports accepted; a fix may require upgrading to a later revision |
-| Older releases, historical branches and modified forks | No separate backport commitment; reproduce against current `main` where possible |
+Security fixes are made on the `main` branch and released from it.
 
-Record the exact commit with `git rev-parse HEAD`, the engine version with
-`./build/dstns_server --version`, and the affected component. A version label alone
-may not distinguish development builds. Reports about an older revision are still
-useful when the defect remains present in maintained code.
+| Version | Supported |
+|---|---|
+| `main` (latest commit) | Yes |
+| Latest tagged release | Yes, by upgrading to a later release |
+| Older releases, other branches and forks | No separate backports |
+
+Include the output of `git rev-parse HEAD` and `./build/dstns_server --version`
+when you report, so the affected revision is unambiguous.
 
 ## Reporting a vulnerability
 
-**Do not publish exploit details, credentials or private data in a public issue,
-pull request, discussion, CI log or dependency-bot comment.**
+**Do not open a public issue, pull request or discussion for a suspected
+vulnerability.** Public reports give attackers the same information as the
+maintainers before a fix exists.
 
-1. Visit the repository's [Security page](https://github.com/varunkarthic/DSTNS/security).
-   If **Report a vulnerability** is available, use that private reporting form.
-2. If the form is unavailable, contact repository owner
-   [Varun Karthic](https://github.com/varunkarthic) through an existing private
-   collaborator or organizational channel and request a confidential reporting
-   destination. Do not assume a GitHub profile provides private messaging.
-3. If no private contact route is available, open only a **non-sensitive request
-   for a private security contact** in the repository. Include no affected
-   endpoint, exploit, secret or identifying data. Wait for an agreed private
-   channel before sending the report.
+Use GitHub's private reporting:
 
-At policy introduction on 1 October 2026, this repository is private and the
-GitHub private-reporting endpoint is unavailable. A private repository issue is
-visible to repository collaborators, so it is not automatically an appropriately
-restricted vulnerability channel. Confirm the recipients before sharing details.
-If the repository becomes public, maintainers should configure private reporting
-and update this section. GitHub documents feature availability and setup in
-[Configuring private vulnerability reporting](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository).
+1. Open the repository's **Security** tab.
+2. Choose **Report a vulnerability**.
+3. Fill in the form with the details listed [below](#what-to-include).
 
-### Information to include privately
+This creates a private advisory visible only to you and the maintainers, where
+a fix can be developed and a CVE requested if warranted.
 
-- A concise description, the affected component and expected security boundary.
-- Exact commit or release, operating system, compiler/runtime and installation
-  method. For containers, include the image digest if available.
-- Deployment topology: loopback, trusted LAN, proxy, VPN or public endpoint;
-  relevant settings with secrets removed.
-- Minimal reproduction steps using a synthetic or bundled fixture. Explain
-  required access, user interaction and the observed impact.
-- Sanitized requests, responses, stack traces or screenshots where useful.
-- Whether the behavior reproduces on current `main`, and any proposed mitigation.
-- Your preferred private contact method and whether you want acknowledgement.
+If the **Report a vulnerability** button is not shown, open an issue titled
+**Security contact request** containing no technical detail, and the maintainer
+will reply with a private channel. Do not describe the vulnerability in that
+issue.
 
-Never include `logs/operator.token`, `DSTNS_OPERATOR_TOKEN`, TLS private keys,
-account credentials, personal location histories or another party's data. Replace
-secrets with clearly labeled placeholders. Share large or sensitive artifacts only
-through a channel agreed with the maintainer.
+### What to include
 
-## Triage and coordinated disclosure
+A good report lets a maintainer reproduce the problem in minutes:
 
-The repository owner coordinates receipt, reproduction, impact assessment,
-remediation and disclosure. This is a community-maintained project with no
-contractual response or resolution deadline. Maintainers should acknowledge a
-report, identify missing reproduction information, and agree on a follow-up date
-with the reporter. If no acknowledgement arrives, send a non-sensitive follow-up
-through the same contact route.
+- **Summary.** What is wrong and which component is affected (server, API,
+  observer, operator CLI, map downloader, SUMO adapter, container image,
+  documentation site).
+- **Impact.** What an attacker gains and what they need first: network access,
+  a victim visiting a page, local access.
+- **Version.** Commit hash, `dstns_server --version`, operating system,
+  compiler or Docker image digest, and how you installed it.
+- **Deployment.** How the server was started, in particular its `--host`,
+  whether a proxy or the TLS gateway was in front, and any `DSTNS_*` settings
+  (with secrets removed).
+- **Reproduction.** Numbered steps using the bundled map
+  (`data/fixtures/real_network.osm.xml`) and a fixed seed, with the exact
+  requests and responses.
+- **Suggested fix**, if you have one.
 
-The expected workflow is:
+Never include real credentials, `logs/operator.token`, private keys or
+another person's data. Replace secrets with placeholders.
 
-1. Confirm the affected revision and reproduce in an isolated environment.
-2. Assess attacker access, affected data, exploitability and deployment exposure.
-3. Agree on immediate mitigations and a private remediation plan.
-4. Develop a focused fix and regression coverage without exposing an unpatched
-   exploit in public automation.
-5. Validate the fix, identify affected versions and prepare upgrade instructions.
-6. Coordinate publication with the reporter, crediting them only with consent.
-   Publish an advisory when the hosting platform and repository visibility allow.
+## What to expect
 
-Prioritize remotely reachable code execution, arbitrary file access, credential
-exposure and browser script execution. Evaluate availability failures in terms of
-resource use and deployment conditions. Severity depends on actual impact and
-prerequisites, not just an automated severity label. There is no blanket embargo
-period or guaranteed CVE allocation; coordinate disclosure for the specific case.
+DSTNS is maintained by individuals, not a company, so these are targets rather
+than contractual commitments.
 
-## Security model and trust boundaries
+| Stage | Target |
+|---|---|
+| Acknowledgement of your report | 5 business days |
+| Initial assessment (accepted, needs information, or declined, with reasons) | 14 days |
+| Fix or mitigation for a confirmed high-severity issue | 30 days |
+| Fix for other confirmed issues | 90 days |
+| Public disclosure | After a fix is released, coordinated with you |
 
-DSTNS is a single-operator simulation environment with a shared server state.
-It does not provide user accounts, roles, per-user authorization, tenant isolation
-or a read-only observer role.
+If you hear nothing within the acknowledgement window, add a comment to your
+private advisory; do not disclose publicly. We will keep you informed of progress
+and tell you if a target will be missed.
 
-| Boundary | Current behavior | Operator responsibility |
+### Disclosure
+
+We practise coordinated disclosure with a default maximum of **90 days** from
+your report to publication. We will publish a GitHub Security Advisory, request
+a CVE identifier for confirmed vulnerabilities in released versions, and credit
+you by name or handle unless you ask us not to. If you intend to publish
+independently, tell us your date so we can coordinate; we ask that you give us
+a reasonable chance to release a fix first.
+
+## Scope
+
+### In scope
+
+Vulnerabilities in the code and configuration in this repository, including:
+
+| Area | Examples |
+|---|---|
+| HTTP API (`src/api.cpp`) | Authentication bypass on `playback/start` or `playback/prepare`; cross-site request forgery; DNS rebinding; request smuggling; unbounded memory use from a single request |
+| Input handling | Memory-safety errors, integer wrap-around, injection or path traversal through request bodies, query strings, saved seeds or configuration files |
+| Map pipeline | Crashes, resource exhaustion or code execution from a crafted OpenStreetMap file; command injection in the map downloader |
+| SUMO adapter | Shell injection, writing outside the requested directory |
+| Observer | Cross-site scripting or script injection from map tags, news messages or report content |
+| Operator CLI and container | Credential exposure, unsafe temporary files, privilege escalation in the image or entrypoint |
+| Supply chain | A vulnerable or malicious dependency, workflow or build step that affects released artifacts |
+
+### Out of scope
+
+| Area | Reason |
+|---|---|
+| Control of a run by anyone who can reach an exposed port | By design there are no user accounts; restrict network access (see [deployment security](docs/deployment/security.md)) |
+| Reading run state from a server you can reach | Run state is not confidential; do not simulate private data on a shared server |
+| Denial of service by request volume | Needs a rate-limiting proxy; resource exhaustion from a single small request is in scope |
+| Findings that need physical or root access to the host | Outside the threat model |
+| Vulnerabilities in third-party services (OpenStreetMap, Overpass, Read the Docs, GitHub) | Report to those services |
+| Missing security headers on `localhost` development servers; automated scanner output without a demonstrated impact | Not actionable without a working exploit |
+| Social engineering of maintainers or contributors | Out of scope |
+
+## Safe harbor
+
+We will not pursue or support legal action against researchers who act in good
+faith under this policy. Good faith means:
+
+- you test only against your own installation, never someone else's instance or
+  our infrastructure;
+- you do not access, modify or retain data that is not yours, and you stop and
+  report if you encounter any;
+- you avoid disruption: no denial of service, no spam, no social engineering;
+- you give us reasonable time to fix the issue before disclosing it.
+
+This policy does not offer a bug bounty. We are grateful for reports and will
+credit them.
+
+## Security model in brief
+
+DSTNS is a **single-operator** tool. It has no user accounts, roles or tenant
+isolation. The protections it does provide are:
+
+| Control | Protects against | Where |
 |---|---|---|
-| Network access | Reachable clients can read state, change playback and controls, regenerate worlds and terminate the server | Restrict access to trusted users through loopback, firewall, VPN or an authenticated proxy |
-| Starting and preparing runs | `POST /api/v1/playback/start` and `/prepare` require `X-DSTNS-Operator` | Protect the credential and the server's local filesystem |
-| Browser origins | State-changing browser requests are checked against host/origin rules; Origin-less clients are allowed | Treat this as browser request protection, not network authentication |
-| Reverse proxy | The origin guard accepts matching `Host` or `X-Forwarded-Host`, plus configured allowed origins | Overwrite forwarded headers at the trusted proxy and prevent direct backend access |
-| Transport | The optional gateway supplies TLS and response headers | Add access control separately and use trusted certificates for remote use |
-| Map and report data | OSM attributes and user-supplied configuration enter parsers and browser/report code | Treat imported data as untrusted; report injection and parsing defects |
-| External tools and exports | SUMO export/simulation can write to caller-selected directories with server permissions | Use a restricted service account and avoid sensitive writable mounts |
-| Run state and logs | Readable over permitted interfaces; CORS permits cross-origin reads | Do not store confidential information in a generally reachable instance |
+| Loopback bind by default (`127.0.0.1`) | Exposure of the API to the network | `apps/dstns_server/main.cpp`, `docker-compose.yml` |
+| `Host` header check on loopback | DNS rebinding | `src/api.cpp` (`host_allowed`) |
+| `Origin` check on state-changing requests | Cross-site request forgery | `src/api.cpp` (`same_origin`) |
+| Operator credential for `start` and `prepare` | A reachable client choosing what runs | `apps/dstns_server/main.cpp`, `src/api.cpp` |
+| POST-only shutdown | Shutdown triggered by a link or image | `src/api.cpp` |
+| Range-checked IDs, times, counts and bounds | Wrap-around and out-of-range values | `src/api.cpp`, `src/engine.cpp` |
+| Quoted shell arguments, close-on-exec pipes | Command injection through paths | `src/sumo_bridge.cpp`, `src/osm_fetch.cpp` |
+| UTF-8 repair and JSON serialisation guard | Hostile or corrupt map text reaching responses and logs | `src/utf8.cpp`, `src/osm.cpp` |
+| Single-line log messages | Log forging | `src/logging.cpp` |
+| Non-root container user, no Docker socket | Escalation from a compromised process | `Dockerfile` |
 
-The native server defaults to `0.0.0.0`. The supplied Compose file publishes the
-backend port on host interfaces; enabling its TLS profile does not remove the HTTP
-port. TLS alone does not prevent an unauthenticated client from controlling a run.
-See [deployment security](docs/deployment/security.md) for source references and
-configuration guidance.
+If you expose DSTNS beyond your own machine, read
+[Deployment security](docs/deployment/security.md): it explains how to put
+authentication and TLS in front of it, what the operator credential does and
+does not do, and a hardening checklist.
 
-## Deployment requirements
+## Security updates
 
-- Bind local instances explicitly to `127.0.0.1`, or configure the launcher host
-  accordingly. Use a trusted private network or authenticated proxy for remote
-  access, and close direct access to the backend.
-- Run under a dedicated unprivileged account. Limit writable directories to logs,
-  maps and deliberate export locations. Do not mount the Docker socket.
-- Protect the logs directory and token file. The server sets `operator.token` to
-  owner read/write; establish restrictive directory permissions before startup.
-- Keep `DSTNS_ALLOWED_ORIGINS` limited to necessary observer origins. Do not use it
-  as an access-control mechanism. Non-browser clients can omit `Origin`.
-- Disable world regeneration with `DSTNS_DISABLE_WORLD_REGENERATION=1` when that
-  workflow is unwanted. This does not disable other mutating endpoints.
-- Apply current dependency fixes, rebuild containers and validate before rollout.
-  Keep reproducibility artifacts when changing model or parser versions.
-- Bound resource use externally where needed. The project does not promise
-  protection against arbitrary request volume or large workloads.
-- Keep credentials, private maps and sensitive logs out of Git, reports and
-  public build artifacts. Review backups for secrets before sharing them.
+Fixed vulnerabilities are announced through
+[GitHub Security Advisories](https://github.com/varunkarthic/DSTNS/security/advisories)
+and summarised in the [changelog](CHANGELOG.md) under **Security**. Watch the
+repository (**Watch → Custom → Security alerts**) to be notified.
 
-## Credential handling and incident response
+Dependencies are monitored by Dependabot, and the code is analysed by CodeQL on
+every push and pull request. See
+[Dependency maintenance](docs/development/dependencies.md).
 
-The server writes `<logs>/operator.token` on startup. By default it generates a
-fresh credential; if `DSTNS_OPERATOR_TOKEN` is supplied, it uses that value. The
-credential protects start and prepare only and is not a general API bearer token.
+## Hardening guidance for operators
 
-If compromise is suspected:
+The short version:
 
-1. Restrict network access and stop the affected instance if needed. Preserve
-   necessary diagnostic evidence in a restricted location.
-2. Determine which files, export paths, containers and host permissions were
-   accessible. Do not assume rotating the operator token revokes all API access.
-3. Restart with a newly generated credential, or replace the configured
-   `DSTNS_OPERATOR_TOKEN` in its protected configuration before restarting.
-   Update local clients; do not print the token into a shared terminal or log.
-4. Rotate any other exposed secrets and remove them from accessible artifacts.
-   Deleting a committed secret does not invalidate copies or Git history.
-5. Apply a validated fix or mitigation, restore only trusted artifacts, and verify
-   network isolation and behavior before resuming normal access.
+1. Keep the default `127.0.0.1` bind, or put an authenticating reverse proxy
+   with TLS in front and block direct access to port 8090.
+2. Do not run the server as root; the container already uses an unprivileged user.
+3. Keep `logs/operator.token` private, and never commit it.
+4. Set `DSTNS_DISABLE_WORLD_REGENERATION=1` if viewers should not be able to
+   replace the world.
+5. Keep dependencies and the container image current.
 
-Changing the token file alone does not rotate the active server's credential,
-which is captured when its API handlers are initialized.
-
-## Dependency and supply-chain maintenance
-
-Review automated updates against the complete diff and upstream release notes.
-Install from committed lockfiles, run relevant tests and production builds, and
-verify repository CI against the reviewed commit before merging. Security scanner
-results are evidence for triage, not a guarantee of safety. Do not run a blanket
-force-update command to resolve a focused advisory.
-
-See [Dependency maintenance](docs/development/dependencies.md) for the inventory,
-review procedure, commands and post-merge checks. Inspect npm packages,
-documentation tooling, vendored native code, container images and CI actions;
-coverage of one dependency ecosystem does not imply coverage of the others.
-
-## Responsible testing
-
-Test only systems and data you own or have explicit permission to assess. Prefer
-local instances with the bundled map. Avoid disruption, data extraction, social
-engineering and testing against third-party map services or unrelated deployments.
-Stop if you encounter another person's data and report the circumstances privately.
-This policy does not grant permission to access third-party systems or promise a
-bug bounty. Infrastructure exposure outside the intended deployment model may be
-an operator configuration issue, but reports revealing an implementation defect
-are still welcome.
-
-## Related documentation
-
-- [Deployment security](docs/deployment/security.md): implementation and hardening.
-- [Operations runbook](docs/deployment/operations.md): readiness, backups and recovery.
-- [Contributing](docs/development/contributing.md): review and validation workflow.
-- [Testing](docs/development/testing.md): security and API regression suites.
+The full checklist is in [Deployment security](docs/deployment/security.md#hardening-checklist).
