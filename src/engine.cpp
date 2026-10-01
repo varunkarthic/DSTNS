@@ -2212,8 +2212,8 @@ nlohmann::json SimulationEngine::global_view() const {
     }
 
     return envelope({
-        {"product", "Deterministic Simulated Environment"},
-        {"version", "1.0.0"},
+        {"product", "Deterministic Spatiotemporal Transport Network Simulator"},
+        {"version", DSTNS_VERSION},
         {"lifecycle", to_string(lifecycle_)},
         {"playback_revision", playback_revision_},
         {"run_id", run_id_},

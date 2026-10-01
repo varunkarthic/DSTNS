@@ -52,7 +52,7 @@ const SERVER = path.join(BUILD, 'dstns_server')
 const EXPORT_TOOL = path.join(BUILD, 'dstns_scenario_export')
 const UI_ENGINE = path.join(ROOT, 'ui-engine')
 const UI_DIST = path.join(UI_ENGINE, 'dist')
-const VERSION = '2.0.0'
+const VERSION = '2.1.0'
 
 const ui = cliui()
 

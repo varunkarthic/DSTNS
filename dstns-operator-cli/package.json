@@ -1,6 +1,6 @@
 {
   "name": "@dstns/operator-cli",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "description": "Modern DSTNS operator console powered by @poppinss/cliui",
   "type": "module",

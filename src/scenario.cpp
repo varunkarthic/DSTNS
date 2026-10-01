@@ -249,8 +249,8 @@ void ScenarioCompiler::plan_signals(Scenario& s) const {
     }
     for(auto& n:s.nodes) n.signal=controls[n.id.value];
 
-    // Offsets form a progression along the dominant travel axis rather than being
-    // drawn at random. Signals a block apart then turn green in sequence - the
+    // Offsets form a progression outward from the centre of the signalised area
+    // rather than being drawn at random. Signals a block apart then turn green in sequence - the
     // "green wave" a real corridor is timed for - instead of flickering
     // independently. The reference speed is a nominal 50 km/h arterial.
     constexpr double kProgressionSpeedMps = 13.9;

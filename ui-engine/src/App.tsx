@@ -65,7 +65,7 @@ import "./theme.css";
 import "./hud.css";
 import "./system.css";
 
-export const VERSION = "2.2.0";
+export const VERSION = "2.3.0";
 
 const DECK_KEY = "dstns.telemetry-mode.v1";
 

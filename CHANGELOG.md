@@ -12,6 +12,18 @@ only within one version.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [2.1.0] - 2026-10-02
+
+Engine 2.1.0 and observer 2.3.0, API contract 1.0. The first public release.
+
+**Results change for some maps.** Maps containing untagged roundabouts produce a
+different graph in this release, because those roundabouts are now one-way as
+OpenStreetMap requires. Their `graph_hash`, `scenario_hash` and simulation results
+differ from 2.0.0. Maps without untagged roundabouts, including the bundled fixtures,
+are unchanged.
+
 ### Security
 
 - **The server binds to `127.0.0.1` by default.** `dstns_server`,
@@ -38,8 +50,9 @@ only within one version.
 
 ### Added
 
-- **Public release.** The repository is public. DSTNS is developed independently and
-  does not take outside contributions, bug reports or feature requests.
+- **Public release.** DSTNS is released for public use under the AGPL. It is
+  developed independently and does not take outside contributions, bug reports or
+  feature requests.
 - **Licence headers.** Every source file carries an SPDX identifier and copyright line;
   `scripts/license-headers.py --check` runs in CI. `COPYRIGHT` and the licence page
   explain how the licence is applied.
@@ -47,12 +60,14 @@ only within one version.
   observer, the map downloader and an offline district; auto-start configured by
   `DSTNS_*` variables; `dstns-run` for starting runs; an optional TLS gateway as a
   Compose profile; optional SUMO.
-- **Documentation site** for Read the Docs: getting started, user guide, concepts
-  with the model's equations, API reference with an OpenAPI explorer, deployment,
-  troubleshooting, FAQ, development and component notes.
+- **Documentation site** on Read the Docs: getting started and system requirements,
+  a user guide, concepts with the model's equations and assumptions, an API
+  reference with an OpenAPI explorer, deployment, upgrading and security guides,
+  troubleshooting, an FAQ, known limitations, reference tables, design decisions and
+  the quality assurance record.
 - Continuous integration on GitHub Actions for the native, HTTP, observer,
   documentation and container builds.
-- A `CodeQL` workflow with the permissions private repositories need.
+- CodeQL static analysis of the C++, JavaScript and TypeScript, Python and workflow code.
 - `tests/api/hardening_smoke.py`, covering origin and host checks, CORS, input
   validation and shutdown against a real server.
 
@@ -84,14 +99,19 @@ only within one version.
 - `--port 70000` wrapped to 4464; stale `.progress` files accumulated in the map
   cache.
 - The observer reports the HTTP status of an error that has no JSON body.
+- Saving a seed whose city is chosen by the seed (`--save-seed` without
+  `--osm-file`) failed with `No such file or directory`. Such saved seeds now
+  record the seed and selection version, and replay through the map cache.
+- `global_view.json` and the shutdown response reported an outdated product name,
+  and `global_view.json` an outdated version.
 - The observer dependency DOMPurify was updated from 3.4.15 to 3.4.16
   ([#1](https://github.com/varunkarthic/DSTNS/pull/1)).
 
 ### Removed
 
 - The separate UI container and its unused in-memory overlay service, the second
-  compose file, the retired `ui-engine-alpha` mock-up, generated SUMO outputs and
-  stale assistant hand-off notes. The original design specifications moved to
+  Compose file, the retired static design mock-up and generated SUMO outputs. The
+  original design specifications are published under
   [Design specifications](https://dstns.readthedocs.io/design/).
 
 ## [2.0.0] - 2026-09-20
@@ -125,5 +145,6 @@ synthetic grid or OSM XML, the aggregate traffic model, checkpoint replay, the
 HTTP API, the SUMO export and the first observer.
 
 [Unreleased]: https://github.com/varunkarthic/DSTNS/compare/main...HEAD
+[2.1.0]: https://github.com/varunkarthic/DSTNS/commits/main
 [2.0.0]: https://github.com/varunkarthic/DSTNS/commits/main
 [1.0.0]: https://github.com/varunkarthic/DSTNS/commits/main

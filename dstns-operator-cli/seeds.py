@@ -13,6 +13,8 @@ import sys
 from datetime import datetime, timezone
 
 VERSION = 'urban-crfg-v3'
+# Recorded in place of a checksum when the seed, not a pinned file, chooses the map.
+AUTO_MAP = 'auto'
 ROOT = Path(__file__).resolve().parent.parent
 
 def seed_id(value):
@@ -35,16 +37,21 @@ def operate(action, data):
             cfg = data['config']
             if cfg.get('map_selection_version') != VERSION:
                 raise ValueError('Unsupported map selection version')
-            source = Path(cfg['map']['osm_file']).resolve(strict=True)
-            content = source.read_bytes()
-            digest = hashlib.sha256(content).hexdigest()
-            maps = db_path.parent / 'maps'
-            maps.mkdir(exist_ok=True)
-            cached = maps / (digest + '.osm.xml')
-            if not cached.exists():
-                with cached.open('xb') as f:
-                    f.write(content)
-            cfg['map']['osm_file'] = str(cached.resolve())
+            if cfg['map'].get('osm_file', 'auto') == 'auto':
+                # The seed chooses the city, so there is no file to keep: the
+                # selection version recorded above is what makes it repeatable.
+                digest = AUTO_MAP
+            else:
+                source = Path(cfg['map']['osm_file']).resolve(strict=True)
+                content = source.read_bytes()
+                digest = hashlib.sha256(content).hexdigest()
+                maps = db_path.parent / 'maps'
+                maps.mkdir(exist_ok=True)
+                cached = maps / (digest + '.osm.xml')
+                if not cached.exists():
+                    with cached.open('xb') as f:
+                        f.write(content)
+                cfg['map']['osm_file'] = str(cached.resolve())
             cfg['saved_seed_id'] = name
             try:
                 db.execute('INSERT INTO seeds VALUES (?,?,?,?,?,?,?)', (name, cfg['seed'], datetime.now(timezone.utc).isoformat(), data.get('description', '')[:1000], VERSION, digest, json.dumps(cfg, sort_keys=True)))
@@ -58,9 +65,10 @@ def operate(action, data):
         if action == 'use':
             if result['map_version'] != VERSION:
                 raise ValueError('Saved seed requires an unsupported map version')
-            source = Path(result['config']['map']['osm_file'])
-            if hashlib.sha256(source.read_bytes()).hexdigest() != result['map_sha256']:
-                raise ValueError('Saved map content changed; refusing a non-reproducible run')
+            if result['map_sha256'] != AUTO_MAP:
+                source = Path(result['config']['map']['osm_file'])
+                if hashlib.sha256(source.read_bytes()).hexdigest() != result['map_sha256']:
+                    raise ValueError('Saved map content changed; refusing a non-reproducible run')
         if action == 'delete':
             db.execute('DELETE FROM seeds WHERE id=?', (name,))
             return {'deleted': name}

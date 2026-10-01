@@ -511,7 +511,7 @@ void ApiServer::routes() {
             {"service", "dstns"},
             {"product", "Deterministic Spatiotemporal Transport Network Simulator"},
             {"status", "TERMINATING"},
-            {"message", "Deterministic Simulated Environment server is shutting down gracefully."}
+            {"message", "DSTNS server is shutting down gracefully."}
         });
         // Terminating means quitting: the process goes away, not just the run.
         //

@@ -37,6 +37,12 @@ class Seeds(unittest.TestCase):
   saved=seeds.operate('save',{'id':'pinned','config':self.cfg})
   Path(saved['config']['map']['osm_file']).write_text('<osm/>')
   with self.assertRaisesRegex(ValueError,'changed'):seeds.operate('use',{'id':'pinned'})
+ def test_seed_selected_map(self):
+  cfg=dict(self.cfg,map={'osm_file':'auto','max_nodes':50000})
+  saved=seeds.operate('save',{'id':'city-seed','config':cfg})
+  self.assertEqual(saved['map_sha256'],seeds.AUTO_MAP)
+  self.assertEqual(seeds.operate('use',{'id':'city-seed'})['config']['map']['osm_file'],'auto')
+  self.assertFalse((Path(self.tmp.name)/'maps').exists())
  def test_cli_validation(self):
   for args,message in [(['start','--day-type','holiday'],'weekday or weekend'),(['start','--seed','-4'],'decimal integer'),(['start','--speed','nan'],'must be'),(['start','--duration','9999'],'must be'),(['start','--seed','42','--saved-seed','x'],'mutually exclusive'),(['start','--nonsense'],'Unknown option'),(['start','--saved-seed','missing'],'Unknown saved seed')]:
    r=subprocess.run(['node',str(ROOT/'dstns-operator-cli/dstns.mjs'),*args],capture_output=True,text=True,cwd=ROOT)
