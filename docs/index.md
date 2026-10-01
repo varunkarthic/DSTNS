@@ -167,12 +167,54 @@ is guaranteed.
 
 ## Find what you need
 
-| If you want to | Read |
-|---|---|
-| Install on macOS, Linux or WSL | [Installation](getting-started/installation.md) |
-| Choose a seed, understand the map cache | [Seeds and places](guide/seeds-and-places.md) |
-| See every command and flag | [Operator CLI](guide/operator-cli.md), [Configuration](guide/configuration.md) |
-| Look up a formula | [Mathematical model](concepts/mathematical-model.md) |
-| Handle an error response | [API errors](api/errors.md) |
-| Fix a problem | [Troubleshooting](troubleshooting.md), [FAQ](faq.md) |
-| Report a vulnerability | [Security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md) |
+<div class="dstns-tiles" markdown>
+
+<div class="dstns-tile" markdown>
+[Install](getting-started/installation.md){ .dstns-tile__title }
+
+macOS, Linux, WSL or Docker
+</div>
+
+<div class="dstns-tile" markdown>
+[Choose a seed](guide/seeds-and-places.md){ .dstns-tile__title }
+
+Places, seeds and the map cache
+</div>
+
+<div class="dstns-tile" markdown>
+[Commands and flags](guide/operator-cli.md){ .dstns-tile__title }
+
+Every launcher command and option
+</div>
+
+<div class="dstns-tile" markdown>
+[Look up a formula](concepts/mathematical-model.md){ .dstns-tile__title }
+
+The model, with its equations
+</div>
+
+<div class="dstns-tile" markdown>
+[Handle an error](api/errors.md){ .dstns-tile__title }
+
+Status codes and error bodies
+</div>
+
+<div class="dstns-tile" markdown>
+[Fix a problem](troubleshooting.md){ .dstns-tile__title }
+
+Symptoms, causes and remedies
+</div>
+
+<div class="dstns-tile" markdown>
+[Secure a deployment](deployment/security.md){ .dstns-tile__title }
+
+Hardening checklist and threat model
+</div>
+
+<div class="dstns-tile" markdown>
+[Call the API](api/index.md){ .dstns-tile__title }
+
+Routes, schemas and examples
+</div>
+
+</div>
