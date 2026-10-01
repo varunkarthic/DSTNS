@@ -55,7 +55,7 @@
 .md-header__inner { align-items: center; gap: 0.15rem; height: 3.2rem; padding: 0 0.4rem; }
 .md-header__button.md-logo { padding: 0.3rem 0.4rem; margin: 0 0.9rem 0 0.2rem; }
 .md-header__button.md-logo img,
-.md-header__button.md-logo svg { height: 1.45rem; width: auto; }
+.md-header__button.md-logo svg { height: 1.15rem; width: auto; }
 .md-header__title { display: none; }
 
 /* Tabs sit inside the header and take the free space. */
@@ -95,7 +95,7 @@
 
 /* Search: a rounded pill with a hairline border and a focus ring. */
 .md-search { margin-left: 0.4rem; }
-.md-search__inner { width: 11rem; }
+.md-search__inner { width: 10rem; }
 .md-search__form {
   height: 2rem;
   border-radius: 999px;
@@ -116,14 +116,15 @@
 [data-md-toggle="search"]:checked ~ .md-header .md-search__input,
 [data-md-toggle="search"]:checked ~ .md-header .md-search__icon { color: var(--md-default-fg-color); }
 @media screen and (min-width: 60em) {
-  .md-search__inner { width: 11rem; transition: width 200ms ease; }
+  .md-search__inner { width: 10rem; transition: width 200ms ease; }
   [data-md-toggle="search"]:checked ~ .md-header .md-search__inner { width: 22rem; }
 }
 .md-search__output { border-radius: 14px; margin-top: 0.4rem; border: 1px solid rgb(127 160 180 / 25%); }
 .md-search__scrollwrap { border-radius: 14px; }
 .md-header__option .md-icon,
 .md-header__source { margin-left: 0.2rem; }
-.md-header__source { width: auto; max-width: 9rem; }
+.md-header__source { width: auto; max-width: none; flex: none; min-width: 12rem; }
+.md-header__source .md-source__repository { max-width: none; overflow: visible; }
 .md-source { border-radius: 999px; padding: 0.1rem 0.3rem; transition: background-color 160ms ease; }
 .md-source:hover { background-color: rgb(255 255 255 / 9%); opacity: 1; }
 
@@ -292,39 +293,50 @@
 }
 .dstns-stats span { font-size: 0.68rem; color: var(--md-default-fg-color--light); }
 
-/* "Find what you need": a grid of whole-tile links. */
-.md-typeset .dstns-tiles {
+/* Home page: section cards and quick-link chips. */
+.md-typeset .dstns-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
   gap: 0.7rem;
-  margin: 1rem 0 1.5rem;
+  margin: 1rem 0 1.6rem;
 }
-.md-typeset .dstns-tile {
+.md-typeset .dstns-card {
   position: relative;
-  padding: 0.85rem 1rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
   border: 1px solid var(--md-default-fg-color--lightest);
   border-radius: 12px;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
-.md-typeset .dstns-tile p { margin: 0; }
-.md-typeset .dstns-tile p + p { margin-top: 0.25rem; font-size: 0.7rem; color: var(--md-default-fg-color--light); }
-.md-typeset .dstns-tile__title { font-weight: 600; font-size: 0.82rem; text-decoration: none; }
-.md-typeset .dstns-tile__title::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
-.md-typeset .dstns-tile__title::before {
-  content: "\2192";
-  position: absolute;
-  right: 1rem;
-  top: 0.8rem;
-  color: var(--dstns-accent);
-  transition: transform 160ms ease;
-}
-.md-typeset .dstns-tile:hover,
-.md-typeset .dstns-tile:focus-within {
+.md-typeset .dstns-card p { margin: 0; font-size: 0.72rem; line-height: 1.5; color: var(--md-default-fg-color--light); }
+.md-typeset .dstns-card p:last-child { margin-top: auto; padding-top: 0.3rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.md-typeset .dstns-card__title { font-size: 0.88rem; font-weight: 700; text-decoration: none; }
+.md-typeset .dstns-card__title::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.md-typeset .dstns-card:hover,
+.md-typeset .dstns-card:focus-within {
   border-color: rgb(var(--dstns-accent-rgb) / 70%);
   box-shadow: 0 10px 28px -14px rgb(var(--dstns-accent-rgb) / 45%);
   transform: translateY(-2px);
 }
-.md-typeset .dstns-tile:hover .dstns-tile__title::before { transform: translateX(3px); }
+/* Chips sit above the card's whole-card link so they stay separately clickable. */
+.md-typeset .dstns-chip {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  padding: 0.12rem 0.6rem;
+  border: 1px solid rgb(var(--dstns-accent-rgb) / 40%);
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.md-typeset .dstns-chip:hover { background-color: rgb(var(--dstns-accent-rgb) / 14%); border-color: var(--dstns-accent); }
+.md-typeset .dstns-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0 1rem; }
+.md-typeset .dstns-chips p { display: contents; }
+.md-typeset .dstns-chips .dstns-chip { padding: 0.25rem 0.8rem; font-size: 0.72rem; }
 @media (prefers-reduced-motion: reduce) {
-  .md-typeset .dstns-tile, .md-typeset .dstns-tile__title::before { transition: none; transform: none !important; }
+  .md-typeset .dstns-card, .md-typeset .dstns-chip { transition: none; transform: none !important; }
 }

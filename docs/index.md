@@ -35,53 +35,73 @@ virtual clock. The same seed gives the same world and the same day, on any machi
 
 ![The DSTNS observer showing a district of Dar es Salaam, with the road network coloured by congestion, a telemetry panel and playback controls](assets/screenshots/observer.png){ .screenshot }
 
-## Choose your path
+## Explore the documentation
 
-<div class="grid cards" markdown>
+<div class="dstns-cards" markdown>
 
--   **Run a simulation**
+<div class="dstns-card" markdown>
+[Getting started](getting-started/index.md){ .dstns-card__title }
 
-    ---
+Install, run with Docker, and take your first simulation.
 
-    Start from nothing and have a day running in minutes, with Docker or from
-    source, then tour the interface.
+[Quick start](getting-started/quick-start.md){ .dstns-chip } [Docker](getting-started/docker.md){ .dstns-chip }
+</div>
 
-    [Quick start](getting-started/quick-start.md)
-    · [Docker](getting-started/docker.md)
-    · [First simulation](getting-started/first-simulation.md)
+<div class="dstns-card" markdown>
+[User guide](guide/index.md){ .dstns-card__title }
 
--   **Build on the API**
+The operator CLI, the observer, playback, seeds and configuration.
 
-    ---
+[Operator CLI](guide/operator-cli.md){ .dstns-chip } [Seeds](guide/seeds-and-places.md){ .dstns-chip }
+</div>
 
-    Drive and read a run over HTTP: playback, controls, views and a streaming
-    feed, with an OpenAPI description and a runnable client.
+<div class="dstns-card" markdown>
+[Concepts](concepts/index.md){ .dstns-card__title }
 
-    [API guide](api/index.md)
-    · [Client walkthrough](api/client-walkthrough.md)
-    · [OpenAPI explorer](api/openapi.md)
+How a seed becomes a world and a day, with the equations.
 
--   **Understand the model**
+[Architecture](concepts/architecture.md){ .dstns-chip } [Maths](concepts/mathematical-model.md){ .dstns-chip }
+</div>
 
-    ---
+<div class="dstns-card" markdown>
+[API](api/index.md){ .dstns-card__title }
 
-    How a seed becomes a world, what happens every virtual second, and why a run
-    is reproducible, with the equations behind each step.
+Playback, control, view and streaming routes, schemas and examples.
 
-    [Architecture](concepts/architecture.md)
-    · [Mathematical model](concepts/mathematical-model.md)
-    · [Reproducibility](concepts/reproducibility.md)
+[Reference](api/reference.md){ .dstns-chip } [Errors](api/errors.md){ .dstns-chip }
+</div>
 
--   **Deploy and operate**
+<div class="dstns-card" markdown>
+[Deployment](deployment/index.md){ .dstns-card__title }
 
-    ---
+Containers, TLS, security, logging and operations.
 
-    Run it for other people: containers, TLS, security, logging, backups and a
-    troubleshooting runbook.
+[Security](deployment/security.md){ .dstns-chip } [Operations](deployment/operations.md){ .dstns-chip }
+</div>
 
-    [Deployment](deployment/index.md)
-    · [Security](deployment/security.md)
-    · [Operations](deployment/operations.md)
+<div class="dstns-card" markdown>
+[Components](components/index.md){ .dstns-card__title }
+
+Per-class design notes for the engine, graph, routing and more.
+
+[Engine](components/playback-engine.md){ .dstns-chip } [API server](components/api-server.md){ .dstns-chip }
+</div>
+
+<div class="dstns-card" markdown>
+[Design specs](design/index.md){ .dstns-card__title }
+
+The formal mathematical, architecture and API specifications.
+
+[Foundation](design/mathematical-foundation.md){ .dstns-chip } [Runtime spec](design/api-runtime-event-spec.md){ .dstns-chip }
+</div>
+
+<div class="dstns-card" markdown>
+[Help](troubleshooting.md){ .dstns-card__title }
+
+Symptoms and remedies, answers to common questions, a glossary.
+
+[FAQ](faq.md){ .dstns-chip } [Glossary](glossary.md){ .dstns-chip }
+</div>
 
 </div>
 
@@ -167,54 +187,13 @@ is guaranteed.
 
 ## Find what you need
 
-<div class="dstns-tiles" markdown>
-
-<div class="dstns-tile" markdown>
-[Install](getting-started/installation.md){ .dstns-tile__title }
-
-macOS, Linux, WSL or Docker
-</div>
-
-<div class="dstns-tile" markdown>
-[Choose a seed](guide/seeds-and-places.md){ .dstns-tile__title }
-
-Places, seeds and the map cache
-</div>
-
-<div class="dstns-tile" markdown>
-[Commands and flags](guide/operator-cli.md){ .dstns-tile__title }
-
-Every launcher command and option
-</div>
-
-<div class="dstns-tile" markdown>
-[Look up a formula](concepts/mathematical-model.md){ .dstns-tile__title }
-
-The model, with its equations
-</div>
-
-<div class="dstns-tile" markdown>
-[Handle an error](api/errors.md){ .dstns-tile__title }
-
-Status codes and error bodies
-</div>
-
-<div class="dstns-tile" markdown>
-[Fix a problem](troubleshooting.md){ .dstns-tile__title }
-
-Symptoms, causes and remedies
-</div>
-
-<div class="dstns-tile" markdown>
-[Secure a deployment](deployment/security.md){ .dstns-tile__title }
-
-Hardening checklist and threat model
-</div>
-
-<div class="dstns-tile" markdown>
-[Call the API](api/index.md){ .dstns-tile__title }
-
-Routes, schemas and examples
-</div>
-
+<div class="dstns-chips" markdown>
+[Install](getting-started/installation.md){ .dstns-chip }
+[Choose a seed](guide/seeds-and-places.md){ .dstns-chip }
+[Commands and flags](guide/operator-cli.md){ .dstns-chip }
+[Look up a formula](concepts/mathematical-model.md){ .dstns-chip }
+[Handle an error](api/errors.md){ .dstns-chip }
+[Fix a problem](troubleshooting.md){ .dstns-chip }
+[Secure a deployment](deployment/security.md){ .dstns-chip }
+[Call the API](api/index.md){ .dstns-chip }
 </div>
