@@ -80,7 +80,7 @@ The map fills the window. Floating instrumentation sits over it:
 | DND|                                                   |                 |
 | RM |                                                   |                 |
 | ⚙  | [Notification +2]  [Layers] [Roads] [Places]      [coords] [scale] |
-+----+ ( ⟲ | « ▸| ▶ » ) ( 08:42:17 ) (0.25 … 10×) SEED 17310766… ↻ ● Online  Terminate |
++----+ ( ⟲ | « ▸| ▶ » ) ( 08:42:17 ) (0.25 … 5×)  SEED 17310766… ↻ ● Online  Terminate |
 +--------------------------------------------------------------------------+
 ```
 
@@ -170,8 +170,8 @@ such text, so they follow the preference too. Midnight at the end of the day is
 ## Speed
 
 A segmented control with a sliding highlight, offering exactly 0.25×, 0.5×,
-1×, 2×, 3×, 5× and 10×. It is a `radiogroup`: arrow keys, Home and End move the
-selection and send the new rate. The core accepts any rate in (0, 10].
+1×, 2×, 3× and 5×. It is a `radiogroup`: arrow keys, Home and End move the
+selection and send the new rate. The core accepts any rate in (0, 5].
 
 Every label sits on one baseline in a segment of the same width, and the weight
 does not change with selection, so nothing shifts when the choice moves. The
@@ -535,13 +535,24 @@ world first loads, once per browser.
 
 ## Simulation complete
 
-When the virtual day reaches 24:00:00 a dialog announces **Simulation
-Complete** with the final time, simulated duration, observation time, incident
+When the virtual day reaches 24:00:00 a dialog announces **The day is
+complete** with the final time, simulated duration, observation time, incident
 count, significant events, rain events, peak congestion and the seed. Counts
 come from the complete news record fetched from the core, not the recent window
-on screen. **Download Report** runs the report pipeline; **Close** dismisses
-it. If another dialog is open when the day completes, the completion dialog
-follows when it closes.
+on screen. It offers the three reasonable next moves:
+
+| Button | Does |
+|---|---|
+| **Save Report** | Runs the report pipeline |
+| **Restart same simulation** | Opens the reset confirm ("Reset the simulation?"); confirming replays the same seed and map from 00:00:00 and starts playing |
+| **Generate a new world** | Opens the new-world confirm; disabled while regeneration is off or already running |
+| **Not Now** | Dismisses the dialog |
+
+The completion dialog hands over to the confirm directly. A dialog's exit
+transition takes 180 ms, and any dialog opened during it cancels the pending
+removal, so the confirm stays up rather than leaving with the dialog that
+opened it. If another dialog is open when the day completes, the completion
+dialog follows when it closes.
 
 ## Report
 
