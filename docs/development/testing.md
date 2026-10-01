@@ -135,7 +135,7 @@ working SUMO; check with `curl -s localhost:8090/api/v1/system/info`, which
 reports `sumo.available` only if `sumo` and `netconvert` both start. See
 [Troubleshooting](../troubleshooting.md#sumo-reported-unavailable).
 
-## Writing a test
+## Adding tests
 
 - **Engine behaviour** goes in `tests/unit/world_tests.cpp` (lifecycle,
   controls, time travel) or `tests/unit/test_main.cpp` (compiler, loader,
@@ -168,7 +168,7 @@ every test.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every push and pull request:
+`.github/workflows/ci.yml` runs on every push:
 
 | Job | Runs |
 |---|---|

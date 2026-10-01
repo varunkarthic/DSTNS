@@ -338,8 +338,8 @@ an allow-list first.
       control.
 - [ ] Use a trusted certificate in `docker/certificates/` for anything beyond
       local development.
-- [ ] Keep the image and dependencies current; see
-      [Dependency maintenance](../development/dependencies.md).
+- [ ] Keep the image and dependencies current: rebuild with `docker compose build --pull`
+      and review the changelog before upgrading.
 
 ## Verifying your deployment
 

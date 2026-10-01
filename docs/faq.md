@@ -98,10 +98,15 @@
     for each suite.
 
 ??? question "How do I preview the documentation?"
-    `pip install -r docs/requirements.txt && mkdocs serve`. See [Writing
+    `pip install -r docs/requirements.txt && mkdocs serve`. See [Building the
     documentation](development/documentation.md).
 
-??? question "Where do I report a bug?"
-    [GitHub issues](https://github.com/varunkarthic/DSTNS/issues), with the
-    seed, what you did, what you expected, and `logs/system.log`. Security
-    problems: see [Security](deployment/security.md#reporting-a-vulnerability).
+??? question "Does DSTNS take bug reports, feature requests or contributions?"
+    No. DSTNS is developed independently and released for public use. You are welcome to
+    fork it and change your copy under the [licence](license.md). The
+    [troubleshooting guide](troubleshooting.md) covers the problems most likely to come up.
+
+??? question "How do I report a security problem?"
+    Privately, through the repository's **Security** tab, as described in the
+    [security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md). Never in
+    a public issue.

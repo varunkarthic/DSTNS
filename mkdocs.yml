@@ -189,12 +189,9 @@ nav:
       - FAQ: faq.md
   - Development:
       - development/index.md
-      - Contributing: development/contributing.md
       - Building from source: development/building.md
       - Testing: development/testing.md
-      - Writing documentation: development/documentation.md
-      - Maintainer guide: development/maintainers.md
-      - Dependency maintenance: development/dependencies.md
+      - Building the documentation: development/documentation.md
       - Code evaluation (Oct 2026): development/audit-2026-10.md
       - Components:
           - components/index.md

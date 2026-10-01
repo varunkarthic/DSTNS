@@ -218,8 +218,15 @@ characters other than letters, digits, `_` and `-`, or is longer than 64.
 
 See [Writing documentation](development/documentation.md).
 
-## Still stuck
+## Diagnosing something else
 
-Open an [issue](https://github.com/varunkarthic/DSTNS/issues) with the seed,
-what you did, `logs/system.log`, and the output of
-`curl -s localhost:8090/api/v1/system/info`.
+Three things explain most behaviour you cannot account for:
+
+- `logs/system.log`, which records every lifecycle change and error
+  (`grep -E "ERROR|WARN" logs/system.log | tail`);
+- `curl -s localhost:8090/api/v1/system/info`, which reports the version, build and
+  whether SUMO is usable;
+- the seed and the exact command you ran, since the same seed always reproduces the same
+  world, so a problem you can reproduce with one seed can be reproduced again.
+
+See [Logging](deployment/logging.md) for how to read the logs.

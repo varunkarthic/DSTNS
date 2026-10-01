@@ -34,11 +34,12 @@ only within one version.
 - Integer wrap-around in path IDs, times, query numbers and undo or redo counts
   is refused with HTTP 400 instead of acting on the wrong object.
 - Log messages are flattened to one line, so a request path cannot forge entries.
-- Published a [security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md), CodeQL analysis, Dependabot
-  configuration, and issue and pull request templates.
+- Published a [security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md) and added CodeQL analysis.
 
 ### Added
 
+- **Public release.** The repository is public. DSTNS is developed independently and
+  does not take outside contributions, bug reports or feature requests.
 - **Licence headers.** Every source file carries an SPDX identifier and copyright line;
   `scripts/license-headers.py --check` runs in CI. `COPYRIGHT` and the licence page
   explain how the licence is applied.

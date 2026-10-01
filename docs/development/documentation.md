@@ -1,9 +1,9 @@
-# Writing documentation
+# Building the documentation
 
 This site is built with [MkDocs](https://www.mkdocs.org/) and the
 [Material](https://squidfunk.github.io/mkdocs-material/) theme, and published by
-[Read the Docs](https://readthedocs.org/). The sources are the Markdown files
-in `docs/`.
+[Read the Docs](https://readthedocs.org/). The sources are the Markdown files in
+`docs/`.
 
 ## Preview locally
 
@@ -11,11 +11,13 @@ in `docs/`.
 python3 -m venv .venv-docs
 .venv-docs/bin/pip install -r docs/requirements.txt
 .venv-docs/bin/mkdocs serve              # http://127.0.0.1:8000, reloads on save
-.venv-docs/bin/mkdocs build --strict     # exactly what CI and Read the Docs run
+.venv-docs/bin/mkdocs build --strict     # the build Read the Docs runs
 ```
 
-`--strict` turns every warning into an error: a broken link, a missing anchor,
-or a page that exists but is not in the navigation fails the build.
+`serve` starts a local server that rebuilds on every save. `--strict` turns every
+warning into an error: a broken link, a missing anchor, or a page that exists but is
+not in the navigation fails the build. The pinned versions in
+`docs/requirements.txt` make a local build match the published one.
 
 ## How it is published
 
@@ -27,118 +29,73 @@ flowchart LR
     Cfg --> Py["Python 3.12<br/>pip install -r docs/requirements.txt"]
     Py --> Build["mkdocs build (fail_on_warning)"]
     Build --> Site["dstns.readthedocs.io"]
-    GH -- "pull request" --> CI["GitHub Actions<br/>mkdocs build --strict"]
 ```
 
 | File | Role |
 |---|---|
 | `.readthedocs.yaml` | Read the Docs build: Ubuntu 24.04, Python 3.12, the MkDocs config, fail on warnings |
 | `mkdocs.yml` | Site name, theme, navigation, Markdown extensions, plugins |
-| `docs/requirements.txt` | Pinned toolchain, so local, CI and Read the Docs builds agree |
+| `docs/requirements.txt` | Pinned toolchain |
 | `docs/assets/` | Logo, wordmarks, screenshots, `extra.css`, MathJax configuration |
+| `docs/overrides/` | The header template |
 | `docs/api/openapi.yaml` | The OpenAPI description rendered on the [OpenAPI explorer](../api/openapi.md) |
 
-### Connecting Read the Docs
+To host your own copy, import your fork at [readthedocs.org](https://readthedocs.org/);
+it finds `.readthedocs.yaml` and builds the default branch.
 
-1. Sign in at [readthedocs.org](https://readthedocs.org/) with GitHub.
-2. **Add project → Import from GitHub**, choose `varunkarthic/DSTNS`.
-3. Read the Docs finds `.readthedocs.yaml` and builds `main` as `latest`.
-4. Optional: under **Versions**, activate tags to publish versioned docs, and
-   under **Settings → Pull request builds** enable previews.
+## Notation
 
-!!! warning "Private repositories"
-    The free Read the Docs Community plan builds **public** repositories only.
-    While the repository is private, either make it public, use [Read the Docs
-    for Business](https://about.readthedocs.com/), or publish the same build
-    from GitHub Actions to GitHub Pages (`mkdocs gh-deploy`).
+The site uses a few Markdown extensions beyond the basics.
 
-## Conventions
+**Admonitions** call out something the reader should not miss:
 
-### Structure
+```markdown
+!!! warning "Southern-hemisphere boxes"
+    Pass `--bbox=` with an equals sign.
+```
 
-| Section | Holds |
-|---|---|
-| Getting started | Task-first pages for new users |
-| User guide | Operating DSTNS: CLI, observer, configuration |
-| Concepts | How it works inside |
-| API | The HTTP API, one page per group |
-| Deployment | Running it for others |
-| Development | Changing it |
+The types in use are `note`, `tip`, `info`, `warning`, `failure`, `question` and
+`abstract`; a `???` admonition is collapsed.
 
-Every new page goes into `nav:` in `mkdocs.yml`, or the build fails.
+**Diagrams** are Mermaid in a fenced block:
 
-### Style
+````markdown
+```mermaid
+flowchart LR
+    A --> B
+```
+````
 
-- Write for the reader's task. Lead with what to do; explain after.
-- Real values only: every number, default and limit must match the code. Check
-  it, and run the command you document.
-- Code blocks get a language (`bash`, `json`, `cpp`, `text`), and a `title=` for
-  files.
-- Use admonitions for what the reader must not miss:
+**Mathematics** uses `\( ... \)` inline and `\[ ... \]` for display, rendered by
+MathJax.
 
-    ```markdown
-    !!! warning "Southern-hemisphere boxes"
-        Pass `--bbox=` with an equals sign.
+**Tabs** present alternatives, such as Docker or a source build:
+
+````markdown
+=== "Docker"
+
+    ```bash
+    docker compose up
     ```
 
-    Types used here: `note`, `tip`, `info`, `warning`, `failure`, `question`,
-    `abstract`. A `???` admonition is collapsed.
+=== "From source"
 
-- Diagrams are Mermaid, in a fenced block:
-
-    ````markdown
-    ```mermaid
-    flowchart LR
-        A --> B
+    ```bash
+    ./launcher
     ```
-    ````
+````
 
-- Maths uses `\( … \)` inline and `\[ … \]` for display.
-- Alternatives (macOS/Linux, Docker/source) go in content tabs (`=== "Docker"`).
-- Link between pages with relative paths to the `.md` file; link to source
-  code with a full GitHub URL.
+Link between pages with relative paths to the `.md` file, and every new page must be
+listed under `nav:` in `mkdocs.yml` or the strict build fails. Screenshots live in
+`docs/assets/screenshots/`; add `{ .screenshot }` after an image for the framed style.
 
-### Screenshots
-
-Screenshots live in `docs/assets/screenshots/` and are taken from a real run
-at 1600 × 960. Add `{ .screenshot }` after the image for the framed style.
-
-## Documentation quality standard
-
-The existing sections follow the separation described by
-[Diátaxis](https://diataxis.fr/): tutorials teach a first successful task,
-how-to guides solve a specific problem, reference pages describe contracts, and
-concept pages explain design decisions. Use this as an authoring structure, not
-as a claim of external certification.
-
-- Use descriptive headings, sentence case and plain technical language. Avoid
-  decorative emojis, icon shortcodes, slogans and unsupported superlatives.
-- Preserve useful existing material. Extend it with prerequisites, explanations,
-  expected results and links; correct inaccurate instructions in place.
-- State whether paths are relative to the repository, server, host or container.
-  Identify the terminal and working directory when a workflow uses two processes.
-- Label destructive commands before the code block and explain recovery limits.
-- Follow a code example with what it does, why its parameters matter, and the
-  observable result. Separate copyable commands from illustrative output.
-- Use exact versions only when verified against the lockfile, configuration or
-  build. Date measurements and state the workload and platform.
-- Link to the security policy rather than duplicating reporting instructions.
-  Never publish credentials, private map data or unsanitized diagnostic bundles.
-
-## Review and validation
+## Checking a build
 
 ```bash
 .venv-docs/bin/mkdocs build --strict
-git diff --check
 ```
 
-The first command builds the configured site and rejects warnings, including
-broken internal links and missing navigation entries. It does not test external
-websites, prove a command succeeds, or verify the accuracy of prose. The second
-checks whitespace errors in the diff. Also inspect the generated pages in a
+This builds the site and rejects warnings, including broken internal links and missing
+navigation entries. It does not test external websites or prove that a documented
+command works, so run the commands you document and look at the generated pages in a
 browser for table layout, code wrapping and navigation.
-
-For executable examples, run them against an isolated server with the bundled
-map. Record the revision, command, expected result and actual outcome in the PR.
-If an example is illustrative or could not be run, say so. Do not turn an older
-audit's test counts into a claim about the current checkout.

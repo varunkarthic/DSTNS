@@ -1,16 +1,15 @@
 # Development
 
-Everything needed to change DSTNS: the code layout, building, testing,
-documenting and contributing.
+How the code is organised, how to build it, how to run its tests, and how the
+documentation site is built. DSTNS is released under the AGPL, so you are free to
+read it, build it and adapt it for your own use.
 
-| Page | For |
+| Page | Covers |
 |---|---|
-| [Contributing](contributing.md) | Workflow, conventions, commit style, review checklist |
-| [Building from source](building.md) | Build options, targets, sanitizers, IDE setup, the observer's dev server |
-| [Testing](testing.md) | Every test suite, what it proves, and how to write a new test |
-| [Writing documentation](documentation.md) | This site: MkDocs, Read the Docs, conventions |
-| [Maintainer guide](maintainers.md) | Going public, repository security settings, handling vulnerability reports, releasing |
-| [Code evaluation, October 2026](audit-2026-10.md) | The latest review: defects found and fixed, and known issues |
+| [Building from source](building.md) | Build options, targets, sanitizers, editor setup, the observer's dev server |
+| [Testing](testing.md) | Every test suite, what it proves, and how to run it |
+| [Building the documentation](documentation.md) | Previewing and building this site |
+| [Code evaluation, October 2026](audit-2026-10.md) | A review of the code: defects found and fixed, and known limitations |
 | [Components](../components/index.md) | Per-class design notes for the core |
 
 ## Repository map
@@ -60,10 +59,8 @@ For observer work, run the core once and the Vite dev server with hot reload:
 open http://localhost:5173
 ```
 
-## Maintenance guides
+## Related
 
-- [Dependency maintenance](dependencies.md): review and validate automated updates.
 - [Operations runbook](../deployment/operations.md): deploy, diagnose and recover.
-- [Python client walkthrough](../api/client-walkthrough.md): implement an integration.
-- [Security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md):
-  report a vulnerability and understand support and disclosure practices.
+- [Python client walkthrough](../api/client-walkthrough.md): write an integration.
+- [Security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md): reporting a vulnerability.

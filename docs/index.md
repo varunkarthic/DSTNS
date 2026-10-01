@@ -176,4 +176,3 @@ is guaranteed.
 | Handle an error response | [API errors](api/errors.md) |
 | Fix a problem | [Troubleshooting](troubleshooting.md), [FAQ](faq.md) |
 | Report a vulnerability | [Security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md) |
-| Contribute | [Contributing](development/contributing.md) |

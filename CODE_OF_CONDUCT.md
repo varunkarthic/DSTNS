@@ -4,9 +4,16 @@ This code of conduct is adapted from the [Contributor Covenant](https://www.cont
 version 2.1, which is licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
+## Scope and purpose
+
+DSTNS is developed independently and does not take outside contributions. This code of
+conduct is published with the source so that it travels with the code: it applies in
+the spaces associated with this repository, and anyone who forks, redistributes or runs a
+community around a copy is expected to keep it, or an equivalent, in force there.
+
 ## Our pledge
 
-We as members, contributors and maintainers pledge to make participation in our
+We as members, participants and leaders pledge to make participation in our
 community a harassment-free experience for everyone, regardless of age, body
 size, visible or invisible disability, ethnicity, sex characteristics, gender
 identity and expression, level of experience, education, socio-economic status,
@@ -59,10 +66,9 @@ an individual is officially representing the community in public spaces.
 ## Enforcement
 
 Instances of abusive, harassing or otherwise unacceptable behavior may be
-reported to the maintainers by contacting the repository owner,
-[@varunkarthic](https://github.com/varunkarthic), through GitHub. Reports about
-behavior in an issue or pull request may also be made by using GitHub's
-**Report content** option, which reaches repository maintainers. All complaints
+reported to the repository owner, [@varunkarthic](https://github.com/varunkarthic),
+through GitHub, or by using GitHub's **Report content** option on the content
+concerned. In a fork or community run by someone else, report to whoever runs it. All complaints
 will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

@@ -53,7 +53,7 @@ map bytes and compatible build; see [Reproducible experiments](#reproducible-exp
 - [Project layout](#project-layout)
 - [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
+- [Project status and use](#project-status-and-use)
 - [License](#license)
 
 ## Highlights
@@ -381,7 +381,6 @@ see the [Python API walkthrough](docs/api/client-walkthrough.md).
 | Report a suspected vulnerability | [Security policy](SECURITY.md): supported versions, confidential reporting, triage and disclosure |
 | Restrict access to the API | [Deployment security](docs/deployment/security.md): trust boundaries, credentials, origins and proxy requirements |
 | Verify a deployment and recover from failure | [Operations runbook](docs/deployment/operations.md): readiness, backups, updates and recovery |
-| Review automated dependency updates | [Dependency maintenance](docs/development/dependencies.md): lockfile review, tests and merge criteria |
 
 DSTNS runs one shared simulation per server. Every client with network access can
 control that simulation through endpoints other than the credential-protected
@@ -454,14 +453,19 @@ python3 -m venv .venv-docs && .venv-docs/bin/pip install -r docs/requirements.tx
 
 More: [Troubleshooting](docs/troubleshooting.md) and [FAQ](docs/faq.md).
 
-## Contributing
+## Project status and use
 
-Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and
-the [Code of Conduct](CODE_OF_CONDUCT.md) first: behavior changes need regression
-coverage that fails without the change, documentation changes need a strict site
-build and verified examples, and every change records itself in
-[CHANGELOG.md](CHANGELOG.md). **Report security vulnerabilities privately**, as
-described in [SECURITY.md](SECURITY.md); never in a public issue.
+DSTNS is developed independently by one person and released for public use. The
+repository is published so that you can run it, read it, and build on your own copy
+under the [AGPL-3.0-or-later](LICENSE) licence. It does not take outside contributions,
+bug reports or feature requests, and it is provided as is.
+
+If you fork or redistribute it, keep the licence and copyright notices, follow the
+[Code of Conduct](CODE_OF_CONDUCT.md) in the spaces you run, and see
+[Building from source](docs/development/building.md) and
+[Testing](docs/development/testing.md) for how to build and verify your copy. A
+suspected security vulnerability should be reported **privately**, as described in
+[SECURITY.md](SECURITY.md); never in a public issue.
 
 ## License
 

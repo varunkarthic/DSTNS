@@ -65,13 +65,16 @@ and the notice in [`COPYRIGHT`](https://github.com/varunkarthic/DSTNS/blob/main/
 | [@poppinss/cliui](https://github.com/poppinss/cliui) | MIT | The operator CLI |
 | [Eclipse SUMO](https://eclipse.dev/sumo/) (optional, not bundled by default) | EPL-2.0 | Microscopic cross-check |
 
-## Contributions and copyright
+## Using and modifying DSTNS
 
-Contributors keep the copyright in their contributions and license them to the project
-under the same AGPL-3.0-or-later terms (see [Contributing](development/contributing.md)).
-There is no contributor licence agreement. The practical consequence is that
-relicensing the project later would need every contributor's consent, so consider this
-before accepting large contributions.
+You may run, study, change and redistribute DSTNS under the AGPL. If you redistribute a
+modified copy, or let others use it over a network, keep the licence and the copyright and
+SPDX notices in every file, mark your changes, and offer your users the corresponding
+source. A file you add may carry your own copyright line.
+
+The project does not take outside contributions, so there is no contributor agreement. If
+you publish your own fork, you decide how contributions to it are handled and under what
+terms.
 
 ## Data
 
