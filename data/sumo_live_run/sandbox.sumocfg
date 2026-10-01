@@ -1,1 +1,0 @@
-<configuration><input><net-file value="network.net.xml"/><route-files value="sandbox.rou.xml"/><additional-files value="sandbox.add.xml"/></input><time><begin value="0"/><end value="86400"/><step-length value="1"/></time><processing><time-to-teleport value="120"/></processing><report><no-step-log value="true"/></report></configuration>

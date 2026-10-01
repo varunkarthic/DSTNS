@@ -1,6 +1,6 @@
 # DSTNS observer modernization
 
-The production UI uses the design reference in `ui-engine-alpha/templates/index.html` (there is no `ui-engine-alpha/index.html`). React components implement its dark navy surfaces, cyan/mint hierarchy, frosted floating panels, category controls, event sidebar and bottom playback bar. It is not an embedded prototype. Fonts are bundled locally; `/media/logo.png` is optional.
+The production UI follows the original static design reference (the retired `ui-engine-alpha` mock-up, removed in October 2026). React components implement its dark navy surfaces, cyan/mint hierarchy, frosted floating panels, category controls, event sidebar and bottom playback bar. It is not an embedded prototype. Fonts are bundled locally; `/media/logo.png` is optional.
 
 ## Authority and operation
 
@@ -124,7 +124,7 @@ Map data retrieved from Overpass is © OpenStreetMap contributors under ODbL 1.0
 
 ## Observer shell
 
-The layout follows `ui-engine-alpha/templates/index.html`: a fixed header, a
+The layout follows the original design reference: a fixed header, a
 full-bleed map, a floating control dock at top-left, a coordinate and scale HUD
 above the controls, a glass telemetry deck on the right, and a two-tier playback
 controller along the bottom. The mockup's tokens are transcribed into
