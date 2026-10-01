@@ -1,0 +1,22 @@
+{#- Section tabs with a description each, shown as a tooltip. -#}
+{% import "partials/tabs-item.html" as item with context %}
+{% set tips = {
+  "Home": "Overview and a map of the documentation",
+  "Getting started": "Install DSTNS, run it with Docker, take a first simulation",
+  "User guide": "The operator CLI, the observer, playback, seeds and configuration",
+  "Concepts": "How a seed becomes a world and a day, with the equations",
+  "API": "HTTP routes, schemas, streaming and a runnable client",
+  "Deployment": "Containers, TLS, security, logging and operations",
+  "Help": "Troubleshooting, the FAQ and the glossary",
+  "Reference": "Components, design specs, development notes, changelog and licence"
+} %}
+<nav class="md-tabs" aria-label="{{ lang.t('tabs') }}" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      {% for nav_item in nav.items %}
+        {% set html = item.render(nav_item) %}
+        {{ html | replace('class="md-tabs__link"', 'class="md-tabs__link" title="' ~ (tips[nav_item.title] | d(nav_item.title)) ~ '"') }}
+      {% endfor %}
+    </ul>
+  </div>
+</nav>

@@ -16,6 +16,9 @@ site_author: Varun Karthic
 site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://dstns.readthedocs.io/en/latest/"]
 repo_url: https://github.com/varunkarthic/DSTNS
 repo_name: varunkarthic/DSTNS
+exclude_docs: |
+  includes/
+
 copyright: Copyright &copy; 2026 Varun Karthic &middot; AGPL-3.0-or-later &middot; Map data &copy; OpenStreetMap contributors
 
 theme:
@@ -103,6 +106,8 @@ markdown_extensions:
   - pymdownx.smartsymbols
   - pymdownx.snippets:
       check_paths: true
+      auto_append:
+        - docs/includes/abbreviations.md
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid

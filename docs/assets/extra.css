@@ -87,11 +87,40 @@
 }
 .md-header .md-tabs__link:hover,
 .md-header .md-tabs__link:focus-visible { opacity: 1; background-color: rgb(255 255 255 / 9%); }
-.md-header .md-tabs__item--active .md-tabs__link {
-  opacity: 1;
-  background-color: rgb(var(--dstns-accent-rgb, 79 214 234) / 18%);
-  color: #fff;
+/* Active tab: plain text with an accent underline, no fill. */
+.md-header .md-tabs__link { position: relative; border-radius: 0; background: none !important; }
+.md-header .md-tabs__link::after {
+  content: "";
+  position: absolute;
+  left: 0.6rem;
+  right: 0.6rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: #4fd6ea;
+  transform: scaleX(0);
+  transition: transform 180ms ease;
 }
+.md-header .md-tabs__link:hover::after { transform: scaleX(0.4); }
+.md-header .md-tabs__item--active .md-tabs__link { opacity: 1; color: #fff; font-weight: 600; }
+.md-header .md-tabs__item--active .md-tabs__link::after { transform: scaleX(1); }
+.md-header .md-tabs__link { padding-top: 0.55rem; padding-bottom: 0.65rem; }
+
+/* Tooltips: a compact dark card with an accent edge, used for every title. */
+.md-tooltip2__inner {
+  background-color: #0b1c28 !important;
+  color: #edf1f4 !important;
+  border: 1px solid rgb(79 214 234 / 35%);
+  border-radius: 8px !important;
+  box-shadow: 0 10px 30px -10px rgb(0 0 0 / 60%) !important;
+  font-size: 0.62rem !important;
+  font-weight: 500 !important;
+  line-height: 1.45;
+  padding: 0.35rem 0.6rem !important;
+}
+.md-tooltip2--top:before { border-top-color: #0b1c28 !important; }
+.md-tooltip2--bottom:before { border-bottom-color: #0b1c28 !important; }
+.md-typeset abbr[title] { text-decoration: none; border-bottom: 1px dotted var(--dstns-accent); cursor: help; }
 
 /* Search: a rounded pill with a hairline border and a focus ring. */
 .md-search { margin-left: 0.4rem; }
@@ -339,4 +368,19 @@
 .md-typeset .dstns-chips .dstns-chip { padding: 0.25rem 0.8rem; font-size: 0.72rem; }
 @media (prefers-reduced-motion: reduce) {
   .md-typeset .dstns-card, .md-typeset .dstns-chip { transition: none; transform: none !important; }
+}
+
+/* Inline title tooltips (Material's .md-tooltip): same card as above. */
+.md-tooltip {
+  background-color: #0b1c28 !important;
+  border: 1px solid rgb(79 214 234 / 35%);
+  border-radius: 8px !important;
+  box-shadow: 0 10px 30px -10px rgb(0 0 0 / 60%) !important;
+}
+.md-tooltip__inner {
+  color: #edf1f4 !important;
+  font-size: 0.62rem !important;
+  font-weight: 500 !important;
+  line-height: 1.45;
+  padding: 0.35rem 0.6rem !important;
 }

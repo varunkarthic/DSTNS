@@ -68,18 +68,6 @@ used for world generation and for failures.
 
 The map fills the window. Floating instrumentation sits over it:
 
-```text
-+--------------------------------------------------------------------------+
-| DSTNS | City | Tutorial | Export report | About                          |
-| Sidebar: Zoom, Fit, Search, Auto Focus, DND, Reduced motion, Settings    |
-| Main view: road map | Right panel: live telemetry, tiles and lists       |
-| Lower HUD: Notifications | Layers | Roads | Places | Coordinates | Scale |
-| Command rail: Restart | Back | Step | Play/Pause | Forward               |
-| Command rail: Clock | Speed (0.25x to 5x) | Seed | Regenerate | Online   |
-| Command rail: Terminate                                                  |
-+--------------------------------------------------------------------------+
-```
-
 - **Sidebar** (left): zoom, fit, place search, Auto Focus, Do Not Disturb,
   reduced motion, and Settings.
 - **Telemetry** (right): live measures and the Stack, News, Queue, Incidents

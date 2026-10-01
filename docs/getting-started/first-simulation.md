@@ -37,18 +37,6 @@ doing: **Selecting world**, **Downloading map** (the first time for a city),
 
 ![The observer](../assets/screenshots/observer.png){ .screenshot }
 
-```text
-+--------------------------------------------------------------------------+
-| DSTNS | City | Tutorial | Export report | About                          |
-| Sidebar: Zoom, Fit, Search, Auto Focus, DND, Reduced motion, Settings    |
-| Main view: road map | Right panel: live telemetry, tiles and lists       |
-| Lower HUD: Notifications | Layers | Roads | Places | Coordinates | Scale |
-| Command rail: Restart | Back | Step | Play/Pause | Forward               |
-| Command rail: Clock | Speed (0.25x to 5x) | Seed | Regenerate | Online   |
-| Command rail: Terminate                                                  |
-+--------------------------------------------------------------------------+
-```
-
 | Area | What it shows |
 |---|---|
 | **Map** | Every road of the district, coloured by congestion: clear, moderate, severe, flooded, closed. Markers are places: schools, offices, shops, stops. Pan with drag, zoom with the wheel |
