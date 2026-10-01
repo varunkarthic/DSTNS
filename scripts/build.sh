@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cmake -S "$root" -B "$root/build" -DCMAKE_BUILD_TYPE="${BUILD_TYPE:-Release}" -DDSTNS_BUILD_TESTS=ON

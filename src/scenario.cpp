@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 #include "dstns/scenario.hpp"
 #include "dstns/geo.hpp"
 #include "dstns/osm_fetch.hpp"

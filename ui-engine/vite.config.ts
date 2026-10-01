@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 // Minimal ambient declaration: @types/node is not a dependency of the browser

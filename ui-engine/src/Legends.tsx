@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { useMemo, useRef, useState } from "react";
 import { Floating, useDismiss } from "./Popover";
 import { Icon } from "./Icons";

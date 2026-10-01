@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // Repeatable full UI -> CLI -> core -> API -> report verification.
 import { chromium } from "@playwright/test";
 import { spawn, spawnSync } from "node:child_process";

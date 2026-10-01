@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { DEMAND_TYPE_LABEL, PLACE_KINDS, UNCLASSIFIED, hasMarker, placeKind } from "./mapModel";
 import type { DemandState, MapFeature } from "./types";
 

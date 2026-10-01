@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 """Slow real-map startup and regeneration under concurrent HTTP polling.
 
 Uses an isolated server/cache and a gated OSM file, never a public endpoint.

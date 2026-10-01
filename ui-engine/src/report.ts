@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { LOGO, logoPng } from "./logoAsset";
 import reportFontUrl from "./assets/report-inter.ttf?url";
 import { DEMAND_TYPE_LABEL, placeKind, roadState, roadTitle } from "./mapModel";

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import "@testing-library/jest-dom/vitest";
 
 // jsdom implements neither of these, and the shell reads both on first paint:

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // Playback stepping and world regeneration.
 //
 // Stepping must move the model by exactly the requested amount of virtual time

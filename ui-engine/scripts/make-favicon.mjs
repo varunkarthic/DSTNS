@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // Derive the browser icon from the brand mark.
 //
 // The favicon is the D of the DSTNS wordmark, taken from the same

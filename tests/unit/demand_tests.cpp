@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // The demand model: diurnal profiles, place classification, and the couplings
 // that make the network behave as a system rather than a set of schedules.
 #include "dstns/demand.hpp"

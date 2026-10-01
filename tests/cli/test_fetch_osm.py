@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 """The map downloader against a local Overpass.
 
 A single volunteer-run Overpass mirror refusing connections, shedding load or

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // Text boundaries.
 //
 // nlohmann::json refuses to serialise invalid UTF-8 (type_error.316), so a

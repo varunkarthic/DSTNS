@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // Real-browser verification of the observer HUD against a live core.
 //
 // Starts dstns_server on a private port, starts a run on the bundled fixture

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { roadTitle } from "./mapModel";
 import { INCIDENT_TITLES } from "./notificationModel";
 import type { Snapshot, Topology } from "./types";

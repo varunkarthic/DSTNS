@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // Adaptive Simulation Backpressure: the escalation ladder, the control law and
 // the guarantees the operator is promised.
 //

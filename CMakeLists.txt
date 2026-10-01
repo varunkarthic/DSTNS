@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 cmake_minimum_required(VERSION 3.22)
 project(dstns VERSION 2.0.0 LANGUAGES CXX)
 

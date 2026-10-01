@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import NetworkMap from "./NetworkMap";
 import type { MapControls, MapView } from "./NetworkMap";

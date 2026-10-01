@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { describe, expect, it } from "vitest";
 import { buildNotifications, shouldDisplayNotification } from "../src/notificationModel";
 import type { DisplayPolicy, UiNotification } from "../src/notificationModel";
