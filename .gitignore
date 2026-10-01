@@ -29,8 +29,6 @@ data/maps/*.manifest.json
 data/maps/*.part
 data/maps/*.progress
 data/maps/*.tmp
-TODO
-prompt.md
 
 # Build and run outputs
 *.tsbuildinfo
@@ -39,3 +37,34 @@ data/sumo_live_run/
 data/sumo_export/
 site/
 .venv-docs/
+
+# Editors and assistants
+.vscode/
+.idea/
+*.swp
+.claude/
+
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+*.pem
+*.key
+*.crt
+!docker/certificates/.gitkeep
+*.token
+
+# Test and tooling output
+ui-engine/test-results/
+ui-engine/playwright-report/
+coverage/
+artifacts/
+
+# Personal scratch notes: keep them out of the repository
+/TODO
+/TODO.md
+/NOTES.md
+/scratch/
+
