@@ -311,8 +311,9 @@ try {
     undefined,
     { timeout: 10000 },
   );
-  await page.getByRole("dialog", { name: "Simulation Complete" }).waitFor({ timeout: 10000 });
-  await page.getByRole("button", { name: "Close" }).click();
+  const completion = page.getByRole("dialog", { name: "The day is complete" });
+  await completion.waitFor({ timeout: 10000 });
+  await completion.getByRole("button", { name: "Not Now" }).click();
   assert.ok(
     await page.getByRole("button", { name: "Pause simulation" }).isDisabled(),
     "completed run offers no pause",

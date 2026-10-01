@@ -314,11 +314,23 @@ void ApiServer::routes() {
     server_->Get("/", index_handler);
     server_->Get("/index.html", index_handler);
 
+    // CORS is granted per request, below, not to everyone: "*" would let any
+    // web page the operator visits read the run from a local server.
     server_->set_default_headers({
-        {"Access-Control-Allow-Origin", "*"},
         {"Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Authorization"},
         {"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
         {"Cache-Control", "no-store"}
+    });
+
+    // Only the server's own origin, and origins listed in DSTNS_ALLOWED_ORIGINS,
+    // may read responses from a browser. The observer is served by this server,
+    // so it is same-origin and needs no cross-origin grant at all.
+    server_->set_post_routing_handler([](const auto& req, auto& res) {
+        const auto origin = req.get_header_value("Origin");
+        if (!origin.empty() && same_origin(origin, req.get_header_value("Host"), req.get_header_value("X-Forwarded-Host"))) {
+            res.set_header("Access-Control-Allow-Origin", origin);
+        }
+        res.set_header("Vary", "Origin");
     });
 
     server_->Options(R"(.*)", [](const auto&, auto& r) {
