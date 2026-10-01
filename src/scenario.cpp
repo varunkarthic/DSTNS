@@ -370,7 +370,16 @@ void ScenarioCompiler::export_sumo(const Scenario&s,const std::filesystem::path&
     if(!nod||!edg||!rou||!add||!cfg)throw std::runtime_error("cannot create SUMO bundle");
     nod<<"<nodes>\n";for(const auto&n:s.nodes)nod<<"  <node id=\"n"<<n.id.value<<"\" x=\""<<n.position.x_m<<"\" y=\""<<n.position.y_m<<"\" type=\""<<(n.signal?"traffic_light":"priority")<<"\"/>\n";nod<<"</nodes>\n";
     edg<<"<edges>\n";for(const auto&e:s.edges)if(is_source_direction_allowed(e))edg<<"  <edge id=\"e"<<e.id.value<<"\" from=\"n"<<e.from.value<<"\" to=\"n"<<e.to.value<<"\" numLanes=\""<<e.lanes<<"\" speed=\""<<e.free_speed_mps<<"\"/>\n";edg<<"</edges>\n";
-    add<<"<additional>\n";for(const auto&b:s.bus_stops)add<<"  <busStop id=\"stop"<<b.id.value<<"\" lane=\"e"<<b.edge.value<<"_0\" startPos=\"1\" endPos=\""<<std::max(5.0,b.position_m)<<"\"/>\n";add<<"</additional>\n";
+    add<<"<additional>\n";for(const auto&b:s.bus_stops){
+        // netconvert shortens lanes where they meet a junction, so a position
+        // valid on the DSTNS edge can lie beyond the SUMO lane. friendlyPos
+        // lets SUMO move such a stop onto its lane instead of refusing the
+        // whole file ("Invalid position for busStop"); the bounds are clamped
+        // to the edge as a first approximation.
+        const double length=b.edge.value<s.edges.size()?s.edges[b.edge.value].length_m:b.position_m;
+        const double end=std::clamp(std::max(5.0,b.position_m),std::min(1.0,length),std::max(length,1.0));
+        const double start=std::max(0.0,end-std::min(10.0,end));
+        add<<"  <busStop id=\"stop"<<b.id.value<<"\" lane=\"e"<<b.edge.value<<"_0\" startPos=\""<<start<<"\" endPos=\""<<end<<"\" friendlyPos=\"true\"/>\n";}add<<"</additional>\n";
     rou<<"<routes>\n"
        <<"  <vType id=\"car\" accel=\"2.6\" decel=\"4.5\" sigma=\"0.2\" length=\"4.8\" maxSpeed=\"33.33\" vClass=\"passenger\" guiShape=\"passenger\"/>\n"
        <<"  <vType id=\"bus\" accel=\"1.4\" decel=\"3.5\" sigma=\"0.1\" length=\"12.0\" maxSpeed=\"20.0\" vClass=\"bus\" guiShape=\"bus\"/>\n"
