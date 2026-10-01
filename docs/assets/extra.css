@@ -72,39 +72,47 @@
 .md-header .md-tabs[hidden] { pointer-events: auto; }
 .md-header .md-tabs[hidden] .md-tabs__link { opacity: 0.78; transform: none; }
 .md-header .md-tabs[hidden] .md-tabs__item--active .md-tabs__link { opacity: 1; }
-.md-header .md-tabs__list { display: flex; margin: 0; contain: none; }
-.md-header .md-tabs__item { height: auto; list-style: none; padding: 0; margin-right: 0.05rem; }
+.md-header .md-tabs__list { display: flex; margin: 0; contain: none; gap: 0.2rem; }
+.md-header .md-tabs__item { height: auto; list-style: none; padding: 0; margin: 0; }
+
+/* Tabs are plain text. Hover and focus change the colour; the current section
+   is white with a thin accent line under it. No fills, pills or outlines. */
 .md-header .md-tabs__link {
+  position: relative;
   display: block;
   margin: 0;
-  padding: 0.38rem 0.6rem;
-  margin-top: 0;
-  border-radius: 999px;
+  padding: 0.6rem 0.65rem;
+  border: 0;
+  border-radius: 0;
+  background: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  color: rgb(237 241 244 / 68%);
   font-size: 0.72rem;
   font-weight: 500;
-  opacity: 0.78;
-  transition: background-color 160ms ease, opacity 160ms ease;
+  opacity: 1;
+  transition: color 150ms ease;
 }
-.md-header .md-tabs__link:hover,
-.md-header .md-tabs__link:focus-visible { opacity: 1; background-color: rgb(255 255 255 / 9%); }
-/* Active tab: plain text with an accent underline, no fill. */
-.md-header .md-tabs__link { position: relative; border-radius: 0; background: none !important; }
 .md-header .md-tabs__link::after {
   content: "";
   position: absolute;
-  left: 0.6rem;
-  right: 0.6rem;
-  bottom: 0;
+  left: 0.65rem;
+  right: 0.65rem;
+  bottom: 0.1rem;
   height: 2px;
   border-radius: 2px;
   background: #4fd6ea;
-  transform: scaleX(0);
-  transition: transform 180ms ease;
+  opacity: 0;
+  transform: scaleX(0.3);
+  transition: opacity 150ms ease, transform 180ms ease;
 }
-.md-header .md-tabs__link:hover::after { transform: scaleX(0.4); }
-.md-header .md-tabs__item--active .md-tabs__link { opacity: 1; color: #fff; font-weight: 600; }
-.md-header .md-tabs__item--active .md-tabs__link::after { transform: scaleX(1); }
-.md-header .md-tabs__link { padding-top: 0.55rem; padding-bottom: 0.65rem; }
+.md-header .md-tabs__link:hover,
+.md-header .md-tabs__link:focus-visible { color: #4fd6ea; }
+.md-header .md-tabs__link:active { color: #8be4f1; }
+.md-header .md-tabs__item--active .md-tabs__link { color: #fff; font-weight: 600; }
+.md-header .md-tabs__item--active .md-tabs__link::after { opacity: 1; transform: scaleX(1); }
+.md-header .md-tabs__item--active .md-tabs__link:hover { color: #fff; }
+.md-header .md-tabs__link:focus-visible::after { opacity: 1; transform: scaleX(1); }
 
 /* Tooltips: a compact dark card with an accent edge, used for every title. */
 .md-tooltip2__inner {
@@ -122,7 +130,24 @@
 .md-tooltip2--bottom:before { border-bottom-color: #0b1c28 !important; }
 .md-typeset abbr[title] { text-decoration: none; border-bottom: 1px dotted var(--dstns-accent); cursor: help; }
 
-/* Search: a rounded pill with a hairline border and a focus ring. */
+/* Search: a rounded pill that opens into a card of results. The pill keeps the
+   header's dark surface in both colour schemes; the results follow the page. */
+:root {
+  --dstns-panel-bg: #ffffff;
+  --dstns-panel-fg: #1a2a35;
+  --dstns-panel-muted: #5b6b77;
+  --dstns-panel-line: rgb(8 40 56 / 10%);
+  --dstns-panel-hover: rgb(8 101 120 / 7%);
+  --dstns-panel-mark: rgb(8 101 120 / 14%);
+}
+[data-md-color-scheme="slate"] {
+  --dstns-panel-bg: #0b1c28;
+  --dstns-panel-fg: #edf1f4;
+  --dstns-panel-muted: #93a6b3;
+  --dstns-panel-line: rgb(255 255 255 / 8%);
+  --dstns-panel-hover: rgb(79 214 234 / 8%);
+  --dstns-panel-mark: rgb(79 214 234 / 18%);
+}
 .md-search { margin-left: 0.4rem; }
 .md-search__inner { width: 10rem; }
 .md-search__form {
@@ -133,29 +158,110 @@
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 .md-search__form:hover { background-color: rgb(255 255 255 / 13%); }
-.md-search__input { height: 100%; padding-left: 2.3rem; font-size: 0.72rem; border-radius: 999px; }
+.md-search__input {
+  height: 100%;
+  padding-left: 2.3rem;
+  padding-right: 2.2rem;
+  font-size: 0.72rem;
+  border-radius: 999px;
+  color: #edf1f4;
+}
+.md-search__input::placeholder { color: rgb(237 241 244 / 55%); }
+.md-search__suggest { padding-left: 2.3rem; font-size: 0.72rem; line-height: 2rem; color: rgb(237 241 244 / 35%); }
 .md-search__icon[for="__search"] { top: 0.5rem; left: 0.7rem; }
 .md-search__icon[for="__search"] svg { width: 1rem; height: 1rem; }
-.md-search__options { top: 0.3rem; }
+.md-search__options { top: 0.3rem; right: 0.4rem; }
 [data-md-toggle="search"]:checked ~ .md-header .md-search__form {
-  background-color: var(--md-default-bg-color);
-  border-color: var(--dstns-accent, #4fd6ea);
-  box-shadow: 0 0 0 3px rgb(var(--dstns-accent-rgb, 79 214 234) / 28%);
+  background-color: #0b1c28;
+  border-color: #4fd6ea;
+  box-shadow: 0 0 0 3px rgb(79 214 234 / 25%);
 }
 [data-md-toggle="search"]:checked ~ .md-header .md-search__input,
-[data-md-toggle="search"]:checked ~ .md-header .md-search__icon { color: var(--md-default-fg-color); }
+[data-md-toggle="search"]:checked ~ .md-header .md-search__icon { color: #edf1f4; }
 @media screen and (min-width: 60em) {
   .md-search__inner { width: 10rem; transition: width 200ms ease; }
-  [data-md-toggle="search"]:checked ~ .md-header .md-search__inner { width: 22rem; }
+  [data-md-toggle="search"]:checked ~ .md-header .md-search__inner { width: 30rem; }
 }
-.md-search__output { border-radius: 14px; margin-top: 0.4rem; border: 1px solid rgb(127 160 180 / 25%); }
-.md-search__scrollwrap { border-radius: 14px; }
+
+/* The results card */
+.md-search__output {
+  top: 2.5rem;
+  border-radius: 14px;
+  border: 1px solid var(--dstns-panel-line);
+  background-color: var(--dstns-panel-bg);
+  box-shadow: 0 24px 60px -18px rgb(0 0 0 / 55%);
+  overflow: hidden;
+}
+.md-search__scrollwrap { width: 100% !important; background-color: transparent; border-radius: 14px; scrollbar-width: thin; }
+.md-search__icon, .md-search__icon svg { color: rgb(237 241 244 / 80%); }
+.md-search-result__article--document { padding-bottom: 0.2rem; }
+.md-search-result__teaser { margin: 0.1rem 0 0.3rem; }
+.md-search-result__article { padding-right: 1rem; }
+.md-search-result__more { margin: 0; }
+.md-search-result__list { max-height: none; }
+.md-search-result__meta {
+  background: none;
+  color: var(--dstns-panel-muted);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.7rem 1rem 0.3rem;
+  border-bottom: 1px solid var(--dstns-panel-line);
+}
+.md-search-result__list { padding: 0.3rem 0; }
+.md-search-result__item { box-shadow: none; border-bottom: 1px solid var(--dstns-panel-line); }
+.md-search-result__item:last-child { border-bottom: 0; }
+.md-search-result__link { outline: none; transition: background-color 120ms ease; }
+.md-search-result__link:hover,
+.md-search-result__link:focus,
+.md-search-result__link[data-md-state="active"] { background-color: var(--dstns-panel-hover); }
+.md-search-result__article { padding: 0.55rem 1rem 0.4rem 0.4rem; overflow: visible; }
+.md-search-result__article--document .md-search-result__title { font-size: 0.8rem; font-weight: 600; margin: 0.25rem 0; }
+.md-search-result__title { color: var(--dstns-panel-fg); font-weight: 600; }
+.md-search-result__teaser {
+  color: var(--dstns-panel-muted);
+  font-size: 0.68rem;
+  line-height: 1.55;
+  max-height: none;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.md-search-result__icon { color: var(--dstns-panel-muted); }
+.md-search-result mark,
+.md-search-result__title mark,
+.md-search-result__teaser mark {
+  background-color: var(--dstns-panel-mark);
+  color: var(--dstns-accent, #4fd6ea);
+  border-radius: 3px;
+  padding: 0 0.12em;
+  text-decoration: none;
+  font-weight: 600;
+}
+[data-md-color-scheme="default"] .md-search-result mark { color: #086578; }
+.md-search-result__more > summary > div {
+  color: var(--dstns-accent, #4fd6ea);
+  font-size: 0.64rem;
+  font-weight: 600;
+  padding: 0.1rem 1rem 0.55rem 2.25rem;
+}
+[data-md-color-scheme="default"] .md-search-result__more > summary > div { color: #086578; }
+.md-search-result__more > summary:hover > div,
+.md-search-result__more > summary:focus > div { background: var(--dstns-panel-hover); color: var(--dstns-accent, #4fd6ea); }
+[data-md-color-scheme="default"] .md-search-result__more > summary:hover > div { color: #086578; }
+.md-search-result__more[open] > summary { background: transparent; }
+.md-search-result__terms { color: var(--dstns-panel-muted); font-size: 0.62rem; }
+@media screen and (max-width: 59.9375em) {
+  .md-search__output { top: 2.8rem; border-radius: 0; border-left: 0; border-right: 0; }
+}
 .md-header__option .md-icon,
 .md-header__source { margin-left: 0.2rem; }
 .md-header__source { width: auto; max-width: none; flex: none; min-width: 12rem; }
 .md-header__source .md-source__repository { max-width: none; overflow: visible; }
-.md-source { border-radius: 999px; padding: 0.1rem 0.3rem; transition: background-color 160ms ease; }
-.md-source:hover { background-color: rgb(255 255 255 / 9%); opacity: 1; }
+.md-source { transition: color 150ms ease, opacity 150ms ease; }
+.md-source:hover { opacity: 1; color: #4fd6ea; }
 
 /* Material hides the header logo on narrow screens and shows the site name
    instead; keep the wordmark and put the menu button first. */
@@ -273,10 +379,13 @@
   box-shadow: 0 12px 40px -12px rgb(0 0 0 / 55%);
   border: 1px solid rgb(127 160 180 / 25%);
 }
-.md-typeset__table { min-width: 100%; }
+.md-typeset__table { display: block; width: 100%; }
+.md-typeset table:not([class]) { display: table; width: 100%; }
 .md-typeset table:not([class]) { font-size: 0.72rem; }
 .md-typeset .mermaid { text-align: center; }
 .md-typeset .arithmatex { overflow-x: auto; overflow-y: hidden; }
+/* Inline formulas wider than a phone scroll inside themselves instead of the page. */
+.md-typeset span.arithmatex { display: inline-block; max-width: 100%; vertical-align: middle; }
 
 /* --------------------------------------------------------------------------
    Home page
@@ -383,4 +492,44 @@
   font-weight: 500 !important;
   line-height: 1.45;
   padding: 0.35rem 0.6rem !important;
+}
+
+/* Page titles: solid and a little heavier than Material's light weight. */
+.md-typeset h1 {
+  margin: 0 0 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--md-default-fg-color);
+}
+.md-typeset h2 { font-weight: 600; letter-spacing: -0.005em; color: var(--md-default-fg-color); }
+.md-typeset h3, .md-typeset h4 { font-weight: 600; }
+
+/* Mermaid diagrams use the site palette. */
+:root {
+  --md-mermaid-font-family: "Inter", sans-serif;
+}
+[data-md-color-scheme="slate"] {
+  --md-mermaid-node-bg-color: #0f2a3a;
+  --md-mermaid-node-fg-color: #edf1f4;
+  --md-mermaid-edge-color: #7fa0b4;
+  --md-mermaid-label-bg-color: #07131c;
+  --md-mermaid-label-fg-color: #cfdbe3;
+}
+[data-md-color-scheme="default"] {
+  --md-mermaid-node-bg-color: #e6f3f6;
+  --md-mermaid-node-fg-color: #0b1c28;
+  --md-mermaid-edge-color: #4b6575;
+  --md-mermaid-label-bg-color: #ffffff;
+  --md-mermaid-label-fg-color: #1a2a35;
+}
+
+/* Mobile drawer: the title bar uses the header's navy. */
+@media screen and (max-width: 76.1875em) {
+  .md-nav--primary .md-nav__title {
+    background-color: var(--md-primary-fg-color);
+    color: var(--md-primary-bg-color);
+    box-shadow: none;
+  }
+  .md-nav--primary .md-nav__title .md-nav__icon { color: var(--md-primary-bg-color); }
+  .md-nav--primary .md-nav__item--active > .md-nav__link { color: var(--dstns-accent); }
 }

@@ -60,7 +60,6 @@ theme:
     - toc.follow
     - search.suggest
     - search.highlight
-    - search.share
     - content.code.copy
     - content.code.annotate
     - content.tabs.link
@@ -125,7 +124,9 @@ extra_javascript:
 
 plugins:
   - search
-  - swagger-ui-tag
+  - swagger-ui-tag:
+      extra_css:
+        - assets/swagger-dstns.css
 
 validation:
   omitted_files: warn

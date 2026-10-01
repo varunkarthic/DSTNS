@@ -1,0 +1,37 @@
+/* Swagger UI inside the OpenAPI explorer: the DSTNS palette and type. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+html { background: transparent; }
+.swagger-ui, .swagger-ui .opblock .opblock-summary-description, .swagger-ui .tab li,
+.swagger-ui .parameter__name, .swagger-ui table thead tr th, .swagger-ui .response-col_status,
+.swagger-ui .btn, .swagger-ui select, .swagger-ui input, .swagger-ui textarea, .swagger-ui label,
+.swagger-ui .info .title, .swagger-ui .opblock-tag, .swagger-ui section.models h4 {
+  font-family: "Inter", system-ui, sans-serif !important;
+}
+.swagger-ui code, .swagger-ui pre, .swagger-ui .opblock-summary-path, .swagger-ui .parameter__type {
+  font-family: "JetBrains Mono", ui-monospace, monospace !important;
+}
+.swagger-ui .wrapper { padding: 0; }
+.swagger-ui .info { margin: 1.2rem 0; }
+.swagger-ui .info .title { font-size: 1.6rem; font-weight: 700; }
+.swagger-ui .scheme-container { box-shadow: none; padding: 0.8rem 0; background: transparent; }
+.swagger-ui .opblock { border-radius: 10px; box-shadow: none; }
+.swagger-ui .opblock .opblock-summary { border-radius: 10px 10px 0 0; }
+.swagger-ui .opblock-tag { border-bottom: 1px solid rgb(127 160 180 / 25%); }
+.swagger-ui .btn { border-radius: 8px; box-shadow: none; }
+.swagger-ui select, .swagger-ui input[type=text], .swagger-ui textarea { border-radius: 8px; }
+.swagger-ui section.models { border-radius: 10px; }
+.swagger-ui section.models .model-container { border-radius: 8px; }
+
+/* Dark: the site's navy instead of Swagger's grey. */
+html.dark-mode, html.dark-mode .swagger-ui { background: #07131c; color: #edf1f4; }
+html.dark-mode .swagger-ui .scheme-container { background: transparent; }
+html.dark-mode .swagger-ui .opblock .opblock-section-header,
+html.dark-mode .swagger-ui section.models,
+html.dark-mode .swagger-ui section.models .model-container,
+html.dark-mode .swagger-ui .opblock-body pre.microlight { background: #0b1c28; }
+html.dark-mode .swagger-ui .opblock-tag { color: #edf1f4; border-bottom-color: rgb(255 255 255 / 10%); }
+html.dark-mode .swagger-ui select, html.dark-mode .swagger-ui input[type=text],
+html.dark-mode .swagger-ui textarea { background: #0b1c28; color: #edf1f4; border: 1px solid rgb(255 255 255 / 16%); }
+html.dark-mode .swagger-ui .btn { color: #edf1f4; border-color: rgb(255 255 255 / 30%); }
+html.dark-mode .swagger-ui .markdown code, html.dark-mode .swagger-ui .renderedMarkdown code { background: #0d2230; color: #4fd6ea; }
