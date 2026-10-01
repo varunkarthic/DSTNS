@@ -206,6 +206,7 @@ int main() {
             };
             for (const auto* name : {"alpha_x5000", "beta_x5000", "gamma_x5000"}) plant(name);
             std::ofstream(sandbox / "interrupted.osm.xml.part") << "partial";
+            std::ofstream(sandbox / "killed_x5000.osm.xml.progress") << "{\"phase\":\"download\"}";
 
             check(parse_cache_policy("keep") == CachePolicy::Keep, "policy parses");
             const auto untouched = sweep_map_cache(sandbox, CachePolicy::Keep);
@@ -219,11 +220,11 @@ int main() {
                 const auto name = item.path().filename().string();
                 if (name.ends_with(".osm.xml")) ++remaining;
                 else if (name.ends_with(".manifest.json")) ++manifests;
-                else if (name.ends_with(".part")) ++partials;
+                else if (name.ends_with(".part") || name.ends_with(".progress")) ++partials;
             }
             check(remaining == 1, "exactly one extract survives a prune");
             check(manifests == 1, "an extract's manifest is removed with it");
-            check(partials == 0, "interrupted downloads are always discarded");
+            check(partials == 0, "interrupted downloads and their progress sidecars are always discarded");
 
             const auto cleared = sweep_map_cache(sandbox, CachePolicy::Clear);
             check(cleared.removed == 1 && cleared.kept == 0, "clear policy empties the cache");
