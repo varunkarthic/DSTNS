@@ -68,3 +68,6 @@ artifacts/
 /NOTES.md
 /scratch/
 
+
+# Private environment for the launcher's terminal interface
+.venv-launcher/

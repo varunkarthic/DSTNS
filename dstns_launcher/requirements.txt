@@ -1,0 +1,4 @@
+# Terminal interface for the DSTNS launcher. The launcher installs these into
+# .venv-launcher/ on first interactive use; without them it uses compatibility mode.
+textual==8.2.8
+rich==15.0.0
