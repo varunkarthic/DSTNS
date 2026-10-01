@@ -117,7 +117,7 @@ private:
     void check_playback_guard(const nlohmann::json& guard) const;
     std::uint64_t playback_revision_{}; // Never reset: distinguishes same-seed restarts.
     void loop(); void transition(Lifecycle next); void step_to(std::uint32_t target); void physics_step(std::uint32_t dt); void capture_checkpoint();
-    void restore_to(std::uint32_t target); void anchor_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
+    void restore_to(std::uint32_t target); void anchor_wall_clock(); void catch_up_to_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
     [[nodiscard]] nlohmann::json clock_json() const; [[nodiscard]] nlohmann::json envelope(nlohmann::json data) const;
     AppliedCommand& record(std::string type,nlohmann::json before,nlohmann::json after);
     [[nodiscard]] nlohmann::json signal_state_json() const;
