@@ -59,7 +59,7 @@ With the repository public, enable the following in **Settings → Code security
 | Dependabot alerts | Known-vulnerable dependencies | `gh api -X PUT repos/OWNER/REPO/vulnerability-alerts` |
 | Dependabot security updates | Automatic fix PRs | `gh api -X PUT repos/OWNER/REPO/automated-security-fixes` |
 | Secret scanning and push protection | Blocks a pushed credential | `gh api -X PATCH repos/OWNER/REPO -f 'security_and_analysis[secret_scanning][status]=enabled' -f 'security_and_analysis[secret_scanning_push_protection][status]=enabled'` |
-| CodeQL | Static analysis | Already configured in `.github/workflows/codeql.yml` |
+| CodeQL | Static analysis | Configured in `.github/workflows/codeql.yml`. It is skipped while the repository is private (code scanning is free only for public repositories) and runs automatically once it is public |
 
 Replace `OWNER/REPO` with `varunkarthic/DSTNS`. Then confirm:
 
