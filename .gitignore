@@ -27,5 +27,7 @@ artifacts/hud/
 data/maps/*.osm.xml
 data/maps/*.manifest.json
 data/maps/*.part
+data/maps/*.progress
+data/maps/*.tmp
 TODO
 prompt.md

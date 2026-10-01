@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <sys/wait.h>
+#include <fcntl.h>
 #include <spawn.h>
 #include <unistd.h>
 #include <signal.h>
@@ -53,6 +54,11 @@ int run_capture(const std::string& command, std::string& output) {
     output.clear();
     int pipefd[2];
     if (::pipe(pipefd) != 0) return -1;
+    // Close-on-exec, so no other child this process starts (SUMO, say) holds
+    // the write end open and keeps this read from ever seeing end of file.
+    // The dup2 onto the downloader's stdout/stderr clears the flag there.
+    ::fcntl(pipefd[0], F_SETFD, FD_CLOEXEC);
+    ::fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
     posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDOUT_FILENO);
@@ -276,11 +282,16 @@ CacheSweep sweep_map_cache(const std::filesystem::path& directory, CachePolicy p
             result.freed_bytes += entries[i].bytes;
         }
     }
-    // Interrupted downloads are never valid; drop them unconditionally.
+    // Interrupted downloads are never valid; drop them unconditionally, with
+    // the progress sidecar a killed downloader had no chance to remove.
+    // Collected first: removing entries mid-iteration is unspecified.
+    std::vector<std::filesystem::path> leftovers;
     for (const auto& item : std::filesystem::directory_iterator(directory, ec)) {
         if (ec) break;
-        if (item.path().extension() == ".part") std::filesystem::remove(item.path(), ec);
+        const auto extension = item.path().extension();
+        if (extension == ".part" || extension == ".progress") leftovers.push_back(item.path());
     }
+    for (const auto& path : leftovers) std::filesystem::remove(path, ec);
     return result;
 }
 
