@@ -51,6 +51,105 @@ fixed order (initialisation order, then execution order), two runs of the same
 scenario execute identical sequences. The replay suite checks this through full
 snapshot equality.
 
+## Mathematics
+
+### Ordering
+
+Events are ordered by a strict total order on `(time, sequence)`:
+
+\[
+e_1 \prec e_2 \;\iff\; (t_1, q_1) <_{\text{lex}} (t_2, q_2)
+\]
+
+where \( t \) is the virtual second and \( q \) the sequence number assigned when the
+event was pushed. Because \( q \) is unique and increases monotonically, no two events
+compare equal, so the execution order is fully determined even when many events share
+a second. In code the heap is a min-heap on exactly this pair:
+
+```cpp
+struct ScheduledEvent {
+    std::uint32_t time, entity, phase;  std::uint64_t sequence;
+    std::string category, description;  double value;
+    bool operator>(const ScheduledEvent& b) const { return std::tie(time, sequence) > std::tie(b.time, b.sequence); }
+};
+std::priority_queue<ScheduledEvent, std::vector<ScheduledEvent>, std::greater<ScheduledEvent>> queue_;
+```
+
+`std::tie` builds a tuple of references, and tuple comparison is lexicographic, so
+`(time, sequence)` is compared in that order. A heap push or pop costs
+\( O(\log n) \), and reading the next event, \( O(1) \).
+
+### Why one pending event per signal
+
+A controller cycles forever, so scheduling its whole day up front would put
+\( 6 \cdot 86400 / T \) events in the queue for a cycle length \( T \): for
+\( T = 76 \) s, **6,821** events per controller per day, and 68 million for 10,000
+controllers. Instead each controller keeps exactly **one** pending transition; when it
+fires, executing it pushes the next:
+
+```cpp
+// advance(): execute everything due at or before `time`
+auto e = queue_.top();  queue_.pop();
+state.phase = e.phase;  state.phase_started = e.time;
+state.next_transition = e.time + plan.phases_s[e.phase];
+if (state.next_transition <= 86400)
+    push({state.next_transition, e.entity, (e.phase + 1) % 6, 0, "signals", ...});   // schedule the next one
+```
+
+The queue therefore holds \( n \) signal events plus the place-demand events, memory is
+\( O(n) \), and the work per virtual second is the number of transitions that happen in
+it, about \( 6/T \) per controller:
+
+\[
+\text{events per virtual second} \;\approx\; \sum_{c} \frac{6}{T_c} \;\;\xrightarrow{\;n = 10^4,\; T = 76\;}\;\; \approx 790
+\]
+
+each costing \( O(\log n) \).
+
+### Initial phase from the offset
+
+A controller does not start every day at the beginning of its cycle; its offset
+\( o \) (the green-wave progression) places it part-way through. Walking the phase
+lengths \( \ell_0, \dots, \ell_5 \) subtracts each from the remainder until the
+remainder fits inside a phase:
+
+```cpp
+auto remainder = std::uint32_t(p.offset_s);  std::uint32_t phase = 0;
+while (remainder >= p.phases_s[phase]) { remainder -= p.phases_s[phase]; ++phase; }
+signals.push_back({phase, p.phases_s[phase] - remainder, -static_cast<std::int64_t>(remainder)});
+```
+
+For the plan \( (35, 3, 1, 33, 3, 1) \) (a 76 s cycle) and \( o = 50 \): subtracting
+35, 3 and 1 leaves 11, which is inside the 33 s phase 3 ("B green"). So the controller
+starts in phase 3, \( 33 - 11 = 22 \) s from its next transition, having begun
+11 s *before* time zero (`phase_started = -11`).
+
+### Effect on traffic
+
+An approach's `signal_multiplier` depends on its group and the phase: group A is
+approaches that are mostly north-south (\( |\Delta y| \ge |\Delta x| \)), group B the rest.
+
+| Phase | Group A | Group B |
+|---|---|---|
+| 0 A green | 1.00 | 0.08 |
+| 1 A amber | 0.40 | 0.08 |
+| 3 B green | 0.08 | 1.00 |
+| 4 B amber | 0.08 | 0.40 |
+| 2, 5 all red | 0.08 | 0.08 |
+
+Averaging over a cycle gives each group's effective throughput relative to an
+unsignalled road, with \( g \) its green time, \( a = 3 \) s of amber and
+\( T \) the cycle:
+
+\[
+\bar m \;=\; \frac{g \cdot 1 \;+\; a \cdot 0.4 \;+\; (T - g - a) \cdot 0.08}{T}
+\]
+
+For the 76 s plan, \( \bar m_A = (35 + 1.2 + 3.04)/76 = 0.516 \) and
+\( \bar m_B = (33 + 1.2 + 3.2)/76 = 0.492 \): roughly half of free-flow capacity,
+split nearly evenly because the greens (35 and 33 s) are close, as they should be when
+the two directions carry similar demand.
+
 ## Reading events
 
 `GET /api/v1/view/event-queue` pages through either view:

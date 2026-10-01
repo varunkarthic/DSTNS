@@ -72,6 +72,78 @@ flowchart LR
 - **Fixed steps and checkpoints.** One-second physics, and checkpoints that
   capture the complete dynamic state including the event runtime.
 
+## Why the guarantee holds
+
+The claim "playing to a time and seeking to it give the same state" is an
+induction over a pure step function. Let \( \mathcal{S} \) be the compiled scenario
+(the graph, signal plans, storm and incident schedules, trips) and \( s_t \) the
+dynamic state at virtual second \( t \). One physics step is
+
+\[
+s_{t+1} \;=\; \Phi(s_t,\; t;\; \mathcal{S})
+\]
+
+where \( \Phi \) depends on nothing but its arguments: not the wall clock, not thread
+timing, not memory addresses, not how many random numbers were drawn earlier (the
+generator is [counter-based](deterministic-seeding.md)). Given a pure \( \Phi \) and
+fixed \( s_0 \), every \( s_t \) is determined:
+
+\[
+s_t = \Phi^{\,t}(s_0), \qquad \text{by induction on } t
+\]
+
+Checkpoints store exact copies, \( c_k = s_{900k} \), so restoring one and replaying
+reaches the same state as running straight through:
+
+\[
+s_t \;=\; \Phi^{\,t - 900k}(c_k), \qquad k = \lfloor t / 900 \rfloor
+\]
+
+This is why a backward seek is exact and not an approximation. The proof holds as long
+as \( \Phi \) is pure, which is what the code is written, and tested, to preserve. The
+ways purity is classically lost, and how DSTNS avoids each:
+
+| Threat to purity | Mitigation |
+|---|---|
+| Reading the wall clock inside the step | Physics sees only the integer virtual second |
+| Iterating a hash container in memory order | Ordered containers and explicit ID sorting |
+| Random numbers drawn in an order that depends on execution | Counter-based draws addressed by object, never by order |
+| Thread scheduling | One engine thread owns all state, under one mutex |
+| Floating-point summation order | Fixed iteration order over IDs; integer route costs |
+| Uninitialised memory | Value-initialised structs (`{}`) and `-Wall -Wextra` |
+| Operator actions | Applied at a virtual second and kept outside checkpoints, so they stand until undone |
+
+### Seeds and the catalogue
+
+Seeds are drawn uniformly, so the number of distinct cities reached by \( n \) random
+seeds is that of \( n \) uniform draws from the \( C = 181 \) cities (a coupon-collector
+count):
+
+\[
+\mathbb{E}\big[\text{distinct cities}\big] \;=\; C\Big(1 - \big(1 - \tfrac1C\big)^{n}\Big)
+\]
+
+For \( n = 200 \) this is \( 181\,(1 - (180/181)^{200}) = 121 \), and the map sourcing
+test, which resolves 200 seeds, observes 116 (the count has a standard deviation of
+about 5). The test asserts at least 60, so it fails if the catalogue's spread collapses
+without being sensitive to the luck of any one sample.
+
+### Identifier collisions
+
+A `run_id` keeps 48 bits (12 hex digits) of the 256-bit `scenario_hash`. For \( n \)
+distinct scenarios the birthday approximation for any two sharing a `run_id` is
+
+\[
+p \;\approx\; \frac{n^2}{2 \cdot 2^{48}} \;=\; \frac{n^2}{2^{49}}
+\]
+
+which is \( 1.8 \times 10^{-9} \) for a thousand scenarios and \( 1.8 \times 10^{-3} \)
+for a million. `run_id` is a label, not a key: guards compare it only against the
+*current* run, so a collision cannot cause a wrong action in practice, and the full
+`scenario_hash` is available when uniqueness matters. Randomly generated seeds are 64
+bits, so \( n \) of them collide with probability about \( n^2 / 2^{65} \): \( 2.7 \times 10^{-8} \)
+for a million runs.
+
 ## The hashes
 
 | Hash | Covers | Reported in |

@@ -140,6 +140,71 @@ re-anchors, so changing the rate never applies retroactively. Physics always
 advances in one-second steps whatever the rate, so the rate changes pacing,
 never results.
 
+### The concurrency primitives in code
+
+The three mechanisms above are small. Reading them is the quickest way to
+understand how a minute-long map download coexists with a responsive server.
+
+**The compile lease.** At most one compile may run, whichever request started it.
+The lease is an RAII guard over an atomic flag; constructing a second one throws,
+which the API maps to HTTP 409:
+
+```cpp
+struct CompileLease {
+    std::atomic<bool>& busy;
+    explicit CompileLease(std::atomic<bool>& flag): busy(flag) {
+        bool expected = false;
+        if (!busy.compare_exchange_strong(expected, true))        // atomically: false -> true, or fail
+            throw std::logic_error("world generation already in progress");
+    }
+    ~CompileLease() { busy.store(false); }                         // released however the scope exits
+};
+```
+
+`compare_exchange_strong` makes check-and-set a single atomic step, so two requests
+arriving together cannot both win. It is an atomic flag rather than a mutex because a
+lease may be taken on an HTTP thread and released on the world worker thread, and a
+`std::mutex` must be unlocked by the thread that locked it.
+
+**The generation counter.** A compile runs without the engine lock, so by the time it
+finishes the world it was building may have been reset. Each compile records the
+generation it started under, and installs its result only if that is still current:
+
+```cpp
+const auto generation = ++compile_generation_;                     // taken while holding the lock
+lock.unlock();
+auto scenario = compiler_.compile(seed, config, compile_progress()); // slow; no lock held
+lock.lock();
+if (generation != compile_generation_ || terminate_requested_)
+    throw std::logic_error("world preparation cancelled by runtime change");
+```
+
+`reset()` and `terminate()` bump `compile_generation_`, so a download that finishes
+after a reset is discarded instead of resurrecting the world. The pattern is
+optimistic concurrency: do the expensive work without a lock, then validate that
+nothing relevant changed before committing.
+
+**The lifecycle mirror.** `/health` must answer even while the engine mutex is held
+for a download, so every state transition also writes an atomic copy that readers
+can load without the lock:
+
+```cpp
+void SimulationEngine::transition(Lifecycle next) {
+    const auto old = lifecycle_;
+    lifecycle_ = next;                                              // guarded by the mutex
+    lifecycle_mirror_.store(next, std::memory_order_relaxed);       // readable without it
+    ++playback_revision_;
+    logger_.lifecycle(run_id_, to_string(old), to_string(next), /* ... */);
+}
+Lifecycle SimulationEngine::lifecycle() const {
+    return lifecycle_mirror_.load(std::memory_order_relaxed);       // no lock
+}
+```
+
+Relaxed ordering is enough because the mirror carries a single self-contained value
+and nothing else is published through it. Every transition goes through this one
+function, so the mirror cannot drift from the real state.
+
 ## Run lifecycle
 
 ```
