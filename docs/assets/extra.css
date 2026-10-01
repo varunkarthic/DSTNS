@@ -52,8 +52,8 @@
   border-bottom: 1px solid rgb(127 160 180 / 16%);
   box-shadow: none;
 }
-.md-header__inner { align-items: center; gap: 0.15rem; height: 3.2rem; padding: 0 0.4rem; }
-.md-header__button.md-logo { padding: 0.3rem 0.4rem; margin: 0 0.9rem 0 0.2rem; }
+.md-header__inner { align-items: center; gap: 0.15rem; height: 3.2rem; padding: 0 0.8rem; }
+.md-header__button.md-logo { padding: 0.3rem 0; margin: 0 1.1rem 0 0; }
 .md-header__button.md-logo img,
 .md-header__button.md-logo svg { height: 1.15rem; width: auto; }
 .md-header__title { display: none; }
@@ -532,10 +532,18 @@
   display: flex;
   justify-content: center;
 }
-.dstns-hero__logo img { width: min(22rem, 78vw); height: auto; }
-.dstns-logo-dark { display: none; }
-[data-md-color-scheme="slate"] .dstns-logo-light { display: none; }
-[data-md-color-scheme="slate"] .dstns-logo-dark { display: block; }
+/* One element, painted with the text colour through the wordmark as a mask, so
+   the logo follows the selected scheme and exactly one is ever drawn. */
+.dstns-wordmark {
+  display: block;
+  width: min(22rem, 78vw);
+  aspect-ratio: 774.48 / 166.74;
+  background-color: var(--dstns-hero-ink, currentColor);
+  -webkit-mask: url("logo-wordmark.svg") center / contain no-repeat;
+  mask: url("logo-wordmark.svg") center / contain no-repeat;
+}
+[data-md-color-scheme="default"] { --dstns-hero-ink: #0b1c28; }
+[data-md-color-scheme="slate"] { --dstns-hero-ink: #edf1f4; }
 .md-typeset .dstns-hero .dstns-hero__full {
   margin: 0.2rem auto 1rem;
   font-size: clamp(0.8rem, 2.2vw, 1.05rem);

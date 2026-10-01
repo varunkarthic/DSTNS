@@ -7,10 +7,7 @@ hide:
 
 <div class="dstns-hero" markdown>
 
-<h1 class="dstns-hero__logo" aria-label="DSTNS">
-  <img class="dstns-logo-light" src="assets/wordmark-dark.svg" alt="DSTNS">
-  <img class="dstns-logo-dark" src="assets/wordmark-light.svg" alt="DSTNS">
-</h1>
+<h1 class="dstns-hero__logo"><span class="dstns-wordmark" role="img" aria-label="DSTNS"></span></h1>
 
 <p class="dstns-hero__full">Deterministic Spatiotemporal Transport Network Simulator</p>
 
