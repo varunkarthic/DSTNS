@@ -5,6 +5,7 @@
 #include "dstns/scenario.hpp"
 #include "dstns/geo.hpp"
 
+#include <regex>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -70,7 +71,16 @@ int main(){try{
     check(std::none_of(osm.trips.begin(),osm.trips.end(),[&](const PlannedTrip&t){return std::any_of(t.route.begin(),t.route.end(),[&](EdgeId e){return osm.edges[e.value].synthetic_reverse;});}),"planned trips exclude forbidden one-way direction");
     check(std::none_of(osm.bus_stops.begin(),osm.bus_stops.end(),[&](const BusStop&b){return osm.edges[b.edge.value].synthetic_reverse;}),"bus stops attach to traversable SUMO lanes");
     check(std::none_of(osm.hotspot_edges.begin(),osm.hotspot_edges.end(),[&](EdgeId e){return osm.edges[e.value].synthetic_reverse;}),"hotspots exclude forbidden one-way direction");
-    const auto sumo_temp=std::filesystem::temp_directory_path()/"dstns-oneway-sumo";std::filesystem::remove_all(sumo_temp);compiler.export_sumo(osm,sumo_temp);std::ifstream sumo_edges(sumo_temp/"network.edg.xml");const std::string sumo_edge_xml((std::istreambuf_iterator<char>(sumo_edges)),{});for(const auto&e:osm.edges)if(e.synthetic_reverse)check(sumo_edge_xml.find("id=\"e"+std::to_string(e.id.value)+"\"")==std::string::npos,"SUMO export excludes forbidden reverse edge");std::filesystem::remove_all(sumo_temp);
+    const auto sumo_temp=std::filesystem::temp_directory_path()/"dstns-oneway-sumo";std::filesystem::remove_all(sumo_temp);compiler.export_sumo(osm,sumo_temp);std::ifstream sumo_edges(sumo_temp/"network.edg.xml");const std::string sumo_edge_xml((std::istreambuf_iterator<char>(sumo_edges)),{});for(const auto&e:osm.edges)if(e.synthetic_reverse)check(sumo_edge_xml.find("id=\"e"+std::to_string(e.id.value)+"\"")==std::string::npos,"SUMO export excludes forbidden reverse edge");{std::ifstream stops(sumo_temp/"sandbox.add.xml");const std::string stops_xml((std::istreambuf_iterator<char>(stops)),{});
+        // Every stop must be loadable by SUMO: inside its edge, start before
+        // end, and allowed to snap onto a lane netconvert shortened.
+        const std::regex stop_rx(R"rx(<busStop id="stop(\d+)" lane="e(\d+)_0" startPos="([0-9.e+-]+)" endPos="([0-9.e+-]+)" friendlyPos="true"/>)rx");
+        std::size_t parsed=0;bool within=true;
+        for(std::sregex_iterator it(stops_xml.begin(),stops_xml.end(),stop_rx),end;it!=end;++it){++parsed;const auto edge=std::stoul((*it)[2]);const double start=std::stod((*it)[3]),finish=std::stod((*it)[4]);
+            const double length=osm.edges[edge].length_m;within=within&&start>=0&&start<finish&&finish<=std::max(length,1.0)+1e-9;}
+        check(parsed==osm.bus_stops.size()&&parsed>0,"every bus stop is exported with friendlyPos");
+        check(within,"exported bus stops lie within their edge with start before end");}
+    std::filesystem::remove_all(sumo_temp);
     const auto hash_temp=std::filesystem::temp_directory_path()/"dstns-map-hash";std::filesystem::remove_all(hash_temp);std::filesystem::create_directories(hash_temp);std::ifstream osm_fixture("tests/fixtures/roads.osm.xml");const std::string fixture_xml((std::istreambuf_iterator<char>(osm_fixture)),{});const auto close_tag=fixture_xml.rfind("</osm>");check(close_tag!=std::string::npos,"OSM hash fixture has closing tag");const auto shared_comment="\n<!--"+std::string(11'000,'x');const auto write_variant=[&](const std::filesystem::path&path,char suffix){std::ofstream out(path);out<<fixture_xml.substr(0,close_tag)<<shared_comment<<suffix<<"-->\n"<<fixture_xml.substr(close_tag);};const auto map_a=hash_temp/"a.osm.xml",map_b=hash_temp/"b.osm.xml";write_variant(map_a,'a');write_variant(map_b,'b');const auto hash_a=OsmRoadLoader{}.load_xml(map_a,50,rng);const auto hash_b=OsmRoadLoader{}.load_xml(map_b,50,rng);check(hash_a.source_hash!=hash_b.source_hash,"map hash covers bytes after first 10KB");auto hash_cfg_a=osm_cfg,hash_cfg_b=osm_cfg;hash_cfg_a.osm_file=map_a.string();hash_cfg_b.osm_file=map_b.string();const auto scenario_a=compiler.compile(seed,hash_cfg_a),scenario_b=compiler.compile(seed,hash_cfg_b);check(scenario_a.graph_hash==scenario_b.graph_hash,"non-topological XML suffix preserves graph hash");check(scenario_a.map_hash!=scenario_b.map_hash&&scenario_a.scenario_hash!=scenario_b.scenario_hash,"full map hash propagates into scenario identity");std::filesystem::remove_all(hash_temp);
     auto sink_cfg=cfg;sink_cfg.osm_file="tests/fixtures/oneway_sink.osm.xml";sink_cfg.max_nodes=10;const auto sink=compiler.compile(seed,sink_cfg);const auto sink_node=std::find_if(sink.nodes.begin(),sink.nodes.end(),[](const NodeStatic&n){return n.osm_node_id==3;});check(sink_node!=sink.nodes.end()&&sink_node->degree==2,"one-way sink fixture has coverage-eligible degree");check(std::none_of(sink.bus_stops.begin(),sink.bus_stops.end(),[&](const BusStop&stop){return stop.anchor_node==sink_node->id;}),"bus-stop coverage skips node without traversable outgoing edge");
     {

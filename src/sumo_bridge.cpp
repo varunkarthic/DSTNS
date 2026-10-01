@@ -87,9 +87,14 @@ SumoEnvironment SumoBridge::detect() {
     if (!env.sumo_binary.empty()) {
         const auto v_out = execute_process(shell_quote(env.sumo_binary.string()) + " --version 2>&1");
         sumo_runs = v_out.exit_code == 0;
+        // Development builds print a tag such as "v1_27_1+0354-22511947e85";
+        // releases print "Version 1.15.0". A bare "v[0-9]" would also match
+        // the "GPLv2" in the licence text, so each form is matched exactly.
         std::smatch m;
-        if (sumo_runs && std::regex_search(v_out.output, m, std::regex(R"(v[0-9_]+(\+[0-9a-f-]+)?)"))) {
+        if (sumo_runs && std::regex_search(v_out.output, m, std::regex(R"(\bv\d+_\d+_\d+(\+[0-9a-f-]+)?)"))) {
             env.sumo_version = m[0];
+        } else if (sumo_runs && std::regex_search(v_out.output, m, std::regex(R"(Version (\d+\.\d+\.\d+))"))) {
+            env.sumo_version = m[1];
         } else if (sumo_runs) {
             env.sumo_version = "available";
         }
