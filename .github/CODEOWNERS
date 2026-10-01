@@ -1,0 +1,9 @@
+# Code owners are requested for review automatically.
+*                      @varunkarthic
+/SECURITY.md           @varunkarthic
+/.github/              @varunkarthic
+/src/api.cpp           @varunkarthic
+/src/sumo_bridge.cpp   @varunkarthic
+/src/osm_fetch.cpp     @varunkarthic
+/Dockerfile            @varunkarthic
+/docker/               @varunkarthic

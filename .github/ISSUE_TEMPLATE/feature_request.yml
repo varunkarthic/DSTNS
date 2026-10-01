@@ -1,0 +1,28 @@
+name: Feature request
+description: Propose an improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that DSTNS makes hard or impossible?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Does it affect reproducibility?
+      description: Changes that alter simulation results for an existing seed need a changelog entry.
+      options:
+        - label: It changes results for existing seeds or maps
