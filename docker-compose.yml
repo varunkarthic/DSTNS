@@ -1,34 +1,53 @@
-# DEPRECATED in 2.0.0 - see docs/DOCKER.md.
+# DSTNS with Docker Compose. See docs/deployment/docker.md.
 #
-# This path is unmaintained and untested. Maps are downloaded at run time, so a
-# container needs outbound access to the Overpass API, the Python fetcher on its
-# path, and a writable cache volume it will otherwise fill. Use the operator CLI
-# instead: ./launcher
+#   docker compose up --build                 # http://localhost:8090
+#   docker compose --profile tls up --build   # also https://localhost:8443
+#
+# Configure the first run with environment variables (or a .env file):
+#   DSTNS_SEED=382923 DSTNS_DAY_TYPE=weekend docker compose up
+# Start another run without restarting the container:
+#   docker compose exec dstns dstns-run --seed 42
+
 services:
   dstns:
-    platform: linux/amd64
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: dstns_simulation_engine
+      args:
+        WITH_SUMO: "${DSTNS_WITH_SUMO:-0}"
+    image: dstns:latest
     restart: unless-stopped
     ports:
-      # Map host port 8090 to container port 8090
-      - "0.0.0.0:8090:8090"
-    volumes:
-      - dstns_logs:/app/logs
-      - dstns_data:/app/data
+      - "${DSTNS_HOST_PORT:-8090}:8090"
     environment:
-      - DSTNS_LOG_LEVEL=INFO
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=1).read()"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
+      DSTNS_AUTOSTART: "${DSTNS_AUTOSTART:-1}"
+      DSTNS_SEED: "${DSTNS_SEED:-auto}"
+      DSTNS_DAY_TYPE: "${DSTNS_DAY_TYPE:-weekday}"
+      DSTNS_SPEED: "${DSTNS_SPEED:-1}"
+      DSTNS_DURATION: "${DSTNS_DURATION:-3600}"
+      DSTNS_OSM_FILE: "${DSTNS_OSM_FILE:-auto}"
+      DSTNS_MAP_CACHE: "${DSTNS_MAP_CACHE:-prune}"
+      DSTNS_MAP_CACHE_KEEP: "${DSTNS_MAP_CACHE_KEEP:-3}"
+      DSTNS_DISABLE_WORLD_REGENERATION: "${DSTNS_DISABLE_WORLD_REGENERATION:-0}"
+      DSTNS_ALLOWED_ORIGINS: "${DSTNS_ALLOWED_ORIGINS:-}"
+      DSTNS_OVERPASS_ENDPOINTS: "${DSTNS_OVERPASS_ENDPOINTS:-}"
+    volumes:
+      - dstns-maps:/app/data/maps   # downloaded city extracts survive restarts
+      - dstns-logs:/app/logs        # system log, SQLite journal, operator token
+
+  # Optional HTTPS front end. Generates a self-signed certificate on first
+  # start unless docker/certificates/dstns.crt and dstns.key exist.
+  gateway:
+    profiles: ["tls"]
+    build: docker/gateway
+    restart: unless-stopped
+    depends_on:
+      dstns:
+        condition: service_healthy
+    ports:
+      - "${DSTNS_TLS_PORT:-8443}:8443"
+    volumes:
+      - ./docker/certificates:/etc/nginx/certs
 
 volumes:
-  dstns_logs:
-    driver: local
-  dstns_data:
-    driver: local
+  dstns-maps:
+  dstns-logs:
