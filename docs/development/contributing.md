@@ -19,6 +19,7 @@ what a change needs before it is merged.
 ## What every change needs
 
 - [ ] Tests that fail without the change.
+- [ ] Every new source file has the licence header (`python3 scripts/license-headers.py --fix`).
 - [ ] All suites green: `./scripts/test.sh`, and `mkdocs build --strict` for
       documentation changes.
 - [ ] Documentation updated: the relevant page, the API reference and

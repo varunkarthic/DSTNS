@@ -39,6 +39,9 @@ only within one version.
 
 ### Added
 
+- **Licence headers.** Every source file carries an SPDX identifier and copyright line;
+  `scripts/license-headers.py --check` runs in CI. `COPYRIGHT` and the licence page
+  explain how the licence is applied.
 - **Docker, supported.** A multi-architecture image (234 MB) with the engine, the
   observer, the map downloader and an offline district; auto-start configured by
   `DSTNS_*` variables; `dstns-run` for starting runs; an optional TLS gateway as a
@@ -48,6 +51,7 @@ only within one version.
   troubleshooting, FAQ, development and component notes.
 - Continuous integration on GitHub Actions for the native, HTTP, observer,
   documentation and container builds.
+- A `CodeQL` workflow with the permissions private repositories need.
 - `tests/api/hardening_smoke.py`, covering origin and host checks, CORS, input
   validation and shutdown against a real server.
 
