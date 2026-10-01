@@ -53,6 +53,7 @@ theme:
     - navigation.instant.progress
     - navigation.tracking
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.indexes
     - navigation.top
@@ -119,6 +120,7 @@ markdown_extensions:
 
 extra_javascript:
   - assets/search-ui.js
+  - assets/landing-scroll.js
   - assets/mathjax.js
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 

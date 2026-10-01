@@ -68,6 +68,9 @@
   overflow: visible;
 }
 .md-header .md-tabs .md-grid { max-width: none; margin: 0; }
+/* The tab row sits under the search overlay, so it dims with the rest of the page
+   while the search is open (Material gives it z-index 3, which kept it lit). */
+.md-header .md-tabs { z-index: 0; }
 /* Material fades tabs out on scroll; in the header they stay put. */
 .md-header .md-tabs[hidden] { pointer-events: auto; }
 .md-header .md-tabs[hidden] .md-tabs__link { opacity: 0.78; transform: none; }
@@ -501,7 +504,6 @@
 .md-typeset .dstns-card:focus-within {
   border-color: rgb(var(--dstns-accent-rgb) / 70%);
   box-shadow: 0 10px 28px -14px rgb(var(--dstns-accent-rgb) / 45%);
-  transform: translateY(-2px);
 }
 /* Chips sit above the card's whole-card link so they stay separately clickable. */
 .md-typeset .dstns-chip {
@@ -521,7 +523,7 @@
 .md-typeset .dstns-chips p { display: contents; }
 .md-typeset .dstns-chips .dstns-chip { padding: 0.25rem 0.8rem; font-size: 0.72rem; }
 @media (prefers-reduced-motion: reduce) {
-  .md-typeset .dstns-card, .md-typeset .dstns-chip { transition: none; transform: none !important; }
+  .md-typeset .dstns-card, .md-typeset .dstns-chip { transition: none; }
 }
 
 /* Inline title tooltips (Material's .md-tooltip): same card as above. */
@@ -613,3 +615,25 @@
 .md-typeset .md-button abbr[title],
 .md-typeset :is(h1, h2, h3, h4) abbr[title],
 .md-tabs abbr[title] { border-bottom: 0; cursor: inherit; }
+
+/* Abbreviation tooltips stay reachable inside whole-card links. */
+/* Material removes the title attribute while its tooltip is open, so these rules must
+   not depend on [title] or the abbreviation drops under the card link mid-hover. */
+.md-typeset .dstns-card abbr,
+.md-typeset .dstns-chip abbr { position: relative; z-index: 2; cursor: help; border-bottom: 1px dotted var(--dstns-accent); }
+
+/* Landing page, large screens: the wordmark through the statistics fill the first
+   screen, and the observer screenshot waits one scroll below (landing-scroll.js
+   moves between the two). */
+@media screen and (min-width: 60em) and (min-height: 560px) {
+  .md-typeset .dstns-first {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* viewport, minus the header and the space above the content */
+    min-height: calc(100svh - 3.2rem - var(--dstns-first-top, 2.5rem));
+  }
+  .dstns-first .dstns-hero { padding: 0 0 0.4rem; }
+  .dstns-first .dstns-stats { margin: 1.8rem 0 1rem; }
+  html:has(.dstns-first) .md-top { display: none; }
+}

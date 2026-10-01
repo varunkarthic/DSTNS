@@ -5,6 +5,8 @@ hide:
   - toc
 ---
 
+<div class="dstns-first" markdown>
+
 <div class="dstns-hero" markdown>
 
 <h1 class="dstns-hero__logo"><span class="dstns-wordmark" role="img" aria-label="DSTNS"></span></h1>
@@ -36,7 +38,13 @@ machine.
 <div markdown><strong>0.25 to 5x</strong><span>playback speed</span></div>
 </div>
 
+</div>
+
+<div class="dstns-shot" markdown>
+
 ![The DSTNS observer showing a district of Dar es Salaam, with the road network coloured by congestion, a telemetry panel and playback controls](assets/screenshots/observer.png){ .screenshot }
+
+</div>
 
 ## Explore the documentation
 
