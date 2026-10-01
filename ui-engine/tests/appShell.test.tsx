@@ -1004,6 +1004,10 @@ describe("a finished run's next move", () => {
     // The same seed and map: it confirms a replay, not a new world.
     const confirm = await screen.findByRole("dialog", { name: /Reset the simulation/ }, { timeout: 4000 });
     expect(confirm).toHaveTextContent(/same day again/i);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(screen.getByRole("dialog", { name: /Reset the simulation/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start Over" }));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek"))).toBe(true));
   });
 
   it("offers a new world, which is a different question and asks separately", async () => {
@@ -1013,6 +1017,11 @@ describe("a finished run's next move", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /Generate a new world/ }));
     const confirm = await screen.findByRole("dialog", { name: /new world/i }, { timeout: 4000 });
     expect(confirm).toHaveTextContent(/new seed/i);
+    // It must still be there once the completion dialog's exit transition has
+    // run: findByRole polls, so a confirm that flashes up and is cleared 180ms
+    // later would otherwise pass.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(screen.getByRole("dialog", { name: /new world/i })).toBeInTheDocument();
     // Nothing has been regenerated merely by asking.
     expect(calls.some((c) => c.path.includes("/world/regenerate"))).toBe(false);
   });
