@@ -93,7 +93,7 @@ A browser page on one origin tried to change state on a server at another. If
 that page is yours (the observer served from elsewhere, or a dashboard of your
 own), add its origin: `DSTNS_ALLOWED_ORIGINS=https://ops.example.org`. Behind a
 reverse proxy, forward the client's `Host` or set `X-Forwarded-Host`. See
-[Security](deployment/security.md#cross-site-request-forgery).
+[Security](deployment/security.md#origin-check-cross-site-request-forgery).
 
 ## SUMO reported unavailable
 

@@ -2,7 +2,7 @@
 
 Starting a run and moving through its virtual day. All routes are under
 `/api/v1/playback`. State-changing routes refuse cross-site browser requests
-(see [Security](../deployment/security.md#cross-site-request-forgery)); errors follow
+(see [Security](../deployment/security.md#origin-check-cross-site-request-forgery)); errors follow
 [API errors](errors.md).
 
 | Method | Route | Purpose |

@@ -26,17 +26,18 @@ local clients. When using the launcher, set `api.host` in `config/defaults.json`
 to `127.0.0.1`; the standalone executable takes its host from its command line.
 Monitor disk use if retaining every map.
 
-For a local Compose deployment, the host-port setting accepts a bind address:
+Compose publishes the backend on loopback by default; `DSTNS_BIND` chooses the
+host address and `DSTNS_HOST_PORT` the port:
 
 ```bash
-DSTNS_HOST_PORT=127.0.0.1:8090 \
+DSTNS_HOST_PORT=8090 \
 DSTNS_OSM_FILE=/app/data/fixtures/real_network.osm.xml \
 docker compose up --build -d
 ```
 
-Compose expands this to `127.0.0.1:8090:8090`, publishing the backend only on
-loopback. The map path is inside the container. If enabling the TLS profile,
-configure its host binding too (`DSTNS_TLS_PORT=127.0.0.1:8443` for local use).
+Compose expands the mapping to `127.0.0.1:8090:8090`, publishing the backend only
+on loopback. The map path is inside the container. The TLS profile's port uses the
+same `DSTNS_BIND`.
 Remote access requires a separately configured trusted network or authenticated
 proxy. The bundled gateway does not add user authentication.
 

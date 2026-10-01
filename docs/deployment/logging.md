@@ -15,7 +15,7 @@ by default, `--logs DIR` on the server, `/app/logs` in Docker).
 ```text
 2026-10-01T12:00:03+0000 [INFO] [logging] runtime logger initialized
 2026-10-01T12:00:03+0000 [INFO] [engine] DSTNS engine idle
-2026-10-01T12:00:03+0000 [INFO] [api] listening on http://0.0.0.0:8090
+2026-10-01T12:00:03+0000 [INFO] [api] listening on http://127.0.0.1:8090
 2026-10-01T12:00:04+0000 [INFO] [lifecycle] IDLE -> PREPARING run=
 2026-10-01T12:00:41+0000 [INFO] [lifecycle] PREPARING -> READY run=run_4f1fccc516c6
 2026-10-01T12:00:41+0000 [INFO] [lifecycle] READY -> RUNNING run=run_4f1fccc516c6

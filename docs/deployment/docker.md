@@ -130,7 +130,8 @@ Set these in `docker-compose.yml`, a `.env` file, or with `-e` on `docker run`.
 | `DSTNS_MAP_CACHE` | `prune` | `keep`, `prune` (newest N) or `clear` the map cache at start |
 | `DSTNS_MAP_CACHE_KEEP` | `3` | N for `prune` |
 | `DSTNS_DISABLE_WORLD_REGENERATION` | `0` | `1` hides **Generate a new world** from observers |
-| `DSTNS_ALLOWED_ORIGINS` | empty | Extra origins allowed to change state; see [Security](security.md#cross-site-request-forgery) |
+| `DSTNS_ALLOWED_HOSTS` | empty | Extra `Host` names accepted when bound to loopback; unnecessary in the container, which listens on all interfaces behind the loopback mapping |
+| `DSTNS_ALLOWED_ORIGINS` | empty | Extra origins allowed to change state; see [Security](security.md#origin-check-cross-site-request-forgery) |
 | `DSTNS_OVERPASS_ENDPOINTS` | public mirrors | Comma-separated Overpass endpoints |
 | `DSTNS_OPERATOR_TOKEN` | generated | Fix the operator credential instead of generating one |
 
@@ -138,6 +139,7 @@ Set these in `docker-compose.yml`, a `.env` file, or with `-e` on `docker run`.
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `DSTNS_BIND` | `127.0.0.1` | Host address the ports are published on; `0.0.0.0` exposes them to the network |
 | `DSTNS_HOST_PORT` | `8090` | Host port for the observer and API |
 | `DSTNS_TLS_PORT` | `8443` | Host port for the gateway |
 | `DSTNS_WITH_SUMO` | `0` | Build argument `WITH_SUMO` |
@@ -215,7 +217,8 @@ docker compose --profile tls up -d
 
 !!! tip "Only expose the gateway"
     When the gateway is in front, publish the engine on loopback only so
-    remote clients cannot bypass it: set `DSTNS_HOST_PORT=127.0.0.1:8090`.
+    remote clients cannot bypass it. Compose already publishes on `127.0.0.1`;
+    leave `DSTNS_BIND` unset and put the proxy on the same host.
     Add authentication at the proxy or restrict access through a trusted network.
     TLS encrypts traffic but does not authorize operators; enabling this profile
     does not remove the backend port mapping.
