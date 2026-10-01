@@ -17,6 +17,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 using namespace dstns;
 
@@ -264,6 +265,39 @@ int main() {
         }
         check(edges_checked > 50, "enough edges checked");
         check(edge_worst < 0.01, "edge length_m equals the walked metre geometry within 1%");
+
+        // ---- Southern-hemisphere boxes reach the downloader intact --------
+        // A box south of the equator starts with a minus sign. Passed as its
+        // own argument ("--bbox -33.9,..."), argparse before Python 3.13 reads
+        // it as an option and the download fails before any request is made:
+        // 25 of the 181 cities, on Debian, Ubuntu and in the container. A stub
+        // interpreter records the exact arguments so this holds on any Python.
+        {
+            MapLocation sydney;
+            sydney.city = "Sydney"; sydney.country = "Australia";
+            sydney.centre_lat = sydney.anchor_lat = -33.8688;
+            sydney.centre_lon = sydney.anchor_lon = 151.2093;
+            sydney.extent_m = 5000;
+            check(sydney.bbox().front() == '-', "a southern box starts with a minus sign");
+            const auto sandbox = std::filesystem::temp_directory_path() / "dstns-southern-bbox";
+            std::filesystem::remove_all(sandbox);
+            std::filesystem::create_directories(sandbox);
+            const auto stub = sandbox / "python";
+            const auto recorded = sandbox / "argv.txt";
+            std::ofstream(stub) << "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" << recorded.string() << "'\nexit 1\n";
+            std::filesystem::permissions(stub, std::filesystem::perms::owner_all);
+            ::setenv("DSTNS_PYTHON", stub.c_str(), 1);
+            try { (void)acquire_map_tile(sydney, sandbox / "maps"); } catch (const MapFetchError&) {}
+            ::unsetenv("DSTNS_PYTHON");
+            std::ifstream in(recorded);
+            std::vector<std::string> argv;
+            for (std::string line; std::getline(in, line);) argv.push_back(line);
+            std::filesystem::remove_all(sandbox);
+            check(std::find(argv.begin(), argv.end(), "--bbox=" + sydney.bbox()) != argv.end(),
+                  "the bounding box is passed as one --bbox=VALUE argument");
+            check(std::find(argv.begin(), argv.end(), "--bbox") == argv.end(),
+                  "no bare --bbox whose value argparse could mistake for an option");
+        }
 
         std::cout << "Map sourcing: " << cities.size() << " cities reachable, "
                   << "scale error " << worst * 100 << "% (nodes) / "
