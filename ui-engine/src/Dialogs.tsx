@@ -154,7 +154,7 @@ export function AboutCard({
       <dl className="about-facts">
         <div>
           <dt>Simulating</dt>
-          <dd>{location?.city ? `${location.city}, ${location.country}` : "No run"}</dd>
+          <dd>{location?.city ? `${location.city}, ${location.country}` : status?.run_id ? "Pinned map" : "No run"}</dd>
         </div>
         <div>
           <dt>Seed</dt>
@@ -167,7 +167,7 @@ export function AboutCard({
             )}
           </dd>
         </div>
-        <div><dt>Coordinates</dt><dd className="mono">{topology?.location ? `${topology.location.anchor_lat.toFixed(6)}, ${topology.location.anchor_lon.toFixed(6)}` : "Unavailable"}</dd></div>
+        <div><dt>Coordinates</dt><dd className="mono">{topology?.location?.city ? `${topology.location.anchor_lat.toFixed(6)}, ${topology.location.anchor_lon.toFixed(6)}` : "Unavailable"}</dd></div>
         <div><dt>Run</dt><dd className="mono">{status?.run_id || "No run"}</dd></div>
         <div><dt>Lifecycle</dt><dd>{status?.data.lifecycle || "Unavailable"}</dd></div>
         <div><dt>Engine version</dt><dd>{system?.version || "Unavailable"}</dd></div>
