@@ -16,11 +16,11 @@ site_author: Varun Karthic
 site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://dstns.readthedocs.io/en/latest/"]
 repo_url: https://github.com/varunkarthic/DSTNS
 repo_name: varunkarthic/DSTNS
-edit_uri: edit/main/docs/
 copyright: Copyright &copy; 2026 Varun Karthic &middot; AGPL-3.0-or-later &middot; Map data &copy; OpenStreetMap contributors
 
 theme:
   name: material
+  custom_dir: docs/overrides
   # The wordmark is the whole brand in the header; the site name text is hidden
   # in extra.css so the logo is not repeated as plain type.
   logo: assets/logo-wordmark.svg
@@ -50,7 +50,6 @@ theme:
     - navigation.instant.progress
     - navigation.tracking
     - navigation.tabs
-    - navigation.tabs.sticky
     - navigation.sections
     - navigation.indexes
     - navigation.top
@@ -63,8 +62,6 @@ theme:
     - content.code.annotate
     - content.tabs.link
     - content.tooltips
-    - content.action.edit
-    - content.action.view
 
 extra_css:
   - assets/extra.css
@@ -85,7 +82,7 @@ markdown_extensions:
   - md_in_html
   - tables
   - toc:
-      permalink: true
+      permalink: false
       toc_depth: 3
   - pymdownx.arithmatex:
       generic: true
@@ -184,15 +181,11 @@ nav:
       - Operations runbook: deployment/operations.md
       - Logging: deployment/logging.md
       - Performance: deployment/performance.md
-  - Troubleshooting:
+  - Help:
       - troubleshooting.md
       - FAQ: faq.md
-  - Development:
-      - development/index.md
-      - Building from source: development/building.md
-      - Testing: development/testing.md
-      - Building the documentation: development/documentation.md
-      - Code evaluation (Oct 2026): development/audit-2026-10.md
+      - Glossary: glossary.md
+  - Reference:
       - Components:
           - components/index.md
           - API server: components/api-server.md
@@ -215,16 +208,20 @@ nav:
           - Logging system: components/logging-system.md
           - SUMO adapter: components/sumo-adapter.md
           - Observer (UI engine): components/ui-engine.md
-      - History:
-          - Modernization: history/modernization.md
-          - Legacy audit: history/legacy-audit.md
-          - Implementation notes: history/implementation-notes.md
       - Design specifications:
           - design/index.md
           - Mathematical foundation: design/mathematical-foundation.md
           - System architecture: design/system-architecture-spec.md
           - API, runtime and events: design/api-runtime-event-spec.md
-  - Reference:
-      - Glossary: glossary.md
+      - Development:
+          - development/index.md
+          - Building from source: development/building.md
+          - Testing: development/testing.md
+          - Building the documentation: development/documentation.md
+          - Code evaluation (Oct 2026): development/audit-2026-10.md
+      - History:
+          - Modernization: history/modernization.md
+          - Legacy audit: history/legacy-audit.md
+          - Implementation notes: history/implementation-notes.md
       - Changelog: changelog.md
       - License: license.md
