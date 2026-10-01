@@ -58,7 +58,6 @@ theme:
     - navigation.top
     - navigation.footer
     - toc.follow
-    - search.suggest
     - search.highlight
     - content.code.copy
     - content.code.annotate
