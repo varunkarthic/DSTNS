@@ -6,32 +6,50 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <memory>
 #include <regex>
 #include <sstream>
+#include <stdexcept>
+#include <sys/wait.h>
 
 namespace dstns {
 namespace {
 
-std::string execute_process(const std::string& cmd) {
+struct ProcessResult {
+    int exit_code{-1};
+    std::string output;
+};
+
+ProcessResult execute_process(const std::string& cmd) {
     std::array<char, 256> buffer;
-    std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
-    if (!pipe) return "";
-    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
-        result += buffer.data();
+    ProcessResult result;
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) return result;
+    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
+        result.output += buffer.data();
     }
+    const int status = pclose(pipe);
+    result.exit_code = (status != -1 && WIFEXITED(status)) ? WEXITSTATUS(status) : -1;
     return result;
+}
+
+// Single-quote a value for /bin/sh. Paths reach these commands from API
+// request bodies, so every one is quoted rather than trusted.
+std::string shell_quote(const std::string& value) {
+    std::string quoted = "'";
+    for (const char c : value) {
+        if (c == '\'') quoted += "'\\''";
+        else quoted += c;
+    }
+    return quoted + "'";
 }
 
 std::filesystem::path find_executable(const std::string& name) {
     const char* sumo_home = std::getenv("SUMO_HOME");
-    if (sumo_home && std::filesystem::exists(std::filesystem::path(sumo_home) / "bin" / name)) {
+    if (sumo_home && *sumo_home && std::filesystem::exists(std::filesystem::path(sumo_home) / "bin" / name)) {
         return std::filesystem::path(sumo_home) / "bin" / name;
     }
-    // Check known local installation paths
-    const std::array<std::filesystem::path, 5> candidates = {
-        std::filesystem::path("/Users/varun/sumo/bin") / name,
+    // Common installation prefixes, checked when SUMO_HOME is unset.
+    const std::array<std::filesystem::path, 4> candidates = {
         std::filesystem::path("/opt/homebrew/bin") / name,
         std::filesystem::path("/usr/local/bin") / name,
         std::filesystem::path("/usr/bin") / name,
@@ -40,9 +58,9 @@ std::filesystem::path find_executable(const std::string& name) {
     for (const auto& p : candidates) {
         if (std::filesystem::exists(p)) return p;
     }
-    const auto which_out = execute_process("which " + name + " 2>/dev/null");
-    if (!which_out.empty()) {
-        std::string p = which_out;
+    const auto which_out = execute_process("command -v " + shell_quote(name) + " 2>/dev/null");
+    if (which_out.exit_code == 0 && !which_out.output.empty()) {
+        std::string p = which_out.output;
         while (!p.empty() && (p.back() == '\n' || p.back() == '\r')) p.pop_back();
         if (std::filesystem::exists(p)) return p;
     }
@@ -57,23 +75,31 @@ SumoEnvironment SumoBridge::detect() {
     env.netconvert_binary = find_executable("netconvert");
 
     const char* sh = std::getenv("SUMO_HOME");
-    if (sh && std::filesystem::exists(sh)) {
+    if (sh && *sh && std::filesystem::exists(sh)) {
         env.sumo_home = sh;
-    } else if (std::filesystem::exists("/Users/varun/sumo")) {
-        env.sumo_home = "/Users/varun/sumo";
+    } else if (!env.sumo_binary.empty()) {
+        env.sumo_home = env.sumo_binary.parent_path().parent_path();
     }
 
+    // A binary that exists but cannot start (a missing shared library, the
+    // wrong architecture) is not available: each tool must answer --version.
+    bool sumo_runs = false;
     if (!env.sumo_binary.empty()) {
-        const auto v_out = execute_process(env.sumo_binary.string() + " --version 2>&1");
+        const auto v_out = execute_process(shell_quote(env.sumo_binary.string()) + " --version 2>&1");
+        sumo_runs = v_out.exit_code == 0;
         std::smatch m;
-        if (std::regex_search(v_out, m, std::regex(R"(v[0-9_]+(\+[0-9a-f-]+)?)"))) {
+        if (sumo_runs && std::regex_search(v_out.output, m, std::regex(R"(v[0-9_]+(\+[0-9a-f-]+)?)"))) {
             env.sumo_version = m[0];
-        } else {
+        } else if (sumo_runs) {
             env.sumo_version = "available";
         }
     }
+    bool netconvert_runs = false;
+    if (!env.netconvert_binary.empty()) {
+        netconvert_runs = execute_process(shell_quote(env.netconvert_binary.string()) + " --version >/dev/null 2>&1").exit_code == 0;
+    }
 
-    env.available = !env.sumo_binary.empty() && !env.netconvert_binary.empty();
+    env.available = sumo_runs && netconvert_runs;
     return env;
 }
 
@@ -92,15 +118,16 @@ bool SumoBridge::build_network(const std::filesystem::path& directory, const Sum
         return false;
     }
 
-    const std::string cmd = env.netconvert_binary.string() +
-        " --node-files=" + nod.string() +
-        " --edge-files=" + edg.string() +
-        " --output-file=" + net.string() +
+    std::filesystem::remove(net);
+    const std::string cmd = shell_quote(env.netconvert_binary.string()) +
+        " --node-files=" + shell_quote(nod.string()) +
+        " --edge-files=" + shell_quote(edg.string()) +
+        " --output-file=" + shell_quote(net.string()) +
         " --no-warnings=true 2>&1";
 
     const auto out = execute_process(cmd);
-    if (!std::filesystem::exists(net)) {
-        error_out = "netconvert failed: " + out;
+    if (out.exit_code != 0 || !std::filesystem::exists(net)) {
+        error_out = "netconvert failed: " + out.output;
         return false;
     }
     return true;
@@ -129,15 +156,18 @@ nlohmann::json SumoBridge::simulate(
     std::filesystem::remove(tripinfo);
 
     const std::string seed_arg = std::to_string(static_cast<std::uint32_t>(scenario.seed.low & 0x7FFFFFFF));
-    const std::string cmd = env.sumo_binary.string() +
-        " -c " + cfg.string() +
+    const std::string cmd = shell_quote(env.sumo_binary.string()) +
+        " -c " + shell_quote(cfg.string()) +
         " --begin " + std::to_string(begin_s) +
         " --end " + std::to_string(end_s) +
         " --seed " + seed_arg +
-        " --tripinfo-output " + tripinfo.string() +
+        " --tripinfo-output " + shell_quote(tripinfo.string()) +
         " --no-step-log=true --duration-log.disable=true 2>&1";
 
     const auto out = execute_process(cmd);
+    if (out.exit_code != 0) {
+        throw std::runtime_error("SUMO simulation failed: " + out.output);
+    }
 
     std::uint64_t vehicle_count = 0;
     double total_travel_time_s = 0.0;
