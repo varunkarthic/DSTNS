@@ -76,7 +76,7 @@ Vulnerabilities in the code and configuration in this repository, including:
 
 | Area | Reason |
 |---|---|
-| Control of a run by anyone who can reach an exposed port | By design there are no user accounts; restrict network access (see [deployment security](docs/deployment/security.md)) |
+| Control of a run by anyone who can reach an exposed port | By design there are no user accounts; restrict network access (see [deployment security](https://dstns.readthedocs.io/en/latest/deployment/security/)) |
 | Reading run state from a server you can reach | Run state is not confidential; do not simulate private data on a shared server |
 | Denial of service by request volume | Needs a rate-limiting proxy; resource exhaustion from a single small request is in scope |
 | Findings that need physical or root access to the host | Outside the threat model |
@@ -123,5 +123,5 @@ isolation. The protections it provides are:
    the world.
 5. Keep dependencies and the container image current.
 
-The full checklist is in [Deployment security](docs/deployment/security.md#hardening-checklist).
+The full checklist is in [Deployment security](https://dstns.readthedocs.io/en/latest/deployment/security/#hardening-checklist).
 Fixed vulnerabilities are listed under **Security** in the [changelog](CHANGELOG.md).

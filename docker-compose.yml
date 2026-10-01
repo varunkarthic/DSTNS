@@ -1,4 +1,4 @@
-# DSTNS with Docker Compose. See docs/deployment/docker.md.
+# DSTNS with Docker Compose. See https://dstns.readthedocs.io/en/latest/deployment/docker/.
 #
 #   docker compose up --build                 # http://localhost:8090
 #   docker compose --profile tls up --build   # also https://localhost:8443

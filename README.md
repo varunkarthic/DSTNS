@@ -12,23 +12,18 @@ virtual day of traffic, signals, demand, weather, flooding and incidents on one
 authoritative clock.** Reproducible results require the same seed, configuration,
 map bytes and compatible build; see [Reproducible experiments](#reproducible-experiments).
 
-[![CI](https://github.com/varunkarthic/DSTNS/actions/workflows/ci.yml/badge.svg)](https://github.com/varunkarthic/DSTNS/actions/workflows/ci.yml)
-[![Documentation](https://readthedocs.org/projects/dstns/badge/?version=latest)](https://dstns.readthedocs.io/en/latest/)
-[![CodeQL](https://github.com/varunkarthic/DSTNS/actions/workflows/codeql.yml/badge.svg)](https://github.com/varunkarthic/DSTNS/actions/workflows/codeql.yml)
-[![Security policy](https://img.shields.io/badge/security-policy-green.svg)](SECURITY.md)
+[![CI](https://img.shields.io/github/actions/workflow/status/varunkarthic/DSTNS/ci.yml?branch=main&label=CI&logo=github)](https://github.com/varunkarthic/DSTNS/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/readthedocs/dstns?label=docs&logo=readthedocs&logoColor=white)](https://dstns.readthedocs.io/)
 [![License: AGPL v3+](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
-[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/20)
-[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Docker](https://img.shields.io/badge/Docker-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)](docs/getting-started/docker.md)
-[![OpenStreetMap](https://img.shields.io/badge/maps-OpenStreetMap-7EBC6F?logo=openstreetmap&logoColor=white)](https://www.openstreetmap.org/copyright)
-[![SUMO](https://img.shields.io/badge/SUMO-optional-orange)](docs/components/sumo-adapter.md)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](https://dstns.readthedocs.io/en/latest/development/building/)
+[![Docker](https://img.shields.io/badge/Docker-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)](https://dstns.readthedocs.io/en/latest/getting-started/docker/)
 
 [**Documentation**](https://dstns.readthedocs.io/) ·
 [Quick start](#quick-start) ·
 [Docker](#run-with-docker) ·
 [From source](#run-from-source) ·
-[API](docs/api/index.md) ·
-[Troubleshooting](docs/troubleshooting.md)
+[API](https://dstns.readthedocs.io/en/latest/api/) ·
+[Troubleshooting](https://dstns.readthedocs.io/en/latest/troubleshooting/)
 
 <img src="docs/assets/screenshots/observer.png" alt="The DSTNS observer watching a district of Dar es Salaam" width="100%">
 
@@ -65,7 +60,7 @@ map bytes and compatible build; see [Reproducible experiments](#reproducible-exp
 | **Integrated traffic and environmental models** | Signals snapped to real junctions and coordinated in green waves; place-driven weekday and weekend demand; storms with Wendland C² rain fields; flooding that closes roads; at least four incidents a day. |
 | **Checkpoint replay** | Pause, step, seek backwards and forwards through the day; undo and redo operator controls. |
 | **Browser observer** | Live map, telemetry, notifications, Auto Focus, a guided tutorial and a PDF report, kept in step by adaptive backpressure. |
-| **HTTP API** | Every view and control over JSON, a self-describing route index, and an [OpenAPI 3.1 description](docs/api/openapi.yaml). |
+| **HTTP API** | Every view and control over JSON, a self-describing route index, and an [OpenAPI 3.1 description](https://dstns.readthedocs.io/en/latest/api/openapi/). |
 | **Container deployment** | A multi-architecture image (234 MB in the recorded October 2026 build) that starts a simulation with one command; optional TLS gateway and SUMO. |
 | **SUMO integration** | Export any world to Eclipse SUMO and run it microscopically as a batch job. |
 
@@ -85,7 +80,7 @@ A seed alone is insufficient to reproduce an old experiment if upstream map data
 or model code has changed. Retain the map, resolved configuration, source revision
 and operator actions alongside the seed. The model is a research and development
 tool; it has no documented calibration or certification for operational traffic
-control. See [Reproducibility](docs/concepts/reproducibility.md) for the exact
+control. See [Reproducibility](https://dstns.readthedocs.io/en/latest/concepts/reproducibility/) for the exact
 inputs and floating-point limitations.
 
 ## Quick start
@@ -130,7 +125,7 @@ flowchart LR
 | **Operator CLI** (`./launcher`) | Node.js. Builds what changed, starts and supervises the server, starts runs, saved seeds, logs, tests. |
 | **Observer** (`ui-engine/`) | React 19. Watches a run in the browser: map, telemetry, playback, reports. |
 
-Read [Architecture](docs/concepts/architecture.md) for the full picture.
+Read [Architecture](https://dstns.readthedocs.io/en/latest/concepts/architecture/) for the full picture.
 
 ## Run with Docker
 
@@ -180,7 +175,7 @@ or put the same settings in a `.env` file next to `docker-compose.yml`:
 | `DSTNS_HOST_PORT` | `8090` | Port on your machine |
 | `DSTNS_AUTOSTART` | `1` | `0` starts the server with no run |
 
-All variables: [Docker deployment](docs/deployment/docker.md#environment-variables).
+All variables: [Docker deployment](https://dstns.readthedocs.io/en/latest/deployment/docker/#environment-variables).
 
 ### Common tasks
 
@@ -269,8 +264,8 @@ and bundles it. The last command runs the server in the foreground; run the
 launcher in another terminal to submit a simulation. Server availability alone
 does not mean a run has started.
 
-Full details: [Installation](docs/getting-started/installation.md) and
-[Building from source](docs/development/building.md).
+Full details: [Installation](https://dstns.readthedocs.io/en/latest/getting-started/installation/) and
+[Building from source](https://dstns.readthedocs.io/en/latest/development/building/).
 
 ## Using the observer
 
@@ -287,8 +282,8 @@ Full details: [Installation](docs/getting-started/installation.md) and
 | A PDF of the day | **Export Report** |
 | Learn the interface | **Tutorial** |
 
-Walkthrough: [Your first simulation](docs/getting-started/first-simulation.md).
-Reference: [Observer interface](docs/guide/observer-interface.md).
+Walkthrough: [Your first simulation](https://dstns.readthedocs.io/en/latest/getting-started/first-simulation/).
+Reference: [Observer interface](https://dstns.readthedocs.io/en/latest/guide/observer-interface/).
 
 ## Using the API
 
@@ -314,11 +309,11 @@ These requests inspect playback, seek to a virtual time, read traffic, override
 a road and undo the most recent control. Edge `412` is illustrative: obtain a
 valid ID from `/api/v1/view/topology` for the current run. A seek may continue
 playback when the run is already running; pause first when collecting a fixed-time
-snapshot. See the [explained curl examples](docs/api/examples.md) for preconditions,
+snapshot. See the [explained curl examples](https://dstns.readthedocs.io/en/latest/api/examples/) for preconditions,
 error handling and operator credentials.
 
-Guide: [API](docs/api/index.md) · Reference: [routes](docs/api/reference.md) ·
-[OpenAPI](docs/api/openapi.yaml) · [Errors](docs/api/errors.md)
+Guide: [API](https://dstns.readthedocs.io/en/latest/api/) · Reference: [routes](https://dstns.readthedocs.io/en/latest/api/reference/) ·
+[OpenAPI](https://dstns.readthedocs.io/en/latest/api/openapi/) · [Errors](https://dstns.readthedocs.io/en/latest/api/errors/)
 
 > [!IMPORTANT]
 > There are no user accounts: anyone who can reach the port can watch and
@@ -326,7 +321,7 @@ Guide: [API](docs/api/index.md) · Reference: [routes](docs/api/reference.md) ·
 > in `logs/operator.token`, used by the CLI and authorized local scripts. The browser origin guard rejects unapproved cross-origin writes, but is
 > not user authentication. The server and Compose both bind to loopback
 > (`127.0.0.1`) by default. Remote deployments need access control as well as TLS;
-> the bundled gateway supplies encryption, not authentication. See [Security](docs/deployment/security.md) and
+> the bundled gateway supplies encryption, not authentication. See [Security](https://dstns.readthedocs.io/en/latest/deployment/security/) and
 > the [security policy](SECURITY.md).
 
 ## Configuration
@@ -339,7 +334,7 @@ Guide: [API](docs/api/index.md) · Reference: [routes](docs/api/reference.md) ·
 | `dstns_server --…` | Host, port, logs and map directories, map cache policy |
 | `DSTNS_*` environment | Operator token, allowed origins, regeneration, Overpass endpoints, Docker run settings |
 
-Every setting: [Configuration](docs/guide/configuration.md).
+Every setting: [Configuration](https://dstns.readthedocs.io/en/latest/guide/configuration/).
 
 ## Reproducible experiments
 
@@ -372,15 +367,15 @@ Retain the input map and configuration separately. Do not include
 `logs/operator.token` in experiment artifacts.
 
 For a complete script that starts, waits, pauses, seeks and saves a snapshot,
-see the [Python API walkthrough](docs/api/client-walkthrough.md).
+see the [Python API walkthrough](https://dstns.readthedocs.io/en/latest/api/client-walkthrough/).
 
 ## Operations and security
 
 | Responsibility | Guidance |
 |---|---|
 | Report a suspected vulnerability | [Security policy](SECURITY.md): supported versions, confidential reporting, triage and disclosure |
-| Restrict access to the API | [Deployment security](docs/deployment/security.md): trust boundaries, credentials, origins and proxy requirements |
-| Verify a deployment and recover from failure | [Operations runbook](docs/deployment/operations.md): readiness, backups, updates and recovery |
+| Restrict access to the API | [Deployment security](https://dstns.readthedocs.io/en/latest/deployment/security/): trust boundaries, credentials, origins and proxy requirements |
+| Verify a deployment and recover from failure | [Operations runbook](https://dstns.readthedocs.io/en/latest/deployment/operations/): readiness, backups, updates and recovery |
 
 DSTNS runs one shared simulation per server. Every client with network access can
 control that simulation through endpoints other than the credential-protected
@@ -405,7 +400,7 @@ isolated server. Check the exit status of each command. Test counts can change;
 the output from the current checkout is authoritative.
 
 CI runs the native, HTTP, observer, documentation and Docker builds on every
-push. Details: [Testing](docs/development/testing.md).
+push. Details: [Testing](https://dstns.readthedocs.io/en/latest/development/testing/).
 
 ## Project layout
 
@@ -423,15 +418,15 @@ docs/                 documentation (MkDocs, published on Read the Docs)
 
 ## Documentation
 
-**<https://dstns.readthedocs.io/>** — or browse [`docs/`](docs/index.md):
+**<https://dstns.readthedocs.io/>** — or browse the sections below:
 
 | Start here | Understand it | Integrate and run it |
 |---|---|---|
-| [Quick start](docs/getting-started/quick-start.md) | [Architecture](docs/concepts/architecture.md) | [API guide](docs/api/index.md) |
-| [Installation](docs/getting-started/installation.md) | [Simulation engine](docs/concepts/simulation-engine.md) | [Docker deployment](docs/deployment/docker.md) |
-| [Run with Docker](docs/getting-started/docker.md) | [Mathematical model](docs/concepts/mathematical-model.md) | [Security](docs/deployment/security.md) |
-| [Your first simulation](docs/getting-started/first-simulation.md) | [Seeds and places](docs/guide/seeds-and-places.md) | [Configuration](docs/guide/configuration.md) |
-| [Operator CLI](docs/guide/operator-cli.md) | [Reproducibility](docs/concepts/reproducibility.md) | [Troubleshooting](docs/troubleshooting.md) |
+| [Quick start](https://dstns.readthedocs.io/en/latest/getting-started/quick-start/) | [Architecture](https://dstns.readthedocs.io/en/latest/concepts/architecture/) | [API guide](https://dstns.readthedocs.io/en/latest/api/) |
+| [Installation](https://dstns.readthedocs.io/en/latest/getting-started/installation/) | [Simulation engine](https://dstns.readthedocs.io/en/latest/concepts/simulation-engine/) | [Docker deployment](https://dstns.readthedocs.io/en/latest/deployment/docker/) |
+| [Run with Docker](https://dstns.readthedocs.io/en/latest/getting-started/docker/) | [Mathematical model](https://dstns.readthedocs.io/en/latest/concepts/mathematical-model/) | [Security](https://dstns.readthedocs.io/en/latest/deployment/security/) |
+| [Your first simulation](https://dstns.readthedocs.io/en/latest/getting-started/first-simulation/) | [Seeds and places](https://dstns.readthedocs.io/en/latest/guide/seeds-and-places/) | [Configuration](https://dstns.readthedocs.io/en/latest/guide/configuration/) |
+| [Operator CLI](https://dstns.readthedocs.io/en/latest/guide/operator-cli/) | [Reproducibility](https://dstns.readthedocs.io/en/latest/concepts/reproducibility/) | [Troubleshooting](https://dstns.readthedocs.io/en/latest/troubleshooting/) |
 
 Preview the site locally:
 
@@ -451,7 +446,7 @@ python3 -m venv .venv-docs && .venv-docs/bin/pip install -r docs/requirements.tx
 | Build fails after a system update | `cmake --fresh -S . -B build -DCMAKE_BUILD_TYPE=Release` |
 | SUMO reported unavailable | `sumo --version` must work; reinstall or rebuild SUMO |
 
-More: [Troubleshooting](docs/troubleshooting.md) and [FAQ](docs/faq.md).
+More: [Troubleshooting](https://dstns.readthedocs.io/en/latest/troubleshooting/) and [FAQ](https://dstns.readthedocs.io/en/latest/faq/).
 
 ## Project status and use
 
@@ -461,8 +456,8 @@ under the [AGPL-3.0-or-later](LICENSE) licence. It does not take outside contrib
 bug reports or feature requests, and it is provided as is.
 
 If you fork or redistribute it, keep the licence and copyright notices, and see
-[Building from source](docs/development/building.md) and
-[Testing](docs/development/testing.md) for how to build and verify your copy. A
+[Building from source](https://dstns.readthedocs.io/en/latest/development/building/) and
+[Testing](https://dstns.readthedocs.io/en/latest/development/testing/) for how to build and verify your copy. A
 suspected security vulnerability should be reported **privately**, as described in
 [SECURITY.md](SECURITY.md); never in a public issue.
 
@@ -473,4 +468,4 @@ Copyright © 2026 Varun Karthic. DSTNS is free software under the
 modified DSTNS over a network, you must offer its source to its users.
 
 Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright),
-ODbL 1.0. See [License](docs/license.md) for third-party components.
+ODbL 1.0. See [License](https://dstns.readthedocs.io/en/latest/license/) for third-party components.
