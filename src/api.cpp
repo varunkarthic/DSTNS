@@ -93,6 +93,43 @@ bool same_origin(const std::string& origin, const std::string& host, const std::
     return matches(host) || matches(forwarded_host);
 }
 
+// Whether a Host header names this machine rather than some other site. Used
+// when the server is bound to loopback, where the only way a hostile web page
+// can reach it is DNS rebinding: the page's hostname is re-pointed at 127.0.0.1,
+// the browser then treats requests as same-origin, and the Origin-equals-Host
+// check passes because both name the attacker. A rebound request still carries
+// the attacker's hostname in Host, which this refuses. IP literals and
+// localhost names cannot be rebound; DSTNS_ALLOWED_HOSTS (comma-separated)
+// admits further names, e.g. a local alias.
+bool host_allowed(std::string host) {
+    // Strip a port: "[::1]:8090" and "127.0.0.1:8090" alike.
+    if (!host.empty() && host.front() == '[') {
+        const auto close = host.find(']');
+        if (close == std::string::npos) return false;
+        return true;  // an IPv6 literal
+    }
+    if (const auto colon = host.rfind(':'); colon != std::string::npos) host.erase(colon);
+    for (auto& c : host) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (host.empty()) return true;  // HTTP/1.0 without Host; not a browser
+    if (host == "localhost" || host.ends_with(".localhost")) return true;
+    if (host.find_first_not_of("0123456789.") == std::string::npos) return true;  // IPv4 literal
+    if (const char* allowed = std::getenv("DSTNS_ALLOWED_HOSTS")) {
+        std::string list = allowed;
+        std::size_t start = 0;
+        while (start <= list.size()) {
+            const auto comma = list.find(',', start);
+            auto item = list.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+            item.erase(0, item.find_first_not_of(' '));
+            item.erase(item.find_last_not_of(' ') + 1);
+            for (auto& c : item) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (!item.empty() && item == host) return true;
+            if (comma == std::string::npos) break;
+            start = comma + 1;
+        }
+    }
+    return false;
+}
+
 json body(const httplib::Request& r) {
     if (r.body.empty()) return json::object();
     return json::parse(r.body);
@@ -218,7 +255,14 @@ void ApiServer::routes() {
     if(std::filesystem::exists("media"))server_->set_mount_point("/media",std::filesystem::absolute("media").string());
     server_->Get("/media/logo.png",[](const auto&,auto& r){r.status=404;});
     const std::string operator_token=std::getenv("DSTNS_OPERATOR_TOKEN")?std::getenv("DSTNS_OPERATOR_TOKEN"):"";
-    server_->set_pre_routing_handler([operator_token](const auto& req,auto& r){
+    const auto loopback_only=loopback_only_;
+    server_->set_pre_routing_handler([operator_token,loopback_only](const auto& req,auto& r){
+        // DNS rebinding: see host_allowed. Applies to reads as well as writes,
+        // since a rebound page could otherwise read the whole run.
+        if (loopback_only->load() && !host_allowed(req.get_header_value("Host"))) {
+            send(r,{{"error",{{"code","HOST_NOT_ALLOWED"},{"message","This server is bound to loopback and answers only to localhost or an IP address. Set DSTNS_ALLOWED_HOSTS to admit another name."}}}},421);
+            return httplib::Server::HandlerResponse::Handled;
+        }
         // A browser names the page that sent a request in Origin. A state-
         // changing request from a page served by some other host is a cross-
         // site request forgery, not the observer, and is refused. Clients that
@@ -825,6 +869,7 @@ void ApiServer::routes() {
 }
 
 void ApiServer::listen(const std::string& host, std::uint16_t port) {
+    loopback_only_->store(host == "localhost" || host == "::1" || host.rfind("127.", 0) == 0);
     logger_.system("INFO", "api", "listening on http://" + host + ":" + std::to_string(port));
     if (!server_->listen(host, port) && !stopping_) {
         throw std::runtime_error("API server failed to listen on " + host + ":" + std::to_string(port) + " (port may be in use by another process)");

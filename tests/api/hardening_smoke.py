@@ -70,6 +70,21 @@ class Hardening(unittest.TestCase):
         code, _ = self.call('/api/v1/playback/play', 'POST', {})
         self.assertEqual(code, 200)
 
+    def test_dns_rebinding_host_is_refused_on_loopback(self):
+        # After DNS rebinding the attacker's hostname is in both Origin and Host,
+        # so the same-origin check alone passes; the Host check must refuse it.
+        for method, route in (('GET', '/api/v1/playback/status'), ('POST', '/api/v1/playback/pause')):
+            code, body = self.call(route, method, {} if method == 'POST' else None,
+                                   {'Host': 'rebind.attacker.example:8090', 'Origin': 'http://rebind.attacker.example:8090'})
+            self.assertEqual(code, 421, (route, body))
+            self.assertEqual(body['error']['code'], 'HOST_NOT_ALLOWED')
+
+    def test_loopback_names_and_ip_literals_are_accepted(self):
+        for host in (f'127.0.0.1:{self.port}', f'localhost:{self.port}', f'app.localhost:{self.port}',
+                     f'[::1]:{self.port}', '10.1.2.3:8090'):
+            code, _ = self.call('/api/v1/playback/status', headers={'Host': host})
+            self.assertEqual(code, 200, host)
+
     def test_cross_origin_reads_still_work(self):
         code, body = self.call('/api/v1/playback/status', headers={'Origin': 'https://elsewhere.example'})
         self.assertEqual(code, 200)

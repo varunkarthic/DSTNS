@@ -51,7 +51,7 @@
     "max_duration_virtual_min": 120
   },
   "api": {
-    "host": "0.0.0.0",
+    "host": "127.0.0.1",
     "port": 8090
   },
   "ui": {

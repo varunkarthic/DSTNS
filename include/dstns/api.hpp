@@ -24,5 +24,10 @@ private:
     // How many times the observer page has been served, so the launcher can
     // wait for the interface to be open before it asks for a world.
     std::atomic<std::uint64_t> observer_loads_{};
+    // Whether the listener is bound to a loopback address. Shared with the
+    // pre-routing guard, which enforces the Host-header check only then: a
+    // loopback server is reached by name only through DNS rebinding, whereas a
+    // server behind a proxy legitimately sees any hostname.
+    std::shared_ptr<std::atomic_bool> loopback_only_{std::make_shared<std::atomic_bool>(false)};
 };
 } // namespace dstns

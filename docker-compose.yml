@@ -17,7 +17,9 @@ services:
     image: dstns:latest
     restart: unless-stopped
     ports:
-      - "${DSTNS_HOST_PORT:-8090}:8090"
+      # Loopback by default: the API can drive the run, so it is not published
+      # to the network unless DSTNS_BIND says so (DSTNS_BIND=0.0.0.0).
+      - "${DSTNS_BIND:-127.0.0.1}:${DSTNS_HOST_PORT:-8090}:8090"
     environment:
       DSTNS_AUTOSTART: "${DSTNS_AUTOSTART:-1}"
       DSTNS_SEED: "${DSTNS_SEED:-auto}"
@@ -29,6 +31,7 @@ services:
       DSTNS_MAP_CACHE_KEEP: "${DSTNS_MAP_CACHE_KEEP:-3}"
       DSTNS_DISABLE_WORLD_REGENERATION: "${DSTNS_DISABLE_WORLD_REGENERATION:-0}"
       DSTNS_ALLOWED_ORIGINS: "${DSTNS_ALLOWED_ORIGINS:-}"
+      DSTNS_ALLOWED_HOSTS: "${DSTNS_ALLOWED_HOSTS:-}"
       DSTNS_OVERPASS_ENDPOINTS: "${DSTNS_OVERPASS_ENDPOINTS:-}"
     volumes:
       - dstns-maps:/app/data/maps   # downloaded city extracts survive restarts
@@ -44,7 +47,7 @@ services:
       dstns:
         condition: service_healthy
     ports:
-      - "${DSTNS_TLS_PORT:-8443}:8443"
+      - "${DSTNS_BIND:-127.0.0.1}:${DSTNS_TLS_PORT:-8443}:8443"
     volumes:
       - ./docker/certificates:/etc/nginx/certs
 
