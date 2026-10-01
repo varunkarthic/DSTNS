@@ -238,7 +238,9 @@ int main() {
         check(done["state"] == "ready", "the replacement is installed");
         check(lifecycle(engine) == "PAUSED", "the new world is left paused and ready");
         check(virtual_s(engine) == 0, "the new world starts at the beginning of its day");
-        check(at_request >= 0, "the replaced world had advanced before it was paused");
+        // (An unsigned clock is never negative, so this asserts something real:
+        // the replaced world was paused mid-day, not run to completion.)
+        check(at_request < 86400, "the replaced world was paused before the end of its day");
         auto after = engine.backpressure();
         check(after["score"].get<double>() < 0.5, "the new world starts with a clear backpressure window");
         engine.terminate();

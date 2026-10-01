@@ -36,6 +36,7 @@ RouteResult RoutePlanner::route(NodeId source,NodeId destination)const{
     const auto heuristic=[&](NodeId x){const auto d=point_distance(graph_.node(x).position,graph_.node(destination).position);return static_cast<std::uint64_t>(std::llround(d/33.33*1000));};
     cost[source.value]=0;q.push({heuristic(source),0,source});
     while(!q.empty()){auto cur=q.top();q.pop();if(cur.g!=cost[cur.n.value])continue;if(cur.n==destination)break;for(auto eid:graph_.outgoing(cur.n)){const auto&e=graph_.edge(eid);const auto&s=graph_.edge_states()[eid.value];if(!is_source_direction_allowed(e)||s.closed)continue;const auto speed=std::max(0.1,s.effective_speed_mps);const auto w=static_cast<std::uint64_t>(std::llround(e.length_m/speed*1000));const auto ng=cur.g+w;if(ng<cost[e.to.value]||(ng==cost[e.to.value]&&eid.value<parent[e.to.value].value)){cost[e.to.value]=ng;parent[e.to.value]=eid;q.push({ng+heuristic(e.to),ng,e.to});}}}
-    if(cost[destination.value]==inf)return{};std::vector<EdgeId> edges;for(auto at=destination;at!=source;){const auto e=parent[at.value];if(e.value==std::numeric_limits<std::uint32_t>::max())return{};edges.push_back(e);at=graph_.edge(e).from;}std::reverse(edges.begin(),edges.end());return{true,cost[destination.value],std::move(edges)};
+    if(cost[destination.value]==inf)return{};
+    std::vector<EdgeId> edges;for(auto at=destination;at!=source;){const auto e=parent[at.value];if(e.value==std::numeric_limits<std::uint32_t>::max())return{};edges.push_back(e);at=graph_.edge(e).from;}std::reverse(edges.begin(),edges.end());return{true,cost[destination.value],std::move(edges)};
 }
 } // namespace dstns
