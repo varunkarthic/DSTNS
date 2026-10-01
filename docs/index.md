@@ -7,12 +7,18 @@ hide:
 
 <div class="dstns-hero" markdown>
 
-# Simulate a full day of real traffic. Reproduce it exactly.
+<h1 class="dstns-hero__logo" aria-label="DSTNS">
+  <img class="dstns-logo-light" src="assets/wordmark-dark.svg" alt="DSTNS">
+  <img class="dstns-logo-dark" src="assets/wordmark-light.svg" alt="DSTNS">
+</h1>
+
+<p class="dstns-hero__full">Deterministic Spatiotemporal Transport Network Simulator</p>
 
 <p class="dstns-lede">
-DSTNS turns a number into a real city district from OpenStreetMap and simulates
-a day of traffic on it: signals, demand, weather, flooding and incidents, on one
-virtual clock. The same seed gives the same world and the same day, on any machine.
+DSTNS selects a city district from OpenStreetMap using a seed and simulates a
+virtual day of traffic, signals, demand, weather, flooding and incidents on one
+authoritative clock. The same seed gives the same world and the same day, on any
+machine.
 </p>
 
 <div class="dstns-actions" markdown>
