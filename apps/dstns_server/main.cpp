@@ -17,7 +17,12 @@ int main(int argc, char** argv) {
         for (int i = 1; i < argc; ++i) {
             std::string a = argv[i];
             if (a == "--host" && i + 1 < argc) host = argv[++i];
-            else if (a == "--port" && i + 1 < argc) port = static_cast<std::uint16_t>(std::stoul(argv[++i]));
+            else if (a == "--port" && i + 1 < argc) {
+                // Checked before narrowing: 70000 would otherwise wrap to 4464.
+                const auto value = std::stoul(argv[++i]);
+                if (value < 1 || value > 65535) throw std::invalid_argument("--port must be in [1, 65535]");
+                port = static_cast<std::uint16_t>(value);
+            }
             else if (a == "--logs" && i + 1 < argc) logs = argv[++i];
             else if (a == "--maps" && i + 1 < argc) maps = argv[++i];
             else if (a == "--map-cache" && i + 1 < argc) cache_policy = argv[++i];
