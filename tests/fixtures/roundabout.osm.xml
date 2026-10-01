@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="dstns-test">
+  <node id="1" lat="23.0200" lon="72.5700"/>
+  <node id="2" lat="23.0200" lon="72.5710"/>
+  <node id="3" lat="23.0210" lon="72.5710">
+    <tag k="shop" v="mall"/>
+  </node>
+  <node id="4" lat="23.0210" lon="72.5700"/>
+  <node id="5" lat="23.0190" lon="72.5700"/>
+  <way id="21">
+    <nd ref="1"/><nd ref="2"/><nd ref="3"/><nd ref="4"/><nd ref="1"/>
+    <tag k="highway" v="primary"/><tag k="junction" v="roundabout"/>
+  </way>
+  <way id="22">
+    <nd ref="5"/><nd ref="1"/>
+    <tag k="highway" v="residential"/>
+  </way>
+</osm>
