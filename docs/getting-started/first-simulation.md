@@ -39,14 +39,13 @@ doing: **Selecting world**, **Downloading map** (the first time for a city),
 
 ```text
 +--------------------------------------------------------------------------+
-| DSTNS                         [City]  Tutorial  Export Report  (i)       |  top bar
-+----+---------------------------------------------------+-----------------+
-| +  |                                                   | LIVE TELEMETRY  |  telemetry
-| -  |                      the map                      | tiles, lists    |
-| ⌕  |                                                   |                 |
-| AF |                                                   |                 |  sidebar
-| ⚙  | [Notifications]  [Layers] [Roads] [Places]       [coords] [scale] |  lower HUD
-+----+ ( ⟲ « ▸| ▶ » ) ( 08:42:17 ) ( 0.25 … 5× )  SEED …  ● Online      |  command rail
+| DSTNS | City | Tutorial | Export report | About                          |
+| Sidebar: Zoom, Fit, Search, Auto Focus, DND, Reduced motion, Settings    |
+| Main view: road map | Right panel: live telemetry, tiles and lists       |
+| Lower HUD: Notifications | Layers | Roads | Places | Coordinates | Scale |
+| Command rail: Restart | Back | Step | Play/Pause | Forward               |
+| Command rail: Clock | Speed (0.25x to 5x) | Seed | Regenerate | Online   |
+| Command rail: Terminate                                                  |
 +--------------------------------------------------------------------------+
 ```
 
@@ -67,12 +66,12 @@ at 1×.
 
 | Do | Control | What happens |
 |---|---|---|
-| Pause and play | ▶ / ❚❚ | Time stops and resumes |
+| Pause and play | **Play / Pause** | Time stops and resumes |
 | Go faster | **2×**, **3×**, **5×** | Time passes faster; the physics is identical, only pacing changes |
-| Jump ahead 15 minutes | **»** | The engine simulates forward to the new time |
-| Jump back 15 minutes | **«** | The engine restores the last checkpoint and replays to the new time |
-| Step one minute | **▸\|** | Advances exactly one virtual minute and holds |
-| Start the day over | **⟲** | After confirmation, back to 00:00:00 with the same seed |
+| Jump ahead 15 minutes | **Forward** | The engine simulates forward to the new time |
+| Jump back 15 minutes | **Back** | The engine restores the last checkpoint and replays to the new time |
+| Step one minute | **Step** | Advances exactly one virtual minute and holds |
+| Start the day over | **Restart** | After confirmation, back to 00:00:00 with the same seed |
 | Switch 12/24-hour time | click the clock | Everywhere in the interface |
 
 Skip ahead to about **08:00**: the morning peak. Roads around schools and
@@ -107,7 +106,7 @@ lists what is active now.
 
 Open **Layers** (lower HUD) to switch map layers on and off: roads, vehicles
 (the flow dots), buildings, labels, place names, weather. **Places** filters
-which kinds of place have markers. Settings (⚙) holds the rest: time format,
+which kinds of place have markers. Settings holds the rest: time format,
 notification behaviour, skip and step intervals, reduced motion. Preferences
 stay in this browser; **About → Reset all preferences** restores the
 operator's defaults.
@@ -116,7 +115,7 @@ operator's defaults.
 
 - **The same place on a weekend:** `./launcher start --seed 382923 --day-type weekend`.
   Schools are quiet, shops and leisure busier.
-- **Somewhere else:** click ↻ next to the seed in the command rail
+- **Somewhere else:** click the regeneration button next to the seed in the command rail
   (**Generate a new world**). A fresh seed picks a new city; the current world
   stays until the new one is ready, which then starts paused at 00:00:00.
 - **A seed of your own:** any number works: `./launcher start --seed 2026`.

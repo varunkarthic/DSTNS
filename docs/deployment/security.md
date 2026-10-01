@@ -1,7 +1,9 @@
 # Security
 
 DSTNS is an operator tool. It is meant to run on the operator's own machine,
-or behind the bundled TLS gateway, and to be watched in a browser. This page
+or on an access-controlled network, and to be watched in a browser. The
+bundled TLS gateway adds transport encryption; remote access still requires
+network restrictions or an authenticated proxy. This page
 states what the server protects against, how, and what an operator has to do
 to keep those protections in place.
 
@@ -16,8 +18,10 @@ to keep those protections in place.
 | Shell injection through paths passed to external tools | Multi-tenant isolation; one server serves one operator |
 
 The API has no user accounts. Anyone who can reach the port can read run state
-and use the playback and control endpoints. Bind to `127.0.0.1` or put the
-gateway in front of the server whenever the network is not trusted.
+and use the playback and control endpoints. Bind to `127.0.0.1` for local use.
+For remote use, restrict network access and add authentication at the proxy or
+network boundary as well as TLS. The native server defaults to `0.0.0.0`; Compose
+publishes 8090 on host interfaces even when the TLS profile is enabled.
 
 ## Starting runs: the operator credential
 
@@ -26,7 +30,9 @@ At start-up, `dstns_server` writes a random 256-bit credential to
 set). `POST /api/v1/playback/start` and `POST /api/v1/playback/prepare` must
 present it in `X-DSTNS-Operator`, or they fail with HTTP 403
 `CLI_START_REQUIRED`. The CLI reads the file; the browser never sees it. Only
-someone who can read the operator's files can choose what runs.
+someone with the credential can start or prepare a run. World regeneration is a
+separate endpoint available to reachable clients unless disabled; the token is
+not a general authorization layer.
 
 ## Cross-site request forgery
 
@@ -49,7 +55,11 @@ A refused request gets HTTP 403:
 
 `Origin: null` (sandboxed frames, some redirects) is always refused. Requests
 without an `Origin` (the CLI, `curl`, Python scripts) are not affected,
-because a browser cannot be made to send a cross-site write without one.
+so this mechanism is not authentication for arbitrary network clients. The
+implementation compares origin authority with `Host` or `X-Forwarded-Host`; it
+does not enforce full scheme/host/port identity for those host comparisons.
+A trusted proxy must overwrite forwarded headers, and clients must not be able
+to bypass it to reach the backend.
 
 **Which setups need configuration:**
 
@@ -61,9 +71,11 @@ because a browser cannot be made to send a cross-site write without one.
 | Your own reverse proxy | Forward `Host`, or set `X-Forwarded-Host` |
 | Observer on another origin (`VITE_DSTNS_API_URL`) | Add that origin to `DSTNS_ALLOWED_ORIGINS` |
 
-CORS still answers `Access-Control-Allow-Origin: *`, so other pages can *read*
-run state. That is deliberate, since run state is not sensitive, but it can be
-tightened if that changes.
+CORS still answers `Access-Control-Allow-Origin: *`, permitting cross-origin
+reads at the application layer, subject to browser and network policy. Do not
+assume a particular experiment's run state is non-sensitive. Restrict network
+access and review data before sharing it; tighten deployment policy if run data
+is confidential.
 
 ## Shutdown
 
@@ -132,8 +144,10 @@ allow-list first.
 
 ## Hardening checklist
 
-- [ ] Bind the server to `127.0.0.1` (`api.host` in `config/defaults.json`)
-      unless the gateway is in front of it.
+- [ ] Bind the server to `127.0.0.1` (`--host` for the standalone binary;
+      `api.host` in `config/defaults.json` for the launcher) for local use.
+- [ ] For remote access, add authentication or trusted network restrictions;
+      keep the backend inaccessible directly and overwrite forwarded headers.
 - [ ] Keep `logs/operator.token` readable only by the operator.
 - [ ] Set `DSTNS_DISABLE_WORLD_REGENERATION=1` if observers should not be able
       to replace the world.
@@ -143,5 +157,30 @@ allow-list first.
 
 ## Reporting a problem
 
-Open an issue on the repository, marked security, without a working exploit,
-and the maintainers will arrange a private channel.
+Follow the repository's [security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md)
+for supported versions, confidential reporting, report contents, triage and
+coordinated disclosure. If a private report form or contact route is unavailable,
+request a private contact without disclosing the affected endpoint or exploit.
+Do not post vulnerability details in a public issue.
+
+## Verifying the deployment boundary
+
+```bash
+./build/dstns_server --host 127.0.0.1 --port 8090
+```
+
+This starts a local-only standalone server; run it from the repository root after
+building. It does not read the launcher's `api.host` setting. Use a dedicated
+restricted logs directory on shared hosts and do not start a second process on a
+port already in use.
+
+For Compose, set `DSTNS_HOST_PORT=127.0.0.1:8090` to make the existing port mapping
+local-only. Check `docker compose config` before deployment and verify reachability
+from the intended client network. Enabling `--profile tls` adds port 8443; it does
+not remove 8090 or authenticate the client.
+
+Implementation references are `apps/dstns_server/main.cpp` (binding and token),
+`src/api.cpp` (origin guard and credential-protected routes),
+`docker-compose.yml` (published ports) and `docker/gateway/nginx.conf` (TLS and
+forwarded headers). [Operations](operations.md) covers backup and recovery;
+[Testing](../development/testing.md) describes the HTTP hardening suite.

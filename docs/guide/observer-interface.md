@@ -70,17 +70,13 @@ The map fills the window. Floating instrumentation sits over it:
 
 ```text
 +--------------------------------------------------------------------------+
-| DSTNS                         [City]  Tutorial  Export Report  (i)       |
-+----+---------------------------------------------------+-----------------+
-| +  |                                                   | LIVE TELEMETRY  |
-| -  |                                                   | tiles           |
-| [] |                      map                          | Stack News      |
-| Q  |                                                   | Queue Incidents |
-| AF |                                                   |                 |
-| DND|                                                   |                 |
-| RM |                                                   |                 |
-| ⚙  | [Notification +2]  [Layers] [Roads] [Places]      [coords] [scale] |
-+----+ ( ⟲ | « ▸| ▶ » ) ( 08:42:17 ) (0.25 … 5×)  SEED 17310766… ↻ ● Online  Terminate |
+| DSTNS | City | Tutorial | Export report | About                          |
+| Sidebar: Zoom, Fit, Search, Auto Focus, DND, Reduced motion, Settings    |
+| Main view: road map | Right panel: live telemetry, tiles and lists       |
+| Lower HUD: Notifications | Layers | Roads | Places | Coordinates | Scale |
+| Command rail: Restart | Back | Step | Play/Pause | Forward               |
+| Command rail: Clock | Speed (0.25x to 5x) | Seed | Regenerate | Online   |
+| Command rail: Terminate                                                  |
 +--------------------------------------------------------------------------+
 ```
 

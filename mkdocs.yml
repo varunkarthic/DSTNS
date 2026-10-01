@@ -172,12 +172,14 @@ nav:
       - Errors: api/errors.md
       - Schemas: api/schemas.md
       - Examples: api/examples.md
+      - Python client walkthrough: api/client-walkthrough.md
       - Versioning: api/versioning.md
       - OpenAPI explorer: api/openapi.md
   - Deployment:
       - deployment/index.md
       - Docker: deployment/docker.md
       - Security: deployment/security.md
+      - Operations runbook: deployment/operations.md
       - Logging: deployment/logging.md
       - Performance: deployment/performance.md
   - Troubleshooting:
@@ -189,6 +191,7 @@ nav:
       - Building from source: development/building.md
       - Testing: development/testing.md
       - Writing documentation: development/documentation.md
+      - Dependency maintenance: development/dependencies.md
       - Code evaluation (Oct 2026): development/audit-2026-10.md
       - Components:
           - components/index.md

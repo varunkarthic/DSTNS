@@ -47,14 +47,14 @@ stateDiagram-v2
 
 | Action | `IDLE` | `PREPARING` | `READY` | `RUNNING` | `PAUSED` | `COMPLETED` | `STOPPED` |
 |---|---|---|---|---|---|---|---|
-| start | ✓ | 409 | ✓ | 409 | 409 | ✓ | ✓ |
-| play | 409 | 409 | 409 | no-op | ✓ | 409 | 409 |
-| pause | 409 | 409 | 409 | ✓ | no-op | 409 | 409 |
-| seek | 400 (no world) | 409 | ✓ | ✓ | ✓ | ✓ | ✓ |
-| step | 409 | 409 | ✓ | ✓ | ✓ | 409 | ✓ |
-| controls | 409 / 400 | as the world allows | ✓ | ✓ | ✓ | ✓ | ✓ |
-| regenerate | 409 | 409 | ✓ | ✓ | ✓ | ✓ | ✓ |
-| reset, terminate | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| start | Allowed | 409 | Allowed | 409 | 409 | Allowed | Allowed |
+| play | 409 | 409 | 409 | no-op | Allowed | 409 | 409 |
+| pause | 409 | 409 | 409 | Allowed | no-op | 409 | 409 |
+| seek | 400 (no world) | 409 | Allowed | Allowed | Allowed | Allowed | Allowed |
+| step | 409 | 409 | Allowed | Allowed | Allowed | 409 | Allowed |
+| controls | 409 / 400 | as the world allows | Allowed | Allowed | Allowed | Allowed | Allowed |
+| regenerate | 409 | 409 | Allowed | Allowed | Allowed | Allowed | Allowed |
+| reset, terminate | Allowed | Allowed | Allowed | Allowed | Allowed | Allowed | Allowed |
 
 A refused action returns 409 `LIFECYCLE_CONFLICT` (see [Errors](errors.md)).
 

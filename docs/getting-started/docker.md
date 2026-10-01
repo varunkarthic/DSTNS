@@ -154,3 +154,14 @@ See the [SUMO adapter](../components/sumo-adapter.md).
 
 Full reference, production advice and more fixes: [Docker
 deployment](../deployment/docker.md).
+
+## Access control and operational readiness
+
+The default Compose port is reachable on host interfaces. For a local-only run,
+set `DSTNS_HOST_PORT=127.0.0.1:8090`; for a local TLS gateway also set
+`DSTNS_TLS_PORT=127.0.0.1:8443`. The TLS profile supplies encryption, not user
+authentication, and leaves the backend mapping enabled. See
+[Security](../deployment/security.md) before allowing remote clients.
+
+Use the [Operations runbook](../deployment/operations.md) to distinguish a healthy
+container from a running simulation, preserve experiment inputs, and plan upgrades.

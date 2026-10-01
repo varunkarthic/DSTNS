@@ -215,7 +215,10 @@ docker compose --profile tls up -d
 
 !!! tip "Only expose the gateway"
     When the gateway is in front, publish the engine on loopback only so
-    nothing reaches it unencrypted: set `DSTNS_HOST_PORT=127.0.0.1:8090`.
+    remote clients cannot bypass it: set `DSTNS_HOST_PORT=127.0.0.1:8090`.
+    Add authentication at the proxy or restrict access through a trusted network.
+    TLS encrypts traffic but does not authorize operators; enabling this profile
+    does not remove the backend port mapping.
 
 ## Plain `docker run`
 

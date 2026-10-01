@@ -58,3 +58,11 @@ For observer work, run the core once and the Vite dev server with hot reload:
 ./launcher start --seed 382923 --no-open
 open http://localhost:5173
 ```
+
+## Maintenance guides
+
+- [Dependency maintenance](dependencies.md): review and validate automated updates.
+- [Operations runbook](../deployment/operations.md): deploy, diagnose and recover.
+- [Python client walkthrough](../api/client-walkthrough.md): implement an integration.
+- [Security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md):
+  report a vulnerability and understand support and disclosure practices.

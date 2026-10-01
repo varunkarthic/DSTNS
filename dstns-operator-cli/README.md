@@ -73,4 +73,59 @@ The C++ process remains the simulation authority. The Node launcher is only the 
 ./launcher sumo
 ```
 
-`start` starts playback immediately. Weekday is the default. The browser observes the core and exposes pause/resume/speed. See the [modernization guide](../docs/modernization.md) for validated arguments, pinned OSM source storage, private operator credentials and process ownership. Interactive terminal menus remain available by running `./launcher` without arguments.
+`start` starts playback immediately. Weekday is the default. The browser observes the core and exposes pause/resume/speed. See the [modernization guide](../docs/history/modernization.md) for validated arguments, pinned OSM source storage, private operator credentials and process ownership. Interactive terminal menus remain available by running `./launcher` without arguments.
+
+
+## Reproducible local workflow
+
+Run from the repository root after installing the [source prerequisites](../docs/getting-started/installation.md):
+
+```bash
+./launcher start --seed 382923 --day-type weekday \
+  --osm-file data/fixtures/real_network.osm.xml --no-open
+```
+
+The launcher validates configuration, builds stale components, supervises the native
+server and submits a start request with the local operator credential. The pinned
+map avoids a network download, and `--no-open` suppresses opening a browser. The
+engine remains the authority for the clock and simulation state.
+
+Check the actual server URL reported by the launcher; it may select another port
+when the configured port is occupied. Then inspect readiness:
+
+```bash
+curl --fail --silent --show-error http://127.0.0.1:8090/api/v1/playback/status
+```
+
+`PREPARING` means a request was accepted and compilation is underway. `RUNNING`
+means playback has started. An `IDLE` state with `preparation_error` indicates a
+failed preparation. Do not infer successful startup from an open browser alone.
+
+## Credentials and destructive commands
+
+The launcher uses `<logs>/operator.token`; `DSTNS_LOGS_DIR` selects a different
+logs directory. Keep this file private and out of shared logs or Git commits.
+Configure `api.host` in `config/defaults.json` as `127.0.0.1` for local-only access.
+The token protects start and prepare; other controls still require network access
+restrictions. See the [security policy](../SECURITY.md).
+
+The reset commands listed above remove runtime state; `--yes` skips their
+confirmation. Preserve required maps, saved seeds and diagnostics before using
+reset. Deleting a saved seed removes that stored configuration. Refer to
+[Operator CLI](../docs/guide/operator-cli.md) for exact command behavior and
+[Operations](../docs/deployment/operations.md) for backup and recovery.
+
+## Development checks
+
+```bash
+npm ci --prefix dstns-operator-cli
+node --test tests/cli/*.test.mjs
+python3 tests/cli/test_seeds.py
+python3 tests/cli/test_fetch_osm.py
+```
+
+These repository-root commands install the committed dependency graph and test
+artifact rebuild detection, saved-seed persistence and map fetching. They do not
+replace live launcher integration or the native server suites. See
+[Testing](../docs/development/testing.md) and
+[Dependency maintenance](../docs/development/dependencies.md) for the broader gates.
