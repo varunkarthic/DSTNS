@@ -148,6 +148,7 @@ nav:
       - Playback control: guide/playback-control.md
       - Seeds and places: guide/seeds-and-places.md
       - Configuration: guide/configuration.md
+      - Recipes: guide/recipes.md
       - Observer configuration: guide/observer-configuration.md
   - Concepts:
       - concepts/index.md
@@ -191,6 +192,9 @@ nav:
       - FAQ: faq.md
       - Glossary: glossary.md
   - Reference:
+      - Command-line tools: reference/command-line-tools.md
+      - Environment variables: reference/environment-variables.md
+      - Files and directories: reference/files-and-directories.md
       - Components:
           - components/index.md
           - API server: components/api-server.md
