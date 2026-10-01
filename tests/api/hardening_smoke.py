@@ -85,10 +85,23 @@ class Hardening(unittest.TestCase):
             code, _ = self.call('/api/v1/playback/status', headers={'Host': host})
             self.assertEqual(code, 200, host)
 
-    def test_cross_origin_reads_still_work(self):
-        code, body = self.call('/api/v1/playback/status', headers={'Origin': 'https://elsewhere.example'})
+    def cors_header(self, origin):
+        request = urllib.request.Request(f'http://127.0.0.1:{self.port}/api/v1/playback/status', headers={'Origin': origin})
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, response.headers.get('Access-Control-Allow-Origin'), response.headers.get('Vary')
+
+    def test_foreign_origins_are_not_granted_cors(self):
+        # The response is still produced (a GET is harmless), but without the
+        # header a browser will not let the foreign page read it.
+        code, allowed, vary = self.cors_header('https://elsewhere.example')
         self.assertEqual(code, 200)
-        self.assertTrue(body['ok'])
+        self.assertIsNone(allowed)
+        self.assertEqual(vary, 'Origin')
+
+    def test_own_origin_is_granted_cors(self):
+        own = f'http://127.0.0.1:{self.port}'
+        _, allowed, _ = self.cors_header(own)
+        self.assertEqual(allowed, own)
 
     def test_terminate_cannot_be_triggered_by_get(self):
         for route in ('/terminate', '/api/v1/system/terminate'):
