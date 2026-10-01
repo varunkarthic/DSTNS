@@ -1,98 +1,169 @@
 # DSTNS
 
-Deterministic Spatiotemporal Transport Network Simulator: a C++20 simulation core, CLI operator console and React observation/analysis interface. Real OSM geography, independent scheduled signals, POI demand, weather, flooding and incidents share one authoritative virtual clock.
+**Deterministic Spatiotemporal Transport Network Simulator.** A C++20
+simulation core, an operator CLI and a React observer. A seed picks a real city
+district from OpenStreetMap and simulates a full day of traffic on it, with
+scheduled signals, place-driven demand, weather, flooding and incidents, all on
+one authoritative virtual clock. The same seed always produces the same world
+and the same day.
 
-## Run
+```
+CLI ──start──▶ dstns_server ──▶ SimulationEngine ──▶ GraphStore / EventRuntime
+                    │                                         │
+                    └──── revisioned HTTP API ◀───────────────┘ ──▶ observer (browser)
+```
 
----
+## Contents
 
-## Key Highlights
+- [Highlights](#highlights)
+- [Quick start](#quick-start)
+- [Running a simulation](#running-a-simulation)
+- [Building and testing](#building-and-testing)
+- [Documentation](#documentation)
+- [Project status](#project-status)
+- [Licence](#licence)
 
-- **128-Bit Determinism & Cryptographic Sub-Seeds**: A master 128-bit seed cryptographically derives independent sub-seeds (`map`, `dws`, `traffic`, `incidents`, `events`, `scenario`) via SHA-256 (`Seed128::derive`), ensuring complete subsystem isolation and $\ge 40$ bit avalanche diffusion on single-bit seed perturbations.
-- **Seed-Selected Cities, Downloaded On Demand**: The 128-bit seed derives both a metropolis from a catalog of 181 urban centres across every inhabited continent and coordinates within its urban core. The district is fetched from OpenStreetMap on demand and cached by seed-derived name, then processed through Connected Radial Frontier Growth (CRFG) and canonical 0-indexed entity sorting (DRNCP).
-- **True Metric Scale**: Node positions and edge lengths are real metres from the projection origin, verified against haversine ground truth to within 0.13%. Display scaling is a client concern and never feeds back into the model.
-- **Deterministic Weather Simulation (DWS)**: Continuous compact-support Wendland $C^2$ radial kernels modeling storm cell kinematics, precipitation rates, surface runoff, road friction loss, and dynamic flash flooding.
-- **First-Class Incident Management**: Guaranteed $\ge 4$ incidents per day distributed across early, midday, and late time slots, inducing real physical road closures and speed/capacity attenuations with clean overlapping resolution.
-- **Zero-Leak Simulation Reset**: Total purge of active overlays, storm cells, traffic surges, signal overrides, transit buses, and monotonic ID counters between runs.
-- **Interactive Control API**: Public transit bus route dispatching with adjacency verification, road closures, deterministic weather cells (100m–600m), and traffic surges.
-- **Microscopic Physics Integration**: Native export of deterministic road networks to Eclipse SUMO (`netconvert` / `sumo`) for microscopic car-following validation.
-- **Rich Operator Dashboard**: Live canvas visualization, reduced motion mode, telemetry ledger, signal phase inspector, and printable audit reports.
-- **Docker Compose Ready**: Single-command container deployment with host port mapping and persistent volume storage.
+## Highlights
 
----
+- **Real places, chosen by the seed.** The seed resolves to one of 181 cities
+  on every inhabited continent and a district inside it. The city's extract is
+  downloaded from OpenStreetMap once and cached; every later seed in that city
+  reuses it.
+- **True metric scale.** Positions and lengths are real metres, checked against
+  haversine ground truth to within 0.13%. Display scaling never feeds back into
+  the model.
+- **Deterministic to the bit.** A 128-bit seed derives independent sub-seeds
+  per subsystem through SHA-256; physics advances in fixed one-second steps;
+  seeking and playing to the same time give identical state; two independent
+  engines with the same seed agree exactly.
+- **A living network.** Signals snapped to real junctions and coordinated in
+  green waves; demand from schools, offices, shops and stops following
+  weekday and weekend curves and reacting to closures, rain and incidents;
+  storms modelled with Wendland C² kernels; flooding that closes roads; at
+  least four incidents a day.
+- **Time travel.** Pause, step, seek backwards and forwards through the day
+  with checkpoint replay, and undo and redo operator controls.
+- **An observer built for watching.** A live map, telemetry, notifications
+  with Do Not Disturb, Auto Focus on events, a guided tutorial and a PDF
+  report. Adaptive backpressure keeps a slow browser in step.
+- **SUMO cross-check.** Export any world to Eclipse SUMO and run it
+  microscopically as a batch job.
+- **Containers.** Docker Compose with an nginx TLS gateway.
 
-## Quick Start Guide
+## Quick start
 
-The seed is a plain number: what you type on the command line is what names the run, what the interface shows, and what reproduces the world. It chooses where the simulation happens, resolving to one of 181 cities and to coordinates inside that city, and the road network for a 4 km-wide district around that point is downloaded from OpenStreetMap the first time it is needed, then cached at `data/maps/<city>_<lat>_<lon>_r<radius>.osm.xml`.
-
-Re-running a seed reuses its cached tile and needs no network. Re-rolling the seed lands somewhere else and downloads that district — a first download takes roughly 20–50 seconds. If it cannot be downloaded, startup fails with `MAP_FETCH_FAILED` naming the city, the coordinates and the cause; no substitute map is used, because that would break the correspondence between a seed and the place it denotes. Synthetic grids remain reserved for explicit test fixtures, and `--osm-file PATH` still pins a specific map.
-
-Distances are real. Two junctions a kilometre apart are a kilometre apart in the model, and edge lengths are true metres; the UI compresses the picture for display only, which never affects the simulation.
-
-### 1. Interactive Operator Console (`dstns-operator-cli`)
-DSTNS features a modern terminal operator interface powered by `@poppinss/cliui` that manages the entire lifecycle, automatic Web UI building, server health monitoring, and test suites.
-
-The console provides **Ubuntu Server (Subiquity) style navigation**:
-* **`↑` / `↓` Arrow Keys** (or `k` / `j`): Navigate menu options.
-* **`Space`**: Select / mark the highlighted option (`[●]`).
-* **`Enter`**: Execute the selected (`[●]`) option.
-* **`Esc`** (or `q`): Return to previous menu or exit console.
+Requirements: CMake 3.22+, a C++20 compiler, SQLite, zlib, Node.js 20+, npm
+and Python 3. SUMO is optional.
 
 ```bash
-# Launch operator console (via root launcher or direct CLI)
 ./launcher
-# or
-python3 launcher.py
-# or, for direct Node execution, install dependencies first
-npm ci --prefix dstns-operator-cli
-node dstns-operator-cli/dstns.mjs
 ```
 
-### Non-Interactive Launcher Arguments
+The launcher installs the CLI's dependencies, builds the core and the observer,
+starts the server, opens `http://127.0.0.1:8090/` and starts a run from a
+fresh seed. The interface narrates world selection, the map download (20 to 50
+seconds the first time for a city) and generation as they happen.
 
-```
-./launcher start --seed 382923 --day-type weekday
-# Reusable configuration:
+## Running a simulation
+
+```bash
+./launcher start --seed 382923                    # a particular seed
+./launcher start --seed 382923 --day-type weekend
+./launcher start --speed 2 --duration 1800        # 2×, a day in 30 minutes at 1×
 ./launcher start --seed 42 --save-seed campus-test
-./launcher start --saved-seed campus-test
+./launcher start --saved-seed campus-test         # replay a saved configuration
 ./launcher seeds list
+./launcher start --osm-file data/maps/cologne_x5000.osm.xml   # pin a map, offline
+./launcher console                                # interactive dashboard
 ```
 
-Open the URL printed by the CLI (normally `http://127.0.0.1:8090`). The interface opens first and reports each stage of world selection, download, generation and initialization as the core reaches it. It then observes the active run and offers playback (back, step, play and pause, forward, reset), speed from 0.25× to 10×, and generating a new world from a fresh seed. It is built for laptop and desktop displays: below 1024x640 it says so instead of squeezing. Startup and weekday/weekend configuration belong to the CLI; weekday is the default. The UI no longer injects incidents, closes roads or dispatches Transit routes.
+The seed is a plain number, and it names the run end to end: what you type is
+what the interface shows and what reproduces the world. Extracts are cached at
+`data/maps/<city>_x<extent>.osm.xml`. If a district cannot be downloaded, the
+run fails with `MAP_FETCH_FAILED`, naming the city, the coordinates and the
+cause; another city is never substituted, because that would break the link
+between a seed and its place.
 
-For a larger pinned OSM source, run `python3 scripts/fetch_osm.py`, then `./launcher start`. The importer keeps a checksum manifest and refuses to overwrite existing data. Use `--osm-file PATH` to select an existing source. Saved seeds retain source bytes and deterministic configuration in a SQLite registry.
+In the observer you can play and pause, step, skip back and forward, reset,
+choose a speed from 0.25× to 5×, and generate a new world from a fresh seed.
+Run configuration (seed, day type, map) belongs to the CLI. The interface needs
+a window of at least 1024 × 640.
 
-## Build and verify
+See [Operator CLI](docs/operator-cli.md) and [Observer
+interface](docs/observer-interface.md).
 
-Requirements: CMake, C++20 compiler, SQLite, zlib, Node.js 20+, npm and Python 3. SUMO/netconvert are optional for batch export validation.
+## Building and testing
 
-```
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=ON
 cmake --build build -j
-ctest --test-dir build --output-on-failure
+ctest --test-dir build --output-on-failure        # 14 native and HTTP suites
 python3 tests/api/api_smoke.py --server build/dstns_server
-python3 tests/cli/test_seeds.py
-npm ci --prefix dstns-operator-cli
-npm ci --prefix ui-engine
-npm test --prefix ui-engine
-npm run build --prefix ui-engine
-node ui-engine/tests/browser.mjs
-node ui-engine/tests/browser-hud.mjs
+npm ci --prefix ui-engine && npm test --prefix ui-engine
+
+./scripts/test.sh                                 # all of the above, and more
 ```
 
-Browser tests use installed Chrome (`CHROME_BIN` can override the executable), an isolated server on port 18191, and write screenshots/PDF evidence to `artifacts/modernization/browser/`.
+See [Testing](docs/TESTING.md) for every suite, the browser tests and
+sanitizer builds.
 
-## Architecture and documentation
+## Documentation
 
-`CLI → SimulationEngine → GraphStore/state → revisioned HTTP/SSE API → observer UI`.
+**Start here**
 
-The existing live runtime uses an aggregate traffic model; SUMO export/batch simulation is a separate adapter. UI flow dots represent modeled edge flow, not individual SUMO telemetry. All stochastic simulation behavior is seed derived; playback speed changes pacing without changing physics.
+| Document | For |
+|---|---|
+| [Architecture](docs/ARCHITECTURE.md) | How the parts fit together: processes, threads, lifecycle, source layout |
+| [Operator CLI](docs/operator-cli.md) | Every command and flag, and what happens when a run starts |
+| [Observer interface](docs/observer-interface.md) | The browser interface, control by control |
+| [Configuration](docs/CONFIGURATION.md) | `defaults.json`, flags and environment variables |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Symptoms, causes and fixes |
 
-- [Modernization guide](docs/modernization.md): architecture, saved seeds, OSM, event queue, signals, demand, formulas, accessibility, reporting and limitations.
-- [Observer interface guide](docs/observer-interface.md): command rail, time and progress, speed, seed and world regeneration, notifications, Do Not Disturb, Auto Focus, settings, tooltips, tutorial and the report
-- [Observer configuration](docs/ui-configuration.md)
-- [API reference](docs/api.md)
-- [Validation and implementation journal](context/03_IMPLEMENTATION_PROGRESS.md)
-- [Final requirement checklist](context/modernization_validation.md)
+**The model**
 
-Transit dispatch is retired: its compatibility route returns HTTP 410. Internal routing, bus stops and scheduled trips remain. The optional logo is loaded from `/media/logo.png`; its absence is harmless.
+| Document | For |
+|---|---|
+| [Simulation engine](docs/simulation-engine.md) | The physics step, checkpoints and seeking, controls, undo, regeneration |
+| [Mathematical model](docs/MATHEMATICAL_MODEL.md) | The formulas |
+| [OSM map generation](docs/osm-map-generation.md) | Seed to city to district to graph |
+| [Graph model](docs/graph-model.md) | Nodes, edges and their attributes |
+| [Deterministic seeding](docs/deterministic-seeding.md) | Seeds, sub-seeds and the RNG |
+| [Events](docs/events.md) | The event runtime and event queue |
+| [Weather (DWS)](docs/dws.md), [Incidents](docs/incidents.md), [Routing](docs/routing.md) | Subsystems |
+| [ASB](docs/asb.md) | Adaptive Simulation Backpressure |
+| [Reproducibility](docs/REPRODUCIBILITY.md) | What is guaranteed, and how it is checked |
+
+**Integrating**
+
+| Document | For |
+|---|---|
+| [API guide](docs/api/README.md) and [API reference](docs/api.md) | Every route, request and response |
+| [Playback API](docs/api/playback-api.md), [Control API](docs/api/control-api.md), [Errors](docs/api/errors.md) | Details |
+| [SUMO adapter](docs/components/sumo-adapter.md) | Export and batch SUMO runs |
+| [Security](docs/SECURITY.md) | Threat model, credentials, CSRF protection, validation |
+| [Docker](docs/DOCKER.md), [Deployment](docs/DEPLOYMENT.md), [Logging](docs/LOGGING.md) | Operations |
+
+**Engineering**
+
+| Document | For |
+|---|---|
+| [Testing](docs/TESTING.md) | Every suite and how to run it |
+| [Code evaluation, October 2026](docs/AUDIT-2026-10.md) | The latest review: defects found and fixed, and known issues |
+| [Component notes](docs/components/README.md) | Per-component design notes |
+| [Performance](docs/PERFORMANCE.md) | Benchmarks |
+
+## Project status
+
+The live model is aggregate (flows and queues per edge), not microscopic; the
+observer's flow dots represent modelled edge flow, not individual vehicles.
+SUMO runs separately and never writes back into a live run. Transit dispatch
+is retired: `POST /api/v1/control/transit/route` returns HTTP 410, while
+internal routing, bus stops and planned trips remain. The optional logo is
+served from `/media/logo.png`; its absence is harmless.
+
+## Licence
+
+Copyright (C) 2026 Varun Karthic. AGPL-3.0-or-later; see `LICENSE` and
+`COPYRIGHT`. Map data © OpenStreetMap contributors, ODbL 1.0. Because the
+server is offered over a network, `GET /api/v1/system/source` tells every user
+where to obtain the corresponding source.

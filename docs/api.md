@@ -28,7 +28,9 @@ Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed,
 | GET | `/api/v1/view/manifest`, `/global` | Reproducibility manifest and comprehensive view |
 | GET | `/api/v1/news?since_news_id=0&limit=100` | Important activity notifications |
 | GET | `/api/v1/view/stream`, `/api/v1/news/stream` | Existing SSE transport |
-| POST | `/api/v1/export/sumo`, `/api/v1/system/sumo-simulate` | Explicit batch adapter operations |
+| POST | `/api/v1/export/sumo`, `/api/v1/system/sumo-simulate` | Batch SUMO adapter: export a bundle, or export, build and run SUMO for `begin_s < end_s <= 86400`. See [SUMO adapter](components/sumo-adapter.md) |
+| PUT, POST | `/api/v1/control/...` | Day, modules, edge overrides, signals, weather, surges, undo and redo. See [Control API](api/control-api.md) |
+| POST | `/api/v1/system/terminate` | Stop the run and exit the process (POST only) |
 
 `event-queue` accepts `view=future|history`, `category=all|signals|demand|incidents|weather|flooding|system`, `offset=0..100000`, `limit=1..200`. It returns `items`, filtered `total`, `pending_count`, `executed_count`, and `history_retention`. Events contain stable execution sequence IDs, category, entity, virtual second, description, status and state value. Future flooding is not predicted; actual flood threshold crossings appear in history.
 
@@ -40,7 +42,16 @@ being selected, downloaded and compiled, `GET /api/v1/playback/status` reports
 and byte progress. The operator CLI waits for the terminal lifecycle; the
 observer can remain responsive and narrate the work throughout.
 
-Existing operator stop/reset/seek, explicit world controls, module controls, history/undo/redo and log routes remain available; the browser has no clients or controls for world edits. See the implementation for compatibility routes. Do not interpret logical undo of a world override as a complete physical replay.
+Operator stop/reset/seek, world controls, module controls, history/undo/redo and log routes remain available; the observer uses none of the world-editing controls. They are documented in [Playback API](api/playback-api.md) and [Control API](api/control-api.md). Undo is logical: it restores a control's value from now on and is not a physical replay.
+
+## Security and validation
+
+- **Starting runs** needs the CLI's operator credential (`X-DSTNS-Operator`), or HTTP 403 `CLI_START_REQUIRED`.
+- **Cross-site writes are refused.** Any request other than `GET`, `HEAD` or `OPTIONS` that carries a browser `Origin` must come from the host it was sent to, or from an origin in `DSTNS_ALLOWED_ORIGINS`; otherwise HTTP 403 `CROSS_ORIGIN_FORBIDDEN`. Clients that are not browsers send no `Origin` and are unaffected.
+- **Shutdown is `POST` only**: `POST /api/v1/system/terminate` (or `POST /terminate`).
+- **Numbers are range-checked, never wrapped.** Path IDs must fit 32 bits; times are in [0, 86400]; query numbers must be unsigned decimals; undo and redo counts are in [1, 10000]. Every rule is listed in [Security](SECURITY.md#request-validation).
+
+Error responses and codes are listed in [API errors](api/errors.md).
 
 ## Discovery
 
