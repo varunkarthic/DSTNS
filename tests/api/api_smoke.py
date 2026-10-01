@@ -496,7 +496,7 @@ def main():
                     "begin_s": 0,
                     "end_s": 1800
                 })
-                assert code == 200 and sumo_sim["data"]["ok"] is True and sumo_sim["data"]["engine"] == "SUMO"
+                assert code == 200 and sumo_sim["data"]["ok"] is True and sumo_sim["data"]["engine"] == "SUMO", (code, sumo_sim)
                 assertions += 1
 
             # 23. Graceful Terminate (only when test process was spawned)
