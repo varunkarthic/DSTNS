@@ -44,34 +44,21 @@ For a C++ application, **libsumo** is the preferred runtime bridge when a GUI/mu
 
 ## 2. Top-level component graph
 
-```text
-+--------------------------------------------------------------+
-|                       SandboxApplication                     |
-+--------------------------------------------------------------+
-        |                 |                 |             |
-        v                 v                 v             v
-+---------------+ +---------------+ +---------------+ +---------+
-| Config/Seed   | | Scenario      | | Runtime       | | API     |
-| Bootstrap     | | Compiler      | | Coordinator   | | Server  |
-+---------------+ +---------------+ +---------------+ +---------+
-                         |                 |
-                         v                 v
-                  +-------------+    +-------------+
-                  | Canonical   |    | Event       |
-                  | GraphStore  |<-->| Executor    |
-                  +-------------+    +-------------+
-                    |    |    |          |     |
-                    |    |    |          |     +--> NewsBus
-                    |    |    |          +--------> History
-                    |    |    +-------------------> DWS
-                    |    +------------------------> Traffic
-                    +-----------------------------> RoutePlanner
-                         |
-                         v
-                  +-------------+
-                  | SUMOAdapter |
-                  |  (libsumo)  |
-                  +-------------+
+```mermaid
+flowchart TD
+    App["SandboxApplication"] --> Cfg["Config and Seed<br/>Bootstrap"]
+    App --> SC["Scenario<br/>Compiler"]
+    App --> RC["Runtime<br/>Coordinator"]
+    App --> API["API Server"]
+    SC --> GS["Canonical<br/>GraphStore"]
+    RC --> EX["Event Executor"]
+    GS <--> EX
+    GS --> RP["RoutePlanner"]
+    GS --> TR["Traffic"]
+    GS --> DWS["DWS"]
+    GS --> SA["SUMOAdapter<br/>(libsumo)"]
+    EX --> HI["History"]
+    EX --> NB["NewsBus"]
 ```
 
 ---
@@ -392,46 +379,27 @@ road filter version
 
 ## 8. Scenario compiler pipeline
 
-```text
-ConfigurationLoader
-      |
-      v
-SeedResolver -> ReproducibilityManifest
-      |
-      v
-OsmRoadProvider
-      |
-      v
-MapSelectionEngine (root + CRFG)
-      |
-      v
-DRNCP
-      |
-      +--> canonical Node/Edge IDs
-      |
-      v
-InfrastructureGenerator
-      |-- BusStopPlanner
-      |-- BuildingPlanner
-      `-- SignalPlanner
-      |
-      v
-TrafficScenarioCompiler
-      |-- TrafficHotspotPlanner
-      |-- OD/DemandCompiler
-      `-- SignalPlanCompiler
-      |
-      v
-WeatherScenarioCompiler
-      |
-      v
-EventScheduleCompiler
-      |
-      v
-SumoNetworkExporter -> netconvert -> .net.xml/.add.xml/.rou.xml
-      |
-      v
-ScenarioBundle
+```mermaid
+flowchart TD
+    A["ConfigurationLoader"] --> B["SeedResolver"]
+    B --> M["ReproducibilityManifest"]
+    B --> C["OsmRoadProvider"]
+    C --> D["MapSelectionEngine<br/>(root + CRFG)"]
+    D --> E["DRNCP"]
+    E --> IDs["Canonical Node and Edge IDs"]
+    E --> F["InfrastructureGenerator"]
+    F --> F1["BusStopPlanner"]
+    F --> F2["BuildingPlanner"]
+    F --> F3["SignalPlanner"]
+    F1 & F2 & F3 --> G["TrafficScenarioCompiler"]
+    G --> G1["TrafficHotspotPlanner"]
+    G --> G2["OD and DemandCompiler"]
+    G --> G3["SignalPlanCompiler"]
+    G1 & G2 & G3 --> H["WeatherScenarioCompiler"]
+    H --> I["EventScheduleCompiler"]
+    I --> J["SumoNetworkExporter"]
+    J --> K["netconvert<br/>.net.xml, .add.xml, .rou.xml"]
+    K --> L["ScenarioBundle"]
 ```
 
 Every stage receives immutable input and returns a deterministic result.

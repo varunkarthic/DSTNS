@@ -11,7 +11,7 @@ schedule comes from the seed, and the fields are pure functions of virtual time.
     `SimulationEngine::add_weather` (manual storms).
 
 ```mermaid
-flowchart LR
+flowchart TD
     Seed["dws sub-seed"] --> Plan["plan_weather:<br/>storm schedule"]
     Plan --> Storm["Storm k: centre, radius,<br/>intensity, start, end"]
     Storm --> Life["Life cycle:<br/>growth, plateau, decay"]

@@ -9,23 +9,34 @@ its lifecycle, and where each concern lives in the source tree.
 
 ## System overview
 
-```
- ┌────────────────────┐   spawn, X-DSTNS-Operator     ┌───────────────────────────────────────┐
- │ Operator CLI       │ ────────────────────────────▶ │ dstns_server (C++20)                  │
- │ dstns-operator-cli │   POST /playback/start        │                                       │
- │  build · start ·   │                               │  ApiServer (cpp-httplib)              │
- │  test · logs ·     │ ◀── /health, /status ──────── │    │ routes, validation, CSRF guard   │
- │  seeds · sumo      │                               │    ▼                                  │
- └────────────────────┘                               │  SimulationEngine                     │
-                                                      │    ├─ ScenarioCompiler ─▶ OSM loader  │
- ┌────────────────────┐   GET /view/*, /news          │    │                    ─▶ downloader │
- │ Observer (React)   │ ◀──────────────────────────── │    ├─ GraphStore (static + dynamic)   │
- │ ui-engine          │   POST /playback/*, /world/*  │    ├─ EventRuntime (signals, demand)  │
- │  map · rail ·      │ ────────────────────────────▶ │    ├─ AdaptiveBackpressure (ASB)      │
- │  telemetry · PDF   │   POST /system/backpressure   │    └─ SumoBridge ─▶ netconvert, sumo  │
- └────────────────────┘                               │  RuntimeLogger ─▶ logs/system.log,    │
-                                                      │                   logs/runtime.db     │
-                                                      └───────────────────────────────────────┘
+```mermaid
+flowchart LR
+    CLI["<b>Operator CLI</b><br/>build, start, test,<br/>logs, seeds, sumo"]
+    OBS["<b>Observer</b> (React)<br/>map, rail, telemetry,<br/>PDF report"]
+    subgraph CORE["dstns_server (C++20)"]
+        direction TB
+        API["ApiServer<br/>routes, validation, CSRF guard"]
+        ENG["SimulationEngine"]
+        COMP["ScenarioCompiler"]
+        GS["GraphStore<br/>static and dynamic"]
+        EV["EventRuntime<br/>signals, demand"]
+        ASB["AdaptiveBackpressure"]
+        SB["SumoBridge"]
+        LOG["RuntimeLogger"]
+        API --> ENG
+        ENG --> COMP
+        ENG --> GS
+        ENG --> EV
+        ENG --> ASB
+        ENG --> SB
+    end
+    CLI -- "start (operator token)" --> API
+    API -- "health, status" --> CLI
+    OBS -- "view, news" --> API
+    OBS -- "playback, world,<br/>backpressure" --> API
+    COMP --> OSM["OSM loader and<br/>map downloader"]
+    SB --> SUMO["netconvert, sumo"]
+    CORE --> LOGS[("logs/system.log<br/>logs/runtime.db")]
 ```
 
 The core is the single authority. The CLI decides *what* runs: seed, map,
@@ -94,23 +105,23 @@ lock and runs the external tools without it.
 
 ### From seed to world
 
-```
-Seed128 ──▶ geo: city + anchor (urban-crfg-v3) ──▶ map tile on disk?
-   │                                                  │ no: fetch_osm.py (Overpass)
-   │                                                  ▼
-   │                         OsmRoadLoader: parse, CRFG district growth,
-   │                         canonical IDs, true-metre projection, places
-   ▼                                                  │
- sub-seeds (SHA-256 domains) ─────────▶ ScenarioCompiler
-                                         ├─ signals (snapped to junctions, green waves)
-                                         ├─ bus stops (coverage and spacing)
-                                         ├─ trips (A* over legal directions)
-                                         ├─ weather schedule (DWS)
-                                         ├─ incidents (at least 4, spread across the day)
-                                         └─ hashes: map, graph, event, scenario
-                                                      │
-                                                      ▼
-                                   GraphStore + EventRuntime installed; READY or RUNNING
+```mermaid
+flowchart TD
+    Seed(["Seed128"]) --> Geo["City and anchor<br/>(urban-crfg-v3)"]
+    Seed --> Sub["Sub-seeds<br/>(SHA-256 domains)"]
+    Geo --> Tile{"Map tile<br/>on disk?"}
+    Tile -- "no" --> Fetch["fetch_osm.py<br/>(Overpass)"]
+    Tile -- "yes" --> Load
+    Fetch --> Load["OsmRoadLoader<br/>parse, CRFG district growth,<br/>canonical IDs, metre projection, places"]
+    Load --> Comp
+    Sub --> Comp["ScenarioCompiler"]
+    Comp --> S1["Signals<br/>snapped to junctions, green waves"]
+    Comp --> S2["Bus stops<br/>coverage and spacing"]
+    Comp --> S3["Trips<br/>A* over legal directions"]
+    Comp --> S4["Weather schedule (DWS)"]
+    Comp --> S5["Incidents<br/>at least 4, spread over the day"]
+    Comp --> S6["Hashes<br/>map, graph, event, scenario"]
+    S1 & S2 & S3 & S4 & S5 & S6 --> Install["GraphStore and EventRuntime installed<br/>READY or RUNNING"]
 ```
 
 See [deterministic seeding](deterministic-seeding.md), [OSM map
@@ -207,23 +218,24 @@ function, so the mirror cannot drift from the real state.
 
 ## Run lifecycle
 
+```mermaid
+flowchart LR
+    IDLE(["IDLE"]) -->|"start or prepare"| PREP["PREPARING"]
+    PREP -->|"started"| RUN["RUNNING"]
+    PREP -->|"prepared"| READY["READY"]
+    PREP -.->|"compile failed"| IDLE
+    READY -->|"play"| RUN
+    RUN -->|"pause"| PAUSE["PAUSED"]
+    PAUSE -->|"play"| RUN
+    RUN -->|"reaches 24:00:00"| DONE["COMPLETED"]
+    DONE -->|"seek"| RUN
+    RUN -->|"stop"| STOP["STOPPED"]
+    PAUSE -->|"stop"| STOP
 ```
-            start / prepare                    compile ok
-  IDLE ───────────────────────▶ PREPARING ─────────────────▶ READY ──play──┐
-   ▲                               │ compile fails (error kept)            │
-   │◀──────────────────────────────┘                                       ▼
-   │  reset                                     pause ┌──────────────── RUNNING
-   ├───────────────────────────────────────────────── │                    │
-   │                                                  └────▶ PAUSED ◀──────┤
-   │                                                   play ─────▶ RUNNING │
-   │                                                                       │ 24:00:00
-   │                                     seek/step to 24:00:00             ▼
-   │                                    ────────────────────────────▶ COMPLETED
-   │        stop
-   ├──────────────── STOPPED ◀── STOPPING ◀── (any run state)
-   │
-   └─ terminate ──▶ TERMINATING ──▶ process exits
-```
+
+From `RUNNING`, `PAUSED`, `COMPLETED` and `STOPPED`, **reset** returns the server to
+`IDLE`. From `IDLE` or any run state, **terminate** moves it to `TERMINATING` and the
+process exits.
 
 `SEEKING` is a transient state held while a seek or step replays physics. A
 seek from `COMPLETED` back into the day pauses there, or runs if `play` was

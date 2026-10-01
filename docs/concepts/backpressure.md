@@ -167,16 +167,12 @@ if (target < cap_ && now_s - cap_changed_at_ >= kAsbRateHoldS) {      // at most
 Strictly ordered. Each rung is entered only after the previous one has been
 given a fixed window to recover, and recovery is always explicit.
 
-```
-                    stressed > 3s, first time
-   NORMAL ──────────────────────────────────► default state (still Normal)
-      ▲                                              │ did not recover
-      │ healthy 3s                                   ▼
-      │                                        RESTRICTED
-      │                                              │ did not recover
-      │ healthy 3s (after a 5s hold)                 ▼
-      └───────────────────────────────────────    ASYNC
-                       healthy 6s
+```mermaid
+flowchart LR
+    N["<b>NORMAL</b><br/>proportional throttle,<br/>one default-state reset"] -->|"not recovered"| R["<b>RESTRICTED</b><br/>rate locked at 1x,<br/>motion reduced, held 5 s"]
+    R -->|"not recovered"| A["<b>ASYNC</b><br/>interface suspended,<br/>simulation continues"]
+    R -. "healthy 3 s" .-> N
+    A -. "healthy 6 s" .-> N
 ```
 
 ### Normal

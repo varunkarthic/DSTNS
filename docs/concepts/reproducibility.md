@@ -19,15 +19,19 @@ the compiled scenario is identical (same `graph_hash`, `event_hash` and
 time is identical, however that time was reached.
 
 ```mermaid
-flowchart LR
-    Seed["Seed"] --> Compile
-    Config["Configuration"] --> Compile
-    Map["Map bytes<br/>map_hash"] --> Compile
-    Version["DSTNS version"] --> Compile
-    Compile["ScenarioCompiler"] --> Hashes["graph_hash · event_hash<br/>scenario_hash → run_id"]
-    Compile --> Engine["Engine: fixed 1 s steps"]
-    Engine --> State["State at time t<br/>identical however reached"]
-    Ops["Operator actions<br/>(their timing)"] -. "change the run from then on" .-> Engine
+flowchart TD
+    subgraph IN["Inputs that define a run"]
+        direction LR
+        Seed["Seed"]
+        Config["Configuration"]
+        Map["Map bytes<br/>(map_hash)"]
+        Version["DSTNS version"]
+    end
+    IN --> Compile["ScenarioCompiler"]
+    Compile --> Hashes["graph_hash, event_hash,<br/>scenario_hash, run_id"]
+    Compile --> Engine["Engine<br/>fixed 1 s steps"]
+    Ops["Operator actions<br/>and their timing"] -. "change the run from then on" .-> Engine
+    Engine --> State["State at time t,<br/>identical however reached"]
 ```
 
 ## What does not affect results

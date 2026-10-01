@@ -4,32 +4,27 @@ Every run is in exactly one lifecycle state, reported as `lifecycle` by
 `/health`, `/playback/status` and every envelope's `clock.playback_state`.
 
 ```mermaid
-stateDiagram-v2
-    [*] --> IDLE
-    IDLE --> PREPARING: POST /playback/start or /prepare
-    PREPARING --> RUNNING: start, compiled
-    PREPARING --> READY: prepare, compiled
-    PREPARING --> IDLE: compile failed (preparation_error set)
-    READY --> SEEKING: seek (play=true to start)
-    RUNNING --> PAUSED: POST /playback/pause
-    PAUSED --> RUNNING: POST /playback/play
-    RUNNING --> SEEKING: seek / step
-    PAUSED --> SEEKING: seek / step
-    COMPLETED --> SEEKING: seek
-    SEEKING --> RUNNING: was running, or play=true
-    SEEKING --> PAUSED: otherwise, and after every step
-    SEEKING --> COMPLETED: reached 24:00:00
-    RUNNING --> COMPLETED: played to 24:00:00
-    RUNNING --> STOPPED: POST /playback/stop
-    PAUSED --> STOPPED: POST /playback/stop
-    STOPPED --> IDLE: POST /playback/reset
-    COMPLETED --> IDLE: POST /playback/reset
-    RUNNING --> IDLE: POST /playback/reset
-    PAUSED --> IDLE: POST /playback/reset
-    IDLE --> TERMINATING: POST /system/terminate
-    RUNNING --> TERMINATING: POST /system/terminate
-    TERMINATING --> [*]
+flowchart LR
+    IDLE(["IDLE"]) -->|"start or prepare"| PREP["PREPARING"]
+    PREP -->|"started"| RUN["RUNNING"]
+    PREP -->|"prepared"| READY["READY"]
+    PREP -.->|"compile failed"| IDLE
+    READY -->|"play"| RUN
+    RUN -->|"pause"| PAUSE["PAUSED"]
+    PAUSE -->|"play"| RUN
+    RUN -->|"reaches 24:00:00"| DONE["COMPLETED"]
+    DONE -->|"seek"| RUN
+    RUN -->|"stop"| STOP["STOPPED"]
+    PAUSE -->|"stop"| STOP
 ```
+
+From `RUNNING`, `PAUSED`, `COMPLETED` and `STOPPED`, **reset** returns the server to
+`IDLE`. From `IDLE` or any run state, **terminate** moves it to `TERMINATING` and the
+process exits.
+
+`SEEKING` is held only momentarily while a seek or step replays physics, so it is
+not drawn: a seek leaves a run `RUNNING`, `PAUSED` or `COMPLETED` as the table
+below describes.
 
 | State | Meaning | Clock |
 |---|---|---|

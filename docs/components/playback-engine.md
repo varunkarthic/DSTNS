@@ -27,15 +27,15 @@ first catches up to the wall clock, then re-anchors.
 
 ```mermaid
 sequenceDiagram
-    participant L as Engine loop (every 50 ms)
+    participant L as Engine loop
     participant E as step_to
     participant P as physics_step
     participant C as Checkpoints
-    L->>E: target from wall clock
-    loop each virtual second until target
+    L->>E: target from wall clock, every 50 ms
+    loop each virtual second
         E->>P: dt = 1
         alt t % 900 == 0
-            E->>C: capture (nodes, edges, events, congestion, news cursor)
+            E->>C: capture checkpoint
         end
     end
 ```
