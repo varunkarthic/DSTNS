@@ -9,6 +9,7 @@ documenting and contributing.
 | [Building from source](building.md) | Build options, targets, sanitizers, IDE setup, the observer's dev server |
 | [Testing](testing.md) | Every test suite, what it proves, and how to write a new test |
 | [Writing documentation](documentation.md) | This site: MkDocs, Read the Docs, conventions |
+| [Maintainer guide](maintainers.md) | Going public, repository security settings, handling vulnerability reports, releasing |
 | [Code evaluation, October 2026](audit-2026-10.md) | The latest review: defects found and fixed, and known issues |
 | [Components](../components/index.md) | Per-class design notes for the core |
 
