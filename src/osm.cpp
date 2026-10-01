@@ -156,7 +156,8 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
                             if (k == "amenity" && (v == "school" || v == "university" || v == "college" || v == "kindergarten")) rn.building = BuildingType::School;
                             if (k == "office" || (k == "amenity" && (v == "bank" || v == "courthouse" || v == "townhall"))) rn.building = BuildingType::Office;
                             if ((k == "shop" && v == "mall") || (k == "amenity" && v == "marketplace")) rn.building = BuildingType::Mall;
-                            if (k == "shop" || (k == "amenity" && (v == "restaurant" || v == "cafe" || v == "fast_food" || v == "pharmacy"))) rn.building = BuildingType::Store;
+                            // shop=mall is a mall, not a store, whichever rule ran first.
+                            if ((k == "shop" && v != "mall") || (k == "amenity" && (v == "restaurant" || v == "cafe" || v == "fast_food" || v == "pharmacy"))) rn.building = BuildingType::Store;
                             tIdx = tEnd + 1;
                         }
                         idx = closeNode + 7;
@@ -208,9 +209,16 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
                 }
 
                 if (rw.tags.contains("building") || rw.tags.contains("amenity") || rw.tags.contains("shop") || rw.tags.contains("office") || rw.tags.contains("leisure") || rw.tags.contains("landuse") || rw.tags.contains("railway") || rw.tags.contains("public_transport")) feature_ways.push_back(rw);
-                if (rw.tags["oneway"] == "-1") { rw.oneway=true; std::reverse(rw.refs.begin(),rw.refs.end()); }
-                if (rw.tags["junction"] == "roundabout" && !rw.tags.contains("oneway")) rw.oneway=true;
-                if (allowed(rw.highway) && rw.tags["access"] != "private" && rw.tags["access"] != "no" && rw.refs.size() > 1) {
+                // Read with find, never operator[]: that inserts an empty tag,
+                // which then reads as "oneway present" for a roundabout and is
+                // exported in every edge's tags.
+                const auto way_tag = [&rw](const char* key) {
+                    const auto it = rw.tags.find(key);
+                    return it == rw.tags.end() ? std::string{} : it->second;
+                };
+                if (way_tag("oneway") == "-1") { rw.oneway=true; std::reverse(rw.refs.begin(),rw.refs.end()); }
+                if (way_tag("junction") == "roundabout" && !rw.tags.contains("oneway")) rw.oneway=true;
+                if (allowed(rw.highway) && way_tag("access") != "private" && way_tag("access") != "no" && rw.refs.size() > 1) {
                     ways.push_back(std::move(rw));
                 }
             }
