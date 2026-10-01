@@ -623,8 +623,7 @@
 .md-typeset .dstns-chip abbr { position: relative; z-index: 2; cursor: help; border-bottom: 1px dotted var(--dstns-accent); }
 
 /* Landing page, large screens: the wordmark through the statistics fill the first
-   screen, and the observer screenshot waits one scroll below (landing-scroll.js
-   moves between the two). */
+   screen, and the observer screenshot waits one scroll below. */
 @media screen and (min-width: 60em) and (min-height: 560px) {
   .md-typeset .dstns-first {
     display: flex;
@@ -635,7 +634,6 @@
   }
   .dstns-first .dstns-hero { padding: 0 0 0.4rem; }
   .dstns-first .dstns-stats { margin: 1.8rem 0 1rem; }
-  html:has(.dstns-first) .md-top { display: none; }
 }
 
 /* ==========================================================================
@@ -858,3 +856,129 @@
   box-shadow: none;
 }
 @media screen and (max-width: 59.9375em) { .dstns-foot { display: none; } }
+
+/* Back to top: a small floating button on every page once it has been scrolled. */
+.dstns-top {
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.8rem 0.45rem 0.6rem;
+  border: 1px solid rgb(79 214 234 / 35%);
+  border-radius: 999px;
+  background: rgb(11 28 40 / 92%);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #edf1f4;
+  font-family: var(--md-text-font-family);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 55%);
+  opacity: 0;
+  transform: translateY(0.6rem);
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 240ms cubic-bezier(0.32, 0.72, 0, 1), border-color 150ms ease, color 150ms ease;
+}
+.dstns-top.is-visible { opacity: 1; transform: none; pointer-events: auto; }
+.dstns-top svg { width: 0.9rem; height: 0.9rem; fill: none; stroke: #4fd6ea; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.dstns-top:hover { border-color: #4fd6ea; color: #fff; }
+.dstns-top:focus-visible { outline: 2px solid #4fd6ea; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .dstns-top { transition: none; } }
+@media print { .dstns-top { display: none; } }
+
+/* --------------------------------------------------------------------------
+   Admonitions and collapsible blocks: one shape for all of them, in the site
+   palette. The type shows only in the accent bar and the icon colour.
+   -------------------------------------------------------------------------- */
+:root {
+  --dstns-adm-info: #086578;
+  --dstns-adm-tip: #047857;
+  --dstns-adm-warn: #b45309;
+  --dstns-adm-danger: #b91c1c;
+}
+[data-md-color-scheme="slate"] {
+  --dstns-adm-info: #4fd6ea;
+  --dstns-adm-tip: #34d399;
+  --dstns-adm-warn: #f5b942;
+  --dstns-adm-danger: #f87171;
+}
+.md-typeset .admonition,
+.md-typeset details { --dstns-adm: var(--dstns-adm-info); }
+.md-typeset :is(.admonition, details):is(.tip, .hint, .success, .check, .done) { --dstns-adm: var(--dstns-adm-tip); }
+.md-typeset :is(.admonition, details):is(.warning, .caution, .attention) { --dstns-adm: var(--dstns-adm-warn); }
+.md-typeset :is(.admonition, details):is(.danger, .error, .failure, .fail, .missing, .bug) { --dstns-adm: var(--dstns-adm-danger); }
+
+.md-typeset .admonition,
+.md-typeset details {
+  border: 1px solid var(--md-default-fg-color--lightest) !important;
+  border-left: 3px solid var(--dstns-adm) !important;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--dstns-adm) 5%, transparent);
+  box-shadow: none !important;
+  font-size: 0.68rem;
+}
+.md-typeset :is(.admonition, details):focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--dstns-adm) 18%, transparent) !important; }
+.md-typeset .admonition-title,
+.md-typeset summary {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--md-default-fg-color);
+  font-weight: 600;
+}
+.md-typeset .admonition-title::before,
+.md-typeset summary::before { background-color: var(--dstns-adm) !important; }
+.md-typeset summary::after { background-color: var(--md-default-fg-color--light) !important; }
+.md-typeset details[open] > summary::after { background-color: var(--dstns-adm) !important; }
+.md-typeset details > summary { cursor: pointer; border-radius: 10px; }
+.md-typeset details > summary:hover { color: var(--dstns-adm); }
+.md-typeset details:not([open]) { background: transparent; }
+
+/* Code in tables breaks only where site.js allows it (after . _ / -), never mid-word. */
+.md-typeset table:not([class]) td code { word-break: normal; overflow-wrap: normal; }
+
+/* Narrower desktops (the tab row is shown from 76.25em): tighten the header so all
+   eight tabs, the theme toggle, the search slot and the repository link fit. */
+@media screen and (min-width: 76.25em) and (max-width: 85em) {
+  .md-header__button.md-logo { margin-right: 0.6rem; }
+  .md-header .md-tabs__list { gap: 0.05rem; }
+  .md-header .md-tabs__link { padding-left: 0.42rem; padding-right: 0.42rem; font-size: 0.68rem; }
+  .md-header .md-tabs__link::after { left: 0.42rem; right: 0.42rem; }
+  .md-search { width: 8rem; }
+  .md-search__inner { width: 8rem; }
+}
+
+/* Not-found page */
+.md-typeset .dstns-404 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 3rem 0 4rem;
+}
+.dstns-404 .dstns-wordmark { width: min(12rem, 60vw); opacity: 0.9; }
+.md-typeset .dstns-404__code {
+  margin: 1.6rem 0 0;
+  color: var(--dstns-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+}
+.md-typeset .dstns-404 h1 { margin: 0.3rem 0 0.6rem; }
+.md-typeset .dstns-404__lede { max-width: 46ch; margin: 0 auto 1.4rem; color: var(--md-default-fg-color--light); }
+.dstns-404__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; }
+.dstns-404__actions .md-button { margin: 0; cursor: pointer; }
+
+/* Footer in the header's navy, in both schemes. */
+:root {
+  --md-footer-bg-color: var(--dstns-navy-800);
+  --md-footer-bg-color--dark: var(--dstns-navy-900);
+  --md-footer-fg-color: var(--dstns-ink);
+  --md-footer-fg-color--light: rgb(237 241 244 / 70%);
+  --md-footer-fg-color--lighter: rgb(237 241 244 / 45%);
+}
+.md-footer { border-top: 1px solid rgb(127 160 180 / 14%); }

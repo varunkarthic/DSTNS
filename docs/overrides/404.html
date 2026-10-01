@@ -1,0 +1,21 @@
+{#- Not-found page in the site's own style. Links are absolute, because this page is
+    served at whatever address was requested. -#}
+{% extends "main.html" %}
+{% block content %}
+  {% set home = config.site_url | d("/", true) %}
+  <div class="dstns-404">
+    <span class="dstns-wordmark" role="img" aria-label="DSTNS"></span>
+    <p class="dstns-404__code">404</p>
+    <h1>Page not found</h1>
+    <p class="dstns-404__lede">
+      The page you asked for does not exist, or it has moved. Search the documentation,
+      or start again from one of these.
+    </p>
+    <div class="dstns-404__actions">
+      <a class="md-button md-button--primary" href="{{ home }}">Documentation home</a>
+      <label class="md-button" for="__search">Search</label>
+      <a class="md-button" href="{{ home }}getting-started/">Getting started</a>
+      <a class="md-button" href="{{ home }}api/">API</a>
+    </div>
+  </div>
+{% endblock %}
