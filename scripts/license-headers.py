@@ -27,7 +27,7 @@ COPYRIGHT = "Copyright (C) 2026 Varun Karthic"
 
 SLASH = {".cpp", ".hpp", ".h", ".ts", ".tsx", ".js", ".mjs"}
 HASH = {".py", ".sh"}
-BLOCK = {".css"}
+BLOCK = {".css", ".tcss"}
 # Files with no extension, or named files, that are source.
 HASH_NAMES = {"launcher", "CMakeLists.txt", "Dockerfile", "dstns-run"}
 # Never touched: generated, vendored or data.

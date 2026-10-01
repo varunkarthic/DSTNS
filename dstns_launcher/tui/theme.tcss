@@ -1,0 +1,345 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+   Copyright (C) 2026 Varun Karthic */
+
+/* DSTNS terminal theme: near-black, dark blue structure, cyan highlights.
+   Meaning never depends on colour; every state also has a symbol and a word. */
+
+$bg: #050A0E;
+$surface: #081219;
+$surface-alt: #0B1820;
+$cyan: #22D3E6;
+$cyan-bright: #43E6F1;
+$teal: #087F8C;
+$navy: #0B3C5D;
+$text: #E6F2F5;
+$text-2: #8CA7B2;
+$muted: #58717C;
+$ok: #32D583;
+$warn: #F5B942;
+$err: #F04444;
+
+Screen {
+    background: $bg;
+    color: $text;
+    layers: base overlay;
+}
+
+/* --- Frame: header, body, key bar ------------------------------------- */
+
+HeaderBar {
+    dock: top;
+    height: 1;
+    background: $surface;
+    color: $text;
+    padding: 0 1;
+}
+
+KeyBar {
+    dock: bottom;
+    height: 1;
+    background: $surface;
+    color: $text-2;
+    padding: 0 1;
+}
+
+.rule {
+    height: 1;
+    color: $navy;
+}
+
+.section-title {
+    color: $cyan;
+    text-style: bold;
+    height: 1;
+    margin-top: 1;
+}
+
+.muted {
+    color: $text-2;
+}
+
+.dim {
+    color: $muted;
+}
+
+.hint {
+    color: $text-2;
+    height: auto;
+}
+
+.error-text {
+    color: $err;
+}
+
+/* --- Menu -------------------------------------------------------------- */
+
+Menu {
+    height: auto;
+    width: 1fr;
+    background: $bg;
+    color: $text;
+}
+
+Menu:focus {
+    background: $bg;
+}
+
+/* --- Splash ------------------------------------------------------------- */
+
+#splash {
+    align: center middle;
+    width: 1fr;
+    height: 1fr;
+}
+
+#splash > * {
+    width: auto;
+    content-align: center middle;
+    text-align: center;
+}
+
+#splash Wordmark {
+    color: $cyan;
+}
+
+#splash .full-name {
+    color: $text;
+    text-style: bold;
+    margin-top: 1;
+}
+
+#splash .version {
+    color: $text-2;
+    margin-top: 1;
+}
+
+#splash .activity {
+    color: $cyan;
+    margin-top: 1;
+}
+
+#splash .legal {
+    color: $muted;
+    margin-top: 2;
+}
+
+/* --- Common body --------------------------------------------------------- */
+
+.body {
+    height: 1fr;
+    width: 1fr;
+    padding: 0 2;
+}
+
+.panel-title {
+    color: $cyan;
+    text-style: bold;
+    height: 1;
+}
+
+#columns {
+    height: 1fr;
+    width: 1fr;
+}
+
+#sidebar {
+    width: 26;
+    height: 1fr;
+    border-right: solid $navy;
+    padding: 1 1 0 1;
+}
+
+#content {
+    width: 1fr;
+    height: 1fr;
+    padding: 1 2 0 2;
+}
+
+StatusTable {
+    height: auto;
+    width: 1fr;
+}
+
+/* --- Forms ---------------------------------------------------------------- */
+
+FieldRow {
+    height: auto;
+    width: 1fr;
+}
+
+FieldRow .field-line {
+    height: auto;
+    width: 1fr;
+}
+
+FieldRow .label {
+    width: 24;
+    color: $text-2;
+    padding-top: 1;
+}
+
+FieldRow .editor {
+    width: 1fr;
+    max-width: 44;
+    height: auto;
+}
+
+FieldRow .unit {
+    width: auto;
+    min-width: 8;
+    color: $muted;
+    padding: 1 1 0 1;
+}
+
+FieldRow .problem {
+    color: $err;
+    height: auto;
+    padding-left: 24;
+}
+
+Input {
+    background: $surface;
+    border: tall $navy;
+    color: $text;
+    width: 1fr;
+}
+
+Input:focus {
+    border: tall $cyan;
+}
+
+Input.-invalid {
+    border: tall $err;
+}
+
+Switch {
+    background: $surface;
+    border: tall $navy;
+}
+
+Switch:focus {
+    border: tall $cyan;
+}
+
+Select > SelectCurrent {
+    background: $surface;
+    border: tall $navy;
+}
+
+Select:focus > SelectCurrent {
+    border: tall $cyan;
+}
+
+/* --- Progress and logs ------------------------------------------------------- */
+
+ProgressBar Bar > .bar--bar {
+    color: $cyan;
+    background: $surface-alt;
+}
+
+ProgressBar Bar > .bar--complete {
+    color: $ok;
+}
+
+RichLog {
+    background: $surface;
+    border: none;
+    height: 1fr;
+    min-height: 4;
+    padding: 0 1;
+    scrollbar-size-vertical: 1;
+    scrollbar-color: $navy;
+    scrollbar-background: $surface;
+}
+
+/* --- Dialogs ---------------------------------------------------------------- */
+
+ModalScreen {
+    align: center middle;
+    background: $bg 70%;
+}
+
+.dialog {
+    width: 64;
+    max-width: 96%;
+    height: auto;
+    max-height: 90%;
+    background: $surface;
+    border: round $teal;
+    border-title-color: $cyan;
+    border-title-style: bold;
+    padding: 1 2;
+}
+
+.dialog.-error {
+    border: round $err;
+    border-title-color: $err;
+}
+
+.dialog .message {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#too-small {
+    align: center middle;
+    background: $bg;
+}
+
+#too-small > Static {
+    width: auto;
+    text-align: center;
+}
+
+/* --- Size classes: set on the App from the terminal size ------------------------ */
+
+App.-medium #sidebar {
+    width: 22;
+}
+
+App.-small #columns {
+    layout: vertical;
+}
+
+App.-small #sidebar {
+    width: 1fr;
+    height: auto;
+    border-right: none;
+    border-bottom: solid $navy;
+    padding: 0 1 1 1;
+}
+
+App.-small #content {
+    padding: 1 1 0 1;
+}
+
+App.-small .body {
+    padding: 0 1;
+}
+
+App.-small FieldRow .field-line {
+    layout: vertical;
+}
+
+App.-small FieldRow .label {
+    width: 1fr;
+    padding-top: 0;
+}
+
+
+App.-small FieldRow .problem {
+    padding-left: 2;
+}
+
+App.-small FieldRow .unit {
+    padding: 0 0 0 2;
+}
+
+App.-small .hide-small {
+    display: none;
+}
+
+App.-medium .hide-medium,
+App.-small .hide-medium {
+    display: none;
+}
