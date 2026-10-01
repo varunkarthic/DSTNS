@@ -60,13 +60,71 @@ Seed128 seed_from(const nlohmann::json& j) {
     return Seed128::parse(text);
 }
 
+// Whether a browser Origin ("scheme://host[:port]") names the host the request
+// was addressed to. Ports are compared too, so another local dev server is a
+// different origin. A reverse proxy may forward the client's Host in
+// X-Forwarded-Host instead. DSTNS_ALLOWED_ORIGINS adds trusted origins,
+// comma-separated, for deployments that serve the observer elsewhere.
+bool same_origin(const std::string& origin, const std::string& host, const std::string& forwarded_host) {
+    if (origin == "null" || origin.empty()) return false;
+    if (const char* allowed = std::getenv("DSTNS_ALLOWED_ORIGINS")) {
+        std::string list = allowed;
+        std::size_t start = 0;
+        while (start <= list.size()) {
+            const auto comma = list.find(',', start);
+            auto item = list.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+            item.erase(0, item.find_first_not_of(' '));
+            item.erase(item.find_last_not_of(' ') + 1);
+            if (!item.empty() && item == origin) return true;
+            if (comma == std::string::npos) break;
+            start = comma + 1;
+        }
+    }
+    const auto scheme = origin.find("://");
+    if (scheme == std::string::npos) return false;
+    const auto authority = origin.substr(scheme + 3);
+    auto matches = [&](std::string candidate) {
+        // X-Forwarded-Host may carry a list; the first entry is the client's.
+        candidate = candidate.substr(0, candidate.find(','));
+        candidate.erase(0, candidate.find_first_not_of(' '));
+        candidate.erase(candidate.find_last_not_of(' ') + 1);
+        return !candidate.empty() && candidate == authority;
+    };
+    return matches(host) || matches(forwarded_host);
+}
+
 json body(const httplib::Request& r) {
     if (r.body.empty()) return json::object();
     return json::parse(r.body);
 }
 
+// A numeric path segment as a 32-bit ID. std::stoul followed by a narrowing
+// cast would quietly turn 4294967297 into 1 and act on the wrong object.
+std::uint32_t path_id(const std::string& text) {
+    std::uint32_t parsed = 0;
+    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), parsed);
+    if (text.empty() || error != std::errc{} || end != text.data() + text.size())
+        throw std::invalid_argument("identifier out of range: " + text);
+    return parsed;
+}
+
+// An unsigned query parameter; a leading '-' is rejected rather than wrapped.
+std::uint64_t unsigned_parameter(const httplib::Request& request, const char* key, std::uint64_t fallback) {
+    if (!request.has_param(key)) return fallback;
+    const auto value = request.get_param_value(key);
+    std::uint64_t parsed = 0;
+    const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+    if (value.empty() || error != std::errc{} || end != value.data() + value.size())
+        throw std::invalid_argument(std::string(key) + " must be a non-negative integer");
+    return parsed;
+}
+
 std::uint32_t time_value(const json& v) {
-    if (v.is_number_unsigned()) return v.get<std::uint32_t>();
+    if (v.is_number_unsigned()) {
+        const auto val = v.get<std::uint64_t>();
+        if (val > 86400) throw std::invalid_argument("seconds must be in [0, 86400]");
+        return static_cast<std::uint32_t>(val);
+    }
     if (v.is_number_integer()) {
         const auto val = v.get<std::int64_t>();
         if (val < 0 || val > 86400) throw std::invalid_argument("seconds must be in [0, 86400]");
@@ -161,6 +219,15 @@ void ApiServer::routes() {
     server_->Get("/media/logo.png",[](const auto&,auto& r){r.status=404;});
     const std::string operator_token=std::getenv("DSTNS_OPERATOR_TOKEN")?std::getenv("DSTNS_OPERATOR_TOKEN"):"";
     server_->set_pre_routing_handler([operator_token](const auto& req,auto& r){
+        // A browser names the page that sent a request in Origin. A state-
+        // changing request from a page served by some other host is a cross-
+        // site request forgery, not the observer, and is refused. Clients that
+        // are not browsers (the CLI, scripts) send no Origin and are unaffected.
+        if (req.method != "GET" && req.method != "HEAD" && req.method != "OPTIONS" && req.has_header("Origin")
+            && !same_origin(req.get_header_value("Origin"), req.get_header_value("Host"), req.get_header_value("X-Forwarded-Host"))) {
+            send(r,{{"error",{{"code","CROSS_ORIGIN_FORBIDDEN"},{"message","State-changing requests must come from the observer's own origin."}}}},403);
+            return httplib::Server::HandlerResponse::Handled;
+        }
         if((req.path=="/api/v1/playback/start"||req.path=="/api/v1/playback/prepare") && req.method=="POST" && (operator_token.empty()||req.get_header_value("X-DSTNS-Operator")!=operator_token)) {
             send(r,{{"error",{{"code","CLI_START_REQUIRED"},{"message","Start simulations through the operator CLI."}}}},403);return httplib::Server::HandlerResponse::Handled;
         }
@@ -374,8 +441,8 @@ void ApiServer::routes() {
     server_->Post("/api/v1/system/sumo-simulate", [this](const auto& req, auto& r) {
         auto j = body(req);
         std::filesystem::path dir = j.value("directory", "data/sumo_run");
-        std::uint32_t begin_s = j.value("begin_s", 0);
-        std::uint32_t end_s = j.value("end_s", 3600);
+        const auto begin_s = time_value(j.value("begin_s", json(0)));
+        const auto end_s = time_value(j.value("end_s", json(3600)));
         send(r, engine_.sumo_simulate(dir, begin_s, end_s));
     });
 
@@ -409,9 +476,9 @@ void ApiServer::routes() {
             std::_Exit(0);
         }).detach();
     };
-    server_->Get("/terminate", terminate_handler);
+    // POST only: a GET that shuts the server down can be triggered by any
+    // page the operator happens to open, through an image or a link.
     server_->Post("/terminate", terminate_handler);
-    server_->Get("/api/v1/system/terminate", terminate_handler);
     server_->Post("/api/v1/system/terminate", terminate_handler);
 
     // AGPL section 13: this program is offered over a network, so every user
@@ -560,11 +627,16 @@ void ApiServer::routes() {
     server_->Post("/api/v1/control/events/weather", [this](const auto& req, auto& r) {
         auto j = body(req);
         const double default_rad = 350.0;
+        const double minutes = j.value("duration_virtual_minutes", 60.0);
+        // Checked as a double: converting a negative or enormous value to an
+        // unsigned integer first would be undefined.
+        if (!std::isfinite(minutes) || minutes < 1 || minutes > 1440)
+            throw std::invalid_argument("duration_virtual_minutes must be in [1, 1440]");
         send(r, engine_.add_weather(
             NodeId{j.at("epicenter_node")},
             j.value("intensity", 0.85),
             j.value("radius_m", default_rad),
-            j.value("duration_virtual_minutes", 60.0),
+            static_cast<std::uint32_t>(minutes),
             j.value("flood_gain", 0.5)
         ), 202);
     });
@@ -580,7 +652,7 @@ void ApiServer::routes() {
     });
     auto edge_override_handler = [this](const auto& req, auto& r) {
         auto j = body(req);
-        const auto edge_id = static_cast<std::uint32_t>(std::stoul(req.matches[1]));
+        const auto edge_id = path_id(req.matches[1]);
         send(r, engine_.override_edge(
             EdgeId{edge_id},
             j.value("speed_multiplier", 1.0),
@@ -598,11 +670,11 @@ void ApiServer::routes() {
     });
 
     server_->Post(R"(/api/v1/control/signals/(\d+)/toggle)", [this](const auto& req, auto& r) {
-        const auto node_id = static_cast<std::uint32_t>(std::stoul(req.matches[1]));
+        const auto node_id = path_id(req.matches[1]);
         send(r, engine_.toggle_signal(NodeId{node_id}));
     });
     server_->Post(R"(/api/v1/control/signals/(\d+))", [this](const auto& req, auto& r) {
-        const auto node_id = static_cast<std::uint32_t>(std::stoul(req.matches[1]));
+        const auto node_id = path_id(req.matches[1]);
         send(r, engine_.toggle_signal(NodeId{node_id}));
     });
     server_->Post("/api/v1/control/events/surge", [this](const auto& req, auto& r) {
@@ -661,13 +733,13 @@ void ApiServer::routes() {
         ));
     });
     server_->Get(R"(/api/v1/view/nodes/(\d+))", [this](const auto& req, auto& r) {
-        const auto id = std::stoul(req.matches[1]);
+        const auto id = path_id(req.matches[1]);
         auto result = engine_.nodes(id, 1);
         if (result["data"]["items"].empty()) throw std::out_of_range("unknown node");
         send(r, result);
     });
     server_->Get(R"(/api/v1/view/edges/(\d+))", [this](const auto& req, auto& r) {
-        const auto id = std::stoul(req.matches[1]);
+        const auto id = path_id(req.matches[1]);
         auto result = engine_.edges(id, 1);
         if (result["data"]["items"].empty()) throw std::out_of_range("unknown edge");
         send(r, result);
@@ -714,8 +786,8 @@ void ApiServer::routes() {
     // News API
     server_->Get("/api/v1/news", [this](const auto& req, auto& r) {
         send(r, engine_.news(
-            req.has_param("since_news_id") ? std::stoull(req.get_param_value("since_news_id")) : 0,
-            req.has_param("limit") ? std::min<std::size_t>(500, std::stoul(req.get_param_value("limit"))) : 100
+            unsigned_parameter(req, "since_news_id", 0),
+            static_cast<std::size_t>(std::min<std::uint64_t>(500, unsigned_parameter(req, "limit", 100)))
         ));
     });
 
@@ -724,11 +796,11 @@ void ApiServer::routes() {
         send(r, {{"ok", true}, {"data", {{"lines", logger_.system_tail(250)}}}});
     });
     server_->Get("/api/v1/view/logs/events", [this](const auto& req, auto& r) {
-        const auto limit = req.has_param("limit") ? std::min<std::size_t>(1000, std::stoul(req.get_param_value("limit"))) : 100;
+        const auto limit = static_cast<std::size_t>(std::min<std::uint64_t>(1000, unsigned_parameter(req, "limit", 100)));
         send(r, {{"ok", true}, {"data", {{"items", logger_.rows("event_log", limit)}}}});
     });
     server_->Get("/api/v1/view/logs/api", [this](const auto& req, auto& r) {
-        const auto limit = req.has_param("limit") ? std::min<std::size_t>(1000, std::stoul(req.get_param_value("limit"))) : 100;
+        const auto limit = static_cast<std::size_t>(std::min<std::uint64_t>(1000, unsigned_parameter(req, "limit", 100)));
         send(r, {{"ok", true}, {"data", {{"items", logger_.rows("api_log", limit)}}}});
     });
 
