@@ -1,8 +1,10 @@
+# DSTNS is developed independently and does not take issues or feature requests.
+# Blank issues are off, so the only options shown are these links.
 blank_issues_enabled: false
 contact_links:
-  - name: Report a security vulnerability
-    url: https://github.com/varunkarthic/DSTNS/security/advisories/new
-    about: Report privately. Do not open a public issue for a vulnerability. See SECURITY.md.
   - name: Documentation
     url: https://dstns.readthedocs.io/
-    about: Guides, API reference and troubleshooting.
+    about: Guides, API reference, concepts and troubleshooting.
+  - name: Report a security vulnerability (private)
+    url: https://github.com/varunkarthic/DSTNS/security/advisories/new
+    about: Vulnerabilities only, and only privately. See SECURITY.md.
