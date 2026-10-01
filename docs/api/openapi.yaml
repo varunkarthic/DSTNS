@@ -1,0 +1,1592 @@
+openapi: 3.1.0
+info:
+  title: DSTNS API
+  version: 1.0.0
+  description: 'Deterministic Spatiotemporal Transport Network Simulator runtime API.
+
+
+    Every read view returns the standard envelope (run_id, seed, state_revision, config_revision, clock,
+    data). State-changing requests that carry a browser Origin header must come from the host they are
+    sent to (or an origin in DSTNS_ALLOWED_ORIGINS), otherwise 403 CROSS_ORIGIN_FORBIDDEN. Starting a
+    run requires the operator credential in X-DSTNS-Operator. Documentation: https://dstns.readthedocs.io/'
+servers:
+- url: http://127.0.0.1:8090
+  description: Local C++ API server
+tags:
+- name: Playback
+- name: View
+- name: Control
+- name: News
+- name: System
+paths:
+  /health:
+    get:
+      tags:
+      - System
+      operationId: health
+      responses:
+        '200':
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /api/v1/system/status:
+    get:
+      tags:
+      - Playback
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/system/terminate:
+    post:
+      tags:
+      - System
+      operationId: terminate
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/playback/status:
+    get:
+      tags:
+      - Playback
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/playback/start:
+    post:
+      tags:
+      - Playback
+      operationId: startSimulation
+      description: CLI operator startup; browser creation is forbidden.
+      security:
+      - OperatorKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartRequest'
+      responses:
+        '403':
+          $ref: '#/components/responses/Error'
+        '202':
+          description: Prepared and running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          description: MAP_FETCH_FAILED. The seed resolved to a real city district whose OpenStreetMap
+            tile is not cached and could not be downloaded (offline, Overpass rate limiting, or an area
+            too sparse to simulate). No scenario is compiled and no substitute map is used. The message
+            names the city, the coordinates and the cause.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/playback/step:
+    post:
+      tags:
+      - Playback
+      operationId: stepPlayback
+      summary: Advance a fixed amount of virtual time and hold
+      description: Advances the model by exactly `seconds` of virtual time using the normal one-second
+        physics, then leaves the run paused. A step that reaches 24:00:00 completes the run. Stepping
+        and seeking to the same time produce identical state.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                seconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                  default: 60
+      responses:
+        '200':
+          description: Stepped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from_seconds:
+                    type: integer
+                  simulated_seconds:
+                    type: integer
+                  stepped_seconds:
+                    type: integer
+                  target_time:
+                    type: string
+                    example: 06:01:00
+                  lifecycle:
+                    type: string
+                    enum:
+                    - PAUSED
+                    - COMPLETED
+                  playback_revision:
+                    type: integer
+                  state_revision:
+                    type: integer
+        '400':
+          description: seconds outside 1 to 3600
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: No active simulation, or the virtual day is already complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/world/regenerate:
+    post:
+      tags:
+      - World
+      operationId: regenerateWorld
+      summary: Replace the world with one from a fresh seed
+      description: Accepted immediately; progress is reported by /api/v1/world/status. The seed comes
+        from the secure generator and every other parameter is copied from the current run, so the caller
+        chooses nothing about the new world. The current world keeps running until the new one is installed
+        and is unchanged if generation fails. The new world starts paused at 00:00:00. Disabled with DSTNS_DISABLE_WORLD_REGENERATION=1.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expected_run_id:
+                  type: string
+                  description: Cancel with 409 if the active run is no longer this one.
+      responses:
+        '202':
+          description: Generation started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/WorldStatus'
+        '403':
+          description: Regeneration disabled by the operator (WORLD_REGENERATION_DISABLED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: No active world, a generation already in progress, or a stale run guard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/world/status:
+    get:
+      tags:
+      - World
+      operationId: worldStatus
+      summary: Progress of the current or last world generation
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/WorldStatus'
+  /api/v1/system/backpressure:
+    get:
+      tags:
+      - System
+      operationId: backpressureStatus
+      summary: Current Adaptive Simulation Backpressure state
+      description: Read the backpressure state without reporting anything. Includes the measured snapshot
+        and byte delivery rate. See docs/asb.md.
+      responses:
+        '200':
+          description: Backpressure state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Backpressure'
+    post:
+      tags:
+      - System
+      operationId: reportBackpressure
+      summary: Report observer health and receive the resulting governance
+      description: 'The observer reports how far behind it is; the response is the authoritative backpressure
+        state, so one round trip both informs and instructs. Reporting is presentation-side only: it changes
+        the rate at which virtual time advances, never what the simulation computes.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                virtual_lag_s:
+                  type: number
+                  minimum: 0
+                  description: Virtual seconds between the rendered snapshot and the core's state.
+                client_frame_s:
+                  type: number
+                  minimum: 0
+                  description: Wall-clock seconds between the observer's own frames.
+                since_poll_s:
+                  type: number
+                  minimum: 0
+                  description: Seconds since the observer last polled.
+      responses:
+        '200':
+          description: Backpressure state after this report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Backpressure'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/system/observer:
+    get:
+      tags:
+      - System
+      summary: Whether the observer page has been served in a browser yet
+      responses:
+        '200':
+          description: Observer load count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version:
+                    const: '1.0'
+                  data:
+                    type: object
+                    properties:
+                      loaded:
+                        type: boolean
+                      loads:
+                        type: integer
+  /api/v1/system/map-status:
+    get:
+      tags:
+      - System
+      operationId: mapStatus
+      summary: Progress of a map download in flight
+      description: Observational only. Reports the city, phase and byte progress of a district download
+        so the CLI and the splash screen can show it.
+      responses:
+        '200':
+          description: Download progress, or an inactive report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      active:
+                        type: boolean
+                      city:
+                        type: string
+                      country:
+                        type: string
+                      phase:
+                        type: string
+                        enum:
+                        - connect
+                        - download
+                        - parse
+                        - retry
+                      bytes:
+                        type: integer
+                      total:
+                        type: integer
+                        description: 0 when Overpass sent no Content-Length.
+                      elapsed_s:
+                        type: number
+  /api/v1/system/ui-config:
+    get:
+      tags:
+      - System
+      operationId: uiConfig
+      summary: Observer presentation defaults
+      description: Serves config/ui-config.json. Presentation only; see docs/ui-configuration.md. A malformed
+        file yields UI_CONFIG_INVALID and the observer falls back to its built-in defaults.
+      responses:
+        '200':
+          description: Configuration, or an empty object when none is installed
+          content:
+            application/json:
+              schema:
+                type: object
+        '500':
+          $ref: '#/components/responses/Error'
+  /api/v1/system/source:
+    get:
+      tags:
+      - System
+      operationId: sourceOffer
+      summary: Licence and corresponding-source offer
+      description: GNU AGPL section 13. Because this program is offered over a network, every user interacting
+        with it must be told where to obtain the corresponding source of the version they are running.
+      responses:
+        '200':
+          description: Programme, version, licence and source offer
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/playback/pause:
+    post:
+      tags:
+      - Playback
+      operationId: pause
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '409':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/playback/play:
+    post:
+      tags:
+      - Playback
+      operationId: play
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '409':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/playback/stop:
+    post:
+      tags:
+      - Playback
+      operationId: stop
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/playback/reset:
+    post:
+      tags:
+      - Playback
+      operationId: reset
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/playback/seek:
+    post:
+      tags:
+      - Playback
+      operationId: seek
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - target_time
+              properties:
+                target_time:
+                  type: string
+                  pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$
+                play:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/control/tick-rate:
+    put:
+      tags:
+      - Control
+      operationId: setTickRate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - tick_rate
+              properties:
+                tick_rate:
+                  type: number
+                  exclusiveMinimum: 0
+                  maximum: 10
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/control/day:
+    post:
+      tags:
+      - Control
+      operationId: setDay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - day
+              properties:
+                day:
+                  type: integer
+                  enum:
+                  - 0
+                  - 1
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/control/modules/{module}:
+    put:
+      tags:
+      - Control
+      operationId: setModule
+      parameters:
+      - $ref: '#/components/parameters/Module'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - enabled
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/control/events/weather:
+    post:
+      tags:
+      - Control
+      operationId: addWeather
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeatherRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/control/events/traffic:
+    post:
+      tags:
+      - Control
+      operationId: addTraffic
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrafficRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/control/edges/{id}/override:
+    post:
+      tags:
+      - Control
+      operationId: overrideEdge
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EdgeOverride'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/control/undo:
+    post:
+      tags:
+      - Control
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HistoryCount'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/control/redo:
+    post:
+      tags:
+      - Control
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HistoryCount'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/control/history:
+    get:
+      tags:
+      - Control
+      operationId: history
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/run:
+    get:
+      tags:
+      - Playback
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/manifest:
+    get:
+      tags:
+      - View
+      operationId: manifest
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/topology:
+    get:
+      tags:
+      - View
+      operationId: topology
+      responses:
+        '200':
+          description: Complete immutable topology
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+  /api/v1/view/snapshot:
+    get:
+      tags:
+      - View
+      operationId: snapshot
+      responses:
+        '200':
+          description: Complete dynamic state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+  /api/v1/view/nodes:
+    get:
+      tags:
+      - View
+      parameters:
+      - $ref: '#/components/parameters/Offset'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/edges:
+    get:
+      tags:
+      - View
+      parameters:
+      - $ref: '#/components/parameters/Offset'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/places:
+    get:
+      tags:
+      - View
+      summary: Classified places with live demand
+      description: Every mapped place the demand model reasons about, each with its kind, its scheduled
+        baseline, the couplings currently acting on it, and where it sits. Filter with kind; page with
+        offset and limit.
+      parameters:
+      - $ref: '#/components/parameters/Offset'
+      - $ref: '#/components/parameters/Limit'
+      - name: kind
+        in: query
+        required: false
+        description: Restrict to one classified kind, e.g. school or bus_stop.
+        schema:
+          type: string
+          pattern: ^[a-z_]{1,32}$
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/place-kinds:
+    get:
+      tags:
+      - View
+      summary: The place taxonomy and this world's counts
+      description: Every kind the classifier can produce, whether the demand model speaks for it, and
+        how many of each this world holds.
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/stops:
+    get:
+      tags:
+      - View
+      summary: Bus stops, thinned to realistic route spacing
+      description: Equivalent to places with kind=bus_stop. Stops sharing a street are held at least 300
+        m apart; stops on different streets need only clear 60 m.
+      parameters:
+      - $ref: '#/components/parameters/Offset'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/system/endpoints:
+    get:
+      tags:
+      - System
+      summary: Machine-readable index of the API
+      description: Every group and route the server exposes, with one line on what each is for. Also served
+        at /api/v1.
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/bus-stops:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/buildings:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/signals:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/weather:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/traffic:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/events:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/metrics:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/stream:
+    get:
+      tags:
+      - View
+      operationId: stateStream
+      responses:
+        '200':
+          description: Reconnecting one-Hz SSE snapshot
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /api/v1/news:
+    get:
+      tags:
+      - News
+      operationId: listNews
+      parameters:
+      - $ref: '#/components/parameters/SinceNews'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/news/stream:
+    get:
+      tags:
+      - News
+      operationId: newsStream
+      responses:
+        '200':
+          description: Reconnecting SSE news feed
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /api/v1/view/congestion:
+    get:
+      tags:
+      - View
+      description: Bounded weighted current congestion, virtual-time EMA and minute history
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/event-queue:
+    get:
+      tags:
+      - View
+      description: Distinguishes pending events from the retained 2000 most recent executions.
+      parameters:
+      - name: view
+        in: query
+        schema:
+          type: string
+          enum:
+          - future
+          - history
+          default: future
+      - name: category
+        in: query
+        schema:
+          type: string
+          enum:
+          - all
+          - signals
+          - demand
+          - incidents
+          - weather
+          - flooding
+          - system
+          default: all
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          default: 0
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+        '400':
+          $ref: '#/components/responses/Error'
+  /api/v1/view/global:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/config:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/incidents:
+    get:
+      tags:
+      - View
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1:
+    get:
+      tags:
+      - System
+      operationId: apiIndex
+      summary: Route index generated by the server
+      responses:
+        '200': &id001
+          $ref: '#/components/responses/Ok'
+  /api/v1/system/health:
+    get:
+      tags:
+      - System
+      operationId: systemHealth
+      summary: Liveness and lifecycle (same as /health)
+      responses:
+        '200': *id001
+  /api/v1/system/info:
+    get:
+      tags:
+      - System
+      operationId: systemInfo
+      summary: Version, build and SUMO availability
+      responses:
+        '200': *id001
+  /api/v1/playback/prepare:
+    post:
+      tags:
+      - Playback
+      operationId: prepareSimulation
+      summary: Compile a world and hold it READY (synchronous)
+      security:
+      - OperatorKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartRequest'
+      responses:
+        '200': *id001
+        '400': &id002
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409': *id002
+        '503': *id002
+  /api/v1/control/signals/{id}:
+    post:
+      tags:
+      - Control
+      operationId: toggleSignal
+      summary: Toggle a junction between forced north-south and east-west green
+      parameters:
+      - &id004
+        $ref: '#/components/parameters/Id'
+      responses:
+        '200': *id001
+        '400': *id002
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409': *id002
+  /api/v1/control/events/surge:
+    post:
+      tags:
+      - Control
+      operationId: triggerSurge
+      summary: Demand surge around a node
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SurgeRequest'
+      responses:
+        '202': *id001
+        '400': *id002
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409': *id002
+  /api/v1/control/transit/route:
+    post:
+      tags:
+      - Control
+      operationId: transitRoute
+      deprecated: true
+      summary: 'Retired: always 410 TRANSIT_API_RETIRED'
+      responses:
+        '410': *id002
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/export/sumo:
+    post:
+      tags:
+      - System
+      operationId: exportSumo
+      summary: Write a SUMO bundle for the current world
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                directory:
+                  type: string
+                  default: data/sumo_export
+      responses:
+        '200': &id003
+          $ref: '#/components/responses/Envelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409': *id002
+  /api/v1/system/sumo-simulate:
+    post:
+      tags:
+      - System
+      operationId: sumoSimulate
+      summary: Export, build and run SUMO; returns trip statistics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SumoRequest'
+      responses:
+        '200': *id003
+        '400': *id002
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409': *id002
+        '500': *id002
+  /api/v1/view/nodes/{id}:
+    get:
+      tags:
+      - View
+      operationId: node
+      parameters:
+      - *id004
+      responses:
+        '200': *id003
+        '400': *id002
+        '404': *id002
+  /api/v1/view/edges/{id}:
+    get:
+      tags:
+      - View
+      operationId: edge
+      parameters:
+      - *id004
+      responses:
+        '200': *id003
+        '400': *id002
+        '404': *id002
+  /api/v1/view/logs/system:
+    get:
+      tags:
+      - System
+      operationId: logsSystem
+      summary: Tail of the system log (250 lines)
+      responses:
+        '200': *id001
+        '400': *id002
+  /api/v1/view/logs/events:
+    get:
+      tags:
+      - System
+      operationId: logsEvents
+      summary: Operator command journal
+      responses:
+        '200': *id001
+        '400': *id002
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 1000
+          default: 100
+  /api/v1/view/logs/api:
+    get:
+      tags:
+      - System
+      operationId: logsApi
+      summary: API access journal
+      responses:
+        '200': *id001
+        '400': *id002
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 1000
+          default: 100
+components:
+  securitySchemes:
+    OperatorKey:
+      type: apiKey
+      in: header
+      name: X-DSTNS-Operator
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 0
+    Module:
+      name: module
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+        - traffic
+        - signals
+        - buildings
+        - dws
+        - flooding
+        - news
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 250
+    SinceNews:
+      name: since_news_id
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+  schemas:
+    WorldStatus:
+      type: object
+      properties:
+        state:
+          type: string
+          enum:
+          - idle
+          - generating
+          - ready
+          - failed
+        stage:
+          type: string
+          enum:
+          - idle
+          - compiling
+          - requesting
+          - downloading
+          - validating
+          - building
+          - installing
+          - ready
+          - failed
+          description: Map stages are reported by the live downloader, not estimated.
+        seed:
+          type: string
+          description: The new world's seed
+          known as soon as the job starts.: null
+        previous_run_id:
+          type: string
+        run_id:
+          type: string
+          description: The installed world
+          once ready.: null
+        generation:
+          type: integer
+        elapsed_s:
+          type: number
+        enabled:
+          type: boolean
+        map:
+          nullable: true
+          type: object
+          properties:
+            city:
+              type: string
+            country:
+              type: string
+            phase:
+              type: string
+            bytes:
+              type: integer
+            total:
+              type: integer
+              description: 0 when the size is not known.
+            elapsed_s:
+              type: number
+        error:
+          nullable: true
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+              - MAP_FETCH_FAILED
+              - WORLD_GENERATION_FAILED
+              - TERMINATING
+            message:
+              type: string
+    Health:
+      type: object
+      required:
+      - ok
+      - product
+      - lifecycle
+      properties:
+        ok:
+          type: boolean
+        product:
+          const: DSTNS
+        lifecycle:
+          type: string
+    Clock:
+      type: object
+      required:
+      - playback_state
+      - simulated_current_time
+      - virtual_day_seconds
+      - simulation_percentage
+      - tick_rate
+      properties:
+        playback_state:
+          type: string
+        simulated_current_time:
+          type: string
+        virtual_day_seconds:
+          type: integer
+        simulation_percentage:
+          type: number
+        playback_duration_seconds:
+          type: integer
+        base_rate:
+          type: number
+        tick_rate:
+          type: number
+        target_virtual_rate:
+          type: number
+    Envelope:
+      type: object
+      required:
+      - api_version
+      - run_id
+      - seed
+      - global_seed
+      - state_revision
+      - config_revision
+      - clock
+      - data
+      properties:
+        api_version:
+          const: '1.0'
+        run_id:
+          type: string
+        seed:
+          type: string
+          description: 'The run''s seed as a decimal integer: the number that started it and the name
+            it is known by in the interface, the CLI and reports.'
+          pattern: ^[0-9]{1,39}$
+          example: '17310766248549826767'
+        global_seed:
+          type: string
+          description: The same value in the core's internal 128-bit hexadecimal form, used for hashing
+            and sub-seed derivation.
+          example: '0x0000000000000000f02b5a3a1c2d4e8f'
+        state_revision:
+          type: integer
+        config_revision:
+          type: integer
+        clock:
+          $ref: '#/components/schemas/Clock'
+        data: {}
+    Error:
+      type: object
+      required:
+      - api_version
+      - error
+      properties:
+        api_version:
+          const: '1.0'
+        error:
+          type: object
+          required:
+          - code
+          - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+    StartRequest:
+      type: object
+      properties:
+        seed:
+          oneOf:
+          - type: string
+            pattern: ^0x[0-9a-fA-F]{1,32}$
+          - type: integer
+            minimum: 0
+        playback_duration_seconds:
+          type: integer
+          minimum: 60
+          maximum: 3600
+          default: 3600
+        start_virtual_time:
+          type: string
+          default: 00:00:00
+        tick_rate:
+          type: number
+          description: Playback multiplier; the interface offers 0.25 to 10.
+          exclusiveMinimum: 0
+          maximum: 10
+          default: 1
+        saved_seed_id:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$
+        map_selection_version:
+          type: string
+          const: urban-crfg-v3
+        day:
+          default: 0
+          oneOf:
+          - type: integer
+            enum:
+            - 0
+            - 1
+          - const: auto
+        modules:
+          type: object
+          additionalProperties:
+            type: boolean
+        dws:
+          type: object
+          properties:
+            frequency:
+              type: integer
+              minimum: 0
+        map:
+          type: object
+          properties:
+            osm_file:
+              type: string
+              default: auto
+              description: Path to an OSM XML file, or "auto" (the default) to let the seed select a real
+                city district that is downloaded from OpenStreetMap on demand and cached under map.cache_dir.
+                Regenerating the graph with a different seed names a different tile and therefore requires
+                a new download; an identical seed reuses the cache.
+            max_nodes:
+              type: integer
+              minimum: 2
+              maximum: 50000
+            tile_radius_m:
+              type: number
+              exclusiveMinimum: 0
+              maximum: 20000
+              default: 2000
+              description: Half-extent in true metres of the tile downloaded around the seed-derived anchor.
+            cache_dir:
+              type: string
+              default: data/maps
+              description: Directory holding downloaded tiles, keyed by city and anchor.
+    Backpressure:
+      type: object
+      required:
+      - state
+      - score
+      - synced
+      - gui_suspended
+      - applied_tick_rate
+      - throughput
+      - actions
+      properties:
+        state:
+          type: string
+          enum:
+          - NORMAL
+          - RESTRICTED
+          - ASYNC
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Normalized backpressure; the worst of lag, frame cost and poll silence.
+        synced:
+          type: boolean
+        rate_locked:
+          type: boolean
+          description: True outside NORMAL, where the multiplier is pinned at 1x.
+        motion_locked:
+          type: boolean
+          description: True outside NORMAL, where reduced motion is forced on.
+        gui_suspended:
+          type: boolean
+          description: True in ASYNC. The simulation continues; only the interface is stood down.
+        rate_capped:
+          type: boolean
+          description: Whether ASB is imposing a ceiling on the multiplier at all.
+        rate_cap:
+          type: number
+          description: The ceiling in force, or -1 when none is (JSON has no infinity).
+        applied_tick_rate:
+          type: number
+          description: What the simulation is actually running at.
+        requested_tick_rate:
+          type: number
+          description: What the operator asked for. Retained and restored on recovery.
+        stressed_for_s:
+          type: number
+        state_for_s:
+          type: number
+        throughput:
+          type: object
+          properties:
+            snapshots_per_s:
+              type: number
+            bytes_per_s:
+              type: number
+        actions:
+          type: array
+          description: The last 24 transitions, each with a plain-language reason.
+          items:
+            type: object
+            properties:
+              at_s:
+                type: number
+              action:
+                type: string
+                enum:
+                - throttle
+                - default_state
+                - restrict
+                - suspend
+                - release
+              reason:
+                type: string
+              score:
+                type: number
+              rate_before:
+                type: number
+              rate_after:
+                type: number
+        thresholds:
+          type: object
+          additionalProperties:
+            type: number
+    StartResponse:
+      type: object
+      required:
+      - ok
+      - run_id
+      - seed
+      - lifecycle
+      - resolved_config
+      - stream
+      properties:
+        ok:
+          type: boolean
+        message:
+          type: string
+        run_id:
+          type: string
+        seed:
+          type: string
+        lifecycle:
+          type: string
+        resolved_config:
+          type: object
+        stream:
+          type: object
+    WeatherRequest:
+      type: object
+      required:
+      - epicenter_node
+      - intensity
+      - radius_m
+      - duration_virtual_minutes
+      properties:
+        epicenter_node:
+          type: integer
+          minimum: 0
+        intensity:
+          type: number
+          minimum: 0
+          maximum: 1
+        radius_m:
+          type: number
+          exclusiveMinimum: 0
+        duration_virtual_minutes:
+          type: integer
+          minimum: 1
+        flood_gain:
+          type: number
+          minimum: 0
+          maximum: 1
+    TrafficRequest:
+      type: object
+      required:
+      - target
+      - congestion_pressure
+      properties:
+        target:
+          type: object
+          required:
+          - type
+          - id
+          properties:
+            type:
+              const: edge
+            id:
+              type: integer
+              minimum: 0
+        congestion_pressure:
+          type: number
+          minimum: 0
+          maximum: 1
+    EdgeOverride:
+      type: object
+      properties:
+        speed_multiplier:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 1
+        capacity_multiplier:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 1
+        closed:
+          type: boolean
+          default: false
+    HistoryCount:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          default: 1
+    SurgeRequest:
+      type: object
+      required:
+      - node_id
+      properties:
+        node_id:
+          type: integer
+          minimum: 0
+        factor:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 10
+          default: 1.8
+        radius_m:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 20000
+          default: 350
+        duration_s:
+          type: integer
+          minimum: 1
+          maximum: 86400
+          default: 1800
+    SumoRequest:
+      type: object
+      properties:
+        directory:
+          type: string
+          default: data/sumo_run
+        begin_s:
+          type: integer
+          minimum: 0
+          maximum: 86400
+          default: 0
+        end_s:
+          type: integer
+          minimum: 1
+          maximum: 86400
+          default: 3600
+          description: Must be greater than begin_s
+  responses:
+    Ok:
+      description: Successful command
+      content:
+        application/json:
+          schema:
+            type: object
+    Envelope:
+      description: Revisioned JSON envelope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+    Error:
+      description: Structured error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: CLI_START_REQUIRED, CROSS_ORIGIN_FORBIDDEN or WORLD_REGENERATION_DISABLED
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

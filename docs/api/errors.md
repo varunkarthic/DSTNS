@@ -36,9 +36,9 @@ of failure always looks the same whichever route raised it.
 | `INVALID_JSON` | 400 | The body is not valid JSON |
 | `MISSING_FIELD` | 400 | A required member is absent, e.g. `target_time` on seek |
 | `INVALID_FIELD_TYPE` | 400 | A member has the wrong JSON type, e.g. a string where a number is expected |
-| `INVALID_REQUEST` | 400 | A value breaks a rule: out of range, an ID that does not fit 32 bits, a negative query number, an unknown module or catalog, a bad seed. See [Request validation](../SECURITY.md#request-validation) |
+| `INVALID_REQUEST` | 400 | A value breaks a rule: out of range, an ID that does not fit 32 bits, a negative query number, an unknown module or catalog, a bad seed. See [Request validation](../deployment/security.md#request-validation) |
 | `CLI_START_REQUIRED` | 403 | `start` or `prepare` without the operator credential |
-| `CROSS_ORIGIN_FORBIDDEN` | 403 | A state-changing request from a browser page on another origin. See [Security](../SECURITY.md#cross-site-request-forgery) |
+| `CROSS_ORIGIN_FORBIDDEN` | 403 | A state-changing request from a browser page on another origin. See [Security](../deployment/security.md#cross-site-request-forgery) |
 | `WORLD_REGENERATION_DISABLED` | 403 | `DSTNS_DISABLE_WORLD_REGENERATION=1` is set |
 | `NOT_FOUND` | 404 | `/view/nodes/{id}` or `/view/edges/{id}` beyond the graph |
 | `LIFECYCLE_CONFLICT` | 409 | E.g. play when not paused, start while a run is active, a second regeneration, step at 24:00:00, seek while terminating, a stale playback guard or `expected_run_id`, SUMO without an active run |
