@@ -11,7 +11,9 @@
 
 int main(int argc, char** argv) {
     try {
-        std::string host = "0.0.0.0", logs = "logs", maps = "data/maps", cache_policy = "prune";
+        // Loopback by default: the API can drive a run and write files, so it is
+        // reachable from other machines only when the operator says so (--host).
+        std::string host = "127.0.0.1", logs = "logs", maps = "data/maps", cache_policy = "prune";
         std::uint16_t port = 8090;
         std::size_t cache_keep = 1;
         for (int i = 1; i < argc; ++i) {
@@ -36,7 +38,7 @@ int main(int argc, char** argv) {
                 return 0;
             }
             else if (a == "--help") {
-                std::cout << "dstns_server [--host ADDR] [--port PORT] [--logs DIR] [--maps DIR]\n"
+                std::cout << "dstns_server [--host ADDR (default 127.0.0.1)] [--port PORT] [--logs DIR] [--maps DIR]\n"
                              "             [--map-cache keep|prune|clear] [--map-cache-keep N]\n"
                              "             [--version]\n";
                 return 0;
