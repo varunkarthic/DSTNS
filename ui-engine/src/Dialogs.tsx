@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { api } from "./api";
 import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef, useState } from "react";

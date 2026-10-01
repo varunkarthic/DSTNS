@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 import gzip
 """Comprehensive end-to-end API test suite for DSTNS."""
 import argparse

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { describe, expect, it } from "vitest";
 import { PLACE_KINDS, UNCLASSIFIED, hasMarker, placeInspection, placeKind } from "../src/mapModel";
 import { demandDetail, demandSummary, placeCensus, placeLegend } from "../src/placeLegend";

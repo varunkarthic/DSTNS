@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { categoryOf, describeNews, focusMatches, NOTIFY_TEMPLATES, severityOf } from "./notificationModel";
 import type { NotificationCategory, NotificationSeverity, UiNotification } from "./notificationModel";
 import type { News, Topology } from "./types";

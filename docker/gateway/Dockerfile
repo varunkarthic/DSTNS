@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 FROM nginx:1.27-alpine
 RUN apk add --no-cache openssl
 COPY nginx.conf /etc/nginx/nginx.conf

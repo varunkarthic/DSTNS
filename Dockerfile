@@ -1,4 +1,7 @@
 # syntax=docker/dockerfile:1
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 #
 # DSTNS container image: the C++ engine, the observer it serves, the map
 # downloader, and a bundled offline map. See docs/deployment/docker.md.

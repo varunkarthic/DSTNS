@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { boundsOf } from "./autoFocus";
 import type { FocusTarget } from "./autoFocus";
 import { districtOf, INCIDENT_TITLES } from "./notificationModel";

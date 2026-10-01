@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // Map sourcing invariants: the seed decides which real place is simulated, the
 // tile is fetched on demand and cached by that seed-derived identity, and the
 // resulting graph is stored in true metres.

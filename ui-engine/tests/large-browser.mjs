@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // Optional performance/visual probe: attach to an existing paused large-map run.
 import { chromium } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";

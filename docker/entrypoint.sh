@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 # Container entrypoint: start the DSTNS server, then (unless DSTNS_AUTOSTART=0)
 # start a run configured from the DSTNS_* environment variables.
 #

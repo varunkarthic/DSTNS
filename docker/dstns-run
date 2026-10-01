@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 """Start a DSTNS run inside the container.
 
 The operator CLI is how runs are started on a workstation; in a container this

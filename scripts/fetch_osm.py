@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 """Download a real urban OSM tile from Overpass. Existing files are never overwritten.
 
 Two ways to name the area:

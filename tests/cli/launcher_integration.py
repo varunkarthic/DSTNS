@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 """Exercise both public launchers, stale output rebuilding, old-server avoidance and OSM startup."""
 import http.server,json,os,pathlib,socket,subprocess,tempfile,threading,time,unittest,urllib.request
 ROOT=pathlib.Path(__file__).resolve().parents[2]

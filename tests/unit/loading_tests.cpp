@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // Deterministic slow-map I/O: hold a FIFO open, exercise concurrent observers,
 // then release real OSM bytes. No internet, sleeps for download duration, or mocks
 // of the engine's locking and installation path.

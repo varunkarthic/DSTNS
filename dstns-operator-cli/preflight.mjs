@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { existsSync, readFileSync, statSync, writeFileSync, unlinkSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import net from 'node:net'

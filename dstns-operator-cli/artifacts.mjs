@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 // Content fingerprints detect stale native/UI output without rebuilding on every launch.
 import {createHash} from 'node:crypto';
 import {readdir,readFile,stat} from 'node:fs/promises';

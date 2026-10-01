@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 /**
  * Compact counts for dense readouts: 999, 1.2K, 12.9K, 105K, 1.25M.
  *

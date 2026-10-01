@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
 import { describe, expect, it } from "vitest";
 import { MIN_HEIGHT, MIN_WIDTH, shortfall, viewportTooSmall } from "../src/Viewport";
 import { mapFitLayout } from "../src/mapProjection";

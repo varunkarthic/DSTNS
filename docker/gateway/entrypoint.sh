@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
 set -eu
 mkdir -p /etc/nginx/certs
 if [ ! -s /etc/nginx/certs/dstns.crt ]; then
