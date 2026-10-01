@@ -46,7 +46,16 @@ void verify(const dstns::Seed128& seed, const dstns::ScenarioConfig& config, con
 int main(int argc, char** argv) {
     try {
         const std::string seed_string = (argc >= 2) ? argv[1] : "0x123456789ABCDEF0123456789ABCDEF0";
-        const auto seed = dstns::Seed128::parse(seed_string);
+        if (seed_string == "--help" || seed_string == "-h") {
+            std::cout << "dstns_replay_verify [SEED]\n"
+                         "  Compile and run SEED twice, on a grid and on the bundled OSM district, and check\n"
+                         "  that every hash and the full snapshot at 03:25:45 agree. SEED is decimal (as the\n"
+                         "  interface shows it) or 0x hexadecimal.\n";
+            return 0;
+        }
+        // Operators read seeds in decimal; the hexadecimal form is internal.
+        const bool decimal = !seed_string.empty() && seed_string.find_first_not_of("0123456789") == std::string::npos;
+        const auto seed = decimal ? dstns::Seed128::from_decimal(seed_string) : dstns::Seed128::parse(seed_string);
 
         dstns::ScenarioConfig grid;
         grid.playback_duration_s = 600;
