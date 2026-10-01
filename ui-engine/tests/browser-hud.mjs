@@ -156,8 +156,8 @@ try {
     assert.ok(rail.height <= 66, `rail stays one row at 1024 (${rail.height}px)`);
     for (const name of [/Copy seed/, "Terminate"])
       assert.ok(await page.getByRole("button", { name }).first().isVisible(), `${name} visible at 1024x640`);
-    for (const rate of ["0.25 times speed", "10 times speed"])
-      assert.ok(await page.getByRole("radio", { name: rate }).isVisible(), `${rate} visible at 1024x640`);
+    for (const rate of ["0.25 times speed", "5 times speed"])
+      assert.ok(await page.getByRole("radio", { name: rate, exact: true }).isVisible(), `${rate} visible at 1024x640`);
     await page.screenshot({ path: path.join(out, "hud-1024.png") });
   });
   check("below the minimum, the interface says so instead of squeezing", async () => {
