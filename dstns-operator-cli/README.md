@@ -73,12 +73,12 @@ The C++ process remains the simulation authority. The Node launcher is only the 
 ./launcher sumo
 ```
 
-`start` starts playback immediately. Weekday is the default. The browser observes the core and exposes pause/resume/speed. See the [modernization guide](https://dstns.readthedocs.io/en/latest/history/modernization/) for validated arguments, pinned OSM source storage, private operator credentials and process ownership. Interactive terminal menus remain available by running `./launcher` without arguments.
+`start` starts playback immediately. Weekday is the default. The browser observes the core and exposes pause/resume/speed. See the [modernization guide](https://dstns.readthedocs.io/history/modernization/) for validated arguments, pinned OSM source storage, private operator credentials and process ownership. Interactive terminal menus remain available by running `./launcher` without arguments.
 
 
 ## Reproducible local workflow
 
-Run from the repository root after installing the [source prerequisites](https://dstns.readthedocs.io/en/latest/getting-started/installation/):
+Run from the repository root after installing the [source prerequisites](https://dstns.readthedocs.io/getting-started/installation/):
 
 ```bash
 ./launcher start --seed 382923 --day-type weekday \
@@ -112,8 +112,8 @@ restrictions. See the [security policy](../SECURITY.md).
 The reset commands listed above remove runtime state; `--yes` skips their
 confirmation. Preserve required maps, saved seeds and diagnostics before using
 reset. Deleting a saved seed removes that stored configuration. Refer to
-[Operator CLI](https://dstns.readthedocs.io/en/latest/guide/operator-cli/) for exact command behavior and
-[Operations](https://dstns.readthedocs.io/en/latest/deployment/operations/) for backup and recovery.
+[Operator CLI](https://dstns.readthedocs.io/guide/operator-cli/) for exact command behavior and
+[Operations](https://dstns.readthedocs.io/deployment/operations/) for backup and recovery.
 
 ## Development checks
 
@@ -127,4 +127,4 @@ python3 tests/cli/test_fetch_osm.py
 These repository-root commands install the committed dependency graph and test
 artifact rebuild detection, saved-seed persistence and map fetching. They do not
 replace live launcher integration or the native server suites. See
-[Testing](https://dstns.readthedocs.io/en/latest/development/testing/) for the broader gates.
+[Testing](https://dstns.readthedocs.io/development/testing/) for the broader gates.

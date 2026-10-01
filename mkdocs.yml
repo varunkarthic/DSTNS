@@ -13,7 +13,7 @@ site_description: >-
 site_author: Varun Karthic
 # Read the Docs sets the canonical URL of each version; the fallback is used
 # for local builds.
-site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://dstns.readthedocs.io/en/latest/"]
+site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://dstns.readthedocs.io/"]
 repo_url: https://github.com/varunkarthic/DSTNS
 repo_name: varunkarthic/DSTNS
 exclude_docs: |

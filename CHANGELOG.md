@@ -7,7 +7,7 @@ DSTNS uses version numbers that identify three independently versioned parts:
 the engine (`DSTNS_VERSION`, set in `CMakeLists.txt`), the observer (`VERSION` in
 `ui-engine/src/App.tsx`) and the HTTP API contract (`/api/v1`). Changes that
 alter simulation results for an existing seed or map are called out explicitly,
-because the [reproducibility guarantee](https://dstns.readthedocs.io/en/latest/concepts/reproducibility/) holds
+because the [reproducibility guarantee](https://dstns.readthedocs.io/concepts/reproducibility/) holds
 only within one version.
 
 ## [Unreleased]
@@ -92,7 +92,7 @@ only within one version.
 - The separate UI container and its unused in-memory overlay service, the second
   compose file, the retired `ui-engine-alpha` mock-up, generated SUMO outputs and
   stale assistant hand-off notes. The original design specifications moved to
-  [Design specifications](https://dstns.readthedocs.io/en/latest/design/).
+  [Design specifications](https://dstns.readthedocs.io/design/).
 
 ## [2.0.0] - 2026-09-20
 

@@ -4,7 +4,7 @@
 
 #
 # DSTNS container image: the C++ engine, the observer it serves, the map
-# downloader, and a bundled offline map. See https://dstns.readthedocs.io/en/latest/deployment/docker/.
+# downloader, and a bundled offline map. See https://dstns.readthedocs.io/deployment/docker/.
 #
 #   docker build -t dstns .
 #   docker build -t dstns --build-arg WITH_SUMO=1 .   # include Eclipse SUMO
