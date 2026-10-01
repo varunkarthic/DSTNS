@@ -14,6 +14,8 @@ map bytes and compatible build; see [Reproducible experiments](#reproducible-exp
 
 [![CI](https://github.com/varunkarthic/DSTNS/actions/workflows/ci.yml/badge.svg)](https://github.com/varunkarthic/DSTNS/actions/workflows/ci.yml)
 [![Documentation](https://readthedocs.org/projects/dstns/badge/?version=latest)](https://dstns.readthedocs.io/en/latest/)
+[![CodeQL](https://github.com/varunkarthic/DSTNS/actions/workflows/codeql.yml/badge.svg)](https://github.com/varunkarthic/DSTNS/actions/workflows/codeql.yml)
+[![Security policy](https://img.shields.io/badge/security-policy-green.svg)](SECURITY.md)
 [![License: AGPL v3+](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/20)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
@@ -322,10 +324,9 @@ Guide: [API](docs/api/index.md) · Reference: [routes](docs/api/reference.md) ·
 > There are no user accounts: anyone who can reach the port can watch and
 > control the run. Starting or preparing a run requires the operator credential
 > in `logs/operator.token`, used by the CLI and authorized local scripts. The browser origin guard rejects unapproved cross-origin writes, but is
-> not user authentication. The server defaults to `0.0.0.0`, and Compose publishes
-> port 8090 on all host interfaces. Use loopback for local work. Remote deployments
-> need access control as well as TLS; the bundled gateway supplies encryption,
-> not authentication. See [Security](docs/deployment/security.md) and
+> not user authentication. The server and Compose both bind to loopback
+> (`127.0.0.1`) by default. Remote deployments need access control as well as TLS;
+> the bundled gateway supplies encryption, not authentication. See [Security](docs/deployment/security.md) and
 > the [security policy](SECURITY.md).
 
 ## Configuration
@@ -384,8 +385,10 @@ see the [Python API walkthrough](docs/api/client-walkthrough.md).
 
 DSTNS runs one shared simulation per server. Every client with network access can
 control that simulation through endpoints other than the credential-protected
-start and prepare routes. Give access only to trusted operators and observers who
-are permitted to change the run.
+start and prepare routes, so the server **binds to `127.0.0.1` by default** and
+refuses cross-site, DNS-rebinding and cross-origin-read attempts from browsers.
+Expose it to a network only behind an authenticating proxy, and give access only
+to trusted operators who are permitted to change the run.
 
 ## Testing
 
@@ -453,11 +456,12 @@ More: [Troubleshooting](docs/troubleshooting.md) and [FAQ](docs/faq.md).
 
 ## Contributing
 
-Issues and pull requests are welcome. Please read
-[Contributing](docs/development/contributing.md): behavior changes need relevant
-regression coverage; documentation changes need a strict site build and verified
-examples. Keep applicable checks passing and document changes in the same PR.
-Security reports follow [SECURITY.md](SECURITY.md).
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and
+the [Code of Conduct](CODE_OF_CONDUCT.md) first: behavior changes need regression
+coverage that fails without the change, documentation changes need a strict site
+build and verified examples, and every change records itself in
+[CHANGELOG.md](CHANGELOG.md). **Report security vulnerabilities privately**, as
+described in [SECURITY.md](SECURITY.md); never in a public issue.
 
 ## License
 
