@@ -44,6 +44,124 @@ kAsbRecoverAfterS  3.0    healthy this long -> relax
 Between `synced` and `stressed` is a deliberate dead band: the controller holds
 position rather than flapping on noise.
 
+## The control law
+
+This section gives the exact arithmetic (`src/asb.cpp`), with a worked example.
+
+### Component scores
+
+Each symptom is normalised to \( [0, 1] \) by a clamped linear ramp,
+\( \operatorname{clamp}(x) = \min(1, \max(0, x)) \). With \( L \) the virtual lag,
+\( F \) the observer's frame interval, \( P \) the time since its last poll and
+\( k \) the tick rate:
+
+\[
+\begin{aligned}
+\sigma_{\text{lag}} &= \operatorname{clamp}\!\left(\frac{L}{4\,\max\big(1,\; 1.5\,\max(1, k)\big)}\right) \\[4pt]
+\sigma_{\text{frame}} &= \operatorname{clamp}\!\left(\frac{F - 0.033}{0.200}\right) \quad (F > 0) \\[4pt]
+\sigma_{\text{poll}} &= \operatorname{clamp}\!\left(\frac{P - 2}{6}\right)
+\end{aligned}
+\]
+
+The **raw score** is the worst of the three, because averaging would let a severe
+problem in one dimension hide behind health in the others:
+
+\[
+\rho = \max\big(\sigma_{\text{lag}},\; \sigma_{\text{frame}},\; \sigma_{\text{poll}}\big)
+\]
+
+```cpp
+double lag_component(const AsbSample& s) {
+    const double tolerance = std::max(1.0, 1.5 * std::max(1.0, s.tick_rate));
+    return std::clamp(s.virtual_lag_s / (tolerance * 4.0), 0.0, 1.0);   // lag judged against the rate
+}
+double frame_component(const AsbSample& s) {
+    if (s.client_frame_s <= 0) return 0.0;
+    return std::clamp((s.client_frame_s - 0.033) / 0.20, 0.0, 1.0);    // 33 ms healthy, 233 ms saturated
+}
+double poll_component(const AsbSample& s) {
+    return std::clamp((s.since_poll_s - 2.0) / 6.0, 0.0, 1.0);          // 2 s healthy, 8 s saturated
+}
+```
+
+The lag tolerance grows with the rate because at \( k \times \) speed each poll
+legitimately covers \( k \) times as much virtual time; a fixed threshold would
+call every fast run unhealthy.
+
+### Smoothing
+
+The controller acts on a **damped** score \( \sigma \), an exponential moving mean
+of \( \rho \) whose time constant depends on direction:
+
+\[
+\sigma \leftarrow \sigma + (\rho - \sigma)\,\alpha, \qquad
+\alpha = 1 - e^{-\Delta t / \tau}, \qquad
+\tau = \begin{cases} 2.5\ \text{s} & \rho > \sigma \ (\text{worsening}) \\ 1.8\ \text{s} & \rho \le \sigma \ (\text{improving}) \end{cases}
+\]
+
+with \( \Delta t \) clamped to \( [0, 5] \) s. Rising is slower than falling on
+purpose: a problem must persist to be believed, while a recovery is credited
+promptly. The first report after a reset seeds \( \sigma = \rho \) directly.
+
+```cpp
+const double dt    = std::clamp(now_s - last_observed_, 0.0, 5.0);
+const double tau   = raw_score_ > score_ ? kAsbRiseTauS : kAsbFallTauS;   // 2.5 s up, 1.8 s down
+const double alpha = tau > 0 ? 1.0 - std::exp(-dt / tau) : 1.0;
+score_ += (raw_score_ - score_) * alpha;
+```
+
+### Worked example
+
+An observer at \( k = 3\times \) reports \( L = 12.4 \) s of lag, a 48 ms frame
+interval and a 1.02 s poll interval, once a second, starting from a healthy
+\( \sigma = 0.05 \).
+
+\[
+\sigma_{\text{lag}} = \frac{12.4}{4 \cdot \max(1,\ 4.5)} = 0.689, \quad
+\sigma_{\text{frame}} = \frac{0.048 - 0.033}{0.2} = 0.075, \quad
+\sigma_{\text{poll}} = 0
+\;\Rightarrow\; \rho = 0.689
+\]
+
+The damped score climbs with \( \alpha = 1 - e^{-1/2.5} = 0.330 \):
+
+| Report | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| \( \sigma \) | 0.261 | 0.402 | 0.496 | 0.560 | **0.602** | 0.631 |
+
+It crosses the *stressed* threshold (0.60) on the fifth report, so a single bad
+sample, or even three, never triggers anything. At that point the throttle applies.
+The same lag at \( k = 5\times \) scores only \( \rho = 0.413 \), inside the dead band
+between *synced* (0.35) and *stressed* (0.60), so ASB leaves a fast but coping
+observer alone.
+
+If the observer then recovers (\( \rho = 0 \), \( \tau = 1.8 \) s,
+\( \alpha = 0.426 \)), \( \sigma \) falls 0.620 \( \to \) 0.356 \( \to \) **0.204**: below
+the *synced* threshold after two reports, which is why recovery feels prompt.
+
+### Proportional throttle
+
+When \( \sigma > 0.60 \), the rate ceiling is set from the damped score and snapped
+down to a rate the interface offers, \( \mathcal{R} = \{1, 2, 3, 5\} \):
+
+\[
+c = \max\Big\{\, r \in \mathcal{R} \;:\; r \le \max\big(1,\; k\,(1 - \sigma)\big) \Big\}
+\]
+
+At \( \sigma = 0.62 \): for \( k = 3 \), \( 3 \times 0.38 = 1.14 \to c = 1 \); for
+\( k = 5 \), \( 5 \times 0.38 = 1.9 \to c = 1 \). The ceiling is never below 1×, and it
+changes at most once every 4 s (`kAsbRateHoldS`) so the rate cannot flap. The
+operator's *requested* rate is remembered, and as health returns the ceiling steps
+back up through \( \mathcal{R} \) one rung per hold period until it reaches the request.
+
+```cpp
+const double target = quantise_rate(std::max(1.0, sample.tick_rate * (1.0 - score_)));
+if (target < cap_ && now_s - cap_changed_at_ >= kAsbRateHoldS) {      // at most once per 4 s
+    cap_ = target;
+    note("throttle", "observer behind; reducing the rate ceiling to close the gap", now_s, before, cap_);
+}
+```
+
 ## The ladder
 
 Strictly ordered. Each rung is entered only after the previous one has been

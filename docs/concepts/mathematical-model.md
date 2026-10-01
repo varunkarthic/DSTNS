@@ -250,3 +250,55 @@ Every random quantity above is drawn from a counter-based generator keyed by a
 SHA-256 sub-seed and a tuple of indices, never from global state, so the value
 for (storm 2, intensity) is the same whatever else was drawn first. See
 [Deterministic seeding](deterministic-seeding.md).
+
+## Worked example: one edge, one second
+
+This chains the model together for a single edge. It is computed from the formulas
+above, assuming the edge's speed and queue have already converged to their targets.
+
+**The edge.** A residential road, \( L = 200 \) m, one lane, \( v^{\text{free}} = 8.33 \) m/s,
+\( C = 1100 \) veh/h. **The moment.** 08:00 (\( t = 28{,}800 \) s), light rain
+(\( r = 0.4 \)), a little flooding (\( f = 0.1 \)), place attraction \( A_e = 0.30 \),
+hotspot susceptibility \( H_e = 0.20 \), no surge (\( S = 1 \)).
+
+**Demand.** The day profile at 08:00 is
+\( P = \tfrac12 + \tfrac12\sin(2\pi \cdot 28800/86400 - 1.2) = 0.890 \), so
+
+\[
+\text{demand} = 1100\,(0.18 + 0.68 \cdot 0.890 + 0.60 \cdot 0.30 + 0.35 \cdot 0.20) \cdot 1 = 1138.7\ \text{veh/h}
+\]
+
+**Weather factors.** \( m^{\text{rain}}_v = 1 - 0.18 \cdot 0.4 = 0.928 \),
+\( m^{\text{flood}}_v = \max(0.35,\ 1 - 0.55 \cdot 0.1) = 0.945 \),
+\( m^{\text{rain}}_C = 0.94 \), \( m^{\text{flood}}_C = 0.94 \).
+
+The signal decides the rest. Compare a green and a red approach:
+
+| Quantity | Green (\( m^{\text{sig}} = 1 \)) | Red (\( m^{\text{sig}} = 0.08 \)) |
+|---|---|---|
+| Target speed \( v^{\text{free}} m^{\text{sig}} m^{\text{rain}}_v m^{\text{flood}}_v \) | 7.31 m/s | 0.58 m/s |
+| Effective capacity \( C\, m^{\text{sig}} m^{\text{rain}}_C m^{\text{flood}}_C \) | 972 veh/h | 78 veh/h |
+| Queue capacity \( L n_e / 7.5 \) | 26.7 veh | 26.7 veh |
+| Baseline load \( \tfrac{\text{demand}}{\max(2,\ 3.6 v^{\text{free}})} \tfrac{L}{1000} \) | 7.59 veh | 7.59 veh |
+| Target load (baseline \( \times (1 + 3.5(1 - m^{\text{sig}})(0.5 + 0.5S)) \), clamped) | 7.59 veh | 26.7 veh (4.22 times, clamped) |
+| Vehicles \( N \) | 8 | 27 |
+| Model congestion \( c^{\text{model}} = N / (0.75 \cdot 26.7) \) | 0.40 | 1.00 |
+| Mean speed \( \bar v = v^{\text{eff}}(1 - 0.65\, c^{\text{model}}) \) | 5.41 m/s | 0.21 m/s |
+| Halting vehicles \( \operatorname{round}(N(1 - 0.9\, m^{\text{sig}})) \) | 1 | 25 |
+| Occupancy \( 5N / (L n_e) \) | 0.20 | 0.68 |
+| Speed loss \( 1 - \bar v / v^{\text{free}} \) | 0.35 | 0.98 |
+| **Congestion** \( 0.60\,\ell + 0.25\,h/N + 0.15\,o \) | **0.27** | **0.92** |
+
+Reading the red column: a red light drops the road's capacity by a factor of 12 and
+its target speed to under a tenth, so the queue target jumps to the road's physical
+limit and the edge turns from mildly busy (0.27) to nearly jammed (0.92).
+
+**How fast it gets there.** The state does not jump. Speed falls at the braking limit
+of 3.2 m/s per second, so from 7.31 to 0.58 m/s takes \( (7.31 - 0.58)/3.2 \approx 2.1 \) s.
+The queue fills at the inflow rate \( \max(0.4,\ \text{demand}/3600) = 0.4 \) veh/s, so
+growing from 8 to 27 vehicles takes \( 19/0.4 = 48 \) s, and when the light turns green it
+drains at \( \max(0.7,\ 0.75\, n_e) = 0.75 \) veh/s, clearing the 19 extra vehicles in
+about 25 s. With the 76 s plan used on the events page, the opposing approach is red for 40 s, which
+builds most of the 48 s the queue needs to fill, and the following 33 s green clears it in
+about 25 s, three-quarters of the phase. That fill-and-drain rhythm is what gives the
+network its visible pulse.

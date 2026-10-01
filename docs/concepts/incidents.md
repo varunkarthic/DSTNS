@@ -1,146 +1,189 @@
-# Incident Subsystem Architecture & Physics Coupling
+# Incidents
 
-The Incident Subsystem in DSTNS introduces first-class, deterministic, spatiotemporally distributed disruption events to the urban road network. Incidents model real-world disruptions such as road closures, traffic accidents, heavy congestion, vehicle breakdowns, construction restrictions, and infrastructure failures.
+An incident is a planned disruption of one directed road segment for a bounded
+time: a crash, a breakdown, a spill, a bottleneck or a closure. Incidents are
+chosen from the seed when the scenario is compiled, so the same seed always has
+the same incidents at the same times on the same roads. This page covers how they
+are planned, the probabilities involved, how they act on the traffic model, and
+how to observe them.
 
----
+## Guarantees
 
-## 1. Core Objectives & Invariants
+| Property | Statement |
+|---|---|
+| Deterministic | Drawn only from the `incidents` sub-seed; the same seed gives identical incidents |
+| Minimum count | At least **4** per day, more for a long playback (see below) |
+| Spread across the day | Incidents are assigned to three time bands in rotation, so a day is never all morning |
+| Valid targets | Only traversable edges: a one-way road's synthetic reverse is never chosen |
+| Composable | Overlapping incidents on one edge combine without clobbering each other |
+| Reversible | When an incident ends, any others still active on that edge keep acting |
 
-1. **Deterministic Scheduling**: Incidents are generated strictly via the domain-separated `incident_rng` (`Seed128::derive("incidents")`). Identical seeds produce bit-for-bit identical incident schedules.
-2. **Minimum Incident Guarantee**: A standard scenario guarantees at least $\ge 4$ incidents (configurable via `ScenarioConfig::minimum_incidents`, defaulting to 4).
-3. **Temporal Distribution**: Incidents are scheduled deterministically across the virtual day, partitioned into early ($[3600, 21600)$), midday ($[21600, 50400)$), and late ($[50400, 75600)$) slots.
-4. **Valid Topological Targeting**: Incidents only target traversable edges (length $> 10\text{m}$, valid endpoints $u \neq v$, non-zero speed limits).
-5. **Physical Simulation Effects**:
-   - **Road Closure**: Forces `incident_closed = true`, preventing routing and traffic flow.
-   - **Congestion / Accident**: Attenuates `incident_speed_multiplier` (e.g. $0.20 \times - 0.40 \times$).
-   - **Restriction**: Attenuates `incident_capacity_multiplier` (e.g. $0.50 \times$).
-6. **Robust Overlapping Resolution**: Multiple concurrent incidents on the same edge combine cleanly without clobbering base state. When one incident resolves, active effects from remaining incidents persist.
+## Planning
 
----
+`ScenarioCompiler::plan_incidents` (`src/scenario.cpp`) runs once per compile.
 
-## 2. Incident Data Model
+### How many
 
-Defined in `include/dstns/model.hpp`:
+\[
+n \;=\; \max\!\Big( n_{\min},\; \max\!\big(4,\; \lfloor T_P / 600 \rfloor\big) \Big)
+\]
+
+where \( T_P \) is the playback duration in seconds and \( n_{\min} \) is
+`min_incidents` (default 4). With the default one-hour day, \( n = 6 \); at one
+minute, \( n = 4 \).
+
+### When
+
+Incident \( i \) is assigned to a band by \( i \bmod 3 \), so bands rotate and each
+gets about a third of the incidents:
+
+| Band | \( i \bmod 3 \) | Fraction of the day | Clock time (24 h) |
+|---|---|---|---|
+| Early | 0 | \( [0.08,\ 0.35) \) | 01:55 to 08:23 |
+| Midday | 1 | \( [0.35,\ 0.65) \) | 08:23 to 15:36 |
+| Late | 2 | \( [0.65,\ 0.92) \) | 15:36 to 22:04 |
+
+Within its band \( [a, b) \), the start is uniform, and the duration is 15 to 45
+minutes:
+
+\[
+t_{\text{start}} = \Big\lfloor 86400\,\big(a + (b - a)\,u\big) \Big\rfloor, \qquad
+\Delta = 900 + X, \;\; X \sim \mathcal{U}\{0, \dots, 1800\}, \qquad
+t_{\text{end}} = \min\big(86400,\; t_{\text{start}} + \Delta\big)
+\]
+
+so \( \mathbb{E}[\Delta] = 1800 \) s (30 minutes). \( u \) is a uniform draw and
+\( X \) a bounded draw, both from the incident's own address, so each incident's
+time is independent of the others.
+
+### Where and what
+
+The edge is uniform over the eligible edges (those whose direction is allowed),
+and the type is uniform over five types:
+
+\[
+P(\text{edge} = e) = \frac{1}{|E_{\text{eligible}}|}, \qquad P(\text{type}) = \tfrac15 \text{ each}
+\]
 
 ```cpp
-enum class IncidentType : std::uint8_t {
-    RoadClosure = 0,
-    Accident,
-    Congestion,
-    VehicleBreakdown,
-    TemporaryRestriction,
-    InfrastructureFailure,
-};
-
-enum class IncidentLifecycle : std::uint8_t {
-    Scheduled = 0,
-    Active,
-    Resolved,
-    Cancelled,
-};
-
-struct Incident {
-    std::uint64_t id{0};
-    IncidentType type{IncidentType::RoadClosure};
-    IncidentLifecycle lifecycle{IncidentLifecycle::Scheduled};
-    EdgeId target_edge{0};
-    NodeId from_node{0};
-    NodeId to_node{0};
-    std::uint32_t start_time_s{0};
-    std::uint32_t end_time_s{0};
-    double speed_multiplier{1.0};
-    double capacity_multiplier{1.0};
-    bool closes_road{false};
-    std::string description{};
-};
+const auto edge_idx = rng.bounded({RngDomain::Incidents, i, 2, 0}, eligible_edges.size());
+const auto type     = static_cast<IncidentType>(rng.bounded({RngDomain::Incidents, i, 3, 0}, 5));
 ```
 
----
+Each draw has its own *purpose* number (0 start, 1 duration, 2 edge, 3 type), so the
+four quantities of incident \( i \) are independent, and adding a fifth quantity later
+would not disturb the existing four.
 
-## 3. Dynamic Edge State Augmentation
+## Types and effects
 
-In `EdgeDynamic`:
-- `double incident_speed_multiplier{1.0};`
-- `double incident_capacity_multiplier{1.0};`
-- `bool incident_closed{false};`
+| Type | Speed multiplier \( m_v \) | Capacity multiplier \( m_C \) | Closes road | News severity |
+|---|---|---|---|---|
+| Road closure | 0 | 0 | yes | alert |
+| Accident | 0.35 | 0.40 | no | warning |
+| Congestion bottleneck | 0.45 | 0.50 | no | info |
+| Vehicle breakdown | 0.55 | 0.60 | no | warning |
+| Hazard spill | 0.20 | 0.25 | no | alert |
 
-During each simulation tick `SimulationEngine::physics_step()`:
-1. Every edge's incident fields are reset to default neutral values (`speed_mult = 1.0`, `cap_mult = 1.0`, `closed = false`).
-2. The engine evaluates all active incidents (`start_time_s <= virtual_time_s < end_time_s`).
-3. For overlapping incidents on the same edge, multipliers compose conservatively:
-   $$\text{speed\_mult} = \min(\text{speed\_mult}, \text{inc.speed\_multiplier})$$
-   $$\text{cap\_mult} = \min(\text{cap\_mult}, \text{inc.capacity\_multiplier})$$
-   $$\text{closed} = \text{closed} \lor \text{inc.closes\_road}$$
-4. The effective edge speed is modulated:
-   $$v_{\text{eff}} = v_{\text{base}} \times f_{\text{weather}} \times f_{\text{flood}} \times f_{\text{incident\_speed}} \times (1 - C)^{\alpha}$$
-   If `incident_closed` or `is_closed` is true, $v_{\text{eff}} = 0$.
+While \( t_{\text{start}} \le t < t_{\text{end}} \) the multipliers enter the traffic
+model's target speed and capacity (see [Mathematical
+model](mathematical-model.md#speed-and-capacity)):
 
----
+\[
+v^{\text{target}}_e = v^{\text{free}}_e \cdot m^{\text{sig}} \cdots \cdot m^{\text{inc}}_v,
+\qquad
+C^{\text{eff}}_e = C_e \cdot m^{\text{sig}} \cdots \cdot m^{\text{inc}}_C
+\]
 
-## 4. Lifecycle Transitions & Event Logging
+### Overlap
 
-When an incident transitions state:
-- **`Scheduled -> Active`**: Triggered when $t_{\text{sim}} \ge t_{\text{start}}$. The engine emits a telemetry news item:
-  ```json
-  {
-    "category": "INCIDENT_ACTIVATED",
-    "headline": "INCIDENT_ACTIVATED: RoadClosure on edge 42 (Node 10 -> Node 15)",
-    "priority": 2
-  }
-  ```
-- **`Active -> Resolved`**: Triggered when $t_{\text{sim}} \ge t_{\text{end}}$. The engine emits:
-  ```json
-  {
-    "category": "INCIDENT_RESOLVED",
-    "headline": "INCIDENT_RESOLVED: RoadClosure on edge 42 restored",
-    "priority": 1
-  }
-  ```
+Each physics step resets an edge's incident multipliers to 1 and then folds in every
+active incident, taking the minimum, so the most severe wins and nothing is
+double-counted:
 
----
+\[
+m^{\text{inc}}_v(e, t) = \min_{i \,\in\, \mathcal{A}(e, t)} m_{v,i}, \qquad
+\text{closed}(e, t) = \bigvee_{i \,\in\, \mathcal{A}(e, t)} \text{closes}_i
+\]
 
-## 5. API Endpoints
+where \( \mathcal{A}(e, t) \) is the set of incidents active on edge \( e \) at time
+\( t \).
 
-### 1. Dedicated Incidents View: `GET /api/v1/view/incidents`
-Returns the complete scenario catalog of incidents with current lifecycles:
-```json
-{
-  "ok": true,
-  "data": {
-    "total_incidents": 4,
-    "active_count": 1,
-    "incidents": [
-      {
-        "id": 1,
-        "type": "RoadClosure",
-        "lifecycle": "Active",
-        "target_edge": 42,
-        "from_node": 10,
-        "to_node": 15,
-        "start_time_s": 7200,
-        "end_time_s": 10800,
-        "speed_multiplier": 0.0,
-        "capacity_multiplier": 0.0,
-        "closes_road": true,
-        "description": "Emergency road closure due to structural hazard"
-      }
-    ]
-  }
+```cpp
+// every physics step
+es.incident_speed_multiplier = 1.0;  es.incident_capacity_multiplier = 1.0;  es.incident_closed = false;
+for (const auto& inc : sc.incidents) {
+    if (virtual_s_ >= inc.start_virtual_s && virtual_s_ < inc.end_virtual_s) {
+        es.incident_speed_multiplier    = std::min(es.incident_speed_multiplier,    inc.speed_multiplier);
+        es.incident_capacity_multiplier = std::min(es.incident_capacity_multiplier, inc.capacity_multiplier);
+        if (inc.closed) es.incident_closed = true;
+    }
 }
 ```
 
-### 2. State Snapshot Integration: `GET /api/v1/view/snapshot`
-The real-time snapshot contains the `active_incidents` array containing all currently active incidents with edge and node context.
+Recomputing from scratch every step, rather than undoing an incident when it ends,
+is what makes overlap safe: there is no state to restore, and seeking backwards
+needs no special handling.
 
----
+## Probabilities worth knowing
 
-## 6. Testing & Invariant Verification
+Because the type is uniform and independent, the chance that a day has **no** road
+closure at all is
 
-- **Unit Tests (`tests/unit/test_main.cpp`)**:
-  - `IncidentSubsystem_MinimumCount`: Confirms $\ge 4$ incidents are generated across diverse seeds.
-  - `IncidentSubsystem_TemporalDistribution`: Verifies incidents populate early, midday, and late day buckets.
-  - `IncidentSubsystem_EdgeResolution`: Verifies edge multipliers correctly attenuate and restore upon resolution.
-- **Property Invariants (`tests/property/property_tests.cpp`)**:
-  - Valid edge IDs ($< |E|$), valid nodes ($< |V|$), $t_{\text{start}} < t_{\text{end}}$, multipliers in $[0, 1]$.
-- **API Smoke Tests (`tests/api/api_smoke.py`)**:
-  - Validates schema and fields for `/api/v1/view/incidents` and `snapshot.data.active_incidents`.
+\[
+P(\text{no closure}) = \left(\tfrac45\right)^{n}
+\]
+
+| \( n \) | Meaning | \( P(\text{no closure}) \) | P(at least one) |
+|---|---|---|---|
+| 4 | Minimum | 0.410 | 0.590 |
+| 6 | One-hour day | 0.262 | 0.738 |
+
+So about three in four default days include a full road closure somewhere.
+
+## Observing incidents
+
+| Where | What |
+|---|---|
+| `GET /api/v1/view/incidents` | Every incident of the day, with `active` for the current time |
+| Snapshot `active_incidents` | Those active now, with the edge's live congestion, speed, `remaining_s` |
+| News | `INCIDENT_ACTIVATED` and `INCIDENT_RESOLVED`, at their scheduled times |
+| The observer | The **Incidents** list and the road colouring (a closure is drawn closed) |
+
+```bash
+curl -s localhost:8090/api/v1/view/incidents | python3 -c '
+import json, sys
+fmt = lambda s: "%02d:%02d" % (s // 3600, s % 3600 // 60)
+for i in json.load(sys.stdin)["data"]["items"]:
+    flag = "ACTIVE" if i["active"] else ""
+    print(fmt(i["start_virtual_s"]) + "-" + fmt(i["end_virtual_s"]), i["type"].ljust(18), "edge", i["edge_id"], flag)'
+```
+
+```text
+06:37-07:10 road_closure       edge 137
+07:32-08:14 vehicle_breakdown  edge 776
+09:01-09:38 congestion         edge 455
+17:13-17:39 vehicle_breakdown  edge 150
+...
+```
+
+Each line is one incident in start order (shown for seed 382923 on the bundled
+map). The script converts virtual seconds to `HH:MM` and marks the incidents that
+are active at the current time.
+
+An incident record:
+
+```json
+{ "incident_id": 3, "type": "accident",
+  "description": "Multi-vehicle collision: lane blocked, emergency services on scene",
+  "edge_id": 1881, "node_id": 912,
+  "start_virtual_s": 30240, "end_virtual_s": 31980,
+  "speed_multiplier": 0.35, "capacity_multiplier": 0.40,
+  "closed": false, "active": true }
+```
+
+## Disabling and testing
+
+Incidents are on by default (`ScenarioConfig::incidents`). They are replayed
+identically after any seek, because they are scheduled data and the effect is
+recomputed each step. The unit test "incidents minimum count and temporal spread"
+(`tests/unit/test_main.cpp`) checks the count and spread guarantees.

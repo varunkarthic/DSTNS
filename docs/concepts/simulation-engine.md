@@ -77,14 +77,77 @@ operator pause supersedes any outstanding guarded request.
 The engine loop wakes every 50 ms. While `RUNNING`, it computes where the
 clock should be from the wall-clock anchor and calls `step_to(target)`:
 
+\[
+r = \frac{86400}{T_P}\,k \quad \text{virtual seconds per wall second}, \qquad
+t_{\text{target}} = \min\Big(86400,\; t_{\text{anchor}} + \big\lfloor (\text{now} - w_{\text{anchor}})\, r \big\rfloor\Big)
+\]
+
+where \( T_P \) is the playback duration, \( k \) the applied tick rate, and
+\( (t_{\text{anchor}}, w_{\text{anchor}}) \) the virtual and wall times at the last
+play, pause, seek or rate change.
+
+```cpp
+const auto elapsed = std::chrono::duration<double>(now - anchor_wall_).count();
+const auto rate    = day_s / double(playback_duration_s) * tick_rate_;
+step_to(std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(elapsed * rate)));
 ```
-rate   = 86400 / playback_duration_s × tick_rate        virtual s per wall s
-target = min(86400, anchor_virtual_s + elapsed_wall_s × rate)
-```
+
+The target is recomputed from the **anchor** each wake rather than accumulated from
+the previous tick, so rounding down to a whole second never accumulates error: the
+fractional part is simply recomputed next time. A loop that wakes late (a busy
+machine) still lands on the right virtual time.
 
 `step_to` advances one virtual second at a time, calling `physics_step(1)`
 each time and capturing a checkpoint at every multiple of 900 s. Reaching
 86,400 while `RUNNING` transitions to `COMPLETED`.
+
+```cpp
+void SimulationEngine::step_to(std::uint32_t target) {
+    target = std::min(target, day_s);
+    while (virtual_s_ < target) {
+        const auto to_checkpoint = 900 - (virtual_s_ % 900);
+        const auto dt = std::min({std::uint32_t{1}, target - virtual_s_, to_checkpoint});
+        virtual_s_ += dt;
+        physics_step(dt);
+        if (virtual_s_ % 900 == 0) capture_checkpoint();      // exactly on each 900 s boundary
+    }
+    if (virtual_s_ >= day_s && lifecycle_ == Lifecycle::Running) transition(Lifecycle::Completed);
+}
+```
+
+The step is always 1 s here; the `to_checkpoint` term exists so that a step can never
+straddle a checkpoint boundary even if the step size were ever changed.
+
+### Worked example: a clock
+
+A one-hour day (\( T_P = 3600 \)) at \( k = 2 \):
+
+\[
+r = \frac{86400}{3600} \cdot 2 = 48\ \text{virtual s per wall s}
+\]
+
+A whole day then takes \( 86400 / 48 = 1800 \) s, thirty minutes. The loop wakes every
+50 ms, so each wake covers \( 48 \times 0.05 = 2.4 \) virtual seconds: two or three
+whole steps. After 7.5 wall seconds the target is
+\( \lfloor 7.5 \times 48 \rfloor = 360 \) seconds past the anchor, which is 00:06:00.
+
+### Worked example: a seek
+
+Checkpoints sit at multiples of 900 s, so a target \( t \) restores checkpoint
+\( \lfloor t / 900 \rfloor \) and replays \( t \bmod 900 \) steps:
+
+\[
+n_{\text{replay}} = t \bmod 900 \in [0, 899], \qquad
+T_{\text{seek}} \approx n_{\text{replay}}\, T_{\text{step}}
+\]
+
+| Seek to | \( t \) | Checkpoint | Replay | Cost at 0.27 ms/step |
+|---|---|---|---|---|
+| 08:00:00 | 28,800 | 32 (at 28,800) | 0 | restore only |
+| 08:07:30 | 29,250 | 32 | 450 | 0.12 s |
+| 08:14:59 | 29,699 | 32 | 899 | 0.24 s (worst case) |
+
+Going *forward* needs no restore: the engine just simulates the difference.
 
 `catch_up_to_wall_clock()` runs before anything that changes the rate (a rate
 request, its undo or redo, an ASB rate cap), so time already elapsed at the

@@ -143,6 +143,60 @@ Connected Radial Frontier Growth builds a connected district around the anchor:
 The result is a connected district of real streets that grows outward evenly
 from the anchor, rather than a rectangle cut through blocks.
 
+### Mathematics of district growth
+
+CRFG is Dijkstra's algorithm run from the root, stopped after \( n^\ast \) nodes are
+settled:
+
+\[
+n^{\ast} = \min\big(\texttt{max\_nodes},\; \max(\sigma,\, 200),\; \texttt{district\_nodes}\big), \qquad
+\sigma = \begin{cases} \lfloor 0.6\, V_{\text{ref}} \rfloor & V_{\text{ref}} > 250 \\ V_{\text{ref}} & \text{otherwise} \end{cases}
+\]
+
+where \( V_{\text{ref}} \) is the number of road nodes in the extract. The district is the
+set of the \( n^\ast \) nodes with the smallest road-network distance \( d(\text{root}, v) \),
+so it is the ball of radius \( \rho \) around the root in the road metric, with \( \rho \)
+chosen to contain \( n^\ast \) nodes:
+
+\[
+D = \{\, v \;:\; d(\text{root}, v) \le \rho \,\}, \qquad |D| = n^{\ast}
+\]
+
+The loop, condensed from `src/osm.cpp`:
+
+```cpp
+while (!pq.empty() && selected.size() < target_nodes) {
+    const auto top = pq.top();  pq.pop();
+    if (finalized.contains(top.osm_id)) continue;           // stale queue entry
+    finalized.insert(top.osm_id);  selected.push_back(top.osm_id);
+    for (auto v : adjacency[top.osm_id]) {
+        const double candidate = top.dist + segment_length(top.osm_id, v);
+        if (!finalized.contains(v) && (known == distance.end() || candidate < known->second)) {
+            distance[v] = candidate;  pq.push({candidate, v});
+        }
+    }
+}
+```
+
+With a binary heap the cost is \( O\big((n^\ast + E_D)\log n^\ast\big) \) for the \( E_D \)
+edges touched, so growing a 3,000-node district from a million-node extract does not
+examine the rest of the city. Ties in distance are broken by OSM ID, so the same
+extract and anchor always produce the same set.
+
+### The nearest road node
+
+The root is the candidate nearest the anchor \( (\varphi_a, \lambda_a) \), compared by
+squared planar distance with the longitude scaled by \( \cos\varphi_a \):
+
+\[
+\Delta_y = \varphi - \varphi_a, \quad \Delta_x = (\lambda - \lambda_a)\cos\varphi_a, \quad
+\text{root} = \arg\min_{v}\; \big(\Delta_x^2 + \Delta_y^2\big)
+\]
+
+Squared distance avoids a square root per candidate and orders candidates
+identically. The anchor itself comes from the seed; see
+[Deterministic seeding](deterministic-seeding.md#worked-example-seed-42).
+
 ## Canonical numbering and projection
 
 Selected nodes are sorted by OSM ID and numbered from 0, so the same extract
@@ -159,6 +213,42 @@ These are true metres from the origin; the map sourcing suite checks them
 against haversine ground truth to within 0.13%. Any visual compression is the
 client's business and never feeds back into the model. See [Graph
 model](graph-model.md).
+
+### Mathematics of the projection
+
+The projection is **local equirectangular** about the district's mean position
+\( (\varphi_0, \lambda_0) \), with one fixed longitude scale:
+
+\[
+x = (\lambda - \lambda_0)\; m\cos\varphi_0, \qquad y = (\varphi - \varphi_0)\; m, \qquad m = 111{,}320\ \text{m/degree}
+\]
+
+```cpp
+n.position.y_m = (r.lat - lat0) * 111320.0;
+n.position.x_m = (r.lon - lon0) * 111320.0 * std::cos(lat0 * 3.141592653589793 / 180.0);
+```
+
+It is exact along the central meridian and parallel, and drifts away from them
+because a degree of longitude shrinks with latitude as \( \cos\varphi \), while the
+projection uses the constant \( \cos\varphi_0 \). To first order the relative error in
+an east-west distance at latitude \( \varphi_0 + \Delta\varphi \) is
+
+\[
+\varepsilon \;\approx\; \tan\varphi_0\;\Delta\varphi
+\]
+
+For a district reaching 2.5 km north or south of its centre (\( \Delta\varphi = 2500/111320
+= 0.0225^\circ = 3.9 \times 10^{-4} \) rad), this gives
+
+| Latitude \( \varphi_0 \) | 0° | 30° | 52° | 60° |
+|---|---|---|---|---|
+| \( \varepsilon \) at 2.5 km | 0 | 0.023% | 0.050% | 0.068% |
+
+The map sourcing suite compares modelled distances with haversine ground truth on the
+bundled district and measures a worst-case error of **0.126%**
+(`dstns_map_tests`), within the 1% budget it asserts. The error is a property of the
+*picture*, not of the physics: lengths, speeds and capacities are all computed in the
+same projected metres, so they are consistent with each other.
 
 ## Edges
 
