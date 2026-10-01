@@ -3,3 +3,17 @@
 {#- The navigation tabs live inside the header (partials/header.html), so the
     separate tab row Material would add under it is left empty. -#}
 {% block tabs %}{% endblock %}
+
+{#- The home page is titled "DSTNS | Docs" in the browser tab; other pages keep
+    "Page - DSTNS". -#}
+{% block htmltitle %}
+  {% if page.is_homepage %}
+    <title>DSTNS | Docs</title>
+  {% elif page.meta and page.meta.title %}
+    <title>{{ page.meta.title | striptags }} - {{ config.site_name }}</title>
+  {% elif page.title and not page.is_homepage %}
+    <title>{{ page.title | striptags }} - {{ config.site_name }}</title>
+  {% else %}
+    <title>{{ config.site_name }}</title>
+  {% endif %}
+{% endblock %}
