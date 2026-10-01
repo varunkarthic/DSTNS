@@ -1366,6 +1366,12 @@ body:has(.reduce-motion) .floating {
 
 /* ---- Dialogs and About -------------------------------------------------- */
 
+/* The workspace is its own stacking context (isolation: isolate), so a dialog
+   inside it paints beneath the header (z-index 50) whatever its own z-index:
+   the About card's logo slid under the top bar. While a dialog is open, lift
+   the workspace above the header so the scrim covers the whole window. */
+.workspace:has(> .scrim) { z-index: var(--z-scrim); }
+
 .dialog {
   border-radius: var(--r-xl);
   background: var(--glass-strong);

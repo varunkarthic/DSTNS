@@ -928,8 +928,22 @@ describe("dialogs and suspension", () => {
     fireEvent.click(licence);
     expect(licence).toHaveAttribute("aria-expanded", "true");
     expect(within(dialog).getByRole("button", { name: "Copy seed" })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("Berlin, Germany");
+    expect(dialog).toHaveTextContent("52.505000, 13.423500");
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Deterministic Spatiotemporal/ })).not.toBeInTheDocument());
+  });
+
+  it("describes a pinned map in About rather than inventing coordinates", async () => {
+    // A map given with --osm-file has no seed-selected city; the core reports
+    // an empty city and a zero anchor, which is not a place.
+    mockApi({ topology: { ...topology, location: { city: "", country: "", anchor_lat: 0, anchor_lon: 0, city_extent_m: 0, downloaded: false } } });
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByLabelText("About DSTNS, licence and source"));
+    const dialog = await screen.findByRole("dialog", { name: /Deterministic Spatiotemporal Transport Network Simulator/ });
+    expect(dialog).toHaveTextContent("Pinned map");
+    expect(dialog).not.toHaveTextContent("0.000000, 0.000000");
   });
 
   it("announces completion and offers the report", async () => {
