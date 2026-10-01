@@ -29,6 +29,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     result = await response.json();
   } catch {
+    // A proxy or the server's own 404 may answer an error without JSON; the
+    // status says more about that than the body does.
+    if (!response.ok) throw new Error(`Request failed (${response.status})`);
     throw new Error("The simulator returned an unreadable response.");
   }
   if (!response.ok)

@@ -34,6 +34,10 @@ describe("Observer transport", () => {
     );
     await expect(api.tick(0)).rejects.toThrow("bad tick");
   });
+  it("reports the status of an error that has no JSON body", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("Bad Gateway", { status: 502 }));
+    await expect(api.status()).rejects.toThrow("Request failed (502)");
+  });
   it("rejects malformed responses", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("<html>"));
     await expect(api.snapshot()).rejects.toThrow("unreadable");
