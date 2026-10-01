@@ -21,7 +21,9 @@ copyright: Copyright &copy; 2026 Varun Karthic &middot; AGPL-3.0-or-later &middo
 
 theme:
   name: material
-  logo: assets/logo.svg
+  # The wordmark is the whole brand in the header; the site name text is hidden
+  # in extra.css so the logo is not repeated as plain type.
+  logo: assets/logo-wordmark.svg
   favicon: assets/logo.svg
   icon:
     repo: fontawesome/brands/github
@@ -191,6 +193,7 @@ nav:
       - Building from source: development/building.md
       - Testing: development/testing.md
       - Writing documentation: development/documentation.md
+      - Maintainer guide: development/maintainers.md
       - Dependency maintenance: development/dependencies.md
       - Code evaluation (Oct 2026): development/audit-2026-10.md
       - Components:

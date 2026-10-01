@@ -1,59 +1,222 @@
-/* DSTNS palette: the observer's navy and cyan, carried into the docs. */
+/* ==========================================================================
+   DSTNS documentation theme
+   Palette taken from the observer: deep navy surfaces, one cyan accent.
+   ========================================================================== */
+
 :root {
-  --md-primary-fg-color: #0b1c28;
-  --md-primary-fg-color--light: #12293a;
-  --md-primary-fg-color--dark: #050f17;
-  --md-primary-bg-color: #edf1f4;
-  --md-accent-fg-color: #22c7e0;
+  --dstns-navy-900: #050f17;
+  --dstns-navy-800: #07131c;
+  --dstns-navy-700: #0b1c28;
+  --dstns-navy-600: #12293a;
+  --dstns-ink: #edf1f4;
+
+  --md-primary-fg-color: var(--dstns-navy-700);
+  --md-primary-fg-color--light: var(--dstns-navy-600);
+  --md-primary-fg-color--dark: var(--dstns-navy-900);
+  --md-primary-bg-color: var(--dstns-ink);
+  --md-primary-bg-color--light: rgb(237 241 244 / 70%);
 }
+
 [data-md-color-scheme="slate"] {
-  --md-default-bg-color: #07131c;
-  --md-default-bg-color--light: #0b1c28;
+  --dstns-accent: #4fd6ea;
+  --dstns-accent-rgb: 79 214 234;
+  --dstns-on-accent: #04121b;
+  --md-default-bg-color: var(--dstns-navy-800);
+  --md-default-bg-color--light: var(--dstns-navy-700);
   --md-code-bg-color: #0d2230;
-  --md-typeset-a-color: #4fd6ea;
-  --md-accent-fg-color: #4fd6ea;
+  --md-typeset-a-color: var(--dstns-accent);
+  --md-accent-fg-color: var(--dstns-accent);
+  --md-accent-bg-color: var(--dstns-on-accent);
 }
+
 [data-md-color-scheme="default"] {
-  --md-typeset-a-color: #0a7f93;
-  --md-accent-fg-color: #0a7f93;
+  /* Darker than the observer's cyan so text on the pale hover tint keeps
+     at least 4.5:1 against white. */
+  --dstns-accent: #086578;
+  --dstns-accent-rgb: 8 101 120;
+  --dstns-on-accent: #ffffff;
+  --md-typeset-a-color: #086578;
+  --md-accent-fg-color: #086578;
+  --md-accent-bg-color: #ffffff;
 }
-.md-header__button.md-logo img { height: 1.5rem; }
-/* Screenshots: framed like the observer's own panels. */
+
+/* --------------------------------------------------------------------------
+   Header: the wordmark is the site title. Material also prints the site name
+   as text; hiding it avoids repeating the logo as plain type.
+   -------------------------------------------------------------------------- */
+.md-header__button.md-logo {
+  padding: 0.3rem 0.2rem;
+  margin-left: 0.2rem;
+}
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 1.45rem;
+  width: auto;
+}
+.md-header__title { visibility: hidden; }
+/* Material hides the header logo on narrow screens and shows the site name
+   instead. With the name hidden, keep the wordmark visible there too. */
+@media screen and (max-width: 76.1875em) {
+  .md-header__button.md-logo { display: block; }
+  /* Menu button first, then the wordmark, as on every other mobile header. */
+  .md-header__button[for="__drawer"] { order: -1; }
+  .md-header__title { flex-grow: 1; }
+}
+/* The mobile drawer prints the name beside the logo; collapse the text only. */
+.md-nav--primary > .md-nav__title { font-size: 0; }
+.md-nav--primary > .md-nav__title .md-logo img { height: 1.6rem; width: auto; }
+.md-nav--primary > .md-nav__title .md-nav__button.md-logo { margin: 0; }
+
+/* --------------------------------------------------------------------------
+   Buttons. Every state sets its own text and fill, so a hover can never leave
+   a label the same colour as its background. Only colours, shadow and a 1px
+   lift are animated.
+   -------------------------------------------------------------------------- */
+.md-typeset .md-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.6em 1.35em;
+  border: 1px solid rgb(var(--dstns-accent-rgb) / 55%);
+  border-radius: 8px;
+  background-color: transparent;
+  color: var(--dstns-accent);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+.md-typeset .md-button:hover,
+.md-typeset .md-button:focus-visible {
+  background-color: rgb(var(--dstns-accent-rgb) / 14%);
+  border-color: var(--dstns-accent);
+  color: var(--dstns-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -8px rgb(var(--dstns-accent-rgb) / 55%);
+}
+.md-typeset .md-button:active {
+  transform: translateY(0);
+  box-shadow: none;
+  background-color: rgb(var(--dstns-accent-rgb) / 22%);
+}
+.md-typeset .md-button:focus-visible {
+  outline: 2px solid var(--dstns-accent);
+  outline-offset: 2px;
+}
+
+.md-typeset .md-button--primary {
+  background-color: var(--dstns-accent);
+  border-color: var(--dstns-accent);
+  color: var(--dstns-on-accent);
+}
+.md-typeset .md-button--primary:hover,
+.md-typeset .md-button--primary:focus-visible {
+  background-color: #8be4f1;
+  border-color: #8be4f1;
+  color: var(--dstns-on-accent);
+}
+.md-typeset .md-button--primary:active {
+  background-color: #3cc3d8;
+  border-color: #3cc3d8;
+  color: var(--dstns-on-accent);
+}
+[data-md-color-scheme="default"] .md-typeset .md-button--primary {
+  background-color: var(--dstns-navy-700);
+  border-color: var(--dstns-navy-700);
+  color: var(--dstns-ink);
+}
+[data-md-color-scheme="default"] .md-typeset .md-button--primary:hover,
+[data-md-color-scheme="default"] .md-typeset .md-button--primary:focus-visible {
+  background-color: var(--dstns-navy-600);
+  border-color: var(--dstns-navy-600);
+  color: var(--dstns-ink);
+}
+[data-md-color-scheme="default"] .md-typeset .md-button--primary:active {
+  background-color: var(--dstns-navy-900);
+  border-color: var(--dstns-navy-900);
+  color: var(--dstns-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-typeset .md-button,
+  .md-typeset .grid.cards > ul > li { transition: none; transform: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Cards
+   -------------------------------------------------------------------------- */
+.md-typeset .grid.cards > ul > li {
+  border-radius: 10px;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.md-typeset .grid.cards > ul > li:hover {
+  border-color: rgb(var(--dstns-accent-rgb) / 70%);
+  box-shadow: 0 10px 28px -14px rgb(var(--dstns-accent-rgb) / 45%);
+  transform: translateY(-2px);
+}
+.md-typeset .grid.cards > ul > li > p:first-child strong { font-size: 1.02em; }
+
+/* --------------------------------------------------------------------------
+   Content
+   -------------------------------------------------------------------------- */
 .md-typeset img.screenshot {
   border-radius: 10px;
   box-shadow: 0 12px 40px -12px rgb(0 0 0 / 55%);
   border: 1px solid rgb(127 160 180 / 25%);
 }
-/* Wide reference tables scroll rather than squeeze. */
 .md-typeset__table { min-width: 100%; }
 .md-typeset table:not([class]) { font-size: 0.72rem; }
-/* Mermaid diagrams centred and allowed to use the full width. */
 .md-typeset .mermaid { text-align: center; }
-/* Hero on the home page. */
-.dstns-hero { text-align: center; margin: 1.5rem 0 2rem; }
-.dstns-hero img { max-width: 360px; width: 70%; }
-.dstns-hero p { font-size: 1.05rem; opacity: 0.85; margin-top: 0.6rem; }
+.md-typeset .arithmatex { overflow-x: auto; overflow-y: hidden; }
 
-/* Buttons: the primary colour is the page background in dark mode, so the
-   outlined buttons take the accent instead. */
-[data-md-color-scheme="slate"] .md-typeset .md-button {
-  color: var(--md-accent-fg-color);
-  border-color: var(--md-accent-fg-color);
+/* --------------------------------------------------------------------------
+   Home page
+   -------------------------------------------------------------------------- */
+/* The page-edit icons float into the headline; the home page has no use for them. */
+.md-content:has(.dstns-hero) .md-content__button { display: none; }
+.dstns-hero { text-align: center; padding: 1.4rem 0 0.6rem; }
+.dstns-hero h1 {
+  margin: 0 auto 0.6rem;
+  max-width: 22ch;
+  font-size: clamp(1.7rem, 4.2vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  color: var(--dstns-ink);
 }
-[data-md-color-scheme="slate"] .md-typeset .md-button--primary {
-  background-color: var(--md-accent-fg-color);
-  border-color: var(--md-accent-fg-color);
-  color: #04121b;
+[data-md-color-scheme="default"] .dstns-hero h1 { color: var(--dstns-navy-700); }
+.dstns-hero .dstns-lede {
+  max-width: 68ch;
+  margin: 0 auto 1.4rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--md-default-fg-color--light);
 }
-[data-md-color-scheme="default"] .md-typeset .md-button--primary {
-  background-color: #0b1c28;
-  border-color: #0b1c28;
-  color: #edf1f4;
+.dstns-hero .dstns-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; }
+.dstns-hero .dstns-actions .md-button { margin: 0; }
+
+.dstns-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.6rem;
+  margin: 1.6rem 0 2rem;
 }
-.md-typeset h1.dstns-title {
+.dstns-stats > div {
+  padding: 0.8rem 0.6rem;
   text-align: center;
-  font-size: 1.15rem;
-  font-weight: 600;
-  margin: 1rem 0 0;
-  order: 2;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 10px;
 }
+.dstns-stats strong {
+  display: block;
+  font-size: 1.45rem;
+  line-height: 1.2;
+  color: var(--dstns-accent);
+}
+.dstns-stats span { font-size: 0.68rem; color: var(--md-default-fg-color--light); }
