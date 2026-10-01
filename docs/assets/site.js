@@ -63,3 +63,49 @@
   else document.addEventListener("DOMContentLoaded", soften);
   if (window.document$ && window.document$.subscribe) window.document$.subscribe(soften);
 })();
+
+// 3. Search highlights on the page a result opened. They show where the match is for
+//    about four seconds, then fade away so reading is not cluttered; Escape or a click
+//    dismisses them at once. The ?h= term is dropped from the address so a reload or a
+//    shared link does not bring them back.
+(function () {
+  var timer = null, fading = null;
+  function marks() { return document.querySelectorAll("mark[data-md-highlight]"); }
+  function unwrap() {
+    Array.prototype.forEach.call(marks(), function (m) {
+      var parent = m.parentNode;
+      while (m.firstChild) parent.insertBefore(m.firstChild, m);
+      parent.removeChild(m);
+      parent.normalize();
+    });
+    document.documentElement.classList.remove("dstns-hl-fading");
+  }
+  function fade() {
+    clearTimeout(timer);
+    if (!marks().length || fading) return;
+    document.documentElement.classList.add("dstns-hl-fading");
+    fading = setTimeout(function () { fading = null; unwrap(); }, 1300);
+  }
+  function start() {
+    clearTimeout(timer); clearTimeout(fading); fading = null;
+    document.documentElement.classList.remove("dstns-hl-fading");
+    try {
+      var url = new URL(location.href);
+      if (url.searchParams.has("h")) {
+        url.searchParams.delete("h");
+        history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+      }
+    } catch (e) { /* leave the address alone */ }
+    if (marks().length) timer = setTimeout(fade, 4000);
+  }
+  document.addEventListener("keydown", function (e) {
+    var search = document.getElementById("__search");
+    if (e.key === "Escape" && !(search && search.checked)) fade();
+  });
+  document.addEventListener("click", function (e) {
+    if (!(e.target.closest && e.target.closest(".md-search"))) fade();
+  });
+  if (document.readyState !== "loading") setTimeout(start, 0);
+  else document.addEventListener("DOMContentLoaded", function () { setTimeout(start, 0); });
+  if (window.document$ && window.document$.subscribe) window.document$.subscribe(function () { setTimeout(start, 0); });
+})();

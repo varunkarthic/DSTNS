@@ -1009,3 +1009,20 @@
 .md-skip:focus { transform: translate(-50%, 0); outline: 2px solid #4fd6ea; outline-offset: 2px; }
 /* The clear button sits above the input so it can be clicked. */
 .md-search__options { z-index: 4; }
+
+/* Matches highlighted on a page opened from search: the search panel's cyan tint,
+   fading out after a few seconds (site.js). */
+.md-typeset mark[data-md-highlight] {
+  background-color: rgb(79 214 234 / 22%);
+  color: inherit;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgb(79 214 234 / 35%);
+  transition: background-color 1.2s ease, box-shadow 1.2s ease;
+}
+[data-md-color-scheme="default"] .md-typeset mark[data-md-highlight] { background-color: rgb(8 101 120 / 16%); box-shadow: 0 0 0 1px rgb(8 101 120 / 30%); }
+.dstns-hl-fading .md-typeset mark[data-md-highlight] { background-color: transparent !important; box-shadow: 0 0 0 1px transparent !important; }
+
+/* While the search is open, only the results scroll: the page underneath stays put. */
+html:has(#__search:checked) { overflow: hidden; }
+html { scrollbar-gutter: stable; }
+.md-search__scrollwrap { overscroll-behavior: contain; }
