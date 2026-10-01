@@ -13,6 +13,6 @@ rendered interactively below. Download the description:
 !!! tip "Trying requests"
     "Try it out" sends requests to `http://127.0.0.1:8090`, so it works when a
     server is running on this machine. Starting runs needs the operator
-    credential (see [Security](../deployment/security.md#starting-runs-the-operator-credential)).
+    credential (see [Security](../deployment/security.md#operator-credential)).
 
 <swagger-ui src="openapi.yaml"/>

@@ -75,7 +75,7 @@ toggle them at run time through `PUT /api/v1/control/modules/{module}`.
 
 | Key | Default | Range | Read by | Meaning |
 |---|---|---|---|---|
-| `api.host` | `0.0.0.0` | address | CLI | Interface the server binds; `127.0.0.1` keeps it local |
+| `api.host` | `127.0.0.1` | address | CLI | Interface the server binds; the default keeps it local, `0.0.0.0` exposes it |
 | `api.port` | `8090` | [1, 65535] | CLI | Preferred port; the CLI picks the next free one if it is taken by something else |
 | `ui.port` | `5173` | | informational | The Vite dev server port is set in `ui-engine/vite.config.ts` |
 
@@ -126,7 +126,7 @@ dstns_server [--host ADDR] [--port 1-65535] [--logs DIR] [--maps DIR]
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--host` | `0.0.0.0` | Bind address |
+| `--host` | `127.0.0.1` | Bind address; `0.0.0.0` exposes the API to the network |
 | `--port` | `8090` | Listen port; values outside 1 to 65535 are refused |
 | `--logs` | `logs` | System log, SQLite journal, `operator.token`, `global_view.json` |
 | `--maps` | `data/maps` | Map cache swept at start-up |
@@ -138,7 +138,9 @@ dstns_server [--host ADDR] [--port 1-65535] [--logs DIR] [--maps DIR]
 | Variable | Read by | Effect |
 |---|---|---|
 | `DSTNS_OPERATOR_TOKEN` | server, CLI | Use this operator credential instead of generating one |
-| `DSTNS_ALLOWED_ORIGINS` | server | Comma-separated origins allowed to make state-changing requests besides the server's own. See [Security](../deployment/security.md#cross-site-request-forgery) |
+| `DSTNS_ALLOWED_HOSTS` | server | Comma-separated extra `Host` names accepted when the server is bound to loopback (the guard against DNS rebinding). See [Security](../deployment/security.md#host-check-dns-rebinding) |
+| `DSTNS_BIND` | Compose | Host address Compose publishes on (default `127.0.0.1`; `0.0.0.0` exposes the API to the network) |
+| `DSTNS_ALLOWED_ORIGINS` | server | Comma-separated origins allowed to make state-changing requests besides the server's own. See [Security](../deployment/security.md#origin-check-cross-site-request-forgery) |
 | `DSTNS_DISABLE_WORLD_REGENERATION` | server | `1` makes `/world/regenerate` return 403 |
 | `DSTNS_PYTHON` | server | Python interpreter for the map downloader (default `python3`) |
 | `DSTNS_OVERPASS_ENDPOINTS` | `fetch_osm.py` | Comma-separated Overpass API endpoints to try |

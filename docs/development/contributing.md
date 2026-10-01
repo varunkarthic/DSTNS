@@ -78,7 +78,7 @@ Include:
   `curl -s localhost:8090/api/v1/system/info`;
 - your platform and how you installed DSTNS (source or Docker).
 
-Security problems: see [Security](../deployment/security.md#reporting-a-problem).
+Security problems: see [Security](../deployment/security.md#reporting-a-vulnerability).
 
 ## Licence of contributions
 

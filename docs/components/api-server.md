@@ -60,5 +60,5 @@ they answer while a compilation holds the lock for a download.
 Every JSON response goes through `send`, which adds `ok` from the status and
 serialises with `dump_json` (refusing invalid UTF-8). Responses are gzip
 compressed when the client accepts it; a large topology shrinks several-fold.
-Default headers include `Cache-Control: no-store` and permissive CORS for
-reads. See [Security](../deployment/security.md).
+Default headers include `Cache-Control: no-store` and CORS granted only to the
+server's own origin and `DSTNS_ALLOWED_ORIGINS`. See [Security](../deployment/security.md).

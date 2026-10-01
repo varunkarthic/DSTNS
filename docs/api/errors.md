@@ -26,6 +26,7 @@ of failure always looks the same whichever route raised it.
 | 404 | Unknown route, or an unknown node or edge by ID |
 | 409 | The request is valid but the run's state does not allow it |
 | 410 | A retired route |
+| 421 | `Host` not accepted: DNS-rebinding guard on a loopback-bound server |
 | 500 | An unexpected failure, including SUMO failures |
 | 503 | The seed's map could not be downloaded; retryable |
 
@@ -38,7 +39,8 @@ of failure always looks the same whichever route raised it.
 | `INVALID_FIELD_TYPE` | 400 | A member has the wrong JSON type, e.g. a string where a number is expected |
 | `INVALID_REQUEST` | 400 | A value breaks a rule: out of range, an ID that does not fit 32 bits, a negative query number, an unknown module or catalog, a bad seed. See [Request validation](../deployment/security.md#request-validation) |
 | `CLI_START_REQUIRED` | 403 | `start` or `prepare` without the operator credential |
-| `CROSS_ORIGIN_FORBIDDEN` | 403 | A state-changing request from a browser page on another origin. See [Security](../deployment/security.md#cross-site-request-forgery) |
+| `CROSS_ORIGIN_FORBIDDEN` | 403 | A state-changing request from a browser page on another origin. See [Security](../deployment/security.md#origin-check-cross-site-request-forgery) |
+| `HOST_NOT_ALLOWED` | 421 | The server is bound to loopback and the `Host` header is not `localhost`, a `*.localhost` name or an IP address (DNS rebinding guard). Admit a name with `DSTNS_ALLOWED_HOSTS`. See [Security](../deployment/security.md#host-check-dns-rebinding) |
 | `WORLD_REGENERATION_DISABLED` | 403 | `DSTNS_DISABLE_WORLD_REGENERATION=1` is set |
 | `NOT_FOUND` | 404 | `/view/nodes/{id}` or `/view/edges/{id}` beyond the graph |
 | `LIFECYCLE_CONFLICT` | 409 | E.g. play when not paused, start while a run is active, a second regeneration, step at 24:00:00, seek while terminating, a stale playback guard or `expected_run_id`, SUMO without an active run |

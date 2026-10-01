@@ -104,4 +104,4 @@
 ??? question "Where do I report a bug?"
     [GitHub issues](https://github.com/varunkarthic/DSTNS/issues), with the
     seed, what you did, what you expected, and `logs/system.log`. Security
-    problems: see [Security](deployment/security.md#reporting-a-problem).
+    problems: see [Security](deployment/security.md#reporting-a-vulnerability).

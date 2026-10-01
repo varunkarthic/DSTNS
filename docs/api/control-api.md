@@ -3,7 +3,7 @@
 Acting on a running world: speed, day type, modules, roads, signals, rain and
 demand surges, with undo and redo. All routes are under `/api/v1/control`;
 every one except `tick-rate` needs a world (409 or 400 otherwise). They refuse cross-site browser requests (see
-[Security](../deployment/security.md#cross-site-request-forgery)), and errors follow
+[Security](../deployment/security.md#origin-check-cross-site-request-forgery)), and errors follow
 [API errors](errors.md).
 
 The observer uses only the tick rate. The other controls are for the CLI,
