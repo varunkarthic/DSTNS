@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""Start a DSTNS run inside the container.
+
+The operator CLI is how runs are started on a workstation; in a container this
+small helper does the same job: it reads the operator credential the server
+wrote, builds the start request from flags or DSTNS_* environment variables,
+and follows preparation (including the map download) until the run is live.
+
+    docker compose exec dstns dstns-run --seed 382923
+    docker compose exec dstns dstns-run --seed 42 --day-type weekend --speed 2
+    docker compose exec dstns dstns-run --osm-file /app/data/fixtures/real_network.osm.xml
+    docker compose exec dstns dstns-run --status
+
+A run already in progress is replaced (reset, then started) unless
+--quiet-if-active is given, which the entrypoint uses so that restarting a
+container never discards a run someone is watching.
+"""
+import argparse
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+PORT = int(os.environ.get("DSTNS_PORT", "8090"))
+BASE = f"http://127.0.0.1:{PORT}"
+TOKEN_FILE = Path("/app/logs/operator.token")
+
+
+def call(path, payload=None, token=None, timeout=10):
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["X-DSTNS-Operator"] = token
+    data = None if payload is None else json.dumps(payload).encode()
+    request = urllib.request.Request(BASE + path, data=data, headers=headers,
+                                     method="GET" if payload is None else "POST")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.status, json.load(response)
+    except urllib.error.HTTPError as error:
+        with error:
+            try:
+                return error.code, json.load(error)
+            except ValueError:
+                return error.code, {}
+
+
+def say(message):
+    print(f"[dstns-run] {message}", flush=True)
+
+
+def wait_for_server(seconds=60):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            if call("/health", timeout=2)[1].get("ok"):
+                return
+        except OSError:
+            pass
+        time.sleep(0.5)
+    say("the server did not become healthy")
+    sys.exit(1)
+
+
+def status():
+    return call("/api/v1/playback/status")[1].get("data", {})
+
+
+def number(value, kind, low, high, name):
+    try:
+        parsed = kind(value)
+    except ValueError:
+        say(f"{name} must be a number, got {value!r}")
+        sys.exit(2)
+    if not low <= parsed <= high:
+        say(f"{name} must be in [{low}, {high}], got {parsed}")
+        sys.exit(2)
+    return parsed
+
+
+def main():
+    env = os.environ.get
+    parser = argparse.ArgumentParser(description="Start a DSTNS run in this container.")
+    parser.add_argument("--seed", default=env("DSTNS_SEED", "auto"),
+                        help="decimal or 0x seed; 'auto' draws a fresh one (default: $DSTNS_SEED)")
+    parser.add_argument("--day-type", choices=["weekday", "weekend"], default=env("DSTNS_DAY_TYPE", "weekday"))
+    parser.add_argument("--speed", default=env("DSTNS_SPEED", "1"), help="speed multiplier in (0, 5]")
+    parser.add_argument("--duration", default=env("DSTNS_DURATION", "3600"),
+                        help="wall-clock seconds per virtual day at 1x, 60 to 3600")
+    parser.add_argument("--osm-file", default=env("DSTNS_OSM_FILE", "auto"),
+                        help="'auto' lets the seed choose a city; or a path inside the container")
+    parser.add_argument("--status", action="store_true", help="print the current run and exit")
+    parser.add_argument("--wait-for-server", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--quiet-if-active", action="store_true", help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
+    if args.wait_for_server:
+        wait_for_server()
+    current = status()
+
+    if args.status:
+        print(json.dumps(current, indent=2))
+        return
+
+    if current.get("lifecycle") in ("RUNNING", "PAUSED", "PREPARING", "READY"):
+        if args.quiet_if_active:
+            say(f"a run is already {current['lifecycle']}; leaving it alone")
+            return
+        say(f"replacing the current run ({current.get('run_id') or 'preparing'})")
+        call("/api/v1/playback/reset", {})
+
+    speed = number(args.speed, float, 0.01, 5, "--speed")
+    duration = number(args.duration, int, 60, 3600, "--duration")
+    payload = {
+        "seed": "auto" if args.seed in ("", "auto", "random") else args.seed,
+        "day": 1 if args.day_type == "weekend" else 0,
+        "tick_rate": speed,
+        "playback_duration_seconds": duration,
+        "map": {"osm_file": args.osm_file, "cache_dir": "/app/data/maps"},
+    }
+    token = TOKEN_FILE.read_text().strip() if TOKEN_FILE.exists() else ""
+    code, body = call("/api/v1/playback/start", payload, token=token, timeout=30)
+    if code != 202:
+        say(f"start refused ({code}): {body.get('error', {}).get('message', body)}")
+        sys.exit(1)
+    seed = body.get("data", {}).get("seed", payload["seed"])
+    say(f"seed {seed}: preparing the world")
+
+    last = ""
+    while True:
+        time.sleep(1)
+        state = status()
+        lifecycle = state.get("lifecycle", "")
+        if lifecycle == "PREPARING":
+            fetch = call("/api/v1/system/map-status")[1].get("data", {})
+            line = fetch.get("preparation", "")
+            if fetch.get("active"):
+                where = f"{fetch.get('city')}, {fetch.get('country')}"
+                phase = fetch.get("phase", "")
+                if phase == "download":
+                    # One line per 4 MiB, rather than one per poll.
+                    line = f"downloading {where}: {fetch.get('bytes', 0) // (4 << 20) * 4} MiB"
+                elif phase == "parse":
+                    line = f"validating the {where} extract"
+                else:
+                    line = f"contacting OpenStreetMap for {where}"
+            if line and line != last:
+                say(line)
+                last = line
+            continue
+        if lifecycle in ("RUNNING", "PAUSED", "READY"):
+            say(f"run {state.get('run_id')} is {lifecycle}; open the observer on the port "
+                f"published for container port {PORT} (http://localhost:{PORT}/ by default)")
+            return
+        say(f"preparation failed: {state.get('preparation_error') or lifecycle}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
