@@ -52,8 +52,9 @@ read; changing them has no effect.
 ### Modules
 
 `modules.traffic`, `signals`, `buildings`, `dws`, `flooding`, `news`: booleans,
-all `true` by default. Each switches one subsystem; the observer can also
-toggle them at run time through `PUT /api/v1/control/modules/{module}`.
+all `true` by default. Each switches one subsystem. A client of the API can also
+switch them during a run with `PUT /api/v1/control/modules/{module}`; the observer
+does not, because its layer toggles change only what is drawn.
 
 | Module | Off means |
 |---|---|

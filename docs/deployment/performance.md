@@ -7,7 +7,7 @@ with the machine) or derived from a formula stated beside it.
 ## Measured figures
 
 Release build, Apple silicon laptop (Apple Clang 21), the bundled real district
-(1,196 junctions, 2,554 directed edges, 34 km of road), October 2026.
+(1,196 junctions, 2,554 directed edges, 34 km of road).
 
 | Operation | Result |
 |---|---|

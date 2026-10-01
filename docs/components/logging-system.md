@@ -1,4 +1,4 @@
-# Runtime Logging (`dstns::RuntimeLogger`)
+# Runtime logging (`dstns::RuntimeLogger`)
 
 ## Purpose
 `RuntimeLogger` provides dual persistence in its caller-supplied directory: structured SQLite journaling (`runtime.db`) with Write-Ahead Logging (WAL) and text logs (`system.log`).

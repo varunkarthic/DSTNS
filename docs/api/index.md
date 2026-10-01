@@ -15,7 +15,10 @@ drift from what is running.
 | [Streaming](streaming.md) | Server-sent event endpoints |
 | [Lifecycle](lifecycle.md) | Lifecycle states and transitions |
 | [Errors](errors.md) | Status codes and error codes |
-| [Schemas](schemas.md), [Examples](examples.md), [Versioning](versioning.md) | |
+| [Schemas](schemas.md) | Response shapes for the main views |
+| [Versioning](versioning.md) | Version numbers, the compatibility promise and its security exceptions |
+| [Examples](examples.md), [Python client walkthrough](client-walkthrough.md) | Runnable requests and a complete polling client |
+| [OpenAPI explorer](openapi.md) | The machine-readable description, browsable in the page |
 
 ## Who may do what
 

@@ -1,4 +1,4 @@
-# Traffic signals
+# Signal planning and control (`dstns::ScenarioCompiler::plan_signals`)
 
 Source: `ScenarioCompiler::plan_signals` (`src/scenario.cpp`) places and times
 controllers; `EventRuntime` (`src/events.cpp`) runs them; the engine applies
@@ -57,8 +57,9 @@ them, so a platoon released at one tends to arrive at the next on green.
 
 The event runtime keeps one pending transition per controller in a min-heap
 ordered by time, so a network of 10,000 controllers costs O(log n) per
-transition. An approach's `signal_multiplier` is 1 on green and small on red;
-it scales both speed and capacity.
+transition. An approach's `signal_multiplier` is 1.0 on green, 0.4 on amber and 0.08 on red;
+it scales both speed and capacity. The concepts are explained in
+[Traffic signals](../concepts/signals.md).
 
 A **manual override** (`POST /api/v1/control/signals/{node}`) forces the
 north-south (phase 1) or east-west (phase 2) approaches green, with

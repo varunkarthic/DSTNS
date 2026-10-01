@@ -289,7 +289,7 @@ seeds. See [Operator CLI](../guide/operator-cli.md).
 |---|---|---|
 | Local, recommended | `./launcher` | Builds as needed, binds `127.0.0.1:8090` by default, serves the observer itself |
 | UI development | `npm run dev --prefix ui-engine` against a running core | Vite proxies `/api`, `/health` and `/media` to `DSTNS_API_PORT` (default 8090), so requests stay same-origin |
-| Containers | `docker compose up` | Engine, UI and an nginx TLS gateway on 8443. See [Docker](../deployment/docker.md) |
+| Containers | `docker compose up` | One container serves the engine, the API and the observer on 8090; an optional nginx TLS gateway on 8443 (`--profile tls`). See [Docker](../deployment/docker.md) |
 
 ## Determinism boundaries
 

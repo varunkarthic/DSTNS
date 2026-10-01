@@ -17,4 +17,6 @@ their mathematics, and remain the reference for intent.
 | [System architecture](system-architecture-spec.md) | Components, data flow, threading, storage, deployment as designed |
 | [API, runtime and events](api-runtime-event-spec.md) | API classes, event scheduling, news templates, playback semantics, overlays, undo |
 
-For the implemented system, start with [Architecture](../concepts/architecture.md).
+For the implemented system, start with [Architecture](../concepts/architecture.md). The
+reasoning behind the most significant choices, as implemented, is recorded in
+[Design decisions](decisions.md).

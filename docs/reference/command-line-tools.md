@@ -7,7 +7,7 @@ to use it. The operator CLI (`./launcher`) is documented separately in
 | Program | Purpose | Needs a running server |
 |---|---|---|
 | [`dstns_server`](#dstns_server) | The engine, the HTTP API and the observer on one port | n/a |
-| [`dstns_scenario_export`](#dstns_scenario_export) | Compile a scenario and write a SUMO bundle | No |
+| [`dstns_scenario_export`](#dstns_scenario_export) | Compile a synthetic-grid scenario and write a SUMO bundle | No |
 | [`dstns_replay_verify`](#dstns_replay_verify) | Prove that one seed gives identical worlds twice | No |
 | [`dstns_road_index`](#dstns_road_index) | Compile an OSM file and print its graph and scenario hashes | No |
 | [`dstns_benchmark`](#dstns_benchmark) | Time compilation, A* routing and snapshots on a synthetic grid | No |
@@ -54,9 +54,10 @@ down cleanly; `POST /api/v1/system/terminate` does the same from the API.
 
 ## dstns_scenario_export
 
-Compiles a scenario and writes a bundle SUMO can run, without starting a server.
-It is the program behind `./launcher sumo`. See also the
-[SUMO adapter](../components/sumo-adapter.md).
+Compiles a scenario on a synthetic grid and writes a bundle SUMO can run, without
+starting a server. It takes no map file: to export a real city, use
+`POST /api/v1/export/sumo` on a running server. It is the program behind
+`./launcher sumo`. See also the [SUMO adapter](../components/sumo-adapter.md).
 
 ```text
 dstns_scenario_export [options] [OUT_DIR]

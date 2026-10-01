@@ -22,7 +22,7 @@ configuration, the source offer, SUMO and shutdown. Routes are under
 
 ```json
 { "ok": true, "service": "dstns", "product": "Deterministic Spatiotemporal Transport Network Simulator",
-  "version": "2.0.0", "observer_ui_version": "observer-v2", "lifecycle": "RUNNING" }
+  "version": "2.1.0", "observer_ui_version": "observer-v2", "lifecycle": "RUNNING" }
 ```
 
 Lock-free: it reads a mirror of the lifecycle, so it answers instantly even
@@ -35,7 +35,7 @@ older one on the same port.
 
 ```json
 {
-  "ok": true, "service": "dstns", "version": "2.0.0", "lifecycle": "PAUSED",
+  "ok": true, "service": "dstns", "version": "2.1.0", "lifecycle": "PAUSED",
   "build": { "compiler": "Apple LLVM 21.0.0 (clang-2100.3.34.2)", "cpp_standard": 202002 },
   "sumo": { "available": true, "version": "1.15.0", "sumo_binary": "/usr/bin/sumo",
             "netconvert_binary": "/usr/bin/netconvert", "sumo_home": "/usr" }
@@ -114,7 +114,7 @@ The observer links to it from About.
 ## POST /terminate
 
 ```json
-{ "ok": true, "status": "TERMINATING", "message": "Deterministic Simulated Environment server is shutting down gracefully." }
+{ "ok": true, "status": "TERMINATING", "message": "DSTNS server is shutting down gracefully." }
 ```
 
 Stops the run, kills any map download's whole process group, stops the

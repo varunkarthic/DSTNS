@@ -1,4 +1,4 @@
-# Route Planning (`dstns::RoutePlanner`)
+# Route planning (`dstns::RoutePlanner`)
 
 ## Purpose
 The `RoutePlanner` owns strategic, deterministic shortest-path and minimum-cost route calculation across the canonical road network using A* search.
@@ -12,7 +12,7 @@ The `RoutePlanner` owns strategic, deterministic shortest-path and minimum-cost 
 - Break priority queue ties deterministically using lowest `NodeId`.
 - Adhere to Euclidean distance / maximum speed heuristic to maintain admissibility.
 
-## Public Interfaces
+## Public interfaces
 ```cpp
 struct RouteResult {
     bool found{false};

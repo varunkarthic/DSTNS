@@ -9,8 +9,9 @@ read it, build it and adapt it for your own use.
 | [Building from source](building.md) | Build options, targets, sanitizers, editor setup, the observer's dev server |
 | [Testing](testing.md) | Every test suite, what it proves, and how to run it |
 | [Building the documentation](documentation.md) | Previewing and building this site |
-| [Code evaluation, October 2026](audit-2026-10.md) | A review of the code: defects found and fixed, and known limitations |
+| [Quality assurance](quality-assurance.md) | Quality gates, review method, and the register of defects found and fixed |
 | [Components](../components/index.md) | Per-class design notes for the core |
+| [Design decisions](../design/decisions.md) | Why the system is built the way it is |
 
 ## Repository map
 

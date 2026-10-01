@@ -301,9 +301,9 @@ one from [openstreetmap.org](https://www.openstreetmap.org/export) or Overpass.
 
 ## Saving and sharing configurations
 
-A seed alone reproduces a world. A **saved seed** also stores the day type,
-duration, speed, modules and, for a pinned map, the map's bytes, so the run is
-reproducible even after the map file changes:
+A seed alone reproduces a world. A **saved seed** also records the day type,
+duration, speed and modules under a name and, for a pinned map, keeps a verified
+copy of the map file:
 
 ```bash
 ./launcher start --seed 382923 --day-type weekend --save-seed harbour-weekend \
@@ -312,11 +312,11 @@ reproducible even after the map file changes:
 ./launcher start --saved-seed harbour-weekend
 ```
 
-Saved seeds live in `data/seed-store/seeds.sqlite3` (or `DSTNS_SEED_DB`). IDs
-are 1 to 64 letters, digits, `_` and `-`, starting with a letter or digit.
+Every command, what is stored and how replay is verified are described in
+[Saved seeds](saved-seeds.md).
 
 To share a run with someone, give them the seed and the day type. If you used a
-pinned map, give them the file too.
+pinned map, give them the file too, or copy your `data/seed-store/` directory.
 
 ## Reproducibility guarantees
 

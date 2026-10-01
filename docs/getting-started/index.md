@@ -31,8 +31,10 @@ simulator.
 
 Then:
 
-1. [Quick start](quick-start.md): the shortest path to a running simulation, either way.
-2. [Your first simulation](first-simulation.md): a guided tour of the interface
+1. [System requirements](requirements.md): check that your machine, browser and
+   network are supported.
+2. [Quick start](quick-start.md): the shortest path to a running simulation, either way.
+3. [Your first simulation](first-simulation.md): a guided tour of the interface
    and the ideas behind it.
 
 ## What you need
@@ -45,6 +47,9 @@ Then:
 | Memory | 1 GB free for a typical 3,000-node district | The same |
 | Network | Internet access to download city maps (or use the bundled offline map) | The same |
 | Browser | A current Chrome, Edge, Firefox or Safari, window at least 1024 × 640 | The same |
+
+Full details, including hardware sizing and the network endpoints DSTNS uses, are in
+[System requirements](requirements.md).
 
 !!! tip "No internet?"
     Both paths include a recorded real district you can run offline. See

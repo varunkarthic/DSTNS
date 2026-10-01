@@ -1,4 +1,4 @@
-# Graph Storage (`dstns::GraphStore`)
+# Graph storage (`dstns::GraphStore`)
 
 ## Purpose
 The `GraphStore` represents the canonical topological and dynamical state of the road network $G(t) = (V, E, \mathbf{X}_V(t), \mathbf{X}_E(t))$. It enforces a strict separation between immutable static road geometry and mutable dynamic runtime state.
@@ -14,7 +14,7 @@ The `GraphStore` represents the canonical topological and dynamical state of the
 - Deciding routing policies (delegated to `RoutePlanner`).
 - Modifying static graph topology during simulation runtime.
 
-## Data Structures
+## Data structures
 ```cpp
 struct NodeStatic {
     NodeId id;
@@ -41,11 +41,11 @@ struct EdgeStatic {
 };
 ```
 
-## Reverse Twin Invariant
+## Reverse twin invariant
 In DSTNS, all physical road segments are modeled as pairs of opposing directed edges. Every edge $e = (u \to v)$ has a unique reciprocal reverse twin $e' = (v \to u)$ such that:
 $$e.\text{reverse\_twin} = e'.\text{id} \quad \text{and} \quad e'.\text{reverse\_twin} = e.\text{id}$$
 
-## Public Interfaces
+## Public interfaces
 ```cpp
 class GraphStore {
 public:

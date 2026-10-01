@@ -41,9 +41,10 @@
 
 ??? question "Why did my seed land somewhere else after an update?"
     It should not: the city catalogue and its order are frozen under the
-    selection version `urban-crfg-v3`. One change can alter a *graph*, though:
-    the October 2026 fix that makes untagged roundabouts one-way changes maps
-    containing them. See [the changelog](changelog.md).
+    selection version `urban-crfg-v3`. A fix to map parsing can alter a *graph*,
+    though: making untagged roundabouts one-way, as OpenStreetMap requires,
+    changed maps that contain them. The [release notes](changelog.md) list every
+    change of this kind.
 
 ??? question "Can two seeds give the same city?"
     Yes, often: 181 cities, astronomically many seeds. They give different

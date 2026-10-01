@@ -3,8 +3,8 @@
 | What | Version | Where reported |
 |---|---|---|
 | The API contract | `1.0`, under the `/api/v1` prefix | `api_version` in responses |
-| The engine | `2.0.0` | `version` in `/health` and `/system/info` |
-| The observer | `2.2.0` | About |
+| The engine | `2.1.0` | `version` in `/health` and `/system/info` |
+| The observer | `2.3.0` | About |
 | Map selection | `urban-crfg-v3` | `map_selection_version` |
 | Algorithms | `DSTNS/1` | `/view/manifest` |
 
@@ -21,15 +21,19 @@ Within `/api/v1`:
 
 A breaking change would introduce `/api/v2` alongside `/api/v1`.
 
-## Changes that are not breaking but matter
+## Security exceptions
 
-Some fixes change behaviour that a client might have relied on. They are
-listed in the [changelog](../changelog.md). The ones to know:
+The compatibility promise yields to security. Behaviour that is itself a
+vulnerability may be removed or restricted within `/api/v1`, and every such change is
+listed under **Security** in the [release notes](../changelog.md). The changes made so
+far:
 
-- **October 2026:** `GET /terminate` and `GET /api/v1/system/terminate` were
-  removed (use `POST`); state-changing requests from other browser origins are
-  refused; out-of-range IDs, times and counts that used to wrap are refused
-  with 400.
+| Change | Reason | Client action |
+|---|---|---|
+| `GET /terminate` and `GET /api/v1/system/terminate` removed; shutdown is `POST` only | A GET can be triggered by any web page through an image tag | Use `POST` |
+| State-changing requests from other browser origins refused with 403 `CROSS_ORIGIN_FORBIDDEN` | Cross-site request forgery | Add trusted origins to `DSTNS_ALLOWED_ORIGINS` |
+| Unknown `Host` names on a loopback server refused with 421 `HOST_NOT_ALLOWED` | DNS rebinding | Add names to `DSTNS_ALLOWED_HOSTS` |
+| Out-of-range IDs, times and counts refused with 400 instead of wrapping | They silently acted on the wrong object | Send values within the documented ranges |
 
 ## Aliases
 

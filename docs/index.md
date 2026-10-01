@@ -91,27 +91,27 @@ Containers, TLS, security, logging and operations.
 </div>
 
 <div class="dstns-card" markdown>
-[Components](components/index.md){ .dstns-card__title }
+[Reference](reference/index.md){ .dstns-card__title }
 
-Per-class design notes for the engine, graph, routing and more.
+Commands, variables, paths and limits; component internals; release notes.
 
-[Engine](components/playback-engine.md){ .dstns-chip } [API server](components/api-server.md){ .dstns-chip }
+[Limits](reference/limits.md){ .dstns-chip } [Components](components/index.md){ .dstns-chip }
 </div>
 
 <div class="dstns-card" markdown>
-[Design specs](design/index.md){ .dstns-card__title }
+[Design](design/index.md){ .dstns-card__title }
 
-The formal mathematical, architecture and API specifications.
+The decisions behind the system, and its formal specifications.
 
-[Foundation](design/mathematical-foundation.md){ .dstns-chip } [Runtime spec](design/api-runtime-event-spec.md){ .dstns-chip }
+[Decisions](design/decisions.md){ .dstns-chip } [Foundation](design/mathematical-foundation.md){ .dstns-chip }
 </div>
 
 <div class="dstns-card" markdown>
 [Help](troubleshooting.md){ .dstns-card__title }
 
-Symptoms and remedies, answers to common questions, a glossary.
+Symptoms and remedies, common questions, known limitations, a glossary.
 
-[FAQ](faq.md){ .dstns-chip } [Glossary](glossary.md){ .dstns-chip }
+[FAQ](faq.md){ .dstns-chip } [Limitations](limitations.md){ .dstns-chip }
 </div>
 
 </div>
@@ -203,6 +203,8 @@ is guaranteed.
 [Choose a seed](guide/seeds-and-places.md){ .dstns-chip }
 [Commands and flags](guide/operator-cli.md){ .dstns-chip }
 [Look up a formula](concepts/mathematical-model.md){ .dstns-chip }
+[Check a limit](reference/limits.md){ .dstns-chip }
+[Save a run](guide/saved-seeds.md){ .dstns-chip }
 [Handle an error](api/errors.md){ .dstns-chip }
 [Fix a problem](troubleshooting.md){ .dstns-chip }
 [Secure a deployment](deployment/security.md){ .dstns-chip }

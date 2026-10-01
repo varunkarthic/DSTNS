@@ -18,7 +18,7 @@ The RNG subsystem provides deterministic, counter-addressed, domain-isolated pse
 - **Inputs**: 128-bit master seed, 4D `RngAddress` tuple `(RngDomain, object, purpose, draw)`.
 - **Outputs**: Deterministic 32-bit/64-bit unsigned integers, normalized floats in $[0, 1)$, bounded integers, SHA-256 hex strings.
 
-## Data Structures & Enums
+## Data structures and enumerations
 ```cpp
 enum class RngDomain : std::uint32_t {
     MapSelection = 1, BusStops, Buildings, TrafficControl, TrafficOD,
@@ -33,14 +33,14 @@ struct RngAddress {
 };
 ```
 
-## Mathematical Model
+## Mathematical model
 Given 128-bit seed $K = (K_0, K_1)$ and address $C = (\text{domain}, \text{object}, \text{purpose}, \text{draw})$, the Philox-style implementation computes:
 $$C' = \text{Philox4x32}(C, K)$$
 A normalized uniform float $u \in (0, 1)$ is generated via:
 $$u = \frac{C'_0+0.5}{2^{32}}$$
 Bounded integers in $[0,B)$ use rejection sampling to avoid modulo bias.
 
-## Public Interfaces
+## Public interfaces
 ```cpp
 class DeterministicRng {
 public:
@@ -57,7 +57,7 @@ public:
 - `DeterministicRng` is completely stateless and thread-safe for concurrent read access.
 - Deterministic random values depend solely on `(seed, address)` and have no internal state mutations.
 
-## Testing Strategy
+## Testing strategy
 - Unit tests verify 128-bit seed parsing, round-trip serialization, and SHA-256 test vectors (`test_main.cpp`).
 - Unit tests verify repeatability and that changing an address domain changes the sampled stream.
 - Range tests confirm values remain strictly within $[0, \text{bound})$.

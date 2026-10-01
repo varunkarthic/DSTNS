@@ -97,8 +97,9 @@ on during a long SUMO run.
 
 ## From the CLI
 
-`./launcher sumo` runs the same pipeline outside the server into
-`data/sumo_live_run/`, and `./launcher test sumo` runs
+`./launcher sumo` runs the same pipeline outside the server, on a 12 × 12 synthetic
+grid, into `data/sumo_live_run/`; it verifies the toolchain rather than exporting a
+city, and `./launcher test sumo` runs
 `tests/integration/sumo_smoke.sh`. See [Operator CLI](../guide/operator-cli.md).
 
 ## Limits

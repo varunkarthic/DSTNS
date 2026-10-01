@@ -12,11 +12,15 @@ virtual day of traffic, signals, demand, weather, flooding and incidents on one
 authoritative clock.** Reproducible results require the same seed, configuration,
 map bytes and compatible build; see [Reproducible experiments](#reproducible-experiments).
 
-[![CI](https://img.shields.io/github/actions/workflow/status/varunkarthic/DSTNS/ci.yml?branch=main&label=CI&logo=github)](https://github.com/varunkarthic/DSTNS/actions/workflows/ci.yml)
-[![Documentation](https://img.shields.io/readthedocs/dstns?label=docs&logo=readthedocs&logoColor=white)](https://dstns.readthedocs.io/)
-[![License: AGPL v3+](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-3DA639?logo=gnu&logoColor=white)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](https://dstns.readthedocs.io/development/building/)
-[![Docker](https://img.shields.io/badge/Docker-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)](https://dstns.readthedocs.io/getting-started/docker/)
+[![CMake 3.22+](https://img.shields.io/badge/CMake-3.22%2B-064F8C?logo=cmake&logoColor=white)](https://dstns.readthedocs.io/getting-started/installation/)
+[![Docker: amd64 | arm64](https://img.shields.io/badge/Docker-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)](https://dstns.readthedocs.io/getting-started/docker/)
+[![Platforms: Linux | macOS](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-555555?logo=linux&logoColor=white)](https://dstns.readthedocs.io/getting-started/requirements/)
+[![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://dstns.readthedocs.io/components/ui-engine/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://dstns.readthedocs.io/components/ui-engine/)
+[![OpenStreetMap](https://img.shields.io/badge/maps-OpenStreetMap-7EBC6F?logo=openstreetmap&logoColor=white)](https://dstns.readthedocs.io/concepts/osm-map-generation/)
+[![Eclipse SUMO: optional](https://img.shields.io/badge/Eclipse%20SUMO-optional-1E3A5F?logo=eclipseide&logoColor=white)](https://dstns.readthedocs.io/components/sumo-adapter/)
 
 [**Documentation**](https://dstns.readthedocs.io/) ·
 [Quick start](#quick-start) ·
@@ -61,7 +65,7 @@ map bytes and compatible build; see [Reproducible experiments](#reproducible-exp
 | **Checkpoint replay** | Pause, step, seek backwards and forwards through the day; undo and redo operator controls. |
 | **Browser observer** | Live map, telemetry, notifications, Auto Focus, a guided tutorial and a PDF report, kept in step by adaptive backpressure. |
 | **HTTP API** | Every view and control over JSON, a self-describing route index, and an [OpenAPI 3.1 description](https://dstns.readthedocs.io/api/openapi/). |
-| **Container deployment** | A multi-architecture image (234 MB in the recorded October 2026 build) that starts a simulation with one command; optional TLS gateway and SUMO. |
+| **Container deployment** | A multi-architecture image (about 234 MB) that starts a simulation with one command; optional TLS gateway and SUMO. |
 | **SUMO integration** | Export any world to Eclipse SUMO and run it microscopically as a batch job. |
 
 > [!NOTE]

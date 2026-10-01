@@ -2,13 +2,13 @@
 {% import "partials/tabs-item.html" as item with context %}
 {% set tips = {
   "Home": "Overview and a map of the documentation",
-  "Getting started": "Install DSTNS, run it with Docker, take a first simulation",
-  "User guide": "The operator CLI, the observer, playback, seeds and configuration",
-  "Concepts": "How a seed becomes a world and a day, with the equations",
+  "Getting started": "Requirements, installation, Docker and a first simulation",
+  "User guide": "Running, observing and configuring simulations, with recipes",
+  "Concepts": "How a seed becomes a world and a day: the model, its equations and assumptions",
   "API": "HTTP routes, schemas, streaming and a runnable client",
-  "Deployment": "Containers, TLS, security, logging and operations",
-  "Help": "Troubleshooting, the FAQ and the glossary",
-  "Reference": "Components, design specs, development notes, changelog and licence"
+  "Deployment": "Containers, security, operations, logging, performance and upgrades",
+  "Help": "Troubleshooting, the FAQ, known limitations and the glossary",
+  "Reference": "Commands, variables, limits, internals, design, quality and release notes"
 } %}
 <nav class="md-tabs" aria-label="{{ lang.t('tabs') }}" data-md-component="tabs">
   <div class="md-grid">

@@ -59,7 +59,7 @@ at 1×.
 | Jump ahead 15 minutes | **Forward** | The engine simulates forward to the new time |
 | Jump back 15 minutes | **Back** | The engine restores the last checkpoint and replays to the new time |
 | Step one minute | **Step** | Advances exactly one virtual minute and holds |
-| Start the day over | **Restart** | After confirmation, back to 00:00:00 with the same seed |
+| Start the day over | **Reset** | After confirmation, back to 00:00:00 with the same seed |
 | Switch 12/24-hour time | click the clock | Everywhere in the interface |
 
 Skip ahead to about **08:00**: the morning peak. Roads around schools and

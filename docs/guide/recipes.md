@@ -78,13 +78,21 @@ For a complete client with polling and error handling see the
 
 ## Export a world to SUMO
 
+With a run in progress, export the live scenario, or export it and run SUMO on it,
+through the API:
+
 ```bash
-./launcher sumo
-# or, without a server
-./build/dstns_scenario_export --seed 382923 --out /tmp/dstns-sumo
+curl -s -X POST http://127.0.0.1:8090/api/v1/export/sumo \
+     -H "Content-Type: application/json" -d '{"directory": "data/sumo_export"}'
+curl -s -X POST http://127.0.0.1:8090/api/v1/system/sumo-simulate \
+     -H "Content-Type: application/json" \
+     -d '{"directory": "data/sumo_run", "begin_s": 25200, "end_s": 32400}'
 ```
 
-See [SUMO adapter](../components/sumo-adapter.md).
+The second call simulates 07:00 to 09:00 microscopically and returns trip statistics.
+`./launcher sumo` and `dstns_scenario_export` check the SUMO toolchain on a synthetic
+grid without a server; they do not export the city you are watching. See
+[SUMO adapter](../components/sumo-adapter.md).
 
 ## Run on another port
 

@@ -39,7 +39,7 @@ Each target is a standalone executable under `build/`.
 
 | CTest name | Executable | What it proves |
 |---|---|---|
-| `dstns_unit_tests` | `dstns_tests` | Seed parsing, SHA-256 digests, Philox RNG isolation, Wendland kernels, A* shortest paths, OSM road filtering and one-way handling (including untagged roundabouts and `shop=mall` classification), SUMO export omitting forbidden directions and writing loadable bus stops, bus-stop coverage, incident counts and spread, reset leaving nothing behind. 724 assertions |
+| `dstns_unit_tests` | `dstns_tests` | Seed parsing, SHA-256 digests, Philox RNG isolation, Wendland kernels, A* shortest paths, OSM road filtering and one-way handling (including untagged roundabouts and `shop=mall` classification), SUMO export omitting forbidden directions and writing loadable bus stops, bus-stop coverage, incident counts and spread, reset leaving nothing behind. 726 assertions |
 | `dstns_modernization` | `dstns_modern_tests` | Independent heap controllers, demand effects, weighted congestion and its EMA, clock-speed invariance, checkpoint replay, geographic metadata and projection, a 10,000-controller stress |
 | `dstns_demand` | `dstns_demand_tests` | Place taxonomy, diurnal curves, couplings and their stated factors, stop thinning |
 | `dstns_asb` | `dstns_asb_tests` | The backpressure score, the Normal, Restricted and Async ladder, rate caps and recovery |
@@ -70,7 +70,7 @@ suite does. See [Reproducibility](../concepts/reproducibility.md).
 `tests/api/api_smoke.py` spawns a server on a free port and walks the whole
 API: health, system info, start, status, topology, snapshot, every view,
 pagination, controls, seek, step, undo and redo, news, logs, regeneration, SUMO
-export, termination, and the SQLite journal (133 assertions). The SUMO
+export, termination, and the SQLite journal (134 assertions). The SUMO
 simulate step runs only when `/system/info` reports SUMO available.
 
 ```bash

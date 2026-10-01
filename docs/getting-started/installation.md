@@ -122,7 +122,7 @@ npm ci --prefix dstns-operator-cli
 | Output | What it is |
 |---|---|
 | `build/dstns_server` | The server: engine, API and observer host |
-| `build/dstns_scenario_export` | Compile a scenario and export it as SUMO files |
+| `build/dstns_scenario_export` | Compile a synthetic-grid scenario and export it as SUMO files |
 | `build/dstns_replay_verify` | Check that a seed reproduces exactly |
 | `build/dstns_road_index` | Inspect a map's road graph |
 | `build/dstns_benchmark` | Routing and snapshot benchmarks |
@@ -216,10 +216,10 @@ Delete the repository directory to remove DSTNS completely.
     Install the development package: `libsqlite3-dev` (Debian, Ubuntu) or
     `sqlite-devel` (Fedora).
 
-??? failure "`No rule to make target '/opt/homebrew/Cellar/openssl@3/…/libssl.dylib'`"
-    Homebrew upgraded a library after the build was configured, and the CMake
-    cache still names the old path. Run the `cmake --fresh` command under
-    [Updating](#updating).
+??? failure "`No rule to make target '/opt/homebrew/Cellar/…'`"
+    Homebrew upgraded a library (SQLite or zlib, for example) after the build was
+    configured, and the CMake cache still names the old path. Run the
+    `cmake --fresh` command under [Updating](#updating).
 
 ??? failure "`Error: Node.js (>= 20) is required`"
     Install Node.js 20 or later and make sure `node` is on `PATH`.

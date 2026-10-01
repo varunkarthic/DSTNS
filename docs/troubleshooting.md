@@ -151,9 +151,10 @@ unavailable](#sumo-reported-unavailable).
 
 ## Southern-hemisphere cities fail to download
 
-Versions before October 2026 could not download any city south of the equator
-(Sydney, São Paulo, Johannesburg, Dar es Salaam…) on Python before 3.13:
-`argument --bbox: expected one argument`. Update DSTNS. If you call
+Engine 2.0.0 could not download any city south of the equator (Sydney, São Paulo,
+Johannesburg, Dar es Salaam…) on Python before 3.13, failing with
+`argument --bbox: expected one argument`. Update to 2.1.0 or later; see the
+[release notes](changelog.md). If you call
 `scripts/fetch_osm.py` yourself, write `--bbox=S,W,N,E` with an equals sign.
 
 ## The observer shows an error
@@ -164,7 +165,7 @@ Versions before October 2026 could not download any city south of the equator
 | "Synchronizing a new simulation…" | The run changed between two requests; resolves itself |
 | "Map data is missing or incomplete." | The topology came back empty; check `preparation_error` |
 | "Request failed (502)" or another status | Something in front of the server (a proxy or gateway) answered; check it |
-| A dialog appears and vanishes | Fixed in October 2026; update |
+| A dialog appears and vanishes | A defect in observer 2.2.0, fixed in 2.3.0; update |
 
 Open the browser's developer console for the failing request.
 
@@ -183,7 +184,7 @@ More in [Docker deployment: troubleshooting](deployment/docker.md#troubleshootin
 ## A build fails after a system update
 
 ```text
-make[3]: *** No rule to make target `/opt/homebrew/Cellar/openssl@3/3.6.3/lib/libssl.dylib'
+make[3]: *** No rule to make target `/opt/homebrew/Cellar/sqlite/3.50.4/lib/libsqlite3.dylib'
 ```
 
 A library the build was configured against was replaced. Reconfigure:
@@ -200,9 +201,14 @@ cmake --build build -j
 
 ## A saved seed is refused
 
-`unsupported map selection version` means it was saved under a different
-seed-to-place algorithm; re-save it. `invalid saved seed ID` means the ID has
-characters other than letters, digits, `_` and `-`, or is longer than 64.
+| Message | Fix |
+|---|---|
+| `Saved seed requires an unsupported map version` | It was saved under a different seed-to-place algorithm; save the configuration again |
+| `Saved map content changed; refusing a non-reproducible run` | The stored copy of its pinned map was modified; restore it or save again |
+| `Seed ID must be 1-64 letters, digits, underscores or hyphens` | Use only letters, digits, `_` and `-`, starting with a letter or digit |
+| `Unknown saved seed: ID` | Check `./launcher seeds list`, and `DSTNS_SEED_DB` if you moved the store |
+
+See [Saved seeds](guide/saved-seeds.md).
 
 ## The documentation does not build
 

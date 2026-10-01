@@ -193,6 +193,13 @@ no session identity.
 being compiled, and it is readable while a compile holds the engine lock, which
 is what lets the interface narrate start-up.
 
-**Retired compatibility behavior:** `POST /api/v1/control/transit/route` returns HTTP 410 / `TRANSIT_API_RETIRED`. It is not part of the supported API. Internal route planning remains unchanged. Legacy `/api/v1/view/events` retains its weather-catalog response; new event consumers must use `event-queue`.
+### Retired and compatibility routes
 
-See [model and migration details](../history/modernization.md), including the aggregate-model/SUMO boundary and history retention.
+| Route | Status |
+|---|---|
+| `POST /api/v1/control/transit/route` | Retired. Returns HTTP 410 with `TRANSIT_API_RETIRED`; internal route planning is unaffected |
+| `GET /api/v1/view/events` | Kept for compatibility; returns the weather catalogue. New clients should use `/api/v1/view/event-queue` |
+
+The boundary between the live aggregate model and the SUMO adapter is described in
+[Model scope and assumptions](../concepts/model-scope.md); event history retention is
+listed in [Limits and ranges](../reference/limits.md#api-paging-and-retention).

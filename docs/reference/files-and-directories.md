@@ -13,7 +13,7 @@ never be committed.
 | `logs/` | the server | Logs, journal and credential (below) | Yes, with the server stopped; `./launcher reset` does it for you |
 | `data/maps/` | the server | Cached city extracts and manifests | Yes; they are downloaded again when needed |
 | `data/fixtures/` | repository | One recorded real district for offline use | No; tracked |
-| `data/seed-store/` | `seeds.py` | The saved-seed SQLite database | Only if you do not need your saved seeds |
+| `data/seed-store/` | `seeds.py` | Saved seeds and copies of pinned maps | Only if you do not need your saved seeds |
 | `artifacts/` | tests, SUMO runs | Temporary scenarios and outputs | Yes |
 | `site/` | `mkdocs build` | The built documentation | Yes |
 | `.venv-docs/` | you | The documentation toolchain | Yes |
@@ -62,9 +62,13 @@ megabytes each.
 | `docker-compose.yml`, `Dockerfile` | Docker | The container build and run definition |
 | `mkdocs.yml`, `.readthedocs.yaml` | MkDocs, Read the Docs | This documentation site |
 
-## What a saved seed contains
+## Saved seeds
 
-`./launcher start --save-seed ID` stores the seed, day type, duration, speed,
-module switches and map choice in the SQLite database. For a pinned map it also
-stores the source bytes, so the run can be reproduced even if the file later
-changes. See [Seeds and places](../guide/seeds-and-places.md).
+| Path | Contents |
+|---|---|
+| `data/seed-store/seeds.sqlite3` | The registry: one row per saved seed with its ID, seed, creation time, description, map selection version, map checksum and resolved configuration |
+| `data/seed-store/maps/<sha256>.osm.xml` | Copies of pinned maps, named by their checksum and shared between saved seeds |
+
+`DSTNS_SEED_DB` moves the registry; its `maps/` directory is created beside it.
+Seeds whose city is chosen by the seed store no map copy. See
+[Saved seeds](../guide/saved-seeds.md).

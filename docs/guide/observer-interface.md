@@ -1,4 +1,4 @@
-# Observer Interface
+# Observer interface
 
 This guide describes the DSTNS observer interface in `ui-engine/`: what each
 control does, how it connects to the simulation core, and how the parts are

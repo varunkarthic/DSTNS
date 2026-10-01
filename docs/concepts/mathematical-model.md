@@ -185,10 +185,11 @@ its nominal value.
 Each controller has a cycle, a six-phase plan (green A, amber, all-red, green
 B, amber, all-red) and an offset. Green time is split between the
 north-south and east-west approach groups in proportion to arriving capacity;
-offsets form a progression along the dominant travel axis, so signals a block
-apart turn green in sequence (`ScenarioCompiler::plan_signals`). An approach's
-`signal_multiplier` is 1 on green and small on red; a manual override forces
-one group green (1.0 against 0.08).
+each offset is the travel time at 13.9 m/s from the centroid of all controllers,
+wrapped into the cycle, so signals a block apart turn green in sequence
+(`ScenarioCompiler::plan_signals`). An approach's `signal_multiplier` is 1.0 on
+green, 0.4 on amber and 0.08 on red; a manual override forces one group green
+(1.0 against 0.08). See [Traffic signals](signals.md).
 
 ## Speed and capacity
 

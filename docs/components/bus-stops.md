@@ -1,4 +1,4 @@
-# Bus-Stop Placement (`dstns::ScenarioCompiler::place_bus_stops`)
+# Bus-stop placement (`dstns::ScenarioCompiler::place_bus_stops`)
 
 ## Purpose
 Deterministically places public transport bus stops along road segments using minimum-spacing and maximum-coverage rules.
@@ -10,7 +10,7 @@ Deterministically places public transport bus stops along road segments using mi
 4. **Edge Materialization**: Bus stops are anchored to specific directed edges with an explicit along-edge offset `position_m` $\in [0, \text{length\_m}]$.
 5. **Coverage**: A deterministic repair pass adds the farthest eligible node until no eligible node exceeds `stop_max_coverage_m`.
 
-## Data Structure
+## Data structure
 ```cpp
 struct BusStop {
     StopId id;

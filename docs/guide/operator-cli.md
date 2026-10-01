@@ -23,12 +23,12 @@ first use.
 | Command | Does |
 |---|---|
 | `start` (default) | Build what has changed, start or reuse the server, open the observer, start a run. Flags below |
-| `seeds list` | List saved seeds |
+| `seeds save\|list\|inspect\|delete [ID]` | Manage saved seeds; see [Saved seeds](saved-seeds.md) |
 | `ui open\|dev\|build\|install` | Open the observer, run the Vite dev server, build the bundle, or install its dependencies |
 | `logs [topic]` | Inspect the system log, API log, event log or lifecycle log |
 | `config` | Validate and edit `config/defaults.json` interactively: speed, duration, host, port, modules |
 | `test [scope]` | Run test stages: `all`, `unit`, `api`, `replay`, `benchmark`, `sumo` or `ui` |
-| `sumo` | Export the current scenario and run SUMO on it outside the server |
+| `sumo` | Check the SUMO toolchain on a synthetic grid, outside the server |
 | `reset` | Delete runtime logs, the SQLite journal, checkpoints, temporary scenarios and SUMO runs, after confirmation |
 | `console` | The interactive dashboard |
 | `help` | Command summary |
@@ -92,10 +92,10 @@ city's extract is downloaded once and cached under `data/maps/`. See
 [Deterministic seeding](../concepts/deterministic-seeding.md) and [OSM map
 generation](../concepts/osm-map-generation.md).
 
-`--save-seed ID` stores the full resolved configuration (seed, day, duration,
-speed, modules, map path and its source bytes for a pinned map) in a SQLite
-registry (`data/seed-store/seeds.sqlite3`, or `DSTNS_SEED_DB`). `--saved-seed
-ID` replays it exactly. IDs match `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`.
+`--save-seed ID` stores the full resolved configuration under a name, and
+`--saved-seed ID` starts it again. For a pinned map the store also keeps a copy of
+the file, verified by SHA-256 on every replay. IDs match
+`[A-Za-z0-9][A-Za-z0-9_-]{0,63}`. See [Saved seeds](saved-seeds.md).
 
 ## The interactive console
 
@@ -143,11 +143,14 @@ and its WAL files, `data/checkpoints/`, `data/scenarios/` and
 
 ## Standalone SUMO
 
-`./launcher sumo` requires `sumo` and `netconvert` (on `PATH` or under
-`SUMO_HOME`). It exports the scenario with `dstns_scenario_export` into
-`data/sumo_live_run/`, builds the network, runs SUMO and summarises trip
-statistics. This is the microscopic cross-check of the aggregate model; it
-never changes the live run.
+`./launcher sumo` checks that the SUMO toolchain works end to end, without a server.
+It requires `sumo` and `netconvert` (under `SUMO_HOME` or on `PATH`), exports a
+deterministic 12 × 12 synthetic grid with `dstns_scenario_export` into
+`data/sumo_live_run/`, builds the network with `netconvert`, runs SUMO and summarises
+the trip statistics. It never touches a live run.
+
+To run SUMO on the city you are watching, use the API instead:
+`POST /api/v1/system/sumo-simulate` (see [SUMO adapter](../components/sumo-adapter.md)).
 
 ## Ending a session
 

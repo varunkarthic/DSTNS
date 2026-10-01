@@ -243,10 +243,11 @@ occupancy and two congestion measures.
 ### Congestion
 
 Per edge, `congestion = closed ? 1 : 0.60 × speed_loss + 0.25 × queue_ratio + 0.15 × occupancy`.
-The network figure the interface shows comes from `CongestionTracker`: a
-length-weighted mean over traversable edges, smoothed with an exponential
-moving average, sampled every minute into a bounded history. See
-[Mathematical model](mathematical-model.md).
+The network figure the interface shows comes from `CongestionTracker`: a mean
+over traversable edges weighted by length times lanes, reported together with an
+exponential moving average (time constant 900 virtual seconds) and sampled every
+virtual minute into the history. See [Congestion and road state](congestion.md)
+and the [Mathematical model](mathematical-model.md#congestion).
 
 ### News
 

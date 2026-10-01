@@ -114,6 +114,8 @@ See [Docker](docker.md), [Security](security.md), [Logging](logging.md) and
 ## Operational procedures
 
 Use the [Operations runbook](operations.md) for readiness checks, experiment
-provenance, backups, upgrade validation, rollback and persistent shutdown. The
+provenance, backups, upgrade validation, rollback and persistent shutdown, and
+[Upgrading and data management](upgrading.md) for versions, upgrades, backups, disk
+space and removal. The
 proxy examples above illustrate forwarding only; add authentication or a trusted
 network boundary before allowing remote access.
