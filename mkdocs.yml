@@ -1,0 +1,227 @@
+# DSTNS documentation site. Built by Read the Docs (see .readthedocs.yaml),
+# or locally:
+#
+#   python3 -m venv .venv-docs && .venv-docs/bin/pip install -r docs/requirements.txt
+#   .venv-docs/bin/mkdocs serve          # http://127.0.0.1:8000, live reload
+#   .venv-docs/bin/mkdocs build --strict # what CI and Read the Docs run
+
+site_name: DSTNS
+site_description: >-
+  Deterministic Spatiotemporal Transport Network Simulator: a seeded,
+  real-geography traffic simulator with a C++20 core, an operator CLI and a
+  browser observer.
+site_author: Varun Karthic
+# Read the Docs sets the canonical URL of each version; the fallback is used
+# for local builds.
+site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://dstns.readthedocs.io/en/latest/"]
+repo_url: https://github.com/varunkarthic/DSTNS
+repo_name: varunkarthic/DSTNS
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 Varun Karthic &middot; AGPL-3.0-or-later &middot; Map data &copy; OpenStreetMap contributors
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
+    - content.action.edit
+    - content.action.view
+
+extra_css:
+  - assets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/varunkarthic/DSTNS
+      name: DSTNS on GitHub
+  generator: false
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra_javascript:
+  - assets/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+plugins:
+  - search
+  - swagger-ui-tag
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - getting-started/index.md
+      - Quick start: getting-started/quick-start.md
+      - Installation: getting-started/installation.md
+      - Run with Docker: getting-started/docker.md
+      - Your first simulation: getting-started/first-simulation.md
+  - User guide:
+      - guide/index.md
+      - Operator CLI: guide/operator-cli.md
+      - Observer interface: guide/observer-interface.md
+      - Playback control: guide/playback-control.md
+      - Seeds and places: guide/seeds-and-places.md
+      - Configuration: guide/configuration.md
+      - Observer configuration: guide/observer-configuration.md
+  - Concepts:
+      - concepts/index.md
+      - Architecture: concepts/architecture.md
+      - Simulation engine: concepts/simulation-engine.md
+      - Mathematical model: concepts/mathematical-model.md
+      - Graph model: concepts/graph-model.md
+      - OSM map generation: concepts/osm-map-generation.md
+      - Deterministic seeding: concepts/deterministic-seeding.md
+      - Events: concepts/events.md
+      - Weather and flooding: concepts/weather.md
+      - Incidents: concepts/incidents.md
+      - Routing: concepts/routing.md
+      - Adaptive backpressure: concepts/backpressure.md
+      - Reproducibility: concepts/reproducibility.md
+  - API:
+      - api/index.md
+      - Reference: api/reference.md
+      - Playback: api/playback-api.md
+      - Control: api/control-api.md
+      - View: api/view-api.md
+      - News: api/news-api.md
+      - System: api/system-api.md
+      - Streaming: api/streaming.md
+      - Lifecycle: api/lifecycle.md
+      - Errors: api/errors.md
+      - Schemas: api/schemas.md
+      - Examples: api/examples.md
+      - Versioning: api/versioning.md
+      - OpenAPI explorer: api/openapi.md
+  - Deployment:
+      - deployment/index.md
+      - Docker: deployment/docker.md
+      - Security: deployment/security.md
+      - Logging: deployment/logging.md
+      - Performance: deployment/performance.md
+  - Troubleshooting:
+      - troubleshooting.md
+      - FAQ: faq.md
+  - Development:
+      - development/index.md
+      - Contributing: development/contributing.md
+      - Building from source: development/building.md
+      - Testing: development/testing.md
+      - Writing documentation: development/documentation.md
+      - Code evaluation (Oct 2026): development/audit-2026-10.md
+      - Components:
+          - components/index.md
+          - API server: components/api-server.md
+          - Graph store: components/graph-store.md
+          - OSM loader: components/osm-loader.md
+          - CRFG district growth: components/crfg.md
+          - DRNCP canonical numbering: components/drncp.md
+          - RNG: components/rng.md
+          - Event engine: components/event-engine.md
+          - Signals: components/signals.md
+          - Traffic control: components/traffic-control.md
+          - Bus stops: components/bus-stops.md
+          - Buildings and places: components/buildings.md
+          - Weather (DWS): components/dws.md
+          - Flood model: components/flood-model.md
+          - Routing: components/routing.md
+          - Playback engine: components/playback-engine.md
+          - Replay engine: components/replay-engine.md
+          - Spatial queries: components/spatial-index.md
+          - Logging system: components/logging-system.md
+          - SUMO adapter: components/sumo-adapter.md
+          - Observer (UI engine): components/ui-engine.md
+      - History:
+          - Modernization: history/modernization.md
+          - Legacy audit: history/legacy-audit.md
+          - Implementation notes: history/implementation-notes.md
+      - Design specifications:
+          - design/index.md
+          - Mathematical foundation: design/mathematical-foundation.md
+          - System architecture: design/system-architecture-spec.md
+          - API, runtime and events: design/api-runtime-event-spec.md
+  - Reference:
+      - Glossary: glossary.md
+      - Changelog: changelog.md
+      - License: license.md

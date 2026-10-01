@@ -1,0 +1,18 @@
+# Read the Docs configuration. See docs/development/documentation.md.
+# https://docs.readthedocs.io/en/stable/config-file/v2.html
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.12"
+
+mkdocs:
+  configuration: mkdocs.yml
+  # A broken link or a page missing from the navigation fails the build
+  # instead of publishing it.
+  fail_on_warning: true
+
+python:
+  install:
+    - requirements: docs/requirements.txt

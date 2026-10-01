@@ -1,0 +1,7 @@
+# Documentation toolchain, pinned so Read the Docs and local builds agree.
+# Install: pip install -r docs/requirements.txt
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+mkdocs-material-extensions==1.3.1
+pymdown-extensions==12.1
+mkdocs-swagger-ui-tag==0.8.1

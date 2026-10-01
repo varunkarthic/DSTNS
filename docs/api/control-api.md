@@ -3,7 +3,7 @@
 Acting on a running world: speed, day type, modules, roads, signals, rain and
 demand surges, with undo and redo. All routes are under `/api/v1/control`;
 every one except `tick-rate` needs a world (409 or 400 otherwise). They refuse cross-site browser requests (see
-[Security](../SECURITY.md#cross-site-request-forgery)), and errors follow
+[Security](../deployment/security.md#cross-site-request-forgery)), and errors follow
 [API errors](errors.md).
 
 The observer uses only the tick rate. The other controls are for the CLI,
@@ -50,7 +50,7 @@ rebuilt for the new day type from the current time onwards.
 ## PUT /modules/{module}
 
 `{"enabled": false}`. Modules: `traffic`, `signals`, `buildings`, `dws`,
-`flooding`, `news`. See [Configuration](../CONFIGURATION.md#modules) for what
+`flooding`, `news`. See [Configuration](../guide/configuration.md#modules) for what
 each one turns off.
 
 ## Edge overrides
@@ -131,4 +131,4 @@ Any new control clears the redo stack. `GET /history` lists applied and undone
 commands with their IDs, types and the virtual time each was applied. Undo is
 logical: it restores the control's value from now on, and does not rewind
 what the control did while it was in force. See [Simulation
-engine](../simulation-engine.md#undo-and-redo).
+engine](../concepts/simulation-engine.md#undo-and-redo).

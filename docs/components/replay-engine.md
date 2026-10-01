@@ -1,21 +1,43 @@
-# Replay Behavior (`dstns::SimulationEngine`)
+# Replay
 
-## Purpose
-Replay is not a separate namespace, class, or runtime service. `SimulationEngine::restore_to` restores a retained checkpoint and `SimulationEngine::step_to` deterministically advances physics to the requested time. The standalone `dstns_replay_verify` tool and replay CTest compare independent runs.
+Replay is not a separate class. It is the combination of three properties of
+`SimulationEngine` and `ScenarioCompiler`:
 
-## Invariants & Hashes
-Every simulation scenario is fingerprinted by three implementation-defined cryptographic digests:
+1. **Deterministic compilation**: the same seed, configuration and bytes give
+   the same scenario and hashes.
+2. **Fixed-step physics**: one virtual second per step, whatever the speed.
+3. **Checkpoint restore**: `restore_to` reloads a checkpoint and `step_to`
+   replays forward.
 
-1. `graph_hash` hashes canonical node IDs, source node IDs, millimetre-rounded positions, and selected edge identity/topology fields.
-2. `event_hash` hashes selected DWS-event and planned-trip fields. Signal plans are not currently included.
-3. `scenario_hash` hashes the seed, `map_hash`, `graph_hash`, `event_hash`, and resolved day value.
+## Hashes
 
-These descriptions intentionally match `ScenarioCompiler::calculate_hashes`; they are not a promise that every field in each object is covered.
+`ScenarioCompiler::calculate_hashes`:
 
-## Replay Invariant
-For identical `Seed128` and `ScenarioConfig`, with equivalent supported control state:
-- `graph_hash(Run 1) == graph_hash(Run 2)`
-- `scenario_hash(Run 1) == scenario_hash(Run 2)`
-- Dynamic state snapshots at simulated time $t$ match with 0 divergence.
+| Hash | Over |
+|---|---|
+| `graph_hash` | Canonical node IDs, OSM node IDs, positions rounded to the millimetre, and edge identity and topology fields |
+| `event_hash` | Scheduled weather and planned-trip fields (signal plans are not included) |
+| `scenario_hash` | The seed, `map_hash`, `graph_hash`, `event_hash` and the resolved day |
 
-Checkpoints contain node state, edge state, news-log length, and the next news identifier. They do not serialize a general `ControlJournal`; callers must not treat arbitrary external control histories as an implemented replay-file format.
+## What a checkpoint holds
+
+Node and edge dynamic state, the event runtime (heap, history, demand), the
+congestion tracker, and the news cursor. Operator controls are deliberately
+**not** part of a checkpoint: signal overrides, surges and manual rain live
+beside it, and edge overrides are carried across a restore, so an operator's
+action stands until undone.
+
+## Verifying
+
+```bash
+./build/dstns_replay_verify 382923
+```
+
+compiles twice and runs two independent engines to 12,345 s on a grid and on
+the bundled real district, comparing every hash and the full snapshot. The
+`dstns_replay_reproducibility` CTest does the same in CI. See
+[Reproducibility](../concepts/reproducibility.md).
+
+There is no replay file format: a run is reproduced from its seed and
+configuration (a [saved seed](../guide/seeds-and-places.md#saving-and-sharing-configurations)),
+not from a recorded journal of operator actions.

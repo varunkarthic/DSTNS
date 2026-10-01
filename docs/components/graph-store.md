@@ -64,5 +64,11 @@ public:
 ```
 
 ## Threading & Concurrency
-- Only the simulation thread mutates `GraphStore` dynamic state during fixed-step integration.
-- Read operations from API threads access coherent snapshots published by the simulation controller.
+- `GraphStore` has no lock of its own. Every access, from the engine loop or an
+  API handler, happens under `SimulationEngine`'s mutex, so a reader always sees
+  one consistent instant.
+- Physics writes the dynamic arrays and then calls `commit()`, which bumps
+  `state_revision`. Operator controls (edge overrides) write under the same
+  mutex.
+- The static scenario never changes during a run; a new world installs a new
+  `GraphStore`.

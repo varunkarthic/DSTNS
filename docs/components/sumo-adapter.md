@@ -99,7 +99,7 @@ on during a long SUMO run.
 
 `./launcher sumo` runs the same pipeline outside the server into
 `data/sumo_live_run/`, and `./launcher test sumo` runs
-`tests/integration/sumo_smoke.sh`. See [Operator CLI](../operator-cli.md).
+`tests/integration/sumo_smoke.sh`. See [Operator CLI](../guide/operator-cli.md).
 
 ## Limits
 

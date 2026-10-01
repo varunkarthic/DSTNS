@@ -1,29 +1,61 @@
-# Playback and Checkpoints (`dstns::SimulationEngine`)
+# Playback and checkpoints (`dstns::SimulationEngine`)
 
-## Purpose
-`SimulationEngine` maps elapsed wall time onto a virtual day $t_D \in [0,86400]$ using the configured playback duration $T_P$. Its built-in deterministic traffic physics advances in virtual-time steps; an optional SUMO run is a separate exported process, not a third synchronized engine clock.
+Source: `SimulationEngine::loop`, `step_to`, `capture_checkpoint`,
+`restore_to`, `seek`, `step`, `set_tick_rate` in `src/engine.cpp`.
 
-## Lifecycle States
-```text
-BOOTING -> IDLE -> PREPARING -> READY -> RUNNING <-> PAUSED
-                                            |            |
-                                            v            v
-                                         SEEKING      STOPPING -> STOPPED -> IDLE
-                                            |
-                                            v
-                                        COMPLETED -> TERMINATING
+## Clocks
+
+| Quantity | Definition |
+|---|---|
+| Playback duration \( T_P \) | Wall-clock seconds a virtual day takes at 1×, 60 to 3600 |
+| Base rate | \( 86400 / T_P \) virtual seconds per wall-clock second |
+| Tick rate \( k \) | Speed multiplier, \( 0 < k \le 5 \); the interface offers 0.25, 0.5, 1, 2, 3, 5 |
+| Target virtual rate | base rate × \( k \) (the *applied* \( k \), which ASB may cap) |
+
+## The loop
+
+The engine thread wakes every 50 ms. While `RUNNING`:
+
+\[
+t_{\text{target}} = \min\big(86400,\; t_{\text{anchor}} + (\text{now} - \text{wall}_{\text{anchor}}) \times \text{base rate} \times k\big)
+\]
+
+and `step_to(target)` advances physics **one virtual second at a time**,
+capturing a checkpoint whenever the clock crosses a multiple of 900 s. Reaching
+86,400 while running completes the day. Every rate change, pause, play and seek
+first catches up to the wall clock, then re-anchors.
+
+```mermaid
+sequenceDiagram
+    participant L as Engine loop (every 50 ms)
+    participant E as step_to
+    participant P as physics_step
+    participant C as Checkpoints
+    L->>E: target from wall clock
+    loop each virtual second until target
+        E->>P: dt = 1
+        alt t % 900 == 0
+            E->>C: capture (nodes, edges, events, congestion, news cursor)
+        end
+    end
 ```
 
-## Three-Clock Model & Rate Scaling
-1. **Base Rate**:
-   $$\text{base\_rate} = \frac{86400}{T_P}$$
-2. **Tick Rate**: Multiplier $k_{\text{tick}} \in (0, 100]$ (default 1.0).
-3. **Target Virtual Rate**:
-   $$\text{target\_virtual\_rate} = \text{base\_rate} \cdot k_{\text{tick}}$$
-4. **Stepping**: The worker wakes about every 50 ms and calls `step_to`; physics is integrated in steps no larger than 60 virtual seconds and shortened at checkpoint boundaries.
+## Checkpoints and seeking
 
-## Checkpointing & Fast Seeking
-- Checkpoints are captured at fixed 900-virtual-second boundaries. Physics steps are shortened when necessary to land exactly on each crossed boundary, even after an unaligned live tick or seek.
-- Seeking to target virtual time $t_{\text{target}}$ restores the nearest preceding checkpoint $t_{\text{cp}} \le t_{\text{target}}$ and rolls physics forward to $t_{\text{target}}$.
-- Checkpoints include the news-log size and next news identifier. Rewinding truncates invalid future checkpoints and restores that cursor before replay, so state and news identifiers reproduce exactly.
-- Forward seeks advance from current state; backward seeks restore and replay from the nearest retained checkpoint.
+A checkpoint stores the node and edge dynamic arrays, the event runtime, the
+congestion tracker, and the news length and next ID.
+
+- **Forward seek** simulates to the target.
+- **Backward seek** restores the latest checkpoint at or before the target,
+  discards later checkpoints, carries operator edge overrides across, and
+  simulates to the target.
+- **Step** simulates exactly the requested seconds (1 to 3600) and pauses.
+
+Because physics is fixed-step and deterministic, all three reach identical
+state for the same target.
+
+Memory: 96 checkpoints per day, each a copy of every node's and edge's
+dynamic state. This is the main memory cost of a run.
+
+See [Simulation engine](../concepts/simulation-engine.md) and
+[Lifecycle](../api/lifecycle.md).
