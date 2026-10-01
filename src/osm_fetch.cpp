@@ -220,8 +220,11 @@ MapTileResult acquire_map_tile(const MapLocation& location, const std::filesyste
 
     std::ostringstream command;
     command << shell_quote(python_interpreter()) << ' ' << shell_quote(script.string())
-            << " --bbox " << shell_quote(location.bbox())
-            << " --output " << shell_quote(target.string());
+            // "--bbox=VALUE", not "--bbox VALUE": a southern-hemisphere box
+            // starts with a minus sign, which argparse would read as an option
+            // and so refuse to download a seventh of the cities in the catalogue.
+            << " --bbox=" << shell_quote(location.bbox())
+            << " --output=" << shell_quote(target.string());
 
     std::string output;
     const int status = run_capture(command.str(), output);
