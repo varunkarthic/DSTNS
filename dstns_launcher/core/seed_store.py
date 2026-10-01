@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 VERSION = 'urban-crfg-v3'
 # Recorded in place of a checksum when the seed, not a pinned file, chooses the map.
 AUTO_MAP = 'auto'
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 
 def seed_id(value):
     if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', value):

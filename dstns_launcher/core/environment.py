@@ -95,8 +95,8 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
 
     def python() -> Outcome:
         ok = sys.version_info >= (3, 10)
-        return Outcome(State.PASS if ok else State.FAIL, platform.python_version(),
-                       remedy="" if ok else "Install Python 3.10 or later.")
+        return Outcome(State.PASS if ok else State.WARNING, platform.python_version(),
+                       remedy="" if ok else "Python 3.10 or later is supported; older versions are not tested.")
 
     def node() -> Outcome:
         code, out, _ = _command(["node", "--version"], timeout=10)

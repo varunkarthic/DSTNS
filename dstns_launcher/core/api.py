@@ -69,7 +69,8 @@ def call(
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return Response(response.status, _decode(response.read()))
     except urllib.error.HTTPError as exc:
-        return Response(exc.code, _decode(exc.read()))
+        with exc:
+            return Response(exc.code, _decode(exc.read()))
     except (urllib.error.URLError, OSError, TimeoutError) as exc:
         reason = getattr(exc, "reason", exc)
         return Response(0, {"error": {"code": "UNREACHABLE", "message": str(reason)}})

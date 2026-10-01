@@ -48,13 +48,20 @@ def wants_interface(argv: list[str]) -> bool:
     return True
 
 
+TEXTUAL_MAJOR = 8
+
+
 def has_textual() -> bool:
+    """Whether a compatible Textual (the pinned major version) and Rich are importable here."""
     try:
-        import textual  # noqa: F401
         import rich  # noqa: F401
+        import textual
     except ImportError:
         return False
-    return True
+    try:
+        return int(str(textual.__version__).split(".")[0]) >= TEXTUAL_MAJOR
+    except (AttributeError, ValueError):
+        return False
 
 
 def venv_python() -> Path:
@@ -75,7 +82,8 @@ def ensure_interface(argv: list[str]) -> None:
 
 def _installed(python: Path) -> bool:
     try:
-        return subprocess.run([str(python), "-c", "import textual, rich"], capture_output=True, timeout=30).returncode == 0
+        probe = f"import rich, textual, sys; sys.exit(int(textual.__version__.split('.')[0]) < {TEXTUAL_MAJOR})"
+        return subprocess.run([str(python), "-c", probe], capture_output=True, timeout=30).returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
 

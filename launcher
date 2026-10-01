@@ -2,6 +2,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Varun Karthic
 
+# DSTNS launcher. Everything (interface choice, checks, exit codes) is in Python.
 set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
-exec python3 "$root/launcher.py" "$@"
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "DSTNS: python3 was not found. Install Python 3.10 or later and try again." >&2
+  exit 1
+fi
+export PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m dstns_launcher "$@"

@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 ROOT=Path(__file__).resolve().parents[2]
-spec=importlib.util.spec_from_file_location('seeds',ROOT/'dstns-operator-cli/seeds.py')
+spec=importlib.util.spec_from_file_location('seeds',ROOT/'dstns_launcher/core/seed_store.py')
 seeds=importlib.util.module_from_spec(spec);spec.loader.exec_module(seeds)
 
 class Seeds(unittest.TestCase):
@@ -45,10 +45,10 @@ class Seeds(unittest.TestCase):
   self.assertFalse((Path(self.tmp.name)/'maps').exists())
  def test_cli_validation(self):
   for args,message in [(['start','--day-type','holiday'],'weekday or weekend'),(['start','--seed','-4'],'decimal integer'),(['start','--speed','nan'],'must be'),(['start','--duration','9999'],'must be'),(['start','--seed','42','--saved-seed','x'],'mutually exclusive'),(['start','--nonsense'],'Unknown option'),(['start','--saved-seed','missing'],'Unknown saved seed')]:
-   r=subprocess.run(['node',str(ROOT/'dstns-operator-cli/dstns.mjs'),*args],capture_output=True,text=True,cwd=ROOT)
+   r=subprocess.run(['python3',str(ROOT/'launcher.py'),*args],capture_output=True,text=True,cwd=ROOT)
    self.assertNotEqual(r.returncode,0,r.stdout);self.assertIn(message,r.stdout+r.stderr)
  def test_cli_save_weekend(self):
-  args=['node',str(ROOT/'dstns-operator-cli/dstns.mjs'),'seeds','save','weekend-test','--seed','382923','--day-type','weekend','--osm-file','tests/fixtures/roads.osm.xml']
+  args=['python3',str(ROOT/'launcher.py'),'seeds','save','weekend-test','--seed','382923','--day-type','weekend','--osm-file','tests/fixtures/roads.osm.xml']
   r=subprocess.run(args,capture_output=True,text=True,cwd=ROOT);self.assertEqual(r.returncode,0,r.stdout+r.stderr)
   cfg=seeds.operate('use',{'id':'weekend-test'})['config'];self.assertEqual(cfg['day'],1);# The stored seed is the number the operator typed, not a hash of it.
   self.assertEqual(cfg['seed'],'382923')

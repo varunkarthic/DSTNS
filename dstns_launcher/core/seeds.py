@@ -3,32 +3,19 @@
 
 """Saved seeds: named, complete run configurations.
 
-The store itself is ``dstns-operator-cli/seeds.py``, which other tools and the
-test suite also use; this module calls it in-process rather than duplicating it.
+The store itself is :mod:`dstns_launcher.core.seed_store`; this module points it
+at the right database and turns its errors into launcher errors.
 """
 from __future__ import annotations
 
-import importlib.util
 import os
 import sqlite3
 from contextlib import contextmanager
-from functools import lru_cache
-from types import ModuleType
 from typing import Any, Iterator
 
+from . import seed_store
 from .errors import ConfigurationError
 from .paths import PATHS, Paths
-
-
-@lru_cache(maxsize=None)
-def _store(root: str) -> ModuleType:
-    location = os.path.join(root, "dstns-operator-cli", "seeds.py")
-    spec = importlib.util.spec_from_file_location("dstns_seed_store", location)
-    if spec is None or spec.loader is None:
-        raise ConfigurationError("The saved-seed store is missing.", remedy=f"Restore {location}.")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 @contextmanager
@@ -49,6 +36,6 @@ def operate(action: str, data: dict[str, Any], *, paths: Paths = PATHS) -> Any:
     """``save``, ``list``, ``inspect``, ``use`` or ``delete``, exactly as the store defines them."""
     with _database(paths):
         try:
-            return _store(str(paths.root)).operate(action, data)
+            return seed_store.operate(action, data)
         except (ValueError, KeyError, OSError, sqlite3.Error) as exc:
             raise ConfigurationError(str(exc)) from exc

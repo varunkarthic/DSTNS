@@ -203,6 +203,10 @@ class LauncherApp(App[Outcome]):
 
 def run_tui(args, caps: Capabilities, session: Session, initial: str) -> Outcome:
     """Run the interface. Raises if it cannot start; reports a crash in the outcome."""
+    from ..bootstrap import has_textual
+
+    if not has_textual():
+        raise ImportError("A compatible version of Textual is not installed.")
     if not caps.interactive:
         from ..core.errors import UIInitializationError
 
