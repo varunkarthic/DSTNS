@@ -516,14 +516,34 @@ export default function App() {
     }
   }, []);
 
+  // The clear a closing dialog has scheduled. Opening another dialog cancels
+  // it, or the clear would take the new dialog with it a moment after it
+  // appeared.
+  const dialogCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelDialogClose = useCallback(() => {
+    if (dialogCloseTimer.current !== null) clearTimeout(dialogCloseTimer.current);
+    dialogCloseTimer.current = null;
+  }, []);
   const closeDialog = useCallback(() => {
     // Let the exit transition run before the node is removed.
+    cancelDialogClose();
     setDialogClosing(true);
-    setTimeout(() => {
+    dialogCloseTimer.current = setTimeout(() => {
+      dialogCloseTimer.current = null;
       setDialog(null);
       setDialogClosing(false);
     }, 180);
-  }, []);
+  }, [cancelDialogClose]);
+  /** Open a dialog, replacing any that is open or still leaving. */
+  const openDialog = useCallback(
+    (next: Exclude<DialogKind, null>) => {
+      cancelDialogClose();
+      setDialogClosing(false);
+      setDialog(next);
+    },
+    [cancelDialogClose],
+  );
+  useEffect(() => cancelDialogClose, [cancelDialogClose]);
 
   const report = useCallback(
     () =>
@@ -804,7 +824,7 @@ export default function App() {
               <span>Export Report</span>
             </button>
             <Tooltip label="About DSTNS" side={["bottom", "left"]}>
-              <button className="btn icon" aria-label="About DSTNS, licence and source" onClick={() => setDialog("about")}>
+              <button className="btn icon" aria-label="About DSTNS, licence and source" onClick={() => openDialog("about")}>
                 <Icon name="info" size={16} />
               </button>
             </Tooltip>
@@ -992,9 +1012,9 @@ export default function App() {
                 logControl("speed", `${rate}x`);
                 void action(() => api.tick(rate));
               }}
-              onReset={() => setDialog("reset")}
-              onRegenerate={() => setDialog("regenerate")}
-              onTerminate={() => setDialog("terminate")}
+              onReset={() => openDialog("reset")}
+              onRegenerate={() => openDialog("regenerate")}
+              onTerminate={() => openDialog("terminate")}
             />
           </div>
 
@@ -1014,8 +1034,10 @@ export default function App() {
               onCancel={closeDialog}
               onConfirm={() => {
                 closeDialog();
-                logControl("reset");
-                void action(() => api.seek(0));
+                // A finished day replays at once; a running one keeps its play state.
+                const replay = lifecycle === "COMPLETED";
+                logControl(replay ? "restart" : "reset");
+                void action(() => api.seek(0, replay));
               }}
             />
           )}
@@ -1073,14 +1095,11 @@ export default function App() {
               onDownload={() => void report()}
               onReplay={() => {
                 setCompletion(null);
-                closeDialog();
-                logControl("restart");
-                void action(() => api.seek(0, true));
+                openDialog("reset");
               }}
               onNewWorld={() => {
                 setCompletion(null);
-                closeDialog();
-                setDialog("regenerate");
+                openDialog("regenerate");
               }}
               canGenerate={regenerationEnabled && !world.active && !suspended}
               onClose={() => {
