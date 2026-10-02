@@ -115,7 +115,7 @@ git pull
 ./launcher start      # rebuilds only what changed
 ```
 
-In Docker: `git pull && docker compose up --build`. Cached maps and logs live in
+In Docker: `git pull && docker compose up --pull always`. Cached maps and logs live in
 volumes and survive a rebuild. Read the [changelog](../changelog.md) first.
 
 ## Remove everything

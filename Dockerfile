@@ -13,18 +13,31 @@
 # uses Debian packages, so it builds natively on Apple silicon and x86 alike.
 
 ARG DEBIAN_RELEASE=bookworm
+ARG VERSION=2.1.0
+ARG REVISION=unknown
+ARG BUILD_DATE=unknown
+ARG RELEASE_CHANNEL=local
 
 # ---- Stage 1: the observer bundle ----------------------------------------
-FROM node:22-${DEBIAN_RELEASE}-slim AS ui
+FROM --platform=$BUILDPLATFORM node:22-${DEBIAN_RELEASE}-slim AS ui
 WORKDIR /ui
 COPY ui-engine/package.json ui-engine/package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN --mount=type=cache,id=dstns-npm,target=/root/.npm npm ci --prefer-offline --no-audit --no-fund
 COPY ui-engine/ ./
 RUN npm run build
+# Node ships a trusted CA bundle. Bootstrap HTTPS apt even in the slim base,
+# before Debian's ca-certificates package is installed.
+RUN node -e "require('fs').writeFileSync('/tmp/build-ca.crt', require('tls').rootCertificates.join('\\n') + '\\n')"
 
 # ---- Stage 2: the engine -------------------------------------------------
 FROM debian:${DEBIAN_RELEASE} AS engine
-RUN apt-get update \
+ARG VERSION
+ARG REVISION
+ARG BUILD_DATE
+ARG RELEASE_CHANNEL
+COPY --from=ui /tmp/build-ca.crt /etc/ssl/certs/ca-certificates.crt
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+ && apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential cmake git ca-certificates libsqlite3-dev zlib1g-dev \
  && rm -rf /var/lib/apt/lists/*
@@ -34,18 +47,36 @@ COPY include include
 COPY src src
 COPY apps apps
 COPY tools tools
+RUN grep -Fx "project(dstns VERSION $VERSION LANGUAGES CXX)" CMakeLists.txt
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=OFF \
+      -DDSTNS_REVISION="$REVISION" -DDSTNS_BUILD_DATE="$BUILD_DATE" -DDSTNS_CHANNEL="$RELEASE_CHANNEL" \
  && cmake --build build --target dstns_server dstns_scenario_export -j"$(nproc)"
 
 # ---- Stage 3: runtime ----------------------------------------------------
 FROM debian:${DEBIAN_RELEASE}-slim
 ARG WITH_SUMO=0
+ARG VERSION
+ARG REVISION
+ARG BUILD_DATE
+ARG RELEASE_CHANNEL
+ARG TARGETPLATFORM
 LABEL org.opencontainers.image.title="DSTNS" \
       org.opencontainers.image.description="Deterministic Spatiotemporal Transport Network Simulator" \
       org.opencontainers.image.source="https://github.com/varunkarthic/DSTNS" \
-      org.opencontainers.image.licenses="AGPL-3.0-or-later"
+      org.opencontainers.image.url="https://github.com/varunkarthic/DSTNS" \
+      org.opencontainers.image.documentation="https://dstns.readthedocs.io/" \
+      org.opencontainers.image.authors="Varun Karthic (https://github.com/varunkarthic)" \
+      org.opencontainers.image.vendor="Varun Karthic" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.revision="$REVISION" \
+      org.opencontainers.image.created="$BUILD_DATE" \
+      io.dstns.channel="$RELEASE_CHANNEL" \
+      io.dstns.sumo="$WITH_SUMO"
 
-RUN apt-get update \
+COPY --from=ui /tmp/build-ca.crt /etc/ssl/certs/ca-certificates.crt
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+ && apt-get update \
  && apt-get install -y --no-install-recommends \
       libsqlite3-0 zlib1g python3 ca-certificates tini \
  && if [ "$WITH_SUMO" = "1" ]; then apt-get install -y --no-install-recommends sumo; fi \
@@ -56,6 +87,11 @@ WORKDIR /app
 COPY --from=engine /src/build/dstns_server /src/build/dstns_scenario_export /app/build/
 COPY --from=ui /ui/dist /app/ui-engine/dist
 COPY config /app/config
+COPY LICENSE COPYRIGHT /app/
+COPY ui-engine/package.json /tmp/observer-package.json
+RUN python3 -c 'import json,sys; from pathlib import Path; keys=("version","revision","created","channel","platform","with_sumo"); data=dict(zip(keys,sys.argv[1:])); data.update(observer_version=json.loads(Path("/tmp/observer-package.json").read_text())["version"], author="Varun Karthic", source="https://github.com/varunkarthic/DSTNS", license="AGPL-3.0-or-later"); Path("/app/build-info.json").write_text(json.dumps(data,indent=2)+"\n")' \
+      "$VERSION" "$REVISION" "$BUILD_DATE" "$RELEASE_CHANNEL" "$TARGETPLATFORM" "$WITH_SUMO" \
+ && rm /tmp/observer-package.json
 COPY scripts/fetch_osm.py /app/scripts/fetch_osm.py
 # A recorded real district, so a container can run with no network at all:
 # DSTNS_OSM_FILE=/app/data/fixtures/real_network.osm.xml

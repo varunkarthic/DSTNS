@@ -225,14 +225,17 @@ int main() {
         // the replacement is being prepared.
         int reported = 0;
         bool stayed_normal = true, never_suspended = true, never_locked = true;
-        while (engine.world_generating()) {
+        // The small fixture can finish before this thread is scheduled again.
+        // Always send a report: both preparation and the post-install settling
+        // window must suppress backpressure from the previous world.
+        do {
             auto during = engine.report_backpressure(900.0, 5.0, 5.0);
             ++reported;
             stayed_normal = stayed_normal && during["state"] == "NORMAL";
             never_suspended = never_suspended && during["gui_suspended"] == false;
             never_locked = never_locked && during["rate_locked"] == false;
-        }
-        check(reported > 0, "the observer kept reporting while the world was prepared");
+        } while (engine.world_generating());
+        check(reported > 0, "the observer reported during preparation or settling");
         check(stayed_normal, "backpressure stays normal while a world is being prepared");
         check(never_suspended, "the interface is not suspended by the swap");
         check(never_locked, "the rate is not locked by the swap");

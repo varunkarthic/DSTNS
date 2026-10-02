@@ -122,7 +122,7 @@ Symptoms and remedies, common questions, known limitations, a glossary.
 
     ```bash
     git clone https://github.com/varunkarthic/DSTNS.git && cd DSTNS
-    docker compose up --build
+    docker compose up --pull always
     ```
 
     Open <http://localhost:8090>. The container picks a seed, downloads that city's

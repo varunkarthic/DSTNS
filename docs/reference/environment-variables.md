@@ -69,7 +69,10 @@ Read by `docker-compose.yml` when it builds the command and the port mappings.
 | `DSTNS_BIND` | `127.0.0.1` | Host address the ports are published on. `0.0.0.0` exposes the API to the network |
 | `DSTNS_HOST_PORT` | `8090` | Host port mapped to the API |
 | `DSTNS_TLS_PORT` | `8443` | Host port of the TLS gateway (the `tls` profile) |
-| `DSTNS_WITH_SUMO` | `0` | Build argument: `1` installs SUMO into the image |
+| `DSTNS_IMAGE` | `ghcr.io/varunkarthic/dstns:stable` | Published image tag or digest |
+| `DSTNS_WITH_SUMO` | `0` | With `docker-compose.build.yml`: `1` includes SUMO |
+| `DSTNS_REVISION` | `unknown` | Local build override: source revision |
+| `DSTNS_BUILD_DATE` | `unknown` | Local build override: UTC build timestamp |
 
 ## Setting them
 

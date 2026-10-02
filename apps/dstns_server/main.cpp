@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
+#include "dstns/build_info.hpp"
 #include "dstns/logging.hpp"
 #include "dstns/osm_fetch.hpp"
 
@@ -34,6 +35,9 @@ int main(int argc, char** argv) {
             else if (a == "--map-cache-keep" && i + 1 < argc) cache_keep = std::stoul(argv[++i]);
             else if (a == "--version") {
                 std::cout << "DSTNS " << DSTNS_VERSION << "\n"
+                          << "Channel: " << DSTNS_CHANNEL << "\n"
+                          << "Revision: " << DSTNS_REVISION << "\n"
+                          << "Built: " << DSTNS_BUILD_DATE << " (" << DSTNS_BUILD_ARCH << ")\n"
                           << "Copyright (C) 2026 Varun Karthic\n"
                           << "Licence AGPL-3.0-or-later <https://www.gnu.org/licenses/agpl-3.0.html>.\n"
                           << "This is free software: you are free to change and redistribute it.\n"

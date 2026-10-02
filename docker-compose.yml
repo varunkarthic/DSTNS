@@ -1,7 +1,8 @@
 # DSTNS with Docker Compose. See https://dstns.readthedocs.io/deployment/docker/.
 #
-#   docker compose up --build                 # http://localhost:8090
-#   docker compose --profile tls up --build   # also https://localhost:8443
+#   docker compose up -d --pull always        # GHCR stable, http://localhost:8090
+#   docker compose --profile tls up -d        # also https://localhost:8443
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 #
 # Configure the first run with environment variables (or a .env file):
 #   DSTNS_SEED=382923 DSTNS_DAY_TYPE=weekend docker compose up
@@ -10,11 +11,7 @@
 
 services:
   dstns:
-    build:
-      context: .
-      args:
-        WITH_SUMO: "${DSTNS_WITH_SUMO:-0}"
-    image: dstns:latest
+    image: "${DSTNS_IMAGE:-ghcr.io/varunkarthic/dstns:stable}"
     restart: unless-stopped
     ports:
       # Loopback by default: the API can drive the run, so it is not published

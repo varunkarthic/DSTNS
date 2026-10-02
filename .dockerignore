@@ -12,3 +12,13 @@ data/maps/*.osm.xml
 data/seed-store
 .venv-launcher
 .cache
+.env
+.env.*
+.venv
+.venv-docs
+site
+**/__pycache__
+**/*.pyc
+docker/certificates
+ui-engine/test-results
+ui-engine/playwright-report

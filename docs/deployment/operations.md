@@ -32,7 +32,7 @@ host address and `DSTNS_HOST_PORT` the port:
 ```bash
 DSTNS_HOST_PORT=8090 \
 DSTNS_OSM_FILE=/app/data/fixtures/real_network.osm.xml \
-docker compose up --build -d
+docker compose up -d --pull always
 ```
 
 Compose expands the mapping to `127.0.0.1:8090:8090`, publishing the backend only

@@ -47,3 +47,13 @@ Convenience paths map to canonical ones and are kept for compatibility:
 The [reproducibility guarantee](../concepts/reproducibility.md) holds for one
 DSTNS version. A version that fixes a modelling or parsing bug can change
 results for affected maps; the changelog says which.
+
+## Container build identity
+
+The semantic engine version is separate from the release channel (`stable`,
+`edge`, or `local`). `/api/v1/system/info` reports the exact source revision, UTC
+build time, channel, build type and architecture under `build`, alongside the
+compiler and C++ standard. The same revision/channel appear in
+`dstns_server --version`; container labels and `/app/build-info.json` also record
+image identity. Pin the GHCR image digest for exact reruns; see
+[container tags](../deployment/docker.md#tags-and-build-identity).

@@ -6,6 +6,88 @@ fix it. For a first run, [Run with Docker](../getting-started/docker.md) is
 shorter.
 
 
+## Tags and build identity
+
+```bash
+docker pull ghcr.io/varunkarthic/dstns:stable
+docker buildx imagetools inspect ghcr.io/varunkarthic/dstns:stable
+```
+
+The release index contains **linux/amd64** and **linux/arm64**. Docker chooses your
+host architecture automatically; `unknown/unknown` entries are SBOM/provenance
+attestations, not runnable platforms. No `--platform linux/amd64` workaround is
+needed on Apple silicon.
+
+| Tag | Meaning |
+|---|---|
+| `stable`, `latest` | Tested main-branch builds and exact version releases |
+| `main` | Most recently published main-branch build |
+| `2.1.0`, `v2.1.0` | Published by the Git tag `v2.1.0`, which must match CMake's engine version |
+| `2.1`, `2` | Moving minor/major aliases of a version release |
+| `sha-<7 characters>`, `sha-<full commit>` | Source revision of a published build |
+| `edge`, branch name | Manual builds from other branches; do not advance stable |
+| `candidate-<run>-<attempt>` | Internal index assembled and checked before promotion |
+
+Tags can move on a rebuild. For an exact experiment, record and use
+`ghcr.io/varunkarthic/dstns@sha256:<index-digest>`. The engine version remains
+**2.1.0**, the observer package is **2.3.0**, and the API contract is **1.0**.
+The developer and image vendor are **Varun Karthic**
+([varunkarthic](https://github.com/varunkarthic)).
+
+The publishing workflow runs the full CI suite, builds on native AMD64 and ARM64
+runners, and exercises each image by digest: health, a running bundled OSM map,
+served observer assets, non-root UID, version consistency, replacing a run and
+shutdown. Only after both candidates and CI pass does it verify the combined
+manifest and promote release tags. Each candidate includes an SBOM and BuildKit
+provenance. A successful build cannot guarantee every environment or remote map
+provider; these gates test the packaged offline runtime.
+
+Inspect the OCI labels (author, vendor, version, full revision, build time, source,
+documentation, licence and channel) and the installed manifest:
+
+```bash
+docker image inspect ghcr.io/varunkarthic/dstns:stable --format '{{json .Config.Labels}}'
+docker run --rm --entrypoint cat ghcr.io/varunkarthic/dstns:stable /app/build-info.json
+docker run --rm --entrypoint /app/build/dstns_server ghcr.io/varunkarthic/dstns:stable --version
+curl -s http://localhost:8090/api/v1/system/info
+```
+
+`build-info.json` also includes the observer version, target platform and SUMO
+variant. The API's `build` object adds revision, created time, channel, build type
+and architecture alongside its compiler and C++ standard. Plain local builds
+report channel `local` and unknown revision/time unless supplied explicitly.
+`LICENSE` and `COPYRIGHT` are bundled at `/app/`.
+
+### Compose image selection and local builds
+
+```bash
+# Published stable is the default; no local build takes place.
+docker compose up -d --pull always
+# Pin a version (after its release is published), SHA tag, or digest.
+DSTNS_IMAGE=ghcr.io/varunkarthic/dstns:2.1.0 docker compose up -d --pull always
+# Explicit local build, tagged dstns:local.
+docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
+# The published standard image does not include optional SUMO.
+DSTNS_WITH_SUMO=1 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
+```
+
+### Publishing a release
+
+Push the code to `main` to build and promote `stable`, `latest`, `main` and SHA
+tags after all checks pass. To publish the semantic version aliases as well:
+
+```bash
+git tag v2.1.0
+git push origin v2.1.0
+```
+
+Change the engine version in `CMakeLists.txt` and the Dockerfile's `VERSION`
+default together for future releases; the image build refuses a mismatch. The
+workflow derives the version from CMake and rejects a mismatched Git release tag.
+The historical `sha-7723f00` image is AMD64-only; use a newly published tag or
+build locally from the fixed source. Editing the workflow alone does not change
+images already in GHCR.
+
 ## Architecture
 
 ```mermaid
@@ -42,7 +124,7 @@ API from one port. The gateway is optional and only terminates TLS.
 | Stage | Base | Produces |
 |---|---|---|
 | `ui` | `node:22-bookworm-slim` | The observer bundle (`npm ci`, `npm run build`) |
-| `engine` | `debian:bookworm` | `dstns_server` and `dstns_scenario_export`, built Release without tests |
+| `engine` | `debian:bookworm` | `dstns_server` and `dstns_scenario_export`, built Release; CI runs tests separately |
 | runtime | `debian:bookworm-slim` | SQLite, zlib, Python 3, CA certificates, tini, optionally SUMO, and the files below |
 
 ```text
@@ -51,6 +133,8 @@ API from one port. The gateway is optional and only terminates TLS.
 ├── build/dstns_scenario_export     SUMO export tool
 ├── ui-engine/dist/                 the observer bundle
 ├── config/                         defaults.json, ui-config.json
+├── build-info.json                 version, revision, platform and component metadata
+├── LICENSE, COPYRIGHT              licence and developer attribution
 ├── scripts/fetch_osm.py            the map downloader
 ├── data/fixtures/real_network.osm.xml   offline district
 ├── data/maps/        (volume)      map cache
@@ -75,11 +159,15 @@ Build arguments:
 |---|---|---|
 | `WITH_SUMO` | `0` | `1` installs Debian's `sumo` package (SUMO 1.15; the image grows to about 1.1 GB) |
 | `DEBIAN_RELEASE` | `bookworm` | Debian release for every stage |
+| `VERSION` | `2.1.0` | Must match the engine version in CMake |
+| `REVISION` | `unknown` | Full source commit, set by CI |
+| `BUILD_DATE` | `unknown` | UTC RFC 3339 build time, set by CI |
+| `RELEASE_CHANNEL` | `local` | `stable`, `edge` or `local` identity |
 
 ```bash
 docker build -t dstns .
 docker build -t dstns:sumo --build-arg WITH_SUMO=1 .
-docker buildx build --platform linux/amd64,linux/arm64 -t registry.example.org/dstns:2.0 --push .
+docker buildx build --platform linux/amd64,linux/arm64 -t registry.example.org/dstns:2.1.0 --push .
 ```
 
 ## What happens at start
@@ -142,7 +230,8 @@ Set these in `docker-compose.yml`, a `.env` file, or with `-e` on `docker run`.
 | `DSTNS_BIND` | `127.0.0.1` | Host address the ports are published on; `0.0.0.0` exposes them to the network |
 | `DSTNS_HOST_PORT` | `8090` | Host port for the observer and API |
 | `DSTNS_TLS_PORT` | `8443` | Host port for the gateway |
-| `DSTNS_WITH_SUMO` | `0` | Build argument `WITH_SUMO` |
+| `DSTNS_IMAGE` | `ghcr.io/varunkarthic/dstns:stable` | Published image tag or digest |
+| `DSTNS_WITH_SUMO` | `0` | Local build override only: build argument `WITH_SUMO` |
 
 ## Volumes and data
 
@@ -193,7 +282,7 @@ container, so starting runs is `dstns-run`'s job.
 ## TLS gateway
 
 ```bash
-docker compose --profile tls up --build
+docker compose --profile tls up --build gateway
 ```
 
 The `gateway` service (nginx 1.27) listens on 8443, terminates TLS 1.2/1.3 and
@@ -228,12 +317,11 @@ docker compose --profile tls up -d
 Without Compose:
 
 ```bash
-docker build -t dstns .
-docker volume create dstns-maps
-docker run -d --name dstns -p 8090:8090 \
-  -v dstns-maps:/app/data/maps \
+docker pull ghcr.io/varunkarthic/dstns:stable
+docker run -d --name dstns -p 127.0.0.1:8090:8090 \
+  -v dstns-maps:/app/data/maps -v dstns-logs:/app/logs \
   -e DSTNS_SEED=382923 \
-  dstns
+  ghcr.io/varunkarthic/dstns:stable
 docker exec dstns dstns-run --seed 42
 docker logs -f dstns
 ```
@@ -247,7 +335,7 @@ docker logs -f dstns
 | What is running | `docker compose exec dstns dstns-run --status` |
 | Health | `docker compose ps` (the `STATUS` column) |
 | Shell | `docker compose exec dstns bash` |
-| Upgrade | `git pull && docker compose up -d --build` |
+| Upgrade | `git pull && docker compose up -d --pull always` |
 | List cached maps | `docker compose exec dstns ls -lh /app/data/maps` |
 | Clear the map cache | `docker compose down && docker volume rm dstns_dstns-maps` |
 | Stop gracefully | `docker compose stop` (the server gets `SIGTERM` and 10 s) |
@@ -286,7 +374,7 @@ Dar es Salaam at 2×:
 | Memory | About 800 MB, mostly the 96 checkpoints a day of time travel needs |
 | CPU | 5 to 15% of one core while playing |
 | Map cache | 42 MB for this city |
-| First start | About 4 minutes to build; 30 to 60 s to download a city |
+| First start | Pull the image, then download a city (network dependent); local builds also compile the engine and observer |
 
 Memory scales with district size: checkpoints store the full dynamic state of
 every node and edge every 15 virtual minutes.

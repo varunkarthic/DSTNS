@@ -5,7 +5,7 @@ downloader and a recorded offline district. It runs on `linux/amd64` and
 `linux/arm64` (Apple silicon) alike.
 
 !!! abstract "In one line"
-    `docker compose up --build`, then open <http://localhost:8090>.
+    `docker compose up --pull always`, then open <http://localhost:8090>.
 
 ## Requirements
 
@@ -17,10 +17,38 @@ downloader and a recorded offline district. It runs on `linux/amd64` and
 
 ## Start
 
+No checkout is needed to use the published image:
+
+```bash
+docker pull ghcr.io/varunkarthic/dstns:stable
+docker run -d --name dstns -p 127.0.0.1:8090:8090 \
+  -v dstns-maps:/app/data/maps -v dstns-logs:/app/logs \
+  ghcr.io/varunkarthic/dstns:stable
+```
+
+Docker selects AMD64 or ARM64 automatically. The remaining examples use Compose;
+choose it instead of the `docker run` command above to avoid a port conflict:
+
 ```bash
 git clone https://github.com/varunkarthic/DSTNS.git
 cd DSTNS
-docker compose up --build
+docker compose up --pull always
+```
+
+Compose pulls `ghcr.io/varunkarthic/dstns:stable` by default. Set `DSTNS_IMAGE` to
+select another tag or an immutable digest. For example:
+
+```bash
+DSTNS_IMAGE=ghcr.io/varunkarthic/dstns:2.1.0 docker compose up -d --pull always
+```
+
+Version tags become available when the corresponding `v2.1.0` release tag is
+published. See [tags and build identity](../deployment/docker.md#tags-and-build-identity).
+
+To build local source instead:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 ```
 
 ```text
@@ -41,8 +69,8 @@ sequenceDiagram
     participant Compose as docker compose
     participant C as dstns container
     participant OSM as OpenStreetMap
-    You->>Compose: docker compose up --build
-    Compose->>C: build image, start
+    You->>Compose: docker compose up --pull always
+    Compose->>C: pull stable image, start
     C->>C: dstns_server starts, health check passes
     C->>C: dstns-run reads DSTNS_* and starts a run
     C->>OSM: download the seed's city (first time only)
@@ -117,7 +145,7 @@ docker compose down --volumes       # also delete cached maps and logs
 An nginx gateway with a self-signed certificate is one flag away:
 
 ```bash
-docker compose --profile tls up --build
+docker compose --profile tls up --build gateway
 ```
 
 Open **<https://localhost:8443>** and accept the certificate warning. To use
@@ -127,13 +155,20 @@ your own certificate, put `dstns.crt` and `dstns.key` in
 ## With SUMO
 
 ```bash
-DSTNS_WITH_SUMO=1 docker compose up --build
+DSTNS_WITH_SUMO=1 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 ```
 
 This installs Debian's SUMO 1.15 package into the image, taking it from 234 MB to about 1.1 GB.
 See the [SUMO adapter](../components/sumo-adapter.md).
 
 ## Problems?
+
+??? failure "`no matching manifest for linux/arm64/v8`"
+    The old `sha-7723f00` image only contains AMD64. Use the newly published
+    `stable` image after the updated publishing workflow succeeds. Old SHA tags
+    are not rewritten to pretend they contain the fixed source. Until that build
+    is published, use the local source build above on Apple silicon.
+
 
 ??? failure "`port is already allocated`"
     Something else uses port 8090. Pick another: `DSTNS_HOST_PORT=9090 docker compose up`.
@@ -145,7 +180,7 @@ See the [SUMO adapter](../components/sumo-adapter.md).
 
 ??? failure "The build fails at `npm ci` or `cmake`"
     Both download dependencies. Retry; behind a proxy, pass it to the build:
-    `docker compose build --build-arg HTTPS_PROXY=$HTTPS_PROXY`.
+    `docker compose -f docker-compose.yml -f docker-compose.build.yml build --build-arg HTTPS_PROXY=$HTTPS_PROXY`.
 
 ??? question "The observer shows DEGRADED"
     The browser is falling behind the simulation, often in a background tab or

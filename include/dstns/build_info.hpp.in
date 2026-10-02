@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+#pragma once
+
+#define DSTNS_REVISION "@DSTNS_REVISION@"
+#define DSTNS_BUILD_DATE "@DSTNS_BUILD_DATE@"
+#define DSTNS_CHANNEL "@DSTNS_CHANNEL@"
+#define DSTNS_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+#define DSTNS_BUILD_ARCH "@CMAKE_SYSTEM_PROCESSOR@"

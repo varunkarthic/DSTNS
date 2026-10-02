@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
+#include "dstns/build_info.hpp"
 
 #include "dstns/utf8.hpp"
 #include "dstns/geo.hpp"
@@ -408,7 +409,10 @@ void ApiServer::routes() {
             {"service", "dstns"},
             {"product", "Deterministic Spatiotemporal Transport Network Simulator"},
             {"version", DSTNS_VERSION},
-            {"build", {{"compiler", __VERSION__}, {"cpp_standard", __cplusplus}}},
+            {"build", {{"compiler", __VERSION__}, {"cpp_standard", __cplusplus},
+                       {"revision", DSTNS_REVISION}, {"created", DSTNS_BUILD_DATE},
+                       {"channel", DSTNS_CHANNEL}, {"type", DSTNS_BUILD_TYPE},
+                       {"architecture", DSTNS_BUILD_ARCH}}},
             {"lifecycle", to_string(engine_.lifecycle())},
             {"sumo", {
                 {"available", env.available},

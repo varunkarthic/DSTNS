@@ -13,7 +13,7 @@ instance, follow the validation steps in the
 | Engine version, compiler and SUMO availability | `curl -s localhost:8090/api/v1/system/info` |
 | Observer | **About** in the observer |
 | Source revision | `git rev-parse --short HEAD` |
-| Container image | `docker image inspect dstns:latest --format '{{.Id}}'` |
+| Container image | `docker image inspect ghcr.io/varunkarthic/dstns:stable --format '{{.Id}}'` |
 
 Record the engine version and the source revision with any results you intend to
 reproduce. The three versioned parts of DSTNS are explained in
@@ -59,16 +59,16 @@ ctest --test-dir build --output-on-failure
 
 ```bash
 git pull
-docker compose up --build -d
+docker compose up -d --pull always
 docker compose logs -f
 ```
 
-The `dstns-maps` and `dstns-logs` volumes survive the rebuild, so cached cities and
+The `dstns-maps` and `dstns-logs` volumes survive container replacement, so cached cities and
 logs are kept. To keep the previous image for reproducing old results, tag it before
-rebuilding:
+pulling the replacement:
 
 ```bash
-docker tag dstns:latest dstns:before-upgrade
+docker tag ghcr.io/varunkarthic/dstns:stable dstns:before-upgrade
 ```
 
 ## What an upgrade keeps
@@ -128,8 +128,8 @@ git checkout <revision>
 ./launcher                     # rebuilds that revision
 ```
 
-In Docker, start the image you tagged before upgrading, or check out the revision and
-rebuild. Cached maps and saved seeds work with either version, subject to the map
+In Docker, use `DSTNS_IMAGE=dstns:before-upgrade docker compose up -d --pull never`,
+or set `DSTNS_IMAGE` to the recorded GHCR digest. Cached maps and saved seeds work with either version, subject to the map
 selection version.
 
 ## Uninstalling
@@ -152,7 +152,7 @@ selection version.
     ```
 
     `--volumes` deletes the cached maps and logs. Then remove the image with
-    `docker image rm dstns:latest`.
+    `docker image rm ghcr.io/varunkarthic/dstns:stable`.
 
 ## Related
 

@@ -20,7 +20,7 @@ and in continuous integration on Ubuntu 24.04.
 | Operator CLI | Python and Node suites under `tests/cli/` | The downloader, saved-seed store or launcher misbehaves end to end |
 | Observer | `tsc` in strict mode, Vitest, a production `vite build` | A type error, a failing component test, or a bundle that does not build |
 | Documentation | `mkdocs build --strict`, OpenAPI validation | A broken link or anchor, a page missing from navigation, an invalid OpenAPI description |
-| Container | `docker build`, then a run against the bundled map | The image does not build, or does not reach a running simulation |
+| Container | `docker build`, then `python3 tests/docker/smoke.py IMAGE --arch amd64` (or `arm64`); publication tests both CPUs natively | Image identity, health, bundled map, observer assets, operator helper or shutdown fails |
 | Licensing | `scripts/license-headers.py --check` | A source file lacks its SPDX identifier and copyright line |
 | Static analysis | CodeQL (C++, JavaScript and TypeScript, Python, GitHub Actions workflows) | A new high-confidence finding in DSTNS's own code |
 | Memory safety | `-DDSTNS_ENABLE_SANITIZERS=ON` (AddressSanitizer, UndefinedBehaviorSanitizer) | Run on demand before releases; any report is a defect |

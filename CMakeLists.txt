@@ -4,6 +4,11 @@
 cmake_minimum_required(VERSION 3.22)
 project(dstns VERSION 2.1.0 LANGUAGES CXX)
 
+set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
+set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
+set(DSTNS_CHANNEL "local" CACHE STRING "Release channel")
+configure_file(include/dstns/build_info.hpp.in generated/dstns/build_info.hpp @ONLY)
+
 option(DSTNS_BUILD_TESTS "Build DSTNS tests" ON)
 option(DSTNS_ENABLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
 
@@ -38,7 +43,7 @@ endif()
 
 add_library(dstns_core
   src/rng.cpp src/utf8.cpp src/graph.cpp src/asb.cpp src/demand.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp)
-target_include_directories(dstns_core PUBLIC include)
+target_include_directories(dstns_core PUBLIC include "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib)
 if(APPLE)
   target_link_libraries(dstns_core PUBLIC "-framework CoreFoundation" "-framework CFNetwork")
@@ -140,4 +145,3 @@ if(DSTNS_BUILD_TESTS)
 endif()
 
 install(TARGETS dstns_server dstns_scenario_export dstns_road_index dstns_replay_verify dstns_benchmark RUNTIME DESTINATION bin)
-

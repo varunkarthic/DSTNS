@@ -12,7 +12,21 @@ only within one version.
 
 ## [Unreleased]
 
-No changes yet.
+### Fixed
+
+- GHCR publishing now builds and tests native Linux AMD64 and ARM64 images,
+  then verifies the multi-platform manifest before promoting stable tags.
+- Compose pulls `ghcr.io/varunkarthic/dstns:stable` by default; use the explicit
+  `docker-compose.build.yml` override for local or optional SUMO builds.
+
+### Added
+
+- Stable/latest, branch, short/full SHA and semantic-version release tags;
+  OCI developer attribution for Varun Karthic, SBOM and build provenance.
+- Packaged build manifest, licence and copyright; revision, timestamp, channel
+  and architecture in CLI/API build information. Engine version stays 2.1.0.
+- Container gates for health, offline simulation, observer assets, metadata,
+  non-root execution, run replacement and shutdown. Direct GHCR pull/run docs.
 
 ## [2.1.0] - 2026-10-02
 

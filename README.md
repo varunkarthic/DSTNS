@@ -92,8 +92,10 @@ inputs and floating-point limitations.
 **With Docker** (nothing else to install):
 
 ```bash
-git clone https://github.com/varunkarthic/DSTNS.git && cd DSTNS
-docker compose up --build
+docker pull ghcr.io/varunkarthic/dstns:stable
+docker run -d --name dstns -p 127.0.0.1:8090:8090 \
+  -v dstns-maps:/app/data/maps -v dstns-logs:/app/logs \
+  ghcr.io/varunkarthic/dstns:stable
 ```
 
 **From source** (macOS or Linux):
@@ -142,10 +144,34 @@ Read [Architecture](https://dstns.readthedocs.io/concepts/architecture/) for the
 
 ### Start
 
+Pull the published image directly, with no repository checkout or compiler:
+
 ```bash
-docker compose up --build            # foreground; Ctrl-C to stop
-docker compose up --build -d         # background
+docker pull ghcr.io/varunkarthic/dstns:stable
+```
+
+The command automatically selects **AMD64 or ARM64**, including Apple silicon.
+Use the `docker run` command in [Quick start](#quick-start), or clone this repository
+and use Compose (which defaults to the same GHCR `stable` image):
+
+```bash
+docker compose up --pull always            # foreground; Ctrl-C to stop
+docker compose up -d --pull always         # background
 docker compose logs -f               # follow the log
+```
+
+`stable` and `latest` follow builds that pass CI and native container checks on both
+architectures. Version releases also publish `2.1.0`, `v2.1.0`, `2.1` and `2`;
+every build has short and full `sha-…` tags. Pin a digest for reproducible runs.
+The engine is **2.1.0**, the observer is **2.3.0**, and the developer is
+**[Varun Karthic](https://github.com/varunkarthic)**. Image labels,
+`/app/build-info.json`, `dstns_server --version` and `/api/v1/system/info` record
+build provenance. See the [image tag policy](docs/deployment/docker.md#tags-and-build-identity).
+
+To build your checkout locally:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 ```
 
 The container starts the server, then a run, and the observer is at
@@ -190,8 +216,8 @@ docker compose exec dstns dstns-run --seed 42                     # start anothe
 docker compose exec dstns dstns-run --seed 42 --day-type weekend --speed 3
 docker compose exec dstns dstns-run --status                      # what is running
 DSTNS_OSM_FILE=/app/data/fixtures/real_network.osm.xml docker compose up   # offline, bundled map
-docker compose --profile tls up --build                           # also HTTPS on :8443
-DSTNS_WITH_SUMO=1 docker compose up --build                       # include Eclipse SUMO
+docker compose --profile tls up --build gateway                           # also HTTPS on :8443
+DSTNS_WITH_SUMO=1 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build                       # include Eclipse SUMO
 docker compose down                                               # stop (keeps cached maps)
 docker compose down --volumes                                     # stop and delete maps and logs
 ```

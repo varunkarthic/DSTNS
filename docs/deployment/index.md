@@ -105,7 +105,7 @@ dstns.example.org {
 | Logs | `./launcher logs`, `logs/system.log` | `docker compose logs -f` |
 | New run | `./launcher start --seed N` | `docker compose exec dstns dstns-run --seed N` |
 | Stop | Terminate in the observer, or Ctrl-C the CLI | `docker compose stop` |
-| Upgrade | `git pull && ./launcher` | `git pull && docker compose up -d --build` |
+| Upgrade | `git pull && ./launcher` | `git pull && docker compose up -d --pull always` |
 | Clear runtime state | `./launcher reset` | `docker compose down --volumes` |
 
 See [Docker](docker.md), [Security](security.md), [Logging](logging.md) and

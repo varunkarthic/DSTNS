@@ -1,0 +1,13 @@
+# Opt-in source build; the default Compose file runs the published stable image.
+# docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
+services:
+  dstns:
+    image: dstns:local
+    pull_policy: build
+    build:
+      context: .
+      args:
+        WITH_SUMO: "${DSTNS_WITH_SUMO:-0}"
+        REVISION: "${DSTNS_REVISION:-unknown}"
+        BUILD_DATE: "${DSTNS_BUILD_DATE:-unknown}"
+        RELEASE_CHANNEL: local
