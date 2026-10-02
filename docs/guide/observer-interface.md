@@ -433,6 +433,14 @@ re-read every two seconds while it is shown, at display resolution.
 When the terrain comes from imported tiles, the map credit adds *Terrain:
 Mapzen, USGS, NASA, NOAA*.
 
+**Wind** adds direction to speed: over its heatmap, streaks carried by the
+simulated [near-surface wind](../concepts/wind.md) move across the map, each
+leaving a short fading trail, brighter where the wind is faster; the legend
+notes that the streaks follow the wind. They move at about 24 screen pixels a
+second for each m/s at any zoom, in a layer of their own. With reduced motion
+the streaks become still arrows on a grid. The streaks are presentation only;
+the wind vectors are re-read every five seconds.
+
 **Drains (synthetic)**, an ordinary switch further down, draws the
 [drainage network](../concepts/drainage.md) dashed over the streets it runs
 beneath: wider for larger pipes, brighter as they fill, red once a pipe runs
@@ -454,7 +462,11 @@ conservation error (which reads *0 (exact)*). **Drainage** gives the water in
 the pipes, what the outfalls have discharged, the peak load as a share of
 full-bore capacity, the surcharged manholes (and the peak), and a line saying
 the network is synthetic with its size and design storm, and how much water
-has backed up onto the streets. **Terrain** gives the elevation
+has backed up onto the streets. **Wind** gives the wind above the city (speed
+and the direction it blows from), the mean and strongest wind in the streets,
+the buildings and their mean height, the lattice, how many times the flow has
+been solved, the wind belt, and how many building heights were mapped and how
+many estimated. **Terrain** gives the elevation
 range, the steepest road and where the elevation came from. Every figure there is simulated or derived, and says so.
 
 ### Compass

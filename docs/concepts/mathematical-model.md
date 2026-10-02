@@ -77,7 +77,7 @@ intensity \( I_k \) is at phase \( p = (t - t_0)/(t_1 - t_0) \in [0, 1) \)
 \]
 
 Current radius \( \max(40, R_k \rho) \) m and intensity \( \operatorname{clamp}(I_k \iota, 0, 1) \).
-The centre drifts up to \( 0.3 R_k\, p \) along a per-storm wind direction.
+The centre drifts up to \( 0.3 R_k\, p \) downwind of the background [wind](wind.md) at the storm's start (a fixed per-storm direction without the atmosphere module).
 
 ### Rain at a node
 

@@ -9,9 +9,9 @@ causal chain, not a scripted multiplier:
 | | |
 |---|---|
 | **Provides** | Every directed road's environmental state: grade, water, flood index, surface temperature, speed and capacity multipliers, closure, passability by vehicle class, energy per kilometre |
-| **Reads** | Road grade ([terrain](terrain.md)); water under the road ([surface water](surface-water.md)); surface temperature ([DCM](solar.md)); later, wind |
+| **Reads** | Road grade ([terrain](terrain.md)); headwind ([urban wind](wind.md)); water under the road ([surface water](surface-water.md)); surface temperature ([DCM](solar.md)) |
 | **Feeds** | The traffic step, through four per-edge inputs |
-| **Switches** | Module `vehicle_dynamics` (grade); module `flooding` with `hydrology` (water) |
+| **Switches** | Module `vehicle_dynamics` (grade and wind); module `das` (the wind itself); module `flooding` with `hydrology` (water) |
 | **Code** | `src/environment/vehicles.cpp`, `EnvironmentRuntime::road` in `src/environment/runtime.cpp` |
 
 ## The force balance
@@ -49,6 +49,10 @@ weighted by its share:
 \[
 f_\text{grade} = \frac{\sum_k s_k \min\!\big(1,\; v_k(g, v_w) / v_k(0, 0)\big)}{\sum_k s_k}.
 \]
+
+Each directed road's \( v_w \) is the [wind](wind.md) at its midpoint against
+its direction of travel, so a road and its twin feel opposite winds; the factor
+is recomputed whenever a road's headwind moves by 0.25 m/s.
 
 It is **exactly 1** on flat ground in still air (each term is a speed divided by
 itself), so a flat world behaves exactly as before; below 1 uphill, where the
@@ -115,7 +119,8 @@ for each directed edge:
 | `grade_speed_factor`, `water_speed_factor`, `speed_multiplier`, `capacity_multiplier` | As above |
 | `closed_to_traffic` | Too deep for a small car |
 | `passable` | By class: small passenger, large passenger, bus, emergency |
-| `energy_kwh_per_km` | Small passenger car at the road's speed |
+| `energy_kwh_per_km` | Small passenger car at the road's speed, into the road's headwind |
+| `headwind_mps` | The wind against this direction of travel (negative: a tailwind) |
 
 with the class parameters in `vehicle_classes`. Each edge in `/view/edges` carries
 the same record under `environment`; the snapshot carries `water_depth_m`,
@@ -147,5 +152,5 @@ the same record under `environment`; the snapshot carries `water_depth_m`,
   the shares are fixed.
 - Speed on grade is steady-state; acceleration out of queues ignores grade.
 - Water speed uses the deepest water on the road, at 25 m resolution.
-- Crosswind is not yet modelled; headwind enters when the atmosphere model
-  supplies wind.
+- Crosswind is not modelled: only the wind along the road. At urban speeds a
+  headwind changes the stream's speed little; it changes energy more.

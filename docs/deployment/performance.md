@@ -125,8 +125,14 @@ core, Apple M4:
 |---|---|
 | Environment modules off (flat-world traffic as in 2.2) | 25 s |
 | Terrain, Sun and surface, surface water and road coupling on | 29 s (+17%) |
+| ... and drainage | 30 s |
+| ... and urban wind (every module on, the default) | 35 s (+40% over none) |
 
-World installation adds 25 ms for the surface energy spin-up; terrain loading
+The wind is the largest single addition: the lattice Boltzmann solve runs on
+eight threads (0.15 to 0.4 s for 23,328 lattice cells) at each hour where the
+wind has veered or the street heating has changed, 15 times in this day.
+World installation adds 25 ms for the surface energy spin-up and a few
+milliseconds for the drainage network and building canopy; terrain loading
 takes 0.3 s from the tile cache (6 s on the first download for a city).
 
 ## Cost model

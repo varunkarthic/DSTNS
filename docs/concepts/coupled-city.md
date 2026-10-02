@@ -22,8 +22,8 @@ with its mathematics.
 | **DCM** | Solar position and irradiance, surface temperature | Calendar, location, clock, terrain, cloud | Implemented | [Sun and surface](solar.md) |
 | **DWS** | Rainfall field, surface water depth and discharge, the water ledger | Storm schedule, terrain, surface temperature, green space | Implemented (CPU and Vulkan) | [Surface water](surface-water.md) |
 | **DDS** | Drain inlets, pipes, outfalls; flow and surcharge | Surface water, terrain, streets | Implemented (synthetic network) | [Drainage](drainage.md) |
-| **DAS** | Near-surface wind field | Terrain, buildings, solar heating, background weather | Planned | |
-| **Vehicle dynamics** | Speed and power on grade and in water; road state | Road grade, water depth | Implemented (wind to come) | [Vehicle dynamics](vehicle-dynamics.md) |
+| **DAS** | Near-surface wind field; road headwinds; gusts | Terrain, buildings, solar heating, background wind, storms | Implemented (CPU) | [Urban wind](wind.md) |
+| **Vehicle dynamics** | Speed and power on grade, in wind and in water; road state | Road grade, headwind, water depth | Implemented | [Vehicle dynamics](vehicle-dynamics.md) |
 | **DDM** | Trip demand between zones, rerouting | Places, calendar, road state | Planned (place-driven demand in place) | [Demand and places](demand.md) |
 | **DERS** | Emergency units, dispatch, transport | Incidents, road state, facilities | Planned | |
 | **Causal incidents** | Incidents caused by city state, and their consequences | Road state, weather, traffic | Planned (scheduled incidents in place) | [Incidents](incidents.md) |
@@ -76,7 +76,7 @@ replaced:
 | Scenario: graph, places, calendar, terrain, schedules | `Scenario` (compiled once) | Immutable for the run; copies share the terrain |
 | Traffic and road physics | `ComputeDispatcher` fixed-point state | Per step; checkpointed |
 | Signals, demand couplings, event history | `EventRuntime` | Per step; checkpointed |
-| Environmental fields: solar forcing, surface temperature, surface water, drainage (and later wind) | `EnvironmentRuntime` | Per module cadence; the whole state copied into each checkpoint |
+| Environmental fields: solar forcing, surface temperature, surface water, drainage, wind | `EnvironmentRuntime` | Per module cadence; the whole state copied into each checkpoint |
 
 ## Scheduling
 
@@ -85,7 +85,7 @@ Each second of virtual time the engine runs, in order:
 1. advance the clock, evaluate storms, surges, signals and demand couplings;
 2. **environment**: each module whose instant has come (DCM every 60 s, surface
    water every 5 s in CFL substeps, after the drain inlets take their share,
-   then the pipes route it);
+   then the pipes route it; wind every minute, its flow solved on the hour);
 3. **road state**: every directed road's grade and water become the traffic
    step's environment inputs;
 4. **traffic**: the physics step on the compute backend;

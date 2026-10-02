@@ -151,8 +151,8 @@ E = \frac{\rho_a\, C_E\, u\, \big(q_\text{sat}(T_s) - RH\, q_\text{sat}(T_a)\big
 \qquad q_\text{sat}(T) = \frac{0.622\, e_s(T)}{p}, \quad e_s = 610.94\, e^{17.625\,T/(T + 243.04)} \;\text{Pa},
 \]
 
-with \( \rho_a = 1.2 \) kg/m³, \( C_E = 1.5\times10^{-3} \), \( u \) = 3 m/s until the
-atmosphere model provides wind, and relative humidity 0.70 rising to 0.98 under
+with \( \rho_a = 1.2 \) kg/m³, \( C_E = 1.5\times10^{-3} \), \( u \) the local [wind](wind.md)
+(3 m/s without the atmosphere module), and relative humidity 0.70 rising to 0.98 under
 storm cloud. It is a potential: no more than is there is removed. Its latent
 heat, \( L_v \rho_w E \) scaled by how wet the surface is (fully wet at 0.5 mm),
 cools the surface in the [energy balance](solar.md#surface-energy-balance). On
@@ -258,6 +258,6 @@ gathered along the Spree valley, with a conservation error of zero.
   map loader does not read, so a river valley fills like any hollow instead of
   carrying water away. Basins and reservoirs mapped as ways are open water.
 - **Infiltration** is a constant capacity, with no soil moisture or Horton
-  decay; **evaporation** uses a fixed wind until the atmosphere model supplies
-  one.
-- **Rain drift** by wind is not modelled.
+  decay.
+- **Rain** falls where its storm cell is; storms drift with the background
+  wind, but rain is not blown sideways as it falls.

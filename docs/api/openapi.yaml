@@ -774,6 +774,19 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+  /api/v1/view/wind:
+    get:
+      tags:
+      - View
+      operationId: wind
+      summary: The near-surface wind on the atmosphere's lattice
+      description: East (u) and north (v) components in m/s at the reference height (10 m), row-major
+        with the south row first, at every column of the atmosphere's lattice, with the lattice's
+        placement, the background wind and the strongest wind. `solved` is false until the first
+        minute of a run with the `das` module on.
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/fields/{name}:
     get:
       tags:
@@ -786,7 +799,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [elevation, slope, irradiance, surface_temperature, cloud, water_depth]
+          enum: [elevation, slope, irradiance, surface_temperature, cloud, water_depth, wind]
       - name: max_side
         in: query
         schema:
@@ -1325,6 +1338,7 @@ components:
         - dcm
         - hydrology
         - dds
+        - das
         - vehicle_dynamics
     Offset:
       name: offset

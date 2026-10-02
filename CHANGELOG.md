@@ -23,6 +23,12 @@ and roads slow on their grade: results change wherever it rains or the ground
 is not flat. With `hydrology` and `vehicle_dynamics` off and flat terrain, the
 traffic step computes exactly what 2.2 did.
 
+**Changed: wind.** With the new `das` module on (the default), each road's
+headwind enters the vehicle force balance and its energy, convection and
+evaporation follow the local wind instead of a fixed 3 m/s, and storms drift
+downwind instead of in a fixed per-storm direction: results change for every
+run with storms, and slightly for every run.
+
 **Changed: the day type of an unconfigured run is now the seed's own.** Before,
 a run that did not name its day type was always a weekday. A run that names it
 (`--day-type weekday`, `"day": 0`) is unchanged. Scenario hashes, and so run
@@ -75,6 +81,14 @@ IDs, now also include the month.
   both ledgers report a conservation error of zero. The network is synthetic,
   and labelled so everywhere. `GET /api/v1/view/drainage`; module `dds`; the
   observer's **Drains (synthetic)** layer and Drainage card.
+- **Urban wind (DAS).** The near-surface wind over the district, from a D3Q19
+  lattice Boltzmann model (Smagorinsky turbulence) over the mapped buildings,
+  whose heights come from `height`, else `building:levels`, else an estimate;
+  driven by a seeded background wind for the latitude's wind belt with a
+  diurnal cycle; with a log-law ground, terrain and a Boussinesq buoyancy from
+  the street's heating. Solved on the hour, scaled every minute, with gusts
+  under storm cells. Field `wind`, `GET /api/v1/view/wind`, module `das`; the
+  observer's Wind overlay draws moving streaks, and the City tab a Wind card.
 - **Vehicle dynamics and road state.** Roads respond to their grade (a power-
   limited longitudinal model for four vehicle classes) and to the water on them
   (Pregnolato et al.'s depth-speed relation; cars stop at 300 mm), through four
@@ -89,6 +103,9 @@ IDs, now also include the month.
 
 - `PUT /api/v1/control/modules/{module}` rejected module names with an
   underscore, so `vehicle_dynamics` could not be switched at run time.
+- The HTTP server queued at most 5 connections waiting to be accepted, so on a
+  busy machine a burst of requests (a browser opening the observer) could be
+  reset; it now queues 128.
 
 ## [2.2.0] - 2026-10-02
 

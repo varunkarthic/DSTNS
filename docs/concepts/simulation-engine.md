@@ -170,7 +170,8 @@ radius and intensity. At normalised phase `p` through its life:
 | `0.25 ≤ p ≤ 0.70` (plateau) | 1 | 1 |
 | `p > 0.70` (decay) | `1 − 0.65 t²`, where `t = (p − 0.70)/0.30` | `cos(πt/2)` |
 
-The epicentre drifts up to 30% of the radius along a per-storm wind direction.
+The epicentre drifts up to 30% of the radius, downwind of the background
+[wind](wind.md) (or along a fixed per-storm direction without the atmosphere module).
 Rain at a node combines every active storm as independent probabilities,
 
 ```

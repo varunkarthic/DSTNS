@@ -273,6 +273,8 @@ backend, and recover from a lost device, without changing a result.
 | DEM | Tile fetch, decode, resampling, smoothing, gradient (once per world, milliseconds) | — (too small to repay a submission) |
 | DCM | Solar geometry, cloud field, surface energy balance (every 60 s, ~12k cells) | — (as above) |
 | DWS surface water | Source preparation (rain with carry, evaporation potentials), ledger totals, Froude diagnostics, the reference solver below the threshold | The local-inertial step from 131,072 cells (or when Vulkan is preferred); per-row tallies; per-road summaries |
+| DDS drainage | Inlet exchange and pipe routing (every 5 s, about 1,200 pipes) | — (a sparse graph; the exchange with the street is exact on either backend) |
+| DAS wind | Canopy, lattice Boltzmann solve (on the hour, 0.15 to 0.4 s on eight threads for 23k cells), per-minute scaling and road headwinds | — (not yet ported; the cell-local update would suit it) |
 | Road state | Vehicle dynamics, per-edge environment inputs | Read by the traffic step on whichever backend runs it |
 | Traffic | The step below its thresholds | The step above them |
 

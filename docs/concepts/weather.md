@@ -97,14 +97,19 @@ The current radius is \( \max(40,\, R\rho) \) metres and the current intensity
 \( \operatorname{clamp}(I\iota,\, 0,\, 1) \). The growth sine reaches 1 exactly at
 \( p = 0.25 \), where the plateau begins, and the decay's cosine reaches 0 at
 \( p = 1 \), so the intensity is continuous throughout. The centre also **drifts** up
-to 30% of the radius along a per-storm wind direction:
+to 30% of the radius:
 
 \[
-\mathbf{c}(p) = \mathbf{c}_0 + 0.3\,R\,p\,\big(\cos\theta_k,\ \sin\theta_k\big), \qquad \theta_k = 1.396\,k + 0.785
+\mathbf{c}(p) = \mathbf{c}_0 + 0.3\,R\,p\,\big(\cos\theta_k,\ \sin\theta_k\big)
 \]
 
+With the [atmosphere](wind.md) on (module `das`, the default), \( \theta_k \) is
+downwind of the background wind at the storm's start: the wind aloft steers it.
+With it off, the fixed per-storm direction \( \theta_k = 1.396\,k + 0.785 \)
+(80 degrees per storm, offset 45 degrees) of earlier versions.
+
 ```cpp
-const double wind_angle     = (e.id.value * 1.3962634) + 0.785398;   // 80 degrees per storm, offset 45 degrees
+const double wind_angle     = heading;   // storm_heading(): downwind, or 1.396 k + 0.785 without the atmosphere
 const double drift_distance = e.radius_m * 0.30 * phase;
 ```
 

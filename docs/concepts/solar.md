@@ -119,7 +119,7 @@ C\,\frac{dT_s}{dt} = (1 - a)\,S + \varepsilon L_\downarrow - \varepsilon\sigma T
 | \( a \) | Albedo, aged asphalt | 0.12 | – |
 | \( \varepsilon \) | Emissivity | 0.93 | – |
 | \( \sigma \) | Stefan–Boltzmann constant | 5.670 × 10⁻⁸ | W/m²K⁴ |
-| \( h_c \) | Convection, McAdams: \( 5.7 + 3.8u \), \( u \) the wind (3 m/s until the atmosphere model provides it) | 17.1 | W/m²K |
+| \( h_c \) | Convection, McAdams: \( 5.7 + 3.8u \), \( u \) the local [wind](wind.md) at 10 m (3 m/s without the atmosphere module) | 17.1 at 3 m/s | W/m²K |
 | \( U \) | Conduction to the layer beneath: \( k/\Delta z \), 0.75 W/mK over 15 cm | 5 | W/m²K |
 | \( T_\text{deep} \) | That layer: the monthly mean air temperature plus 2 °C | | °C |
 | \( Q_\text{anthro} \) | Optional anthropogenic heat; uncalibrated, so 0 | 0 | W/m² |

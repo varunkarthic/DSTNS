@@ -189,6 +189,7 @@ nav:
           - Sun and surface (DCM): concepts/solar.md
           - Surface water (DWS): concepts/surface-water.md
           - Drainage (DDS): concepts/drainage.md
+          - Urban wind (DAS): concepts/wind.md
           - Vehicle dynamics and road state: concepts/vehicle-dynamics.md
       - Events and environment:
           - Events: concepts/events.md

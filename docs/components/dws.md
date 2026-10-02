@@ -34,7 +34,8 @@ A frequency whose spacing cannot fit the playback duration is refused.
 ## Life cycle and field
 
 Each storm grows (first quarter of its life), holds (to 70%), and decays, while
-its centre drifts up to 30% of its radius along a per-storm wind direction.
+its centre drifts up to 30% of its radius, downwind of the background wind
+(a fixed per-storm direction without the atmosphere module).
 Rain at a node combines storms as independent probabilities through a
 Wendland C² kernel. The formulas are in [Mathematical model:
 weather](../concepts/mathematical-model.md#weather).
