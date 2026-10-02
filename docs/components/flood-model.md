@@ -1,5 +1,13 @@
 # Flood reservoir dynamics (`dstns::SimulationEngine::physics_step`)
 
+!!! note "Since 2.3 this is the fallback"
+    With the `hydrology` module on (the default), standing water comes from the
+    [surface-water model](../concepts/surface-water.md) and reaches roads through [vehicle
+    dynamics](../concepts/vehicle-dynamics.md): water flows over the terrain, is conserved exactly, and
+    never drains away on a timer. The node flood model below applies only when
+    `hydrology` is off, and is kept for that and for older runs.
+
+
 ## Purpose
 Simulates normalized water accumulation and drainage across road nodes and directed edges as a dynamic reservoir system driven by rainfall and local susceptibility.
 

@@ -96,6 +96,39 @@ models DSTNS is built to add. 300 diffusion iterations on a 512 × 512 grid
 | Vulkan, MoltenVK | 20 ms (5.5×) |
 | Vulkan, Mesa KosmicKrisp | 27 ms (4.1×) |
 
+### The surface-water step
+
+One 5 s step with water on every cell, 25 m cells (`dstns_benchmark hydrology`,
+Apple M4):
+
+| Grid | Cells | CPU | Vulkan | Speedup |
+|---|---|---|---|---|
+| 64 × 64 | 4,096 | 0.74 ms | 0.74 ms | 1.0× |
+| 128 × 128 | 16,384 | 2.86 ms | 0.90 ms | 3.2× |
+| 256 × 256 | 65,536 | 14.85 ms | 1.53 ms | 9.7× |
+| 512 × 512 | 262,144 | 72.3 ms | 4.43 ms | 16× |
+| 1024 × 1024 | 1,048,576 | 203.6 ms | 6.79 ms | 30× |
+
+That is the worst case. In a real day the water is sparse and the CPU's passes
+over dry faces cost almost nothing, while each device step still pays about
+0.8 ms: a full day on the bundled 11,664-cell district took 29 s with the water
+on the CPU and 40 s on the device. Auto mode therefore uses the device from
+131,072 cells (`DSTNS_HYDROLOGY_GPU_MIN_CELLS`).
+
+### The coupled environment's cost
+
+A full virtual day on the bundled Berlin district (1,196 junctions, 2,554
+edges, an 11,664-cell environment grid), run as fast as possible on one CPU
+core, Apple M4:
+
+| Configuration | Time |
+|---|---|
+| Environment modules off (flat-world traffic as in 2.2) | 25 s |
+| Terrain, Sun and surface, surface water and road coupling on | 29 s (+17%) |
+
+World installation adds 25 ms for the surface energy spin-up; terrain loading
+takes 0.3 s from the tile cache (6 s on the first download for a city).
+
 ## Cost model
 
 ### Physics

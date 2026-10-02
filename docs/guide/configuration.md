@@ -116,6 +116,9 @@ What `POST /api/v1/playback/start` and `/prepare` accept (the CLI builds this):
 | `map.osm_file` | string | Path or `auto` (the default when there is no `fixture`) |
 | `map.max_nodes`, `map.city_extent_m`, `map.district_nodes`, `map.cache_dir` | | As in the table above |
 | `modules.{traffic,signals,buildings,dws,flooding,news}` | boolean | `traffic_demand` and `traffic_signals` are accepted as aliases |
+| `modules.dcm` | boolean | The Sun and surface model ([DCM](../concepts/solar.md)); default on |
+| `modules.hydrology` | boolean | [Surface water](../concepts/surface-water.md); default on. Off: roads use the node flood model |
+| `modules.vehicle_dynamics` | boolean | [Grade](../concepts/vehicle-dynamics.md) slows traffic uphill; default on |
 | `dws.frequency` | integer | As above |
 | `fixture.grid_width`, `fixture.grid_height` | integer | Synthetic grid for tests; at least 3 × 3, and width × height ≤ `max_nodes` |
 | `saved_seed_id` | string | `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` |
@@ -201,3 +204,4 @@ configuration](observer-configuration.md).
 | `DSTNS_DEM_SOURCE` | What `environment.dem: auto` means: `flat` keeps a run offline (the test suites set it), `terrarium` uses terrain tiles even for a pinned map |
 | `DSTNS_DEM_CACHE` | The terrain tile cache, as `dstns_server --dem-cache DIR` sets it (default `data/dem`) |
 | `DSTNS_DEM_ENDPOINT` | URL template for terrain tiles (`{z}`, `{x}`, `{y}`), e.g. a private mirror |
+| `DSTNS_HYDROLOGY_GPU_MIN_CELLS` | Grids at least this large run the surface water on a Vulkan device in `auto` mode (default 131,072) |

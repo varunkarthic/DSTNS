@@ -17,6 +17,12 @@ drainage, urban wind, demand, emergency response and causal incidents
 exchanging state through one clock. Added one stable piece at a time; each
 entry says whether it changes results for an existing seed.
 
+**Changed: standing water.** With the new `hydrology` module on (the default),
+flooding comes from simulated surface water instead of the node flood model,
+and roads slow on their grade: results change wherever it rains or the ground
+is not flat. With `hydrology` and `vehicle_dynamics` off and flat terrain, the
+traffic step computes exactly what 2.2 did.
+
 **Changed: the day type of an unconfigured run is now the seed's own.** Before,
 a run that did not name its day type was always a weekday. A run that names it
 (`--day-type weekday`, `"day": 0`) is unchanged. Scenario hashes, and so run
@@ -54,6 +60,17 @@ IDs, now also include the month.
   checkpointed with the rest of the run. Fields `irradiance`,
   `surface_temperature`, `cloud`; a `dcm` module; the observer's **City** tab
   with a sun-path card. Traffic is unaffected.
+- **Surface water (DWS).** Rain runs over the terrain under the local-inertial
+  shallow-water equations, ponds in hollows and leaves only by physical routes
+  (the district's edge, open water, evaporation, infiltration), with an exact
+  integer water ledger whose conservation error is zero. It runs on the CPU, or
+  bit-identically on a Vulkan device for grids from 131,072 cells
+  (`dstns_benchmark hydrology`). Field `water_depth`; module `hydrology`.
+- **Vehicle dynamics and road state.** Roads respond to their grade (a power-
+  limited longitudinal model for four vehicle classes) and to the water on them
+  (Pregnolato et al.'s depth-speed relation; cars stop at 300 mm), through four
+  new inputs to the traffic step. `GET /api/v1/view/road-environment`; module
+  `vehicle_dynamics`.
 - **Observer: field overlays and a compass.** Layers gains an exclusive field
   overlay group; Elevation draws a heatmap with a legend and a pointer readout.
 - RNG domains for the new modules, appended after the existing ones. Golden

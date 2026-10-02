@@ -36,6 +36,7 @@ is empty.
 | `/view/buildings`, `/view/bus-stops` | Node-level buildings; routable stops | Small | Once |
 | `/view/manifest` | Hashes and versions for reproducibility, calendar and terrain provenance | Tiny | Once |
 | `/view/environment` | The coupled environment: calendar, terrain provenance, road grade summary, available fields | Small | Once per `run_id`, then occasionally |
+| `/view/road-environment` | Every directed road's grade, water, flood index, surface temperature, multipliers, closure, passability by vehicle class and energy, paged (`limit` up to 5,000) | Medium | On inspection |
 | `/view/fields/{name}` | One environmental field as a raster; `?max_side=` (8 to 512, default 160) | Medium | Once for a static field; every few seconds for a changing one, only while shown |
 | `/view/run`, `/view/config` | Same as `/playback/status` | Tiny | — |
 
@@ -84,8 +85,8 @@ both 0 on flat terrain. See [Terrain](../concepts/terrain.md).
 
 Fields are reduced for display by block means, so the solver's own resolution
 (`solver_cell_m`) never has to be sent. Available now: `elevation` (m, to 0.1 m),
-`slope` (m/m), `irradiance` (W/m²), `surface_temperature` (°C) and `cloud`
-(fraction). `/view/environment` lists what the current world offers, with each
+`slope` (m/m), `irradiance` (W/m²), `surface_temperature` (°C), `cloud`
+(fraction) and `water_depth` (m, to the millimetre). `/view/environment` lists what the current world offers, with each
 field's units and whether it is static or changes during the run. An unknown
 field returns 400.
 

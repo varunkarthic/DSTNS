@@ -20,10 +20,10 @@ with its mathematics.
 | **Calendar** | Location, month, day type of the run | The seed | Implemented | [Seeds and places](../guide/seeds-and-places.md) |
 | **DEM** | Elevation, gradient, slope; road grade | Road network, terrain tiles | Implemented | [Terrain](terrain.md) |
 | **DCM** | Solar position and irradiance, surface temperature | Calendar, location, clock, terrain, cloud | Implemented | [Sun and surface](solar.md) |
-| **DWS** | Rainfall field, surface water depth and velocity | Storm schedule, terrain, wind, drainage | Planned (legacy node flood model in place) | [Weather and flooding](weather.md) |
+| **DWS** | Rainfall field, surface water depth and discharge, the water ledger | Storm schedule, terrain, surface temperature, green space | Implemented (CPU and Vulkan) | [Surface water](surface-water.md) |
 | **DDS** | Drain inlets, pipes, outfalls; flow and surcharge | Surface water, terrain | Planned | |
 | **DAS** | Near-surface wind field | Terrain, buildings, solar heating, background weather | Planned | |
-| **Vehicle dynamics** | Speed and power on grade, in wind and water | Road grade, wind, water depth | Planned | |
+| **Vehicle dynamics** | Speed and power on grade and in water; road state | Road grade, water depth | Implemented (wind to come) | [Vehicle dynamics](vehicle-dynamics.md) |
 | **DDM** | Trip demand between zones, rerouting | Places, calendar, road state | Planned (place-driven demand in place) | [Demand and places](demand.md) |
 | **DERS** | Emergency units, dispatch, transport | Incidents, road state, facilities | Planned | |
 | **Causal incidents** | Incidents caused by city state, and their consequences | Road state, weather, traffic | Planned (scheduled incidents in place) | [Incidents](incidents.md) |
@@ -83,9 +83,12 @@ replaced:
 Each second of virtual time the engine runs, in order:
 
 1. advance the clock, evaluate storms, surges, signals and demand couplings;
-2. **environment**: each module whose instant has come (DCM every 60 s);
-3. **traffic**: the physics step on the compute backend;
-4. flood and weather events, incidents, the congestion index, demand recoupling.
+2. **environment**: each module whose instant has come (DCM every 60 s, surface
+   water every 5 s in CFL substeps);
+3. **road state**: every directed road's grade and water become the traffic
+   step's environment inputs;
+4. **traffic**: the physics step on the compute backend;
+5. flood and weather events, incidents, the congestion index, demand recoupling.
 
 Every module cadence divides the 900 s checkpoint interval, so replay from any
 checkpoint meets the same update instants. State a module produces at time

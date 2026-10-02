@@ -30,7 +30,8 @@ Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed,
 | GET | `/api/v1/view/traffic`, `/metrics`, `/weather`, `/buildings`, `/bus-stops`, `/incidents` | Existing domain views |
 | GET | `/api/v1/view/manifest`, `/global` | Reproducibility manifest and comprehensive view |
 | GET | `/api/v1/view/environment` | Calendar, terrain provenance, road grade summary and the environmental fields available |
-| GET | `/api/v1/view/fields/{name}` | An environmental field (`elevation`, `slope`) as a raster; `?max_side=` 8 to 512 |
+| GET | `/api/v1/view/fields/{name}` | An environmental field (`elevation`, `slope`, `irradiance`, `surface_temperature`, `cloud`, `water_depth`) as a raster; `?max_side=` 8 to 512 |
+| GET | `/api/v1/view/road-environment` | Each directed road's environmental state, paged |
 | GET | `/api/v1/news?since_news_id=0&limit=100` | Important activity notifications |
 | GET | `/api/v1/view/stream`, `/api/v1/news/stream` | Existing SSE transport |
 | POST | `/api/v1/export/sumo`, `/api/v1/system/sumo-simulate` | Batch SUMO adapter: export a bundle, or export, build and run SUMO for `begin_s < end_s <= 86400`. See [SUMO adapter](../components/sumo-adapter.md) |

@@ -1,5 +1,13 @@
 # Weather and flooding
 
+!!! note "Since 2.3 this is the fallback"
+    With the `hydrology` module on (the default), standing water comes from the
+    [surface-water model](surface-water.md) and reaches roads through [vehicle
+    dynamics](vehicle-dynamics.md): water flows over the terrain, is conserved exactly, and
+    never drains away on a timer. The node flood model below applies only when
+    `hydrology` is off, and is kept for that and for older runs.
+
+
 DSTNS models storms as moving, fading discs of rain over the road network, and
 flooding as water that accumulates faster than it drains. Both are deterministic: the
 schedule comes from the seed, and the fields are pure functions of virtual time.

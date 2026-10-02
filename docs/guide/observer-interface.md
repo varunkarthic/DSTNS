@@ -440,8 +440,11 @@ The telemetry deck's **City** tab has one card per environmental module.
 month, from sunrise on the east side to sunset on the west, with the Sun where
 it is now (hollow at night), and gives its elevation, azimuth, direct and
 surface irradiance, the air temperature and the range of surface temperatures.
-**Terrain** gives the elevation range, the steepest road and where the
-elevation came from. Every figure there is simulated or derived, and says so.
+**Surface water** gives the water on the ground, the deepest water, the area
+flooded deeper than 10 cm, the peak rain, and the ledger: rain in, then what left
+the district, reached open water, evaporated, infiltrated or drained, with the
+conservation error (which reads *0 (exact)*). **Terrain** gives the elevation
+range, the steepest road and where the elevation came from. Every figure there is simulated or derived, and says so.
 
 ### Compass
 

@@ -746,6 +746,21 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+  /api/v1/view/road-environment:
+    get:
+      tags:
+      - View
+      operationId: roadEnvironment
+      summary: Every directed road's environmental state, paged
+      description: Grade, deepest and mean water, flood index, surface temperature, grade and water
+        speed factors, speed and capacity multipliers, closure, passability by vehicle class and energy
+        per kilometre, with the vehicle classes' parameters.
+      parameters:
+      - {name: offset, in: query, schema: {type: integer, minimum: 0, default: 0}}
+      - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 5000, default: 500}}
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/fields/{name}:
     get:
       tags:
@@ -758,7 +773,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [elevation, slope, irradiance, surface_temperature, cloud]
+          enum: [elevation, slope, irradiance, surface_temperature, cloud, water_depth]
       - name: max_side
         in: query
         schema:

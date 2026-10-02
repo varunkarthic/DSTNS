@@ -187,6 +187,8 @@ nav:
           - Overview: concepts/coupled-city.md
           - Terrain (DEM): concepts/terrain.md
           - Sun and surface (DCM): concepts/solar.md
+          - Surface water (DWS): concepts/surface-water.md
+          - Vehicle dynamics and road state: concepts/vehicle-dynamics.md
       - Events and environment:
           - Events: concepts/events.md
           - Weather and flooding: concepts/weather.md

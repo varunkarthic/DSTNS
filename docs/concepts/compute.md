@@ -260,6 +260,22 @@ equivalence suite holds it to the same bit-for-bit standard. Batched this
 way, 300 iterations on a 512 × 512 grid take 20 ms on an Apple M4 against
 110 ms on the CPU.
 
+The second is the [surface-water model](surface-water.md): seven shaders from
+`shaders/include/dstns_hydrology.h`, one submission per 5 s step, the fields
+resident on the device, the host reading per-row tallies and per-road
+summaries. It is bit-identical to its CPU reference, so a run may change
+backend, and recover from a lost device, without changing a result.
+
+### Which environmental work runs where
+
+| System | CPU | GPU |
+|---|---|---|
+| DEM | Tile fetch, decode, resampling, smoothing, gradient (once per world, milliseconds) | — (too small to repay a submission) |
+| DCM | Solar geometry, cloud field, surface energy balance (every 60 s, ~12k cells) | — (as above) |
+| DWS surface water | Source preparation (rain with carry, evaporation potentials), ledger totals, Froude diagnostics, the reference solver below the threshold | The local-inertial step from 131,072 cells (or when Vulkan is preferred); per-row tallies; per-road summaries |
+| Road state | Vehicle dynamics, per-edge environment inputs | Read by the traffic step on whichever backend runs it |
+| Traffic | The step below its thresholds | The step above them |
+
 ## The observer is separate
 
 The observer's rendering is independent of the simulator's compute backend.
