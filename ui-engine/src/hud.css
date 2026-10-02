@@ -2378,6 +2378,20 @@
 .field-map {
   pointer-events: none;
 }
+.field-legend-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.wind-streak {
+  display: inline-block;
+  width: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, rgba(235, 250, 255, 0), rgba(235, 250, 255, 0.9));
+}
 .map-compass {
   position: absolute;
   /* Below the map credit line, which runs along the top edge. */

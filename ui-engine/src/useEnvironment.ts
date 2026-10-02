@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { fieldInfo } from "./fields";
 import type { FieldOverlay, FieldRaster } from "./fields";
-import type { DrainageView, EnvironmentInfo } from "./types";
+import type { DrainageView, EnvironmentInfo, WindView } from "./types";
 
 /** The drainage network, re-read every few seconds while its layer is shown. */
 export function useDrainage(runId: string, shown: boolean) {
@@ -23,6 +23,24 @@ export function useDrainage(runId: string, shown: boolean) {
     };
   }, [runId, shown]);
   return drainage;
+}
+
+/** The wind vectors, re-read every few seconds while the wind overlay is shown. */
+export function useWind(runId: string, shown: boolean) {
+  const [wind, setWind] = useState<WindView | null>(null);
+  useEffect(() => {
+    setWind(null);
+    if (!runId || !shown) return;
+    let live = true;
+    const read = () => api.wind().then((r) => live && r.run_id === runId && setWind(r.data.solved ? r.data : null)).catch(() => {});
+    void read();
+    const timer = setInterval(read, 5000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [runId, shown]);
+  return wind;
 }
 
 /** How often a changing field is re-read while it is shown. */

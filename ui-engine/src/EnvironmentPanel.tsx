@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import type { DcmState, DrainageSummary, EnvironmentInfo, HydrologyState } from "./types";
+import type { AtmosphereSummary, DcmState, DrainageSummary, EnvironmentInfo, HydrologyState } from "./types";
 
 const fixed = (v: number | undefined, digits = 0) => (v === undefined || !Number.isFinite(v) ? "–" : v.toFixed(digits));
 
@@ -115,6 +115,33 @@ export function DrainageCard({ drains }: { drains: DrainageSummary }) {
   );
 }
 
+export function WindCard({ air }: { air: AtmosphereSummary }) {
+  const bg = air.background;
+  const c = air.canopy;
+  const tagged = c.height_tagged + c.levels_tagged;
+  return (
+    <section className="env-card" aria-label="Wind" data-testid="wind-card">
+      <header>
+        <span className="env-title">Wind</span>
+        <span className={`tag ${bg.speed_mps >= 8 ? "amber" : bg.speed_mps >= 1 ? "blue" : "grey"}`}>
+          {bg.speed_mps >= 8 ? "Strong" : bg.speed_mps >= 1 ? `From ${compassPoint(bg.from_deg)}` : "Calm"}
+        </span>
+      </header>
+      <div className="env-grid">
+        <Figure label="Above the city" value={fixed(bg.speed_mps, 1)} unit={`m/s from ${fixed(bg.from_deg)}°`} />
+        <Figure label="In the streets" value={fixed(air.near_surface_mps.mean, 1)} unit={`m/s, up to ${fixed(air.near_surface_mps.max, 1)}`} />
+        <Figure label="Buildings" value={c.buildings.toLocaleString()} unit={`mean ${fixed(c.mean_height_m, 1)} m`} />
+        <Figure label="Lattice" value={`${air.lattice.nx}×${air.lattice.ny}×${air.lattice.nz}`} unit={`@ ${fixed(air.lattice.dx_m)} m`} />
+      </div>
+      <p className="env-note">
+        Simulated with a lattice Boltzmann model over the buildings and terrain, solved {air.solves} time{air.solves === 1 ? "" : "s"} so far
+        and scaled between solves; {air.climate.belt} at this latitude. Building heights: {tagged.toLocaleString()} mapped, {c.estimated.toLocaleString()}{" "}
+        estimated.
+      </p>
+    </section>
+  );
+}
+
 /**
  * The coupled environment, one card per module. Values are simulated or
  * derived and are labelled as such; imported data says where it came from.
@@ -152,6 +179,7 @@ export function EnvironmentView({ environment }: { environment: EnvironmentInfo 
       )}
       {environment.state?.hydrology && <WaterCard water={environment.state.hydrology} />}
       {environment.state?.drainage && environment.state.drainage.pipes > 0 && <DrainageCard drains={environment.state.drainage} />}
+      {environment.state?.atmosphere?.solved && <WindCard air={environment.state.atmosphere} />}
       {terrain && (
         <section className="env-card" aria-label="Terrain" data-testid="terrain-card">
           <header>

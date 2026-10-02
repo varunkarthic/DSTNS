@@ -28,6 +28,12 @@ export function FieldLegend({ info, raster }: { info: FieldInfo; raster: FieldRa
       <i className="ramp" style={{ background: rampGradient(info.hue) }} aria-hidden="true" />
       <span className="mono">{raster ? raster.max.toFixed(info.digits) : ""}</span>
       <span>{info.units}</span>
+      {info.id === "wind" && (
+        <span className="field-legend-note" title="Moving streaks show where the near-surface wind is blowing; colour shows its speed.">
+          <i className="wind-streak" aria-hidden="true" />
+          streaks follow the wind
+        </span>
+      )}
       <span className="sr-only">{range}</span>
     </div>
   );

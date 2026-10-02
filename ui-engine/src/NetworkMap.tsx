@@ -14,7 +14,9 @@ import type { RefObject } from "react";
 import { canvasGlyph } from "./placeGlyphs";
 import { rasterPixels } from "./fields";
 import type { FieldRaster } from "./fields";
-import type { DrainageView } from "./types";
+import type { DrainageView, WindView } from "./types";
+import { advect, particleBudget, sampleWind, spawn, windBounds } from "./windParticles";
+import type { Particle } from "./windParticles";
 import { mapFitLayout, mapInsets, metresToGeographic } from "./mapProjection";
 import { viewportFor } from "./autoFocus";
 import type { Bounds } from "./autoFocus";
@@ -78,6 +80,8 @@ type Props = {
   terrainCredit?: string;
   /** The drainage network to draw over the roads, when its layer is on. */
   drainage?: DrainageView | null;
+  /** The wind vectors, drawn as moving streaks while the wind overlay is shown. */
+  wind?: WindView | null;
   /** The telemetry deck is collapsed to its strip, freeing the right side. */
   deckCompact?: boolean;
 };
@@ -125,11 +129,13 @@ function NetworkMap({
   field = null,
   terrainCredit,
   drainage = null,
+  wind = null,
   deckCompact = false,
 }: Props) {
   const host = useRef<HTMLDivElement>(null),
     base = useRef<HTMLCanvasElement>(null),
     fieldLayer = useRef<HTMLCanvasElement>(null),
+    windLayer = useRef<HTMLCanvasElement>(null),
     dynamic = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 1000, h: 700 }),
     [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
@@ -302,6 +308,93 @@ function NetworkMap({
     ctx.restore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldImage, field, view, size]);
+  // The wind: streaks carried by the simulated near-surface wind, each with a
+  // short fading trail, in their own layer and animation loop so they keep
+  // moving whatever the rest of the map is doing. With reduced motion, still
+  // arrows on a grid instead.
+  const particles = useRef<Particle[]>([]);
+  useEffect(() => {
+    const canvas = windLayer.current;
+    if (!canvas) return;
+    const ctx = setup(canvas);
+    if (!ctx || !wind) {
+      particles.current = [];
+      return;
+    }
+    const toScreen = (x: number, y: number): [number, number] => [x * view.scale + view.x, -y * view.scale + view.y];
+    if (reduceMotion) {
+      ctx.strokeStyle = "rgba(235,248,255,0.75)";
+      ctx.lineWidth = 1.2;
+      const step = 56;
+      for (let sy = step / 2; sy < size.h; sy += step)
+        for (let sx = step / 2; sx < size.w; sx += step) {
+          const x = (sx - view.x) / view.scale,
+            y = -(sy - view.y) / view.scale;
+          const [x0, y0, x1, y1] = windBounds(wind);
+          if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+          const [u, v] = sampleWind(wind, x, y);
+          const speed = Math.hypot(u, v);
+          if (speed < 0.05) continue;
+          const len = Math.min(22, 6 + speed * 3);
+          const dx = (u / speed) * len,
+            dy = (-v / speed) * len;
+          ctx.beginPath();
+          ctx.moveTo(sx - dx / 2, sy - dy / 2);
+          ctx.lineTo(sx + dx / 2, sy + dy / 2);
+          const ax = sx + dx / 2,
+            ay = sy + dy / 2,
+            a = Math.atan2(dy, dx);
+          ctx.lineTo(ax - 5 * Math.cos(a - 0.5), ay - 5 * Math.sin(a - 0.5));
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(ax - 5 * Math.cos(a + 0.5), ay - 5 * Math.sin(a + 0.5));
+          ctx.stroke();
+        }
+      return;
+    }
+    const budget = particleBudget(size.w * size.h);
+    const bounds = windBounds(wind);
+    while (particles.current.length < budget) particles.current.push(spawn(bounds));
+    particles.current.length = budget;
+    // About 24 screen pixels per second for each m/s, at any zoom.
+    const metresPerMps = 24 / view.scale;
+    let frame = 0,
+      last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      // Fade the trails already drawn, then add this frame's segments.
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.fillStyle = "rgba(0,0,0,0.955)";
+      ctx.fillRect(0, 0, size.w, size.h);
+      ctx.globalCompositeOperation = "source-over";
+      const previous = advect(particles.current, wind, dt, metresPerMps);
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = "round";
+      // Three brightness bands by speed, so faster air reads brighter.
+      for (const [lo, hi, alpha] of [
+        [0, 2, 0.55],
+        [2, 5, 0.8],
+        [5, Infinity, 1],
+      ] as const) {
+        ctx.strokeStyle = `rgba(235,250,255,${alpha})`;
+        ctx.beginPath();
+        particles.current.forEach((p, k) => {
+          const [u, v] = sampleWind(wind, p.x, p.y);
+          const s = Math.hypot(u, v);
+          if (s < lo || s >= hi) return;
+          const [ax, ay] = toScreen(previous[k][0], previous[k][1]);
+          const [bx, by] = toScreen(p.x, p.y);
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(bx, by);
+        });
+        ctx.stroke();
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wind, view, size, reduceMotion]);
   useEffect(() => {
     if (!topology || !cached || !dynamic.current) return;
     let frame = 0;
@@ -1024,6 +1117,7 @@ function NetworkMap({
     <div className="network-map" ref={host}>
       <canvas ref={base} className="map-canvas static-map" aria-hidden="true" />
       <canvas ref={fieldLayer} className="map-canvas field-map" aria-hidden="true" data-testid="field-layer" data-field={field?.raster.name ?? ""} />
+      <canvas ref={windLayer} className="map-canvas field-map" aria-hidden="true" data-testid="wind-layer" data-particles={wind ? "on" : "off"} />
       <canvas
         ref={dynamic}
         className="map-canvas"

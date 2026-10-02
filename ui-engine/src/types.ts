@@ -501,6 +501,52 @@ export interface DrainagePipe {
   flow_m3_s: number;
   utilisation: number;
 }
+/** The atmosphere's summary: the steady wind solution and what drives it. */
+export interface AtmosphereSummary {
+  solved: boolean;
+  solved_s: number;
+  updated_s: number;
+  solves: number;
+  solves_skipped: number;
+  solve_interval_s: number;
+  scheme: string;
+  solver: string;
+  lattice: { nx: number; ny: number; nz: number; dx_m: number; cells: number };
+  iterations: number;
+  converged: boolean;
+  max_mach: number;
+  background: { speed_mps: number; from_deg: number };
+  climate: { belt: string; mean_speed_mps: number; prevailing_from_deg: number };
+  near_surface_mps: { mean: number; max: number };
+  reference_height_m: number;
+  canopy: {
+    buildings: number;
+    height_tagged: number;
+    levels_tagged: number;
+    estimated: number;
+    built_fraction: number;
+    mean_height_m: number;
+    max_height_m: number;
+    source: string;
+  };
+}
+/** The near-surface wind on the atmosphere's lattice: u east, v north, m/s. */
+export interface WindView {
+  enabled: boolean;
+  solved: boolean;
+  updated_s: number;
+  width: number;
+  height: number;
+  origin_x_m: number;
+  origin_y_m: number;
+  cell_m: number;
+  height_m: number;
+  background: { speed_mps: number; from_deg: number };
+  max_mps: number;
+  /** Row-major, south row first. */
+  u: number[];
+  v: number[];
+}
 export interface DrainageView {
   summary: DrainageSummary;
   pipes: DrainagePipe[];
@@ -514,6 +560,6 @@ export interface EnvironmentInfo {
   terrain: TerrainInfo | null;
   roads?: { max_abs_grade: number };
   modules?: Record<string, boolean>;
-  state?: { time_s: number; dcm?: DcmState; hydrology?: HydrologyState; drainage?: DrainageSummary } | null;
+  state?: { time_s: number; dcm?: DcmState; hydrology?: HydrologyState; drainage?: DrainageSummary; atmosphere?: AtmosphereSummary } | null;
   fields: { name: string; units: string; kind: string }[];
 }

@@ -16,6 +16,7 @@ import type {
   SeedLocation,
   EnvironmentInfo,
   DrainageView,
+  WindView,
 } from "./types";
 import type { FieldRaster } from "./fields";
 
@@ -113,6 +114,8 @@ export const api = {
     request<Envelope<FieldRaster>>(`/api/v1/view/fields/${encodeURIComponent(name)}?max_side=${max_side}`),
   /** The synthetic drainage network and its flows. */
   drainage: () => request<Envelope<DrainageView>>("/api/v1/view/drainage"),
+  /** The near-surface wind vectors on the atmosphere's lattice. */
+  wind: () => request<Envelope<WindView>>("/api/v1/view/wind"),
   /** The location catalogue a seed draws from. */
   seedLocations: () => request<{ data: { items: SeedLocation[]; count: number } }>("/api/v1/seeds/locations"),
   /** What a seed resolves to: location, month and day type. */

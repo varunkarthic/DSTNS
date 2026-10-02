@@ -3,7 +3,7 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { DrainageCard, EnvironmentView, WaterCard, compassPoint } from "../src/EnvironmentPanel";
+import { DrainageCard, EnvironmentView, WaterCard, WindCard, compassPoint } from "../src/EnvironmentPanel";
 import type { HydrologyState } from "../src/types";
 import type { EnvironmentInfo } from "../src/types";
 
@@ -104,6 +104,28 @@ describe("the City tab", () => {
     expect(card).toHaveTextContent("214");
     expect(card).toHaveTextContent("peak 18");
     expect(card).toHaveTextContent("184 m³ has backed up onto the streets");
+  });
+
+  it("gives the wind above the city and in its streets, and where building heights came from", () => {
+    render(
+      <WindCard
+        air={{
+          solved: true, solved_s: 3600, updated_s: 3660, solves: 3, solves_skipped: 1, solve_interval_s: 3600, scheme: "lattice Boltzmann",
+          solver: "CPU", lattice: { nx: 54, ny: 54, nz: 8, dx_m: 50, cells: 23328 }, iterations: 432, converged: true, max_mach: 0.17,
+          background: { speed_mps: 4.2, from_deg: 250 }, climate: { belt: "westerlies", mean_speed_mps: 4.1, prevailing_from_deg: 255 },
+          near_surface_mps: { mean: 3.1, max: 5.6 }, reference_height_m: 10,
+          canopy: { buildings: 1165, height_tagged: 25, levels_tagged: 605, estimated: 535, built_fraction: 0.1, mean_height_m: 15.1, max_height_m: 368, source: "OpenStreetMap footprints" },
+        }}
+      />,
+    );
+    const card = screen.getByTestId("wind-card");
+    expect(within(card).getByText("From WSW")).toBeInTheDocument();
+    expect(card).toHaveTextContent("4.2");
+    expect(card).toHaveTextContent("up to 5.6");
+    expect(card).toHaveTextContent("54×54×8");
+    expect(card).toHaveTextContent("solved 3 times");
+    expect(card).toHaveTextContent("westerlies");
+    expect(card).toHaveTextContent("630 mapped, 535 estimated");
   });
 
   it("names compass points", () => {
