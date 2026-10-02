@@ -99,6 +99,11 @@ struct HydrologyState {
 struct HydrologySources {
     std::vector<std::int32_t> rain;      // added
     std::vector<std::int32_t> evaporation, infiltration; // potential removal, limited by what is there
+    // Exchange with the drains, applied straight after the rain and before any
+    // other sink: positive is taken into the network, negative returned to the
+    // street. The drainage model never asks for more than the street holds, so
+    // every request is honoured exactly.
+    std::vector<std::int32_t> drain;
 };
 
 /// Build the static grid: terrain in fixed point, sea cells, pervious cells

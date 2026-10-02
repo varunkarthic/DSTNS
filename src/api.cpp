@@ -237,6 +237,7 @@ ScenarioConfig config_from(const json& j) {
         c.dcm = m.value("dcm", c.dcm);
         c.hydrology = m.value("hydrology", c.hydrology);
         c.vehicle_dynamics = m.value("vehicle_dynamics", c.vehicle_dynamics);
+        c.dds = m.value("dds", c.dds);
     }
     if (j.contains("dws") && j.at("dws").contains("frequency") && j.at("dws").at("frequency").is_number()) {
         c.dws_frequency = j.at("dws").at("frequency");

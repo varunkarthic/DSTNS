@@ -28,10 +28,13 @@ layout(std430, set = 0, binding = 16) buffer Rows { uint rows[]; };
 layout(std430, set = 0, binding = 17) readonly buffer RoadOffsets { uint road_offsets[]; };
 layout(std430, set = 0, binding = 18) readonly buffer RoadCells { uint road_cells[]; };
 layout(std430, set = 0, binding = 19) buffer Roads { int roads[]; };
+layout(std430, set = 0, binding = 20) readonly buffer Drain { int drain[]; };
+layout(std430, set = 0, binding = 21) buffer Drained { int drained[]; };
 
-const uint HYD_BINDINGS = 20u;
+const uint HYD_BINDINGS = 22u;
 // Words per row in the reduction output: stored, boundary, sea, evaporated,
-// infiltrated (each i64 as two words), h_max, wet, flooded.
+// infiltrated (each i64 as two words), h_max, wet, flooded, then drained (i64)
+// at words 14..15.
 const uint HYD_ROW_WORDS = 16u;
 
 uint grid_w() { return params[0]; }

@@ -20,7 +20,7 @@ void main() {
     uint j = gl_GlobalInvocationID.x;
     uint w = grid_w();
     if (j >= grid_h()) return;
-    i64 stored = i64(0), boundary = i64(0), sea = i64(0), evap = i64(0), infil = i64(0), hmax = i64(0);
+    i64 stored = i64(0), boundary = i64(0), sea = i64(0), evap = i64(0), infil = i64(0), hmax = i64(0), drains = i64(0);
     uint wet = 0u, flooded = 0u;
     i64 wet_q24 = i64(16777);        // 1 mm
     i64 flooded_q24 = i64(1677722);  // 10 cm
@@ -35,6 +35,7 @@ void main() {
         sea += i64(sea_out[k]);
         evap += i64(evaporated[k]);
         infil += i64(infiltrated[k]);
+        drains += i64(drained[k]);
     }
     uint at = j * HYD_ROW_WORDS;
     put64(at, stored);
@@ -45,4 +46,5 @@ void main() {
     put64(at + 10u, hmax);
     rows[at + 12u] = wet;
     rows[at + 13u] = flooded;
+    put64(at + 14u, drains);
 }

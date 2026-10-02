@@ -304,6 +304,7 @@ int main() {
         for (std::uint32_t t = 1; t <= 3600; ++t) {
             EnvironmentInputs in;
             in.virtual_s = 12 * 3600 + t;
+            in.drainage = false;  // the surface model alone: drains would empty the valley floor
             if (t <= 1800) in.storms = {storm};
             rt.step(in);
         }

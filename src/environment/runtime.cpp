@@ -48,7 +48,8 @@ double normal(const DeterministicRng& rng, std::uint64_t object) {
 } // namespace
 
 void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParameters& surface, const HydrologyParams& hydrology,
-                                 const EnvironmentCompute* compute) {
+                                 const EnvironmentCompute* compute, const DrainageParams& drainage) {
+    drainage_params_ = drainage;
     terrain_ = scenario.terrain;
     if (!terrain_) {
         // A scenario built without terrain (tests that assemble one by hand)
@@ -89,6 +90,8 @@ void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParamete
         hydrology_solver_ = make_cpu_hydrology_solver();
         hydrology_solver_->install(hydrology_grid_);
     }
+    drainage_ = build_drainage(scenario, *terrain_, hydrology_grid_, drainage_params_);
+    ++road_revision_;
     edge_grade_.clear();
     grade_factor_.clear();
     free_speed_.clear();
@@ -138,6 +141,7 @@ void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParamete
     state_.cloud_fraction.assign(cells, 0);
     state_.evaporation_m_s.assign(cells, 0);
     state_.water = initial_hydrology(hydrology_grid_);
+    state_.drains = initial_drainage(drainage_);
     water_depth_m_.assign(cells, 0);
     const double start = air_temperature(solar_position(latitude_, longitude_, day_of_year_, 0).solar_time_h);
     state_.surface_temperature_c.assign(cells, static_cast<float>(start));
@@ -172,6 +176,7 @@ void EnvironmentRuntime::reset() { restore(initial_); }
 
 void EnvironmentRuntime::restore(const EnvironmentState& state) {
     state_ = state;
+    ++road_revision_;
     if (hydrology_solver_) hydrology_solver_->upload(state_.water);
     water_stale_ = false;
     depth_stale_ = true;
@@ -288,7 +293,7 @@ void EnvironmentRuntime::step(const EnvironmentInputs& in) {
         state_.dcm_time_s = t;  // a disabled module holds its state; it does not catch up later
     const auto interval = std::uint32_t(hydrology_.interval_s);
     if (t % interval == 0) {
-        if (in.hydrology) update_hydrology(t, in.storms);
+        if (in.hydrology) update_hydrology(t, in.storms, in.drainage);
         else state_.water.updated_s = t;
     }
     state_.time_s = t;
@@ -302,7 +307,7 @@ double EnvironmentRuntime::rain_rate_mm_h(double x, double y, const std::vector<
     return hydrology_.rain_peak_mm_h * (1 - dry);
 }
 
-void EnvironmentRuntime::update_hydrology(std::uint32_t t, const std::vector<StormCell>& storms) {
+void EnvironmentRuntime::update_hydrology(std::uint32_t t, const std::vector<StormCell>& storms, bool drainage) {
     auto& w = state_.water;
     const auto& g = hydrology_grid_.grid;
     const auto cells = g.cells();
@@ -329,7 +334,7 @@ void EnvironmentRuntime::update_hydrology(std::uint32_t t, const std::vector<Sto
     w.peak_rain_mm_h = std::max(w.peak_rain_mm_h, peak);
     // A dry district with no rain is unchanged by a step: skip it. (This is
     // exact, not an approximation: with no water every flux and sink is zero.)
-    if (!raining && w.stored == 0) {
+    if (!raining && w.stored == 0 && state_.drains.stored == 0) {
         w.updated_s = t;
         return;
     }
@@ -344,6 +349,14 @@ void EnvironmentRuntime::update_hydrology(std::uint32_t t, const std::vector<Sto
         src.evaporation[k] = static_cast<std::int32_t>(whole);
         src.infiltration[k] = static_cast<std::int32_t>(std::floor(double(hydrology_grid_.infiltration_m_s[k]) * interval * kQ24));
     }
+    // The drains take their share of the street water first, from depths the
+    // host holds exactly (a device-resident solver's are fetched).
+    std::vector<std::int64_t> exchange;
+    if (drainage && !drainage_.nodes.empty()) {
+        sync_water();
+        src.drain.assign(cells, 0);
+        exchange = inlet_exchange(drainage_, drainage_params_, state_.drains, w.h, interval, src.drain);
+    }
     const auto sub = hydrology_substeps(interval, g.cell_m, w.h_max, hydrology_);
     try {
         hydrology_solver_->advance(w, src, sub.dt_s, sub.substeps, hydrology_);
@@ -357,6 +370,8 @@ void EnvironmentRuntime::update_hydrology(std::uint32_t t, const std::vector<Sto
         throw compute::StateLost(std::string("surface water: ") + e.what());
     }
     if (!hydrology_solver_->host_resident()) water_stale_ = true;
+    ++road_revision_;
+    if (!exchange.empty()) drainage_step(drainage_, drainage_params_, state_.drains, exchange, interval);
     // Froude diagnostics need the fields; they are taken on whole minutes, on
     // every backend, so a device-resident solver reads its fields once a
     // minute while there is water, and results do not depend on the backend.
@@ -392,7 +407,7 @@ RoadEnvironment EnvironmentRuntime::road(std::size_t e, bool full) const {
     }
     // The flood index: puddles below 2 cm do not count; a car's wading depth is 1.
     constexpr double kPuddleM = 0.02;
-    const double wading = vehicle_params(VehicleClass::SmallPassenger).wading_depth_m;
+    static const double wading = vehicle_params(VehicleClass::SmallPassenger).wading_depth_m;
     r.flood_index = std::clamp((r.water_max_m - kPuddleM) / (wading - kPuddleM), 0.0, 1.0);
     r.water_factor = water_speed_factor(r.water_max_m);
     for (std::size_t c = 0; c < kVehicleClasses.size(); ++c) r.passable[c] = r.water_max_m < vehicle_params(kVehicleClasses[c]).wading_depth_m;
@@ -489,6 +504,16 @@ nlohmann::json EnvironmentRuntime::summary() const {
     return {
         {"time_s", state_.time_s},
         {"hydrology", std::move(hydrology)},
+        {"drainage", drainage_summary(drainage_, state_.drains, drainage_params_)},
+        {"water_system", {
+            // Street and pipes together: rain in, and everything that has left.
+            {"rain_m3", m3(w.ledger.rain)},
+            {"on_streets_m3", m3(w.stored)},
+            {"in_drains_m3", double(state_.drains.stored) * cell_area / kQ24},
+            {"left_m3", m3(w.ledger.boundary + w.ledger.sea + w.ledger.evaporated + w.ledger.infiltrated) +
+                            double(state_.drains.outfall) * cell_area / kQ24},
+            {"conservation_error_m3", m3(w.ledger.initial + w.ledger.rain - w.ledger.boundary - w.ledger.sea - w.ledger.evaporated -
+                                          w.ledger.infiltrated - w.stored - state_.drains.stored - state_.drains.outfall)}}},
         {"dcm", {
             {"updated_s", state_.dcm_time_s},
             {"interval_s", kDcmIntervalS},

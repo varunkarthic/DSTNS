@@ -45,7 +45,7 @@ add_library(dstns_core
   src/compute/state.cpp src/compute/options.cpp src/compute/cpu_backend.cpp src/compute/dispatcher.cpp
   src/compute/synthetic.cpp src/compute/field.cpp
   src/environment/png.cpp src/environment/terrain.cpp src/environment/solar.cpp src/environment/runtime.cpp
-  src/environment/raster.cpp src/environment/hydrology.cpp src/environment/vehicles.cpp)
+  src/environment/raster.cpp src/environment/hydrology.cpp src/environment/vehicles.cpp src/environment/drainage.cpp)
 target_include_directories(dstns_core PUBLIC include shaders/include)
 
 # --- Vulkan compute backend ------------------------------------------------------
@@ -337,6 +337,12 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_vehicle_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_vehicles COMMAND dstns_vehicle_tests)
   set_tests_properties(dstns_vehicles PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 600)
+
+  add_executable(dstns_drainage_tests tests/environment/drainage_tests.cpp)
+  target_link_libraries(dstns_drainage_tests PRIVATE dstns_core)
+  target_compile_options(dstns_drainage_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_drainage COMMAND dstns_drainage_tests)
+  set_tests_properties(dstns_drainage PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 600)
 
   add_executable(dstns_perf_tests tests/performance/perf_tests.cpp)
   target_link_libraries(dstns_perf_tests PRIVATE dstns_core)

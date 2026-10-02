@@ -23,13 +23,13 @@ namespace dstns::vulkan {
 namespace {
 
 constexpr VkDeviceSize kMinimum = 256;
-constexpr std::uint32_t kBindings = 20;
+constexpr std::uint32_t kBindings = 22;
 constexpr std::uint32_t kRowWords = 16;
 constexpr auto kStorage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
 enum Binding : std::uint32_t {
     kParams, kBed, kFlags, kDepth, kFaceX, kFaceY, kFaceXPrev, kFaceYPrev, kLimiter, kBoundary, kSea,
-    kRain, kEvaporation, kInfiltration, kEvaporated, kInfiltrated, kRows, kRoadOffsets, kRoadCells, kRoads
+    kRain, kEvaporation, kInfiltration, kEvaporated, kInfiltrated, kRows, kRoadOffsets, kRoadCells, kRoads, kDrain, kDrained
 };
 
 VkDeviceSize bytes_for(std::size_t words) { return std::max<VkDeviceSize>(kMinimum, VkDeviceSize(words) * 4); }
@@ -52,14 +52,14 @@ public:
         const std::array<std::size_t, kBindings> words{
             16, cells, cells, cells, grid.faces_x(), grid.faces_y(), grid.faces_x(), grid.faces_y(), cells, cells, cells,
             cells, cells, cells, cells, cells, std::size_t(grid.grid.height) * kRowWords, grid.road_offsets.size(),
-            std::max<std::size_t>(1, grid.road_cells.size()), std::size_t(edges_) * 2};
+            std::max<std::size_t>(1, grid.road_cells.size()), std::size_t(edges_) * 2, cells, cells};
         const auto limit = gpu_->info().properties.limits.maxStorageBufferRange;
         for (std::uint32_t b = 0; b < kBindings; ++b) {
             if (bytes_for(words[b]) > limit) throw compute::ComputeError("the hydrology grid is larger than a storage buffer on " + gpu_->info().name, true);
             buffers_[b] = b == kParams ? Buffer(gpu_->device(), bytes_for(words[b]), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload, "hydrology parameters")
                                        : Buffer(gpu_->device(), bytes_for(words[b]), kStorage, MemoryUse::Device, "hydrology");
         }
-        std::size_t staging_words = std::max({std::size_t(3) * cells, grid.faces_x() + grid.faces_y() + cells, grid.road_cells.size() + grid.road_offsets.size(),
+        std::size_t staging_words = std::max({std::size_t(4) * cells, grid.faces_x() + grid.faces_y() + cells, grid.road_cells.size() + grid.road_offsets.size(),
                                              std::size_t(grid.grid.height) * kRowWords + std::size_t(edges_) * 2});
         staging_ = Buffer(gpu_->device(), bytes_for(staging_words), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                           MemoryUse::Readback, "hydrology staging");
@@ -112,8 +112,8 @@ public:
         // Sources through the staging buffer; an absent source is zero-filled.
         auto* staging = static_cast<std::int32_t*>(staging_.mapped());
         std::int64_t rain_total = 0;
-        const std::array<const std::vector<std::int32_t>*, 3> sources{&src.rain, &src.evaporation, &src.infiltration};
-        for (std::size_t n = 0; n < 3; ++n)
+        const std::array<const std::vector<std::int32_t>*, 4> sources{&src.rain, &src.evaporation, &src.infiltration, &src.drain};
+        for (std::size_t n = 0; n < 4; ++n)
             if (!sources[n]->empty()) std::memcpy(staging + n * cells, sources[n]->data(), cells * 4);
         for (const auto v : src.rain) rain_total += v;
         staging_.flush();
@@ -136,8 +136,8 @@ public:
         gpu_->run([&](VkCommandBuffer command) {
             barrier(gpu_->device(), command, VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                     VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT);
-            const std::array<Binding, 3> targets{kRain, kEvaporation, kInfiltration};
-            for (std::size_t n = 0; n < 3; ++n) {
+            const std::array<Binding, 4> targets{kRain, kEvaporation, kInfiltration, kDrain};
+            for (std::size_t n = 0; n < 4; ++n) {
                 if (sources[n]->empty()) {
                     vk.vkCmdFillBuffer(command, buffers_[targets[n]].handle(), 0, VK_WHOLE_SIZE, 0);
                 } else {
@@ -171,7 +171,7 @@ public:
 
         const auto* words = static_cast<const std::uint32_t*>(staging_.mapped());
         const auto get64 = [&](std::size_t at) { return std::int64_t(std::uint64_t(words[at]) | (std::uint64_t(words[at + 1]) << 32)); };
-        std::int64_t stored = 0, boundary = 0, sea = 0, evap = 0, infil = 0, h_max = 0;
+        std::int64_t stored = 0, boundary = 0, sea = 0, evap = 0, infil = 0, h_max = 0, drains = 0;
         std::uint32_t wet = 0, flooded = 0;
         for (std::uint32_t j = 0; j < g.grid.height; ++j) {
             const auto at = std::size_t(j) * kRowWords;
@@ -183,12 +183,14 @@ public:
             h_max = std::max(h_max, get64(at + 10));
             wet += words[at + 12];
             flooded += words[at + 13];
+            drains += get64(at + 14);
         }
         s.ledger.rain += rain_total;
         s.ledger.boundary += boundary;
         s.ledger.sea += sea;
         s.ledger.evaporated += evap;
         s.ledger.infiltrated += infil;
+        s.ledger.drained += drains;
         s.stored = stored;
         s.h_max = h_max;
         s.wet_cells = wet;

@@ -51,6 +51,11 @@ public:
                 h += src.rain[k];
                 s.ledger.rain += src.rain[k];
             }
+            if (!src.drain.empty()) {
+                const auto d = std::min<std::int64_t>(h, src.drain[k]);
+                h -= d;
+                s.ledger.drained += d;
+            }
             if (!src.evaporation.empty()) {
                 const auto e = std::min<std::int64_t>(h, src.evaporation[k]);
                 h -= e;

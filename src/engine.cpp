@@ -356,6 +356,7 @@ nlohmann::json SimulationEngine::trigger_surge(NodeId node, double factor, doubl
 // If an accelerator cannot take the new world it runs on the CPU, never half
 // installed. Caller holds mutex_.
 void SimulationEngine::adopt_world(Scenario scenario) {
+    applied_road_flags_ = -1;
     if (graph_) graph_->attach_dynamic_source(nullptr);
     graph_ = std::make_unique<GraphStore>(std::move(scenario));
     compute_->install(graph_->scenario());
@@ -995,6 +996,7 @@ nlohmann::json SimulationEngine::set_module(const std::string& m, bool enabled) 
     else if (m == "dcm") field = &cfg.dcm;
     else if (m == "hydrology") field = &cfg.hydrology;
     else if (m == "vehicle_dynamics") field = &cfg.vehicle_dynamics;
+    else if (m == "dds") field = &cfg.dds;
     else throw std::invalid_argument("unknown module: " + m);
     const auto old = *field;
     *field = enabled;
@@ -1078,6 +1080,7 @@ void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
         else if (m == "dcm") cfg.dcm = enabled;
         else if (m == "hydrology") cfg.hydrology = enabled;
         else if (m == "vehicle_dynamics") cfg.vehicle_dynamics = enabled;
+        else if (m == "dds") cfg.dds = enabled;
     } else if (c.type == "edge_override") {
         compute_->set_manual(v.at("edge").get<std::uint32_t>(),
                              {v.at("speed_multiplier").get<double>(), v.at("capacity_multiplier").get<double>(), v.at("closed").get<bool>()});
@@ -1178,12 +1181,26 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         in.virtual_s = virtual_s_;
         in.dcm = sc.config.dcm;
         in.hydrology = sc.config.hydrology;
+        in.drainage = sc.config.dds;
+        const auto surcharged_before = environment_.drainage_state().surcharged_nodes;
         for (const auto& storm : request.storms) in.storms.push_back({storm.x_m, storm.y_m, storm.radius_m, storm.intensity});
         environment_.step(in);
+        const auto surcharged_after = environment_.drainage_state().surcharged_nodes;
+        if (surcharged_before == 0 && surcharged_after > 0) {
+            logger_.system("WARN", "drainage", "dds.surcharge " + std::to_string(surcharged_after) + " drain node(s) surcharged at " + hhmmss(virtual_s_));
+            add_news(900000 + virtual_s_, "flooding", "warning", "DRAIN_SURCHARGE",
+                     "[" + hhmmss(virtual_s_) + "] Drains overloaded: " + std::to_string(surcharged_after) +
+                     " manhole(s) surcharged above the street; water is backing up.",
+                     {{"surcharged_nodes", surcharged_after}});
+        }
         // What the environment does to each road reaches the step as inputs.
         const bool water = sc.config.flooding && sc.config.hydrology;
         const bool dynamics = sc.config.vehicle_dynamics;
-        for (std::size_t e = 0; e < environment_.roads(); ++e) {
+        const int flags = (water ? 1 : 0) | (dynamics ? 2 : 0);
+        const bool changed = environment_.road_revision() != applied_road_revision_ || flags != applied_road_flags_;
+        applied_road_revision_ = environment_.road_revision();
+        applied_road_flags_ = flags;
+        for (std::size_t e = 0; changed && e < environment_.roads(); ++e) {
             const auto road = environment_.road(e);
             compute::ComputeDispatcher::EnvironmentControl control;
             control.speed_multiplier = (dynamics ? road.grade_factor : 1.0) * (water ? road.water_factor : 1.0);

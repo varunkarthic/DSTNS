@@ -25,6 +25,7 @@
 
 #include "dstns/compute/backend.hpp"
 #include "dstns/compute/options.hpp"
+#include "dstns/environment/drainage.hpp"
 #include "dstns/environment/hydrology.hpp"
 #include "dstns/environment/solar.hpp"
 #include "dstns/environment/vehicles.hpp"
@@ -51,6 +52,7 @@ struct EnvironmentInputs {
     std::vector<StormCell> storms;
     bool dcm{true};
     bool hydrology{true};
+    bool drainage{true};
 };
 
 /// Where the environment's grid solvers may run. Grids of at least
@@ -115,6 +117,7 @@ struct EnvironmentState {
     std::vector<float> evaporation_m_s;     // potential, from the surface energy state
     double air_temperature_anomaly_c{};
     HydrologyState water;
+    DrainageState drains;
 };
 
 class EnvironmentRuntime {
@@ -123,7 +126,7 @@ public:
     static constexpr std::uint32_t kHydrologyIntervalS = 5;
 
     void install(const Scenario& scenario, const SurfaceParameters& surface = {}, const HydrologyParams& hydrology = {},
-                 const EnvironmentCompute* compute = nullptr);
+                 const EnvironmentCompute* compute = nullptr, const DrainageParams& drainage = {});
     void release();
     [[nodiscard]] bool installed() const { return terrain_ != nullptr; }
     /// The state before the first step: midnight, surface temperatures from a
@@ -151,17 +154,24 @@ public:
     /// The surface water model's static grid and parameters.
     [[nodiscard]] const HydrologyGrid& hydrology_grid() const { return hydrology_grid_; }
     [[nodiscard]] const HydrologyParams& hydrology_params() const { return hydrology_; }
+    [[nodiscard]] const DrainageNetwork& drainage() const { return drainage_; }
+    /// The drains' state; always on the host, so reading it costs nothing.
+    [[nodiscard]] const DrainageState& drainage_state() const { return state_.drains; }
+    [[nodiscard]] const DrainageParams& drainage_params() const { return drainage_params_; }
     /// What the environment does to directed edge `e` now. `full` adds the
     /// figures only views need (surface temperature, energy).
     [[nodiscard]] RoadEnvironment road(std::size_t e, bool full = false) const;
     [[nodiscard]] std::size_t roads() const { return grade_factor_.size(); }
+    /// Changes whenever what road() returns may have changed (a water step, a
+    /// restored checkpoint, a new world), so callers can skip unchanged work.
+    [[nodiscard]] std::uint64_t road_revision() const { return road_revision_; }
     /// Rainfall rate at a point now, mm/h.
     [[nodiscard]] double rain_rate_mm_h(double x_m, double y_m, const std::vector<StormCell>& storms) const;
 
 private:
     void update_dcm(std::uint32_t virtual_s, const std::vector<StormCell>& storms, double dt_s);
     void cloud_field(const std::vector<StormCell>& storms);
-    void update_hydrology(std::uint32_t virtual_s, const std::vector<StormCell>& storms);
+    void update_hydrology(std::uint32_t virtual_s, const std::vector<StormCell>& storms, bool drainage);
     void refresh_water_field() const;
     void sync_water() const;
 
@@ -176,6 +186,8 @@ private:
     // The representative day's sun path, every 15 minutes: (clock s, elevation, azimuth).
     std::vector<std::array<double, 3>> sun_path_;
     HydrologyParams hydrology_;
+    DrainageParams drainage_params_;
+    DrainageNetwork drainage_;
     // Per directed edge, fixed for the world: grade, the aggregate stream's
     // speed factor on it, its free speed and midpoint.
     std::vector<double> edge_grade_, grade_factor_, free_speed_;
@@ -186,6 +198,7 @@ private:
     // solver the host's h, qx, qy go stale after a step until synced.
     mutable std::vector<float> water_depth_m_;
     mutable bool water_stale_{}, depth_stale_{};
+    std::uint64_t road_revision_{1};
     mutable EnvironmentState state_;
     EnvironmentState initial_;
 };

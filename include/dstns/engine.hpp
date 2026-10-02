@@ -162,6 +162,10 @@ private:
     // The dynamic environment (solar forcing, surface temperature, and the
     // modules that follow). Its state is part of every checkpoint.
     env::EnvironmentRuntime environment_;
+    // What was last pushed into the step's environment inputs, so unchanged
+    // roads are not recomputed every second.
+    std::uint64_t applied_road_revision_{};
+    int applied_road_flags_{-1};
     std::atomic<bool> compiling_{false}; // Concurrent compiles fail without occupying HTTP workers.
     std::uint64_t compile_generation_{}; // Guarded by mutex_; reset/terminate invalidate a pending install.
     std::string preparation_error_;
