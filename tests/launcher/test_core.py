@@ -138,6 +138,51 @@ class StartRequest(WithWorkspace):
                 configuration.start_request(options, paths=self.paths)
 
 
+class CalendarOptions(WithWorkspace):
+    """Location, month and day type: chosen by generating a seed, never by override."""
+
+    def test_the_day_type_is_the_seeds_by_default(self):
+        request = configuration.start_request(RunOptions(seed="42"), paths=self.paths)
+        self.assertEqual(request["day"], "auto")
+        self.assertEqual(configuration.start_request(RunOptions(seed="42", day_type="auto"), paths=self.paths)["day"], "auto")
+
+    def test_location_and_month_generate_a_seed(self):
+        asked = []
+
+        def generate(location, month, day_type, _paths):
+            asked.append((location, month, day_type))
+            return {"seed": "6515130065813855609", "location": {"city": location}, "month": 7}
+
+        request = configuration.start_request(RunOptions(location="Ahmedabad", month="July", day_type="weekday"),
+                                              paths=self.paths, generate=generate)
+        self.assertEqual(asked, [("Ahmedabad", "July", "weekday")])
+        self.assertEqual(request["seed"], "6515130065813855609")
+        # The seed itself carries the constraints, so nothing overrides them.
+        self.assertEqual(request["day"], "auto")
+        self.assertNotIn("month", request)
+
+    def test_constraints_cannot_be_combined_with_a_seed(self):
+        for options in (RunOptions(seed="42", location="Ahmedabad"), RunOptions(saved_seed="x", month="7")):
+            with self.subTest(options=options), self.assertRaisesRegex(ConfigurationError, "choose the seed"):
+                configuration.start_request(options, paths=self.paths)
+
+    def test_invalid_months_are_refused_before_anything_runs(self):
+        for month in ("13", "Juli", "0"):
+            with self.subTest(month=month), self.assertRaisesRegex(ConfigurationError, "--month must be"):
+                configuration.start_request(RunOptions(month=month), paths=self.paths,
+                                            generate=lambda *_: self.fail("generated a seed for a bad month"))
+
+    @unittest.skipUnless((ROOT / "build" / "dstns_server").exists(), "the engine is not built")
+    def test_the_engine_generates_and_describes_the_same_seed(self):
+        from dstns_launcher.core.paths import Paths
+
+        engine = Paths(ROOT)
+        found = configuration.constrained_seed("Ahmedabad", "7", "weekend", engine)
+        self.assertEqual((found["location"]["city"], found["month"], found["day_type"]), ("Ahmedabad", 7, "weekend"))
+        with self.assertRaisesRegex(ConfigurationError, "unknown location"):
+            configuration.constrained_seed("Atlantis", None, None, engine)
+
+
 class SavedSeeds(WithWorkspace):
     def test_save_use_and_delete_through_the_existing_store(self):
         from dstns_launcher.core import seeds

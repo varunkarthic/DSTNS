@@ -215,8 +215,9 @@ def _dws_spacing(value: Any, config: dict[str, Any]) -> str:
 
 
 FIELDS: tuple[Field, ...] = (
-    Field("day", "Day type", "Run", Kind.CHOICE, "Weekday or weekend demand profiles. --day-type overrides it.",
-          choices=(("weekday", 0), ("weekend", 1)), default=0),
+    Field("day", "Day type", "Run", Kind.CHOICE,
+          "Weekday or weekend demand profiles; auto uses the seed's own day type. --day-type overrides it.",
+          choices=(("auto", "auto"), ("weekday", 0), ("weekend", 1)), default="auto"),
     Field("playback.duration_seconds", "Day duration", "Run", Kind.INTEGER,
           "Wall-clock seconds one virtual day takes at 1×.", unit="seconds", minimum=60, maximum=3600, default=3600),
     Field("playback.tick_rate", "Speed", "Run", Kind.NUMBER,
@@ -284,6 +285,9 @@ class RunOptions:
     save_seed: str | None = None
     description: str | None = None
     day_type: str | None = None
+    # Constraints for a generated seed: the seed is searched for, never overridden.
+    location: str | None = None
+    month: str | None = None
     duration: str | None = None
     speed: str | None = None
     max_nodes: str | None = None
@@ -292,7 +296,8 @@ class RunOptions:
     def explicit(self) -> bool:
         return any(
             getattr(self, name) is not None
-            for name in ("seed", "saved_seed", "save_seed", "day_type", "osm_file", "max_nodes", "duration", "speed")
+            for name in ("seed", "saved_seed", "save_seed", "day_type", "location", "month", "osm_file", "max_nodes",
+                         "duration", "speed")
         )
 
 
@@ -311,17 +316,64 @@ def fresh_seed() -> str:
     return str(int.from_bytes(secrets.token_bytes(8), "big"))
 
 
+MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+          "november", "december")
+DAY_TYPES = {"weekday", "weekend", "auto"}
+
+
+def check_month(text: str) -> None:
+    """Refuse a month the engine would refuse, before anything starts."""
+    value = text.strip().lower()
+    if value == "auto" or (value.isdigit() and len(value) <= 2 and 1 <= int(value) <= 12):
+        return
+    if value in MONTHS or (len(value) == 3 and any(m.startswith(value) for m in MONTHS)):
+        return
+    raise ConfigurationError("--month must be 1 to 12, a month name, or auto")
+
+
+def constrained_seed(location: str | None, month: str | None, day_type: str | None,
+                     paths: Paths = PATHS) -> dict[str, Any]:
+    """A fresh seed whose own location, month and day type are the ones given.
+
+    The engine owns the city catalogue and the derivations, so the search runs
+    in the server binary (``dstns_server --generate-seed``) rather than being
+    reimplemented here, where the two could drift apart.
+    """
+    import subprocess
+
+    if not paths.server.exists():
+        raise ConfigurationError("Choosing a location or month needs the engine built first.",
+                                 remedy="Run ./launcher start once, or cmake --build build.")
+    command = [str(paths.server), "--generate-seed"]
+    for flag, value in (("--location", location), ("--month", month), ("--day-type", day_type)):
+        if value and value.lower() != "auto":
+            command += [flag, value]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=120, check=False)
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout).strip().removeprefix("DSTNS fatal: ")
+        raise ConfigurationError(message or "The engine could not generate a seed.",
+                                 remedy="./build/dstns_server --generate-seed --help lists the options.")
+    return json.loads(result.stdout)
+
+
 def start_request(
     options: RunOptions,
     *,
     paths: Paths = PATHS,
     use_saved: Callable[[str], dict[str, Any]] | None = None,
+    generate: Callable[[str | None, str | None, str | None, Paths], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The body of ``POST /api/v1/playback/start`` for these options."""
     if options.seed and options.saved_seed:
         raise ConfigurationError("--seed and --saved-seed are mutually exclusive")
-    if options.day_type is not None and options.day_type not in {"weekday", "weekend"}:
-        raise ConfigurationError("--day-type must be weekday or weekend")
+    if options.day_type is not None and options.day_type not in DAY_TYPES:
+        raise ConfigurationError("--day-type must be weekday or weekend (or auto, the seed's own)")
+    if options.month is not None:
+        check_month(options.month)
+    constrained = bool(options.location or options.month)
+    if constrained and (options.seed or options.saved_seed):
+        raise ConfigurationError("--location and --month choose the seed; they cannot be combined with --seed or --saved-seed",
+                                 remedy="Drop --seed to have a seed generated, or drop --location and --month.")
     if options.saved_seed:
         if use_saved is None:
             from . import seeds
@@ -330,7 +382,13 @@ def start_request(
         request = copy.deepcopy(use_saved(options.saved_seed)["config"])
     else:
         defaults = load(paths)
-        seed = normalise_seed(options.seed) if options.seed else fresh_seed()
+        if constrained:
+            # The generated seed itself carries the location, month and day
+            # type, so the request leaves them to the seed.
+            generated = (generate or constrained_seed)(options.location, options.month, options.day_type, paths)
+            seed = str(generated["seed"])
+        else:
+            seed = normalise_seed(options.seed) if options.seed else fresh_seed()
         # "auto" lets the seed choose a real city district; a path pins a file.
         source = options.osm_file or (defaults.get("map") or {}).get("osm_file") or "auto"
         map_options: dict[str, Any] = {
@@ -342,7 +400,7 @@ def start_request(
                 map_options[key] = defaults["map"][key]
         request = {
             "seed": seed,
-            "day": defaults.get("day", 0),
+            "day": defaults.get("day", "auto"),
             "playback_duration_seconds": defaults["playback"]["duration_seconds"],
             "tick_rate": defaults["playback"]["tick_rate"],
             "map": map_options,
@@ -354,8 +412,11 @@ def start_request(
         request["map"]["osm_file"] = str((paths.root / options.osm_file).resolve())
     if request["map"]["osm_file"] != "auto" and not Path(request["map"]["osm_file"]).exists():
         raise ConfigurationError("OSM data unavailable; provide --osm-file PATH")
-    if options.day_type:
-        request["day"] = 1 if options.day_type == "weekend" else 0
+    if constrained:
+        request["day"] = "auto"
+        request.pop("month", None)
+    elif options.day_type:
+        request["day"] = {"weekend": 1, "weekday": 0}.get(options.day_type, "auto")
     for value, key, minimum, maximum, integer in (
         (options.duration, "duration", 60, 3600, True),
         (options.speed, "speed", 0.01, MAX_TICK_RATE, False),

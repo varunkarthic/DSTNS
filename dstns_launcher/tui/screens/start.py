@@ -40,9 +40,14 @@ class StartScreen(Page):
             yield Rule()
             yield FieldRow("Seed", Input(placeholder="empty: a new seed", id="seed", restrict=r"[0-9xXa-fA-F]*"),
                            id="row-seed")
-            yield FieldRow("Day type", Select([("Weekday", "weekday"), ("Weekend", "weekend")], allow_blank=False,
-                                              value="weekend" if defaults.get("day") == 1 else "weekday", id="day"),
+            day = {1: "weekend", 0: "weekday"}.get(defaults.get("day"), "auto")
+            yield FieldRow("Day type", Select([("The seed's own", "auto"), ("Weekday", "weekday"), ("Weekend", "weekend")],
+                                              allow_blank=False, value=day, id="day"),
                            id="row-day")
+            yield FieldRow("Location", Input(placeholder="empty: the seed's city; a city generates a seed", id="location"),
+                           id="row-location")
+            months = [("The seed's own", "auto")] + [(name.capitalize(), name) for name in configuration.MONTHS]
+            yield FieldRow("Month", Select(months, allow_blank=False, value="auto", id="month"), id="row-month")
             yield FieldRow("Map", Select(maps, allow_blank=False, value=AUTO, id="map"), id="row-map")
             yield FieldRow("Map file", Input(placeholder="path to an OpenStreetMap XML file", id="map-file"), id="row-map-file")
             yield FieldRow("Speed", Input(str(defaults["playback"]["tick_rate"]), id="speed"), "x" if not self.app.unicode else "×",
@@ -81,9 +86,12 @@ class StartScreen(Page):
                 return None
         elif map_choice != AUTO:
             osm_file = str(map_choice)
+        month = str(self.query_one("#month", Select).value)
         options = RunOptions(
             seed=seed,
             day_type=str(self.query_one("#day", Select).value),
+            location=self.query_one("#location", Input).value.strip() or None,
+            month=None if month == "auto" else month,
             speed=self.query_one("#speed", Input).value.strip() or None,
             osm_file=osm_file,
             save_seed=self.query_one("#save-as", Input).value.strip() or None,
@@ -93,7 +101,9 @@ class StartScreen(Page):
             configuration.start_request(options)
         except ConfigurationError as exc:
             message = str(exc)
-            target = ("row-seed" if "eed" in message and "saved" not in message.lower() else
+            target = ("row-location" if "location" in message.lower() else
+                      "row-month" if "month" in message.lower() else
+                      "row-seed" if "eed" in message and "saved" not in message.lower() else
                       "row-speed" if "speed" in message or "tick_rate" in message else
                       "row-map-file" if "OSM" in message or "map" in message.lower() else None)
             if target == "row-map-file":

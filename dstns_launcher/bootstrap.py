@@ -33,7 +33,7 @@ def wants_interface(argv: list[str]) -> bool:
         return False
     if any(arg in PLAIN_FLAGS or arg.startswith("--mode") for arg in argv):
         return False
-    values = {"--seed", "--saved-seed", "--save-seed", "--day-type", "--osm-file", "--max-nodes", "--duration",
+    values = {"--seed", "--saved-seed", "--save-seed", "--day-type", "--location", "--month", "--osm-file", "--max-nodes", "--duration",
               "--speed", "--description", "--mode", "--compute", "--gpu-device", "--profile"}
     skip = False
     for arg in argv:

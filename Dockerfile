@@ -85,7 +85,7 @@ VOLUME ["/app/data/maps", "/app/logs"]
 ENV DSTNS_PORT=8090 \
     DSTNS_AUTOSTART=1 \
     DSTNS_SEED=auto \
-    DSTNS_DAY_TYPE=weekday \
+    DSTNS_DAY_TYPE=auto \
     DSTNS_SPEED=1 \
     DSTNS_DURATION=3600 \
     DSTNS_OSM_FILE=auto \

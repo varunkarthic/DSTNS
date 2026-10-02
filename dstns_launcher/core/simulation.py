@@ -187,6 +187,7 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
 
     deadline = time.monotonic() + PREPARE_LIMIT
     drew = False
+    current = Status(reachable=False)
     try:
         while time.monotonic() < deadline:
             if cancel is not None and cancel.is_set():
@@ -216,7 +217,10 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
         if drew:
             reporter.progress_done()
 
-    loaded = world(port, str(request.get("seed", "")), int(request.get("day", 0)), paths)
+    # The day type may be the seed's own ("auto"); the engine has resolved it.
+    requested = request.get("day", "auto")
+    day = requested if requested in (0, 1) else (current.day if current.day in (0, 1) else 0)
+    loaded = world(port, str(request.get("seed", "")), day, paths)
     if loaded.city:
         reporter.message(Level.INFO, "District",
                          f"{loaded.place} · {loaded.latitude:.4f}, {loaded.longitude:.4f}"

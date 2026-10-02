@@ -36,8 +36,8 @@ EXIT_FAILURE = 1
 EXIT_INTERRUPTED = 130
 EXIT_TERMINATED = 143
 
-VALUE_OPTIONS = {"--seed", "--saved-seed", "--save-seed", "--day-type", "--osm-file", "--max-nodes", "--duration",
-                 "--speed", "--description"}
+VALUE_OPTIONS = {"--seed", "--saved-seed", "--save-seed", "--day-type", "--location", "--month", "--osm-file",
+                 "--max-nodes", "--duration", "--speed", "--description"}
 # Options that take a value but are not part of a run request.
 SETTING_OPTIONS = {"--compute", "--gpu-device", "--profile"}
 COMMANDS = {"start", "console", "seeds", "ui", "logs", "config", "test", "sumo", "reset", "help", "version", "license",
@@ -126,8 +126,8 @@ def parse(argv: list[str]) -> Arguments:
     args.command = positional[0] if positional else None
     args.topic = positional[1] if len(positional) > 1 else None
     args.item = positional[2] if len(positional) > 2 else None
-    if args.run.day_type and args.run.day_type not in {"weekday", "weekend"}:
-        raise ConfigurationError("--day-type must be weekday or weekend")
+    if args.run.day_type and args.run.day_type not in {"weekday", "weekend", "auto"}:
+        raise ConfigurationError("--day-type must be weekday or weekend (or auto, the seed's own)")
     if args.compute is not None and args.compute not in {"auto", "cpu", "vulkan"}:
         raise ConfigurationError("--compute must be auto, cpu or vulkan")
     if args.gpu_device is not None and (not args.gpu_device.strip() or len(args.gpu_device) > 256):
@@ -169,7 +169,12 @@ Run options (start, seeds save)
   --saved-seed ID        Run a saved configuration
   --save-seed ID         Save this configuration under ID
   --description TEXT     Note stored with --save-seed
-  --day-type weekday|weekend
+  --day-type weekday|weekend|auto
+                         auto (the default) uses the seed's own day type
+  --location CITY        Generate a seed whose city is CITY (e.g. Ahmedabad)
+  --month MONTH          Generate a seed whose month is MONTH (1-12 or a name)
+                         With either, --day-type also constrains the generated
+                         seed; none of them can be combined with --seed
   --duration SECONDS     60 to 3600: wall-clock length of the day at 1x
   --speed X              0.01 to 5
   --max-nodes N          2 to 50000

@@ -174,10 +174,13 @@ class FallbackApp:
         self.out.muted("Press Enter to accept a default. Leave the seed empty for a new one.")
         options = RunOptions()
         options.seed = self.out.ask("Seed") or None
-        day = self.out.ask("Day type (weekday/weekend)", "weekday")
-        options.day_type = day if day in {"weekday", "weekend"} else None
-        if day not in {"weekday", "weekend"}:
+        day = self.out.ask("Day type (auto/weekday/weekend)", "auto")
+        options.day_type = day if day in {"weekday", "weekend", "auto"} else None
+        if day not in {"weekday", "weekend", "auto"}:
             self.out.message(Level.WARNING, "Unknown day type; using the configured default")
+        if not options.seed:
+            options.location = self.out.ask("Location (a city generates a seed there; empty: the seed's own)") or None
+            options.month = self.out.ask("Month (1-12 or a name; empty: the seed's own)") or None
         cached = simulation.cached_maps()
         hint = f" ({len(cached)} cached: e.g. {cached[0]})" if cached else ""
         map_choice = self.out.ask(f"Map: auto, or a file path{hint}", "auto")

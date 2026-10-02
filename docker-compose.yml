@@ -24,7 +24,9 @@ services:
     environment:
       DSTNS_AUTOSTART: "${DSTNS_AUTOSTART:-1}"
       DSTNS_SEED: "${DSTNS_SEED:-auto}"
-      DSTNS_DAY_TYPE: "${DSTNS_DAY_TYPE:-weekday}"
+      DSTNS_DAY_TYPE: "${DSTNS_DAY_TYPE:-auto}"
+      DSTNS_LOCATION: "${DSTNS_LOCATION:-}"
+      DSTNS_MONTH: "${DSTNS_MONTH:-}"
       DSTNS_SPEED: "${DSTNS_SPEED:-1}"
       DSTNS_DURATION: "${DSTNS_DURATION:-3600}"
       DSTNS_OSM_FILE: "${DSTNS_OSM_FILE:-auto}"

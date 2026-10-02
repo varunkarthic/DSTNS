@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
+#include "dstns/calendar.hpp"
 #include "dstns/compute/vulkan.hpp"
 #include "dstns/logging.hpp"
 #include "dstns/osm_fetch.hpp"
@@ -11,6 +12,7 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <optional>
 #include <string>
 
 int main(int argc, char** argv) {
@@ -24,6 +26,10 @@ int main(int argc, char** argv) {
         dstns::compute::ComputeOptions compute;
         compute.apply_environment();
         bool gpu_diagnostics = false;
+        // Seed tools: answer from the seed and the catalogue alone, then exit.
+        std::optional<std::string> describe_seed_value;
+        bool generate_seed = false;
+        std::string want_location, want_month, want_day;
         for (int i = 1; i < argc; ++i) {
             std::string a = argv[i];
             if (a == "--host" && i + 1 < argc) host = argv[++i];
@@ -45,6 +51,11 @@ int main(int argc, char** argv) {
             else if (a == "--compute-verify") compute.verify = true;
             else if (a == "--vulkan-validation") compute.validation = true;
             else if (a == "--gpu-diagnostics") gpu_diagnostics = true;
+            else if (a == "--describe-seed" && i + 1 < argc) describe_seed_value = argv[++i];
+            else if (a == "--generate-seed") generate_seed = true;
+            else if (a == "--location" && i + 1 < argc) want_location = argv[++i];
+            else if (a == "--month" && i + 1 < argc) want_month = argv[++i];
+            else if (a == "--day-type" && i + 1 < argc) want_day = argv[++i];
             else if (a == "--version") {
                 std::cout << "DSTNS " << DSTNS_VERSION << "\n"
                           << "Copyright (C) 2026 Varun Karthic\n"
@@ -59,14 +70,46 @@ int main(int argc, char** argv) {
                              "             [--compute auto|cpu|vulkan] [--gpu-device auto|INDEX|UUID|NAME]\n"
                              "             [--allow-software-vulkan] [--require-vulkan] [--compute-verify]\n"
                              "             [--vulkan-validation] [--compute-cache DIR] [--gpu-diagnostics]\n"
+                             "             [--describe-seed SEED]\n"
+                             "             [--generate-seed [--location CITY] [--month MONTH] [--day-type weekday|weekend]]\n"
                              "             [--version]\n"
                              "  --gpu-diagnostics  test every Vulkan device (allocate, dispatch, read back),\n"
                              "                     print the report as JSON and exit: 0 if a device is usable,\n"
-                             "                     3 if DSTNS would run on the CPU\n";
+                             "                     3 if DSTNS would run on the CPU\n"
+                             "  --describe-seed    print the location, month and day type a seed resolves to\n"
+                             "  --generate-seed    print a fresh seed that resolves to the given location,\n"
+                             "                     month and day type (each optional; omitted means any)\n";
                 return 0;
             } else {
                 throw std::invalid_argument("unknown argument: " + a);
             }
+        }
+        if (describe_seed_value || generate_seed) {
+            const auto print = [](const dstns::Seed128& seed, const dstns::SeedMetadata& m, std::uint64_t attempts) {
+                nlohmann::json out{{"seed", seed.decimal()}, {"seed_hex", seed.hex()},
+                                   {"location", {{"city", m.city}, {"country", m.country}, {"latitude", m.latitude}, {"longitude", m.longitude}}},
+                                   {"month", m.month}, {"month_name", dstns::month_name(m.month)},
+                                   {"day", m.day}, {"day_type", dstns::day_type_name(m.day)}};
+                if (attempts) out["candidates_examined"] = attempts;
+                std::cout << out.dump(2) << '\n';
+            };
+            if (describe_seed_value) {
+                const auto& text = *describe_seed_value;
+                const auto seed = text.starts_with("0x") || text.starts_with("0X") ? dstns::Seed128::parse(text) : dstns::Seed128::from_decimal(text);
+                print(seed, dstns::describe_seed(seed), 0);
+                return 0;
+            }
+            dstns::SeedConstraints c;
+            const auto given = [](const std::string& v) { return !v.empty() && v != "auto" && v != "Auto"; };
+            if (given(want_location) && !(c.city_index = dstns::find_city(want_location)))
+                throw std::invalid_argument("unknown location: " + want_location);
+            if (given(want_month) && !(c.month = dstns::parse_month(want_month)))
+                throw std::invalid_argument("--month must be 1..12, a month name, or auto");
+            if (given(want_day) && !(c.day = dstns::parse_day_type(want_day)))
+                throw std::invalid_argument("--day-type must be weekday, weekend or auto");
+            const auto found = dstns::generate_constrained_seed(c);
+            print(found.seed, found.metadata, found.attempts);
+            return 0;
         }
         if (gpu_diagnostics) {
             const auto report = dstns::compute::vulkan_diagnostics(compute);

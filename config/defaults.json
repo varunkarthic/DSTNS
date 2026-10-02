@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "seed": "auto",
-  "day": 0,
+  "day": "auto",
   "playback": {
     "duration_seconds": 3600,
     "tick_rate": 1.0,

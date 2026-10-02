@@ -88,7 +88,12 @@ def main():
     parser = argparse.ArgumentParser(description="Start a DSTNS run in this container.")
     parser.add_argument("--seed", default=env("DSTNS_SEED", "auto"),
                         help="decimal or 0x seed; 'auto' draws a fresh one (default: $DSTNS_SEED)")
-    parser.add_argument("--day-type", choices=["weekday", "weekend"], default=env("DSTNS_DAY_TYPE", "weekday"))
+    parser.add_argument("--day-type", choices=["auto", "weekday", "weekend"], default=env("DSTNS_DAY_TYPE", "auto"),
+                        help="'auto' uses the seed's own day type (default: $DSTNS_DAY_TYPE)")
+    parser.add_argument("--location", default=env("DSTNS_LOCATION", ""),
+                        help="generate a seed whose city is this one (default: $DSTNS_LOCATION)")
+    parser.add_argument("--month", default=env("DSTNS_MONTH", ""),
+                        help="generate a seed whose month is this one, 1-12 or a name (default: $DSTNS_MONTH)")
     parser.add_argument("--speed", default=env("DSTNS_SPEED", "1"), help="speed multiplier in (0, 5]")
     parser.add_argument("--duration", default=env("DSTNS_DURATION", "3600"),
                         help="wall-clock seconds per virtual day at 1x, 60 to 3600")
@@ -114,11 +119,28 @@ def main():
         say(f"replacing the current run ({current.get('run_id') or 'preparing'})")
         call("/api/v1/playback/reset", {})
 
+    seed = "auto" if args.seed in ("", "auto", "random") else args.seed
+    day = {"weekend": 1, "weekday": 0}.get(args.day_type, "auto")
+    constrained = any(v and v != "auto" for v in (args.location, args.month))
+    if constrained:
+        # The seed is searched for, so the seed alone carries the location,
+        # month and day type; nothing is overridden.
+        if seed != "auto":
+            say("--location and --month choose the seed; they cannot be combined with --seed")
+            sys.exit(2)
+        code, body = call("/api/v1/seeds/generate", {"location": args.location or "auto", "month": args.month or "auto",
+                                                      "day_type": args.day_type})
+        if code != 200:
+            say(f"no seed generated ({code}): {body.get('error', {}).get('message', body)}")
+            sys.exit(2)
+        found = body["data"]
+        seed, day = found["seed"], "auto"
+        say(f"seed {seed} resolves to {found['location']['city']}, {found['month_name']}, {found['day_type']}")
     speed = number(args.speed, float, 0.01, 5, "--speed")
     duration = number(args.duration, int, 60, 3600, "--duration")
     payload = {
-        "seed": "auto" if args.seed in ("", "auto", "random") else args.seed,
-        "day": 1 if args.day_type == "weekend" else 0,
+        "seed": seed,
+        "day": day,
         "tick_rate": speed,
         "playback_duration_seconds": duration,
         "map": {"osm_file": args.osm_file, "cache_dir": "/app/data/maps"},
