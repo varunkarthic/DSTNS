@@ -49,9 +49,9 @@ def main():
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
             try:
-                status = get('/api/v1/playback/status')['data']
+                status = get('/api/v1/playback/status')
                 health = docker('inspect', '--format', '{{.State.Health.Status}}', name)
-                if status['lifecycle'] == 'RUNNING' and health == 'healthy':
+                if status['data']['lifecycle'] == 'RUNNING' and health == 'healthy':
                     break
             except (OSError, ValueError):
                 pass
@@ -85,8 +85,8 @@ def main():
                 assert response.status == 200 and len(response.read()) > 0
         # Exercise replacement through the shipped operator helper.
         docker('exec', name, 'dstns-run', '--seed', '42')
-        replaced = get('/api/v1/playback/status')['data']
-        assert replaced['lifecycle'] == 'RUNNING' and str(replaced['seed']) == '42'
+        replaced = get('/api/v1/playback/status')
+        assert replaced['data']['lifecycle'] == 'RUNNING' and str(replaced['seed']) == '42'
         assert replaced['run_id'] != status['run_id']
         docker('stop', '--time', '20', name)
         state = json.loads(docker('inspect', name))[0]['State']
