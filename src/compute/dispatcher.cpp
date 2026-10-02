@@ -135,6 +135,7 @@ void ComputeDispatcher::install(const Scenario& scenario) {
     installed_ = true;
     active_ = BackendType::Cpu;
     choose_backend();
+    take_shadow();
 }
 
 void ComputeDispatcher::choose_backend() {
@@ -275,6 +276,7 @@ bool ComputeDispatcher::select(BackendType type, const std::string& reason) {
     patches_.clear();
     active_ = BackendType::Vulkan;
     vulkan_health_ = BackendHealth::Active;
+    take_shadow();
     selection_reason_ = reason;
     log("INFO", "compute.backend.selected vulkan: " + reason);
     return true;
@@ -380,11 +382,19 @@ StepOutcome ComputeDispatcher::step(const StepRequest& r) {
         }
         try {
             vulkan_->step({params_, inputs_, patches_}, state_, result);
+            JournalEntry entry;
+            entry.params = params_.words;
+            entry.inputs.reserve(inputs_.dirty().size());
+            for (const auto offset : inputs_.dirty()) entry.inputs.emplace_back(offset, inputs_.get(offset));
+            entry.patches = patches_;
+            journal_.push_back(std::move(entry));
             inputs_.mark_uploaded();
             patches_.clear();
             host_complete_ = false;
             record(BackendType::Vulkan, vulkan_->last_step(), ms_since(started));
             if (options_.verify) verify_step(before, result);
+            // Bound the journal: refresh the shadow with a full download now and then.
+            else if (journal_.size() >= kShadowInterval) ensure_host_state();
         } catch (const ComputeError& e) {
             ++fallbacks_;
             const bool intact = e.state_intact();
@@ -397,7 +407,12 @@ StepOutcome ComputeDispatcher::step(const StepRequest& r) {
                 } catch (const ComputeError&) {
                 }
             }
+            const auto pending = patches_;
             fail_vulkan(e.what());
+            if (!host_complete_ && rebuild_from_shadow()) {
+                // The patches made before this step still apply to the rebuilt state.
+                for (const auto& [offset, value] : pending) state_[offset] = value;
+            }
             patches_.clear();
             if (!host_complete_) {
                 needs_recovery_ = true;
@@ -453,7 +468,10 @@ void ComputeDispatcher::verify_step(const std::vector<std::uint32_t>& before, co
         ++mismatches;
         detail << " reductions cpu=" << cpu.transitions << '/' << cpu.congestion_sum << " vulkan=" << gpu.transitions << '/' << gpu.congestion_sum << ';';
     }
-    if (!mismatches) return;
+    if (!mismatches) {
+        take_shadow();
+        return;
+    }
     const auto message = "compute.verify mismatch at virtual second " + std::to_string(params_.words[P_VIRTUAL_S]) + ": " +
                          std::to_string(mismatches) + " word(s) differ." + detail.str();
     log("ERROR", message);
@@ -481,21 +499,64 @@ void ComputeDispatcher::record(BackendType ran, const StepTelemetry& t, double t
 
 void ComputeDispatcher::ensure_host_state() {
     if (host_complete_) return;
-    if (!vulkan_) {
-        needs_recovery_ = true;
-        throw StateLost("accelerator state is not on the host and the accelerator is gone");
+    std::string failure = "the accelerator is gone";
+    if (vulkan_) {
+        try {
+            vulkan_->download_state(state_);
+            for (const auto& [offset, value] : patches_) state_[offset] = value;
+            host_complete_ = true;
+            ++downloads_;
+            readback_bytes_ += state_.size() * sizeof(std::uint32_t);
+            take_shadow();
+            return;
+        } catch (const ComputeError& e) {
+            failure = e.what();
+        }
     }
-    try {
-        vulkan_->download_state(state_);
-        for (const auto& [offset, value] : patches_) state_[offset] = value;
-        host_complete_ = true;
-        ++downloads_;
-        readback_bytes_ += state_.size() * sizeof(std::uint32_t);
-    } catch (const ComputeError& e) {
-        fail_vulkan(e.what());
-        needs_recovery_ = true;
-        throw StateLost(std::string("accelerator state lost while reading it back: ") + e.what());
+    const auto pending = patches_;
+    fail_vulkan(failure);
+    if (rebuild_from_shadow()) {
+        for (const auto& [offset, value] : pending) state_[offset] = value;
+        return;
     }
+    needs_recovery_ = true;
+    throw StateLost("accelerator state lost while reading it back: " + failure);
+}
+
+void ComputeDispatcher::take_shadow() {
+    journal_.clear();
+    if (active_ != BackendType::Vulkan || !host_complete_) {
+        shadow_state_.clear();
+        shadow_inputs_.clear();
+        return;
+    }
+    shadow_state_ = state_;
+    shadow_inputs_ = inputs_.words();
+}
+
+bool ComputeDispatcher::rebuild_from_shadow() {
+    if (shadow_state_.size() != tables_.state_words()) return false;
+    // Replay every journalled step on the CPU, from the shadow, with exactly
+    // the inputs and patches the device was given.
+    auto state = shadow_state_;
+    auto inputs = shadow_inputs_;
+    StepParams params;
+    for (const auto& entry : journal_) {
+        for (const auto& [offset, value] : entry.inputs) inputs[offset] = value;
+        for (const auto& [offset, value] : entry.patches) state[offset] = value;
+        params.words = entry.params;
+        StepResult ignored;
+        cpu_node_pass(tables_, params, state);
+        cpu_edge_pass(tables_, params, inputs, state, 0, tables_.edge_count, ignored);
+    }
+    log("WARN", "compute.recovery rebuilt the state on the CPU by replaying " + std::to_string(journal_.size()) + " journalled step(s)");
+    state_ = std::move(state);
+    host_complete_ = true;
+    ++replays_;
+    journal_.clear();
+    shadow_state_.clear();
+    shadow_inputs_.clear();
+    return true;
 }
 
 std::vector<std::uint32_t> ComputeDispatcher::export_state() {
@@ -508,12 +569,14 @@ void ComputeDispatcher::import_state(const std::vector<std::uint32_t>& state) {
     state_ = state;
     host_complete_ = true;
     patches_.clear();
-    if (active_ != BackendType::Vulkan) return;
-    try {
-        vulkan_->upload_state(state_);
-    } catch (const ComputeError& e) {
-        fail_vulkan(e.what());
+    if (active_ == BackendType::Vulkan) {
+        try {
+            vulkan_->upload_state(state_);
+        } catch (const ComputeError& e) {
+            fail_vulkan(e.what());
+        }
     }
+    take_shadow();
 }
 
 void ComputeDispatcher::reset_state() { import_state(initial_state(tables_)); }
@@ -628,6 +691,7 @@ nlohmann::json ComputeDispatcher::describe() const {
             {"mean_step_ms_cpu", steps_cpu_ ? total_ms_cpu_ / double(steps_cpu_) : 0.0},
             {"mean_step_ms_vulkan", steps_vulkan_ ? total_ms_vulkan_ / double(steps_vulkan_) : 0.0},
             {"fallbacks", fallbacks_}, {"verified_steps", verified_}, {"state_downloads", downloads_},
+            {"journal_replays", replays_}, {"journal_steps", journal_.size()},
             {"upload_bytes", upload_bytes_}, {"readback_bytes", readback_bytes_}
         }},
         {"memory", {{"host_state_bytes", state_.size() * 4}, {"device_bytes_estimate", device_bytes}}},

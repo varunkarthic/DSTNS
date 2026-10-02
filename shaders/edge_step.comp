@@ -1,0 +1,140 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
+// Edge pass: environment from the endpoints, demand, signals, speed and queue,
+// then a workgroup reduction of the congestion index. One invocation per
+// edge. Mirrors cpu_edge_pass in src/compute/state.cpp.
+//
+// The reduction is exact: integer partial sums per workgroup, finished on the
+// host. The flood-event count uses an integer atomic, whose result does not
+// depend on the order the invocations run in.
+
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "dstns_glsl.h"
+
+layout(std430, set = 0, binding = 0) readonly buffer ParamWords { u32 params[]; };
+layout(std430, set = 0, binding = 1) readonly buffer StaticWords { u32 static_words[]; };
+layout(std430, set = 0, binding = 2) readonly buffer InputWords { u32 inputs[]; };
+layout(std430, set = 0, binding = 3) readonly buffer StateIn { u32 state_in[]; };
+layout(std430, set = 0, binding = 4) buffer StateOut { u32 state_out[]; };
+layout(std430, set = 0, binding = 5) writeonly buffer Partials { u64 partials[]; };
+layout(std430, set = 0, binding = 6) buffer Counters { u32 counters[]; };
+
+// Sized for the largest workgroup the backend selects.
+shared u64 partial_sum[256];
+
+u32 st(u32 field, u32 e, u32 base, u32 stride) { return static_words[base + field * stride + e]; }
+
+void main() {
+    u32 e = gl_GlobalInvocationID.x;
+    u32 lane = gl_LocalInvocationID.x;
+    u32 edges = params[P_EDGE_COUNT];
+    u32 es = params[P_EDGE_STRIDE];
+    u32 ns = params[P_NODE_STRIDE];
+    u32 sbase = NODE_STATIC_FIELDS * ns;     // edge fields follow the node fields
+    u32 vbase = NODE_STATE_FIELDS * ns;      // likewise in the state
+    u64 contribution = u64(0u);
+
+    if (e < edges) {
+        u32 from = st(ES_FROM, e, sbase, es);
+        u32 to = st(ES_TO, e, sbase, es);
+        u32 flags = st(ES_FLAGS, e, sbase, es);
+        EdgeConstants s;
+        s.flags = flags;
+        s.free_speed = u64(st(ES_FREE_SPEED, e, sbase, es));
+        s.free_floor = u64(st(ES_FREE_FLOOR, e, sbase, es));
+        s.base_capacity = u64(st(ES_BASE_CAPACITY, e, sbase, es));
+        s.hotspot = u64(st(ES_HOTSPOT, e, sbase, es));
+        s.queue_capacity = u64(st(ES_QUEUE_CAPACITY, e, sbase, es));
+        s.congestion_scale = u64(st(ES_CONGESTION_SCALE, e, sbase, es));
+        s.occupancy_scale = u64(st(ES_OCCUPANCY_SCALE, e, sbase, es));
+        s.baseline_coef = u64(st(ES_BASELINE_COEF, e, sbase, es));
+        s.lanes = u64(st(ES_LANES, e, sbase, es));
+
+        EdgeValues prev;
+        prev.rain = u64(state_in[vbase + EV_RAIN * es + e]);
+        prev.flood = u64(state_in[vbase + EV_FLOOD * es + e]);
+        prev.flags = state_in[vbase + EV_FLAGS * es + e];
+        prev.demand = signed_word(state_in[vbase + EV_DEMAND * es + e]);
+        prev.capacity = u64(state_in[vbase + EV_CAPACITY * es + e]);
+        prev.speed = u64(state_in[vbase + EV_SPEED * es + e]);
+        prev.load = u64(state_in[vbase + EV_LOAD * es + e]);
+        prev.mean_speed = u64(state_in[vbase + EV_MEAN_SPEED * es + e]);
+        prev.count = u64(state_in[vbase + EV_COUNT * es + e]);
+        prev.halting = u64(state_in[vbase + EV_HALTING * es + e]);
+        prev.congestion_model = u64(state_in[vbase + EV_CONGESTION_MODEL * es + e]);
+        prev.congestion_observed = u64(state_in[vbase + EV_CONGESTION_OBSERVED * es + e]);
+        prev.congestion = u64(state_in[vbase + EV_CONGESTION * es + e]);
+        prev.occupancy = u64(state_in[vbase + EV_OCCUPANCY * es + e]);
+        prev.signal = u64(state_in[vbase + EV_SIGNAL * es + e]);
+        prev.incident_speed = u64(state_in[vbase + EV_INCIDENT_SPEED * es + e]);
+        prev.incident_capacity = u64(state_in[vbase + EV_INCIDENT_CAPACITY * es + e]);
+
+        EdgeControls c;
+        c.manual_speed = u64(inputs[IN_MANUAL_SPEED * es + e]);
+        c.manual_capacity = u64(inputs[IN_MANUAL_CAPACITY * es + e]);
+        c.manual_closed = inputs[IN_MANUAL_CLOSED * es + e] != 0u;
+        c.incident_speed = u64(inputs[IN_INCIDENT_SPEED * es + e]);
+        c.incident_capacity = u64(inputs[IN_INCIDENT_CAPACITY * es + e]);
+        c.incident_closed = inputs[IN_INCIDENT_CLOSED * es + e] != 0u;
+        i64 attraction = signed_word(inputs[IN_ATTRACTION * es + e]);
+
+        u64 surge = Q16_ONE;
+        u32 surges = params[P_SURGE_COUNT];
+        if (surges != 0u) {
+            i64 fx = signed_word(static_words[NS_X * ns + from]);
+            i64 fy = signed_word(static_words[NS_Y * ns + from]);
+            i64 tx = signed_word(static_words[NS_X * ns + to]);
+            i64 ty = signed_word(static_words[NS_Y * ns + to]);
+            u32 first = P_HEADER_WORDS + params[P_STORM_COUNT] * STORM_WORDS;
+            for (u32 k = 0u; k < surges; ++k) {
+                u32 b = first + k * SURGE_WORDS;
+                if (surge_reaches(fx, fy, tx, ty, signed_word(params[b]), signed_word(params[b + 1u]), u64(params[b + 2u])))
+                    surge = umax64(surge, u64(params[b + 3u]));
+            }
+        }
+
+        u32 override_base = EDGE_INPUT_FIELDS * es;
+        u32 phase_base = override_base + ns;
+        u32 plan = st(ES_SIGNAL, e, sbase, es);
+        u32 phase = plan != NO_SIGNAL ? inputs[phase_base + plan] : 0u;
+        u32 modules = params[P_MODULES];
+        u64 signal = signal_factor((modules & MOD_SIGNALS) != 0u, plan != NO_SIGNAL, phase,
+                                   (flags & EDGE_GROUP_A) != 0u, inputs[override_base + to]);
+
+        EdgeValues o = edge_step(s, prev,
+                                 u64(state_out[NV_RAIN * ns + from]), u64(state_out[NV_RAIN * ns + to]),
+                                 u64(state_out[NV_FLOOD * ns + from]), u64(state_out[NV_FLOOD * ns + to]),
+                                 c, attraction, surge, signal, u64(params[P_DT]), u64(params[P_DAY]), modules);
+
+        state_out[vbase + EV_RAIN * es + e] = u32(o.rain);
+        state_out[vbase + EV_FLOOD * es + e] = u32(o.flood);
+        state_out[vbase + EV_FLAGS * es + e] = o.flags;
+        state_out[vbase + EV_DEMAND * es + e] = u32(int(o.demand));
+        state_out[vbase + EV_CAPACITY * es + e] = u32(o.capacity);
+        state_out[vbase + EV_SPEED * es + e] = u32(o.speed);
+        state_out[vbase + EV_LOAD * es + e] = u32(o.load);
+        state_out[vbase + EV_MEAN_SPEED * es + e] = u32(o.mean_speed);
+        state_out[vbase + EV_COUNT * es + e] = u32(o.count);
+        state_out[vbase + EV_HALTING * es + e] = u32(o.halting);
+        state_out[vbase + EV_CONGESTION_MODEL * es + e] = u32(o.congestion_model);
+        state_out[vbase + EV_CONGESTION_OBSERVED * es + e] = u32(o.congestion_observed);
+        state_out[vbase + EV_CONGESTION * es + e] = u32(o.congestion);
+        state_out[vbase + EV_OCCUPANCY * es + e] = u32(o.occupancy);
+        state_out[vbase + EV_SIGNAL * es + e] = u32(o.signal);
+        state_out[vbase + EV_INCIDENT_SPEED * es + e] = u32(o.incident_speed);
+        state_out[vbase + EV_INCIDENT_CAPACITY * es + e] = u32(o.incident_capacity);
+        if ((o.flags & STATE_FLOOD_TRANSITION) != 0u) atomicAdd(counters[0], 1u);
+        contribution = congestion_contribution(flags, u64(st(ES_WEIGHT, e, sbase, es)), o.congestion);
+    }
+
+    // Tree reduction in shared memory; every invocation reaches each barrier.
+    partial_sum[lane] = contribution;
+    barrier();
+    for (u32 width = gl_WorkGroupSize.x / 2u; width > 0u; width = width / 2u) {
+        if (lane < width) partial_sum[lane] = partial_sum[lane] + partial_sum[lane + width];
+        barrier();
+    }
+    if (lane == 0u) partials[gl_WorkGroupID.x] = partial_sum[0];
+}

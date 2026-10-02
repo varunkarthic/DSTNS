@@ -6,6 +6,9 @@ project(dstns VERSION 2.1.0 LANGUAGES CXX)
 
 option(DSTNS_BUILD_TESTS "Build DSTNS tests" ON)
 option(DSTNS_ENABLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
+option(DSTNS_ENABLE_VULKAN "Build the Vulkan compute backend" ON)
+option(DSTNS_VULKAN_REQUIRED "Fail configuration if the Vulkan backend cannot be built" OFF)
+option(DSTNS_BUILD_SHADERS "Compile the compute shaders from GLSL when a shader compiler is installed" ON)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -38,8 +41,144 @@ endif()
 
 add_library(dstns_core
   src/rng.cpp src/utf8.cpp src/graph.cpp src/asb.cpp src/demand.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp
-  src/compute/state.cpp src/compute/options.cpp src/compute/cpu_backend.cpp src/compute/dispatcher.cpp src/vulkan/unavailable.cpp)
+  src/compute/state.cpp src/compute/options.cpp src/compute/cpu_backend.cpp src/compute/dispatcher.cpp
+  src/compute/synthetic.cpp)
 target_include_directories(dstns_core PUBLIC include shaders/include)
+
+# --- Vulkan compute backend ------------------------------------------------------
+# Vulkan is loaded at run time (volk), so the binary has no link-time dependency
+# on a Vulkan library and runs, on the CPU backend, where none is installed.
+# The headers and volk are pinned and fetched like the other dependencies; the
+# shaders are compiled to SPIR-V here when glslang or glslc is available, and
+# otherwise taken from shaders/spirv/, which is committed for that purpose.
+set(DSTNS_SHADER_NAMES edge_step node_step scatter self_test) # name order
+set(DSTNS_VULKAN_BUILT OFF)
+if(DSTNS_ENABLE_VULKAN)
+  find_program(DSTNS_GLSLANG NAMES glslangValidator glslang)
+  find_program(DSTNS_GLSLC NAMES glslc)
+  set(dstns_compile_shaders OFF)
+  if(DSTNS_BUILD_SHADERS AND (DSTNS_GLSLANG OR DSTNS_GLSLC))
+    set(dstns_compile_shaders ON)
+  endif()
+  # Without a compiler, the committed SPIR-V must have been built from the
+  # current sources; stale SPIR-V would compute a different step than the CPU.
+  set(dstns_spirv_problem "")
+  if(NOT dstns_compile_shaders)
+    file(READ "${CMAKE_SOURCE_DIR}/shaders/include/dstns_physics.h" dstns_physics_text)
+    file(READ "${CMAKE_SOURCE_DIR}/shaders/include/dstns_glsl.h" dstns_prelude_text)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/shaders/spirv/manifest.txt")
+      file(STRINGS "${CMAKE_SOURCE_DIR}/shaders/spirv/manifest.txt" dstns_manifest REGEX "^[a-z_]+ [0-9a-f]+$")
+    else()
+      set(dstns_manifest "")
+    endif()
+    foreach(shader IN LISTS DSTNS_SHADER_NAMES)
+      file(READ "${CMAKE_SOURCE_DIR}/shaders/${shader}.comp" dstns_source_text)
+      string(SHA256 dstns_hash "${dstns_source_text}${dstns_prelude_text}${dstns_physics_text}")
+      if(NOT EXISTS "${CMAKE_SOURCE_DIR}/shaders/spirv/${shader}.spv" OR NOT "${shader} ${dstns_hash}" IN_LIST dstns_manifest)
+        set(dstns_spirv_problem "shaders/spirv/${shader}.spv is missing or older than its source, and no shader compiler (glslangValidator or glslc) was found")
+      endif()
+    endforeach()
+  endif()
+  if(dstns_spirv_problem)
+    if(DSTNS_VULKAN_REQUIRED)
+      message(FATAL_ERROR "Vulkan backend: ${dstns_spirv_problem}")
+    endif()
+    message(WARNING "Vulkan backend disabled: ${dstns_spirv_problem}. DSTNS builds with the CPU backend only.")
+  else()
+    enable_language(C)
+    FetchContent_Declare(vulkan_headers
+      URL https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
+      URL_HASH SHA256=e87dce08116151f6b6d7de6b6faf41498e87e6cf848ff16fa3bd5402190ad4a3)
+    # volk is compiled directly (one C file); its own CMake project would look
+    # for an installed Vulkan SDK, which is exactly what DSTNS avoids needing.
+    FetchContent_Declare(volk
+      URL https://github.com/zeux/volk/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
+      URL_HASH SHA256=6400c7b23e24d17e4f04bac49b55b06c4e87677d33398e90344743ec73560ca6
+      SOURCE_SUBDIR dstns-no-cmake)
+    FetchContent_MakeAvailable(vulkan_headers volk)
+
+    set(dstns_spirv_files "")
+    foreach(shader IN LISTS DSTNS_SHADER_NAMES)
+      set(source "${CMAKE_SOURCE_DIR}/shaders/${shader}.comp")
+      if(dstns_compile_shaders)
+        set(output "${CMAKE_BINARY_DIR}/shaders/${shader}.spv")
+        if(DSTNS_GLSLANG)
+          set(compile ${DSTNS_GLSLANG} -V --target-env vulkan1.2 "$<$<CONFIG:Debug>:-g>" -I${CMAKE_SOURCE_DIR}/shaders/include -o ${output} ${source})
+        else()
+          set(compile ${DSTNS_GLSLC} --target-env=vulkan1.2 "$<IF:$<CONFIG:Debug>,-g,-O>" -I${CMAKE_SOURCE_DIR}/shaders/include -o ${output} ${source})
+        endif()
+        add_custom_command(OUTPUT ${output}
+          COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/shaders
+          COMMAND ${compile}
+          DEPENDS ${source} ${CMAKE_SOURCE_DIR}/shaders/include/dstns_physics.h ${CMAKE_SOURCE_DIR}/shaders/include/dstns_glsl.h
+          COMMENT "Compiling compute shader ${shader}"
+          COMMAND_EXPAND_LISTS VERBATIM)
+      else()
+        set(output "${CMAKE_SOURCE_DIR}/shaders/spirv/${shader}.spv")
+      endif()
+      list(APPEND dstns_spirv_files ${output})
+    endforeach()
+    if(dstns_compile_shaders)
+      if(DSTNS_GLSLANG)
+        set(dstns_compiler ${DSTNS_GLSLANG})
+      else()
+        set(dstns_compiler ${DSTNS_GLSLC})
+      endif()
+      execute_process(COMMAND ${dstns_compiler} --version OUTPUT_VARIABLE dstns_compiler_version ERROR_QUIET)
+      string(REGEX MATCH "[^\n]*" dstns_compiler_version "${dstns_compiler_version}")
+      string(REGEX REPLACE "[\\\"]" "" dstns_compiler_version "${dstns_compiler_version}")
+      if(NOT dstns_compiler_version)
+        set(dstns_compiler_version "glslang")
+      endif()
+    else()
+      set(dstns_compiler_version "precompiled")
+    endif()
+    string(REPLACE ";" "|" dstns_names_arg "${DSTNS_SHADER_NAMES}")
+    string(REPLACE ";" "|" dstns_spirv_arg "${dstns_spirv_files}")
+    set(dstns_embedded "${CMAKE_BINARY_DIR}/generated/dstns_spirv.cpp")
+    add_custom_command(OUTPUT ${dstns_embedded}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/generated
+      COMMAND ${CMAKE_COMMAND} "-DNAMES=${dstns_names_arg}" "-DSPIRV=${dstns_spirv_arg}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+              "-DCOMPILER=${dstns_compiler_version}" "-DOUTPUT=${dstns_embedded}" -P ${CMAKE_SOURCE_DIR}/cmake/EmbedSpirv.cmake
+      DEPENDS ${dstns_spirv_files} ${CMAKE_SOURCE_DIR}/cmake/EmbedSpirv.cmake
+              ${CMAKE_SOURCE_DIR}/shaders/include/dstns_physics.h ${CMAKE_SOURCE_DIR}/shaders/include/dstns_glsl.h
+      COMMENT "Embedding the compute shaders"
+      VERBATIM)
+    add_custom_target(dstns_shaders DEPENDS ${dstns_embedded})
+    if(dstns_compile_shaders)
+      add_custom_target(dstns_refresh_spirv
+        COMMAND ${CMAKE_COMMAND} "-DNAMES=${dstns_names_arg}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}" "-DBINARY_DIR=${CMAKE_BINARY_DIR}"
+                "-DCOMPILER=${dstns_compiler_version}" -P ${CMAKE_SOURCE_DIR}/cmake/RefreshSpirv.cmake
+        DEPENDS ${dstns_spirv_files}
+        COMMENT "Refreshing the committed SPIR-V in shaders/spirv/"
+        VERBATIM)
+    endif()
+
+    set(dstns_volk_source "${volk_SOURCE_DIR}/volk.c")
+    set_source_files_properties(${dstns_volk_source} PROPERTIES COMPILE_OPTIONS "-w")
+    set(dstns_vulkan_sources
+      src/vulkan/loader.cpp src/vulkan/context.cpp src/vulkan/memory.cpp src/vulkan/pipeline.cpp
+      src/vulkan/executor.cpp src/vulkan/backend.cpp src/vulkan/diagnostics.cpp)
+    # Vulkan structures are initialised as {sType} with the remaining members
+    # value-initialised: the idiom the API is designed for.
+    set_source_files_properties(${dstns_vulkan_sources} PROPERTIES COMPILE_OPTIONS "-Wno-missing-field-initializers")
+    target_sources(dstns_core PRIVATE ${dstns_vulkan_sources} ${dstns_embedded} ${dstns_volk_source})
+    add_dependencies(dstns_core dstns_shaders)
+    target_include_directories(dstns_core PRIVATE src/vulkan ${volk_SOURCE_DIR})
+    target_compile_definitions(dstns_core PRIVATE VK_NO_PROTOTYPES)
+    target_link_libraries(dstns_core PRIVATE Vulkan::Headers ${CMAKE_DL_LIBS})
+    set(DSTNS_VULKAN_BUILT ON)
+    message(STATUS "Vulkan backend: enabled (shaders ${dstns_compiler_version})")
+  endif()
+endif()
+if(NOT DSTNS_VULKAN_BUILT)
+  if(DSTNS_ENABLE_VULKAN AND DSTNS_VULKAN_REQUIRED)
+    message(FATAL_ERROR "The Vulkan backend was required but cannot be built")
+  endif()
+  target_sources(dstns_core PRIVATE src/vulkan/unavailable.cpp)
+  message(STATUS "Vulkan backend: not built; DSTNS uses the CPU backend")
+endif()
+target_compile_definitions(dstns_core PUBLIC DSTNS_VULKAN_BUILT=$<BOOL:${DSTNS_VULKAN_BUILT}>)
 target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib)
 if(APPLE)
   target_link_libraries(dstns_core PUBLIC "-framework CoreFoundation" "-framework CFNetwork")
@@ -132,6 +271,13 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_rep_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_replay_reproducibility COMMAND dstns_rep_tests)
   set_tests_properties(dstns_replay_reproducibility PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_executable(dstns_compute_equivalence_tests tests/compute/backend_equivalence_tests.cpp)
+  target_link_libraries(dstns_compute_equivalence_tests PRIVATE dstns_core)
+  target_compile_options(dstns_compute_equivalence_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_compute_equivalence COMMAND dstns_compute_equivalence_tests)
+  # 77: no usable Vulkan device on this machine; the CPU backend is still tested elsewhere.
+  set_tests_properties(dstns_compute_equivalence PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" SKIP_RETURN_CODE 77 TIMEOUT 900)
 
   add_executable(dstns_perf_tests tests/performance/perf_tests.cpp)
   target_link_libraries(dstns_perf_tests PRIVATE dstns_core)

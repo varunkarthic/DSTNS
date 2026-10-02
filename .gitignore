@@ -34,6 +34,9 @@ data/maps/*.tmp
 data/sumo_run/
 data/sumo_live_run/
 data/sumo_export/
+# Vulkan pipeline caches and the launcher's GPU probe: per machine, rebuilt on demand.
+data/cache/vulkan/
+data/cache/compute-probe.json
 site/
 .venv-docs/
 

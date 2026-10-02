@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
+// Start-up self-test. A device is used only after it has run this and
+// returned the expected words: out[i] = in[i] * 7 + 3 for every input, and,
+// in the word after them, a 64-bit integer square root through the shared
+// physics definitions, which proves the device executes them.
+
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "dstns_glsl.h"
+
+layout(std430, set = 0, binding = 0) readonly buffer In { u32 count; u32 pad0; u32 pad1; u32 pad2; u32 values[]; };
+layout(std430, set = 0, binding = 1) buffer Out { u32 results[]; };
+
+void main() {
+    u32 i = gl_GlobalInvocationID.x;
+    if (i < count) results[i] = values[i] * 7u + 3u;
+    if (i == 0u) results[count] = u32(isqrt64((u64(values[0]) << u64(40u)) + u64(12345u)) & u64(4294967295u));
+}

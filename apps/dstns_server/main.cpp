@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
+#include "dstns/compute/vulkan.hpp"
 #include "dstns/logging.hpp"
 #include "dstns/osm_fetch.hpp"
 
@@ -19,6 +20,10 @@ int main(int argc, char** argv) {
         std::string host = "127.0.0.1", logs = "logs", maps = "data/maps", cache_policy = "prune";
         std::uint16_t port = 8090;
         std::size_t cache_keep = 1;
+        // Compute: defaults, then DSTNS_* environment variables, then flags.
+        dstns::compute::ComputeOptions compute;
+        compute.apply_environment();
+        bool gpu_diagnostics = false;
         for (int i = 1; i < argc; ++i) {
             std::string a = argv[i];
             if (a == "--host" && i + 1 < argc) host = argv[++i];
@@ -32,6 +37,14 @@ int main(int argc, char** argv) {
             else if (a == "--maps" && i + 1 < argc) maps = argv[++i];
             else if (a == "--map-cache" && i + 1 < argc) cache_policy = argv[++i];
             else if (a == "--map-cache-keep" && i + 1 < argc) cache_keep = std::stoul(argv[++i]);
+            else if (a == "--compute" && i + 1 < argc) compute.backend = dstns::compute::parse_preference(argv[++i]);
+            else if (a == "--gpu-device" && i + 1 < argc) compute.device = argv[++i];
+            else if (a == "--compute-cache" && i + 1 < argc) compute.cache_dir = argv[++i];
+            else if (a == "--allow-software-vulkan") compute.allow_software_vulkan = true;
+            else if (a == "--require-vulkan") compute.require_vulkan = true;
+            else if (a == "--compute-verify") compute.verify = true;
+            else if (a == "--vulkan-validation") compute.validation = true;
+            else if (a == "--gpu-diagnostics") gpu_diagnostics = true;
             else if (a == "--version") {
                 std::cout << "DSTNS " << DSTNS_VERSION << "\n"
                           << "Copyright (C) 2026 Varun Karthic\n"
@@ -43,11 +56,22 @@ int main(int argc, char** argv) {
             else if (a == "--help") {
                 std::cout << "dstns_server [--host ADDR (default 127.0.0.1)] [--port PORT] [--logs DIR] [--maps DIR]\n"
                              "             [--map-cache keep|prune|clear] [--map-cache-keep N]\n"
-                             "             [--version]\n";
+                             "             [--compute auto|cpu|vulkan] [--gpu-device auto|INDEX|UUID|NAME]\n"
+                             "             [--allow-software-vulkan] [--require-vulkan] [--compute-verify]\n"
+                             "             [--vulkan-validation] [--compute-cache DIR] [--gpu-diagnostics]\n"
+                             "             [--version]\n"
+                             "  --gpu-diagnostics  test every Vulkan device (allocate, dispatch, read back),\n"
+                             "                     print the report as JSON and exit: 0 if a device is usable,\n"
+                             "                     3 if DSTNS would run on the CPU\n";
                 return 0;
             } else {
                 throw std::invalid_argument("unknown argument: " + a);
             }
+        }
+        if (gpu_diagnostics) {
+            const auto report = dstns::compute::vulkan_diagnostics(compute);
+            std::cout << report.dump(2) << '\n';
+            return report.value("available", false) ? 0 : 3;
         }
         std::filesystem::create_directories(logs);
         const auto token_path=std::filesystem::path(logs)/"operator.token";
@@ -71,7 +95,10 @@ int main(int argc, char** argv) {
         } catch (const std::exception& e) {
             logger.system("WARN", "maps", std::string("Cache sweep skipped: ") + e.what());
         }
-        dstns::SimulationEngine engine(logger);
+        dstns::SimulationEngine engine(logger, compute);
+        // Bring the accelerator up now, so system information reports it from
+        // the start; with --require-vulkan, refuse to run without it.
+        engine.initialize_compute();
         dstns::ApiServer api(engine, logger);
         api.listen(host, port);
         return 0;

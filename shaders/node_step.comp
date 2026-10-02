@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
+// Node pass: rain from the active storms, then flood integration. One
+// invocation per node. Mirrors cpu_node_pass in src/compute/state.cpp.
+
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "dstns_glsl.h"
+
+layout(std430, set = 0, binding = 0) readonly buffer ParamWords { u32 params[]; };
+layout(std430, set = 0, binding = 1) readonly buffer StaticWords { u32 static_words[]; };
+layout(std430, set = 0, binding = 3) readonly buffer StateIn { u32 state_in[]; };
+layout(std430, set = 0, binding = 4) buffer StateOut { u32 state_out[]; };
+
+void main() {
+    u32 n = gl_GlobalInvocationID.x;
+    if (n >= params[P_NODE_COUNT]) return;
+    u32 stride = params[P_NODE_STRIDE];
+    i64 x = signed_word(static_words[NS_X * stride + n]);
+    i64 y = signed_word(static_words[NS_Y * stride + n]);
+
+    u64 dry = Q30_ONE;
+    u32 storms = params[P_STORM_COUNT];
+    for (u32 k = 0u; k < storms; ++k) {
+        u32 b = P_HEADER_WORDS + k * STORM_WORDS;
+        dry = combine_rain(dry, storm_factor(x, y, signed_word(params[b]), signed_word(params[b + 1u]),
+                                             u64(params[b + 2u]), u64(params[b + 3u])));
+    }
+    u64 rain = Q30_ONE - dry;
+    u64 flood = flood_step(u64(state_in[NV_FLOOD * stride + n]), rain,
+                           u64(static_words[NS_SUSCEPTIBILITY * stride + n]),
+                           u64(static_words[NS_DRAINAGE * stride + n]),
+                           u64(params[P_DT]), (params[P_MODULES] & MOD_FLOODING) != 0u);
+    state_out[NV_RAIN * stride + n] = u32(rain);
+    state_out[NV_FLOOD * stride + n] = u32(flood);
+}

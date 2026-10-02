@@ -47,9 +47,9 @@ struct StepOutcome {
 
 struct ManualControl { double speed_multiplier{1}, capacity_multiplier{1}; bool closed{}; };
 
-/// The authoritative state could not be recovered from a failed device. The
-/// engine responds by restoring its latest checkpoint and replaying on the CPU:
-/// the step is deterministic, so the replay reaches the same state exactly.
+/// The authoritative state could not be recovered from a failed device, even
+/// from the dispatcher's own journal. A last resort: the engine restores its
+/// latest checkpoint and replays on the CPU.
 class StateLost : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
@@ -117,6 +117,8 @@ private:
     void choose_backend();
     void calibrate();
     void ensure_host_state();
+    void take_shadow();
+    bool rebuild_from_shadow();
     void patch_state(std::size_t offset, std::uint32_t value);
     void run_cpu(StepResult& result);
     void verify_step(const std::vector<std::uint32_t>& before, const StepResult& gpu);
@@ -145,6 +147,20 @@ private:
     std::vector<std::pair<std::uint32_t, std::uint32_t>> patches_;
     std::vector<std::int32_t> overrides_; // per node, as last set
     std::vector<std::uint32_t> override_nodes_; // nodes with a non-zero override
+
+    // Recovery from a lost device. While an accelerator runs, the host keeps
+    // the last complete state it saw (from a checkpoint, a download, or at
+    // least every kShadowInterval steps) and a journal of every step's inputs
+    // since. Replaying the journal on the CPU reproduces the lost state
+    // exactly, operator actions included.
+    struct JournalEntry {
+        std::vector<std::uint32_t> params;
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> inputs, patches;
+    };
+    static constexpr std::size_t kShadowInterval = 300;
+    std::vector<std::uint32_t> shadow_state_, shadow_inputs_;
+    std::vector<JournalEntry> journal_;
+    std::uint64_t replays_{};
 
     // Telemetry.
     struct Calibration { bool ran{}; double cpu_ms{}, vulkan_ms{}; std::string chosen; };
