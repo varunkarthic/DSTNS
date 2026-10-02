@@ -188,6 +188,7 @@ nav:
           - Terrain (DEM): concepts/terrain.md
           - Sun and surface (DCM): concepts/solar.md
           - Surface water (DWS): concepts/surface-water.md
+          - Drainage (DDS): concepts/drainage.md
           - Vehicle dynamics and road state: concepts/vehicle-dynamics.md
       - Events and environment:
           - Events: concepts/events.md

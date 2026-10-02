@@ -833,10 +833,10 @@ void ApiServer::routes() {
     server_->Post("/api/v1/control/day", [this](const auto& req, auto& r) {
         send(r, engine_.set_day(body(req).at("day")));
     });
-    server_->Put(R"(/api/v1/control/modules/([a-z-]+))", [this](const auto& req, auto& r) {
+    server_->Put(R"(/api/v1/control/modules/([a-z_-]+))", [this](const auto& req, auto& r) {
         send(r, engine_.set_module(req.matches[1], body(req).at("enabled")));
     });
-    server_->Post(R"(/api/v1/control/modules/([a-z-]+)/(enable|disable))", [this](const auto& req, auto& r) {
+    server_->Post(R"(/api/v1/control/modules/([a-z_-]+)/(enable|disable))", [this](const auto& req, auto& r) {
         send(r, engine_.set_module(req.matches[1], req.matches[2] == "enable"));
     });
     server_->Post("/api/v1/control/events/weather", [this](const auto& req, auto& r) {

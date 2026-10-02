@@ -118,6 +118,7 @@ What `POST /api/v1/playback/start` and `/prepare` accept (the CLI builds this):
 | `modules.{traffic,signals,buildings,dws,flooding,news}` | boolean | `traffic_demand` and `traffic_signals` are accepted as aliases |
 | `modules.dcm` | boolean | The Sun and surface model ([DCM](../concepts/solar.md)); default on |
 | `modules.hydrology` | boolean | [Surface water](../concepts/surface-water.md); default on. Off: roads use the node flood model |
+| `modules.dds` | boolean | [Drainage](../concepts/drainage.md): street water enters a synthetic pipe network; default on, needs `hydrology` |
 | `modules.vehicle_dynamics` | boolean | [Grade](../concepts/vehicle-dynamics.md) slows traffic uphill; default on |
 | `dws.frequency` | integer | As above |
 | `fixture.grid_width`, `fixture.grid_height` | integer | Synthetic grid for tests; at least 3 × 3, and width × height ≤ `max_nodes` |

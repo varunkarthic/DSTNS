@@ -761,6 +761,19 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+  /api/v1/view/drainage:
+    get:
+      tags:
+      - View
+      operationId: drainage
+      summary: The synthetic drainage network and its state
+      description: Every pipe (from and to junction, diameter, slope, length, full-bore capacity, flow
+        and utilisation), the outfall junctions, the surcharged junctions and the network summary with
+        its conservation error. The network is synthetic, not the city's sewers; `enabled` says whether
+        the `dds` module is on.
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
   /api/v1/view/fields/{name}:
     get:
       tags:
@@ -1309,6 +1322,10 @@ components:
         - dws
         - flooding
         - news
+        - dcm
+        - hydrology
+        - dds
+        - vehicle_dynamics
     Offset:
       name: offset
       in: query

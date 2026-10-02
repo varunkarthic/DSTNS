@@ -433,6 +433,13 @@ re-read every two seconds while it is shown, at display resolution.
 When the terrain comes from imported tiles, the map credit adds *Terrain:
 Mapzen, USGS, NASA, NOAA*.
 
+**Drains (synthetic)**, an ordinary switch further down, draws the
+[drainage network](../concepts/drainage.md) dashed over the streets it runs
+beneath: wider for larger pipes, brighter as they fill, red once a pipe runs
+beyond its full-bore capacity, and a red ring on each manhole surcharged above
+the street. It is off by default, and re-read every three seconds while shown.
+The network is synthetic, not the city's sewers, and the layer's name says so.
+
 ### The City tab
 
 The telemetry deck's **City** tab has one card per environmental module.
@@ -443,7 +450,11 @@ surface irradiance, the air temperature and the range of surface temperatures.
 **Surface water** gives the water on the ground, the deepest water, the area
 flooded deeper than 10 cm, the peak rain, and the ledger: rain in, then what left
 the district, reached open water, evaporated, infiltrated or drained, with the
-conservation error (which reads *0 (exact)*). **Terrain** gives the elevation
+conservation error (which reads *0 (exact)*). **Drainage** gives the water in
+the pipes, what the outfalls have discharged, the peak load as a share of
+full-bore capacity, the surcharged manholes (and the peak), and a line saying
+the network is synthetic with its size and design storm, and how much water
+has backed up onto the streets. **Terrain** gives the elevation
 range, the steepest road and where the elevation came from. Every figure there is simulated or derived, and says so.
 
 ### Compass

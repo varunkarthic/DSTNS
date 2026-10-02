@@ -37,6 +37,7 @@ is empty.
 | `/view/manifest` | Hashes and versions for reproducibility, calendar and terrain provenance | Tiny | Once |
 | `/view/environment` | The coupled environment: calendar, terrain provenance, road grade summary, available fields | Small | Once per `run_id`, then occasionally |
 | `/view/road-environment` | Every directed road's grade, water, flood index, surface temperature, multipliers, closure, passability by vehicle class and energy, paged (`limit` up to 5,000) | Medium | On inspection |
+| `/view/drainage` | The synthetic drainage network: every pipe's junctions, diameter, slope, capacity, flow and utilisation; outfalls; surcharged manholes; summary with the conservation error | Medium | While the drains layer is on (every 3 s) |
 | `/view/fields/{name}` | One environmental field as a raster; `?max_side=` (8 to 512, default 160) | Medium | Once for a static field; every few seconds for a changing one, only while shown |
 | `/view/run`, `/view/config` | Same as `/playback/status` | Tiny | — |
 

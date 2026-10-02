@@ -262,6 +262,12 @@ def main():
             code, snap = call(base, "/api/v1/view/snapshot")
             assert all("water_depth_m" in e and "env_speed_multiplier" in e for e in snap["data"]["edges"])
             assertions += 5
+            code, drains = call(base, "/api/v1/view/drainage")
+            nodes = len(started_map["data"]["nodes"])
+            assert code == 200 and drains["data"]["summary"]["source"] == "synthetic"
+            assert drains["data"]["pipes"] and all(0 <= p["from"] < nodes and 0 <= p["to"] < nodes and p["diameter_m"] > 0 for p in drains["data"]["pipes"])
+            assert drains["data"]["outfalls"] and drains["data"]["summary"]["conservation_error_m3"] == 0
+            assertions += 3
 
             # 5. Double start conflict
             code, err = call(base, "/api/v1/playback/start", "POST", req_start)
@@ -419,7 +425,7 @@ def main():
             assertions += 1
 
             # 14. Module Enable / Disable
-            for mod in ("dws", "traffic", "signals", "buildings", "flooding", "news"):
+            for mod in ("dws", "traffic", "signals", "buildings", "flooding", "news", "dcm", "hydrology", "dds", "vehicle_dynamics"):
                 code, off = call(base, f"/api/v1/control/modules/{mod}", "PUT", {"enabled": False})
                 assert code == 200 and off["enabled"] is False
                 code, on = call(base, f"/api/v1/control/modules/{mod}", "PUT", {"enabled": True})

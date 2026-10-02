@@ -66,6 +66,15 @@ IDs, now also include the month.
   integer water ledger whose conservation error is zero. It runs on the CPU, or
   bit-identically on a Vulkan device for grids from 131,072 cells
   (`dstns_benchmark hydrology`). Field `water_depth`; module `hydrology`.
+- **Drainage (DDS).** Street water now enters a synthetic drainage network
+  instead of disappearing: grates along every street, pipes laid under the
+  streets towards outfalls on the district's edge and open water, sized for a
+  25 mm/h design storm. Pipes carry head-driven Manning flow with finite
+  capacity; an overloaded network surcharges and returns water to the street
+  (`DRAIN_SURCHARGE` news). Volumes move between street and pipe exactly, and
+  both ledgers report a conservation error of zero. The network is synthetic,
+  and labelled so everywhere. `GET /api/v1/view/drainage`; module `dds`; the
+  observer's **Drains (synthetic)** layer and Drainage card.
 - **Vehicle dynamics and road state.** Roads respond to their grade (a power-
   limited longitudinal model for four vehicle classes) and to the water on them
   (Pregnolato et al.'s depth-speed relation; cars stop at 300 mm), through four
@@ -75,6 +84,11 @@ IDs, now also include the month.
   overlay group; Elevation draws a heatmap with a legend and a pointer readout.
 - RNG domains for the new modules, appended after the existing ones. Golden
   values recorded before the change prove the existing streams did not move.
+
+### Fixed
+
+- `PUT /api/v1/control/modules/{module}` rejected module names with an
+  underscore, so `vehicle_dynamics` could not be switched at run time.
 
 ## [2.2.0] - 2026-10-02
 

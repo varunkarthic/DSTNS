@@ -161,7 +161,9 @@ hot asphalt a puddle loses about a millimetre an hour.
 **Infiltration.** Cells under mapped parks, grass, woodland, pitches and
 gardens infiltrate up to 10 mm/h; sealed surfaces nothing. Both are parameters.
 
-**Drainage.** Booked as `drained`; zero until the drainage model is coupled.
+**Drainage.** Booked as `drained`: what the [drain inlets](drainage.md) take, applied
+exactly and before any other sink. Water a surcharged network returns to the
+street comes back as a negative drain.
 
 ## Roads
 
