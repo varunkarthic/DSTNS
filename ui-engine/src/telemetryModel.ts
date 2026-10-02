@@ -37,8 +37,12 @@ export function weatherSummary(weather: readonly WeatherState[] | undefined): We
   const peak = weather!.reduce((m, w) => Math.max(m, w.intensity), 0);
   const level: WeatherLevel = peak > 0.6 ? "heavy" : peak > 0.3 ? "moderate" : "light";
   const label = level === "heavy" ? "Heavy rain" : level === "moderate" ? "Moderate rain" : "Light rain";
-  // Intensity is a normalised 0 to 1 field; shown as an indicative rate.
-  return { level, label, cells, peak, rate: `${(peak * 8).toFixed(1)} mm/h`, bars: level === "heavy" ? 3 : level === "moderate" ? 2 : 1 };
+  // The core reports the rain rate its hydrology uses at each cell's centre;
+  // an older core reports only the normalised intensity, shown as before.
+  const rate = weather!.some((w) => typeof w.rain_mm_h === "number")
+    ? weather!.reduce((m, w) => Math.max(m, w.rain_mm_h ?? 0), 0)
+    : peak * 8;
+  return { level, label, cells, peak, rate: `${rate.toFixed(1)} mm/h`, bars: level === "heavy" ? 3 : level === "moderate" ? 2 : 1 };
 }
 
 export interface NetworkFigures {

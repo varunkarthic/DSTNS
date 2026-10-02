@@ -184,6 +184,8 @@ export interface WeatherState {
   y_m: number;
   radius_m: number;
   intensity: number;
+  /** Rain rate at the cell's centre, mm/h, as the hydrology uses it. */
+  rain_mm_h?: number;
   epicenter_node?: number;
   lat?: number;
   lon?: number;
@@ -441,12 +443,36 @@ export interface DcmState {
   sun_path: { t: number; elevation_deg: number; azimuth_deg: number }[];
   surface: { class: string; albedo: number; emissivity: number };
 }
+/** Surface water: the shallow-water model's state and its exact ledger. */
+export interface HydrologyState {
+  updated_s: number;
+  interval_s: number;
+  scheme: string;
+  solver: string;
+  substeps: number;
+  dt_s: number;
+  cfl_capped: boolean;
+  stored_m3: number;
+  max_depth_m: number;
+  wet_cells: number;
+  flooded_cells: number;
+  flooded_area_m2: number;
+  peak_rain_mm_h: number;
+  peak_depth_m: number;
+  peak_flooded_area_m2: number;
+  ledger_m3: { initial: number; rain: number; boundary_outflow: number; open_water: number; evaporated: number; infiltrated: number; drained: number };
+  conservation_error_m3: number;
+  conservation_error_relative: number;
+  max_froude: number;
+  supercritical_cells: number;
+  refinement_candidates: { x_m: number; y_m: number; depth_m: number }[];
+}
 export interface EnvironmentInfo {
   schema_version: number;
   calendar?: Calendar;
   terrain: TerrainInfo | null;
   roads?: { max_abs_grade: number };
   modules?: Record<string, boolean>;
-  state?: { time_s: number; dcm?: DcmState } | null;
+  state?: { time_s: number; dcm?: DcmState; hydrology?: HydrologyState } | null;
   fields: { name: string; units: string; kind: string }[];
 }

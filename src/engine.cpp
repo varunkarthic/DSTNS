@@ -1533,6 +1533,7 @@ nlohmann::json SimulationEngine::snapshot() const {
                     {"y_m", storm.cur_y_m},
                     {"radius_m", storm.cur_radius_m},
                     {"intensity", storm.cur_intensity},
+                    {"rain_mm_h", storm.cur_intensity * environment_.hydrology_params().rain_peak_mm_h},
                     {"phase", storm.phase},
                     {"flood_gain", e.flood_gain}
                 });
@@ -2202,6 +2203,7 @@ nlohmann::json SimulationEngine::global_view() const {
                 {"y_m", storm.cur_y_m},
                 {"radius_m", storm.cur_radius_m},
                 {"intensity", storm.cur_intensity},
+                {"rain_mm_h", storm.cur_intensity * environment_.hydrology_params().rain_peak_mm_h},
                 {"phase", storm.phase},
                 {"flood_gain", ev.flood_gain}
             });

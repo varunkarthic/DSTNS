@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import type { DcmState, EnvironmentInfo } from "./types";
+import type { DcmState, EnvironmentInfo, HydrologyState } from "./types";
 
 const fixed = (v: number | undefined, digits = 0) => (v === undefined || !Number.isFinite(v) ? "–" : v.toFixed(digits));
 
@@ -52,6 +52,43 @@ function Figure({ label, value, unit }: { label: string; value: string; unit?: s
   );
 }
 
+const volume = (m3: number) => (m3 >= 10000 ? `${(m3 / 1000).toFixed(1)}k` : m3.toFixed(m3 >= 100 ? 0 : 1));
+
+/** Surface water: what is on the ground, and where every cubic metre went. */
+export function WaterCard({ water }: { water: HydrologyState }) {
+  const l = water.ledger_m3;
+  const flooded = water.flooded_area_m2 > 0;
+  return (
+    <section className="env-card" aria-label="Surface water" data-testid="water-card">
+      <header>
+        <span className="env-title">Surface water</span>
+        <span className={`tag ${flooded ? "blue" : water.wet_cells ? "mint" : "grey"}`}>{flooded ? "Flooding" : water.wet_cells ? "Wet" : "Dry"}</span>
+      </header>
+      <div className="env-grid">
+        <Figure label="On the ground" value={volume(water.stored_m3)} unit="m³" />
+        <Figure label="Deepest" value={fixed(water.max_depth_m, 2)} unit="m" />
+        <Figure label="Flooded (>10 cm)" value={fixed(water.flooded_area_m2 / 10000, 2)} unit="ha" />
+        <Figure label="Peak rain" value={fixed(water.peak_rain_mm_h, 1)} unit="mm/h" />
+      </div>
+      <table className="env-ledger" aria-label="Water ledger">
+        <tbody>
+          <tr><td>Rain</td><td className="mono">+{volume(l.rain)}</td></tr>
+          <tr><td>Left the district</td><td className="mono">−{volume(l.boundary_outflow)}</td></tr>
+          <tr><td>Open water</td><td className="mono">−{volume(l.open_water)}</td></tr>
+          <tr><td>Evaporated</td><td className="mono">−{volume(l.evaporated)}</td></tr>
+          <tr><td>Infiltrated</td><td className="mono">−{volume(l.infiltrated)}</td></tr>
+          <tr><td>Drained</td><td className="mono">−{volume(l.drained)}</td></tr>
+          <tr className="env-ledger-total"><td>Conservation error</td><td className="mono" data-testid="water-error">{water.conservation_error_m3 === 0 ? "0 (exact)" : `${water.conservation_error_m3.toExponential(1)} m³`}</td></tr>
+        </tbody>
+      </table>
+      <p className="env-note">
+        Simulated with the {water.scheme} on the {water.solver.startsWith("vulkan") ? "GPU" : "CPU"}; {water.substeps} substep{water.substeps === 1 ? "" : "s"} per {water.interval_s} s step.
+        {water.supercritical_cells > 0 && ` ${water.supercritical_cells} cells flow faster than the scheme is accurate for (Froude > 0.5).`}
+      </p>
+    </section>
+  );
+}
+
 /**
  * The coupled environment, one card per module. Values are simulated or
  * derived and are labelled as such; imported data says where it came from.
@@ -87,6 +124,7 @@ export function EnvironmentView({ environment }: { environment: EnvironmentInfo 
           </p>
         </section>
       )}
+      {environment.state?.hydrology && <WaterCard water={environment.state.hydrology} />}
       {terrain && (
         <section className="env-card" aria-label="Terrain" data-testid="terrain-card">
           <header>

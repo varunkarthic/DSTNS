@@ -3,7 +3,8 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { EnvironmentView, compassPoint } from "../src/EnvironmentPanel";
+import { EnvironmentView, WaterCard, compassPoint } from "../src/EnvironmentPanel";
+import type { HydrologyState } from "../src/types";
 import type { EnvironmentInfo } from "../src/types";
 
 const path = Array.from({ length: 97 }, (_, i) => ({ t: i * 900, elevation_deg: 60 * Math.sin(((i * 900 - 6 * 3600) / (12 * 3600)) * Math.PI), azimuth_deg: (i * 900 / 86400) * 360 }));
@@ -66,6 +67,24 @@ describe("the City tab", () => {
   it("waits for a world", () => {
     render(<EnvironmentView environment={null} />);
     expect(screen.getByText(/once a world is loaded/)).toBeInTheDocument();
+  });
+
+  it("accounts for every cubic metre of surface water", () => {
+    const water: HydrologyState = {
+      updated_s: 50000, interval_s: 5, scheme: "local-inertial shallow water", solver: "cpu", substeps: 1, dt_s: 5, cfl_capped: false,
+      stored_m3: 1997.8, max_depth_m: 0.26, wet_cells: 420, flooded_cells: 13, flooded_area_m2: 8125, peak_rain_mm_h: 31.4,
+      peak_depth_m: 0.26, peak_flooded_area_m2: 8125,
+      ledger_m3: { initial: 0, rain: 2353.2, boundary_outflow: 210.4, open_water: 0, evaporated: 61.2, infiltrated: 83.8, drained: 0 },
+      conservation_error_m3: 0, conservation_error_relative: 0, max_froude: 0.01, supercritical_cells: 0, refinement_candidates: [],
+    };
+    render(<WaterCard water={water} />);
+    const card = screen.getByTestId("water-card");
+    expect(within(card).getByText("Flooding")).toBeInTheDocument();
+    expect(card).toHaveTextContent("1998");
+    expect(card).toHaveTextContent("0.81");
+    expect(within(screen.getByRole("table", { name: "Water ledger" })).getByText("+2353")).toBeInTheDocument();
+    expect(screen.getByTestId("water-error")).toHaveTextContent("0 (exact)");
+    expect(card).toHaveTextContent("on the CPU");
   });
 
   it("names compass points", () => {

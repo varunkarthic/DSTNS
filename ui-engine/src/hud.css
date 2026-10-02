@@ -2529,3 +2529,27 @@
 .field-legend-float .hud-pill {
   pointer-events: auto;
 }
+
+.env-ledger {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.env-ledger td {
+  padding: 2px 0;
+}
+.env-ledger td:last-child {
+  text-align: right;
+  color: var(--text);
+}
+.env-ledger-total td {
+  border-top: 1px solid rgb(178 235 255 / 10%);
+  padding-top: 4px;
+}
+.tag.blue {
+  color: var(--state-flooded);
+  background: rgb(75 169 255 / 12%);
+  border: 1px solid rgb(75 169 255 / 30%);
+}
