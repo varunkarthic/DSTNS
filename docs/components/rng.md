@@ -8,7 +8,7 @@ The RNG subsystem provides deterministic, counter-addressed, domain-isolated pse
 - Provide counter-based 4-dimensional addressable random number evaluation `(domain, object, purpose, draw)`.
 - Implement stateless 10-round Philox-style generation and SHA-256 digests.
 - Generate uniformly distributed integer, floating-point, and bounded values in $[0, \text{bound})$.
-- Maintain address-domain isolation across the nine declared `RngDomain` values.
+- Maintain address-domain isolation across the declared `RngDomain` values.
 
 ## Non-responsibilities
 - Maintaining sequential stateful PRNG state (e.g. `std::mt19937` or `std::rand`).
@@ -22,9 +22,18 @@ The RNG subsystem provides deterministic, counter-addressed, domain-isolated pse
 ```cpp
 enum class RngDomain : std::uint32_t {
     MapSelection = 1, BusStops, Buildings, TrafficControl, TrafficOD,
-    TrafficSignals, DwsSchedule, DwsField, DaySelector
+    TrafficSignals, DwsSchedule, DwsField, DaySelector, Incidents, Events,
+    Calendar, Terrain, Solar, Atmosphere, Hydrology, Drainage,
+    DemandOD, Emergency, CausalIncidents
 };
+```
 
+Domains are only ever appended. A domain's numeric value is mixed into the
+Philox key, so renumbering one would change what every existing seed means;
+`tests/unit/calendar_tests.cpp` pins golden values recorded before the newer
+domains existed to prove it has not happened.
+
+```cpp
 struct RngAddress {
     RngDomain domain;
     std::uint64_t object{};

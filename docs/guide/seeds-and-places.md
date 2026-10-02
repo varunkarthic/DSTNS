@@ -30,6 +30,8 @@ same world back.
 flowchart TD
     S["Seed (128-bit)"] --> H{"SHA-256 derivation<br/>per subsystem"}
     H --> C["map.city → which of 181 cities"]
+    H --> MO["calendar.month → which month"]
+    H --> DT["calendar.day → weekday or weekend"]
     H --> A["map.anchor → where in the city"]
     H --> M["map → district root, node attributes"]
     H --> SIG["signals → offsets, splits"]
@@ -42,6 +44,86 @@ Each subsystem draws from its own sub-seed, derived from the master seed with
 SHA-256 and a fixed label. Changing one subsystem's code therefore never
 shifts another's random choices. See [Deterministic
 seeding](../concepts/deterministic-seeding.md).
+
+## When: month and day type
+
+A run models one 24-hour day. Besides its place, the seed fixes **when** that
+day is:
+
+| Property | Derived from | Values |
+|---|---|---|
+| Location | `map.city` | one of the 181 catalogue cities |
+| Month | `calendar.month` | January to December, uniformly |
+| Day type | `calendar.day` | weekday (5 in 7) or weekend (2 in 7) |
+
+There is deliberately **no day of the month**: a run is "a weekday in July in
+Ahmedabad", not a date. Models that need a day of the year (the Sun's path,
+for example) use a documented representative day near the middle of the
+month.
+
+Each property comes from its own derived stream, so knowing one says nothing
+about the others, and adding a new random draw anywhere in DSTNS cannot change
+which month or day type an existing seed means.
+
+The observer's header shows the month and day type of the running world.
+`GET /api/v1/seeds/describe?seed=N` (or `dstns_server --describe-seed N`) tells
+you what any seed means without starting it:
+
+```bash
+$ ./build/dstns_server --describe-seed 42
+{ "seed": "42", "location": {"city": "Dar es Salaam", ...},
+  "month": 1, "month_name": "January", "day_type": "weekend", ... }
+```
+
+### Overriding the day type or month
+
+`--day-type weekday|weekend` (or `"day": 0|1` in a start request) and
+`"month": 1..12` replace the seed's value for that run. The run then records the
+property as **configured** rather than **seed**, and both values appear in the
+status, the manifest and the report, so an override is never mistaken for what
+the seed means. `--day-type auto`, the default, uses the seed's own.
+
+!!! note "Changed in 2.3"
+    Before the deterministic calendar, a run that did not name its day type
+    was always a weekday. It is now the seed's own day type.
+
+## Choosing a seed by its properties
+
+To get a world with a particular location, month or day type, let DSTNS
+**search for a seed** that has them rather than overriding a random seed:
+
+```bash
+./launcher start --location Ahmedabad --month July --day-type weekday
+./launcher start --month 2                       # any city, February
+./launcher start --location "Sao Paulo"          # names or slugs, any case
+```
+
+The launcher proposes candidate seeds, derives each one's metadata, and keeps
+the first that matches every given constraint (an omitted constraint, or
+`auto`, matches anything). The result is an ordinary seed:
+
+```text
+Generated seed: 6515130065813855609
+Location:       Ahmedabad, India
+Month:          July
+Day type:       Weekday
+```
+
+Because the seed itself carries the constraints, the seed alone reproduces
+them; everything else (rain timing and intensity, incidents, traffic
+variation) still follows from that seed. A fully constrained search examines
+about 3,000 candidates for a weekday and 7,600 for a weekend, and takes a few
+milliseconds. `--location` and `--month` cannot be combined with `--seed`: a
+given seed already has its own.
+
+The same search is available as `POST /api/v1/seeds/generate`, as
+`dstns_server --generate-seed --location CITY --month M --day-type T`, and in
+the observer: **Generate a new world** → **Constrained seed**, choose any of
+Location, Month and Day type (each may stay **Auto**), then **Generate Seed**.
+**Enter seed** in the same dialog shows what a typed seed resolves to before
+the world is built.
+
+`GET /api/v1/seeds/locations` lists the catalogue.
 
 ## From seed to place
 
@@ -301,9 +383,9 @@ one from [openstreetmap.org](https://www.openstreetmap.org/export) or Overpass.
 
 ## Saving and sharing configurations
 
-A seed alone reproduces a world. A **saved seed** also records the day type,
-duration, speed and modules under a name and, for a pinned map, keeps a verified
-copy of the map file:
+A seed alone reproduces a world, its month and its day type. A **saved seed**
+also records any day-type override, the duration, speed and modules under a
+name and, for a pinned map, keeps a verified copy of the map file:
 
 ```bash
 ./launcher start --seed 382923 --day-type weekend --save-seed harbour-weekend \
@@ -315,8 +397,9 @@ copy of the map file:
 Every command, what is stored and how replay is verified are described in
 [Saved seeds](saved-seeds.md).
 
-To share a run with someone, give them the seed and the day type. If you used a
-pinned map, give them the file too, or copy your `data/seed-store/` directory.
+To share a run with someone, give them the seed, and the day type or month if
+you overrode either. If you used a pinned map, give them the file too, or copy
+your `data/seed-store/` directory.
 
 ## Reproducibility guarantees
 

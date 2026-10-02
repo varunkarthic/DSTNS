@@ -12,7 +12,35 @@ only within one version.
 
 ## [Unreleased]
 
-No changes yet.
+The coupled city: a deterministic calendar, terrain, the Sun, surface water,
+drainage, urban wind, demand, emergency response and causal incidents
+exchanging state through one clock. Added one stable piece at a time; each
+entry says whether it changes results for an existing seed.
+
+**Changed: the day type of an unconfigured run is now the seed's own.** Before,
+a run that did not name its day type was always a weekday. A run that names it
+(`--day-type weekday`, `"day": 0`) is unchanged. Scenario hashes, and so run
+IDs, now also include the month.
+
+### Added
+
+- **Deterministic calendar.** A seed now determines a month and a day type as
+  well as a location, each from its own derived stream (`calendar.month`,
+  `calendar.day`, `map.city`), so none shifts when another module draws more
+  numbers. There is no day of the month. The status, manifest, start response
+  and global view carry a `calendar` block saying whether each value came from
+  the seed or the configuration; the observer's header shows the month and day
+  type.
+- **Constrained seeds.** `./launcher start --location Ahmedabad --month July
+  --day-type weekday` searches for a seed whose own metadata matches (about
+  3,000 candidates, a few milliseconds), so the seed alone reproduces the
+  constraints. Also `POST /api/v1/seeds/generate`, `GET /api/v1/seeds/describe`,
+  `GET /api/v1/seeds/locations`, `dstns_server --generate-seed` and
+  `--describe-seed`, Docker `DSTNS_LOCATION` and `DSTNS_MONTH`, and the
+  observer's new-world dialog (Random, Enter or Constrained seed).
+- `"month"` in start requests and `"seed"` in `POST /api/v1/world/regenerate`.
+- RNG domains for the new modules, appended after the existing ones. Golden
+  values recorded before the change prove the existing streams did not move.
 
 ## [2.2.0] - 2026-10-02
 

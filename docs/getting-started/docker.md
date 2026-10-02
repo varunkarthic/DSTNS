@@ -68,7 +68,9 @@ DSTNS_SPEED=2
 | Variable | Default | Meaning |
 |---|---|---|
 | `DSTNS_SEED` | `auto` | The seed. `auto` draws a fresh one |
-| `DSTNS_DAY_TYPE` | `weekday` | `weekday` or `weekend` |
+| `DSTNS_DAY_TYPE` | `auto` | `auto` (the seed's own), `weekday` or `weekend` |
+| `DSTNS_LOCATION` | *(empty)* | Generate a seed in this city, e.g. `Ahmedabad` |
+| `DSTNS_MONTH` | *(empty)* | Generate a seed in this month, 1 to 12 or a name |
 | `DSTNS_SPEED` | `1` | Speed, more than 0 and at most 5 |
 | `DSTNS_DURATION` | `3600` | Wall-clock seconds a day takes at 1×, 60 to 3600 |
 | `DSTNS_OSM_FILE` | `auto` | `auto` lets the seed choose a city; or a path inside the container |

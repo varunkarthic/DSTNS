@@ -85,6 +85,8 @@ The labels in use:
 |---|---|---|
 | `map.city` | `select_map_location` | Which of the 181 cities |
 | `map.anchor` | `select_map_location` | Where in the city's extract the district grows from |
+| `calendar.month` | `derive_month` | The run's month, 1 to 12 |
+| `calendar.day` | `derive_day_type` | Weekday or weekend |
 | `map` | `ScenarioCompiler` | District root, node flood susceptibility and drainage |
 | `dws` | `plan_weather` | Storm schedule, positions, sizes |
 | `traffic` | `plan_hotspots`, `plan_trips` | Hotspot edges, trip origins and destinations |
@@ -117,6 +119,38 @@ change. It is there to catch a *broken* derivation (one that, say, ignored part 
 the seed and so differed in only a handful of bits), not to measure SHA-256: a
 working derivation passes with probability \( 1 - 1.6 \times 10^{-5} \), and the
 test input is fixed, so it either always passes or always fails.
+
+## The calendar, and searching for a seed
+
+Location, month and day type are each the first draw of their own stream:
+
+\[
+L = \operatorname{catalogue}\big[\Phi_{s_{\texttt{map.city}}} \bmod 181\big], \qquad
+M = 1 + \big(\Phi_{s_{\texttt{calendar.month}}} \bmod 12\big), \qquad
+D = \begin{cases} \text{weekend} & \Phi_{s_{\texttt{calendar.day}}} \bmod 7 \ge 5 \\ \text{weekday} & \text{otherwise} \end{cases}
+\]
+
+(each "mod" is the unbiased bounded draw described below). The three are
+independent, and none consumes a number another subsystem would otherwise
+have drawn.
+
+To find a seed with a given \( (L, M, D) \), DSTNS walks 64-bit candidates along
+a Weyl sequence \( c_k = c_0 + k\varphi \bmod 2^{64} \) with
+\( \varphi = \texttt{0x9E3779B97F4A7C15} \) (odd, so the walk never repeats) from
+a fresh secure starting point \( c_0 \), and returns the first candidate whose
+own derivations match. The cheapest test runs first; each is one SHA-256 and
+one Philox evaluation. For uniform mappings the number of candidates is
+geometric with mean
+
+\[
+\mathbb{E}[k] = \frac{1}{P(L)\,P(M)\,P(D)} = 181 \times 12 \times \begin{cases} 7/5 \approx 3{,}040 & \text{weekday} \\ 7/2 = 7{,}602 & \text{weekend} \end{cases}
+\]
+
+which matches the measured mean of about 2,800 candidates (8 ms) for a
+weekday in the unit test `dstns_calendar`. The search gives up after
+20,000,000 candidates, a bound reached only by impossible constraints. Entropy
+enters only in \( c_0 \): the seed found is an ordinary seed, and
+reproducing the run needs nothing but it.
 
 ## The counter-based generator
 

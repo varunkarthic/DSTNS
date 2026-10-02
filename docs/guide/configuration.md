@@ -13,7 +13,7 @@ For a run started from the CLI, later sources win:
 1. Built-in defaults in `ScenarioConfig` (`include/dstns/model.hpp`)
 2. `config/defaults.json`
 3. A saved seed (`--saved-seed ID`), which replaces 2 entirely
-4. CLI flags (`--seed`, `--day-type`, `--duration`, `--speed`, `--max-nodes`, `--osm-file`)
+4. CLI flags (`--seed`, `--day-type`, `--location`, `--month`, `--duration`, `--speed`, `--max-nodes`, `--osm-file`)
 
 The CLI turns the result into the body of `POST /api/v1/playback/start`, and
 the server validates it again. Each bound is enforced in both places, so a
@@ -30,7 +30,7 @@ read; changing them has no effect.
 | Key | Default | Range | Read by | Meaning |
 |---|---|---|---|---|
 | `seed` | `"auto"` | — | informational | Without `--seed` the CLI always draws a fresh 64-bit seed |
-| `day` | `0` | `0` weekday, `1` weekend | CLI | Day type; `--day-type` overrides |
+| `day` | `"auto"` | `"auto"`, `0` weekday, `1` weekend | CLI | Day type; `auto` is the seed's own; `--day-type` overrides |
 | `playback.duration_seconds` | `3600` | integer [60, 3600] | CLI, engine | Wall-clock seconds one virtual day takes at 1× |
 | `playback.tick_rate` | `1.0` | (0, 5] | CLI, engine | Initial speed multiplier |
 | `playback.checkpoint_virtual_seconds` | `900` | — | informational | Checkpoint spacing is fixed at 900 s |
@@ -108,7 +108,8 @@ What `POST /api/v1/playback/start` and `/prepare` accept (the CLI builds this):
 | Field | Type | Rule |
 |---|---|---|
 | `seed` | number or string | Decimal, `0x` hex (up to 128 bits), `auto`, `random`, `""` or `0` (fresh seed) |
-| `day` | 0, 1 or `"auto"` | |
+| `day` | 0, 1, `"weekday"`, `"weekend"` or `"auto"` | Absent or `auto`: the seed's own day type. Before 2.3 an absent day meant weekday |
+| `month` | 1 to 12, a month name, or `"auto"` | Absent or `auto`: the seed's own month. A given value is recorded as configured |
 | `playback_duration_seconds` (alias `simulation_time`) | integer | [60, 3600] |
 | `tick_rate` | number | (0, 5] |
 | `start_virtual_time` | seconds or `HH:MM:SS` | [0, 86400] |
@@ -124,7 +125,8 @@ What `POST /api/v1/playback/start` and `/prepare` accept (the CLI builds this):
 
 ```
 ./launcher start [--seed N | --saved-seed ID] [--save-seed ID [--description TEXT]]
-                 [--day-type weekday|weekend] [--duration 60-3600] [--speed 0.01-5]
+                 [--day-type auto|weekday|weekend] [--location CITY] [--month MONTH]
+                 [--duration 60-3600] [--speed 0.01-5]
                  [--max-nodes 2-50000] [--osm-file PATH] [--no-open]
                  [--compute auto|cpu|vulkan] [--gpu-device SPEC]
 ./launcher diagnostics [gpu]

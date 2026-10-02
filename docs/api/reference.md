@@ -6,12 +6,15 @@ Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed,
 |---|---|---|
 | GET | `/health`, `/api/v1/system/health` | Liveness/lifecycle |
 | GET | `/api/v1/system/info` | Product and optional SUMO availability |
-| GET | `/api/v1/playback/status` | Lifecycle, clock, day, saved seed ID, map version, modules |
+| GET | `/api/v1/playback/status` | Lifecycle, clock, day, calendar (location, month, day type and their sources), saved seed ID, map version, modules |
 | POST | `/api/v1/playback/start` | CLI operator credential required; HTTP 202, preparation/download continues in the background and is observed through status/map-status |
 | POST | `/api/v1/playback/pause`, `/play` | Pause/resume active run |
 | POST | `/api/v1/playback/seek` | Move to `target_time` (seconds or `HH:MM:SS`); earlier times restore a checkpoint and replay |
 | POST | `/api/v1/playback/step` | Advance `seconds` (1 to 3600, default 60) of virtual time and hold paused |
-| POST | `/api/v1/world/regenerate` | Replace the world with one from a fresh secure seed; HTTP 202, progress via `/world/status` |
+| POST | `/api/v1/world/regenerate` | Replace the world with one from a fresh secure seed, or from `seed` (a decimal string) when given; HTTP 202, progress via `/world/status` |
+| GET | `/api/v1/seeds/locations` | The 181-city catalogue a seed draws its location from |
+| GET | `/api/v1/seeds/describe?seed=N` | The location, month and day type seed `N` resolves to; 400 without `seed` |
+| POST | `/api/v1/seeds/generate` | A fresh seed whose own `location`, `month` and `day_type` match the body (each optional or `"auto"`); 400 for an unknown city or month |
 | GET | `/api/v1/world/status` | State of the current or last world generation job |
 | GET | `/api/v1/system/observer` | Whether the observer page has been served yet, and how many times |
 | PUT | `/api/v1/control/tick-rate` | Rate in (0, 5]; the interface offers 0.25, 0.5, 1, 2, 3 and 5 |

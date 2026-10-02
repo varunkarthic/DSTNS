@@ -18,6 +18,7 @@ tags:
 - name: Control
 - name: News
 - name: System
+- name: Seeds
 paths:
   /health:
     get:
@@ -156,11 +157,13 @@ paths:
       tags:
       - World
       operationId: regenerateWorld
-      summary: Replace the world with one from a fresh seed
+      summary: Replace the world with one from a fresh or a named seed
       description: Accepted immediately; progress is reported by /api/v1/world/status. The seed comes
-        from the secure generator and every other parameter is copied from the current run, so the caller
-        chooses nothing about the new world. The current world keeps running until the new one is installed
-        and is unchanged if generation fails. The new world starts paused at 00:00:00. Disabled with DSTNS_DISABLE_WORLD_REGENERATION=1.
+        from the secure generator unless `seed` names one (typed by the operator, or found by
+        /api/v1/seeds/generate); every other parameter is copied from the current run, and the new
+        world's month and day type are its seed's own unless the run configured them. The current world
+        keeps running until the new one is installed and is unchanged if generation fails. The new world
+        starts paused at 00:00:00. Disabled with DSTNS_DISABLE_WORLD_REGENERATION=1.
       requestBody:
         content:
           application/json:
@@ -170,6 +173,10 @@ paths:
                 expected_run_id:
                   type: string
                   description: Cancel with 409 if the active run is no longer this one.
+                seed:
+                  type: string
+                  pattern: '^[0-9]{1,39}$'
+                  description: The new world's seed, as a decimal string. 400 if malformed or zero.
       responses:
         '202':
           description: Generation started
@@ -190,6 +197,119 @@ paths:
                 $ref: '#/components/schemas/Error'
         '409':
           description: No active world, a generation already in progress, or a stale run guard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/seeds/locations:
+    get:
+      tags:
+      - Seeds
+      operationId: seedLocations
+      summary: The location catalogue a seed draws from
+      responses:
+        '200':
+          description: Every catalogue city, in selection order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            index: {type: integer}
+                            city: {type: string}
+                            country: {type: string}
+                            slug: {type: string}
+                            latitude: {type: number}
+                            longitude: {type: number}
+  /api/v1/seeds/describe:
+    get:
+      tags:
+      - Seeds
+      operationId: describeSeed
+      summary: What a seed resolves to
+      description: The location, month and day type the seed alone determines. Pure function of the
+        seed and the catalogue; nothing is started.
+      parameters:
+      - name: seed
+        in: query
+        required: true
+        schema:
+          type: string
+        description: Decimal, or 0x hexadecimal.
+      responses:
+        '200':
+          description: The seed's metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/SeedMetadata'
+        '400':
+          description: No or malformed seed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/seeds/generate:
+    post:
+      tags:
+      - Seeds
+      operationId: generateSeed
+      summary: A fresh seed with a chosen location, month and day type
+      description: Candidate seeds are drawn and kept only if their own metadata matches every given
+        constraint, so the returned seed alone reproduces them. Omitted or "auto" constraints match
+        anything.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                location:
+                  type: string
+                  description: A catalogue city name or slug, any case, or "auto".
+                month:
+                  type: string
+                  description: 1 to 12, a month name or abbreviation, or "auto".
+                day_type:
+                  type: string
+                  enum: [weekday, weekend, auto]
+      responses:
+        '200':
+          description: A seed satisfying the constraints
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version:
+                    type: string
+                  data:
+                    allOf:
+                    - $ref: '#/components/schemas/SeedMetadata'
+                    - type: object
+                      properties:
+                        candidates_examined: {type: integer}
+                        search_ms: {type: number}
+                        constraints: {type: object}
+        '400':
+          description: Unknown location, month or day type
           content:
             application/json:
               schema:
@@ -1134,6 +1254,24 @@ components:
         minimum: 0
         default: 0
   schemas:
+    SeedMetadata:
+      type: object
+      description: What a seed alone determines about when and where a run is. There is no day of the month.
+      properties:
+        seed: {type: string, description: Decimal}
+        seed_hex: {type: string}
+        location:
+          type: object
+          properties:
+            city: {type: string}
+            country: {type: string}
+            index: {type: integer}
+            latitude: {type: number}
+            longitude: {type: number}
+        month: {type: integer, minimum: 1, maximum: 12}
+        month_name: {type: string}
+        day: {type: integer, enum: [0, 1]}
+        day_type: {type: string, enum: [weekday, weekend]}
     WorldStatus:
       type: object
       properties:

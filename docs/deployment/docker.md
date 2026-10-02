@@ -117,7 +117,9 @@ Set these in `docker-compose.yml`, a `.env` file, or with `-e` on `docker run`.
 |---|---|---|---|
 | `DSTNS_AUTOSTART` | `1` | `0`, `1` | Start a run once the server is healthy |
 | `DSTNS_SEED` | `auto` | decimal, `0x` hex, `auto` | Seed of the first run |
-| `DSTNS_DAY_TYPE` | `weekday` | `weekday`, `weekend` | Day type |
+| `DSTNS_DAY_TYPE` | `auto` | `auto`, `weekday`, `weekend` | Day type; `auto` is the seed's own |
+| `DSTNS_LOCATION` | *(empty)* | a catalogue city | Generate a seed whose city is this (with `DSTNS_SEED=auto`) |
+| `DSTNS_MONTH` | *(empty)* | 1 to 12 or a month name | Generate a seed whose month is this (with `DSTNS_SEED=auto`) |
 | `DSTNS_SPEED` | `1` | 0.01 to 5 | Speed multiplier |
 | `DSTNS_DURATION` | `3600` | 60 to 3600 | Wall-clock seconds per day at 1× |
 | `DSTNS_OSM_FILE` | `auto` | `auto` or a path in the container | Map source |
@@ -170,7 +172,7 @@ docker run --rm -v dstns_dstns-logs:/logs -v "$PWD":/backup debian:bookworm-slim
 ## Starting runs: `dstns-run`
 
 ```text
-dstns-run [--seed N] [--day-type weekday|weekend] [--speed X]
+dstns-run [--seed N] [--day-type auto|weekday|weekend] [--location CITY] [--month M] [--speed X]
           [--duration S] [--osm-file auto|PATH] [--status]
 ```
 

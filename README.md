@@ -59,7 +59,7 @@ map bytes and compatible build; see [Reproducible experiments](#reproducible-exp
 
 | Capability | Description |
 |---|---|
-| **Seed-based geographic selection** | A seed resolves to one of **181 cities** on every inhabited continent and a district inside it. The road network is downloaded from OpenStreetMap once and cached. |
+| **Seed-based geographic selection** | A seed resolves to one of **181 cities** on every inhabited continent and a district inside it, and to a **month** and a **day type**. The road network is downloaded from OpenStreetMap once and cached. Ask for a city, month or day type and DSTNS finds a seed that has them. |
 | **Deterministic simulation** | SHA-256 sub-seeds per subsystem, counter-based random numbers, fixed one-second physics, checkpoint replay. Matching inputs and compatible builds produce matching scenario and runtime state. |
 | **Integrated traffic and environmental models** | Signals snapped to real junctions and coordinated in green waves; place-driven weekday and weekend demand; storms with Wendland C² rain fields; flooding that closes roads; at least four incidents a day. |
 | **Checkpoint replay** | Pause, step, seek backwards and forwards through the day; undo and redo operator controls. |
@@ -176,7 +176,8 @@ or put the same settings in a `.env` file next to `docker-compose.yml`:
 | Variable | Default | Meaning |
 |---|---|---|
 | `DSTNS_SEED` | `auto` | The seed; `auto` draws a fresh one |
-| `DSTNS_DAY_TYPE` | `weekday` | `weekday` or `weekend` |
+| `DSTNS_DAY_TYPE` | `auto` | `auto` (the seed's own), `weekday` or `weekend` |
+| `DSTNS_LOCATION`, `DSTNS_MONTH` | *(empty)* | Generate a seed in this city and/or month |
 | `DSTNS_SPEED` | `1` | Speed, more than 0 and at most 5 |
 | `DSTNS_DURATION` | `3600` | Wall-clock seconds per virtual day at 1× (60–3600) |
 | `DSTNS_OSM_FILE` | `auto` | `auto` lets the seed choose a city; or a path in the container |
@@ -246,6 +247,7 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-ge
 ./launcher                                   # environment checks and interactive dashboard
 ./launcher start --seed 382923               # a particular seed
 ./launcher start --seed 382923 --day-type weekend
+./launcher start --location Ahmedabad --month July   # a seed with that city and month
 ./launcher start --speed 3 --duration 1800
 ./launcher start --osm-file data/fixtures/real_network.osm.xml   # offline
 ./launcher start --seed 42 --save-seed demo  # save the configuration

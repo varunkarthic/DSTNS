@@ -27,7 +27,8 @@ background. Poll `/status` until `lifecycle` leaves `PREPARING`, and
 ```json
 {
   "seed": "382923",
-  "day": 0,
+  "day": "auto",
+  "month": "auto",
   "playback_duration_seconds": 3600,
   "tick_rate": 1,
   "start_virtual_time": "06:00:00",
@@ -67,6 +68,7 @@ The standard envelope with:
 | `playback_revision` | Increments on every lifecycle change; used by playback guards |
 | `run_id` | `run_` plus 12 hex digits of the scenario hash |
 | `day` | 0 weekday, 1 weekend, -1 without a world |
+| `calendar` | The run's location, `month`, `month_name`, `day_type`, where each came from (`month_source`, `day_source`: `seed` or `configured`) and the seed's own values in `seed_derived`; `null` without a world |
 | `paused`, `simulated_seconds`, `virtual_seconds_remaining`, `checkpoint_count` | |
 | `modules` | Each module's on/off state |
 

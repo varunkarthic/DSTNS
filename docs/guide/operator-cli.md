@@ -192,7 +192,9 @@ running, **Running simulation** appears at the top of the menu.
 | Field | Meaning |
 |---|---|
 | Seed | Empty for a fresh seed, or decimal or `0x` hexadecimal up to 128 bits |
-| Day type | Weekday or weekend |
+| Day type | The seed's own, weekday or weekend |
+| Location | Empty for the seed's city; a city generates a seed in it |
+| Month | The seed's own, or a month to generate a seed for |
 | Map | Chosen by the seed, a cached city, the bundled offline district, or another file |
 | Speed | Initial speed, greater than 0 and at most 5 |
 | Save as, Description | Optionally save the configuration as a [saved seed](saved-seeds.md) |
@@ -346,7 +348,9 @@ For `start` and `seeds save`:
 | `--saved-seed ID` | | Run a saved configuration; excludes `--seed` |
 | `--save-seed ID` | | Save this run's configuration under `ID` |
 | `--description TEXT` | | Note stored with `--save-seed` |
-| `--day-type weekday\|weekend` | | Day type |
+| `--day-type auto\|weekday\|weekend` | | Day type. `auto` (the default) is the seed's own; with `--location` or `--month` it constrains the generated seed |
+| `--location CITY` | A catalogue city, by name or slug | Generate a seed whose city is `CITY`. Excludes `--seed` and `--saved-seed` |
+| `--month MONTH` | 1 to 12, or a month name | Generate a seed whose month is `MONTH`. Excludes `--seed` and `--saved-seed` |
 | `--duration S` | Integer 60 to 3600 | Wall-clock seconds per virtual day at 1× |
 | `--speed X` | 0.01 to 5 | Initial speed multiplier |
 | `--max-nodes N` | Integer 2 to 50000 | Graph size cap |
