@@ -95,6 +95,7 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
       items: [
         { key: "weather", label: "Weather", icon: "rain", count: snapshot ? String(snapshot.active_weather.length) : undefined },
         { key: "flooding", label: "Flooding", icon: "flood" },
+        { key: "drains", label: "Drains (synthetic)", icon: "network" },
         { key: "incidents", label: "Incidents", icon: "incident", count: snapshot ? String(snapshot.active_incidents.length) : undefined },
         { key: "events", label: "Demand", icon: "demand" },
       ],

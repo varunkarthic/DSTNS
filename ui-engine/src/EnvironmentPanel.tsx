@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import type { DcmState, EnvironmentInfo, HydrologyState } from "./types";
+import type { DcmState, DrainageSummary, EnvironmentInfo, HydrologyState } from "./types";
 
 const fixed = (v: number | undefined, digits = 0) => (v === undefined || !Number.isFinite(v) ? "–" : v.toFixed(digits));
 
@@ -89,6 +89,32 @@ export function WaterCard({ water }: { water: HydrologyState }) {
   );
 }
 
+/** The drainage network: synthetic, and how hard it is working. */
+export function DrainageCard({ drains }: { drains: DrainageSummary }) {
+  const surcharged = drains.surcharged_nodes > 0;
+  return (
+    <section className="env-card" aria-label="Drainage" data-testid="drainage-card">
+      <header>
+        <span className="env-title">Drainage</span>
+        <span className={`tag ${surcharged ? "red" : drains.stored_m3 > 0.5 ? "blue" : "grey"}`}>
+          {surcharged ? "Surcharged" : drains.stored_m3 > 0.5 ? "Flowing" : "Empty"}
+        </span>
+      </header>
+      <div className="env-grid">
+        <Figure label="In the pipes" value={volume(drains.stored_m3)} unit="m³" />
+        <Figure label="Discharged" value={volume(drains.outfall_m3)} unit="m³" />
+        <Figure label="Peak load" value={fixed(drains.peak_utilisation * 100)} unit="% of capacity" />
+        <Figure label="Manholes surcharged" value={`${drains.surcharged_nodes}`} unit={`peak ${drains.peak_surcharged_nodes}`} />
+      </div>
+      <p className="env-note">
+        A synthetic network, not the city's sewers: {drains.pipes.toLocaleString()} pipes ({fixed(drains.pipe_length_m / 1000, 1)} km),{" "}
+        {Math.round(drains.inlets).toLocaleString()} inlets and {drains.outfalls} outfalls, sized for {drains.design_rain_mm_h} mm/h.
+        {drains.backflow_m3 > 0 && ` ${volume(drains.backflow_m3)} m³ has backed up onto the streets.`}
+      </p>
+    </section>
+  );
+}
+
 /**
  * The coupled environment, one card per module. Values are simulated or
  * derived and are labelled as such; imported data says where it came from.
@@ -125,6 +151,7 @@ export function EnvironmentView({ environment }: { environment: EnvironmentInfo 
         </section>
       )}
       {environment.state?.hydrology && <WaterCard water={environment.state.hydrology} />}
+      {environment.state?.drainage && environment.state.drainage.pipes > 0 && <DrainageCard drains={environment.state.drainage} />}
       {terrain && (
         <section className="env-card" aria-label="Terrain" data-testid="terrain-card">
           <header>

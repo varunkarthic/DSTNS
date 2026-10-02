@@ -61,6 +61,7 @@ export interface ReportResources {
 
 const LAYER_NAMES: Record<keyof Layers, string> = {
   roads: "Roads",
+  drains: "Drains",
   traffic: "Traffic",
   vehicles: "Flow markers",
   signals: "Signals",

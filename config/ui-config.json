@@ -7,6 +7,7 @@
     "labels": false,
     "place_names": false,
     "other_places": false,
+    "drains": false,
     "traffic": true,
     "vehicles": true,
     "buildings": true,

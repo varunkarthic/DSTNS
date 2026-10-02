@@ -548,6 +548,7 @@ void ApiServer::routes() {
                 {{"GET","/api/v1/view/environment","Terrain provenance and the environment's state"}},
                 {{"GET","/api/v1/view/fields/{name}","An environmental field as a raster; ?max_side="}},
                 {{"GET","/api/v1/view/road-environment","Each road's grade, water, closure and passability; paged"}},
+                {{"GET","/api/v1/view/drainage","The synthetic drainage network: pipes, flows, outfalls, surcharge"}},
                 {{"POST","/api/v1/world/regenerate","Build a new world from a seed"}},
                 {{"GET","/api/v1/world/status","Preparation progress and durable errors"}}}),
             group("seeds","What a seed means, and seeds that mean what you ask",{
@@ -763,6 +764,7 @@ void ApiServer::routes() {
 
     // The coupled environment.
     server_->Get("/api/v1/view/environment", [this](const auto&, auto& r) { send(r, engine_.environment()); });
+    server_->Get("/api/v1/view/drainage", [this](const auto&, auto& r) { send(r, engine_.drainage()); });
     server_->Get("/api/v1/view/road-environment", [this](const httplib::Request& req, auto& r) {
         send(r, engine_.road_environment(page_parameter(req, "offset", 0, 10'000'000), page_parameter(req, "limit", 500, 5000)));
     });

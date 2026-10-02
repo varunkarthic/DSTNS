@@ -163,7 +163,7 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
 
         categories = ["weather", "flooding", "incident", "traffic", "demand", "signals", "system"]
         layers = ["roads", "signals", "labels", "place_names", "other_places", "traffic", "vehicles",
-                  "buildings", "weather", "flooding", "incidents", "events"]
+                  "buildings", "weather", "flooding", "incidents", "events", "drains"]
         one_of(config.get("reduce_motion"), ["auto", "on", "off"], "reduce_motion")
         one_of((config.get("auto_focus") or {}).get("mode"), ["disable", "enable", "enable-force"], "auto_focus.mode")
         one_of((config.get("auto_focus") or {}).get("strategy"), ["round-robin", "latest"], "auto_focus.strategy")

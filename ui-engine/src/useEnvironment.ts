@@ -5,7 +5,25 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { fieldInfo } from "./fields";
 import type { FieldOverlay, FieldRaster } from "./fields";
-import type { EnvironmentInfo } from "./types";
+import type { DrainageView, EnvironmentInfo } from "./types";
+
+/** The drainage network, re-read every few seconds while its layer is shown. */
+export function useDrainage(runId: string, shown: boolean) {
+  const [drainage, setDrainage] = useState<DrainageView | null>(null);
+  useEffect(() => {
+    setDrainage(null);
+    if (!runId || !shown) return;
+    let live = true;
+    const read = () => api.drainage().then((r) => live && r.run_id === runId && setDrainage(r.data)).catch(() => {});
+    void read();
+    const timer = setInterval(read, 3000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [runId, shown]);
+  return drainage;
+}
 
 /** How often a changing field is re-read while it is shown. */
 const DYNAMIC_REFRESH_MS = 2000;

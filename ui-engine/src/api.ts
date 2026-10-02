@@ -15,6 +15,7 @@ import type {
   SeedMetadata,
   SeedLocation,
   EnvironmentInfo,
+  DrainageView,
 } from "./types";
 import type { FieldRaster } from "./fields";
 
@@ -110,6 +111,8 @@ export const api = {
   /** One environmental field, reduced so neither side exceeds max_side cells. */
   field: (name: string, max_side = 192) =>
     request<Envelope<FieldRaster>>(`/api/v1/view/fields/${encodeURIComponent(name)}?max_side=${max_side}`),
+  /** The synthetic drainage network and its flows. */
+  drainage: () => request<Envelope<DrainageView>>("/api/v1/view/drainage"),
   /** The location catalogue a seed draws from. */
   seedLocations: () => request<{ data: { items: SeedLocation[]; count: number } }>("/api/v1/seeds/locations"),
   /** What a seed resolves to: location, month and day type. */

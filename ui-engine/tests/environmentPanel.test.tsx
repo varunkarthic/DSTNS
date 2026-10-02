@@ -3,7 +3,7 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { EnvironmentView, WaterCard, compassPoint } from "../src/EnvironmentPanel";
+import { DrainageCard, EnvironmentView, WaterCard, compassPoint } from "../src/EnvironmentPanel";
 import type { HydrologyState } from "../src/types";
 import type { EnvironmentInfo } from "../src/types";
 
@@ -85,6 +85,25 @@ describe("the City tab", () => {
     expect(within(screen.getByRole("table", { name: "Water ledger" })).getByText("+2353")).toBeInTheDocument();
     expect(screen.getByTestId("water-error")).toHaveTextContent("0 (exact)");
     expect(card).toHaveTextContent("on the CPU");
+  });
+
+  it("says the drainage network is synthetic and how hard it is working", () => {
+    render(
+      <DrainageCard
+        drains={{
+          source: "synthetic", data_class: "synthetic", inlets: 1820.4, junctions: 1196, pipes: 1188, outfalls: 8, pipe_length_m: 43210,
+          design_rain_mm_h: 25, stored_m3: 412.3, inflow_m3: 5000, backflow_m3: 183.6, outfall_m3: 4404, conservation_error_m3: 0,
+          surcharged_nodes: 3, full_pipes: 9, peak_utilisation: 2.14, peak_surcharged_nodes: 18,
+        }}
+      />,
+    );
+    const card = screen.getByTestId("drainage-card");
+    expect(within(card).getByText("Surcharged")).toBeInTheDocument();
+    expect(card).toHaveTextContent("A synthetic network, not the city's sewers");
+    expect(card).toHaveTextContent("1,188 pipes (43.2 km)");
+    expect(card).toHaveTextContent("214");
+    expect(card).toHaveTextContent("peak 18");
+    expect(card).toHaveTextContent("184 m³ has backed up onto the streets");
   });
 
   it("names compass points", () => {

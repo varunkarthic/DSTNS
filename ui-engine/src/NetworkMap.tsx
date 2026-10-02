@@ -14,6 +14,7 @@ import type { RefObject } from "react";
 import { canvasGlyph } from "./placeGlyphs";
 import { rasterPixels } from "./fields";
 import type { FieldRaster } from "./fields";
+import type { DrainageView } from "./types";
 import { mapFitLayout, mapInsets, metresToGeographic } from "./mapProjection";
 import { viewportFor } from "./autoFocus";
 import type { Bounds } from "./autoFocus";
@@ -75,6 +76,8 @@ type Props = {
   field?: { raster: FieldRaster; hue: number } | null;
   /** Credit for an imported terrain model, shown beside the map credit. */
   terrainCredit?: string;
+  /** The drainage network to draw over the roads, when its layer is on. */
+  drainage?: DrainageView | null;
   /** The telemetry deck is collapsed to its strip, freeing the right side. */
   deckCompact?: boolean;
 };
@@ -121,6 +124,7 @@ function NetworkMap({
   onCursor,
   field = null,
   terrainCredit,
+  drainage = null,
   deckCompact = false,
 }: Props) {
   const host = useRef<HTMLDivElement>(null),
@@ -345,6 +349,34 @@ function NetworkMap({
           view.scale;
         ctx.stroke(cached.roads[i].path);
       });
+      ctx.globalAlpha = 1;
+      // Drains, drawn dashed over the streets they run beneath: width by
+      // diameter; colour by how hard each pipe is working, red once it runs
+      // beyond its full-bore capacity.
+      if (layers.drains && drainage) {
+        ctx.setLineDash([4 / view.scale, 3 / view.scale]);
+        for (const pipe of drainage.pipes) {
+          const a = topology.nodes[pipe.from]?.position, b = topology.nodes[pipe.to]?.position;
+          if (!a || !b) continue;
+          const load = pipe.utilisation;
+          ctx.strokeStyle = load > 1 ? "rgba(255,91,101,0.9)" : `rgba(120,190,255,${0.55 + 0.45 * Math.min(1, load)})`;
+          ctx.lineWidth = (0.6 + pipe.diameter_m * 1.6) / view.scale;
+          ctx.beginPath();
+          ctx.moveTo(a.x_m, -a.y_m);
+          ctx.lineTo(b.x_m, -b.y_m);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        for (const node of drainage.surcharged) {
+          const p = topology.nodes[node]?.position;
+          if (!p) continue;
+          ctx.strokeStyle = "rgba(255,91,101,0.95)";
+          ctx.lineWidth = 2 / view.scale;
+          ctx.beginPath();
+          ctx.arc(p.x_m, -p.y_m, 7 / view.scale, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
       ctx.restore();
       ctx.globalAlpha = 1;
       if (layers.weather)
@@ -618,6 +650,7 @@ function NetworkMap({
     virtualTime,
     flowing,
     tickRate,
+    drainage,
   ]);
   // Smooth camera glide. The operator is carried to an event rather than
   // teleported: the view eases over a duration scaled to the distance, and any

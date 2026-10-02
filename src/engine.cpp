@@ -1455,7 +1455,9 @@ nlohmann::json SimulationEngine::status() const {
             {"flooding", graph_->scenario().config.flooding},
             {"news", graph_->scenario().config.news},
             {"dcm", graph_->scenario().config.dcm},
-            {"hydrology", graph_->scenario().config.hydrology}
+            {"hydrology", graph_->scenario().config.hydrology},
+            {"dds", graph_->scenario().config.dds},
+            {"vehicle_dynamics", graph_->scenario().config.vehicle_dynamics}
         } : nlohmann::json::object()}
     });
 }
@@ -1985,7 +1987,7 @@ nlohmann::json SimulationEngine::environment() const {
         {"calendar", calendar_json(sc)},
         {"terrain", sc.terrain ? terrain_json(*sc.terrain) : nlohmann::json(nullptr)},
         {"roads", {{"max_abs_grade", max_grade}}},
-        {"modules", {{"dcm", sc.config.dcm}, {"hydrology", sc.config.hydrology}}},
+        {"modules", {{"dcm", sc.config.dcm}, {"hydrology", sc.config.hydrology}, {"dds", sc.config.dds}, {"vehicle_dynamics", sc.config.vehicle_dynamics}}},
         {"state", environment_.summary()},
         {"fields", std::move(fields)}
     });
@@ -2042,6 +2044,29 @@ nlohmann::json SimulationEngine::road_environment(std::size_t offset, std::size_
                           }
                           return list;
                       }()}});
+}
+
+nlohmann::json SimulationEngine::drainage() const {
+    std::lock_guard lock(mutex_);
+    if (!graph_) return envelope(nlohmann::json::object());
+    const auto& net = environment_.drainage();
+    const auto& st = environment_.drainage_state();
+    auto pipes = nlohmann::json::array();
+    for (std::size_t k = 0; k < net.pipes.size(); ++k) {
+        const auto& p = net.pipes[k];
+        const double flow = k < st.flow_m3_s.size() ? st.flow_m3_s[k] : 0.0;
+        pipes.push_back({{"from", net.nodes[p.from].road_node}, {"to", net.nodes[p.to].road_node}, {"diameter_m", p.diameter_m},
+                         {"slope", p.slope}, {"length_m", p.length_m}, {"capacity_m3_s", p.full_capacity_m3_s}, {"flow_m3_s", flow},
+                         {"utilisation", std::abs(flow) / std::max(1e-9, p.full_capacity_m3_s)}});
+    }
+    auto outfalls = nlohmann::json::array(), surcharged = nlohmann::json::array();
+    for (std::size_t i = 0; i < net.nodes.size(); ++i) {
+        if (net.nodes[i].outfall) outfalls.push_back(net.nodes[i].road_node);
+        if (i < st.surcharged.size() && st.surcharged[i]) surcharged.push_back(net.nodes[i].road_node);
+    }
+    return envelope({{"summary", drainage_summary(net, st, environment_.drainage_params())}, {"pipes", std::move(pipes)},
+                     {"outfalls", std::move(outfalls)}, {"surcharged", std::move(surcharged)},
+                     {"enabled", graph_->scenario().config.dds}});
 }
 
 nlohmann::json SimulationEngine::news(std::uint64_t since, std::size_t limit) const {
@@ -2412,7 +2437,9 @@ nlohmann::json SimulationEngine::global_view() const {
             {"flooding", sc.config.flooding},
             {"news", sc.config.news},
             {"dcm", sc.config.dcm},
-            {"hydrology", sc.config.hydrology}
+            {"hydrology", sc.config.hydrology},
+            {"dds", sc.config.dds},
+            {"vehicle_dynamics", sc.config.vehicle_dynamics}
         }},
         {"calendar", calendar_json(sc)},
         {"manifest", {

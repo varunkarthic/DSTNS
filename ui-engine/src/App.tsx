@@ -13,7 +13,7 @@ import { Icon } from "./Icons";
 import { Splash, Welcome, splashStageFor, WELCOME_MS, WELCOME_EXIT_MS } from "./Splash";
 import { usePresence } from "./LoadingSurface";
 import { FieldLegend, PlaceLegend, RoadLegend } from "./Legends";
-import { useEnvironment } from "./useEnvironment";
+import { useDrainage, useEnvironment } from "./useEnvironment";
 import { fieldInfo, formatFieldValue, sampleField } from "./fields";
 import type { FieldOverlay } from "./fields";
 import { NotificationHistory } from "./notificationHistory";
@@ -209,6 +209,7 @@ export default function App() {
   const overlayInfo = fieldInfo(fieldOverlay);
   const overlayRaster = environmentState.raster;
   const terrain = environmentState.environment?.terrain ?? null;
+  const drainage = useDrainage(sim.status?.run_id ?? "", layers.drains);
   const rawLocation = sim.topology?.location;
   const location = rawLocation?.city ? rawLocation : undefined;
   const origin = sim.topology?.projection;
@@ -889,6 +890,7 @@ export default function App() {
               onCursor={setCursor}
               field={overlayInfo && overlayRaster ? { raster: overlayRaster, hue: overlayInfo.hue } : null}
               terrainCredit={terrain?.observed ? "Terrain: Mapzen, USGS, NASA, NOAA" : undefined}
+              drainage={drainage}
               deckCompact={deckCompact}
             />
           </div>

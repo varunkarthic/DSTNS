@@ -84,6 +84,9 @@ public:
     /// index, surface temperature, multipliers, closure and passability by
     /// vehicle class, energy per kilometre.
     [[nodiscard]] nlohmann::json road_environment(std::size_t offset, std::size_t limit) const;
+    /// The drainage network and its state: every pipe (the junctions it joins,
+    /// diameter, slope, flow, utilisation) and every surcharged manhole.
+    [[nodiscard]] nlohmann::json drainage() const;
 
     /**
      * Places, classified and paginated, with their live demand.

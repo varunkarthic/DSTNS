@@ -280,6 +280,8 @@ export interface Layers {
   place_names: boolean;
   /** Places with no DSTNS type (benches, stops, rail lines), drawn as dots. */
   other_places: boolean;
+  /** The (synthetic) drainage network under the streets. */
+  drains: boolean;
 }
 export const defaultLayers: Layers = {
   traffic: true,
@@ -297,6 +299,8 @@ export const defaultLayers: Layers = {
   place_names: false,
   // Off by default: thousands of unclassified points bury the typed places.
   other_places: false,
+  // Off by default: a synthetic network under every street is busy to look at.
+  drains: false,
 };
 /**
  * Which kinds of place are drawn, by taxonomy id.
@@ -467,12 +471,49 @@ export interface HydrologyState {
   supercritical_cells: number;
   refinement_candidates: { x_m: number; y_m: number; depth_m: number }[];
 }
+/** The synthetic drainage network's summary. */
+export interface DrainageSummary {
+  source: string;
+  data_class: string;
+  inlets: number;
+  junctions: number;
+  pipes: number;
+  outfalls: number;
+  pipe_length_m: number;
+  design_rain_mm_h: number;
+  stored_m3: number;
+  inflow_m3: number;
+  backflow_m3: number;
+  outfall_m3: number;
+  conservation_error_m3: number;
+  surcharged_nodes: number;
+  full_pipes: number;
+  peak_utilisation: number;
+  peak_surcharged_nodes: number;
+}
+export interface DrainagePipe {
+  from: number;
+  to: number;
+  diameter_m: number;
+  slope: number;
+  length_m: number;
+  capacity_m3_s: number;
+  flow_m3_s: number;
+  utilisation: number;
+}
+export interface DrainageView {
+  summary: DrainageSummary;
+  pipes: DrainagePipe[];
+  outfalls: number[];
+  surcharged: number[];
+  enabled: boolean;
+}
 export interface EnvironmentInfo {
   schema_version: number;
   calendar?: Calendar;
   terrain: TerrainInfo | null;
   roads?: { max_abs_grade: number };
   modules?: Record<string, boolean>;
-  state?: { time_s: number; dcm?: DcmState; hydrology?: HydrologyState } | null;
+  state?: { time_s: number; dcm?: DcmState; hydrology?: HydrologyState; drainage?: DrainageSummary } | null;
   fields: { name: string; units: string; kind: string }[];
 }
