@@ -357,3 +357,14 @@ export interface WorldStatus {
   } | null;
   error: { code: string; message: string } | null;
 }
+
+/** Which hardware runs the physics step (GET /api/v1/system/compute). Descriptive only. */
+export type ComputeInfo = {
+  requested_backend: "auto" | "cpu" | "vulkan";
+  active_backend: "cpu" | "vulkan";
+  selection_reason?: string;
+  fallback_reason?: string | null;
+  health?: { cpu?: string; vulkan?: string };
+  device?: { name?: string; driver?: string; type?: string; moltenvk?: boolean; software?: boolean } | null;
+  step?: { backend?: string; total_ms?: number; cpu_ms?: number; gpu_ms?: number };
+};

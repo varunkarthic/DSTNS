@@ -176,6 +176,9 @@ export function AboutCard({
         <div><dt>Engine version</dt><dd>{system?.version || "Unavailable"}</dd></div>
         <div><dt>Compiler</dt><dd>{typeof system?.build?.compiler === "string" ? system.build.compiler : "Unavailable"}</dd></div>
         <div><dt>C++ standard</dt><dd>{typeof system?.build?.cpp_standard === "number" ? system.build.cpp_standard : "Unavailable"}</dd></div>
+        <div><dt>Compute</dt><dd>{system?.compute ? (system.compute.active_backend === "vulkan"
+          ? `Vulkan · ${system.compute.device?.name ?? "GPU"}${system.compute.device?.moltenvk ? " (MoltenVK)" : ""}`
+          : `CPU${system.compute.device?.name ? ` · ${system.compute.device.name} available` : ""}`) : "Unavailable"}</dd></div>
         <div><dt>SUMO adapter</dt><dd>{system?.sumo?.available ? system.sumo.version || "Available" : system ? "Not installed" : "Unavailable"}</dd></div>
         <div><dt>API version</dt><dd>{status?.api_version || "Unavailable"}</dd></div>
         <div><dt>Map source</dt><dd>{topology?.source || "Unavailable"}</dd></div>

@@ -11,7 +11,9 @@ import type {
   Congestion,
   Backpressure,
   WorldStatus,
+  ComputeInfo,
 } from "./types";
+
 const base =
   (import.meta.env.VITE_DSTNS_API_URL as string | undefined)?.replace(
     /\/$/,
@@ -58,7 +60,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 export type PlaybackGuard = { expected_run_id?: string; expected_playback_revision?: number; require_asb_normal?: boolean };
 export const api = {
-  systemInfo: () => request<{version?: string; build?: {compiler?: string; cpp_standard?: number}; sumo?: {available?: boolean; version?: string}}>("/api/v1/system/info"),
+  systemInfo: () => request<{version?: string; build?: {compiler?: string; cpp_standard?: number}; sumo?: {available?: boolean; version?: string};
+    compute?: Pick<ComputeInfo, "active_backend" | "requested_backend" | "device" | "fallback_reason">}>("/api/v1/system/info"),
+  compute: () => request<{ data: ComputeInfo }>("/api/v1/system/compute"),
   status: () => request<Envelope<Status>>("/api/v1/playback/status"),
   topology: () => request<Envelope<Topology>>("/api/v1/view/topology"),
   snapshot: () => request<Envelope<Snapshot>>("/api/v1/view/snapshot"),

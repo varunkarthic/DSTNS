@@ -17,7 +17,7 @@ import { useTimeFormat } from "./preferences";
 import { networkFigures, weatherSummary } from "./telemetryModel";
 import type { WeatherSummary } from "./telemetryModel";
 import type { RuntimeStatus } from "./telemetryRecorder";
-import type { Backpressure, Congestion, EventPage, News, Snapshot, Status, Topology } from "./types";
+import type { Backpressure, ComputeInfo, Congestion, EventPage, News, Snapshot, Status, Topology } from "./types";
 
 /**
  * Live telemetry.
@@ -232,10 +232,35 @@ function Overview({ snapshot, topology, congestion }: Pick<Props, "snapshot" | "
   );
 }
 
+// Which hardware runs the physics. Read only while this view is open, every
+// few seconds; it is information, and nothing in the run depends on it.
+function useCompute(): ComputeInfo | null {
+  const [compute, setCompute] = useState<ComputeInfo | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => void api.compute().then((r) => { if (!cancelled) setCompute(r.data); }).catch(() => {});
+    load();
+    const timer = setInterval(load, 5000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
+  return compute;
+}
+
+export function computeSummary(c: ComputeInfo | null) {
+  if (!c) return { tag: "Unknown", meta: "Not reporting", timing: undefined as string | undefined };
+  const vulkan = c.active_backend === "vulkan";
+  const device = c.device?.name ? `${c.device.name}${c.device.moltenvk ? " via Metal" : ""}` : undefined;
+  const meta = vulkan ? `${device ?? "GPU"} · Vulkan` : `CPU reference${device ? ` · ${device} available` : ""}`;
+  const step = c.step;
+  const timing = step?.total_ms ? `${step.total_ms.toFixed(2)} ms/step${vulkan && step.gpu_ms ? ` · GPU ${step.gpu_ms.toFixed(2)}` : ""}` : undefined;
+  return { tag: vulkan ? "Vulkan" : "CPU", meta, timing };
+}
+
 function StackView({ status, snapshot, topology, asb, virtualTime }: Pick<Props, "status" | "snapshot" | "topology" | "asb" | "virtualTime">) {
   const time = useTimeFormat();
   const f = useMemo(() => networkFigures(snapshot, topology), [snapshot, topology]);
   const weather = useMemo(() => weatherSummary(snapshot?.active_weather), [snapshot]);
+  const compute = computeSummary(useCompute());
   return (
     <>
       <StreamRow
@@ -275,6 +300,15 @@ function StackView({ status, snapshot, topology, asb, virtualTime }: Pick<Props,
         meta={asb ? `${(asb.score * 100).toFixed(0)}% pressure · ${(asb.throughput?.snapshots_per_s ?? 0).toFixed(1)} snapshots/s` : "Not reporting"}
         metaRight={asb ? (asb.rate_capped ? `${asb.applied_tick_rate}× of ${asb.requested_tick_rate}×` : `${asb.applied_tick_rate}×`) : undefined}
         meter={asb ? asb.score : undefined}
+      />
+      <StreamRow
+        icon="system"
+        tone="cyan"
+        title="Compute"
+        tag={compute.tag}
+        tagTone={compute.tag === "Vulkan" ? "mint" : "grey"}
+        meta={compute.meta}
+        metaRight={compute.timing}
       />
       <StreamRow
         icon="signal"
