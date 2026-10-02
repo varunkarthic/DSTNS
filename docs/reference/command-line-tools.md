@@ -21,6 +21,9 @@ All binaries are written to `build/` by `cmake --build build -j`. See
 ```text
 dstns_server [--host ADDR] [--port PORT] [--logs DIR] [--maps DIR]
              [--map-cache keep|prune|clear] [--map-cache-keep N]
+             [--compute auto|cpu|vulkan] [--gpu-device auto|INDEX|UUID|NAME]
+             [--allow-software-vulkan] [--require-vulkan] [--compute-verify]
+             [--vulkan-validation] [--compute-cache DIR] [--gpu-diagnostics]
              [--version]
 ```
 
@@ -32,8 +35,21 @@ dstns_server [--host ADDR] [--port PORT] [--logs DIR] [--maps DIR]
 | `--maps DIR` | `data/maps` | Directory holding cached city extracts |
 | `--map-cache POLICY` | `prune` | What the start-up sweep does with cached extracts: `keep` leaves all, `prune` removes all but the newest N, `clear` removes all |
 | `--map-cache-keep N` | `1` | Extracts `prune` keeps. The container sets 3 |
+| `--compute BACKEND` | `auto` | Where the physics runs: `auto`, `cpu` or `vulkan`; see [GPU acceleration](../guide/gpu-acceleration.md) |
+| `--gpu-device SPEC` | `auto` | The GPU, by enumeration index, UUID or part of its name |
+| `--allow-software-vulkan` | off | Allow CPU implementations of Vulkan such as llvmpipe |
+| `--require-vulkan` | off | With `--compute vulkan`, exit at start-up if no GPU can run the step |
+| `--compute-verify` | off | Recompute every GPU step on the CPU and compare (diagnosis; slow) |
+| `--vulkan-validation` | off | Enable the Khronos validation layers, when installed |
+| `--compute-cache DIR` | `data/cache/vulkan` | Pipeline cache directory; an empty value disables it |
+| `--gpu-diagnostics` | | Test every Vulkan device (bring-up, pipelines, a dispatch and a checked readback), print the report as JSON and exit: 0 if a device is usable, 3 if the simulation would run on the CPU |
 | `--version` | | Print the version and licence notice, then exit |
 | `--help` | | Print the synopsis, then exit |
+
+Compute flags override the `DSTNS_COMPUTE_*`, `DSTNS_GPU_*` and `DSTNS_VULKAN_*`
+[environment variables](environment-variables.md#compute), which override the
+built-in defaults. At start-up the server brings up the selected GPU, so that
+`/api/v1/system/info` can report it from the first request.
 
 An unknown argument stops the server with a message and a non-zero exit code.
 
@@ -152,6 +168,20 @@ numbers mean see [Performance](../deployment/performance.md).
 ```bash
 ./build/dstns_benchmark 40
 ```
+
+```text
+dstns_benchmark compute [--sizes N,N,...] [--device auto|INDEX|NAME]
+                        [--replay-steps N] [--day] [--json FILE]
+```
+
+Times the physics step on each compute backend (one CPU thread, all of them,
+and Vulkan) on synthetic grids of the given junction counts (default 1,000 to
+1,000,000): install, one step, 100 steps, a seek replay, the observer's view,
+full readback, per-step transfer volumes, GPU pass times, and accelerator
+bring-up with a cold and a warm pipeline cache. `--day` adds a full simulated
+day through the engine on a 55 × 55 compiled world. It reports the size from
+which Vulkan is at least 10% faster; see
+[Performance](../deployment/performance.md#compute-backends).
 
 ## scripts/fetch_osm.py
 

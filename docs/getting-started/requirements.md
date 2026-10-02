@@ -49,6 +49,8 @@ natively on Intel and Apple silicon machines and on Arm servers.
 | Python 3 | 3.10 | The launcher, the map downloader and the test suites |
 | git | Any | Cloning; CMake also fetches two header-only libraries |
 | Eclipse SUMO | 1.15, optional | The microscopic cross-check |
+| A Vulkan 1.2 driver and loader | Optional | [GPU acceleration](../guide/gpu-acceleration.md); on macOS, MoltenVK. Without one the CPU backend runs, with identical results |
+| glslang | Optional | Only to change the compute shaders |
 
 Installation commands for each platform are in [Installation](installation.md#installing-the-prerequisites).
 
@@ -66,6 +68,10 @@ district. A seed-selected district has about 3,000 junctions by default
 
 Most of the memory holds checkpoints: the full dynamic state of every node and road,
 stored every 15 virtual minutes so that seeking backwards is fast and exact.
+
+No GPU is needed. District-sized worlds run faster on the CPU; a GPU helps from
+about 50,000 junctions, and DSTNS uses one automatically where it is measured to be
+faster. See [GPU acceleration](../guide/gpu-acceleration.md).
 
 The measured figures are from one Apple silicon laptop; measure your own with the
 tools in [Performance](../deployment/performance.md). The observer runs in the

@@ -18,7 +18,8 @@ flowchart LR
         API["ApiServer<br/>routes, validation, CSRF guard"]
         ENG["SimulationEngine"]
         COMP["ScenarioCompiler"]
-        GS["GraphStore<br/>static and dynamic"]
+        GS["GraphStore<br/>topology, state view"]
+        CD["ComputeDispatcher<br/>physics state, backends"]
         EV["EventRuntime<br/>signals, demand"]
         ASB["AdaptiveBackpressure"]
         SB["SumoBridge"]
@@ -26,6 +27,8 @@ flowchart LR
         API --> ENG
         ENG --> COMP
         ENG --> GS
+        ENG --> CD
+        GS -. "view" .-> CD
         ENG --> EV
         ENG --> ASB
         ENG --> SB
@@ -36,6 +39,8 @@ flowchart LR
     OBS -- "playback, world,<br/>backpressure" --> API
     COMP --> OSM["OSM loader and<br/>map downloader"]
     SB --> SUMO["netconvert, sumo"]
+    CD --> CPUB["CPU backend"]
+    CD --> VKB["Vulkan backend"] --> GPUD["GPU: native Vulkan,<br/>or MoltenVK → Metal"]
     CORE --> LOGS[("logs/system.log<br/>logs/runtime.db")]
 ```
 
@@ -43,6 +48,10 @@ The core is the single authority. The CLI decides *what* runs: seed, map,
 day type, duration, speed. The observer decides only *how it is watched*,
 apart from a small set of playback controls and world regeneration. Neither
 holds simulation state of its own; both read what the core publishes.
+
+The physics step runs on a compute backend chosen by the `ComputeDispatcher`:
+the CPU, or a GPU through Vulkan. Both produce identical state, so the choice
+affects speed only. See [Compute architecture](compute.md).
 
 ## Source layout
 
@@ -56,7 +65,10 @@ holds simulation state of its own; both read what the core publishes.
 | `src/osm.cpp` | `OsmRoadLoader`: OSM XML to a connected, canonically numbered road graph and its places |
 | `src/osm_fetch.cpp` | On-demand map download through `scripts/fetch_osm.py`, progress, cache sweep |
 | `src/geo.cpp` | The 181-city catalogue and seed-to-location resolution |
-| `src/graph.cpp` | `GraphStore` (static graph plus per-tick dynamic arrays) and `RoutePlanner` (A*) |
+| `src/graph.cpp` | `GraphStore` (static graph plus a view of the dynamic state) and `RoutePlanner` (A*) |
+| `include/dstns/compute/`, `src/compute/` | `ComputeDispatcher`, the CPU backend, fixed-point state and quantisation, compute options, synthetic benchmark worlds, structured-grid fields |
+| `src/vulkan/` | The Vulkan backend: loader, device selection, memory, pipelines, execution, `Gpu`, the physics backend and field solver. Nothing else includes Vulkan headers |
+| `shaders/` | The compute shaders; `shaders/include/dstns_physics.h`, the physics step shared by the CPU and the shaders; `shaders/spirv/`, committed SPIR-V |
 | `src/events.cpp` | `EventRuntime`: signal controller heap, demand schedule, couplings, event history |
 | `src/demand.cpp` | Place taxonomy, diurnal demand curves, demand couplings, bus-stop thinning |
 | `src/asb.cpp` | Adaptive Simulation Backpressure |
@@ -129,10 +141,12 @@ generation](osm-map-generation.md) and [graph model](graph-model.md).
 
 ### Static and dynamic state
 
-`GraphStore` keeps the compiled `Scenario` immutable and holds two dynamic
-arrays alongside it, one `NodeDynamic` per node and one `EdgeDynamic` per
-directed edge. Each physics step rewrites the dynamic arrays and then
-`commit()` bumps `state_revision`. Topology never changes during a run, so the
+`GraphStore` keeps the compiled `Scenario` immutable. The dynamic state, the
+rain and flood of every node and the environment and traffic of every directed
+edge, is owned by the `ComputeDispatcher` as fixed-point words, on the CPU or
+on a GPU. The graph keeps a double-precision view of it, one `NodeDynamic` per
+node and one `EdgeDynamic` per edge, refreshed the first time it is read after
+a step. Each step ends with `commit()`, which bumps `state_revision`. Topology never changes during a run, so the
 observer fetches it once per `run_id` and then polls only snapshots.
 
 ### The virtual clock
@@ -269,7 +283,9 @@ fetches `/view/topology` only when `run_id` changes. `useBackpressure` reports
 the observer's lag and frame time to `/system/backpressure`, and the core
 answers with what the interface may do: slow down, lock speed, disable motion,
 or suspend. Everything else (the map canvas, the command rail, telemetry,
-notifications, Auto Focus, the PDF report) derives from those polls. See
+notifications, Auto Focus, the PDF report) derives from those polls. The map is
+drawn on a Canvas, independently of the server's compute backend; the
+telemetry deck shows which backend is running, as information only. See
 [Observer interface](../guide/observer-interface.md) and
 [ASB](backpressure.md).
 
@@ -305,7 +321,9 @@ results:
 - the observer and anything it displays;
 - ASB, which governs pacing only;
 - SUMO, which is a separate batch adapter and never writes back into the
-  aggregate model.
+  aggregate model;
+- the compute backend and the GPU, which compute bit-identical state and enter
+  no hash.
 
 Operator controls (overrides, toggles, surges, manual rain) are part of a run's
 history and change its results from the moment they are applied. See
@@ -314,6 +332,7 @@ history and change its results from the moment they are applied. See
 ## Related documents
 
 - [Simulation engine](simulation-engine.md): the physics step, checkpoints, controls and undo
+- [Compute architecture](compute.md): the CPU and Vulkan backends
 - [API reference](../api/reference.md) and [errors](../api/errors.md)
 - [Security](../deployment/security.md)
 - [Configuration](../guide/configuration.md)

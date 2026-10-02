@@ -3,8 +3,9 @@
 | What | Version | Where reported |
 |---|---|---|
 | The API contract | `1.0`, under the `/api/v1` prefix | `api_version` in responses |
-| The engine | `2.1.0` | `version` in `/health` and `/system/info` |
-| The observer | `2.3.0` | About |
+| The engine | `2.2.0` | `version` in `/health` and `/system/info` |
+| The observer | `2.4.0` | About |
+| The compute shader bundle | SHA-256 of the SPIR-V | `compute.shader_bundle` in `/system/info` |
 | Map selection | `urban-crfg-v3` | `map_selection_version` |
 | Algorithms | `DSTNS/1` | `/view/manifest` |
 

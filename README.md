@@ -63,6 +63,7 @@ map bytes and compatible build; see [Reproducible experiments](#reproducible-exp
 | **Deterministic simulation** | SHA-256 sub-seeds per subsystem, counter-based random numbers, fixed one-second physics, checkpoint replay. Matching inputs and compatible builds produce matching scenario and runtime state. |
 | **Integrated traffic and environmental models** | Signals snapped to real junctions and coordinated in green waves; place-driven weekday and weekend demand; storms with Wendland C² rain fields; flooding that closes roads; at least four incidents a day. |
 | **Checkpoint replay** | Pause, step, seek backwards and forwards through the day; undo and redo operator controls. |
+| **GPU acceleration** | The physics step runs on the CPU or, through Vulkan, on NVIDIA, AMD, Intel and Apple GPUs (via MoltenVK), with **bit-identical results** on every backend. It is chosen automatically where it is measured faster, and falls back to the CPU without losing a step. [Read more](https://dstns.readthedocs.io/guide/gpu-acceleration/). |
 | **Browser observer** | Live map, telemetry, notifications, Auto Focus, a guided tutorial and a PDF report, kept in step by adaptive backpressure. |
 | **HTTP API** | Every view and control over JSON, a self-describing route index, and an [OpenAPI 3.1 description](https://dstns.readthedocs.io/api/openapi/). |
 | **Container deployment** | A multi-architecture image (about 234 MB) that starts a simulation with one command; optional TLS gateway and SUMO. |
@@ -119,6 +120,7 @@ flowchart LR
     Seed --> Sched["Signals · demand ·<br/>weather · incidents"]
     Graph --> Engine["SimulationEngine<br/>1-second physics"]
     Sched --> Engine
+    Engine --> Compute["Compute backend<br/>CPU or Vulkan GPU"]
     Engine --> API["HTTP API"]
     API --> Observer["Observer<br/>(browser)"]
     API --> You["Your scripts"]
@@ -127,7 +129,7 @@ flowchart LR
 
 | Part | What it is |
 |---|---|
-| **Core** (`dstns_server`) | C++20. Compiles a scenario from a seed, runs the virtual day, serves the API and the observer on one port. |
+| **Core** (`dstns_server`) | C++20. Compiles a scenario from a seed, runs the virtual day, serves the API and the observer on one port. Runs the physics on the CPU, or on a GPU through Vulkan, with identical results. |
 | **Operator CLI** (`./launcher`) | Python 3, with a Textual terminal interface and compatibility mode. Builds what changed, starts and supervises the server, starts runs, saved seeds, logs, tests. |
 | **Observer** (`ui-engine/`) | React 19. Watches a run in the browser: map, telemetry, playback, reports. |
 
@@ -212,6 +214,10 @@ docker compose down --volumes                                     # stop and del
 | Node.js / npm | 20+ / 9+ |
 | Python | 3.10+ |
 | Eclipse SUMO | optional |
+| A Vulkan driver (MoltenVK on macOS) | optional, for GPU acceleration |
+
+`./launcher bootstrap` installs what is missing with your package manager, after
+showing you the plan.
 
 <details>
 <summary><b>Installing them</b></summary>
@@ -419,7 +425,9 @@ push. Details: [Testing](https://dstns.readthedocs.io/development/testing/).
 
 ```text
 apps/dstns_server/    server entry point
-include/dstns/, src/  the C++ core: engine, API, scenario, OSM, events, backpressure
+include/dstns/, src/  the C++ core: engine, API, scenario, OSM, events, backpressure,
+                      compute dispatcher (src/compute/) and Vulkan backend (src/vulkan/)
+shaders/              compute shaders; the physics step shared by CPU and GPU; committed SPIR-V
 ui-engine/            the observer (React, Vite, Vitest)
 dstns_launcher/       the Python launcher, terminal interface and shared service core
 tests/                native, HTTP and CLI suites, fixtures

@@ -18,6 +18,9 @@ cmake --build build -j
 | `CMAKE_BUILD_TYPE` | none | Use `Release` for running, `Debug` or `RelWithDebInfo` for debugging |
 | `DSTNS_BUILD_TESTS` | `ON` | Build the test executables and register them with CTest |
 | `DSTNS_ENABLE_SANITIZERS` | `OFF` | AddressSanitizer and UndefinedBehaviorSanitizer on the library and everything linked to it |
+| `DSTNS_ENABLE_VULKAN` | `ON` | Build the Vulkan compute backend. It loads Vulkan at run time, so the binary still runs, on the CPU, where Vulkan is missing |
+| `DSTNS_VULKAN_REQUIRED` | `OFF` | Fail configuration if the Vulkan backend cannot be built, instead of building CPU-only |
+| `DSTNS_BUILD_SHADERS` | `ON` | Compile the compute shaders from GLSL when `glslangValidator` or `glslc` is installed; otherwise use the committed SPIR-V in `shaders/spirv/` |
 
 ### Dependencies
 
@@ -29,6 +32,18 @@ cmake --build build -j
 | zlib | Required by cpp-httplib |
 | Threads | `find_package(Threads)` |
 | CoreFoundation, CFNetwork | macOS only, for cpp-httplib |
+| Vulkan-Headers 1.4.357 | Downloaded by `FetchContent`, hash-checked; Apache-2.0 or MIT |
+| volk 1.4.357 | Downloaded by `FetchContent`, hash-checked; MIT. Loads Vulkan at run time |
+| glslang | Optional, build time only: compiles the shaders. Without it the committed SPIR-V is used |
+
+No Vulkan SDK is needed. If the committed SPIR-V is older than the shaders'
+sources and no compiler is installed, the Vulkan backend is left out with a
+warning (or configuration fails, with `DSTNS_VULKAN_REQUIRED=ON`). After
+changing a shader, refresh the committed copy:
+
+```bash
+cmake --build build --target dstns_refresh_spirv
+```
 
 ### Targets
 
@@ -39,7 +54,9 @@ cmake --build build -j
 | `dstns_scenario_export` | tool | Compile a scenario and write SUMO files |
 | `dstns_replay_verify` | tool | Compile and run a seed twice; compare every hash and snapshot |
 | `dstns_road_index` | tool | Inspect a map's road graph |
-| `dstns_benchmark` | tool | Compilation, routing and snapshot timings |
+| `dstns_benchmark` | tool | Compilation, routing and snapshot timings; `compute` mode times the compute backends |
+| `dstns_shaders` | generated | Compiles and embeds the compute shaders |
+| `dstns_refresh_spirv` | utility | Copies freshly compiled SPIR-V into `shaders/spirv/` |
 | `dstns_tests`, `dstns_*_tests` | tests | See [Testing](testing.md) |
 
 Build one target: `cmake --build build --target dstns_server`.
@@ -47,7 +64,9 @@ Build one target: `cmake --build build --target dstns_server`.
 ### Compiler flags
 
 The library builds with `-Wall -Wextra -Wpedantic -Wshadow`; tests add
-`-Werror`. Keep the build warning-free.
+`-Werror`. Keep the build warning-free. The Vulkan sources also disable
+`-Wmissing-field-initializers`, because Vulkan structures are initialised as
+`{sType}` with the remaining members value-initialised.
 
 ### Sanitizers
 

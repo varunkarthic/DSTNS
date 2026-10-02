@@ -15,6 +15,7 @@ observer, and configuring both.
 | [Reports and exports](reports.md) | The PDF report, data from the API, log files and the SUMO bundle |
 | **Configuring** | |
 | [Configuration](configuration.md) | `config/defaults.json`, start request fields, CLI and server flags, environment variables |
+| [GPU acceleration](gpu-acceleration.md) | Running the physics on a GPU: turning it on and off, platforms, diagnostics, preparing a machine |
 | [Observer configuration](observer-configuration.md) | `config/ui-config.json`: the interface's starting state |
 | **How-to** | |
 | [Recipes](recipes.md) | Short answers to common tasks |

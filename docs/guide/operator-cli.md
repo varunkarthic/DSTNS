@@ -146,6 +146,15 @@ count and the latest check. They also run on the environment screen when
 | Observer bundle | No | Not built, or older than its sources (rebuilt on start) |
 | API port | No | Informational: in use by a running server, or free |
 | SUMO | No | Installed but does not start |
+| Vulkan | No, unless `compute.backend` is `vulkan` with `require_vulkan` | No GPU passed the self-test. In `auto` and `cpu` modes this is informational: the simulation runs on the CPU |
+| Compute backend | No | Informational: what the server will do with GPUs |
+| Shader compiler | No | Informational: needed only to change the compute shaders |
+
+The last three appear under **GPU acceleration**. The Vulkan check is a real test,
+run by the server binary: every device is brought up, its pipelines compiled, a
+kernel dispatched and the answer checked. Its result is cached in
+`data/cache/compute-probe.json` against the binary, the compute settings and the
+installed drivers, so after the first launch it takes a millisecond.
 
 Each state is shown with a symbol **and** a word: `○ Pending`, `◌ Checking`, `✓ OK`,
 `! Warning`, `✗ Failed`, `- Skipped`. If every required check passes, the launcher
@@ -321,6 +330,8 @@ It works over SSH and in IDE terminals.
 | `config` | Opens the configuration editor; without a terminal, prints the current values |
 | `test [all\|unit\|api\|replay\|benchmark\|sumo\|ui]` | Run test stages and print a summary; the exit status is non-zero if any fails |
 | `sumo` | Check the SUMO toolchain on a synthetic grid, outside the server |
+| `diagnostics [gpu] [--refresh]` | Run the environment checks and print them; `gpu` tests every Vulkan device for real and lists the results (exit 3 if the simulation would run on the CPU) |
+| `bootstrap [--check] [--yes] [--profile minimal\|standard\|full]` | Install what DSTNS needs with the system package manager, after showing the plan; `--check` only reports. Never installs GPU drivers. See [GPU acceleration](gpu-acceleration.md#preparing-a-machine) |
 | `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, after confirmation |
 | `help`, `version`, `license` | Usage, version and licence notice, the licence text |
 | `--mode=server` | Run `dstns_server` in the foreground with the configured host and port |
@@ -341,6 +352,8 @@ For `start` and `seeds save`:
 | `--max-nodes N` | Integer 2 to 50000 | Graph size cap |
 | `--osm-file PATH` | Existing file | Pin a map instead of letting the seed choose |
 | `--open`, `--no-open` | | Open the observer in a browser. Default: when a desktop is present |
+| `--compute auto\|cpu\|vulkan` | | Where the physics runs, for a server this launcher starts; overrides `compute.backend`. Results are identical on every backend |
+| `--gpu-device SPEC` | | The GPU: index, UUID or part of its name |
 
 ### Interface options
 
@@ -353,7 +366,7 @@ For `start` and `seeds save`:
 | `--no-animation` | Disable terminal animation while keeping activity labels |
 | `--debug` | Verbose launcher log, tracebacks, and diagnostics on standard error for scripted commands |
 | `--verbose`, `-v` | Show command output while builds and tests run |
-| `--yes`, `-y` | Do not ask for confirmation (`reset`) |
+| `--yes`, `-y` | Do not ask for confirmation (`reset`, `bootstrap`) |
 
 ## What happens when a run starts
 
@@ -400,6 +413,7 @@ server shutdown; it is separate from pausing simulation time.
 |---|---|
 | 0 | Success |
 | 1 | A launcher, configuration, environment or simulation failure, or a failed test stage |
+| 3 | `diagnostics gpu`: no usable GPU; the simulation would run on the CPU |
 | 130 | Interrupted with Ctrl+C |
 | 143 | Terminated with `SIGTERM` |
 
@@ -412,8 +426,9 @@ traceback of any unexpected error. It never records the operator credential or
 environment values. Run with `--debug` for more detail, and for tracebacks on screen.
 
 **Diagnostics** in the dashboard re-runs every check, optionally with the core, HTTP,
-loading and observer test suites, and shows the running server's version and SUMO
-status, the terminal's size and capabilities, and the paths in use.
+loading and observer test suites, and shows the running server's version, compute
+backend and SUMO status, the terminal's size and capabilities, and the paths in use.
+**GPU diagnostics** tests every Vulkan device and lists each one's result.
 
 ## Failure messages
 

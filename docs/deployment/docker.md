@@ -134,6 +134,7 @@ Set these in `docker-compose.yml`, a `.env` file, or with `-e` on `docker run`.
 | `DSTNS_ALLOWED_ORIGINS` | empty | Extra origins allowed to change state; see [Security](security.md#origin-check-cross-site-request-forgery) |
 | `DSTNS_OVERPASS_ENDPOINTS` | public mirrors | Comma-separated Overpass endpoints |
 | `DSTNS_OPERATOR_TOKEN` | generated | Fix the operator credential instead of generating one |
+| `DSTNS_COMPUTE_BACKEND` | `auto` | `auto`, `cpu` or `vulkan`. Without a GPU passed in, `auto` runs the CPU backend; see [GPU in a container](#gpu-in-a-container) |
 
 ### Compose only
 
@@ -143,6 +144,7 @@ Set these in `docker-compose.yml`, a `.env` file, or with `-e` on `docker run`.
 | `DSTNS_HOST_PORT` | `8090` | Host port for the observer and API |
 | `DSTNS_TLS_PORT` | `8443` | Host port for the gateway |
 | `DSTNS_WITH_SUMO` | `0` | Build argument `WITH_SUMO` |
+| `DSTNS_WITH_VULKAN` | `0` | Build argument `WITH_VULKAN`: the Vulkan loader and Mesa's drivers |
 
 ## Volumes and data
 
@@ -274,6 +276,31 @@ curl -s -X POST localhost:8090/api/v1/playback/seek -d '{"target_time":"08:00:00
       `DSTNS_OSM_FILE`.
 - [ ] Remember that anyone who can reach the port can control the run; read
       [Security](security.md).
+
+## GPU in a container
+
+The image always contains the Vulkan backend, but a container sees a GPU only if the
+host passes one in, so by default the physics runs on the CPU, which is also the
+faster choice for district-sized worlds. Results are identical either way.
+
+For a GPU on a Linux host:
+
+```bash
+docker build -t dstns --build-arg WITH_VULKAN=1 .
+docker run -d -p 127.0.0.1:8090:8090 --device /dev/dri dstns              # AMD, Intel (Mesa)
+docker run -d -p 127.0.0.1:8090:8090 --gpus all \
+  -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility dstns            # NVIDIA, with the Container Toolkit
+```
+
+Check what the container found:
+
+```bash
+docker exec <container> /app/build/dstns_server --gpu-diagnostics
+curl -s localhost:8090/api/v1/system/compute
+```
+
+Docker Desktop on macOS cannot pass the Apple GPU into a Linux container; run DSTNS
+natively on a Mac to use it.
 
 ## Resource use
 

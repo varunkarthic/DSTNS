@@ -138,6 +138,31 @@ operator edits requires repeating the same edits at the same virtual times. The
 observer exposes none of these world-changing controls; they are available only
 through the [Control API](api/control-api.md).
 
+### GPU acceleration helps only large worlds
+
+**What.** Every simulated second returns to the CPU, because events and demand
+couplings read the step's results. A GPU step therefore pays a fixed cost of about
+half a millisecond, and the 64-bit integer arithmetic that makes it bit-identical is
+emulated on GPUs.
+
+**Effect.** District-sized worlds run faster on the CPU, and `auto` keeps them there.
+On an Apple M4 the GPU wins from about 50,000 junctions, by 1.2 to 1.5 times; see
+[Performance](deployment/performance.md#compute-backends).
+
+**Workaround.** None needed: the choice is automatic and does not change results.
+Batched grid workloads, which stay on the GPU between iterations, gain far more.
+
+### Cross-platform results depend on the C library's sin and exp
+
+**What.** The physics step is integer arithmetic, identical everywhere, but the demand
+schedule and the storm and surge curves are computed in floating point on the CPU.
+C libraries may round `sin` and `exp` differently in the last bit.
+
+**Effect.** Runs are identical on one platform and toolchain. Across platforms they
+are expected to be identical (macOS and Linux agreed on every node and edge across a
+full day), but a last-bit difference that straddles a quantisation boundary could
+diverge them. See [Reproducibility](concepts/reproducibility.md#floating-point-caveat).
+
 ### SUMO endpoints write where they are told
 
 **What.** `POST /api/v1/export/sumo` and `POST /api/v1/system/sumo-simulate` write to

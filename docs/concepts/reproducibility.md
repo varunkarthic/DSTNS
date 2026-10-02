@@ -44,6 +44,7 @@ flowchart TD
 | Adaptive backpressure | It governs pacing only |
 | SUMO | A separate batch export; never writes back |
 | Wall-clock time, thread scheduling, machine | No random draw depends on time, addresses or iteration order |
+| The compute backend: CPU or Vulkan, which GPU, which driver, CPU thread count | The physics step is integer fixed point, defined once for every backend, so every backend computes the same bits. No GPU property enters any hash. See [Compute architecture](compute.md) |
 
 !!! note "Playback duration"
     `playback_duration_seconds` is part of the configuration because it fixes
@@ -73,6 +74,10 @@ flowchart TD
   thinning and the event heap break ties by ID or sequence number.
 - **Integer route costs.** A* uses integer milliseconds, so floating-point
   summation order cannot change a route.
+- **Integer physics.** The per-node and per-edge step is fixed-point integer
+  arithmetic, written once in `shaders/include/dstns_physics.h` and compiled
+  both for the CPU and for GPU shaders. Its reductions are integer sums, so
+  neither thread count nor GPU scheduling can change them.
 - **Fixed steps and checkpoints.** One-second physics, and checkpoints that
   capture the complete dynamic state including the event runtime.
 
@@ -197,11 +202,27 @@ curl -s localhost:8090/api/v1/view/manifest | python3 -c \
 | `dstns_unit_tests` | Sub-seed avalanche (a one-bit seed change flips at least 40 output bits) and domain separation |
 | `dstns_modernization` | Clock-speed invariance: results do not depend on the tick rate |
 | `dstns_map_sourcing` | A seed always resolves to the same city, anchor and cache file |
+| `dstns_compute_equivalence` | The CPU and Vulkan backends produce the same state, bit for bit, on every device present (MoltenVK, Mesa and llvmpipe in development; llvmpipe in CI), including after checkpoint replay, backend switches and injected device failures |
+| `dstns_engine_compute` | The whole simulator on Vulkan matches the CPU: snapshots, news and events |
 
 ## Floating-point caveat
 
-Results are reproducible across runs and machines built with the same
-compiler and flags. Different compilers or architectures can, in principle,
-round transcendental functions (`sin`, `exp`) differently in the last bit. The
-tests assert equality on the platforms CI runs; if you compare results across
-very different toolchains, compare hashes of the compiled scenario first.
+The physics state, every node's and edge's rain, flood, demand, speed, queue
+and congestion, is integer arithmetic and identical on every compiler,
+architecture and backend.
+
+What remains in floating point runs on the CPU, outside the step: scenario
+compilation, the demand schedule, and the storm and surge curves, which use
+`sin`, `cos`, `exp` and `pow`. Different C libraries can round those in the
+last bit. Engine 2.2.0 was compared at full-day checkpoints between macOS
+(Apple Clang, Apple's libm) and Debian (GCC, glibc): every node and edge was
+identical at 20,000, 50,000 and 86,400 virtual seconds, and the only
+difference anywhere in the snapshots was the last digit of one demand
+multiplier quoted in a news item (`1.35303513139018` and
+`1.3530351313901803`). Values cross into the step only after quantisation (to
+a few parts in 10⁹), so a last-bit difference changes the simulation only if
+it straddles a quantisation boundary, which is rare but not impossible.
+Results are guaranteed identical on one platform and toolchain, and are
+expected, though not guaranteed, to be identical across platforms. If you
+compare results across very different toolchains, compare hashes of the
+compiled scenario first.

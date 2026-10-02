@@ -20,6 +20,34 @@ Read by `dstns_server` and the API it hosts.
 See [Deployment security](../deployment/security.md) for when to use the first
 three.
 
+## Compute
+
+Read by `dstns_server` at start-up; `--compute` and the other compute flags
+override them. The launcher passes the `compute` section of
+`config/defaults.json` to the server through these variables, except any you have
+set yourself. See [GPU acceleration](../guide/gpu-acceleration.md).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DSTNS_COMPUTE_BACKEND` | `auto` | `auto`, `cpu` or `vulkan` (`gpu` is accepted for `vulkan`) |
+| `DSTNS_ALLOW_VULKAN` | `1` | `0` keeps the simulator on the CPU whatever the backend says |
+| `DSTNS_GPU_DEVICE` | `auto` | The GPU: enumeration index, UUID, or part of its name |
+| `DSTNS_REQUIRE_VULKAN` | `0` | With the `vulkan` backend: refuse to start without a working GPU |
+| `DSTNS_ALLOW_SOFTWARE_VULKAN` | `0` | Allow CPU implementations of Vulkan (llvmpipe, SwiftShader) |
+| `DSTNS_COMPUTE_VERIFY` | `0` | Recompute every GPU step on the CPU and compare; diagnosis only |
+| `DSTNS_VULKAN_VALIDATION` | `0` | Enable the Khronos validation layers, when installed |
+| `DSTNS_COMPUTE_MIN_NODES` | `40000` | In `auto` mode, worlds below this many junctions and `DSTNS_COMPUTE_MIN_EDGES` edges stay on the CPU without measuring |
+| `DSTNS_COMPUTE_MIN_EDGES` | `150000` | See above |
+| `DSTNS_COMPUTE_CALIBRATE` | `1` | `0` skips `auto` mode's timing of both backends and uses Vulkan above the thresholds |
+| `DSTNS_COMPUTE_THREADS` | `0` | CPU backend threads; `0` uses one per hardware thread, up to 8 |
+| `DSTNS_GPU_WORKGROUP` | chosen | Compute workgroup size: `64`, `128` or `256` |
+| `DSTNS_VULKAN_CACHE_DIR` | `data/cache/vulkan` | Pipeline cache directory |
+| `DSTNS_VULKAN_LIBRARY` | searched | An explicit Vulkan loader or driver library (an existing file) |
+| `VK_ICD_FILENAMES`, `VK_LAYER_PATH` | loader default | Read by the Khronos loader, not by DSTNS: which drivers and layers it finds |
+
+A malformed value stops the server at start-up with a message, rather than
+being ignored.
+
 ## Operator CLI
 
 Read by `./launcher` and `python3 launcher.py` (the Python launcher), and the

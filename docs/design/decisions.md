@@ -24,6 +24,10 @@ intent; this page records the decisions as implemented.
 | [15](#15-only-the-operator-starts-runs) | Only the operator starts runs | Security |
 | [16](#16-local-by-default) | Local by default | Security |
 | [17](#17-verify-the-machine-before-starting) | Verify the machine before starting | Operations |
+| [18](#18-the-physics-step-is-integer-fixed-point-written-once) | The physics step is integer fixed point, written once | Compute |
+| [19](#19-the-gpu-is-an-optimisation-chosen-by-measurement) | The GPU is an optimisation, chosen by measurement | Compute |
+| [20](#20-recover-from-a-lost-gpu-by-replaying-a-journal) | Recover from a lost GPU by replaying a journal | Compute |
+| [21](#21-vulkan-loaded-at-run-time-nothing-vendor-specific) | Vulkan, loaded at run time; nothing vendor-specific | Compute |
 
 ## 1. The core is the single authority
 
@@ -256,3 +260,68 @@ continues and says what is reduced.
 **Consequences.** "Ready" is a statement about this machine. The check costs seconds
 and catches broken toolchains before a run does. See
 [Installation: start-up checks](../getting-started/installation.md#start-up-checks).
+
+## 18. The physics step is integer fixed point, written once
+
+**Problem.** A GPU should compute the same state as the CPU, or a run's results would
+depend on the hardware that computed them. Floating point cannot promise that: drivers
+fuse, reorder and flush operations differently from one vendor, driver and compiler
+version to the next. And a GPU kernel maintained by hand beside the CPU code drifts.
+
+**Decision.** The per-node and per-edge step is integer fixed point (Q30 fractions, Q16
+speeds and vehicles, Q8 flows, 1/256 m positions). It is written once, in
+`shaders/include/dstns_physics.h`, in the intersection of C++ and GLSL, and compiled
+into both the CPU backend and the shaders. Reductions are integer sums. Anything that
+needs a transcendental function runs on the CPU, once per step.
+
+**Consequences.** Every backend computes the same bits, and the test suites require
+it. The backend enters no hash. Results moved by about 10⁻⁷ from 2.1.0's
+double-precision model, a change of representation, not of model. The CPU path is as
+fast as before. GPUs pay for 64-bit integer arithmetic, which they emulate. See
+[Compute architecture](../concepts/compute.md).
+
+## 19. The GPU is an optimisation, chosen by measurement
+
+**Problem.** A GPU step costs a submission and a wait before it does any work, and
+every simulated second must return to the host for events and demand. For the
+district-sized worlds DSTNS usually runs, the CPU is faster.
+
+**Decision.** `auto` keeps worlds below measured thresholds on the CPU and, above
+them, times both backends on the world itself and keeps the faster. A GPU is used only
+after a self-test dispatch returns the right answer. A missing or failed GPU is never
+an error unless the operator required one.
+
+**Consequences.** Nobody needs to know which backend suits their machine.
+Because both compute the same state, choosing at run time costs nothing in
+reproducibility. See [Performance](../deployment/performance.md#compute-backends).
+
+## 20. Recover from a lost GPU by replaying a journal
+
+**Problem.** When a device is lost, its memory, and the simulation state in it, is
+gone. Restoring the last checkpoint and replaying is not exact: operator controls are
+standing inputs, so a road closed after the checkpoint would apply from the
+checkpoint onward.
+
+**Decision.** Each step computes into a separate candidate buffer, so a failed step
+leaves the committed state intact when the device survives. While a GPU runs, the
+dispatcher keeps the last complete host copy of the state (from every checkpoint,
+download, or at least every 300 steps) and a journal of the exact input words each
+step used since. After a device loss it replays the journal on the CPU.
+
+**Consequences.** Recovery is exact, operator actions included, and invisible to the
+engine and the API. The journal and the periodic copy cost a few percent of the step's
+transfers. The checkpoint replay remains as a last resort.
+
+## 21. Vulkan, loaded at run time; nothing vendor-specific
+
+**Problem.** DSTNS must accelerate on NVIDIA, AMD, Intel and Apple hardware, build
+without a vendor SDK, and run on machines with no GPU.
+
+**Decision.** Vulkan 1.2 compute, loaded at run time through volk (MoltenVK on
+macOS), with pinned headers fetched at build time and SPIR-V compiled at build time
+and committed for machines without a compiler. No CUDA, and no vendor extension is
+required. Device selection is by score and UUID, never by index 0.
+
+**Consequences.** One binary runs everywhere, accelerated where it can be. Vulkan code
+is confined to `src/vulkan/`. The observer's Canvas rendering is untouched; any GPU
+rendering in the browser would be a separate WebGPU project.

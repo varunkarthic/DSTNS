@@ -11,9 +11,10 @@ Release build, Apple silicon laptop (Apple Clang 21), the bundled real district
 
 | Operation | Result |
 |---|---|
-| Physics, whole day | 86,400 virtual seconds in 23.6 s of wall time |
-| Physics rate | **3,656** virtual seconds per wall second, **0.27 ms** per virtual second |
-| Worst-case backward seek (899 s replay) | 0.31 s |
+| Physics, whole day (CPU backend, engine 2.2.0) | 86,400 virtual seconds in 24.8 s of wall time (2.1.0: 23.6 s) |
+| Physics rate | **3,489** virtual seconds per wall second, **0.29 ms** per virtual second |
+| The same day forced onto the GPU (Vulkan, MoltenVK) | 79.1 s, 0.92 ms per virtual second: a world this size belongs on the CPU, which is what `auto` chooses |
+| Worst-case backward seek (899 s replay), late evening | 0.07 s (2.1.0, midday: 0.31 s) |
 | Forward seek of 60 s | 0.018 s |
 | Snapshot request, uncompressed JSON | 66 ms, 5.0 MB |
 | Snapshot request, gzip | 273 KB (18 times smaller) |
@@ -30,7 +31,70 @@ These describe one machine on one day. Measure yours:
 ```bash
 ./build/dstns_perf_tests     # compilation and 2,500 routes; fails above 500 microseconds per route
 ./build/dstns_benchmark      # compilation, 1,000 routes, 100 snapshots
+./build/dstns_benchmark compute [--sizes 1000,50000] [--day] [--json report.json]
+                             # the physics step on each backend, by world size
 ```
+
+## Compute backends
+
+`dstns_benchmark compute` times the physics step on synthetic road grids
+from 1,000 to 1,000,000 junctions, on the CPU backend with one thread and
+with all of them (up to eight), and on Vulkan. Each step is driven like the
+engine's: every signal phase, a tenth of the edges' demand couplings, three
+storms and a surge. Measured on an Apple M4 (10 cores; GPU through MoltenVK
+1.4.2), engine 2.2.0. Step times are medians. Whole-loop times vary by about
+30% between runs on this machine, because the GPU's clock follows its load.
+
+| Junctions | Directed edges | CPU, 1 thread | CPU, 8 threads | Vulkan | GPU time in the step | Vulkan vs faster CPU |
+|---|---|---|---|---|---|---|
+| 1,000 | 3,872 | 0.12 ms | 0.12 ms | 0.57 ms | — | 0.22× |
+| 3,000 | 11,780 | 0.34 ms | 0.34 ms | 0.82 ms | — | 0.41× |
+| 10,000 | 39,600 | 1.16 ms | 0.32 ms | 1.0–2.7 ms | 0.6–0.8 ms | 0.12–0.32× |
+| 50,000 | 199,104 | 8.19 ms | 1.79 ms | 1.49 ms | 0.83 ms | **1.21×** |
+| 100,000 | 398,734 | 13.4 ms | 3.02 ms | 3.11 ms | 1.77 ms | 0.97× |
+| 500,000 | 1,997,170 | 68.5 ms | 24.5 ms | 15.9 ms | 15.3 ms | **1.54×** |
+| 1,000,000 | 3,996,000 | 131 ms | 52.7 ms | 40.0 ms | 27.4 ms | **1.32×** |
+
+| Also measured | Result |
+|---|---|
+| Accelerator bring-up (instance, device, pipelines, self-test) | 491 ms with an empty pipeline cache, 11 ms with a warm one |
+| Per-step transfer, 1,000,000 junctions | 3.0 MiB up (changed inputs only), 46 MiB down (three edge fields) |
+| Full state readback, 1,000,000 junctions | 72 ms |
+| 900-step seek replay, 1,000,000 junctions | 46.3 s on Vulkan, 51.2 s on eight CPU threads, 121 s on one |
+
+What this shows:
+
+- **A fixed cost per step.** A Vulkan step costs about half a millisecond
+  before any work: one submission, one wait, one readback. Every simulated
+  second must return to the host (events and demand couplings read the
+  step's results), so the cost cannot be amortised across steps.
+  District-sized worlds therefore stay on the CPU.
+- **A modest win at scale.** From about 50,000 junctions the GPU is
+  faster, by 1.2 to 1.5 times over eight CPU threads on this machine. A
+  discrete GPU, with more arithmetic and memory bandwidth than an integrated
+  one, would gain more; the same step code runs on it unchanged.
+- **Integer arithmetic has a price.** The step is 64-bit integer fixed point
+  (the reason it is identical on every device), and GPUs emulate 64-bit
+  integer multiplication and division. Two variations were measured and
+  rejected: a float-steered exact division (30% slower on the GPU) and other
+  workgroup sizes (64 and 256: no difference).
+
+Hence `auto`'s thresholds: below 40,000 junctions *and* 150,000 edges the CPU is
+used without measuring; above either, both backends are timed on the world
+itself and the faster by at least 10% is kept.
+
+### Where GPUs pay: batched field kernels
+
+The structured-grid field solver keeps its data on the device and runs many
+iterations in one submission, the shape of the terrain-water and atmospheric
+models DSTNS is built to add. 300 diffusion iterations on a 512 × 512 grid
+(`dstns_field_tests`, same machine):
+
+| Backend | Time |
+|---|---|
+| CPU, one thread | 110 ms |
+| Vulkan, MoltenVK | 20 ms (5.5×) |
+| Vulkan, Mesa KosmicKrisp | 27 ms (4.1×) |
 
 ## Cost model
 
@@ -103,30 +167,33 @@ A checkpoint is taken every 900 virtual seconds, so a full day holds
 n_{\text{cp}} = \frac{86400}{900} = 96
 \]
 
-checkpoints. Each copies the dynamic arrays and the event runtime. The arrays alone
-are
+checkpoints. Each copies the fixed-point physics state and the event runtime. The
+state alone is
 
 \[
-B_{\text{arrays}} = 32\,N + 184\,E \ \text{bytes}
+B_{\text{state}} = 8\,N + 68\,E \ \text{bytes}
 \]
 
-(`NodeDynamic` is 32 bytes and `EdgeDynamic` 184). For the bundled district that is
-0.49 MiB, so the arrays alone would cost \( 96 \times 0.49 \approx 47 \) MiB.
+(two 32-bit words per node and seventeen per edge; before 2.2.0 checkpoints held the
+double-precision `NodeDynamic` and `EdgeDynamic`, 32 and 184 bytes). For the bundled
+district that is 0.18 MiB.
 
-**Measured:** the process grew from 119 MiB at 00:00 to 334 MiB after running to the
-end of the day, a difference of 215 MiB over 95 additional checkpoints, or
-**2.3 MiB per checkpoint**, roughly 4.7 times the raw arrays. The remainder is the
-event runtime's per-place demand state and its bounded history, which are copied with
-each checkpoint.
+**Measured (2.2.0):** the process grew from 84 MiB at 00:00 to 278 MiB after running
+to the end of the day, 194 MiB over 95 additional checkpoints, or **2.0 MiB per
+checkpoint** (2.1.0: 2.3 MiB). Most of it is the event runtime's per-place demand
+state and its bounded history, copied with each checkpoint:
 
 \[
-M_{\text{run}} \;\approx\; M_{\text{base}} \;+\; n_{\text{cp}} \cdot \beta \cdot \big(32N + 184E\big), \qquad \beta \approx 4.7
+M_{\text{run}} \;\approx\; M_{\text{base}} \;+\; n_{\text{cp}} \cdot \big(8N + 68E + R\big)
 \]
 
-where \( M_{\text{base}} \) is the loaded scenario, graph and journal. The 3,000-node
-Dar es Salaam district has arrays of 1.17 MiB, so \( \beta \) predicts about
-\( 96 \times 4.7 \times 1.17 \approx 530 \) MiB of checkpoints on top of the base, in
-line with the roughly 800 MB observed in Docker.
+where \( M_{\text{base}} \) is the loaded scenario, graph and journal, and \( R \),
+about 1.9 MiB for this district, is the event runtime. A Vulkan backend adds, on the
+device, the static tables (\( 16N + 56E \)), the inputs (\( 4N + 28E \)), two copies
+of the state (\( 2 \times (8N + 68E) \)) and a staging copy (\( 8N + 68E \)): about
+\( 44N + 288E \) bytes, roughly 300 MB for a million-edge world. It is checked against
+the device's memory budget before anything is allocated, and freed when the world is
+replaced.
 
 !!! tip "Reducing memory"
     Memory scales with district size, so a smaller `map.district_nodes` is the lever.

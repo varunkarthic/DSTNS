@@ -80,6 +80,23 @@ does not, because its layer toggles change only what is drawn.
 | `api.port` | `8090` | [1, 65535] | CLI | Preferred port; the CLI picks the next free one if it is taken by something else |
 | `ui.port` | `5173` | | informational | The Vite dev server port is set in `ui-engine/vite.config.ts` |
 
+### Compute
+
+Where the physics step runs. Read by the launcher, which passes it to the
+server it starts; see [GPU acceleration](gpu-acceleration.md).
+
+| Key | Default | Range | Meaning |
+|---|---|---|---|
+| `compute.backend` | `auto` | `auto`, `cpu`, `vulkan` | `auto` uses a GPU only where it is measured faster; results are identical on every backend |
+| `compute.allow_vulkan` | `true` | boolean | `false` switches GPU acceleration off |
+| `compute.device` | `auto` | text | A device index, UUID or part of its name |
+| `compute.require_vulkan` | `false` | boolean | With `vulkan`, refuse to start without a working GPU |
+| `compute.allow_software_vulkan` | `false` | boolean | Allow llvmpipe and other CPU implementations of Vulkan |
+| `compute.verification` | `false` | boolean | Recompute every GPU step on the CPU and compare |
+| `compute.validation_layers` | `false` | boolean | Enable the Khronos validation layers |
+| `compute.gpu_thresholds.min_nodes` | `40000` | [0, 10⁸] | In `auto`, worlds below this and the edge threshold stay on the CPU |
+| `compute.gpu_thresholds.min_edges` | `150000` | [0, 10⁸] | See above |
+
 `bus_stops.*`, `traffic.*`, `ui.osm_background` and `logging.*` are
 informational: stop spacing is 300 m minimum, 500 m target and 800 m coverage,
 logs go to `<logs>/system.log` and `<logs>/runtime.db`.
@@ -109,6 +126,9 @@ What `POST /api/v1/playback/start` and `/prepare` accept (the CLI builds this):
 ./launcher start [--seed N | --saved-seed ID] [--save-seed ID [--description TEXT]]
                  [--day-type weekday|weekend] [--duration 60-3600] [--speed 0.01-5]
                  [--max-nodes 2-50000] [--osm-file PATH] [--no-open]
+                 [--compute auto|cpu|vulkan] [--gpu-device SPEC]
+./launcher diagnostics [gpu]
+./launcher bootstrap [--check] [--yes] [--profile minimal|standard|full]
 ./launcher seeds list
 ./launcher test [all|unit|api|replay|benchmark|sumo|ui]
 ./launcher ui [open|dev|build|install]
@@ -122,7 +142,10 @@ See [Operator CLI](operator-cli.md) for what each command does.
 
 ```
 dstns_server [--host ADDR] [--port 1-65535] [--logs DIR] [--maps DIR]
-             [--map-cache keep|prune|clear] [--map-cache-keep N] [--version] [--help]
+             [--map-cache keep|prune|clear] [--map-cache-keep N]
+             [--compute auto|cpu|vulkan] [--gpu-device SPEC] [--require-vulkan]
+             [--allow-software-vulkan] [--compute-verify] [--vulkan-validation]
+             [--compute-cache DIR] [--gpu-diagnostics] [--version] [--help]
 ```
 
 | Flag | Default | Meaning |
@@ -133,6 +156,7 @@ dstns_server [--host ADDR] [--port 1-65535] [--logs DIR] [--maps DIR]
 | `--maps` | `data/maps` | Map cache swept at start-up |
 | `--map-cache` | `prune` | `keep` nothing removed; `prune` keep the newest N extracts; `clear` remove all. Interrupted downloads (`.part`) and stale progress files (`.progress`) are always removed |
 | `--map-cache-keep` | `1` | N for `prune` |
+| `--compute` and the other compute flags | | See [Command-line tools](../reference/command-line-tools.md#dstns_server) |
 
 ## Environment variables
 
@@ -151,6 +175,7 @@ dstns_server [--host ADDR] [--port 1-65535] [--logs DIR] [--maps DIR]
 | `DSTNS_SEED_DB` | `seeds.py` | Saved-seed SQLite database (default `data/seed-store/seeds.sqlite3`) |
 | `VITE_DSTNS_API_URL` | observer build | API base URL when the observer is served elsewhere; that origin then needs `DSTNS_ALLOWED_ORIGINS` |
 | `CHROME_BIN` | browser tests | Chrome executable |
+| `DSTNS_COMPUTE_BACKEND`, `DSTNS_GPU_DEVICE`, and the other compute variables | server | See [Environment variables](../reference/environment-variables.md#compute) |
 
 ## Observer configuration
 

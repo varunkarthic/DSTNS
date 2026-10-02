@@ -32,12 +32,24 @@ configure, so that step needs network access.
 
 ### Installing the prerequisites
 
+The launcher can do this for you. It detects the platform and its package manager,
+shows what is missing and the one command it would run, and installs only when you
+agree. It never installs GPU drivers.
+
+```bash
+./launcher bootstrap --check    # report only
+./launcher bootstrap            # install what is missing, after asking
+```
+
+Or by hand:
+
 === "macOS"
 
     ```bash
     xcode-select --install                  # Apple Clang, make, git
     brew install cmake node python          # SQLite and zlib ship with macOS
     brew install sumo                       # optional
+    brew install molten-vk vulkan-loader    # optional: GPU acceleration on Apple GPUs
     ```
 
 === "Ubuntu / Debian"
@@ -50,6 +62,7 @@ configure, so that step needs network access.
     curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
     sudo apt-get install -y nodejs
     sudo apt-get install -y sumo sumo-tools  # optional
+    sudo apt-get install -y libvulkan1 vulkan-tools  # optional: GPU acceleration, with your GPU's driver
     ```
 
 === "Fedora"
@@ -57,6 +70,7 @@ configure, so that step needs network access.
     ```bash
     sudo dnf install -y gcc-c++ cmake git python3 sqlite-devel zlib-devel nodejs npm
     sudo dnf install -y sumo                 # optional
+    sudo dnf install -y vulkan-loader vulkan-tools  # optional: GPU acceleration
     ```
 
 === "Windows (WSL 2)"

@@ -207,6 +207,21 @@ Open the browser's developer console for the failing request.
 
 More in [Docker deployment: troubleshooting](deployment/docker.md#troubleshooting).
 
+## GPU acceleration is not used
+
+The simulation runs on the CPU when no GPU passes the self-test, and in `auto` mode
+also when the world is small enough that the CPU is faster, which covers most
+districts. Neither is an error, and results are identical either way.
+
+```bash
+./launcher diagnostics gpu                                          # every device, tested for real
+curl -s localhost:8090/api/v1/system/compute | python3 -m json.tool # why this backend
+```
+
+`selection_reason` says why the running server chose its backend, and
+`fallback_reason` or `last_failure` why Vulkan is not in use. Common causes and
+remedies are listed in [GPU acceleration: troubleshooting](guide/gpu-acceleration.md#troubleshooting).
+
 ## A build fails after a system update
 
 ```text

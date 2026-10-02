@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 2.1.0 LANGUAGES CXX)
+project(dstns VERSION 2.2.0 LANGUAGES CXX)
 
 option(DSTNS_BUILD_TESTS "Build DSTNS tests" ON)
 option(DSTNS_ENABLE_SANITIZERS "Enable address/undefined sanitizers" OFF)

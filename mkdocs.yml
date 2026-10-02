@@ -164,6 +164,7 @@ nav:
       - Configuring:
           - Configuration: guide/configuration.md
           - Observer configuration: guide/observer-configuration.md
+          - GPU acceleration: guide/gpu-acceleration.md
       - How-to:
           - Recipes: guide/recipes.md
   - Concepts:
@@ -189,6 +190,7 @@ nav:
       - Runtime guarantees:
           - Adaptive backpressure: concepts/backpressure.md
           - Reproducibility: concepts/reproducibility.md
+          - Compute architecture: concepts/compute.md
   - API:
       - api/index.md
       - Overview:
@@ -235,6 +237,7 @@ nav:
           - components/index.md
           - API server: components/api-server.md
           - Graph store: components/graph-store.md
+          - Vulkan backend: components/vulkan-backend.md
           - OSM loader: components/osm-loader.md
           - CRFG district growth: components/crfg.md
           - DRNCP canonical numbering: components/drncp.md

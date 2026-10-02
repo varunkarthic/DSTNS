@@ -14,6 +14,86 @@ only within one version.
 
 No changes yet.
 
+## [2.2.0] - 2026-10-02
+
+Engine 2.2.0 and observer 2.4.0, API contract 1.0. GPU acceleration.
+
+**Results change for every seed, slightly.** The physics step is now integer
+fixed point, so that a GPU computes exactly what the CPU does. Values agree
+with 2.1.0's double-precision model to about 10⁻⁷, and discrete quantities
+such as vehicle counts can differ where a value sat on a rounding boundary.
+Scenario, graph and event hashes are unchanged. Separately, runs in which a
+signal's planned offset was exactly one cycle (see Fixed) now behave
+reproducibly, and may differ from any given 2.1.0 run of the same seed.
+
+### Added
+
+- **GPU acceleration through Vulkan.** The per-node weather and flood step and
+  the per-edge environment and traffic step can run on any Vulkan 1.2 GPU with
+  64-bit shader integers: NVIDIA, AMD and Intel on Linux, Apple GPUs through
+  MoltenVK and Metal, GPUs exposed by WSL 2. No CUDA, no vendor extension, no
+  Vulkan SDK needed to build or run. A device is used only after a self-test
+  dispatch returns the right answer.
+- **Bit-identical backends.** The step is written once, in
+  `shaders/include/dstns_physics.h`, and compiled both as C++ and as GLSL, so
+  the CPU and every GPU execute the same integer operations. New suites hold
+  them to it on every device present, under the Khronos validation layers.
+- **Automatic backend choice.** `compute.backend` is `auto` (the default),
+  `cpu` or `vulkan`. `auto` keeps worlds below 40,000 junctions and 150,000
+  edges on the CPU and, above, times both on the world itself and keeps the
+  faster. Measured on an Apple M4: the GPU is slower below about 50,000
+  junctions and 1.2 to 1.5 times faster than eight CPU threads up to a million.
+- **Fault tolerance.** A failed GPU step leaves the committed state intact and
+  is recomputed on the CPU. A lost device is recovered exactly, operator
+  actions included, by replaying a journal of each step's inputs on the CPU.
+  A failed device is retired, never retried every second.
+- `GET /api/v1/system/compute`, and a `compute` object in `/system/info`:
+  active backend, device, why it was chosen, calibration, per-pass GPU time,
+  transfer volumes, fallbacks. `503 COMPUTE_RECOVERING` while recovering.
+- Server flags `--compute`, `--gpu-device`, `--require-vulkan`,
+  `--allow-software-vulkan`, `--compute-verify`, `--vulkan-validation`,
+  `--compute-cache` and `--gpu-diagnostics`, and the matching `DSTNS_COMPUTE_*`,
+  `DSTNS_GPU_*` and `DSTNS_VULKAN_*` environment variables.
+- Launcher: a `compute` section in `config/defaults.json` and a Compute page
+  in the configuration screen (GPU acceleration on or off, backend, device);
+  `start --compute` and `--gpu-device`; a GPU acceleration section in the
+  environment check, backed by a real, cached device test;
+  `./launcher diagnostics gpu`; and `./launcher bootstrap`, which installs
+  missing dependencies with Homebrew, apt, dnf or pacman after showing the plan,
+  and never installs GPU drivers.
+- Observer: the active compute backend in the telemetry deck's stack view and
+  in About.
+- `dstns_benchmark compute`: every backend timed on worlds from 1,000 to
+  1,000,000 junctions.
+- Structured-grid field kernels (`compute::FieldSolver`), the base for future
+  terrain-water and atmospheric models: an integer diffusion step, identical on
+  the CPU and every GPU, run many iterations per submission.
+- CI runs the Vulkan suites on Mesa's llvmpipe with validation layers, and
+  checks that the committed SPIR-V matches its sources.
+- Documentation: Compute architecture, GPU acceleration, Vulkan backend, and
+  updated performance, reproducibility, configuration and reference pages.
+
+### Changed
+
+- `GraphStore` no longer owns the dynamic state during a run: the compute
+  dispatcher does, and the graph serves a view refreshed on demand. Its public
+  reading interface is unchanged.
+- Checkpoints hold the fixed-point state: 68 bytes per edge instead of 184.
+- The CPU backend splits worlds of more than 32,768 edges across up to eight
+  threads, without changing results.
+- The container image builds the Vulkan backend; `WITH_VULKAN=1` adds the
+  loader and Mesa's drivers for GPUs passed in with `--device /dev/dri`.
+- The launcher rebuilds the core when `shaders/` or `cmake/` change.
+
+### Fixed
+
+- **A signal planned with an offset of exactly one cycle read past its phase
+  list.** `llround(fmod(travel, cycle))` can round up to the full cycle, and the
+  event runtime then walked past the sixth phase into memory beyond it: two runs
+  of the same seed could differ. The offset now wraps into the cycle, which is
+  what it means. Found by the new CPU/GPU comparison, whose two engines
+  allocate differently.
+
 ## [2.1.0] - 2026-10-02
 
 Engine 2.1.0 and observer 2.3.0, API contract 1.0. The first public release.

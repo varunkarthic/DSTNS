@@ -67,6 +67,9 @@ Each target is a standalone executable under `build/`.
 | `dstns_world_and_stepping` | `dstns_world_tests` | Exact steps that leave the run paused; step and seek equivalence; completion at 24:00:00 by playing, stepping or seeking; regeneration with a fresh seed, failure leaving the old world untouched, and backpressure ignoring the swap; edge overrides surviving a backwards seek; undo and redo of signal toggles; surge and weather bounds; demand types |
 | `dstns_property_invariants` | `dstns_prop_tests` | Topology and attachment invariants; congestion, rain, flood, building effect, progress and speed staying in bounds over a run |
 | `dstns_replay_reproducibility` | `dstns_rep_tests` | Two independent compilations and engines agreeing on every hash and on full snapshots, for a grid and an OSM map |
+| `dstns_compute_equivalence` | `dstns_compute_equivalence_tests` | The CPU and Vulkan backends produce bit-identical state, on every usable Vulkan device (software ones included): randomised storms, surges, signal phases and overrides, demand couplings, incidents, operator closures and module switches; worlds of 1 to 513 nodes on both sides of every workgroup boundary, workgroups of 64, 128 and 256, a 239,000-edge world, a compiled scenario and the OSM fixture; checkpoint restore and replay; hot switching between backends; and six injected failures (submission, device loss, verification mismatch, allocation, pipeline creation, initialisation), each leaving the run identical to a CPU-only run. Skipped (77) without a Vulkan device |
+| `dstns_engine_compute` | `dstns_engine_compute_tests` | The whole simulator on Vulkan against the CPU: identical snapshots, news and event history through operator actions, module and day changes and backward seeks; seek equal to continuous execution; four successive worlds and a reset leaving no device state behind; a device lost mid-run, with an operator closure since the last checkpoint, continuing exactly; verification mode without a mismatch. Skipped without a device |
+| `dstns_compute_fields` | `dstns_field_tests` | Structured-grid field kernels bit-identical on the CPU and every device, for 1 × 1 to 512 × 512 grids, 1 to 300 iterations in one submission, and consecutive batches. Skipped without a device |
 | `dstns_performance_smoke` | `dstns_perf_tests` | 2,500 A* queries all resolving, with mean latency under a deliberately generous 500 µs. See [Performance](../deployment/performance.md) |
 | `dstns_http_loading` | `tests/api/loading_smoke.py` | 30 concurrent reads, start-up, conflicts, regeneration, cancellation, failure and retry over HTTP |
 | `dstns_http_termination` | `tests/api/termination_smoke.py` | Terminating a running session, and terminating during a stalled map download, kills the downloader's process group and exits 0 |
@@ -77,6 +80,15 @@ Run one target and see its output:
 ```bash
 ctest --test-dir build -R dstns_world --output-on-failure
 ./build/dstns_world_tests
+```
+
+The three compute suites run the Vulkan validation layers, with synchronisation
+validation, when `DSTNS_VULKAN_VALIDATION=1`, and then also require that the layers
+report nothing. On macOS with Homebrew's layers, add
+`DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib`:
+
+```bash
+DSTNS_VULKAN_VALIDATION=1 ./build/dstns_compute_equivalence_tests
 ```
 
 `dstns_replay_verify` (in `tools/`) is a standalone tool that checks
@@ -191,7 +203,8 @@ every test.
 
 | Job | Runs |
 |---|---|
-| `core` | Configure and build on Ubuntu, `ctest` (native and HTTP suites), the API smoke test, the CLI suites |
+| `core` | Configure and build on Ubuntu without a shader compiler and with Vulkan required (so stale committed SPIR-V fails the build), `ctest` (native and HTTP suites), the API smoke test, the launcher and CLI suites |
+| `vulkan` | On Mesa's llvmpipe, a conformant Vulkan device on the CPU: shaders compiled from GLSL, GPU diagnostics, the equivalence and field suites under the validation layers, the engine on Vulkan, the compute benchmark |
 | `observer` | `npm ci`, type check, Vitest, production build |
 | `docs` | `mkdocs build --strict` and OpenAPI validation |
 | `docker` | Build the image and start it with the bundled map, waiting for a running simulation |

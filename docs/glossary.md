@@ -13,6 +13,7 @@ Approach group
 :   The roads entering a signalised junction that share a green: group A runs mainly
     north-south, group B mainly east-west. See [Traffic signals](concepts/signals.md).
 
+
 ASB
 :   **Adaptive Simulation Backpressure.** Slows the simulation, then simplifies
     and finally suspends the interface, when the observer cannot keep up. See
@@ -23,6 +24,7 @@ Attraction
 :   The share of nearby places' excess demand that falls on one road, capped at 2.
     See [Demand and places](concepts/demand.md).
 
+
 Base rate
 :   Virtual seconds per wall-clock second at 1×: 86,400 divided by the playback
     duration. With a one-hour day it is 24.
@@ -31,6 +33,17 @@ Base rate
 Checkpoint
 :   A stored copy of the network's dynamic state, every 900 virtual seconds,
     used to seek backwards exactly.
+
+
+Compute backend
+:   What executes the physics step: the CPU (the reference) or Vulkan on a GPU.
+    Every backend computes the same state, bit for bit. See
+    [Compute architecture](concepts/compute.md).
+
+
+Compute dispatcher
+:   The engine component that owns the run's fixed-point state, chooses the compute
+    backend, and moves the state between backends.
 
 
 Config revision
@@ -48,9 +61,11 @@ Congestion index
 :   The network's congestion as a percentage: the length-and-lane-weighted mean of
     every road's congestion. See [Congestion and road state](concepts/congestion.md).
 
+
 Coupling
 :   A factor by which a place's demand responds to current conditions, such as
     nearby closures or rain. See [Demand and places](concepts/demand.md#couplings-places-respond-to-the-network).
+
 
 CRFG
 :   **Connected Radial Frontier Growth.** Grows a connected district outward
@@ -88,13 +103,21 @@ Extract
     districts.
 
 
+Fixed point
+:   Representing a real number as an integer count of a fixed fraction: Q30 holds
+    fractions in units of 2⁻³⁰, Q16 speeds in units of 2⁻¹⁶ m/s. The physics step is
+    fixed point so that every backend computes identical bits.
+
+
 Green wave
 :   Signal offsets timed so that traffic released at one junction reaches the next
     on green. See [Traffic signals](concepts/signals.md#green-waves).
 
+
 Hotspot
 :   One of a small, seeded set of central roads that is permanently more attractive
     to traffic.
+
 
 Lifecycle
 :   The run's state: `IDLE`, `PREPARING`, `READY`, `RUNNING`, `PAUSED`,
@@ -104,6 +127,11 @@ Lifecycle
 Map selection version
 :   The name of the seed-to-place algorithm and its city catalogue, currently
     `urban-crfg-v3`. Saved seeds from another version are refused.
+
+
+MoltenVK
+:   A Vulkan implementation on Apple's Metal, through which DSTNS uses Apple GPUs.
+
 
 Observer
 :   The browser interface. It watches the run; the CLI decides what runs.
@@ -118,6 +146,7 @@ Pinned map
 :   A map file given explicitly with `--osm-file`, instead of the city the seed
     would choose.
 
+
 Place
 :   A mapped feature with a role in demand: a school, office, shop, stop and so
     on.
@@ -126,6 +155,7 @@ Place
 Place kind
 :   One of 18 categories (school, office, retail, park…) that decides a place's daily
     demand profile.
+
 
 Playback duration
 :   Wall-clock seconds one virtual day takes at 1×, 60 to 3600.
@@ -145,6 +175,7 @@ Saved seed
 :   A named, complete run configuration stored by the CLI. See
     [Saved seeds](guide/saved-seeds.md).
 
+
 Scenario
 :   Everything compiled from a seed and configuration before the clock starts:
     graph, signals, stops, trips, weather, incidents, hashes.
@@ -152,6 +183,11 @@ Scenario
 
 Seed
 :   The 128-bit number that names a run and determines everything in it.
+
+
+SPIR-V
+:   The binary intermediate form of Vulkan shaders. DSTNS compiles its GLSL compute
+    shaders to SPIR-V at build time and embeds them in the binary.
 
 
 State revision
@@ -167,6 +203,7 @@ Surge
 :   An operator-placed pulse of extra demand around a point, which rises and falls
     over its life.
 
+
 Synthetic reverse
 :   The reverse edge of a one-way road, kept for topology but never used for
     traffic, routing or SUMO.
@@ -178,6 +215,11 @@ Tick rate
 
 Virtual day
 :   The 86,400 simulated seconds of one run, from 00:00:00 to 24:00:00.
+
+
+Vulkan
+:   The cross-vendor GPU API DSTNS uses for its GPU backend. See
+    [GPU acceleration](guide/gpu-acceleration.md).
 
 
 Wendland C²

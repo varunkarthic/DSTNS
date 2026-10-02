@@ -59,16 +59,34 @@ public:
     [[nodiscard]] EdgeDynamic& edge_state(EdgeId id);
     [[nodiscard]] std::span<const EdgeId> outgoing(NodeId id) const;
     void commit();
+    void invalidate();
     void reset_dynamic();
+    void attach_dynamic_source(const DynamicStateSource* source);
 };
 ```
+
+## Who owns the dynamic state
+
+In the engine, the dynamic state is owned by the
+[`ComputeDispatcher`](../concepts/compute.md), as fixed-point words on the CPU or on a
+GPU. The engine attaches the dispatcher to the graph as its `DynamicStateSource`;
+`node_states()` and `edge_states()` then return a double-precision view that is
+refreshed from the dispatcher the first time it is read after `commit()` or
+`invalidate()`, so a step that nobody reads costs no conversion. The mutable
+accessors `node_state()` and `edge_state()` refuse while a source is attached, because
+a write there would be lost at the next refresh; operator controls go through the
+dispatcher instead.
+
+A `GraphStore` with no source attached (tools, tests, `RoutePlanner` on its own) owns
+its dynamic arrays as before.
 
 ## Threading & Concurrency
 - `GraphStore` has no lock of its own. Every access, from the engine loop or an
   API handler, happens under `SimulationEngine`'s mutex, so a reader always sees
   one consistent instant.
-- Physics writes the dynamic arrays and then calls `commit()`, which bumps
-  `state_revision`. Operator controls (edge overrides) write under the same
-  mutex.
+- The dispatcher writes the dynamic state, then the engine calls `commit()`, which
+  bumps `state_revision` and marks the view stale. Operator controls (edge overrides)
+  go through the dispatcher under the same mutex. Refreshing the view inside a
+  `const` reader is safe because every reader holds that mutex.
 - The static scenario never changes during a run; a new world installs a new
   `GraphStore`.

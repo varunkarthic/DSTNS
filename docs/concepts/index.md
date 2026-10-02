@@ -47,3 +47,4 @@ flowchart TD
 | **Runtime guarantees** | |
 | [Adaptive backpressure](backpressure.md) | How does the simulation slow down for a slow browser? |
 | [Reproducibility](reproducibility.md) | What exactly is guaranteed to repeat, and how is it checked? |
+| [Compute architecture](compute.md) | How does the physics run on a CPU or a GPU and give the same result on both? |

@@ -18,7 +18,8 @@ Several documents split behavior owned by one class into smaller conceptual topi
 | Page | Owner | Covers |
 |---|---|---|
 | [API server](api-server.md) | `ApiServer` | Routes, validation, guard, error mapping, concurrency |
-| [Graph store](graph-store.md) | `GraphStore` | Static and dynamic graph state |
+| [Graph store](graph-store.md) | `GraphStore` | Static graph and the view of dynamic state |
+| [Vulkan backend](vulkan-backend.md) | `src/vulkan/` | The physics step and field kernels on a GPU |
 | [OSM loader](osm-loader.md) | `OsmRoadLoader` | Parsing, filtering, places |
 | [CRFG](crfg.md) | `OsmRoadLoader` | District growth |
 | [DRNCP](drncp.md) | `OsmRoadLoader`, `ScenarioCompiler` | Canonical numbering and hashes |
