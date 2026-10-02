@@ -271,46 +271,50 @@ DSTNS_FN u64 flood_speed_factor(u64 flood) { return umax64(K_FLOOD_SPEED_FLOOR, 
 DSTNS_FN u64 rain_capacity_factor(u64 rain) { return Q30_ONE - ((K_RAIN_CAPACITY * rain) >> u64(30u)); }
 DSTNS_FN u64 flood_capacity_factor(u64 flood) { return umax64(K_FLOOD_CAPACITY_FLOOR, Q30_ONE - ((K_FLOOD_CAPACITY * flood) >> u64(30u))); }
 
+// The edge's constants, controls and state are held as 32-bit words, as
+// they are stored, and widened to 64 bits only inside the products that need
+// it. Holding them as 64-bit values doubled the registers a GPU thread needs
+// for no gain in range.
 struct EdgeConstants {
     u32 flags;
-    u64 free_speed;
-    u64 free_floor;
-    u64 base_capacity;
-    u64 hotspot;
-    u64 queue_capacity;
-    u64 congestion_scale;
-    u64 occupancy_scale;
-    u64 baseline_coef;
-    u64 lanes;
+    u32 free_speed;
+    u32 free_floor;
+    u32 base_capacity;
+    u32 hotspot;
+    u32 queue_capacity;
+    u32 congestion_scale;
+    u32 occupancy_scale;
+    u32 baseline_coef;
+    u32 lanes;
 };
 
 struct EdgeControls {
-    u64 manual_speed;
-    u64 manual_capacity;
+    u32 manual_speed;
+    u32 manual_capacity;
     bool manual_closed;
-    u64 incident_speed;
-    u64 incident_capacity;
+    u32 incident_speed;
+    u32 incident_capacity;
     bool incident_closed;
 };
 
 struct EdgeValues {
-    u64 rain;
-    u64 flood;
+    u32 rain;
+    u32 flood;
     u32 flags;
     i64 demand;
-    u64 capacity;
-    u64 speed;
-    u64 load;
-    u64 mean_speed;
-    u64 count;
-    u64 halting;
-    u64 congestion_model;
-    u64 congestion_observed;
-    u64 congestion;
-    u64 occupancy;
-    u64 signal;
-    u64 incident_speed;
-    u64 incident_capacity;
+    u32 capacity;
+    u32 speed;
+    u32 load;
+    u32 mean_speed;
+    u32 count;
+    u32 halting;
+    u32 congestion_model;
+    u32 congestion_observed;
+    u32 congestion;
+    u32 occupancy;
+    u32 signal;
+    u32 incident_speed;
+    u32 incident_capacity;
 };
 
 // One second of edge dynamics: environment from the endpoints, then demand,
@@ -321,16 +325,18 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
                               u64 flood_from, u64 flood_to, EdgeControls c, i64 attraction,
                               u64 surge, u64 signal, u64 dt, u64 day, u32 modules) {
     EdgeValues o = previous;
-    o.rain = (rain_from + rain_to) >> u64(1u);
-    o.flood = (flood_from + flood_to) >> u64(1u);
+    u64 rain = (rain_from + rain_to) >> u64(1u);
+    u64 flood = (flood_from + flood_to) >> u64(1u);
+    o.rain = u32(rain);
+    o.flood = u32(flood);
     o.incident_speed = c.incident_speed;
     o.incident_capacity = c.incident_capacity;
 
     bool allowed = (s.flags & EDGE_ALLOWED) != u32(0u);
     u32 flags = previous.flags & ~(STATE_FLOOD_TRANSITION | STATE_INCIDENT_CLOSED);
     if (c.incident_closed) flags = flags | STATE_INCIDENT_CLOSED;
-    bool was_flooded = previous.flood > FLOOD_EVENT_Q30;
-    bool now_flooded = o.flood > FLOOD_EVENT_Q30;
+    bool was_flooded = u64(previous.flood) > FLOOD_EVENT_Q30;
+    bool now_flooded = flood > FLOOD_EVENT_Q30;
     if (allowed && was_flooded != now_flooded) flags = flags | STATE_FLOOD_TRANSITION;
 
     if (!allowed) {
@@ -338,22 +344,22 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
         // override last set it, and its signal multiplier is never evaluated.
         o.flags = flags;
         o.demand = i64(0);
-        o.capacity = u64(0u);
-        o.speed = u64(0u);
-        o.load = u64(0u);
-        o.mean_speed = u64(0u);
-        o.count = u64(0u);
-        o.halting = u64(0u);
-        o.congestion_model = u64(0u);
-        o.congestion_observed = u64(0u);
-        o.congestion = u64(0u);
-        o.occupancy = u64(0u);
+        o.capacity = u32(0u);
+        o.speed = u32(0u);
+        o.load = u32(0u);
+        o.mean_speed = u32(0u);
+        o.count = u32(0u);
+        o.halting = u32(0u);
+        o.congestion_model = u32(0u);
+        o.congestion_observed = u32(0u);
+        o.congestion = u32(0u);
+        o.occupancy = u32(0u);
         return o;
     }
 
     bool traffic = (modules & MOD_TRAFFIC) != u32(0u);
     i64 places = (modules & MOD_BUILDINGS) != u32(0u) ? attraction : i64(0);
-    u64 hot = traffic ? s.hotspot : u64(0u);
+    u64 hot = traffic ? u64(s.hotspot) : u64(0u);
 
     // Demand: a share of capacity driven by the time of day, nearby places and
     // hotspots, scaled by any surge.
@@ -365,23 +371,23 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
         demand = (demand * i64(surge)) >> u64(16u);
     }
 
-    u64 rain_speed = rain_speed_factor(o.rain);
-    u64 flood_speed = flood_speed_factor(o.flood);
-    u64 rain_capacity = rain_capacity_factor(o.rain);
-    u64 flood_capacity = flood_capacity_factor(o.flood);
+    u64 rain_speed = rain_speed_factor(rain);
+    u64 flood_speed = flood_speed_factor(flood);
+    u64 rain_capacity = rain_capacity_factor(rain);
+    u64 flood_capacity = flood_capacity_factor(flood);
 
-    bool closed = c.manual_closed || c.incident_closed || o.flood >= FLOOD_CLOSED_Q30;
+    bool closed = c.manual_closed || c.incident_closed || flood >= FLOOD_CLOSED_Q30;
 
     // Speed relaxes towards its target at bounded acceleration and braking.
     u64 target_speed = u64(0u);
     if (!closed) {
-        target_speed = (s.free_speed * signal) >> u64(30u);
+        target_speed = (u64(s.free_speed) * signal) >> u64(30u);
         target_speed = (target_speed * rain_speed) >> u64(30u);
         target_speed = (target_speed * flood_speed) >> u64(30u);
-        target_speed = (target_speed * c.manual_speed) >> u64(30u);
-        target_speed = (target_speed * c.incident_speed) >> u64(30u);
+        target_speed = (target_speed * u64(c.manual_speed)) >> u64(30u);
+        target_speed = (target_speed * u64(c.incident_speed)) >> u64(30u);
     }
-    u64 speed = previous.speed;
+    u64 speed = u64(previous.speed);
     u64 acceleration = K_ACCELERATION_Q16 * dt;
     u64 deceleration = K_DECELERATION_Q16 * dt;
     if (speed < target_speed) {
@@ -390,15 +396,16 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
         speed = speed > target_speed + deceleration ? speed - deceleration : target_speed;
     }
 
-    u64 capacity = s.base_capacity;
+    u64 capacity = u64(s.base_capacity);
     capacity = (capacity * signal) >> u64(30u);
     capacity = (capacity * rain_capacity) >> u64(30u);
     capacity = (capacity * flood_capacity) >> u64(30u);
-    capacity = (capacity * c.manual_capacity) >> u64(30u);
-    capacity = (capacity * c.incident_capacity) >> u64(30u);
+    capacity = (capacity * u64(c.manual_capacity)) >> u64(30u);
+    capacity = (capacity * u64(c.incident_capacity)) >> u64(30u);
 
     // Queue: the load relaxes towards a target set by demand and signal delay,
     // filling at the inflow rate and draining at the lanes' discharge rate.
+    u64 queue_capacity = u64(s.queue_capacity);
     u64 target_load = u64(0u);
     if (!closed) {
         i64 baseline = (demand * i64(s.baseline_coef)) >> u64(16u);
@@ -407,26 +414,28 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
             u64 spread = u64(32768u) + (surge >> u64(1u));
             u64 amplification = Q30_ONE + ((delay * spread) >> u64(16u));
             u64 base = u64(baseline);
-            target_load = base >= s.queue_capacity ? s.queue_capacity
-                                                   : umin64(s.queue_capacity, mul_q30_wide(base, amplification));
+            target_load = base >= queue_capacity ? queue_capacity
+                                                 : umin64(queue_capacity, mul_q30_wide(base, amplification));
         }
     }
-    u64 load = previous.load;
+    u64 load = u64(previous.load);
     if (target_load > load) {
         u64 inflow = demand > i64(0) ? (u64(demand) * dt * u64(256u)) / u64(3600u) : u64(0u);
         load = umin64(target_load, load + umax64(K_MIN_INFLOW_Q16, inflow));
     } else if (target_load < load) {
-        u64 discharge = umax64(K_MIN_DISCHARGE_Q16, s.lanes * dt * K_LANE_DISCHARGE_Q16);
+        u64 discharge = umax64(K_MIN_DISCHARGE_Q16, u64(s.lanes) * dt * K_LANE_DISCHARGE_Q16);
         load = load > target_load + discharge ? load - discharge : target_load;
     }
 
     u64 count = (load + u64(32768u)) >> u64(16u);
     u64 count_q16 = count << u64(16u);
-    u64 congestion_model = count_q16 >= s.congestion_scale ? Q30_ONE : (count_q16 << u64(30u)) / s.congestion_scale;
+    u64 congestion_scale = u64(s.congestion_scale);
+    u64 congestion_model = count_q16 >= congestion_scale ? Q30_ONE : (count_q16 << u64(30u)) / congestion_scale;
     u64 mean_speed = (speed * (Q30_ONE - ((K_QUEUE_SLOWDOWN * congestion_model) >> u64(30u)))) >> u64(30u);
     u64 halting = (count * (Q30_ONE - ((K_SIGNAL_HALTING * signal) >> u64(30u))) + (u64(1u) << u64(29u))) >> u64(30u);
     u64 occupancy_q8 = (count * u64(5u)) << u64(8u);
-    u64 occupancy = occupancy_q8 >= s.occupancy_scale ? Q30_ONE : (occupancy_q8 << u64(30u)) / s.occupancy_scale;
+    u64 occupancy_scale = u64(s.occupancy_scale);
+    u64 occupancy = occupancy_q8 >= occupancy_scale ? Q30_ONE : (occupancy_q8 << u64(30u)) / occupancy_scale;
 
     u64 relative = (mean_speed << u64(30u)) / umax64(K_SPEED_FLOOR_Q16, speed);
     u64 slowdown = relative >= Q30_ONE ? u64(0u) : Q30_ONE - relative;
@@ -438,7 +447,7 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
 
     u64 speed_loss = u64(0u);
     if (count != u64(0u)) {
-        u64 free_relative = (mean_speed << u64(30u)) / s.free_floor;
+        u64 free_relative = (mean_speed << u64(30u)) / u64(s.free_floor);
         speed_loss = free_relative >= Q30_ONE ? u64(0u) : Q30_ONE - free_relative;
     }
     u64 congestion = Q30_ONE;
@@ -450,17 +459,17 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
     flags = closed ? (flags | STATE_CLOSED) : (flags & ~STATE_CLOSED);
     o.flags = flags;
     o.demand = demand;
-    o.capacity = capacity;
-    o.speed = speed;
-    o.load = load;
-    o.mean_speed = mean_speed;
-    o.count = count;
-    o.halting = halting;
-    o.congestion_model = congestion_model;
-    o.congestion_observed = congestion_observed;
-    o.congestion = congestion;
-    o.occupancy = occupancy;
-    o.signal = signal;
+    o.capacity = u32(capacity);
+    o.speed = u32(speed);
+    o.load = u32(load);
+    o.mean_speed = u32(mean_speed);
+    o.count = u32(count);
+    o.halting = u32(halting);
+    o.congestion_model = u32(congestion_model);
+    o.congestion_observed = u32(congestion_observed);
+    o.congestion = u32(congestion);
+    o.occupancy = u32(occupancy);
+    o.signal = u32(signal);
     return o;
 }
 

@@ -200,7 +200,7 @@ add_executable(dstns_road_index tools/road-index/main.cpp)
 target_link_libraries(dstns_road_index PRIVATE dstns_core)
 add_executable(dstns_replay_verify tools/replay-verify/main.cpp)
 target_link_libraries(dstns_replay_verify PRIVATE dstns_core)
-add_executable(dstns_benchmark tools/benchmark/main.cpp)
+add_executable(dstns_benchmark tools/benchmark/main.cpp tools/benchmark/compute.cpp)
 target_link_libraries(dstns_benchmark PRIVATE dstns_core)
 
 if(DSTNS_BUILD_TESTS)

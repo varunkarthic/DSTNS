@@ -36,11 +36,14 @@ struct ComputeOptions {
     bool validation{false};            // Khronos validation layers, when installed
     std::string device{"auto"};        // auto | index | UUID | name substring
     std::uint32_t workgroup_size{0};   // 0: chosen from the device's limits
-    // Below these sizes the CPU always wins (measured; see docs/deployment/
-    // performance.md). Above them, auto mode times both backends on the world
-    // itself and keeps the faster.
-    std::uint32_t min_nodes{20000};
-    std::uint32_t min_edges{40000};
+    // Below both sizes the CPU wins on every machine measured (dstns_benchmark
+    // compute; docs/deployment/performance.md): an accelerated step costs a
+    // submission and a wait, about half a millisecond, before any work. Above
+    // either, auto mode times both backends on the world itself and keeps the
+    // faster. Set below the measured break-even (about 50,000 nodes and
+    // 200,000 edges on an Apple M4), so the measurement decides near it.
+    std::uint32_t min_nodes{40000};
+    std::uint32_t min_edges{150000};
     bool calibrate{true};
     std::uint32_t cpu_threads{0};      // 0: one per hardware thread, up to 8
     std::string cache_dir{"data/cache/vulkan"}; // empty disables the pipeline cache

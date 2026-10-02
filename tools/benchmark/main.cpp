@@ -9,8 +9,12 @@
 #include <chrono>
 #include <filesystem>
 #include <iostream>
+#include <string>
+
+int compute_benchmark(int argc, char** argv);
 
 int main(int argc, char** argv) {
+    if (argc >= 2 && std::string(argv[1]) == "compute") return compute_benchmark(argc - 1, argv + 1);
     std::size_t grid_dim = (argc >= 2) ? std::stoul(argv[1]) : 20; // 20x20 = 400 nodes, 1500+ edges
     std::cout << "DSTNS Benchmark Tool (grid: " << grid_dim << "x" << grid_dim << ")\n";
 

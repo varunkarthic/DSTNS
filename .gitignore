@@ -21,6 +21,7 @@ logs/operator.token
 data/seed-store/
 artifacts/modernization/
 artifacts/hud/
+artifacts/benchmarks/
 # Downloaded OSM tiles and their provenance manifests are a local cache: the
 # seed regenerates them on demand, and they run to tens of megabytes each.
 data/maps/*.osm.xml

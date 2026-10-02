@@ -277,25 +277,25 @@ void cpu_edge_pass(const StaticTables& t, const StepParams& p, const std::vector
         const auto o = edge_step(s, prev, node_rain[from], node_rain[to], node_flood[from], node_flood[to],
                                  c, attraction, surge, signal, dt, day, modules);
 
-        v[EV_RAIN][e] = static_cast<std::uint32_t>(o.rain);
-        v[EV_FLOOD][e] = static_cast<std::uint32_t>(o.flood);
+        v[EV_RAIN][e] = o.rain;
+        v[EV_FLOOD][e] = o.flood;
         v[EV_FLAGS][e] = o.flags;
         v[EV_DEMAND][e] = static_cast<std::uint32_t>(static_cast<std::int32_t>(o.demand));
-        v[EV_CAPACITY][e] = static_cast<std::uint32_t>(o.capacity);
-        v[EV_SPEED][e] = static_cast<std::uint32_t>(o.speed);
-        v[EV_LOAD][e] = static_cast<std::uint32_t>(o.load);
-        v[EV_MEAN_SPEED][e] = static_cast<std::uint32_t>(o.mean_speed);
-        v[EV_COUNT][e] = static_cast<std::uint32_t>(o.count);
-        v[EV_HALTING][e] = static_cast<std::uint32_t>(o.halting);
-        v[EV_CONGESTION_MODEL][e] = static_cast<std::uint32_t>(o.congestion_model);
-        v[EV_CONGESTION_OBSERVED][e] = static_cast<std::uint32_t>(o.congestion_observed);
-        v[EV_CONGESTION][e] = static_cast<std::uint32_t>(o.congestion);
-        v[EV_OCCUPANCY][e] = static_cast<std::uint32_t>(o.occupancy);
-        v[EV_SIGNAL][e] = static_cast<std::uint32_t>(o.signal);
-        v[EV_INCIDENT_SPEED][e] = static_cast<std::uint32_t>(o.incident_speed);
-        v[EV_INCIDENT_CAPACITY][e] = static_cast<std::uint32_t>(o.incident_capacity);
+        v[EV_CAPACITY][e] = o.capacity;
+        v[EV_SPEED][e] = o.speed;
+        v[EV_LOAD][e] = o.load;
+        v[EV_MEAN_SPEED][e] = o.mean_speed;
+        v[EV_COUNT][e] = o.count;
+        v[EV_HALTING][e] = o.halting;
+        v[EV_CONGESTION_MODEL][e] = o.congestion_model;
+        v[EV_CONGESTION_OBSERVED][e] = o.congestion_observed;
+        v[EV_CONGESTION][e] = o.congestion;
+        v[EV_OCCUPANCY][e] = o.occupancy;
+        v[EV_SIGNAL][e] = o.signal;
+        v[EV_INCIDENT_SPEED][e] = o.incident_speed;
+        v[EV_INCIDENT_CAPACITY][e] = o.incident_capacity;
         if (o.flags & STATE_FLOOD_TRANSITION) ++result.transitions;
-        result.congestion_sum += congestion_contribution(flags, s_weight[e], o.congestion);
+        result.congestion_sum += congestion_contribution(flags, s_weight[e], u64(o.congestion));
     }
 }
 
