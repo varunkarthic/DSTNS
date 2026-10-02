@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
+#include "dstns/compute/vulkan.hpp"
 
 #include "dstns/utf8.hpp"
 #include "dstns/geo.hpp"
@@ -352,6 +353,12 @@ void ApiServer::routes() {
             message = e.what();
             code = "MAP_FETCH_FAILED";
             status = 503;
+        } catch (const compute::StateLost& e) {
+            // The accelerator failed under this request; the engine replays
+            // from a checkpoint on the CPU within a moment. Retryable.
+            message = e.what();
+            code = "COMPUTE_RECOVERING";
+            status = 503;
         } catch (const nlohmann::json::parse_error& e) {
             message = std::string("Malformed JSON: ") + e.what();
             code = "INVALID_JSON";
@@ -403,6 +410,22 @@ void ApiServer::routes() {
     server_->Get("/api/v1/system/status", [this](const auto&, auto& r) { send(r, engine_.status()); });
     server_->Get("/api/v1/system/info", [this](const auto&, auto& r) {
         auto env = SumoBridge::detect();
+        // Which hardware runs the physics. Descriptive only: no client needs
+        // it to interpret state, which is identical on every backend.
+        auto compute = engine_.compute_status();
+        nlohmann::json compute_summary{
+            {"requested_backend", compute["requested_backend"]},
+            {"active_backend", compute["active_backend"]},
+            {"fallback_backend", compute["fallback_backend"]},
+            {"health", compute["health"]},
+            {"selection_reason", compute["selection_reason"]},
+            {"fallback_reason", compute["fallback_reason"]},
+            {"vulkan_compiled", compute["vulkan_compiled"]},
+            {"vulkan_available", compute["vulkan_available"]},
+            {"deterministic", compute["deterministic"]},
+            {"device", compute["device"]},
+            {"shader_bundle", compute::vulkan_shader_bundle()},
+            {"details", "/api/v1/system/compute"}};
         send(r, {
             {"ok", true},
             {"service", "dstns"},
@@ -416,8 +439,14 @@ void ApiServer::routes() {
                 {"sumo_binary", env.sumo_binary.string()},
                 {"netconvert_binary", env.netconvert_binary.string()},
                 {"sumo_home", env.sumo_home.string()}
-            }}
+            }},
+            {"compute", std::move(compute_summary)}
         });
+    });
+    server_->Get("/api/v1/system/compute", [this](const auto&, auto& r) {
+        auto data = engine_.compute_status();
+        data["shader_bundle"] = compute::vulkan_shader_bundle();
+        send(r, {{"ok", true}, {"api_version", "1.0"}, {"data", std::move(data)}});
     });
 
     // An index of the API, served by the API. A client that has the base URL
@@ -433,7 +462,8 @@ void ApiServer::routes() {
         return nlohmann::json::array({
             group("system","Service identity, health and lifecycle",{
                 {{"GET","/api/v1/system/health","Liveness, with the engine's lifecycle state"}},
-                {{"GET","/api/v1/system/info","Service identity, version and SUMO availability"}},
+                {{"GET","/api/v1/system/info","Service identity, version, SUMO and compute backend"}},
+                {{"GET","/api/v1/system/compute","Compute backends: device, selection, step timing, fallbacks"}},
                 {{"GET","/api/v1/system/status","The full run status"}},
                 {{"GET","/api/v1/system/endpoints","This index"}},
                 {{"GET","/api/v1/system/map-status","What map is loaded and where it came from"}},

@@ -118,6 +118,13 @@ void ComputeDispatcher::release() {
     cpu_->release();
     installed_ = false;
     active_ = BackendType::Cpu;
+    tables_ = {};
+    state_.clear();
+    shadow_state_.clear();
+    shadow_inputs_.clear();
+    journal_.clear();
+    patches_.clear();
+    selection_reason_ = "no world installed";
 }
 
 void ComputeDispatcher::install(const Scenario& scenario) {

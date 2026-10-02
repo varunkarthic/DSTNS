@@ -893,7 +893,25 @@ paths:
       tags:
       - System
       operationId: systemInfo
-      summary: Version, build and SUMO availability
+      summary: Version, build, SUMO availability and the compute backend
+      description: >-
+        The `compute` object reports which backend runs the physics step
+        (`cpu` or `vulkan`), why it was chosen, the device and the embedded
+        shader bundle. It is descriptive: state is identical on every backend.
+      responses:
+        '200': *id001
+  /api/v1/system/compute:
+    get:
+      tags:
+      - System
+      operationId: systemCompute
+      summary: Compute backends, device, selection, step timing and fallbacks
+      description: >-
+        Requested and active backend, each backend's health (`unavailable`,
+        `disabled`, `available`, `active`, `degraded`, `failed`), the reasons
+        for the selection and for any fallback, device properties, the auto
+        mode calibration, the last step's host and GPU time per pass, upload
+        and readback volumes, and running totals.
       responses:
         '200': *id001
   /api/v1/playback/prepare:

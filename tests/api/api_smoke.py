@@ -484,6 +484,21 @@ def main():
             code, sys_info = call(base, "/api/v1/system/info")
             assert code == 200 and ("Deterministic" in sys_info["product"] or "DSTNS" in sys_info["product"]) and "sumo" in sys_info
             assertions += 1
+            compute = sys_info["compute"]
+            assert compute["active_backend"] in ("cpu", "vulkan") and compute["fallback_backend"] == "cpu", compute
+            assert compute["deterministic"] is True and compute["details"] == "/api/v1/system/compute", compute
+            assert ("GET", "/api/v1/system/compute") in routes
+            code, detail = call(base, "/api/v1/system/compute")
+            data = detail["data"]
+            assert code == 200 and data["active_backend"] == compute["active_backend"], detail
+            assert data["health"]["cpu"] in ("active", "available"), data["health"]
+            assert data["health"]["vulkan"] in ("unavailable", "disabled", "available", "active", "degraded", "failed"), data["health"]
+            workload = data["workload"]
+            assert workload["edges"] > 0 if workload["installed"] else workload["edges"] == 0, workload
+            assert data["totals"]["steps_cpu"] + data["totals"]["steps_vulkan"] > 0, data["totals"]
+            # No filesystem paths leave the server through system information.
+            assert "/" not in str(data["options"].get("device", "")) and "cache_dir" not in data["options"], data["options"]
+            assertions += 4
 
             code, sumo_exp = call(base, "/api/v1/playback/start", "POST", req_start)
             assert code == 202
