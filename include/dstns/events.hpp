@@ -4,6 +4,7 @@
 #pragma once
 #include "dstns/model.hpp"
 #include "dstns/demand.hpp"
+#include "dstns/compute/conditions.hpp"
 #include <deque>
 #include <queue>
 #include <memory>
@@ -42,6 +43,12 @@ public:
      * are known, so couplings read the same state the operator is shown.
      */
     void recouple(const Scenario& scenario,const std::vector<EdgeDynamic>& edges,std::uint32_t time);
+    /// The same, reading conditions straight from the compute dispatcher.
+    void recouple(const Scenario& scenario,const EdgeConditions& edges,std::uint32_t time);
+
+    /// Edges whose demand_effect can ever be non-zero: those near a place the
+    /// demand model responds to. Fixed for a scenario, ascending.
+    [[nodiscard]] const std::vector<std::uint32_t>& demand_support() const;
 
     /// Why a place's demand is what it is, newest contribution first.
     [[nodiscard]] std::vector<DemandFactor> demand_factors(std::size_t feature) const;
@@ -84,13 +91,18 @@ private:
     // Features the demand model has anything to say about. Everything else sits
     // at 1.0 for the whole run, so a tick never walks it.
     std::vector<std::uint32_t> responders_;
+    std::shared_ptr<const std::vector<std::uint32_t>> demand_support_;
     void rebuild_edge_demand();
+    template<class Conditions> void recouple_with(const Scenario& scenario,const Conditions& edges,std::uint32_t time);
 };
 struct CongestionSample { std::uint32_t time{}; double current{}, average{}; };
 struct CongestionTracker {
     double current{}, average{};
     std::vector<CongestionSample> samples;
     void update(const Scenario& scenario,const std::vector<EdgeDynamic>& edges,std::uint32_t time,std::uint32_t dt);
+    /// Advance with an index the caller has already computed (the compute
+    /// dispatcher reduces it alongside the physics step).
+    void record(double index,std::uint32_t time,std::uint32_t dt);
     [[nodiscard]] nlohmann::json json() const;
 };
 }

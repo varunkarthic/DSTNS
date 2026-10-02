@@ -24,11 +24,13 @@ GraphStore::GraphStore(Scenario scenario):scenario_(std::move(scenario)),node_dy
 }
 const NodeStatic& GraphStore::node(NodeId id)const{if(id.value>=scenario_.nodes.size())throw std::out_of_range("unknown node");return scenario_.nodes[id.value];}
 const EdgeStatic& GraphStore::edge(EdgeId id)const{if(id.value>=scenario_.edges.size())throw std::out_of_range("unknown edge");return scenario_.edges[id.value];}
-NodeDynamic& GraphStore::node_state(NodeId id){if(id.value>=node_dynamic_.size())throw std::out_of_range("unknown node");return node_dynamic_[id.value];}
-EdgeDynamic& GraphStore::edge_state(EdgeId id){if(id.value>=edge_dynamic_.size())throw std::out_of_range("unknown edge");return edge_dynamic_[id.value];}
+NodeDynamic& GraphStore::node_state(NodeId id){if(source_)throw std::logic_error("dynamic state is owned by the compute dispatcher");if(id.value>=node_dynamic_.size())throw std::out_of_range("unknown node");return node_dynamic_[id.value];}
+EdgeDynamic& GraphStore::edge_state(EdgeId id){if(source_)throw std::logic_error("dynamic state is owned by the compute dispatcher");if(id.value>=edge_dynamic_.size())throw std::out_of_range("unknown edge");return edge_dynamic_[id.value];}
 std::span<const EdgeId> GraphStore::outgoing(NodeId id)const{if(id.value>=outgoing_.size())throw std::out_of_range("unknown node");return outgoing_[id.value];}
-void GraphStore::commit(){++state_revision_;for(auto&n:node_dynamic_)n.state_revision=state_revision_;for(auto&e:edge_dynamic_)e.state_revision=state_revision_;}
-void GraphStore::reset_dynamic(){node_dynamic_.assign(node_dynamic_.size(),{});edge_dynamic_.assign(edge_dynamic_.size(),{});for(const auto&e:scenario_.edges){if(!is_source_direction_allowed(e))continue;auto&s=edge_dynamic_[e.id.value];s.effective_capacity_vph=e.base_capacity_vph;s.effective_speed_mps=e.free_speed_mps;s.mean_speed_mps=e.free_speed_mps;}state_revision_=0;}
+void GraphStore::commit(){++state_revision_;if(source_){stale_=true;return;}for(auto&n:node_dynamic_)n.state_revision=state_revision_;for(auto&e:edge_dynamic_)e.state_revision=state_revision_;}
+void GraphStore::attach_dynamic_source(const DynamicStateSource* source){source_=source;stale_=source!=nullptr;}
+void GraphStore::refresh()const{if(!stale_||!source_)return;source_->materialize(node_dynamic_,edge_dynamic_,state_revision_);stale_=false;}
+void GraphStore::reset_dynamic(){if(source_){state_revision_=0;stale_=true;return;}node_dynamic_.assign(node_dynamic_.size(),{});edge_dynamic_.assign(edge_dynamic_.size(),{});for(const auto&e:scenario_.edges){if(!is_source_direction_allowed(e))continue;auto&s=edge_dynamic_[e.id.value];s.effective_capacity_vph=e.base_capacity_vph;s.effective_speed_mps=e.free_speed_mps;s.mean_speed_mps=e.free_speed_mps;}state_revision_=0;}
 
 RouteResult RoutePlanner::route(NodeId source,NodeId destination)const{
     if(source.value>=graph_.nodes().size()||destination.value>=graph_.nodes().size())return{};

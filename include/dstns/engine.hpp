@@ -8,6 +8,7 @@
 #include "dstns/asb.hpp"
 #include "dstns/logging.hpp"
 #include "dstns/scenario.hpp"
+#include "dstns/compute/dispatcher.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -30,7 +31,7 @@ struct AppliedCommand { std::uint64_t id{}; std::string type,status{"applied"}; 
 
 class SimulationEngine {
 public:
-    explicit SimulationEngine(RuntimeLogger& logger);
+    explicit SimulationEngine(RuntimeLogger& logger, compute::ComputeOptions compute = {});
     ~SimulationEngine();
     SimulationEngine(const SimulationEngine&)=delete;
     SimulationEngine& operator=(const SimulationEngine&)=delete;
@@ -99,6 +100,17 @@ public:
     void note_delivery(std::size_t bytes);
 
     [[nodiscard]] std::uint64_t state_revision() const;
+    /// The compute backends: which is running the physics, on what device,
+    /// why it was chosen, and how long steps take.
+    [[nodiscard]] nlohmann::json compute_status() const;
+    /// Bring up the accelerator now rather than at the first large world, so
+    /// that system information can report it. Throws if Vulkan is required
+    /// and cannot be used.
+    void initialize_compute();
+    /// Move the run to another backend at the next step boundary. Results do
+    /// not change: every backend computes the same state. Returns false if
+    /// that backend cannot take the run.
+    bool select_compute_backend(compute::BackendType type);
     [[nodiscard]] Lifecycle lifecycle() const;
     void terminate();
     /**
@@ -113,14 +125,16 @@ public:
     void request_terminate();
     [[nodiscard]] bool terminating() const { return terminate_requested_.load(); }
 private:
-    struct Checkpoint { std::uint32_t virtual_s{}; std::vector<NodeDynamic> nodes; std::vector<EdgeDynamic> edges; std::size_t news_size{}; std::uint64_t next_news_id{1}; EventRuntime events; CongestionTracker congestion; };
+    // A checkpoint holds the complete fixed-point physics state, so restoring
+    // it and replaying reaches exactly the state of continuous execution.
+    struct Checkpoint { std::uint32_t virtual_s{}; std::vector<std::uint32_t> physics; std::size_t news_size{}; std::uint64_t next_news_id{1}; EventRuntime events; CongestionTracker congestion; };
     struct ActiveSurgeZone { std::uint32_t id{}; NodeId node{}; std::uint32_t start_s{}; std::uint32_t end_s{}; double factor{1.8}; double radius_m{300}; std::string label; };
     [[nodiscard]] double asb_now() const;
     [[nodiscard]] nlohmann::json backpressure_json() const;
     void check_playback_guard(const nlohmann::json& guard) const;
     std::uint64_t playback_revision_{}; // Never reset: distinguishes same-seed restarts.
     void loop(); void transition(Lifecycle next); void step_to(std::uint32_t target); void physics_step(std::uint32_t dt); void capture_checkpoint();
-    void restore_to(std::uint32_t target); void anchor_wall_clock(); void catch_up_to_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
+    void restore_to(std::uint32_t target); void recover_compute(std::uint32_t target); void adopt_world(Scenario scenario); void anchor_wall_clock(); void catch_up_to_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
     [[nodiscard]] nlohmann::json clock_json() const; [[nodiscard]] nlohmann::json envelope(nlohmann::json data) const;
     AppliedCommand& record(std::string type,nlohmann::json before,nlohmann::json after);
     [[nodiscard]] nlohmann::json signal_state_json() const;
@@ -129,7 +143,11 @@ private:
     RuntimeLogger& logger_; mutable std::recursive_mutex mutex_; std::condition_variable_any cv_; std::jthread worker_;
     Lifecycle lifecycle_{Lifecycle::Idle};
     // Lock-free mirror of lifecycle_, written only by transition().
-    std::atomic<Lifecycle> lifecycle_mirror_{Lifecycle::Idle}; ScenarioCompiler compiler_; std::unique_ptr<GraphStore> graph_;
+    std::atomic<Lifecycle> lifecycle_mirror_{Lifecycle::Idle}; ScenarioCompiler compiler_;
+    // Owns the authoritative physics state; the graph reads it through a view.
+    // Declared before graph_ so that the graph is destroyed first.
+    std::unique_ptr<compute::ComputeDispatcher> compute_;
+    std::unique_ptr<GraphStore> graph_;
     std::atomic<bool> compiling_{false}; // Concurrent compiles fail without occupying HTTP workers.
     std::uint64_t compile_generation_{}; // Guarded by mutex_; reset/terminate invalidate a pending install.
     std::string preparation_error_;

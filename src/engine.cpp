@@ -37,7 +37,6 @@ std::string hhmmss(std::uint32_t s) {
     o << std::setfill('0') << std::setw(2) << s / 3600 << ':' << std::setw(2) << (s % 3600) / 60 << ':' << std::setw(2) << s % 60;
     return o.str();
 }
-double clamp01(double x) { return std::clamp(x, 0.0, 1.0); }
 nlohmann::json point_json(const Point& p) {
     return {{"lat", p.lat}, {"lon", p.lon}, {"x_m", p.x_m}, {"y_m", p.y_m}};
 }
@@ -120,8 +119,12 @@ const char* to_string(Lifecycle x) {
     return "ERROR";
 }
 
-SimulationEngine::SimulationEngine(RuntimeLogger& logger)
-    : logger_(logger) {
+SimulationEngine::SimulationEngine(RuntimeLogger& logger, compute::ComputeOptions compute)
+    : logger_(logger),
+      compute_(std::make_unique<compute::ComputeDispatcher>(
+          std::move(compute), [&logger](const std::string& level, const std::string& message) {
+              logger.system(level, "compute", message);
+          })) {
     worker_ = std::jthread([this](std::stop_token) { loop(); });
     logger_.system("INFO", "engine", "DSTNS engine idle");
 }
@@ -177,7 +180,7 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
             throw std::logic_error("world preparation cancelled by runtime change");
         preparing_stage_.store(0);
         run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
-        graph_ = std::make_unique<GraphStore>(std::move(scenario));
+        adopt_world(std::move(scenario));
         tick_rate_ = config.tick_rate;
         requested_tick_rate_ = config.tick_rate;
         asb_.reset();
@@ -303,10 +306,21 @@ nlohmann::json SimulationEngine::trigger_surge(NodeId node, double factor, doubl
     };
 }
 
+// Make a compiled scenario the active world: the graph, and the compute
+// backends' resources for it. The old world's resources are released first.
+// If an accelerator cannot take the new world it runs on the CPU, never half
+// installed. Caller holds mutex_.
+void SimulationEngine::adopt_world(Scenario scenario) {
+    if (graph_) graph_->attach_dynamic_source(nullptr);
+    graph_ = std::make_unique<GraphStore>(std::move(scenario));
+    compute_->install(graph_->scenario());
+    graph_->attach_dynamic_source(compute_.get());
+}
+
 void SimulationEngine::install_scenario(Scenario scenario, double tick_rate, std::uint32_t start) {
     installed_at_ = std::chrono::steady_clock::now();
     run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
-    graph_ = std::make_unique<GraphStore>(std::move(scenario));
+    adopt_world(std::move(scenario));
     tick_rate_ = tick_rate;
     requested_tick_rate_ = tick_rate;
     asb_.reset();
@@ -519,6 +533,7 @@ nlohmann::json SimulationEngine::reset() {
     preparation_error_.clear();
     if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused) stop();
     graph_.reset();
+    compute_->release();
     run_id_.clear();
     virtual_s_ = 0;
     start_virtual_s_ = 0;
@@ -939,12 +954,9 @@ nlohmann::json SimulationEngine::override_edge(EdgeId id, double sm, double cm, 
     if (!std::isfinite(sm) || !std::isfinite(cm) || sm < 0 || sm > 2 || cm < 0 || cm > 2) {
         throw std::invalid_argument("multipliers must be finite and in [0,2]");
     }
-    auto& s = graph_->edge_state(id);
-    nlohmann::json before{{"edge", id.value}, {"speed_multiplier", s.manual_speed_multiplier}, {"capacity_multiplier", s.manual_capacity_multiplier}, {"closed", s.manual_closed}};
-    s.manual_speed_multiplier = sm;
-    s.manual_capacity_multiplier = cm;
-    s.manual_closed = closed;
-    s.closed = closed || s.flood >= .95;
+    const auto previous = compute_->manual(id.value);
+    nlohmann::json before{{"edge", id.value}, {"speed_multiplier", previous.speed_multiplier}, {"capacity_multiplier", previous.capacity_multiplier}, {"closed", previous.closed}};
+    compute_->set_manual(id.value, {sm, cm, closed});
     graph_->commit();
     auto& c = record("edge_override", before, {{"edge", id.value}, {"speed_multiplier", sm}, {"capacity_multiplier", cm}, {"closed", closed}});
     return {{"command_id", c.id}, {"edge_id", id.value}, {"state_revision", graph_->state_revision()}};
@@ -972,11 +984,8 @@ void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
         else if (m == "flooding") cfg.flooding = enabled;
         else if (m == "news") cfg.news = enabled;
     } else if (c.type == "edge_override") {
-        auto& s = graph_->edge_state(EdgeId{v.at("edge").get<std::uint32_t>()});
-        s.manual_speed_multiplier = v.at("speed_multiplier");
-        s.manual_capacity_multiplier = v.at("capacity_multiplier");
-        s.manual_closed = v.at("closed");
-        s.closed = s.manual_closed || s.flood >= .95;
+        compute_->set_manual(v.at("edge").get<std::uint32_t>(),
+                             {v.at("speed_multiplier").get<double>(), v.at("capacity_multiplier").get<double>(), v.at("closed").get<bool>()});
     } else if (c.type == "signal_toggle") {
         const auto node = v.at("node").get<std::uint32_t>();
         if (v.at("phase").is_null()) signal_overrides_.erase(node);
@@ -1028,159 +1037,53 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
     }
     const auto day_profile = std::sin((double(virtual_s_) / day_s * 2 * 3.141592653589793) - 1.2) * .5 + .5;
 
-    for (const auto& n : sc.nodes) {
-        auto& ns = graph_->node_state(n.id);
-        ns.building_effect = 0;
-
-        double rain = 0;
-        auto consume = [&](const DwsEvent& e) {
+    // Describe the step in model units. The storm and surge curves involve
+    // trigonometry, so they are evaluated here, once per step, on the CPU; the
+    // compute backend receives their positions, radii and strengths.
+    compute::StepRequest request;
+    request.virtual_s = virtual_s_;
+    request.dt = dt;
+    request.day_profile = day_profile;
+    request.traffic = sc.config.traffic;
+    request.signals = sc.config.signals;
+    request.buildings = sc.config.buildings;
+    request.flooding = sc.config.flooding;
+    if (sc.config.dws) {
+        auto consider = [&](const DwsEvent& e) {
             if (e.epicenter.value >= sc.nodes.size()) return;
             const auto storm = evaluate_storm_state(e, now_ppm, sc.nodes[e.epicenter.value]);
-            if (!storm.active) return;
-            const double dist = std::hypot(n.position.x_m - storm.cur_x_m, n.position.y_m - storm.cur_y_m);
-            rain = 1.0 - (1.0 - rain) * (1.0 - storm.cur_intensity * wendland_c2(dist, storm.cur_radius_m));
+            if (storm.active) request.storms.push_back({storm.cur_x_m, storm.cur_y_m, storm.cur_radius_m, storm.cur_intensity});
         };
-        if (sc.config.dws) {
-            for (const auto& e : sc.dws_events) consume(e);
-            for (const auto& e : manual_weather_) consume(e);
-        }
-        ns.rainfall = clamp01(rain);
-
-        if (sc.config.flooding) {
-            const auto gain = .018 * ns.rainfall * n.flood_susceptibility;
-            const auto drain = .004 * n.drainage * ns.flood;
-            ns.flood = clamp01(ns.flood + dt * (gain - drain));
-        } else {
-            ns.flood = 0;
+        for (const auto& e : sc.dws_events) consider(e);
+        for (const auto& e : manual_weather_) consider(e);
+    }
+    // Active surges follow a smooth bell over their lifetime.
+    for (const auto& s : active_surges_) {
+        if (virtual_s_ >= s.start_s && virtual_s_ <= s.end_s && s.end_s > s.start_s && s.node.value < sc.nodes.size()) {
+            const double rel_t = double(virtual_s_ - s.start_s) / double(s.end_s - s.start_s);
+            const double bell = std::sin(3.141592653589793 * rel_t);
+            const double bell_weight = bell * bell;
+            request.surges.push_back({s.node.value, 1.0 + (s.factor - 1.0) * bell_weight, s.radius_m * (0.35 + 0.65 * bell_weight)});
         }
     }
+    for (std::size_t i = 0; i < events_.signals.size(); ++i)
+        compute_->set_signal_phase(static_cast<std::uint32_t>(i), events_.signals[i].phase);
+    compute_->sync_signal_overrides(signal_overrides_);
+    for (const auto e : events_.demand_support())
+        compute_->set_attraction(e, events_.demand_effect(EdgeId{e}));
+    compute_->update_incidents(sc, virtual_s_, sc.config.incidents);
 
-    // Reset incident impact on all edges each physics tick
-    for (std::size_t i = 0; i < graph_->edges().size(); ++i) {
-        auto& es = graph_->edge_state(EdgeId{static_cast<std::uint32_t>(i)});
-        es.incident_speed_multiplier = 1.0;
-        es.incident_capacity_multiplier = 1.0;
-        es.incident_closed = false;
-    }
+    const auto outcome = compute_->step(request);
 
-    // Apply active incidents with safe overlapping composition
-    if (sc.config.incidents) {
-        for (const auto& inc : sc.incidents) {
-            if (virtual_s_ >= inc.start_virtual_s && virtual_s_ < inc.end_virtual_s) {
-                if (inc.edge.value < graph_->edges().size()) {
-                    auto& es = graph_->edge_state(inc.edge);
-                    es.incident_speed_multiplier = std::min(es.incident_speed_multiplier, inc.speed_multiplier);
-                    es.incident_capacity_multiplier = std::min(es.incident_capacity_multiplier, inc.capacity_multiplier);
-                    if (inc.closed) {
-                        es.incident_closed = true;
-                    }
-                }
-            }
+    // Flood events, in edge order, exactly as the step reported them.
+    if (outcome.transitions) {
+        for (const auto& e : sc.edges) {
+            if (!compute_->flood_transition(e.id.value)) continue;
+            const double flood = compute_->edge_flood(e.id.value);
+            const bool flooded = flood > .01;
+            events_.observe({virtual_s_,e.id.value,0,0,"flooding",flooded?"Road becomes flood affected":"Flood effect cleared",flood});
+            if(flooded && e.id.value%2==0) add_news(800000+e.id.value,"flooding","warning","FLOOD_STARTED","Flooding detected on Edge "+std::to_string(e.id.value),{{"edge_id",e.id.value},{"flood",flood}});
         }
-    }
-
-    for (const auto& e : sc.edges) {
-        auto& es = graph_->edge_state(e.id);
-        const auto& na = graph_->node_states()[e.from.value];
-        const auto& nb = graph_->node_states()[e.to.value];
-        es.rainfall = (na.rainfall + nb.rainfall) / 2;
-        const bool was_flooded=es.flood>.01;
-        es.flood = (na.flood + nb.flood) / 2;
-        if(is_source_direction_allowed(e) && was_flooded!=(es.flood>.01)){
-            events_.observe({virtual_s_,e.id.value,0,0,"flooding",es.flood>.01?"Road becomes flood affected":"Flood effect cleared",es.flood});
-            if(es.flood>.01 && e.id.value%2==0) add_news(800000+e.id.value,"flooding","warning","FLOOD_STARTED","Flooding detected on Edge "+std::to_string(e.id.value),{{"edge_id",e.id.value},{"flood",es.flood}});
-        }
-        if (!is_source_direction_allowed(e)) {
-            es.demand_vph = 0;
-            es.effective_capacity_vph = 0;
-            es.effective_speed_mps = 0;
-            es.congestion_model = 0;
-            es.congestion_observed = 0;
-            es.congestion = 0;
-            es.vehicle_load = 0;
-            es.vehicle_count = 0;
-            es.halting_count = 0;
-            es.mean_speed_mps = 0;
-            es.occupancy = 0;
-            continue;
-        }
-        const auto attraction = sc.config.buildings ? events_.demand_effect(e.id) : 0.0;
-        const auto hot = sc.config.traffic ? e.hotspot_susceptibility : 0;
-        
-        // Active Surge Multiplier following a smooth Gaussian / Normal Distribution curve
-        double surge_mult = 1.0;
-        for (const auto& s : active_surges_) {
-            if (virtual_s_ >= s.start_s && virtual_s_ <= s.end_s && s.end_s > s.start_s) {
-                const double rel_t = double(virtual_s_ - s.start_s) / double(s.end_s - s.start_s);
-                const double bell = std::sin(3.141592653589793 * rel_t);
-                const double bell_weight = bell * bell;
-                const double cur_factor = 1.0 + (s.factor - 1.0) * bell_weight;
-                const double cur_radius = s.radius_m * (0.35 + 0.65 * bell_weight);
-
-                const auto& sn = sc.nodes[s.node.value];
-                const double d1 = point_distance(sc.nodes[e.from.value].position, sn.position);
-                const double d2 = point_distance(sc.nodes[e.to.value].position, sn.position);
-                if (d1 <= cur_radius || d2 <= cur_radius) {
-                    surge_mult = std::max(surge_mult, cur_factor);
-                }
-            }
-        }
-
-        es.demand_vph = sc.config.traffic ? e.base_capacity_vph * (.18 + .68 * day_profile + .60 * attraction + .35 * hot) * surge_mult : 0;
-        
-        es.signal_multiplier = events_.signal_multiplier(sc,e);
-        if (signal_overrides_.contains(e.to.value) && sc.config.signals) {
-            const auto& a=sc.nodes[e.from.value].position;const auto& b=sc.nodes[e.to.value].position;
-            bool ns=std::abs(b.y_m-a.y_m)>=std::abs(b.x_m-a.x_m);
-            es.signal_multiplier=(ns==(signal_overrides_.at(e.to.value)==1))?1.0:.08;
-        }
-
-        // Realistic Weather Sensitivity (Rain causes moderate 10-25% slowing rather than sudden impassability)
-        es.rain_speed_multiplier = 1.0 - 0.18 * es.rainfall;
-        es.flood_speed_multiplier = std::max(0.35, 1.0 - 0.55 * es.flood);
-        es.rain_capacity_multiplier = 1.0 - 0.15 * es.rainfall;
-        es.flood_capacity_multiplier = std::max(0.30, 1.0 - 0.60 * es.flood);
-
-        // Smooth speed deceleration and acceleration curves (realistic gradual vehicle movement)
-        const bool is_closed = es.manual_closed || es.incident_closed || es.flood >= 0.98;
-        const double target_speed = is_closed ? 0.0 : (e.free_speed_mps * es.signal_multiplier * es.rain_speed_multiplier * es.flood_speed_multiplier * es.manual_speed_multiplier * es.incident_speed_multiplier);
-        if (es.effective_speed_mps < target_speed) {
-            es.effective_speed_mps = std::min(target_speed, es.effective_speed_mps + 2.4 * dt);
-        } else if (es.effective_speed_mps > target_speed) {
-            es.effective_speed_mps = std::max(target_speed, es.effective_speed_mps - 3.2 * dt);
-        }
-
-        es.effective_capacity_vph = e.base_capacity_vph * es.signal_multiplier * es.rain_capacity_multiplier * es.flood_capacity_multiplier * es.manual_capacity_multiplier * es.incident_capacity_multiplier;
-        es.closed = is_closed;
-
-        // Smooth physical vehicle queuing dynamics (eliminates abrupt 51 -> 2 jumps)
-        const double baseline_veh = (es.demand_vph / std::max(2.0, e.free_speed_mps * 3.6)) * (e.length_m / 1000.0);
-        const double max_queue_veh = (e.length_m / 7.5) * e.lanes;
-        const double target_veh = es.closed ? 0.0 : std::clamp(baseline_veh * (1.0 + 3.5 * (1.0 - es.signal_multiplier) * (0.5 + 0.5 * surge_mult)), 0.0, max_queue_veh);
-
-        const double current_veh = es.vehicle_load;
-        double next_veh = current_veh;
-        const double rate_factor = 1.0;
-        if (target_veh > current_veh) {
-            // Queue buildup: accumulates smoothly at physical inflow rate
-            const double max_inflow_step = std::max(0.4, (es.demand_vph / 3600.0) * dt * rate_factor);
-            next_veh = std::min(target_veh, current_veh + max_inflow_step);
-        } else if (target_veh < current_veh) {
-            // Queue discharge: drains smoothly at physical saturation flow rate
-            const double max_discharge_step = std::max(0.7, (e.lanes * 0.75) * dt * rate_factor);
-            next_veh = std::max(target_veh, current_veh - max_discharge_step);
-        }
-
-        es.vehicle_load=next_veh;
-        es.vehicle_count = static_cast<std::uint32_t>(std::llround(next_veh));
-        es.congestion_model = clamp01(double(es.vehicle_count) / std::max(1.0, max_queue_veh * 0.75));
-        es.mean_speed_mps = es.effective_speed_mps * (1.0 - es.congestion_model * 0.65);
-        es.halting_count = static_cast<std::uint32_t>(std::llround(es.vehicle_count * (1.0 - es.signal_multiplier * 0.9)));
-        es.occupancy = clamp01(es.vehicle_count * 5.0 / (std::max(1.0, e.length_m) * e.lanes));
-        es.congestion_observed = 1.0 - (1.0 - clamp01(1.0 - es.mean_speed_mps / std::max(0.1, es.effective_speed_mps))) * (1.0 - double(es.halting_count) / std::max(1u, es.vehicle_count)) * (1.0 - es.occupancy);
-        const double speed_loss = es.vehicle_count ? clamp01(1.0-es.mean_speed_mps/std::max(.1,e.free_speed_mps)) : 0.0;
-        const double queue_ratio = double(es.halting_count)/std::max(1u,es.vehicle_count);
-        es.congestion = es.closed ? 1.0 : clamp01(.60*speed_loss+.25*queue_ratio+.15*es.occupancy);
     }
 
     const auto previous = virtual_s_ >= dt ? virtual_s_ - dt : 0;
@@ -1243,11 +1146,11 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         }
     }
 
-    congestion_.update(sc,graph_->edge_states(),virtual_s_,dt);
+    congestion_.record(outcome.congestion_index,virtual_s_,dt);
     // Places respond to the conditions this tick produced: roads shut, rain
     // falling, an incident nearby. Run last, so couplings read the same state
     // the operator is about to be shown rather than the previous tick's.
-    events_.recouple(sc,graph_->edge_states(),virtual_s_);
+    events_.recouple(sc,compute_->conditions(),virtual_s_);
     graph_->commit();
 }
 
@@ -1257,7 +1160,12 @@ void SimulationEngine::step_to(std::uint32_t target) {
         const auto to_checkpoint = 900 - (virtual_s_ % 900);
         const auto dt = std::min({std::uint32_t{1}, target - virtual_s_, to_checkpoint});
         virtual_s_ += dt;
-        physics_step(dt);
+        try {
+            physics_step(dt);
+        } catch (const compute::StateLost& lost) {
+            logger_.system("ERROR", "compute", std::string("compute.device_lost ") + lost.what());
+            recover_compute(virtual_s_);
+        }
         if (virtual_s_ % 900 == 0) {
             capture_checkpoint();
         }
@@ -1268,7 +1176,15 @@ void SimulationEngine::step_to(std::uint32_t target) {
 }
 
 void SimulationEngine::capture_checkpoint() {
-    Checkpoint checkpoint{virtual_s_, graph_->node_states(), graph_->edge_states(), news_.size(), next_news_id_, events_, congestion_};
+    std::vector<std::uint32_t> physics;
+    try {
+        physics = compute_->export_state();
+    } catch (const compute::StateLost& lost) {
+        logger_.system("ERROR", "compute", std::string("compute.device_lost ") + lost.what());
+        recover_compute(virtual_s_);
+        physics = compute_->export_state();
+    }
+    Checkpoint checkpoint{virtual_s_, std::move(physics), news_.size(), next_news_id_, events_, congestion_};
     const auto position = std::lower_bound(checkpoints_.begin(), checkpoints_.end(), virtual_s_, [](const Checkpoint& value, auto time) {
         return value.virtual_s < time;
     });
@@ -1285,30 +1201,31 @@ void SimulationEngine::restore_to(std::uint32_t target) {
     });
     if (it != checkpoints_.begin()) --it;
     // Operator edge overrides stand until they are undone, as signal overrides
-    // and surges do; a checkpoint taken before one was made must not erase it.
-    struct ManualEdge { double speed, capacity; bool closed; };
-    std::vector<ManualEdge> manual;
-    manual.reserve(graph_->edge_states().size());
-    for (const auto& es : graph_->edge_states())
-        manual.push_back({es.manual_speed_multiplier, es.manual_capacity_multiplier, es.manual_closed});
+    // and surges do. They are inputs held by the compute dispatcher, outside
+    // the checkpointed state, so restoring a checkpoint taken before one was
+    // made does not erase it.
     graph_->reset_dynamic();
     virtual_s_ = 0;
     if (it != checkpoints_.end()) {
         virtual_s_ = it->virtual_s;
-        for (std::size_t i = 0; i < it->nodes.size(); ++i) graph_->node_state(NodeId{static_cast<std::uint32_t>(i)}) = it->nodes[i];
-        for (std::size_t i = 0; i < it->edges.size(); ++i) graph_->edge_state(EdgeId{static_cast<std::uint32_t>(i)}) = it->edges[i];
+        compute_->import_state(it->physics);
         if (news_.size() > it->news_size) news_.resize(it->news_size);
         next_news_id_ = it->next_news_id;
         events_ = it->events; congestion_ = it->congestion;
         checkpoints_.erase(std::next(it), checkpoints_.end());
-    }
-    for (std::size_t i = 0; i < manual.size() && i < graph_->edge_states().size(); ++i) {
-        auto& es = graph_->edge_state(EdgeId{static_cast<std::uint32_t>(i)});
-        es.manual_speed_multiplier = manual[i].speed;
-        es.manual_capacity_multiplier = manual[i].capacity;
-        es.manual_closed = manual[i].closed;
+    } else {
+        compute_->reset_state();
     }
     step_to(target);
+}
+
+// The accelerator failed and took the state of this step with it. The
+// checkpoints are host copies, and the step is deterministic, so replaying
+// from the latest one on the CPU reaches exactly the state that was lost.
+void SimulationEngine::recover_compute(std::uint32_t target) {
+    logger_.system("WARN", "compute", "compute.recovery replaying to " + hhmmss(target) + " on the CPU from the latest checkpoint");
+    compute_->recovered();
+    restore_to(target);
 }
 
 void SimulationEngine::loop() {
@@ -1317,6 +1234,7 @@ void SimulationEngine::loop() {
         cv_.wait_for(lock, std::chrono::milliseconds(50));
         if (terminate_requested_) break;
         if (!graph_) continue;
+        if (compute_->needs_recovery()) recover_compute(virtual_s_);
 
         if (lifecycle_ == Lifecycle::Running) {
             const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
@@ -1944,6 +1862,28 @@ nlohmann::json SimulationEngine::history() const {
         });
     }
     return envelope({{"commands", std::move(a)}, {"undo_depth", commands_.size()}, {"redo_depth", redo_.size()}});
+}
+
+nlohmann::json SimulationEngine::compute_status() const {
+    std::lock_guard lock(mutex_);
+    return compute_->describe();
+}
+
+void SimulationEngine::initialize_compute() {
+    std::lock_guard lock(mutex_);
+    compute_->initialize();
+}
+
+bool SimulationEngine::select_compute_backend(compute::BackendType type) {
+    std::lock_guard lock(mutex_);
+    if (!graph_) return false;
+    try {
+        return compute_->select(type, "selected by the operator");
+    } catch (const compute::StateLost& lost) {
+        logger_.system("ERROR", "compute", std::string("compute.device_lost ") + lost.what());
+        recover_compute(virtual_s_);
+        return type == compute::BackendType::Cpu;
+    }
 }
 
 std::uint64_t SimulationEngine::state_revision() const {

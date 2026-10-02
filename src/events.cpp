@@ -161,6 +161,13 @@ void EventRuntime::initialize(const Scenario& s) {
     }
 
     edge_features_ = edge_features_holder;
+    {
+        std::vector<bool> near(s.edges.size(),false);
+        for(const auto i:responders_)for(auto [edge,w]:(*per_feature)[i]){(void)w;near[edge]=true;}
+        auto support=std::make_shared<std::vector<std::uint32_t>>();
+        for(std::size_t e=0;e<near.size();++e)if(near[e])support->push_back(static_cast<std::uint32_t>(e));
+        demand_support_=std::move(support);
+    }
     feature_edges_ = std::move(per_feature);
     feature_peers_ = std::move(peers);
     edge_available_.resize(s.edges.size());
@@ -253,11 +260,28 @@ std::vector<DemandFactor> EventRuntime::demand_factors(std::size_t feature) cons
     return feature<factors_.size()?factors_[feature]:std::vector<DemandFactor>{};
 }
 
-void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time) {
+namespace {
+// Adapts the engine's double-precision edge state to the accessors recouple reads.
+struct DynamicConditions {
+    const std::vector<EdgeDynamic>& edges;
+    [[nodiscard]] bool closed(std::size_t e) const { return edges[e].closed; }
+    [[nodiscard]] bool incident_closed(std::size_t e) const { return edges[e].incident_closed; }
+    [[nodiscard]] double rainfall(std::size_t e) const { return edges[e].rainfall; }
+    [[nodiscard]] double flood(std::size_t e) const { return edges[e].flood; }
+};
+}
+
+const std::vector<std::uint32_t>& EventRuntime::demand_support() const {
+    static const std::vector<std::uint32_t> none;
+    return demand_support_?*demand_support_:none;
+}
+
+template<class Conditions>
+void EventRuntime::recouple_with(const Scenario& s,const Conditions& edges,std::uint32_t time) {
     if(!s.config.buildings||!feature_edges_||demand.empty())return;
     bool network_changed=false;
     for(const auto& e:s.edges) {
-        const bool available=is_source_direction_allowed(e)&&!edges[e.id.value].closed&&!edges[e.id.value].incident_closed;
+        const bool available=is_source_direction_allowed(e)&&!edges.closed(e.id.value)&&!edges.incident_closed(e.id.value);
         if(edge_available_[e.id.value]!=available)network_changed=true;
         edge_available_[e.id.value]=available;
     }
@@ -272,11 +296,11 @@ void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& ed
         if(near.empty())continue;
         double weight=0,rain=0,blocked=0,distress=0;
         for(auto [e,w]:near){
-            const auto& d=edges[e];
             weight+=w;
-            rain+=w*d.rainfall;
-            if(d.closed||d.incident_closed)blocked+=w;
-            distress=std::max(distress,std::max(d.flood,d.incident_closed?1.0:0.0));
+            rain+=w*edges.rainfall(e);
+            const bool incident=edges.incident_closed(e);
+            if(edges.closed(e)||incident)blocked+=w;
+            distress=std::max(distress,std::max(edges.flood(e),incident?1.0:0.0));
         }
         if(weight<=0)continue;
         auto& c=context[i];
@@ -321,6 +345,14 @@ void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& ed
     if(changed||network_changed)rebuild_edge_demand();
 }
 
+void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time) {
+    recouple_with(s,DynamicConditions{edges},time);
+}
+
+void EventRuntime::recouple(const Scenario& s,const EdgeConditions& edges,std::uint32_t time) {
+    recouple_with(s,edges,time);
+}
+
 nlohmann::json EventRuntime::demand_json(const Scenario& s) const {
     auto items=nlohmann::json::array();
     for(std::size_t i=0;i<demand.size();++i){
@@ -350,7 +382,10 @@ double EventRuntime::demand_effect(EdgeId edge) const {return edge_demand_[edge.
 std::vector<std::string> EventRuntime::demand_causes(const Scenario& s,EdgeId edge) const {std::vector<std::string> ids;for(auto [id,w]:(*edge_features_)[edge.value])if(w*(demand[id]-1)>.01)ids.push_back(s.features[id].id);return ids;}
 void CongestionTracker::update(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time,std::uint32_t dt){
     double sum=0,weights=0;for(const auto& e:s.edges)if(is_source_direction_allowed(e)){const double w=e.length_m*e.lanes;sum+=w*edges[e.id.value].congestion;weights+=w;}
-    current=weights>0?std::clamp(100*sum/weights,0.0,100.0):0;
+    record(weights>0?std::clamp(100*sum/weights,0.0,100.0):0,time,dt);
+}
+void CongestionTracker::record(double index,std::uint32_t time,std::uint32_t dt){
+    current=index;
     const double alpha=1-std::exp(-double(dt)/900.0);average=samples.empty()?current:alpha*current+(1-alpha)*average;
     if(samples.empty()||time%60==0)samples.push_back({time,current,average});
 }
