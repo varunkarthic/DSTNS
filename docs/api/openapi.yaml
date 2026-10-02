@@ -734,6 +734,69 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+  /api/v1/view/environment:
+    get:
+      tags:
+      - View
+      operationId: environment
+      summary: The coupled environment
+      description: Calendar, terrain provenance (source, dataset, licence, attribution, zoom, native
+        resolution, cache id, fetch time, bounding box, observed, degraded), the environment grid,
+        elevation range and hash, the largest road grade, and the fields available as rasters.
+      responses:
+        '200':
+          $ref: '#/components/responses/Envelope'
+  /api/v1/view/fields/{name}:
+    get:
+      tags:
+      - View
+      operationId: field
+      summary: One environmental field as a raster
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [elevation, slope]
+      - name: max_side
+        in: query
+        schema:
+          type: integer
+          minimum: 8
+          maximum: 512
+          default: 160
+        description: Block-average the field so neither side exceeds this many cells.
+      responses:
+        '200':
+          description: Row-major values, south row first, with the grid that places them.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      name: {type: string}
+                      units: {type: string}
+                      width: {type: integer}
+                      height: {type: integer}
+                      origin_x_m: {type: number}
+                      origin_y_m: {type: number}
+                      cell_m: {type: number}
+                      solver_cell_m: {type: number}
+                      min: {type: number}
+                      max: {type: number}
+                      values:
+                        type: array
+                        items: {type: number}
+        '400':
+          description: Unknown field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/v1/view/topology:
     get:
       tags:

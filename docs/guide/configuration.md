@@ -119,6 +119,12 @@ What `POST /api/v1/playback/start` and `/prepare` accept (the CLI builds this):
 | `dws.frequency` | integer | As above |
 | `fixture.grid_width`, `fixture.grid_height` | integer | Synthetic grid for tests; at least 3 × 3, and width × height ≤ `max_nodes` |
 | `saved_seed_id` | string | `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` |
+| `environment.dem` | string | `auto`, `terrarium`, `flat` or `synthetic:slope|bowl|hill|valley[:parameter]`; see [Terrain](../concepts/terrain.md#sources) |
+| `environment.dem_required` | boolean | Stop the run if terrain cannot be loaded, instead of falling back to flat |
+| `environment.grid_cell_m` | number | [2, 1000], default 25: the environment grid's cell size |
+| `environment.grid_margin_m`, `environment.max_grid_cells` | | Default 150 m and 262,144 cells ([16, 4,194,304]) |
+| `environment.dem_smoothing_passes` | integer | [0, 8], default 1: binomial passes over observed elevation |
+| `environment.grade_baseline_m` | number | [0, 2000], default 100: the shortest run a road grade is measured over |
 | `map_selection_version` | string | `urban-crfg-v3` |
 
 ## CLI flags
@@ -187,3 +193,11 @@ server serves it at `GET /api/v1/system/ui-config`; a malformed file is
 reported and the observer falls back to built-in defaults. Every key, its
 range and its default is documented in [Observer
 configuration](observer-configuration.md).
+
+## Terrain environment variables
+
+| Variable | Meaning |
+|---|---|
+| `DSTNS_DEM_SOURCE` | What `environment.dem: auto` means: `flat` keeps a run offline (the test suites set it), `terrarium` uses terrain tiles even for a pinned map |
+| `DSTNS_DEM_CACHE` | The terrain tile cache, as `dstns_server --dem-cache DIR` sets it (default `data/dem`) |
+| `DSTNS_DEM_ENDPOINT` | URL template for terrain tiles (`{z}`, `{x}`, `{y}`), e.g. a private mirror |

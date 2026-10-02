@@ -183,6 +183,9 @@ nav:
           - Traffic signals: concepts/signals.md
           - Congestion and road state: concepts/congestion.md
           - Routing: concepts/routing.md
+      - The coupled city:
+          - Overview: concepts/coupled-city.md
+          - Terrain (DEM): concepts/terrain.md
       - Events and environment:
           - Events: concepts/events.md
           - Weather and flooding: concepts/weather.md

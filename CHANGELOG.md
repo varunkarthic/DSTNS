@@ -39,6 +39,17 @@ IDs, now also include the month.
   `--describe-seed`, Docker `DSTNS_LOCATION` and `DSTNS_MONTH`, and the
   observer's new-world dialog (Random, Enter or Constrained seed).
 - `"month"` in start requests and `"seed"` in `POST /api/v1/world/regenerate`.
+- **Terrain (DEM).** Every district gets an elevation model on a shared
+  environment grid (25 m cells by default) from a provider: AWS Open Data
+  Terrain Tiles (cached in `data/dem`, attributed to Mapzen and its sources),
+  flat terrain, or analytic test surfaces. Each directed road has a grade, its
+  twin the negation. A DEM that cannot be loaded falls back to flat terrain and
+  marks the run degraded, unless `environment.dem_required` is set.
+  `GET /api/v1/view/environment`, `GET /api/v1/view/fields/{elevation,slope}`,
+  `dstns_server --dem-cache`, `DSTNS_DEM_SOURCE`. Existing worlds are unchanged
+  until a later module reads the grade; scenario hashes include the terrain.
+- **Observer: field overlays and a compass.** Layers gains an exclusive field
+  overlay group; Elevation draws a heatmap with a legend and a pointer readout.
 - RNG domains for the new modules, appended after the existing ones. Golden
   values recorded before the change prove the existing streams did not move.
 

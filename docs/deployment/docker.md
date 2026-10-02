@@ -155,6 +155,9 @@ Set these in `docker-compose.yml`, a `.env` file, or with `-e` on `docker run`.
 | `dstns-maps` | `/app/data/maps` | City extracts and their manifests (up to about 50 MB each) | Maps are downloaded again when next needed |
 | `dstns-logs` | `/app/logs` | `system.log`, `runtime.db`, `operator.token`, `global_view.json` | You lose history; nothing else |
 
+Downloaded terrain tiles are kept in the `dstns-dem` volume (`/app/data/dem`),
+beside the `dstns-maps` volume for city extracts, so neither is downloaded twice.
+
 Run state (the current day, checkpoints, undo history) lives in memory and
 does not survive a container restart; a restarted container starts a fresh
 run. Back up maps or logs with an ordinary volume copy:

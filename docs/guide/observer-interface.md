@@ -413,6 +413,32 @@ default and enabled either from the legend's footer or from Layers, under
 **Unclassified places**. They are hidden from the picture only; the simulation
 is unaffected.
 
+### Field overlays
+
+The top group of the Layers panel, **Field overlay · one at a time**, chooses
+at most one continuous field to draw under the roads: **None**, **Elevation**,
+**Wind**, **Solar irradiance**, **Surface temperature** or **Flood depth**. It
+is a radio group, so choosing one turns the previous one off: two heatmaps on
+one map cannot both be read. Road, place and event layers are independent of
+it. Fields the current world does not simulate are listed as *Not simulated in
+this world* and cannot be chosen. The choice is remembered in this browser.
+
+Each field has its own colour ramp, dark at the low end and bright at the high
+end. The **field legend** in the lower bar gives its name, the range in this
+world and its units; the **pointer readout** adds the value under the cursor
+(for example *Elevation 34.2 m*). Colour alone never stands for a number. A
+static field such as elevation is fetched once per world; a changing field is
+re-read every two seconds while it is shown, at display resolution.
+
+When the terrain comes from imported tiles, the map credit adds *Terrain:
+Mapzen, USGS, NASA, NOAA*.
+
+### Compass
+
+A compass at the top of the map shows north, east, south and west. The map is
+always drawn north-up; the compass is there so orientation never has to be
+assumed.
+
 ## Telemetry
 
 Live Telemetry has two forms of the same data.

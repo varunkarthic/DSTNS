@@ -34,7 +34,9 @@ is empty.
 | `/view/weather`, `/view/events` | Scheduled and manual storms | Small | Occasionally |
 | `/view/incidents` | Every incident of the day | Small | Occasionally |
 | `/view/buildings`, `/view/bus-stops` | Node-level buildings; routable stops | Small | Once |
-| `/view/manifest` | Hashes and versions for reproducibility | Tiny | Once |
+| `/view/manifest` | Hashes and versions for reproducibility, calendar and terrain provenance | Tiny | Once |
+| `/view/environment` | The coupled environment: calendar, terrain provenance, road grade summary, available fields | Small | Once per `run_id`, then occasionally |
+| `/view/fields/{name}` | One environmental field as a raster; `?max_side=` (8 to 512, default 160) | Medium | Once for a static field; every few seconds for a changing one, only while shown |
 | `/view/run`, `/view/config` | Same as `/playback/status` | Tiny | — |
 
 Aliases: `/api/v1/topology`, `/view/network` and `/view/map/full` serve the
@@ -66,7 +68,23 @@ view; `/api/v1/places` serves places.
 ```
 
 `x_m` and `y_m` are true metres from the projection origin. `location.city`
-is empty for a pinned map.
+is empty for a pinned map. Each node also carries `elevation_m` and each edge its
+`grade` (rise over run in its own direction; the reverse twin has the negation),
+both 0 on flat terrain. See [Terrain](../concepts/terrain.md).
+
+## Environment fields
+
+```json
+{ "name": "elevation", "units": "m", "width": 108, "height": 108,
+  "origin_x_m": -1530.0, "origin_y_m": -1290.0, "cell_m": 25.0, "solver_cell_m": 25.0,
+  "min": 27.5, "max": 55.2,
+  "layout": "row-major, south row first; cell (0,0) is the south-west corner",
+  "values": [ 31.2, 31.4, … ] }
+```
+
+Fields are reduced for display by block means, so the solver's own resolution
+(`solver_cell_m`) never has to be sent. Available now: `elevation` (m, to 0.1 m)
+and `slope` (m/m). An unknown field returns 400.
 
 ## Snapshot
 
