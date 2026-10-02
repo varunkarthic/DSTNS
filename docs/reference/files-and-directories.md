@@ -9,11 +9,12 @@ never be committed.
 |---|---|---|---|
 | `build/` | CMake | Compiled binaries and test executables | Yes; rebuilt on demand |
 | `ui-engine/dist/` | `./launcher ui build` | The compiled observer the server serves | Yes; rebuilt on demand |
-| `ui-engine/node_modules/`, `dstns-operator-cli/node_modules/` | `npm ci` | Node dependencies | Yes; reinstalled |
-| `logs/` | the server | Logs, journal and credential (below) | Yes, with the server stopped; `./launcher reset` does it for you |
+| `ui-engine/node_modules/` | `npm ci` | Observer build dependencies | Yes; reinstalled |
+| `.venv-launcher/` | First interactive launcher use | Pinned Textual and Rich dependencies | Yes, with the launcher stopped; reinstalled on next interactive use |
+| `logs/` | launcher and server | Logs, journal and credential (below) | Yes, with the server stopped; `./launcher reset` does it for you |
 | `data/maps/` | the server | Cached city extracts and manifests | Yes; they are downloaded again when needed |
 | `data/fixtures/` | repository | One recorded real district for offline use | No; tracked |
-| `data/seed-store/` | `seeds.py` | Saved seeds and copies of pinned maps | Only if you do not need your saved seeds |
+| `data/seed-store/` | `dstns_launcher/core/seeds.py` | Saved seeds and copies of pinned maps | Only if you do not need your saved seeds |
 | `artifacts/` | tests, SUMO runs | Temporary scenarios and outputs | Yes |
 | `site/` | `mkdocs build` | The built documentation | Yes |
 | `.venv-docs/` | you | The documentation toolchain | Yes |
@@ -27,6 +28,7 @@ never be committed.
 | `system.log` | text | One line per event: start-up, lifecycle transitions, map downloads, errors |
 | `runtime.db`, `-wal`, `-shm` | SQLite, WAL mode | Journal of API requests, events and lifecycle changes |
 | `global_view.json` | JSON | The full state of the run, rewritten every 10 seconds |
+| `launcher.log` | rotating text | Launcher diagnostics, command failures and interface fallback details |
 | `launcher.json` | JSON | The port and process the CLI last used, so it can reattach |
 | `operator.token` | text, mode `0600` | The operator credential |
 

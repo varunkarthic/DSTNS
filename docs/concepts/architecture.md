@@ -65,7 +65,7 @@ holds simulation state of its own; both read what the core publishes.
 | `src/logging.cpp` | `RuntimeLogger`: text system log and SQLite runtime journal |
 | `src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
 | `ui-engine/` | The observer: React 19, Vite, Vitest, jsPDF |
-| `dstns-operator-cli/` | The operator CLI (Node 20+), saved-seed store (`seeds.py`) |
+| `dstns_launcher/` | Python launcher: shared service core, Textual screens and compatibility interface |
 | `launcher`, `launcher.py` | Thin wrappers that start the CLI |
 | `scripts/` | Build, test, fetch and reset helpers |
 | `tests/` | Native unit, property, replay and performance suites; HTTP and CLI suites |
@@ -275,7 +275,10 @@ notifications, Auto Focus, the PDF report) derives from those polls. See
 
 ## The operator CLI
 
-`dstns-operator-cli/dstns.mjs` is the only supported way to start a run. It
+`./launcher` and `python3 launcher.py` both enter `dstns_launcher.cli`. The
+standard-library service core owns process supervision, API calls, configuration
+and saved seeds; the Textual and compatibility interfaces call the same services.
+The launcher is the supported way to start a run. It
 rebuilds the native core and the observer when their sources have changed,
 reuses a healthy server on the configured port or picks a free one, waits for
 health, opens the observer, waits for it to load, and then posts the start

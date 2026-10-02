@@ -146,5 +146,5 @@ Clicking the time control switches it.
 
 Every change is stored in this browser as a difference from the operator's
 file, so a later edit to `config/ui-config.json` still reaches settings the
-viewer never touched. The CLI preflight reports values in this file that the
+viewer never touched. The launcher environment check reports values in this file that the
 interface would ignore.

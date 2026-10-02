@@ -22,14 +22,18 @@ three.
 
 ## Operator CLI
 
-Read by `./launcher` (the Node CLI) and the scripts it runs.
+Read by `./launcher` and `python3 launcher.py` (the Python launcher), and the
+scripts they run.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `DSTNS_API_PORT` | `api.port` from `config/defaults.json` | Port to start on or attach to. An invalid value stops the CLI with `Invalid DSTNS_API_PORT` |
+| `DSTNS_API_PORT` | Last healthy port in `logs/launcher.json`, then `api.port` from `config/defaults.json` | Port to start on or attach to. An invalid value stops the CLI with `Invalid DSTNS_API_PORT` |
 | `DSTNS_LOGS_DIR` | `logs/` in the repository | Logs directory passed to the server and read for the credential |
 | `DSTNS_OPERATOR_TOKEN` | contents of `logs/operator.token` | Credential sent in the `X-DSTNS-Operator` header |
 | `DSTNS_SEED_DB` | `data/seed-store/seeds.sqlite3` | SQLite file holding saved seeds |
+| `DSTNS_LAUNCHER_NO_INSTALL` | unset | `1` prevents automatic installation of the optional terminal interface; compatibility mode remains available |
+| `NO_COLOR` | unset | Any nonempty value disables colour |
+| `TERM` | terminal-provided | `dumb` selects plain output and skips interface installation |
 
 ## Observer build
 

@@ -90,14 +90,17 @@ To serve the observer from somewhere else entirely, build it with
 `VITE_DSTNS_API_URL=https://api.example.org npm run build`, and allow that
 origin on the server with `DSTNS_ALLOWED_ORIGINS`.
 
-## The operator CLI
+## The launcher
 
 ```bash
-npm ci --prefix dstns-operator-cli
-node dstns-operator-cli/dstns.mjs help
+./launcher help
+python3 tests/launcher/test_core.py          # launcher operations
+python3 tests/launcher/test_interfaces.py    # command line, fallback and terminal interface
 ```
 
-The CLI's own build step fingerprints the core's and the observer's sources
+The launcher is the Python package `dstns_launcher/`: `core/` holds every operation,
+`tui/` the Textual interface and `fallback/` compatibility mode. Its build step
+fingerprints the core's and the observer's sources
 (stored in `build/.launcher-source` and `ui-engine/dist/.launcher-source`)
 and rebuilds only what changed.
 
@@ -122,3 +125,18 @@ ln -s build/compile_commands.json .
 ```
 
 For the observer, open `ui-engine/` as the TypeScript project root.
+
+### Terminal wordmark
+
+The launcher's checked-in text artwork is generated from
+`docs/assets/logo-wordmark.svg`. After changing that SVG, regenerate it with:
+
+```bash
+python3 scripts/launcher-logo.py
+```
+
+The script samples the filled SVG outlines into Unicode half-block characters at
+two sizes. It uses only the Python standard library and is not run at startup.
+The launcher selects artwork that fits the terminal and falls back to plain text
+in compact or non-Unicode terminals. Review the splash at both sizes after
+regeneration; terminal font proportions can vary.

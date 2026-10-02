@@ -20,9 +20,9 @@ is quicker: it needs nothing but Docker.
 | CMake | 3.22 | Building the core and its tests |
 | SQLite 3 (development headers) | any current | The runtime journal |
 | zlib (development headers) | any current | Compressing large API responses |
-| Node.js | 20 | The operator CLI and the observer build |
+| Node.js | 20 | Building the observer |
 | npm | 9 | Installing JavaScript dependencies |
-| Python 3 | 3.10 | The map downloader and the test suites |
+| Python 3 | 3.10 | The launcher, the map downloader and the test suites |
 | git | any | Cloning; CMake also fetches two header-only libraries |
 | Eclipse SUMO | optional, 1.15+ | The microscopic cross-check |
 
@@ -91,13 +91,18 @@ cd DSTNS
 
 The launcher is the supported path. It:
 
-1. installs the operator CLI's npm dependencies on first use;
-2. runs the [start-up checks](#start-up-checks);
-3. configures and compiles the core, and installs and builds the observer,
+1. installs its terminal interface on first interactive use (into `.venv-launcher/`);
+2. shows the SVG-derived wordmark for at least three seconds while running the
+   [start-up checks](#start-up-checks), then opens the dashboard;
+3. after **Start simulation** is selected, configures and compiles the core, and installs and builds the observer,
    only when their sources have changed since the last build;
 4. starts `build/dstns_server`, opens the observer and starts a run.
 
-The first build takes a few minutes. Later starts take seconds.
+Use `./launcher start` to proceed directly to a run. Build and download time
+depend on hardware, network and cache state; the first build can take a few
+minutes. Activity labels name the current operation throughout preparation.
+See [Loading feedback](../guide/operator-cli.md#loading-feedback) for animation
+and static-output options.
 
 ## Build manually
 
@@ -113,8 +118,6 @@ cmake --build build -j
 npm ci --prefix ui-engine
 npm run build --prefix ui-engine
 
-# The CLI's dependencies
-npm ci --prefix dstns-operator-cli
 ```
 
 `scripts/build.sh` runs the first two steps. The outputs:
@@ -138,18 +141,13 @@ Run the server on its own and start a run from another terminal:
 
 ## Start-up checks
 
-Every `./launcher start` verifies that this machine can actually run a
-simulation before it starts one, and says what to do when it cannot:
-
-| Check | Fails when |
-|---|---|
-| Host platform | Not macOS or Linux (warning) |
-| Node runtime, Python 3 | Missing or too old |
-| Runtime configuration, interface configuration | `config/defaults.json` or `config/ui-config.json` is invalid |
-| Interface bundle, observer bundle, simulation core | A build output is missing or stale |
-| Map fetcher, map cache | `scripts/fetch_osm.py` is missing, or the cache directory is not writable |
-| API port | The port is taken by something that is not DSTNS |
-| Core, API contract, loading and observer test suites | A fast test suite fails on this machine |
+Opened in a terminal, the launcher checks that this machine can run a simulation
+before showing the dashboard, and says what to do when it cannot: the platform,
+Python, the build tools, both configuration files, the logs directory, the map
+downloader and cache, the core and observer builds, the API port and SUMO. Every check
+is listed in [Launcher: environment check](../guide/operator-cli.md#environment-check).
+**Diagnostics** in the launcher can also run the core, HTTP, loading and observer
+test suites on this machine.
 
 ## Optional: SUMO
 
@@ -182,7 +180,7 @@ for everything else.
 
 ```bash
 git pull
-./launcher          # rebuilds whatever changed
+./launcher start    # rebuilds whatever changed and starts a run
 ```
 
 If a build fails after an update, or after a system library upgrade, start the
@@ -199,7 +197,8 @@ Everything DSTNS creates lives inside the repository:
 | Path | Contents | Safe to delete |
 |---|---|---|
 | `build/` | Native build | Yes; rebuilt on next start |
-| `ui-engine/dist/`, `ui-engine/node_modules/`, `dstns-operator-cli/node_modules/` | JavaScript build and dependencies | Yes |
+| `ui-engine/dist/`, `ui-engine/node_modules/` | JavaScript build and dependencies | Yes |
+| `.venv-launcher/` | The launcher's terminal interface | Yes; reinstalled on next use |
 | `logs/` | Logs, journal, operator token | Yes; `./launcher reset` clears it |
 | `data/maps/` | Downloaded city maps | Yes; downloaded again when needed |
 | `data/seed-store/` | Saved seeds | Only if you no longer need them |
@@ -221,8 +220,13 @@ Delete the repository directory to remove DSTNS completely.
     configured, and the CMake cache still names the old path. Run the
     `cmake --fresh` command under [Updating](#updating).
 
-??? failure "`Error: Node.js (>= 20) is required`"
-    Install Node.js 20 or later and make sure `node` is on `PATH`.
+??? failure "`npm: command not found` while building the observer"
+    Install Node.js 20 or later and make sure `node` and `npm` are on `PATH`. Node.js
+    is needed only to build the observer.
+
+??? failure "The launcher opens in compatibility mode"
+    The terminal interface could not be installed or started; the reason is in
+    `logs/launcher.log`. See [Troubleshooting: the launcher](../troubleshooting.md#the-launcher).
 
 ??? failure "The FetchContent step hangs or fails"
     The first configure downloads two libraries from GitHub. Behind a proxy,

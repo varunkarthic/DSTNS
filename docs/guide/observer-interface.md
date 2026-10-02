@@ -753,5 +753,6 @@ icon, with no geometry duplicated anywhere.
 | Core | `ctest --test-dir build` | Includes `dstns_world_and_stepping` for step and regeneration, including failure preserving the previous world |
 | HTTP | `python3 tests/api/api_smoke.py` | Step and world endpoints among the full API |
 
-The CLI preflight runs the core, HTTP and UI suites at startup and validates
-`config/ui-config.json`.
+The launcher checks the environment and validates `config/ui-config.json` during
+interactive startup. Run the core, HTTP and observer suites from **Tests**, or
+include the optional suites in **Diagnostics**; startup does not run them automatically.

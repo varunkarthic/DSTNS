@@ -45,8 +45,8 @@ natively on Intel and Apple silicon machines and on Arm servers.
 | CMake | 3.22 | Configuring and building the core |
 | SQLite 3, with development headers | Any current release | The runtime journal |
 | zlib, with development headers | Any current release | Compressing large API responses |
-| Node.js and npm | Node.js 20, npm 9 | The operator CLI and the observer build |
-| Python 3 | 3.10 | The map downloader and the test suites |
+| Node.js and npm | Node.js 20, npm 9 | Building the observer |
+| Python 3 | 3.10 | The launcher, the map downloader and the test suites |
 | git | Any | Cloning; CMake also fetches two header-only libraries |
 | Eclipse SUMO | 1.15, optional | The microscopic cross-check |
 

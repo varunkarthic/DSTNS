@@ -24,11 +24,12 @@ DSTNS/
 │   ├── unit/                 native unit suites (one executable each)
 │   ├── property/, replay/, performance/
 │   ├── api/                  HTTP suites against a real server (Python)
-│   ├── cli/                  launcher, downloader and saved-seed suites
+│   ├── cli/                  wrapper integration, downloader and saved-seed suites
+│   ├── launcher/             Python service and terminal interface suites
 │   ├── integration/          SUMO smoke test
 │   └── fixtures/             small OSM files
 ├── ui-engine/                the observer (React, Vite, Vitest)
-├── dstns-operator-cli/       the operator CLI (Node) and saved-seed store (Python)
+├── dstns_launcher/           Python launcher: core, Textual interface, compatibility mode
 ├── scripts/                  build, test, dev, reset, fetch_osm.py
 ├── docker/                   entrypoint, dstns-run, TLS gateway
 ├── config/                   defaults.json, ui-config.json

@@ -62,7 +62,7 @@ and the notice in [`COPYRIGHT`](https://github.com/varunkarthic/DSTNS/blob/main/
 | [Vite](https://vitejs.dev/), [Vitest](https://vitest.dev/) | MIT | Building and testing the observer |
 | [jsPDF](https://github.com/parallax/jsPDF) | MIT | PDF reports |
 | [Inter](https://rsms.me/inter/), [JetBrains Mono](https://www.jetbrains.com/lp/mono/), [Space Grotesk](https://floriankarsten.github.io/space-grotesk/) | SIL OFL 1.1 | Typefaces |
-| [@poppinss/cliui](https://github.com/poppinss/cliui) | MIT | The operator CLI |
+| [Textual](https://github.com/Textualize/textual), [Rich](https://github.com/Textualize/rich) | MIT | The launcher's terminal interface (installed on first use, not bundled) |
 | [Eclipse SUMO](https://eclipse.dev/sumo/) (optional, not bundled by default) | EPL-2.0 | Microscopic cross-check |
 
 ## Using and modifying DSTNS

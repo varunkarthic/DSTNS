@@ -103,7 +103,9 @@ git clone https://github.com/varunkarthic/DSTNS.git && cd DSTNS
 ./launcher
 ```
 
-Then open **<http://localhost:8090>**. The observer narrates the seed resolving
+For a source installation, choose **Start simulation** after the environment checks,
+or use `./launcher start` to start directly. Then open the observer URL shown by
+the launcher (normally **<http://localhost:8090>**). The observer narrates the seed resolving
 to a city, the map downloading (20–60 s the first time for a city) and the
 world being built, then the day starts.
 
@@ -126,7 +128,7 @@ flowchart LR
 | Part | What it is |
 |---|---|
 | **Core** (`dstns_server`) | C++20. Compiles a scenario from a seed, runs the virtual day, serves the API and the observer on one port. |
-| **Operator CLI** (`./launcher`) | Node.js. Builds what changed, starts and supervises the server, starts runs, saved seeds, logs, tests. |
+| **Operator CLI** (`./launcher`) | Python 3, with a Textual terminal interface and compatibility mode. Builds what changed, starts and supervises the server, starts runs, saved seeds, logs, tests. |
 | **Observer** (`ui-engine/`) | React 19. Watches a run in the browser: map, telemetry, playback, reports. |
 
 Read [Architecture](https://dstns.readthedocs.io/concepts/architecture/) for the full picture.
@@ -235,7 +237,7 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-ge
 ### Start
 
 ```bash
-./launcher                                   # build what changed, start, open the observer
+./launcher                                   # environment checks and interactive dashboard
 ./launcher start --seed 382923               # a particular seed
 ./launcher start --seed 382923 --day-type weekend
 ./launcher start --speed 3 --duration 1800
@@ -250,8 +252,15 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-ge
 
 Build and map-fetch times depend on hardware, network access and cache state;
 the timings above are indicative. The first build typically takes a few minutes;
-later starts can take seconds. The launcher
-verifies the machine before every run and says what to fix when it cannot run.
+later starts can take seconds. Interactive startup checks the environment and
+explains failures; every run validates its configuration. The terminal interface
+installs into `.venv-launcher/` on first use. Its SVG-derived terminal wordmark
+stays visible for at least three seconds while startup checks run. It shows
+activity while checks, builds
+and world preparation run, with download percentages only when a byte total is
+available. Use `--no-animation` for static activity labels, `--no-splash` to skip
+the opening wordmark, or `--no-tui` for plain output. See the
+[launcher guide](https://dstns.readthedocs.io/guide/operator-cli/) for all modes and controls.
 
 ### Build by hand
 
@@ -412,7 +421,7 @@ push. Details: [Testing](https://dstns.readthedocs.io/development/testing/).
 apps/dstns_server/    server entry point
 include/dstns/, src/  the C++ core: engine, API, scenario, OSM, events, backpressure
 ui-engine/            the observer (React, Vite, Vitest)
-dstns-operator-cli/   the operator CLI
+dstns_launcher/       the Python launcher, terminal interface and shared service core
 tests/                native, HTTP and CLI suites, fixtures
 tools/                scenario export, replay verification, road index, benchmark
 docker/               entrypoint, dstns-run, TLS gateway

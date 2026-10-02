@@ -24,14 +24,32 @@ ctest --test-dir build --output-on-failure          # 14 native + HTTP targets
 python3 tests/api/api_smoke.py --server build/dstns_server
 python3 tests/cli/test_fetch_osm.py
 python3 tests/cli/test_seeds.py
-node --test tests/cli/*.test.mjs
-python3 tests/cli/launcher_integration.py            # end to end, ~10 s
+python3 tests/launcher/test_core.py
+python3 tests/launcher/test_interfaces.py
+python3 tests/cli/launcher_integration.py            # live wrappers and a real OSM map
 npm ci --prefix ui-engine && npm test --prefix ui-engine
 ```
 
-The operator CLI runs the core, HTTP contract and observer suites during
-start-up and validates `config/ui-config.json` before a run begins;
-`./launcher test [all|unit|api|replay|benchmark|sumo|ui]` runs them on demand.
+The launcher runs environment checks during interactive startup, including
+validation of `config/ui-config.json`. Test suites are opt-in: use **Tests**,
+**Diagnostics** with suites enabled, or
+`./launcher test [all|unit|api|replay|benchmark|sumo|ui]`.
+
+The interface suite skips Textual-specific cases when Textual is absent. To run
+those cases as CI does:
+
+```bash
+python3 -m venv .venv-launcher
+.venv-launcher/bin/python -m pip install -r dstns_launcher/requirements.txt
+.venv-launcher/bin/python tests/launcher/test_interfaces.py
+```
+
+The core suite exercises real child-process cancellation as well as source
+fingerprints, configuration, API and seed storage. The interface suite uses
+Textual's headless pilot to exercise keyboard navigation, terminal resizing,
+loading feedback, static activity, failure recovery and compatibility fallback.
+These are local UI tests; the wrapper integration suite below separately starts
+the compiled server and verifies the resulting simulation.
 
 ## Native suites (CTest)
 
@@ -87,7 +105,8 @@ The three CTest-registered HTTP suites above take the server path from
 |---|---|
 | `python3 tests/cli/test_fetch_osm.py` | The downloader's endpoint fallback, progress sidecar, atomic writes and failure messages |
 | `python3 tests/cli/test_seeds.py` | Saved seeds: SQLite round trip, uniqueness, IDs, pinned-map integrity, argument validation |
-| `node --test tests/cli/artifacts.test.mjs` | Build outputs rebuilt when their sources change, including nested UI files |
+| `python3 tests/launcher/test_core.py` | Source fingerprints, configuration, API calls, seed storage, subprocess cancellation and session cleanup |
+| `python3 tests/launcher/test_interfaces.py` | Interface selection, fallback, keyboard navigation, responsive layouts and activity state |
 | `python3 tests/cli/launcher_integration.py` | Both launchers end to end: a stale UI is rebuilt, an old server on the port is avoided, a real OSM map loads (about 1,200 nodes), and the Python launcher reattaches without restarting the run |
 
 ## Observer suites

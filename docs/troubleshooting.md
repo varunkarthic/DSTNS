@@ -25,6 +25,32 @@ curl -s localhost:8090/api/v1/playback/status | python3 -c 'import json,sys;d=js
 grep -E "ERROR|WARN" logs/system.log | tail
 ```
 
+## The launcher
+
+Both `./launcher` and `python3 launcher.py` use the Python launcher. In an
+interactive terminal, the default command opens its dashboard after checking the
+environment. Choose **Start simulation**, or run `./launcher start` directly.
+
+| Symptom | Diagnosis and action |
+|---|---|
+| Compatibility mode opens | Check `logs/launcher.log` for an installation or Textual error. Core commands remain available. Install the pinned packages with `.venv-launcher/bin/python -m pip install -r dstns_launcher/requirements.txt`, after creating that environment with `python3 -m venv .venv-launcher` if necessary. |
+| Installation cannot use the network | Set `DSTNS_LAUNCHER_NO_INSTALL=1` to skip automatic interface installation. Use `--no-tui` for the standard-library interface. This does not install missing C++ or observer build dependencies. |
+| Terminal too small | Resize to at least 50 columns by 15 rows, or press **R** for compatibility mode. The previous screen's state is retained while resizing. |
+| Animation is distracting or slow over SSH | Use `--no-animation`. Status labels remain visible. `--no-splash` skips only the opening wordmark. `TERM=dumb` automatically uses plain mode. |
+| Activity is moving but there is no percentage | The current operation has no measured total. The label and output identify the work; download percentages appear only with a known byte total. Check `logs/launcher.log` and `logs/system.log` for failures. |
+| An environment check fails | Read its remedy, fix the reported dependency or file, and choose **Retry**. **Diagnostics** can run additional test suites. |
+
+```bash
+# Plain output and verbose diagnostics using a local map.
+./launcher --no-tui --debug start --no-open \
+  --seed 382923 --osm-file data/fixtures/real_network.osm.xml
+```
+
+This bypasses the optional terminal packages and map download, helping isolate
+interface problems from server or build failures. Debug information is written
+to `logs/launcher.log` (under `DSTNS_LOGS_DIR` when set). Review logs before
+sharing them; do not share `operator.token` or credentials.
+
 ## The server will not start
 
 Run it in the foreground to see why:
