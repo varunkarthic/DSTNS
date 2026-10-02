@@ -12,7 +12,10 @@ import { Logo } from "./Logo";
 import { Icon } from "./Icons";
 import { Splash, Welcome, splashStageFor, WELCOME_MS, WELCOME_EXIT_MS } from "./Splash";
 import { usePresence } from "./LoadingSurface";
-import { PlaceLegend, RoadLegend } from "./Legends";
+import { FieldLegend, PlaceLegend, RoadLegend } from "./Legends";
+import { useEnvironment } from "./useEnvironment";
+import { fieldInfo, formatFieldValue, sampleField } from "./fields";
+import type { FieldOverlay } from "./fields";
 import { NotificationHistory } from "./notificationHistory";
 import { ViewportNotice, useViewportSize, viewportTooSmall } from "./Viewport";
 import {
@@ -158,6 +161,23 @@ export default function App() {
 
   // ---- Shell state ------------------------------------------------------
   const [layersOpen, setLayersOpen] = useState(false);
+  // The field overlay is a per-viewer display choice, remembered in this
+  // browser only; it never reaches the simulation.
+  const [fieldOverlay, setFieldOverlayState] = useState<FieldOverlay>(() => {
+    try {
+      return (localStorage.getItem("dstns.fieldOverlay") as FieldOverlay | null) ?? "none";
+    } catch {
+      return "none";
+    }
+  });
+  const setFieldOverlay = useCallback((next: FieldOverlay) => {
+    setFieldOverlayState(next);
+    try {
+      localStorage.setItem("dstns.fieldOverlay", next);
+    } catch {
+      /* Storage unavailable: the choice lasts for this page. */
+    }
+  }, []);
   const [preferencesEpoch, setPreferencesEpoch] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -165,7 +185,7 @@ export default function App() {
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState("");
   const [history, setHistory] = useState<Congestion | null>(null);
-  const [cursor, setCursor] = useState<{ lat: number; lon: number } | null>(null);
+  const [cursor, setCursor] = useState<{ lat: number; lon: number; x_m: number; y_m: number } | null>(null);
   const [view, setView] = useState<MapView>({ scale: 1, metresPerPixel: 1 });
   const [mapStatus, setMapStatus] = useState<Record<string, unknown> | null>(null);
   const [splashDismissed, setSplashDismissed] = useState(false);
@@ -185,6 +205,10 @@ export default function App() {
   const valid = !!sim.snapshot && !sim.error && !sim.stale;
   const congestion = sim.snapshot?.data.congestion;
   const calendar = sim.status?.data.calendar ?? null;
+  const environmentState = useEnvironment(sim.status?.run_id ?? "", fieldOverlay, sim.snapshot?.state_revision ?? 0);
+  const overlayInfo = fieldInfo(fieldOverlay);
+  const overlayRaster = environmentState.raster;
+  const terrain = environmentState.environment?.terrain ?? null;
   const rawLocation = sim.topology?.location;
   const location = rawLocation?.city ? rawLocation : undefined;
   const origin = sim.topology?.projection;
@@ -863,6 +887,8 @@ export default function App() {
               controls={mapControls}
               onView={setView}
               onCursor={setCursor}
+              field={overlayInfo && overlayRaster ? { raster: overlayRaster, hue: overlayInfo.hue } : null}
+              terrainCredit={terrain?.observed ? "Terrain: Mapzen, USGS, NASA, NOAA" : undefined}
               deckCompact={deckCompact}
             />
           </div>
@@ -942,6 +968,7 @@ export default function App() {
                 <NotificationCapsule items={suspended || tutorial.active ? [] : shown} systemError={systemError} onDismissError={!sim.error && !sim.stale && actionError ? () => setActionError("") : undefined} focusedKey={autoFocus ? activeKey : null} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
               </div>
               <div className="hud-zone hud-center">
+                {overlayInfo && environmentState.available && <FieldLegend info={overlayInfo} raster={overlayRaster} />}
                 <RoadLegend />
                 <PlaceLegend
                   features={sim.topology?.features ?? NO_FEATURES}
@@ -964,6 +991,9 @@ export default function App() {
                       onClose={() => setLayersOpen(false)}
                       topology={sim.topology}
                       snapshot={sim.snapshot?.data ?? null}
+                      overlay={fieldOverlay}
+                      onOverlay={setFieldOverlay}
+                      availableFields={environmentState.environment?.fields.map((f) => f.name) ?? []}
                     />
                   )}
                   <button
@@ -987,6 +1017,12 @@ export default function App() {
                       : origin
                         ? formatCoordinate(origin.origin_lat, origin.origin_lon)
                         : "No coordinates"}
+                  {cursor && overlayInfo && overlayRaster && (() => {
+                    const value = sampleField(overlayRaster, cursor.x_m, cursor.y_m);
+                    return value === null ? null : (
+                      <span className="field-readout" data-testid="field-readout"> · {overlayInfo.label} {formatFieldValue(overlayInfo, value)}</span>
+                    );
+                  })()}
                 </span>
                 <span className="hud-pill hud-readout scale-readout" aria-label={`Map scale ${scaleBar.label}`} data-tip-avoid>
                   <i style={{ width: Math.round(scaleBar.pixels) }} />

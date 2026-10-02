@@ -8,9 +8,10 @@ import App, { worldErrorMessage } from "../src/App";
 // The canvas is exercised by the browser suites; here it only needs to mount,
 // and to expose what it was asked to draw and where the camera was sent.
 vi.mock("../src/NetworkMap", () => ({
-  default: ({ layers, places, focus }: { places: Record<string, boolean>; layers: Record<string, boolean>; focus?: { bounds?: unknown; token: number } | null }) => (
+  default: ({ layers, places, focus, field }: { places: Record<string, boolean>; layers: Record<string, boolean>; focus?: { bounds?: unknown; token: number } | null; field?: { raster: { name: string } } | null }) => (
     <div
       data-testid="map"
+      data-field={field?.raster.name ?? ""}
       data-places={JSON.stringify(places)}
       data-layers={Object.entries(layers)
         .filter(([, on]) => on)
@@ -167,6 +168,10 @@ function mockApi(overrides: Partial<Mock> = {}) {
     }
     if (path.includes("/playback/step")) return json({ simulated_seconds: state.clock.virtual_day_seconds + 60, stepped_seconds: 60, lifecycle: "PAUSED" });
     let data: unknown = {};
+    if (path.includes("/view/environment"))
+      return json(envelope({ schema_version: 1, terrain: { source: "terrarium", observed: true, degraded: false, elevation_min_m: 30, elevation_max_m: 60 }, fields: [{ name: "elevation", units: "m", kind: "static" }] }));
+    if (path.includes("/view/fields/elevation"))
+      return json(envelope({ name: "elevation", units: "m", width: 2, height: 2, origin_x_m: 0, origin_y_m: 0, cell_m: 1000, min: 30, max: 60, values: [30, 40, 50, 60] }));
     if (path.includes("/playback/status"))
       data = {
         lifecycle: state.lifecycle, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v3", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1,
@@ -247,6 +252,35 @@ describe("observer shell", () => {
     expect(alert).toHaveTextContent(/OSM download failed for Berlin/);
     expect(alert.className).toContain("capsule");
     expect(alert).toHaveAttribute("aria-live", "assertive");
+  });
+});
+
+describe("field overlays", () => {
+  it("shows one field at a time, with its legend; unsimulated fields cannot be chosen", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    expect(screen.getByTestId("map")).toHaveAttribute("data-field", "");
+    fireEvent.click(screen.getByRole("button", { name: "Layers" }));
+    const group = await screen.findByRole("radiogroup", { name: "Field overlay" });
+    const none = within(group).getByRole("radio", { name: "None" });
+    const elevation = within(group).getByRole("radio", { name: "Elevation" });
+    const wind = within(group).getByRole("radio", { name: "Wind" });
+    expect(none).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(elevation).toBeEnabled());
+    expect(wind).toBeDisabled();
+    fireEvent.click(elevation);
+    await waitFor(() => expect(screen.getByTestId("map")).toHaveAttribute("data-field", "elevation"));
+    // Exactly one overlay is selected: choosing one releases the other.
+    expect(within(group).getAllByRole("radio").filter((r) => r.getAttribute("aria-checked") === "true")).toHaveLength(1);
+    const legend = screen.getByTestId("field-legend");
+    expect(legend).toHaveTextContent("Elevation");
+    expect(legend).toHaveTextContent("30.0");
+    expect(legend).toHaveTextContent("60.0");
+    expect(legend).toHaveTextContent("m");
+    fireEvent.click(none);
+    await waitFor(() => expect(screen.getByTestId("map")).toHaveAttribute("data-field", ""));
+    expect(screen.queryByTestId("field-legend")).toBeNull();
   });
 });
 

@@ -400,3 +400,30 @@ export type ComputeInfo = {
   device?: { name?: string; driver?: string; type?: string; moltenvk?: boolean; software?: boolean } | null;
   step?: { backend?: string; total_ms?: number; cpu_ms?: number; gpu_ms?: number };
 };
+
+/** Where the terrain came from: enough to cite or reproduce it. */
+export interface TerrainInfo {
+  source: string;
+  provider: string;
+  dataset: string;
+  licence: string;
+  attribution: string;
+  note: string;
+  observed: boolean;
+  degraded: boolean;
+  data_class: string;
+  zoom: number;
+  native_resolution_m: number;
+  grid: { width: number; height: number; cell_m: number; origin_x_m: number; origin_y_m: number };
+  elevation_min_m: number;
+  elevation_max_m: number;
+  hash: string;
+}
+export interface EnvironmentInfo {
+  schema_version: number;
+  calendar?: Calendar;
+  terrain: TerrainInfo | null;
+  roads?: { max_abs_grade: number };
+  fields: { name: string; units: string; kind: string }[];
+  [module: string]: unknown;
+}

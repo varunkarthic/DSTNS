@@ -8,6 +8,8 @@ import type { KeyboardEvent } from "react";
 import { Icon } from "./Icons";
 import type { IconName } from "./Icons";
 import type { Layers, Snapshot, Topology } from "./types";
+import { FIELD_OVERLAYS } from "./fields";
+import type { FieldOverlay } from "./fields";
 
 /**
  * The Layers panel. Toggling a layer changes what the map draws and nothing
@@ -21,11 +23,25 @@ type Props = {
   onClose: () => void;
   topology: Topology | null;
   snapshot: Snapshot | null;
+  /** The one continuous field shown, if any; fields never stack. */
+  overlay?: FieldOverlay;
+  onOverlay?: (overlay: FieldOverlay) => void;
+  /** Fields this world provides; the rest are listed but unavailable. */
+  availableFields?: string[];
+};
+
+const FIELD_ICONS: Record<FieldOverlay, IconName> = {
+  none: "off",
+  elevation: "mountain",
+  wind: "wind",
+  solar: "sun",
+  temperature: "thermometer",
+  flood: "flood",
 };
 
 type Item = { key: keyof Layers; label: string; icon: IconName; count?: string };
 
-export function LayersPopover({ layers, defaults, onChange, onClose, topology, snapshot }: Props) {
+export function LayersPopover({ layers, defaults, onChange, onClose, topology, snapshot, overlay = "none", onOverlay, availableFields = [] }: Props) {
   const scroll = useScrollFade<HTMLDivElement>();
   const panel = useRef<HTMLDivElement>(null);
 
@@ -111,6 +127,35 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
       </header>
       {noData && <p className="layers-empty">Layers apply once a map is loaded.</p>}
       <div {...scroll} className={`layers-scroll ${scroll.className}`} tabIndex={0} aria-label="Display layers">
+      {onOverlay && (
+        <div className="layer-group" role="radiogroup" aria-label="Field overlay">
+          <span className="layer-group-title">Field overlay · one at a time</span>
+          {[{ id: "none" as FieldOverlay, label: "None", field: "", description: "No continuous field" }, ...FIELD_OVERLAYS].map((f) => {
+            const available = f.id === "none" || availableFields.includes(f.field);
+            const checked = overlay === f.id;
+            return (
+              <div className={`layer-row radio${checked ? " on" : ""}${available ? "" : " unavailable"}`} key={f.id}>
+                <Icon name={FIELD_ICONS[f.id]} size={16} />
+                <span className="layer-name">
+                  {f.label}
+                  {!available && <small>Not simulated in this world</small>}
+                </span>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={checked}
+                  aria-label={f.label}
+                  disabled={!available}
+                  className={`switch${checked ? " on" : ""}`}
+                  onClick={() => onOverlay(f.id)}
+                >
+                  <i aria-hidden="true" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {groups.map((group) => (
         <div className="layer-group" key={group.title} role="group" aria-label={group.title}>
           <span className="layer-group-title">{group.title}</span>
@@ -134,7 +179,7 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
         </div>
       ))}
       </div>
-      <p className="layers-note">Layers change what is drawn, never what the simulation computes.</p>
+      <p className="layers-note">Layers change what is drawn, never what the simulation computes. One field overlay shows at a time.</p>
     </div>
   );
 }

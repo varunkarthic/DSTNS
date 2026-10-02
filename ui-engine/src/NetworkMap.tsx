@@ -12,6 +12,8 @@ import {
 } from "react";
 import type { RefObject } from "react";
 import { canvasGlyph } from "./placeGlyphs";
+import { rasterPixels } from "./fields";
+import type { FieldRaster } from "./fields";
 import { mapFitLayout, mapInsets, metresToGeographic } from "./mapProjection";
 import { viewportFor } from "./autoFocus";
 import type { Bounds } from "./autoFocus";
@@ -68,7 +70,11 @@ type Props = {
   focus?: { bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number } | null;
   controls?: RefObject<MapControls | null>;
   onView?: (view: MapView) => void;
-  onCursor?: (position: { lat: number; lon: number } | null) => void;
+  onCursor?: (position: { lat: number; lon: number; x_m: number; y_m: number } | null) => void;
+  /** The one continuous field drawn under the roads, with its ramp hue. */
+  field?: { raster: FieldRaster; hue: number } | null;
+  /** Credit for an imported terrain model, shown beside the map credit. */
+  terrainCredit?: string;
   /** The telemetry deck is collapsed to its strip, freeing the right side. */
   deckCompact?: boolean;
 };
@@ -113,10 +119,13 @@ function NetworkMap({
   controls,
   onView,
   onCursor,
+  field = null,
+  terrainCredit,
   deckCompact = false,
 }: Props) {
   const host = useRef<HTMLDivElement>(null),
     base = useRef<HTMLCanvasElement>(null),
+    fieldLayer = useRef<HTMLCanvasElement>(null),
     dynamic = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 1000, h: 700 }),
     [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
@@ -261,6 +270,34 @@ function NetworkMap({
     });
     ctx.restore();
   }, [topology, cached, view, size, layers.buildings]); // Static geography never depends on a simulation tick.
+  // The field overlay: the raster becomes an image once, at its own
+  // resolution, and is scaled onto the map with smoothing on every view
+  // change. It sits between the static geography and the live network.
+  const fieldImage = useMemo(() => {
+    if (!field || typeof document === "undefined") return null;
+    const { raster, hue } = field;
+    const canvas = document.createElement("canvas");
+    canvas.width = raster.width;
+    canvas.height = raster.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    const transparent = raster.name === "water_depth" ? (v: number) => v < 0.005 : undefined;
+    ctx.putImageData(new ImageData(rasterPixels(raster, hue, 0.62, transparent), raster.width, raster.height), 0, 0);
+    return canvas;
+  }, [field]);
+  useEffect(() => {
+    if (!fieldLayer.current) return;
+    const ctx = setup(fieldLayer.current);
+    if (!ctx || !fieldImage || !field) return;
+    const r = field.raster;
+    ctx.save();
+    ctx.translate(view.x, view.y);
+    ctx.scale(view.scale, view.scale);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(fieldImage, r.origin_x_m, -(r.origin_y_m + r.height * r.cell_m), r.width * r.cell_m, r.height * r.cell_m);
+    ctx.restore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldImage, field, view, size]);
   useEffect(() => {
     if (!topology || !cached || !dynamic.current) return;
     let frame = 0;
@@ -895,7 +932,7 @@ function NetworkMap({
       // space -> degrees uses the core's own projection origin.
       const x_m = (clientX - rect.left - view.x) / view.scale;
       const y_m = -(clientY - rect.top - view.y) / view.scale;
-      onCursor(metresToGeographic(x_m, y_m, projection));
+      onCursor({ ...metresToGeographic(x_m, y_m, projection), x_m, y_m });
     },
     [onCursor, topology?.projection, view.x, view.y, view.scale],
   );
@@ -953,6 +990,7 @@ function NetworkMap({
   return (
     <div className="network-map" ref={host}>
       <canvas ref={base} className="map-canvas static-map" aria-hidden="true" />
+      <canvas ref={fieldLayer} className="map-canvas field-map" aria-hidden="true" data-testid="field-layer" data-field={field?.raster.name ?? ""} />
       <canvas
         ref={dynamic}
         className="map-canvas"
@@ -1009,9 +1047,30 @@ function NetworkMap({
       />
       <div className="map-attribution">
         © OpenStreetMap contributors · {topology?.source || "Awaiting network"}
+        {terrainCredit ? ` · ${terrainCredit}` : ""}
       </div>
+      <Compass />
       {hover && <InfoCard {...hover} info={hoverInfo ?? hover.info} />}
       <div className="map-vignette" aria-hidden="true" />
+    </div>
+  );
+}
+/**
+ * North, east, south and west. The map is drawn north-up and does not rotate,
+ * so the rose is fixed; it is here so orientation never has to be assumed.
+ */
+export function Compass({ rotation = 0 }: { rotation?: number }) {
+  return (
+    <div className="map-compass" role="img" aria-label={`Compass: north is ${rotation ? `${Math.round(rotation)} degrees from` : ""} up`} data-testid="compass">
+      <svg viewBox="-24 -24 48 48" width="48" height="48" aria-hidden="true" style={{ transform: `rotate(${-rotation}deg)` }}>
+        <circle r="21" className="compass-ring" />
+        <path d="M0 -15 L4.5 0 L0 -3 L-4.5 0 Z" className="compass-north" />
+        <path d="M0 15 L4.5 0 L0 3 L-4.5 0 Z" className="compass-south" />
+        <text y="-17" className="compass-label n">N</text>
+        <text x="19" y="3.5" className="compass-label">E</text>
+        <text y="23" className="compass-label">S</text>
+        <text x="-19" y="3.5" className="compass-label">W</text>
+      </svg>
     </div>
   );
 }

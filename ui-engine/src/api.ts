@@ -14,7 +14,9 @@ import type {
   ComputeInfo,
   SeedMetadata,
   SeedLocation,
+  EnvironmentInfo,
 } from "./types";
+import type { FieldRaster } from "./fields";
 
 const base =
   (import.meta.env.VITE_DSTNS_API_URL as string | undefined)?.replace(
@@ -103,6 +105,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ ...(expected_run_id ? { expected_run_id } : {}), ...(seed ? { seed } : {}) }),
     }),
+  /** Terrain provenance and the environment's modules and fields. */
+  environment: () => request<Envelope<EnvironmentInfo>>("/api/v1/view/environment"),
+  /** One environmental field, reduced so neither side exceeds max_side cells. */
+  field: (name: string, max_side = 192) =>
+    request<Envelope<FieldRaster>>(`/api/v1/view/fields/${encodeURIComponent(name)}?max_side=${max_side}`),
   /** The location catalogue a seed draws from. */
   seedLocations: () => request<{ data: { items: SeedLocation[]; count: number } }>("/api/v1/seeds/locations"),
   /** What a seed resolves to: location, month and day type. */

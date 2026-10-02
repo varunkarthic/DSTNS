@@ -11,6 +11,27 @@ import { useScrollFade } from "./scrollFade";
 import { demandDetail, demandSummary, placeCensus, placeLegend } from "./placeLegend";
 import type { PlaceLegendEntry } from "./placeLegend";
 import type { DemandState, MapFeature, PlaceVisibility } from "./types";
+import { rampGradient } from "./fields";
+import type { FieldInfo, FieldRaster } from "./fields";
+
+/**
+ * The scale of the field overlay: its name, units, the ramp and the range it
+ * spans in this world. Colour alone never gives a value; the ends are labelled
+ * and the pointer readout gives the value under the cursor.
+ */
+export function FieldLegend({ info, raster }: { info: FieldInfo; raster: FieldRaster | null }) {
+  const range = raster ? `${raster.min.toFixed(info.digits)} – ${raster.max.toFixed(info.digits)} ${info.units}` : "loading…";
+  return (
+    <div className="hud-pill field-legend" role="group" aria-label={`${info.label} legend`} data-testid="field-legend">
+      <span className="field-legend-title">{info.label}</span>
+      <span className="mono">{raster ? raster.min.toFixed(info.digits) : ""}</span>
+      <i className="ramp" style={{ background: rampGradient(info.hue) }} aria-hidden="true" />
+      <span className="mono">{raster ? raster.max.toFixed(info.digits) : ""}</span>
+      <span>{info.units}</span>
+      <span className="sr-only">{range}</span>
+    </div>
+  );
+}
 
 /** Road states in the order they worsen, matching the map's colours. */
 export const ROAD_STATES = [
