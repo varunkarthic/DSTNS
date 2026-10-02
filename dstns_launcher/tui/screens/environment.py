@@ -39,6 +39,9 @@ class EnvironmentScreen(Page):
             yield Static("Optional", classes="section-title")
             yield Rule()
             yield StatusTable(id="optional", name_width=20)
+            yield Static("GPU acceleration", classes="section-title")
+            yield Rule()
+            yield StatusTable(id="gpu", name_width=20)
             yield Static("", id="summary", classes="hint")
             with Vertical(id="problems"):
                 pass
@@ -70,10 +73,10 @@ class EnvironmentScreen(Page):
         self.app.call_from_thread(self.finished)
 
     def redraw(self) -> None:
-        def rows(required: bool) -> list[Row]:
+        def rows(required: bool, group: str = "") -> list[Row]:
             out = []
             for check in self.items:
-                if check.required != required:
+                if check.group != group or (not group and check.required != required):
                     continue
                 state = check.outcome.state
                 value = check.outcome.value or ("Checking..." if state is State.RUNNING else "")
@@ -83,6 +86,7 @@ class EnvironmentScreen(Page):
 
         self.query_one("#required", StatusTable).set_rows(rows(True))
         self.query_one("#optional", StatusTable).set_rows(rows(False))
+        self.query_one("#gpu", StatusTable).set_rows(rows(False, "gpu"))
         complete = sum(c.outcome.state not in (State.PENDING, State.RUNNING) for c in self.items)
         self.query_one("#activity", Activity).start(f"Checking environment: {complete}/{len(self.items)} complete")
 

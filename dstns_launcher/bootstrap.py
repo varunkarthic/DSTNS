@@ -23,7 +23,7 @@ VENV = ROOT / ".venv-launcher"
 REQUIREMENTS = Path(__file__).with_name("requirements.txt")
 MARKER = "DSTNS_LAUNCHER_BOOTSTRAPPED"
 NO_INSTALL = "DSTNS_LAUNCHER_NO_INSTALL"
-SCRIPTED = {"seeds", "ui", "test", "sumo", "reset", "help", "version", "license"}
+SCRIPTED = {"seeds", "ui", "test", "sumo", "reset", "help", "version", "license", "diagnostics", "bootstrap"}
 PLAIN_FLAGS = {"--no-tui", "--reduced-ui", "--help", "-h", "--version", "-V", "--license", "--licence"}
 
 
@@ -34,7 +34,7 @@ def wants_interface(argv: list[str]) -> bool:
     if any(arg in PLAIN_FLAGS or arg.startswith("--mode") for arg in argv):
         return False
     values = {"--seed", "--saved-seed", "--save-seed", "--day-type", "--osm-file", "--max-nodes", "--duration",
-              "--speed", "--description", "--mode"}
+              "--speed", "--description", "--mode", "--compute", "--gpu-device", "--profile"}
     skip = False
     for arg in argv:
         if skip:

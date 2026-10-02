@@ -61,6 +61,21 @@ def validate(config: dict[str, Any]) -> None:
         raise ConfigurationError("api.port must be an integer in [1, 65535]")
     if not api.get("host"):
         raise ConfigurationError("api.host must be configured")
+    compute = config.get("compute")
+    if compute is not None:
+        if not isinstance(compute, dict):
+            raise ConfigurationError("compute must be an object")
+        if compute.get("backend", "auto") not in ("auto", "cpu", "vulkan"):
+            raise ConfigurationError("compute.backend must be auto, cpu or vulkan")
+        for key in ("allow_vulkan", "allow_software_vulkan", "require_vulkan", "verification", "validation_layers"):
+            if key in compute and not isinstance(compute[key], bool):
+                raise ConfigurationError(f"compute.{key} must be true or false")
+        device = compute.get("device", "auto")
+        if not isinstance(device, str) or not device.strip() or len(device) > 256 or "\n" in device:
+            raise ConfigurationError("compute.device must be auto, a device index, a UUID or part of a device name")
+        for key, value in ((compute.get("gpu_thresholds") or {}).items()):
+            if key not in ("min_nodes", "min_edges") or not _is_int(value) or not 0 <= value <= 100_000_000:
+                raise ConfigurationError(f"compute.gpu_thresholds.{key} must be a whole number in [0, 100000000]")
 
 
 def save(config: dict[str, Any], paths: Paths = PATHS) -> None:
@@ -219,6 +234,28 @@ FIELDS: tuple[Field, ...] = (
     Field("modules.news", "News", "Modules", Kind.BOOLEAN, "The operator news feed.", default=True),
     Field("dws.frequency", "Storms per day", "Weather", Kind.INTEGER,
           "Scheduled storms in a virtual day.", unit="storms", minimum=0, default=3, extra=_dws_spacing),
+    Field("compute.backend", "Compute backend", "Compute", Kind.CHOICE,
+          "auto runs the physics on a GPU (Vulkan) only where it is measured faster; cpu never uses a GPU; "
+          "vulkan uses one for every world. Results are identical whichever runs.",
+          choices=(("auto", "auto"), ("cpu", "cpu"), ("vulkan", "vulkan")), default="auto"),
+    Field("compute.allow_vulkan", "GPU acceleration", "Compute", Kind.BOOLEAN,
+          "Off keeps the simulator on the CPU whatever the backend says.", default=True),
+    Field("compute.device", "GPU", "Compute", Kind.TEXT,
+          "auto, a device index, a device UUID, or part of a name (for example \"M4\" or \"Radeon\").", default="auto"),
+    Field("compute.require_vulkan", "Require Vulkan", "Compute", Kind.BOOLEAN,
+          "With the vulkan backend: refuse to start without a working GPU instead of using the CPU.", default=False),
+    Field("compute.allow_software_vulkan", "Software Vulkan", "Compute", Kind.BOOLEAN,
+          "Allow CPU implementations of Vulkan such as llvmpipe. For testing; slower than the CPU backend.", default=False),
+    Field("compute.verification", "Verify GPU steps", "Compute", Kind.BOOLEAN,
+          "Recompute every GPU step on the CPU and compare. For diagnosis; much slower.", default=False),
+    Field("compute.validation_layers", "Vulkan validation", "Compute", Kind.BOOLEAN,
+          "Run with the Khronos validation layers when they are installed. For development.", default=False),
+    Field("compute.gpu_thresholds.min_nodes", "GPU from nodes", "Compute", Kind.INTEGER,
+          "auto: below this many junctions (and the edge count below) the CPU is used without measuring.",
+          unit="nodes", minimum=0, maximum=100_000_000, default=40000),
+    Field("compute.gpu_thresholds.min_edges", "GPU from edges", "Compute", Kind.INTEGER,
+          "auto: below this many directed edges (and the node count above) the CPU is used without measuring.",
+          unit="edges", minimum=0, maximum=100_000_000, default=150000),
     Field("api.host", "Bind address", "Server", Kind.TEXT,
           "127.0.0.1 keeps the server local; 0.0.0.0 exposes it to the network.", default="127.0.0.1"),
     Field("api.port", "Port", "Server", Kind.INTEGER,

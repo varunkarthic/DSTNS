@@ -13,7 +13,7 @@ from .artifacts import BuildState, needs_build
 from .paths import PATHS, Paths
 from .reporting import Reporter, duration
 
-NATIVE_INPUTS = ["CMakeLists.txt", "src", "include", "apps/dstns_server"]
+NATIVE_INPUTS = ["CMakeLists.txt", "cmake", "src", "include", "shaders", "apps/dstns_server"]
 UI_INPUTS = [
     "ui-engine/src", "ui-engine/public", "ui-engine/package.json", "ui-engine/package-lock.json",
     "ui-engine/index.html", "ui-engine/vite.config.ts", "ui-engine/tsconfig.json",

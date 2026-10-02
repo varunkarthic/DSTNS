@@ -22,6 +22,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Callable
 
 from .paths import PATHS, Paths
@@ -64,6 +65,7 @@ class Check:
     required: bool = True
     slow: bool = False
     outcome: Outcome = field(default_factory=lambda: Outcome(State.PENDING, ""))
+    group: str = ""  # "gpu" for the GPU acceleration section
     seconds: float = 0.0
 
 
@@ -255,6 +257,44 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
                 return Outcome(State.PASS, f"{wanted} in use",
                                "A running DSTNS server is reused; otherwise the next free port is chosen.")
 
+    def load_config() -> dict:
+        from . import configuration
+
+        try:
+            return configuration.load(paths)
+        except Exception:  # noqa: BLE001 - reported by the configuration check
+            return {}
+
+    def vulkan() -> Outcome:
+        from . import compute
+
+        config = load_config()
+        section = compute.settings(config)
+        wanted = section["backend"] == "vulkan" and section["allow_vulkan"]
+        result = compute.probe(paths, config)
+        if result.available:
+            device = result.selected
+            detail = f"{len(result.devices)} device(s); self-test passed" + (" (cached)" if result.cached else f" in {result.seconds:.1f} s")
+            if device and device.software:
+                detail += "; software implementation"
+            return Outcome(State.PASS, result.headline(), detail)
+        state = State.FAIL if wanted and section["require_vulkan"] else State.WARNING if wanted else State.SKIPPED
+        return Outcome(state, "unavailable" if result.ran else result.headline(),
+                       (result.reason or "") + "; the simulation runs on the CPU", remedy=compute.remedy(result))
+
+    def compute_backend() -> Outcome:
+        from . import compute
+
+        return Outcome(State.PASS, compute.policy(load_config()),
+                       "Results are identical on every backend; this choice affects speed only.")
+
+    def shader_compiler() -> Outcome:
+        found = shutil.which("glslangValidator") or shutil.which("glslc")
+        if found:
+            return Outcome(State.PASS, Path(found).name)
+        return Outcome(State.SKIPPED, "not installed",
+                       "Only needed to change the compute shaders; builds use the SPIR-V in shaders/spirv/.")
+
     def ctest() -> Outcome:
         if not (paths.build / "CTestTestfile.cmake").exists():
             return Outcome(State.SKIPPED, "not configured", remedy="Run cmake -S . -B build -DDSTNS_BUILD_TESTS=ON to enable.")
@@ -313,6 +353,9 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
         Check("observer", "Observer bundle", observer, required=False),
         Check("port", "API port", port, required=False),
         Check("sumo", "SUMO", sumo, required=False),
+        Check("vulkan", "Vulkan", vulkan, required=_vulkan_required(paths), group="gpu"),
+        Check("compute", "Compute backend", compute_backend, required=False, group="gpu"),
+        Check("shaders", "Shader compiler", shader_compiler, required=False, group="gpu"),
     ]
     if suites:
         result += [
@@ -322,6 +365,17 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
             Check("vitest", "Observer test suites", observer_suite, required=False, slow=True),
         ]
     return result
+
+
+def _vulkan_required(paths: Paths) -> bool:
+    """A failed GPU check blocks a run only when the configuration demands Vulkan."""
+    from . import compute, configuration
+
+    try:
+        section = compute.settings(configuration.load(paths))
+    except Exception:  # noqa: BLE001
+        return False
+    return section["backend"] == "vulkan" and section["require_vulkan"] and section["allow_vulkan"]
 
 
 def run_checks(items: list[Check], on_update: Callable[[Check], None] | None = None, *, parallel: int = 4) -> list[Check]:

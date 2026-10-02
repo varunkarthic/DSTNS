@@ -50,6 +50,19 @@
     "min_duration_virtual_min": 20,
     "max_duration_virtual_min": 120
   },
+  "compute": {
+    "backend": "auto",
+    "allow_vulkan": true,
+    "allow_software_vulkan": false,
+    "require_vulkan": false,
+    "verification": false,
+    "validation_layers": false,
+    "device": "auto",
+    "gpu_thresholds": {
+      "min_nodes": 40000,
+      "min_edges": 150000
+    }
+  },
   "api": {
     "host": "127.0.0.1",
     "port": 8090

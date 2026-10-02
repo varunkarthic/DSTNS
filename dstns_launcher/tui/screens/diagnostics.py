@@ -28,12 +28,17 @@ class DiagnosticsScreen(Page):
     def compose_body(self) -> ComposeResult:
         with Horizontal(id="columns"):
             with Vertical(id="sidebar"):
-                yield Menu([MenuItem("checks", "Run checks"), MenuItem("suites", "Include test suites")], id="actions")
+                yield Menu([MenuItem("checks", "Run checks"), MenuItem("suites", "Include test suites"),
+                            MenuItem("gpu", "GPU diagnostics")], id="actions")
             with VerticalScroll(id="content"):
                 yield Static("ENVIRONMENT", classes="panel-title")
                 yield Rule()
                 yield StatusTable(id="checks", name_width=30)
                 yield Static("", id="check-notes", classes="hint")
+                yield Static("GPU", classes="section-title")
+                yield Rule()
+                yield StatusTable(id="gpu", name_width=30)
+                yield Static("", id="gpu-notes", classes="hint")
                 yield Static("SERVER", classes="section-title")
                 yield Rule()
                 yield StatusTable(id="server", name_width=20)
@@ -62,7 +67,38 @@ class DiagnosticsScreen(Page):
         self.load_server()
 
     def on_menu_selected(self, event: Menu.Selected) -> None:
+        if event.item.key == "gpu":
+            self.query_one("#gpu", StatusTable).set_rows([Row("Vulkan", "Testing every device...", State.RUNNING)])
+            self.probe_gpu()
+            return
         self.run(event.item.key == "suites")
+
+    @work(thread=True, exclusive=True, group="diagnostics-gpu")
+    def probe_gpu(self) -> None:
+        from ...core import compute, configuration
+
+        try:
+            config = configuration.load()
+        except Exception:  # noqa: BLE001 - the environment checks report it
+            config = {}
+        result = compute.probe(config=config, refresh=True)
+        rows = [Row("Policy", compute.policy(config)),
+                Row("Loader", result.loader or "not found", State.PASS if result.loader else State.WARNING)]
+        for d in result.devices:
+            state = State.PASS if d.self_test else State.FAIL if d.self_test is False else State.SKIPPED
+            value = f"{d.driver} · {d.type} · Vulkan {d.api}" + (" · in use" if d.selected else "")
+            rows.append(Row(f"{d.index}  {d.name}", value, state, d.error or d.reason))
+        notes = Text()
+        if result.available:
+            notes.append(f"\nGPU acceleration available: {result.headline()}. Each device above ran a real dispatch "
+                         "and returned the expected answer.\n", style="#8CA7B2")
+        else:
+            notes.append(f"\nNo usable GPU ({result.reason or 'unavailable'}); the simulation runs on the CPU.\n", style="#F5B942")
+            notes.append(compute.remedy(result) + "\n", style="#8CA7B2")
+        def show() -> None:
+            self.query_one("#gpu", StatusTable).set_rows(rows)
+            self.query_one("#gpu-notes", Static).update(notes)
+        self.app.call_from_thread(show)
 
     def run(self, suites: bool) -> None:
         self.items = environment.checks(suites=suites)
@@ -106,7 +142,12 @@ class DiagnosticsScreen(Page):
             info = api.call(port, "/api/v1/system/info", timeout=3)
             body = info.body if isinstance(info.body, dict) else {}
             sumo = body.get("sumo") or {}
+            compute_info = body.get("compute") or {}
+            device = compute_info.get("device") or {}
             rows += [Row("Server", f"port {port} · {body.get('lifecycle', '?').lower()}", State.PASS),
+                     Row("Compute", f"{compute_info.get('active_backend', '?')}"
+                                    + (f" · {device.get('name')}" if device.get("name") else "")
+                                    + f" (requested {compute_info.get('requested_backend', '?')})"),
                      Row("Version", str(body.get("version", "?"))),
                      Row("Compiler", str((body.get("build") or {}).get("compiler", "?"))),
                      Row("SUMO", f"{'available' if sumo.get('available') else 'unavailable'} {sumo.get('version', '')}".strip(),

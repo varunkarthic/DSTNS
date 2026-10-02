@@ -15,7 +15,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import api, build, configuration
+from . import api, build, compute, configuration
 from .process import check_cancelled
 from .errors import ConfigurationError, SimulationStartError
 from .paths import PATHS, Paths
@@ -101,6 +101,13 @@ def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True,
             _write_active(paths, port)
             reporter.message(Level.INFO, "Attached to the running DSTNS server",
                              f"port {port} · {(existing or {}).get('lifecycle', 'READY')}")
+            # Its compute settings are its own: say which, so a changed
+            # configuration is not mistaken for one in force.
+            info = api.call(port, "/api/v1/system/info", timeout=3, paths=paths)
+            running = ((info.body or {}).get("compute") or {}) if isinstance(info.body, dict) else {}
+            if running.get("requested_backend") and running["requested_backend"] != compute.settings(config)["backend"]:
+                reporter.message(Level.WARNING, "That server's compute backend differs from the configuration",
+                                 f"running {running['requested_backend']}; restart the server to apply the change")
             return ServerHandle(port, host, existing or {})
         replacement = api.free_port(port + 1)
         reporter.message(Level.WARNING,
@@ -114,7 +121,8 @@ def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True,
     LOG.info("server start: %s", " ".join(command))
     try:
         child = subprocess.Popen(command, cwd=paths.root, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT, text=True, errors="replace", bufsize=1)
+                                 stderr=subprocess.STDOUT, text=True, errors="replace", bufsize=1,
+                                 env={**os.environ, **compute.server_environment(config)})
     except OSError as exc:
         raise SimulationStartError("The DSTNS server could not be started.",
                                    remedy="Build it with ./launcher test unit, or run cmake --build build.") from exc
@@ -163,7 +171,7 @@ def run_foreground(paths: Paths = PATHS) -> int:
             return 0
         port = api.free_port(port + 1)
     return subprocess.call([str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs)],
-                           cwd=paths.root)
+                           cwd=paths.root, env={**os.environ, **compute.server_environment(config)})
 
 
 def shut_down(handle: ServerHandle, *, wait: float = 10.0) -> bool:

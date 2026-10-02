@@ -38,7 +38,10 @@ EXIT_TERMINATED = 143
 
 VALUE_OPTIONS = {"--seed", "--saved-seed", "--save-seed", "--day-type", "--osm-file", "--max-nodes", "--duration",
                  "--speed", "--description"}
-COMMANDS = {"start", "console", "seeds", "ui", "logs", "config", "test", "sumo", "reset", "help", "version", "license"}
+# Options that take a value but are not part of a run request.
+SETTING_OPTIONS = {"--compute", "--gpu-device", "--profile"}
+COMMANDS = {"start", "console", "seeds", "ui", "logs", "config", "test", "sumo", "reset", "help", "version", "license",
+            "diagnostics", "bootstrap"}
 
 
 @dataclass
@@ -57,6 +60,11 @@ class Arguments:
     reduced_ui: bool = False
     no_tui: bool = False
     no_color: bool = False
+    compute: str | None = None
+    gpu_device: str | None = None
+    profile: str | None = None
+    check: bool = False
+    refresh: bool = False
 
 
 def parse(argv: list[str]) -> Arguments:
@@ -96,6 +104,15 @@ def parse(argv: list[str]) -> Arguments:
         elif arg == "--mode" and index + 1 < len(argv):
             index += 1
             args.mode = argv[index]
+        elif arg == "--check":
+            args.check = True
+        elif arg == "--refresh":
+            args.refresh = True
+        elif arg in SETTING_OPTIONS:
+            if index + 1 >= len(argv) or argv[index + 1].startswith("--"):
+                raise ConfigurationError(f"Missing value for {arg}")
+            index += 1
+            setattr(args, arg[2:].replace("-", "_"), argv[index])
         elif arg in VALUE_OPTIONS:
             if index + 1 >= len(argv) or argv[index + 1].startswith("--"):
                 raise ConfigurationError(f"Missing value for {arg}")
@@ -111,6 +128,12 @@ def parse(argv: list[str]) -> Arguments:
     args.item = positional[2] if len(positional) > 2 else None
     if args.run.day_type and args.run.day_type not in {"weekday", "weekend"}:
         raise ConfigurationError("--day-type must be weekday or weekend")
+    if args.compute is not None and args.compute not in {"auto", "cpu", "vulkan"}:
+        raise ConfigurationError("--compute must be auto, cpu or vulkan")
+    if args.gpu_device is not None and (not args.gpu_device.strip() or len(args.gpu_device) > 256):
+        raise ConfigurationError("--gpu-device must be auto, a device index, a UUID or part of a device name")
+    if args.profile is not None and args.profile not in {"minimal", "standard", "full"}:
+        raise ConfigurationError("--profile must be minimal, standard or full")
     return args
 
 
@@ -133,6 +156,11 @@ Commands
   test [all|unit|api|replay|benchmark|sumo|ui]
                          Run test stages
   sumo                   Check the SUMO toolchain on a synthetic grid
+  diagnostics [gpu] [--refresh]
+                         Check this machine; gpu tests every Vulkan device for real
+  bootstrap [--check] [--yes] [--profile minimal|standard|full]
+                         Install what DSTNS needs with the system package manager
+                         (asks first; never installs GPU drivers)
   reset [--yes]          Delete runtime logs, checkpoints and temporary files
   help, version, license
 
@@ -147,6 +175,13 @@ Run options (start, seeds save)
   --max-nodes N          2 to 50000
   --osm-file PATH        Run this map instead of letting the seed choose
   --open, --no-open      Open the observer in a browser (default: when a desktop is present)
+
+Compute options (start)
+  --compute auto|cpu|vulkan
+                         Where the physics runs; overrides compute.backend. Results
+                         are identical on every backend
+  --gpu-device auto|INDEX|UUID|NAME
+                         Which GPU, when more than one is present
 
 Interface options
   --reduced-ui           Use compatibility mode (Rich or plain text)
@@ -287,6 +322,85 @@ def command_reset(args: Arguments, out: Output, reporter: LineReporter, caps: Ca
     return EXIT_OK
 
 
+def command_diagnostics(args: Arguments, out: Output, reporter: LineReporter) -> int:
+    from .core import build, compute, environment
+    from .core.environment import State
+
+    if (args.topic or "").lower() == "gpu":
+        build.ensure_built(reporter)
+        config = configuration.load()
+        result = compute.probe(config=config, refresh=True)
+        out.heading("GPU acceleration")
+        out.pairs([("Policy", compute.policy(config)),
+                   ("Vulkan loader", f"{result.loader or 'not found'}" + (f" · instance {result.instance_version}" if result.instance_version else "")),
+                   ("Selected", result.headline())], width=16)
+        if result.devices:
+            out.write()
+            out.table(["#", "Device", "Driver", "Type", "Vulkan", "Self-test"],
+                      [(str(d.index) + (" *" if d.selected else ""), d.name, d.driver, d.type, d.api,
+                        "passed" if d.self_test else ("failed: " + d.error[:60] if d.self_test is False else d.reason or "-"))
+                       for d in result.devices], max_width=44)
+            out.muted("  * the device DSTNS uses. A device counts as available only after a real dispatch returned the right answer.")
+        if not result.available:
+            out.write()
+            out.message(Level.WARNING, "No usable GPU: the simulation runs on the CPU backend", result.reason)
+            fix = compute.remedy(result)
+            if fix:
+                out.muted("  " + fix)
+            return 3
+        out.message(Level.SUCCESS, "GPU acceleration available", f"tested in {result.seconds:.1f} s")
+        return EXIT_OK
+    if args.topic not in (None, "environment"):
+        raise ConfigurationError(f"Unknown diagnostics topic: {args.topic}", remedy="Use ./launcher diagnostics or ./launcher diagnostics gpu.")
+    items = environment.checks()
+    environment.run_checks(items)
+    out.heading("Environment")
+    for group, title in (("", "Required and optional"), ("gpu", "GPU acceleration")):
+        out.write()
+        out.muted(title)
+        for check in (c for c in items if c.group == group):
+            out.status(check.outcome.state, check.name, check.outcome.value)
+            if check.outcome.state in (State.FAIL, State.WARNING) and check.outcome.remedy:
+                out.muted("          " + check.outcome.remedy)
+    blocking = environment.blocking(items)
+    return EXIT_FAILURE if blocking else EXIT_OK
+
+
+def command_bootstrap(args: Arguments, out: Output, reporter: LineReporter, caps: Capabilities) -> int:
+    from .core import dependencies
+
+    target = dependencies.detect_platform()
+    profile = args.profile or "standard"
+    the_plan = dependencies.plan(target, profile, assume_yes=args.yes)
+    out.heading(f"Dependencies · {target.describe()} · {profile} profile")
+    for status in the_plan.statuses:
+        state = Level.SUCCESS if status.present else Level.WARNING
+        out.message(state, status.dependency.name, (status.found or "missing")[:70])
+    for name, what in the_plan.manual:
+        out.muted(f"  {name}: {what}")
+    for note in the_plan.notes:
+        out.muted("  " + note)
+    if not the_plan.needed:
+        out.write()
+        out.message(Level.SUCCESS if not the_plan.manual else Level.WARNING,
+                    "Nothing to install" if not the_plan.manual else "Nothing DSTNS can install for you; see above")
+        return EXIT_OK if not the_plan.missing else EXIT_FAILURE
+    out.write()
+    out.line("To install the missing packages, DSTNS would run:")
+    for command in the_plan.commands:
+        out.line("  " + " ".join(command))
+    if args.check:
+        return EXIT_FAILURE
+    if not args.yes:
+        if not caps.interactive:
+            raise ConfigurationError("Not installing without confirmation.", remedy="Run ./launcher bootstrap --yes to install.")
+        if not out.confirm("Install them now?", default=False):
+            out.message(Level.INFO, "Nothing was installed")
+            return EXIT_OK
+    after = dependencies.execute(the_plan, reporter)
+    return EXIT_OK if all(s.present for s in after) else EXIT_FAILURE
+
+
 def command_start_headless(args: Arguments, out: Output, reporter: LineReporter, session: Session) -> int:
     """Start without a terminal: follow the server and report its fate as our own."""
     session.launch(args.run, reporter, open_browser=args.open)
@@ -365,6 +479,12 @@ def main(argv: list[str] | None = None) -> int:
         args = parse(argv)
         if args.no_color:
             os.environ["NO_COLOR"] = "1"
+        # Server settings travel in the environment, which the server reads and
+        # which beats the configuration file (core/compute.py).
+        if args.compute:
+            os.environ["DSTNS_COMPUTE_BACKEND"] = args.compute
+        if args.gpu_device:
+            os.environ["DSTNS_GPU_DEVICE"] = args.gpu_device
         LOG.info("arguments: %s · terminal: %s", " ".join(argv) or "(none)", caps.summary())
         reporter = LineReporter(out, verbose=args.verbose)
         return dispatch(args, caps, out, reporter, session)
@@ -422,6 +542,10 @@ def dispatch(args: Arguments, caps: Capabilities, out: Output, reporter: LineRep
         return command_sumo(out, reporter)
     if command == "reset":
         return command_reset(args, out, reporter, caps)
+    if command == "diagnostics":
+        return command_diagnostics(args, out, reporter)
+    if command == "bootstrap":
+        return command_bootstrap(args, out, reporter, caps)
     if command == "logs" and (args.topic or not caps.interactive):
         return command_logs(args, out)
     if command == "config" and not caps.interactive:
