@@ -419,11 +419,34 @@ export interface TerrainInfo {
   elevation_max_m: number;
   hash: string;
 }
+export interface Stats { min: number; mean: number; max: number }
+/** The deterministic cosmic model: the Sun and the surface it heats. */
+export interface DcmState {
+  updated_s: number;
+  interval_s: number;
+  representative_day_of_year: number;
+  latitude: number;
+  longitude: number;
+  solar_time_h: number;
+  elevation_deg: number;
+  azimuth_deg: number;
+  daylight: boolean;
+  direct_normal_w_m2: number;
+  diffuse_horizontal_w_m2: number;
+  clear_sky_global_horizontal_w_m2: number;
+  cloud_mean: number;
+  air_temperature_c: number;
+  irradiance_w_m2: Stats | null;
+  surface_temperature_c: Stats | null;
+  sun_path: { t: number; elevation_deg: number; azimuth_deg: number }[];
+  surface: { class: string; albedo: number; emissivity: number };
+}
 export interface EnvironmentInfo {
   schema_version: number;
   calendar?: Calendar;
   terrain: TerrainInfo | null;
   roads?: { max_abs_grade: number };
+  modules?: Record<string, boolean>;
+  state?: { time_s: number; dcm?: DcmState } | null;
   fields: { name: string; units: string; kind: string }[];
-  [module: string]: unknown;
 }

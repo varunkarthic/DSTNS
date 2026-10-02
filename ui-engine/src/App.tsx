@@ -893,6 +893,12 @@ export default function App() {
             />
           </div>
 
+          {overlayInfo && environmentState.available && (
+            <div className="field-legend-float">
+              <FieldLegend info={overlayInfo} raster={overlayRaster} />
+            </div>
+          )}
+
           <MapDock
             onZoomIn={() => mapControls.current?.zoomIn()}
             onZoomOut={() => mapControls.current?.zoomOut()}
@@ -956,6 +962,7 @@ export default function App() {
             runId={runId}
             asb={asb}
             history={historyFeed}
+            environment={environmentState.environment}
             compact={deckCompact}
             tutorialTarget={tutorial.active ? tutorialTarget : undefined}
             onCollapse={() => setCollapsed(true)}
@@ -968,7 +975,6 @@ export default function App() {
                 <NotificationCapsule items={suspended || tutorial.active ? [] : shown} systemError={systemError} onDismissError={!sim.error && !sim.stale && actionError ? () => setActionError("") : undefined} focusedKey={autoFocus ? activeKey : null} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
               </div>
               <div className="hud-zone hud-center">
-                {overlayInfo && environmentState.available && <FieldLegend info={overlayInfo} raster={overlayRaster} />}
                 <RoadLegend />
                 <PlaceLegend
                   features={sim.topology?.features ?? NO_FEATURES}

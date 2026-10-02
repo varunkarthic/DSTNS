@@ -2437,3 +2437,95 @@
   font-size: 10px;
   color: var(--text-dim);
 }
+
+/* ---- City tab: the coupled environment --------------------------------------------- */
+
+.env-cards {
+  display: grid;
+  gap: 10px;
+  padding: 2px 2px 10px;
+}
+.env-card {
+  padding: 12px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 3%);
+  border: 1px solid rgb(178 235 255 / 8%);
+}
+.env-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.env-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+.env-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+.env-figure {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.env-figure b {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+.env-figure small {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.env-note,
+.env-empty {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.sun-path {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-bottom: 6px;
+}
+.sun-horizon {
+  stroke: rgb(178 235 255 / 25%);
+  stroke-width: 1;
+}
+.sun-arc {
+  fill: none;
+  stroke: rgb(255 202 102 / 55%);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+.sun-disc {
+  fill: #ffca66;
+  stroke: var(--hud-bg-strong);
+  stroke-width: 2;
+}
+.sun-disc.night {
+  fill: none;
+  stroke: rgb(255 202 102 / 60%);
+}
+.sun-label {
+  fill: var(--text-dim);
+  font-size: 9px;
+  font-family: var(--font-body);
+}
+.field-legend-float {
+  position: absolute;
+  top: 14px;
+  left: 92px;
+  z-index: 3;
+  pointer-events: none;
+}
+.field-legend-float .hud-pill {
+  pointer-events: auto;
+}

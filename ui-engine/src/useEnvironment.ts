@@ -9,6 +9,7 @@ import type { EnvironmentInfo } from "./types";
 
 /** How often a changing field is re-read while it is shown. */
 const DYNAMIC_REFRESH_MS = 2000;
+const SUMMARY_REFRESH_MS = 2000;
 
 /**
  * The environment summary for the current run, and the raster of the field
@@ -21,13 +22,18 @@ export function useEnvironment(runId: string, overlay: FieldOverlay, stateRevisi
   const [raster, setRaster] = useState<FieldRaster | null>(null);
   const [error, setError] = useState("");
 
+  // The summary is small; it is re-read every couple of seconds so the Sun,
+  // temperatures and (later) water and wind figures stay current.
   useEffect(() => {
     setEnvironment(null);
     if (!runId) return;
     let live = true;
-    api.environment().then((r) => live && r.run_id === runId && setEnvironment(r.data)).catch(() => {});
+    const read = () => api.environment().then((r) => live && r.run_id === runId && setEnvironment(r.data)).catch(() => {});
+    void read();
+    const timer = setInterval(read, SUMMARY_REFRESH_MS);
     return () => {
       live = false;
+      clearInterval(timer);
     };
   }, [runId]);
 

@@ -17,7 +17,8 @@ import { useTimeFormat } from "./preferences";
 import { networkFigures, weatherSummary } from "./telemetryModel";
 import type { WeatherSummary } from "./telemetryModel";
 import type { RuntimeStatus } from "./telemetryRecorder";
-import type { Backpressure, ComputeInfo, Congestion, EventPage, News, Snapshot, Status, Topology } from "./types";
+import type { Backpressure, ComputeInfo, Congestion, EnvironmentInfo, EventPage, News, Snapshot, Status, Topology } from "./types";
+import { EnvironmentView } from "./EnvironmentPanel";
 
 /**
  * Live telemetry.
@@ -28,7 +29,7 @@ import type { Backpressure, ComputeInfo, Congestion, EventPage, News, Snapshot, 
  * beside the strip, so looking at one list never reopens the whole panel.
  */
 
-export type TelemetryTab = "stack" | "events" | "queue" | "incidents" | "notifications";
+export type TelemetryTab = "stack" | "city" | "events" | "queue" | "incidents" | "notifications";
 export type PanelView = TelemetryTab | "overview";
 
 export interface HistoryFeed {
@@ -48,6 +49,8 @@ type Props = {
   runId: string;
   asb: Backpressure | null;
   history: HistoryFeed;
+  /** The coupled environment summary, re-read every few seconds. */
+  environment?: EnvironmentInfo | null;
   compact: boolean;
   tutorialTarget?: string;
   onCollapse: () => void;
@@ -65,6 +68,7 @@ const STATUS_TEXT: Record<RuntimeStatus, string> = { online: "Online", degraded:
 
 export const TABS: { id: TelemetryTab; label: string; icon: IconName }[] = [
   { id: "stack", label: "Stack", icon: "stack" },
+  { id: "city", label: "City", icon: "sun" },
   { id: "events", label: "News", icon: "news" },
   { id: "queue", label: "Queue", icon: "queue" },
   { id: "incidents", label: "Incidents", icon: "incident" },
@@ -73,6 +77,7 @@ export const TABS: { id: TelemetryTab; label: string; icon: IconName }[] = [
 const VIEW_TITLE: Record<PanelView, string> = {
   overview: "Network",
   stack: "Stack",
+  city: "City",
   events: "News",
   queue: "Queue",
   incidents: "Incidents",
@@ -593,6 +598,8 @@ function DetailView({ view, props, state }: { view: PanelView; props: Props; sta
       return <Overview snapshot={props.snapshot} topology={props.topology} congestion={props.congestion} />;
     case "stack":
       return <StackView status={props.status} snapshot={props.snapshot} topology={props.topology} asb={props.asb} virtualTime={props.virtualTime} />;
+    case "city":
+      return <EnvironmentView environment={props.environment ?? null} />;
     case "events":
       return <NewsView news={props.news} />;
     case "incidents":
@@ -692,6 +699,7 @@ function TelemetryDeckImpl(props: Props) {
   const weather = useMemo(() => weatherSummary(snapshot?.active_weather), [snapshot]);
   const counts: Record<TelemetryTab, number> = {
     stack: 0,
+    city: 0,
     events: props.news.length,
     queue: 0,
     incidents: figures.incidents,

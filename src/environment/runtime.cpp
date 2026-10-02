@@ -71,6 +71,12 @@ void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParamete
         cos_slope_[k] = normal_z_[k];
     }
 
+    sun_path_.clear();
+    for (std::uint32_t t = 0; t <= 86400; t += 900) {
+        const auto p = solar_position(latitude_, longitude_, day_of_year_, t);
+        sun_path_.push_back({double(t), p.elevation_deg, p.azimuth_deg});
+    }
+
     // Spin-up: two clear days, so midnight surface temperatures are those of
     // the periodic diurnal cycle rather than an arbitrary guess.
     state_ = {};
@@ -232,6 +238,11 @@ nlohmann::json EnvironmentRuntime::summary() const {
             {"monthly_mean_air_c", climate_.monthly_mean_c},
             {"irradiance_w_m2", stats(state_.irradiance_w_m2)},
             {"surface_temperature_c", stats(state_.surface_temperature_c)},
+            {"sun_path", [&] {
+                auto path = nlohmann::json::array();
+                for (const auto& [t, el, az] : sun_path_) path.push_back({{"t", t}, {"elevation_deg", el}, {"azimuth_deg", az}});
+                return path;
+            }()},
             {"surface", {{"class", "asphalt (assumed everywhere)"}, {"albedo", surface_.albedo}, {"emissivity", surface_.emissivity},
                          {"heat_capacity_j_m2k", surface_.heat_capacity_j_m2k}}}
         }}

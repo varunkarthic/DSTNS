@@ -26,6 +26,7 @@
 #include "dstns/environment/terrain.hpp"
 #include "dstns/model.hpp"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -117,6 +118,8 @@ private:
     double anomaly_c_{};
     std::vector<float> cos_slope_;      // cosine of each cell's tilt
     std::vector<float> normal_x_, normal_y_, normal_z_;
+    // The representative day's sun path, every 15 minutes: (clock s, elevation, azimuth).
+    std::vector<std::array<double, 3>> sun_path_;
     EnvironmentState state_;
     EnvironmentState initial_;
 };
