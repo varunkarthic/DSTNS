@@ -29,6 +29,7 @@ import { Tutorial } from "./Tutorial";
 import { useTutorial } from "./useTutorial";
 import { NotificationCapsule } from "./NotificationCapsule";
 import { SettingsDrawer } from "./SettingsDrawer";
+import { WorldDialog } from "./SeedConfiguration";
 import { useSimulation } from "./useSimulation";
 import { useBackpressure, describeAsb, formatRate } from "./useBackpressure";
 import { api } from "./api";
@@ -183,6 +184,7 @@ export default function App() {
   const virtual = clock?.virtual_day_seconds ?? 0;
   const valid = !!sim.snapshot && !sim.error && !sim.stale;
   const congestion = sim.snapshot?.data.congestion;
+  const calendar = sim.status?.data.calendar ?? null;
   const rawLocation = sim.topology?.location;
   const location = rawLocation?.city ? rawLocation : undefined;
   const origin = sim.topology?.projection;
@@ -678,13 +680,13 @@ export default function App() {
   }, [lifecycle]);
 
   // ---- World generation -----------------------------------------------------
-  const requestWorld = useCallback(async () => {
+  const requestWorld = useCallback(async (seed?: string) => {
     setLayersOpen(false);
     setSettingsOpen(false);
     setWorld({ ...NO_WORLD_JOB, active: true });
-    logControl("regenerate", "requested");
+    logControl("regenerate", seed ? `requested ${seed}` : "requested");
     try {
-      const response = await api.regenerateWorld(runId || undefined);
+      const response = await api.regenerateWorld(runId || undefined, seed);
       setWorld((w) => ({ ...w, status: response.data, requestedSeed: response.data.seed }));
     } catch (e) {
       const text = e instanceof Error ? e.message : "";
@@ -808,6 +810,18 @@ export default function App() {
                 <span className="chip city-chip" tabIndex={0}>
                   <Icon name="pin" size={14} />
                   {location.city}, {location.country}
+                </span>
+              </Tooltip>
+            )}
+            {calendar && (
+              <Tooltip
+                label="Simulated month and day type"
+                detail={`Month ${calendar.month_source === "seed" ? "from the seed" : "configured"}; day type ${calendar.day_source === "seed" ? "from the seed" : "configured"}. A run has no day of the month.`}
+                side={["bottom"]}
+              >
+                <span className="chip calendar-chip" tabIndex={0} data-testid="calendar-chip">
+                  <Icon name="clock" size={14} />
+                  {calendar.month_name} · {calendar.day_type === "weekend" ? "Weekend" : "Weekday"}
                 </span>
               </Tooltip>
             )}
@@ -1045,18 +1059,14 @@ export default function App() {
             />
           )}
           {dialog === "regenerate" && (
-            <ConfirmCard
-              title="Generate New World?"
-              body="A new seed picks a new district, which may need a map download. The current simulation stays where it is until the new world is ready, then hands over. The new world begins paused at the start of the day."
-              confirmLabel="Generate"
-              icon="reroll"
+            <WorldDialog
               closing={dialogClosing}
               onCancel={closeDialog}
-              onConfirm={() => {
+              onConfirm={(seed) => {
                 closeDialog();
                 // Let the dialog finish leaving before the world overlay
                 // arrives, so the two are never on screen together.
-                window.setTimeout(() => void requestWorld(), 190);
+                window.setTimeout(() => void requestWorld(seed), 190);
               }}
             />
           )}

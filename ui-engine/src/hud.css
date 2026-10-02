@@ -89,7 +89,8 @@
    same rule they do: a radius of half its height, which makes its ends true
    semicircles rather than a rounded rectangle that almost matches. Matching
    the control height keeps the row level as well as concentric. */
-.city-chip {
+.city-chip,
+.calendar-chip {
   display: inline-flex;
   align-items: center;
   height: var(--ctl);
@@ -2286,4 +2287,88 @@
 }
 .reduce-motion .icon-action .icon {
   animation: none !important;
+}
+
+/* ---- New world: seed configuration ------------------------------------------------- */
+
+.seed-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+.seed-config {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+.seed-config .segmented {
+  width: 100%;
+}
+.seed-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.seed-field {
+  display: grid;
+  gap: 4px;
+}
+.seed-constraints {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+.seed-constraints .btn {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.seed-input,
+.seed-field select {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-border);
+  background: rgb(0 0 0 / 25%);
+  color: var(--text);
+  font-size: 12px;
+  min-width: 0;
+}
+.seed-input:focus-visible,
+.seed-field select:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+.seed-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(178 235 255 / 8%);
+  font-size: 12px;
+}
+.seed-summary dt {
+  color: var(--text-dim);
+}
+.seed-summary dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.seed-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.seed-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--error);
+}
+@media (max-width: 560px) {
+  .seed-constraints {
+    grid-template-columns: 1fr;
+  }
 }

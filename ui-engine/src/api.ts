@@ -12,6 +12,8 @@ import type {
   Backpressure,
   WorldStatus,
   ComputeInfo,
+  SeedMetadata,
+  SeedLocation,
 } from "./types";
 
 const base =
@@ -95,12 +97,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ seconds }),
     }),
-  // Ask the core for a new world from a fresh seed. Progress is polled.
-  regenerateWorld: (expected_run_id?: string) =>
+  // Ask the core for a new world, from a fresh seed or a named one. Progress is polled.
+  regenerateWorld: (expected_run_id?: string, seed?: string) =>
     request<{ data: WorldStatus }>("/api/v1/world/regenerate", {
       method: "POST",
-      body: JSON.stringify(expected_run_id ? { expected_run_id } : {}),
+      body: JSON.stringify({ ...(expected_run_id ? { expected_run_id } : {}), ...(seed ? { seed } : {}) }),
     }),
+  /** The location catalogue a seed draws from. */
+  seedLocations: () => request<{ data: { items: SeedLocation[]; count: number } }>("/api/v1/seeds/locations"),
+  /** What a seed resolves to: location, month and day type. */
+  describeSeed: (seed: string) =>
+    request<{ data: SeedMetadata }>(`/api/v1/seeds/describe?seed=${encodeURIComponent(seed)}`),
+  /** A fresh seed whose own location, month and day type are those asked for ("auto": any). */
+  generateSeed: (constraints: { location: string; month: string; day_type: string }) =>
+    request<{ data: SeedMetadata }>("/api/v1/seeds/generate", { method: "POST", body: JSON.stringify(constraints) }),
   worldStatus: () => request<{ data: WorldStatus }>("/api/v1/world/status"),
   /** Every news item recorded for the run, paged in core-sized requests. */
   allNews: async (runId: string, max = 20000): Promise<News[]> => {

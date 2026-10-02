@@ -168,7 +168,13 @@ function mockApi(overrides: Partial<Mock> = {}) {
     if (path.includes("/playback/step")) return json({ simulated_seconds: state.clock.virtual_day_seconds + 60, stepped_seconds: 60, lifecycle: "PAUSED" });
     let data: unknown = {};
     if (path.includes("/playback/status"))
-      data = { lifecycle: state.lifecycle, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v3", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1 };
+      data = {
+        lifecycle: state.lifecycle, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v3", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1,
+        calendar: {
+          location: { city: "Berlin", country: "Germany", latitude: 52.52, longitude: 13.405, source: "seed" },
+          month: 7, month_name: "July", month_source: "seed", day: 0, day_type: "weekday", day_source: "configured",
+        },
+      };
     else if (path.includes("/view/topology")) {
       if (state.topologyDelay) return json({ error: { code: "NOT_READY", message: "no topology yet" } }, 409);
       data = state.topology ?? topology;
@@ -385,6 +391,8 @@ describe("world regeneration", () => {
     render(<App />);
     await ready();
     calls.length = 0;
+    // The header names the run's month and day type.
+    expect(screen.getByTestId("calendar-chip")).toHaveTextContent("July · Weekday");
     fireEvent.click(screen.getByLabelText("Generate new world"));
     expect(await screen.findByRole("dialog")).toHaveTextContent("Generate New World?");
     expect(calls).toEqual([]);

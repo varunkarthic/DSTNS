@@ -95,7 +95,7 @@ function Row({ title, hint, control, htmlFor }: { title: string; hint?: string; 
   );
 }
 
-function Segmented<T extends string | number>({
+export function Segmented<T extends string | number>({
   value,
   options,
   onChange,

@@ -33,6 +33,17 @@ export interface Envelope<T> {
   clock: Clock;
   data: T;
 }
+/** When and where a run is: the seed's own values unless configured. */
+export interface Calendar {
+  location: { city: string; country: string; latitude: number; longitude: number; source: string };
+  month: number;
+  month_name: string;
+  month_source: string;
+  day: number;
+  day_type: "weekday" | "weekend";
+  day_source: string;
+  seed_derived?: { city: string; country: string; month: number; month_name: string; day_type: string };
+}
 export interface Status {
   preparation_error?: string;
   playback_revision?: number;
@@ -41,6 +52,27 @@ export interface Status {
   saved_seed_id: string;
   map_selection_version: string;
   modules: Record<string, boolean>;
+  calendar?: Calendar | null;
+}
+/** What a seed alone determines, from /seeds/describe and /seeds/generate. */
+export interface SeedMetadata {
+  seed: string;
+  seed_hex?: string;
+  location: { city: string; country: string; index?: number; latitude: number; longitude: number };
+  month: number;
+  month_name: string;
+  day: number;
+  day_type: "weekday" | "weekend";
+  candidates_examined?: number;
+  search_ms?: number;
+}
+export interface SeedLocation {
+  index: number;
+  city: string;
+  country: string;
+  slug: string;
+  latitude: number;
+  longitude: number;
 }
 export interface Point {
   x_m: number;
