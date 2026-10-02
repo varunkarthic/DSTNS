@@ -239,6 +239,19 @@ def main():
             code, manifest = call(base, "/api/v1/view/manifest")
             assert manifest["data"]["terrain"]["hash"] == terrain["hash"]
             assertions += 8
+            # The DCM: solar state and surface fields, and a module switch.
+            dcm = environment["data"]["state"]["dcm"]
+            assert 1 <= dcm["representative_day_of_year"] <= 366 and -90 <= dcm["elevation_deg"] <= 90, dcm
+            assert 0 <= dcm["azimuth_deg"] < 360 and dcm["surface_temperature_c"]["min"] <= dcm["surface_temperature_c"]["max"]
+            assert {"irradiance", "surface_temperature"} <= {f["name"] for f in environment["data"]["fields"]}
+            code, temperature = call(base, "/api/v1/view/fields/surface_temperature?max_side=8")
+            assert code == 200 and temperature["data"]["units"] == "°C" and len(temperature["data"]["values"]) > 0
+            code, toggled = call(base, "/api/v1/control/modules/dcm", "PUT", {"enabled": False})
+            assert code == 200 and toggled["enabled"] is False
+            code, status = call(base, "/api/v1/playback/status")
+            assert status["data"]["modules"]["dcm"] is False
+            call(base, "/api/v1/control/modules/dcm", "PUT", {"enabled": True})
+            assertions += 6
 
             # 5. Double start conflict
             code, err = call(base, "/api/v1/playback/start", "POST", req_start)

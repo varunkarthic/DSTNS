@@ -140,6 +140,8 @@ struct ScenarioConfig {
     double stop_min_spacing_m{300}, stop_target_spacing_m{500}, stop_max_coverage_m{800};
     std::uint32_t min_incidents{4};
     bool traffic{true}, signals{true}, buildings{true}, dws{true}, flooding{true}, news{true}, incidents{true};
+    // The coupled environment's modules.
+    bool dcm{true};
     EnvironmentConfig environment;
 };
 

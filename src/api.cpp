@@ -234,6 +234,7 @@ ScenarioConfig config_from(const json& j) {
         c.dws = m.value("dws", c.dws);
         c.flooding = m.value("flooding", c.flooding);
         c.news = m.value("news", c.news);
+        c.dcm = m.value("dcm", c.dcm);
     }
     if (j.contains("dws") && j.at("dws").contains("frequency") && j.at("dws").at("frequency").is_number()) {
         c.dws_frequency = j.at("dws").at("frequency");

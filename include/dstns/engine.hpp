@@ -9,6 +9,7 @@
 #include "dstns/logging.hpp"
 #include "dstns/scenario.hpp"
 #include "dstns/compute/dispatcher.hpp"
+#include "dstns/environment/runtime.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -133,7 +134,7 @@ public:
 private:
     // A checkpoint holds the complete fixed-point physics state, so restoring
     // it and replaying reaches exactly the state of continuous execution.
-    struct Checkpoint { std::uint32_t virtual_s{}; std::vector<std::uint32_t> physics; std::size_t news_size{}; std::uint64_t next_news_id{1}; EventRuntime events; CongestionTracker congestion; };
+    struct Checkpoint { std::uint32_t virtual_s{}; std::vector<std::uint32_t> physics; std::size_t news_size{}; std::uint64_t next_news_id{1}; EventRuntime events; CongestionTracker congestion; env::EnvironmentState environment; };
     struct ActiveSurgeZone { std::uint32_t id{}; NodeId node{}; std::uint32_t start_s{}; std::uint32_t end_s{}; double factor{1.8}; double radius_m{300}; std::string label; };
     [[nodiscard]] double asb_now() const;
     [[nodiscard]] nlohmann::json backpressure_json() const;
@@ -154,6 +155,9 @@ private:
     // Declared before graph_ so that the graph is destroyed first.
     std::unique_ptr<compute::ComputeDispatcher> compute_;
     std::unique_ptr<GraphStore> graph_;
+    // The dynamic environment (solar forcing, surface temperature, and the
+    // modules that follow). Its state is part of every checkpoint.
+    env::EnvironmentRuntime environment_;
     std::atomic<bool> compiling_{false}; // Concurrent compiles fail without occupying HTTP workers.
     std::uint64_t compile_generation_{}; // Guarded by mutex_; reset/terminate invalidate a pending install.
     std::string preparation_error_;
