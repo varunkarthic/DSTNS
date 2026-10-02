@@ -441,7 +441,9 @@ class LoadingFeedback(unittest.IsolatedAsyncioTestCase):
             async with app.run_test(size=(50, 15)) as pilot:
                 for _ in range(30):
                     await pilot.pause(.05)
-                    if type(app.screen).__name__ == "EnvironmentScreen":
+                    # switch_screen exposes the new screen before its Mount
+                    # handler has populated results on slower CI runners.
+                    if type(app.screen).__name__ == "EnvironmentScreen" and app.screen.done:
                         break
                 self.assertEqual(type(app.screen).__name__, "EnvironmentScreen")
                 self.assertTrue(app.screen.done)
