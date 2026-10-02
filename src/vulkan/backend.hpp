@@ -3,10 +3,7 @@
 
 #pragma once
 
-#include "context.hpp"
-#include "executor.hpp"
-#include "memory.hpp"
-#include "pipeline.hpp"
+#include "gpu.hpp"
 
 #include "dstns/compute/backend.hpp"
 #include "dstns/compute/options.hpp"
@@ -49,39 +46,26 @@ public:
     void synchronize() override;
     [[nodiscard]] compute::StepTelemetry last_step() const override { return telemetry_; }
 
-    /// Allocate, upload, dispatch, read back and compare a small kernel.
-    /// Returns the time it took; throws if the device returns a wrong word.
-    double self_test();
-    [[nodiscard]] std::uint32_t validation_errors() const { return instance_->counters().errors; }
-    [[nodiscard]] const DeviceInfo& device_info() const { return info_; }
-    [[nodiscard]] const std::vector<DeviceInfo>& devices() const { return devices_; }
+    [[nodiscard]] std::uint32_t validation_errors() const { return gpu_->instance().counters().errors; }
+    [[nodiscard]] const DeviceInfo& device_info() const { return gpu_->info(); }
+    [[nodiscard]] const std::vector<DeviceInfo>& devices() const { return gpu_->devices(); }
 private:
     struct World;
     void guard() const;
     void record_step(int parity);
-    void transfer(VkBuffer source, VkDeviceSize source_offset, VkBuffer target, VkDeviceSize target_offset, VkDeviceSize bytes, bool to_host);
     void ensure_capacity(Buffer& buffer, VkDeviceSize bytes, VkBufferUsageFlags usage, MemoryUse use, const char* label, bool& changed);
 
     compute::ComputeOptions options_;
     compute::LogSink log_;
-    // Declared in dependency order: destroyed in reverse, world first, instance last.
-    std::unique_ptr<Instance> instance_;
-    std::vector<DeviceInfo> devices_;
-    DeviceInfo info_;
-    std::unique_ptr<Device> device_;
-    std::unique_ptr<PipelineCache> cache_;
-    std::unique_ptr<BindingLayout> physics_layout_, pair_layout_;
-    std::unique_ptr<ComputePipeline> node_pipeline_, edge_pipeline_, scatter_pipeline_, self_test_pipeline_;
-    std::unique_ptr<CommandPool> commands_;
-    std::unique_ptr<Timeline> timeline_;
+    // Declared in dependency order: destroyed in reverse, world first, device last.
+    std::unique_ptr<Gpu> gpu_;
+    std::unique_ptr<BindingLayout> physics_layout_;
+    std::unique_ptr<ComputePipeline> node_pipeline_, edge_pipeline_, scatter_pipeline_;
     std::unique_ptr<Timestamps> timestamps_;
     VkCommandBuffer step_commands_[2]{};
-    VkCommandBuffer transfer_command_{};
-    std::uint32_t workgroup_{};
     std::unique_ptr<World> world_;
     int parity_{};
     std::uint64_t steps_{};
-    bool lost_{};
     compute::StepTelemetry telemetry_;
 };
 

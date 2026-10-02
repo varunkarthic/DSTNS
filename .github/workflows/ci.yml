@@ -78,7 +78,7 @@ jobs:
       - name: Configure (Vulkan required, shaders compiled from GLSL)
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=ON -DDSTNS_VULKAN_REQUIRED=ON
       - name: Build
-        run: cmake --build build -j"$(nproc)" --target dstns_server dstns_compute_equivalence_tests dstns_engine_compute_tests dstns_benchmark
+        run: cmake --build build -j"$(nproc)" --target dstns_server dstns_compute_equivalence_tests dstns_engine_compute_tests dstns_field_tests dstns_benchmark
       - name: GPU diagnostics
         run: ./build/dstns_server --gpu-diagnostics --allow-software-vulkan
       - name: CPU and Vulkan equivalence, under validation
@@ -87,6 +87,10 @@ jobs:
         run: ./build/dstns_compute_equivalence_tests
       - name: The engine on Vulkan
         run: ./build/dstns_engine_compute_tests
+      - name: Structured-grid field kernels, under validation
+        env:
+          DSTNS_VULKAN_VALIDATION: "1"
+        run: ./build/dstns_field_tests
       - name: Compute benchmark (software device; correctness of the tool, not speed)
         run: ./build/dstns_benchmark compute --sizes 1000,10000 --device llvmpipe --replay-steps 50
 

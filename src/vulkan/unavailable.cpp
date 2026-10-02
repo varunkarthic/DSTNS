@@ -4,6 +4,7 @@
 // Linked instead of the Vulkan module when DSTNS is built without Vulkan
 // support, so the rest of the system needs no conditional compilation.
 
+#include "dstns/compute/field.hpp"
 #include "dstns/compute/vulkan.hpp"
 
 namespace dstns::compute {
@@ -22,5 +23,10 @@ nlohmann::json vulkan_diagnostics(const ComputeOptions&) {
 }
 
 nlohmann::json vulkan_shader_bundle() { return nullptr; }
+
+std::unique_ptr<FieldSolver> create_vulkan_field_solver(const ComputeOptions&, const LogSink&, std::string& reason) {
+    reason = "this build does not include the Vulkan backend";
+    return nullptr;
+}
 
 } // namespace dstns::compute

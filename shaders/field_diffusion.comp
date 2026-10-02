@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
+// One diffusion step over a structured grid, one invocation per cell. The
+// solver dispatches it many times in one submission, alternating source and
+// target buffers. Mirrors diffuse() in src/compute/field.cpp.
+
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "dstns_glsl.h"
+#include "dstns_fields.h"
+
+layout(std430, set = 0, binding = 0) readonly buffer Params { u32 width; u32 height; u32 rate_q16; u32 pad; };
+layout(std430, set = 0, binding = 1) readonly buffer Source { u32 source[]; };
+layout(std430, set = 0, binding = 2) writeonly buffer Target { u32 target[]; };
+
+void main() {
+    u32 i = gl_GlobalInvocationID.x;
+    if (i >= width * height) return;
+    u32 x = i % width;
+    u32 y = i / width;
+    u32 c = source[i];
+    u32 n = y > 0u ? source[i - width] : c;
+    u32 s = y + 1u < height ? source[i + width] : c;
+    u32 w = x > 0u ? source[i - 1u] : c;
+    u32 e = x + 1u < width ? source[i + 1u] : c;
+    target[i] = diffuse_cell(c, n, s, e, w, rate_q16);
+}
