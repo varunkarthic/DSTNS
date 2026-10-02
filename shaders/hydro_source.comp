@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
+// Surface water, step start: rain in, then evaporation and infiltration, each
+// limited by the water there; what they removed is recorded for the ledger,
+// and the boundary and open-water tallies of the step are cleared.
+// Mirrors CpuHydrology::advance in src/environment/hydrology.cpp.
+
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "dstns_glsl.h"
+#include "dstns_hydrology.h"
+#include "dstns_hydro_bindings.h"
+
+void main() {
+    uint k = gl_GlobalInvocationID.x;
+    if (k >= grid_w() * grid_h()) return;
+    i64 h = i64(depth[k]) + i64(rain[k]);
+    i64 e = hyd_min(h, i64(evaporation[k]));
+    h = h - e;
+    i64 f = hyd_min(h, i64(infiltration[k]));
+    h = h - f;
+    depth[k] = clamp32(h);
+    evaporated[k] = int(e);
+    infiltrated[k] = int(f);
+    boundary_out[k] = 0;
+    sea_out[k] = 0;
+}

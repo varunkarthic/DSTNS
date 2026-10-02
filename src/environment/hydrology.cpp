@@ -27,21 +27,6 @@ std::int32_t to_i32(std::int64_t v) {
     return static_cast<std::int32_t>(std::clamp<std::int64_t>(v, INT32_MIN, INT32_MAX));
 }
 
-/// Per-substep constants, rounded once on the host.
-struct Coefficients {
-    std::int64_t a_q20, k_q32, c_q24, hmin, theta;
-};
-
-Coefficients coefficients(double dt, double dx, const HydrologyParams& p) {
-    Coefficients c;
-    c.a_q20 = std::llround(kGravity * dt / dx * kQ20);
-    c.k_q32 = std::llround(kGravity * dt * p.manning_n * p.manning_n * 4294967296.0);
-    c.c_q24 = std::llround(dt / dx * kQ24);
-    c.hmin = std::llround(p.min_flow_depth_m * kQ24);
-    c.theta = std::llround(std::clamp(p.theta, 0.0, 1.0) * 65536.0);
-    return c;
-}
-
 class CpuHydrology final : public HydrologySolver {
 public:
     void install(const HydrologyGrid& grid) override {
@@ -78,7 +63,7 @@ public:
             }
             s.h[k] = to_i32(h);
         }
-        const auto c = coefficients(dt, g.grid.cell_m, p);
+        const auto c = hydrology_coefficients(dt, g.grid.cell_m, p);
         const auto z = [&](std::uint32_t i, std::uint32_t j) { return std::int64_t(g.z_q16[std::size_t(j) * w + i]) << 8; };
         const auto h = [&](std::uint32_t i, std::uint32_t j) { return std::int64_t(s.h[std::size_t(j) * w + i]); };
         for (std::uint32_t n = 0; n < substeps; ++n) {
@@ -191,7 +176,6 @@ public:
         s.h_max = h_max;
         s.wet_cells = wet;
         s.flooded_cells = flooded;
-        hotspots(s);
         const auto edges = g.road_offsets.empty() ? 0 : g.road_offsets.size() - 1;
         s.road_max.assign(edges, 0);
         s.road_mean.assign(edges, 0);
@@ -207,41 +191,6 @@ public:
         }
     }
 
-    // Froude number per wet cell from the mean of its face discharges:
-    // Fr = |u| / sqrt(g h), u = q / h. Cells above 0.5 with a sharp depth step
-    // to a neighbour are where a 2D depth-averaged model is weakest.
-    void hotspots(HydrologyState& s) const {
-        const auto& g = *grid_;
-        const auto w = g.grid.width, ht = g.grid.height;
-        const std::int64_t wet = std::llround(0.05 * kQ24);
-        std::vector<std::pair<double, std::uint32_t>> found;
-        double max_fr = 0;
-        std::uint32_t supercritical = 0;
-        for (std::uint32_t j = 0; j < ht; ++j)
-            for (std::uint32_t i = 0; i < w; ++i) {
-                const auto k = std::size_t(j) * w + i;
-                if (s.h[k] < wet) continue;
-                const double h = s.h[k] / kQ24;
-                const double qx = (s.qx[std::size_t(j) * (w + 1) + i] + s.qx[std::size_t(j) * (w + 1) + i + 1]) / (2 * kQ20);
-                const double qy = (s.qy[std::size_t(j) * w + i] + s.qy[std::size_t(j + 1) * w + i]) / (2 * kQ20);
-                const double fr = std::hypot(qx, qy) / h / std::sqrt(kGravity * h);
-                max_fr = std::max(max_fr, fr);
-                if (fr <= 0.5) continue;
-                ++supercritical;
-                double step = 0;
-                if (i > 0) step = std::max(step, std::abs(double(s.h[k] - s.h[k - 1])));
-                if (i + 1 < w) step = std::max(step, std::abs(double(s.h[k] - s.h[k + 1])));
-                if (j > 0) step = std::max(step, std::abs(double(s.h[k] - s.h[k - w])));
-                if (j + 1 < ht) step = std::max(step, std::abs(double(s.h[k] - s.h[k + w])));
-                if (step > 0.5 * s.h[k]) found.push_back({fr, static_cast<std::uint32_t>(k)});
-            }
-        std::sort(found.begin(), found.end(), [](const auto& a, const auto& b) { return a.first != b.first ? a.first > b.first : a.second < b.second; });
-        s.max_froude = max_fr;
-        s.supercritical_cells = supercritical;
-        s.hotspots.clear();
-        for (std::size_t n = 0; n < found.size() && n < 8; ++n) s.hotspots.push_back(found[n].second);
-    }
-
 private:
     const HydrologyGrid* grid_{};
     std::vector<std::int64_t> limiter_, next_;
@@ -249,6 +198,50 @@ private:
 };
 
 } // namespace
+
+// Froude number per wet cell from the mean of its face discharges:
+// Fr = |u| / sqrt(g h), u = q / h. Cells above 0.5 with a sharp depth step
+// to a neighbour are where a 2D depth-averaged model is weakest.
+HydrologyCoefficients hydrology_coefficients(double dt, double dx, const HydrologyParams& p) {
+    HydrologyCoefficients c;
+    c.a_q20 = std::llround(kGravity * dt / dx * kQ20);
+    c.k_q32 = std::llround(kGravity * dt * p.manning_n * p.manning_n * 4294967296.0);
+    c.c_q24 = std::llround(dt / dx * kQ24);
+    c.hmin = std::llround(p.min_flow_depth_m * kQ24);
+    c.theta = std::llround(std::clamp(p.theta, 0.0, 1.0) * 65536.0);
+    return c;
+}
+
+void detect_hotspots(const HydrologyGrid& g, HydrologyState& s) {
+    const auto w = g.grid.width, ht = g.grid.height;
+    const std::int64_t wet = std::llround(0.05 * kQ24);
+    std::vector<std::pair<double, std::uint32_t>> found;
+    double max_fr = 0;
+    std::uint32_t supercritical = 0;
+    for (std::uint32_t j = 0; j < ht; ++j)
+        for (std::uint32_t i = 0; i < w; ++i) {
+            const auto k = std::size_t(j) * w + i;
+            if (s.h[k] < wet) continue;
+            const double h = s.h[k] / kQ24;
+            const double qx = (s.qx[std::size_t(j) * (w + 1) + i] + s.qx[std::size_t(j) * (w + 1) + i + 1]) / (2 * kQ20);
+            const double qy = (s.qy[std::size_t(j) * w + i] + s.qy[std::size_t(j + 1) * w + i]) / (2 * kQ20);
+            const double fr = std::hypot(qx, qy) / h / std::sqrt(kGravity * h);
+            max_fr = std::max(max_fr, fr);
+            if (fr <= 0.5) continue;
+            ++supercritical;
+            double step = 0;
+            if (i > 0) step = std::max(step, std::abs(double(s.h[k] - s.h[k - 1])));
+            if (i + 1 < w) step = std::max(step, std::abs(double(s.h[k] - s.h[k + 1])));
+            if (j > 0) step = std::max(step, std::abs(double(s.h[k] - s.h[k - w])));
+            if (j + 1 < ht) step = std::max(step, std::abs(double(s.h[k] - s.h[k + w])));
+            if (step > 0.5 * s.h[k]) found.push_back({fr, static_cast<std::uint32_t>(k)});
+        }
+    std::sort(found.begin(), found.end(), [](const auto& a, const auto& b) { return a.first != b.first ? a.first > b.first : a.second < b.second; });
+    s.max_froude = max_fr;
+    s.supercritical_cells = supercritical;
+    s.hotspots.clear();
+    for (std::size_t n = 0; n < found.size() && n < 8; ++n) s.hotspots.push_back(found[n].second);
+}
 
 HydrologyGrid build_hydrology_grid(const Scenario& s, const Terrain& t, const HydrologyParams& p) {
     HydrologyGrid g;

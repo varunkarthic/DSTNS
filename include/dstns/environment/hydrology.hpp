@@ -17,6 +17,8 @@
 // holds exactly, in integers; the reported conservation error is that
 // identity's residual, which a correct build keeps at zero.
 
+#include "dstns/compute/backend.hpp"
+#include "dstns/compute/options.hpp"
 #include "dstns/environment/grid.hpp"
 
 #include <cstdint>
@@ -124,6 +126,22 @@ public:
 };
 
 [[nodiscard]] std::unique_ptr<HydrologySolver> make_cpu_hydrology_solver();
+/// The same solver on a Vulkan device: the state stays on the device and the
+/// host reads only per-row tallies and per-road summaries after each step.
+/// nullptr, with `reason` set, when no usable device exists.
+[[nodiscard]] std::unique_ptr<HydrologySolver> make_vulkan_hydrology_solver(const compute::ComputeOptions& options,
+                                                                            const compute::LogSink& log, std::string& reason);
+
+/// One substep's constants, rounded once on the host, identical for every solver:
+/// a = g dt / dx (Q20), k = g dt n^2 (Q32), c = dt / dx (Q24), the wet/dry
+/// depth (Q24) and the q-centred weight theta (Q16).
+struct HydrologyCoefficients {
+    std::int64_t a_q20{}, k_q32{}, c_q24{}, hmin{}, theta{};
+};
+[[nodiscard]] HydrologyCoefficients hydrology_coefficients(double dt, double dx, const HydrologyParams& params);
+
+/// Froude diagnostics and refinement candidates from the current h, qx, qy.
+void detect_hotspots(const HydrologyGrid& grid, HydrologyState& state);
 
 /// The step length and count that keep the scheme stable for the deepest
 /// water: dt <= cfl dx / sqrt(g h_max), dividing `interval_s` evenly.

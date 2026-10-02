@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
+// Surface water, pass 3: move the water. Each face's transfer, limited by its
+// donor, is taken from one cell and given to the other; what leaves through
+// the district's edge and what reaches open water is tallied per cell.
+// Mirrors CpuHydrology::advance.
+
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "dstns_glsl.h"
+#include "dstns_hydrology.h"
+#include "dstns_hydro_bindings.h"
+
+i64 lim_at(int i, int j) {
+    if (i < 0 || j < 0 || i >= int(grid_w()) || j >= int(grid_h())) return i64(65536);
+    return i64(limiter[uint(j) * grid_w() + uint(i)]);
+}
+
+i64 moved(i64 q, i64 c, int di, int dj) { return hyd_limited(hyd_transfer(q, c), lim_at(di, dj)); }
+
+void main() {
+    uint k = gl_GlobalInvocationID.x;
+    uint w = grid_w(), ht = grid_h();
+    if (k >= w * ht) return;
+    uint j = k / w, i = k % w;
+    int ii = int(i), jj = int(j);
+    i64 c = param64(6u);
+    i64 west = i64(qx[j * (w + 1u) + i]), east = i64(qx[j * (w + 1u) + i + 1u]);
+    i64 south = i64(qy[j * w + i]), north = i64(qy[(j + 1u) * w + i]);
+    i64 dh = i64(0), leaves = i64(0);
+    if (west > i64(0)) dh += moved(west, c, ii - 1, jj);
+    else if (west < i64(0)) { i64 f = moved(west, c, ii, jj); dh -= f; if (i == 0u) leaves += f; }
+    if (east < i64(0)) dh += moved(east, c, ii + 1, jj);
+    else if (east > i64(0)) { i64 f = moved(east, c, ii, jj); dh -= f; if (i == w - 1u) leaves += f; }
+    if (south > i64(0)) dh += moved(south, c, ii, jj - 1);
+    else if (south < i64(0)) { i64 f = moved(south, c, ii, jj); dh -= f; if (j == 0u) leaves += f; }
+    if (north < i64(0)) dh += moved(north, c, ii, jj + 1);
+    else if (north > i64(0)) { i64 f = moved(north, c, ii, jj); dh -= f; if (j == ht - 1u) leaves += f; }
+    i64 h = i64(depth[k]) + dh;
+    boundary_out[k] = clamp32(i64(boundary_out[k]) + leaves);
+    if ((flags[k] & HYD_SEA) != 0u) {
+        sea_out[k] = clamp32(i64(sea_out[k]) + h);
+        h = i64(0);
+    }
+    depth[k] = clamp32(h);
+}

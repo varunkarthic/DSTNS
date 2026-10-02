@@ -3,6 +3,7 @@
 
 #include "dstns/environment/runtime.hpp"
 
+#include "dstns/compute/dispatcher.hpp"
 #include "dstns/rng.hpp"
 
 #include <algorithm>
@@ -46,7 +47,8 @@ double normal(const DeterministicRng& rng, std::uint64_t object) {
 }
 } // namespace
 
-void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParameters& surface, const HydrologyParams& hydrology) {
+void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParameters& surface, const HydrologyParams& hydrology,
+                                 const EnvironmentCompute* compute) {
     terrain_ = scenario.terrain;
     if (!terrain_) {
         // A scenario built without terrain (tests that assemble one by hand)
@@ -65,8 +67,28 @@ void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParamete
     const auto interval = std::max<std::uint32_t>(1, std::uint32_t(std::lround(hydrology_.interval_s)));
     hydrology_.interval_s = 900 % interval == 0 ? interval : kHydrologyIntervalS;
     hydrology_grid_ = build_hydrology_grid(scenario, *terrain_, hydrology_);
-    hydrology_solver_ = make_cpu_hydrology_solver();
-    hydrology_solver_->install(hydrology_grid_);
+    hydrology_solver_.reset();
+    if (compute && compute->options.backend != compute::BackendPreference::Cpu && compute->options.allow_vulkan &&
+        (hydrology_grid_.cells() >= compute->gpu_min_cells || compute->options.backend == compute::BackendPreference::Vulkan)) {
+        std::string reason;
+        hydrology_solver_ = make_vulkan_hydrology_solver(compute->options, compute->log, reason);
+        if (hydrology_solver_) {
+            try {
+                hydrology_solver_->install(hydrology_grid_);
+            } catch (const std::exception& e) {
+                reason = e.what();
+                hydrology_solver_.reset();
+            }
+        }
+        if (compute->log)
+            compute->log(hydrology_solver_ ? "INFO" : "WARN",
+                         hydrology_solver_ ? "hydrology.backend vulkan for " + std::to_string(hydrology_grid_.cells()) + " cells"
+                                           : "hydrology.backend cpu: Vulkan unavailable (" + reason + ")");
+    }
+    if (!hydrology_solver_) {
+        hydrology_solver_ = make_cpu_hydrology_solver();
+        hydrology_solver_->install(hydrology_grid_);
+    }
     const auto& g = terrain_->grid;
     std::tie(latitude_, longitude_) = terrain_->projection.to_geo(g.origin_x_m + g.width * g.cell_m / 2, g.origin_y_m + g.height * g.cell_m / 2);
     month_ = scenario.month;
@@ -139,7 +161,20 @@ void EnvironmentRuntime::reset() { restore(initial_); }
 void EnvironmentRuntime::restore(const EnvironmentState& state) {
     state_ = state;
     if (hydrology_solver_) hydrology_solver_->upload(state_.water);
-    refresh_water_field();
+    water_stale_ = false;
+    depth_stale_ = true;
+}
+
+const EnvironmentState& EnvironmentRuntime::state() const {
+    sync_water();
+    return state_;
+}
+
+void EnvironmentRuntime::sync_water() const {
+    if (!water_stale_ || !hydrology_solver_) return;
+    hydrology_solver_->download(state_.water);
+    water_stale_ = false;
+    depth_stale_ = true;
 }
 
 double EnvironmentRuntime::air_temperature(double solar_time_h) const {
@@ -167,6 +202,9 @@ void EnvironmentRuntime::cloud_field(const std::vector<StormCell>& storms) {
 }
 
 void EnvironmentRuntime::update_dcm(std::uint32_t t, const std::vector<StormCell>& storms, double dt) {
+    // Wet surfaces cool by evaporation, so the energy balance reads the
+    // current depths: bring a device-resident solver's fields over first.
+    if (state_.water.wet_cells) sync_water();
     const auto pos = solar_position(latitude_, longitude_, day_of_year_, t);
     const auto sky = clear_sky(pos.zenith_deg, day_of_year_);
     cloud_field(storms);
@@ -283,8 +321,9 @@ void EnvironmentRuntime::update_hydrology(std::uint32_t t, const std::vector<Sto
     }
     src.evaporation.assign(cells, 0);
     src.infiltration.assign(cells, 0);
+    // Every cell gets its potential: the solver takes no more than is there,
+    // so this does not depend on whether the host's copy of h is current.
     for (std::size_t k = 0; k < cells; ++k) {
-        if (w.h[k] == 0 && (src.rain.empty() || src.rain[k] == 0)) continue;
         const double evap = double(state_.evaporation_m_s[k]) * interval * kQ24 + w.evap_carry[k];
         const double whole = std::floor(evap);
         w.evap_carry[k] = evap - whole;
@@ -292,7 +331,31 @@ void EnvironmentRuntime::update_hydrology(std::uint32_t t, const std::vector<Sto
         src.infiltration[k] = static_cast<std::int32_t>(std::floor(double(hydrology_grid_.infiltration_m_s[k]) * interval * kQ24));
     }
     const auto sub = hydrology_substeps(interval, g.cell_m, w.h_max, hydrology_);
-    hydrology_solver_->advance(w, src, sub.dt_s, sub.substeps, hydrology_);
+    try {
+        hydrology_solver_->advance(w, src, sub.dt_s, sub.substeps, hydrology_);
+    } catch (const compute::ComputeError& e) {
+        // The device failed mid-step and the step's state went with it. Carry
+        // on with the CPU, and let the engine restore its latest checkpoint
+        // and replay to here, exactly as it does for the traffic step.
+        hydrology_solver_ = make_cpu_hydrology_solver();
+        hydrology_solver_->install(hydrology_grid_);
+        water_stale_ = false;
+        throw compute::StateLost(std::string("surface water: ") + e.what());
+    }
+    if (!hydrology_solver_->host_resident()) water_stale_ = true;
+    // Froude diagnostics need the fields; they are taken on whole minutes, on
+    // every backend, so a device-resident solver reads its fields once a
+    // minute while there is water, and results do not depend on the backend.
+    if (t % 60 == 0) {
+        if (w.wet_cells) {
+            sync_water();
+            detect_hotspots(hydrology_grid_, w);
+        } else {
+            w.max_froude = 0;
+            w.supercritical_cells = 0;
+            w.hotspots.clear();
+        }
+    }
     w.substeps = sub.substeps;
     w.dt_s = sub.dt_s;
     w.cfl_capped = sub.capped;
@@ -300,10 +363,13 @@ void EnvironmentRuntime::update_hydrology(std::uint32_t t, const std::vector<Sto
     const double area = g.cell_m * g.cell_m;
     w.peak_depth_m = std::max(w.peak_depth_m, double(w.h_max) / kQ24);
     w.peak_flooded_area_m2 = std::max(w.peak_flooded_area_m2, w.flooded_cells * area);
-    refresh_water_field();
+    depth_stale_ = true;
 }
 
-void EnvironmentRuntime::refresh_water_field() {
+void EnvironmentRuntime::refresh_water_field() const {
+    sync_water();
+    if (!depth_stale_) return;
+    depth_stale_ = false;
     const auto& h = state_.water.h;
     water_depth_m_.resize(h.size());
     for (std::size_t k = 0; k < h.size(); ++k) water_depth_m_[k] = static_cast<float>(double(h[k]) / kQ24);
@@ -322,7 +388,10 @@ const std::vector<float>* EnvironmentRuntime::field(const std::string& name) con
     if (name == "irradiance") return &state_.irradiance_w_m2;
     if (name == "surface_temperature") return &state_.surface_temperature_c;
     if (name == "cloud") return &state_.cloud_fraction;
-    if (name == "water_depth") return &water_depth_m_;
+    if (name == "water_depth") {
+        refresh_water_field();
+        return &water_depth_m_;
+    }
     return nullptr;
 }
 

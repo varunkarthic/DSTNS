@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
+// Surface water, after a step: one invocation per row sums that row's depth
+// and tallies in a fixed order (integer sums are exact in any order anyway),
+// so the host reads a few words per row instead of the field.
+
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "dstns_glsl.h"
+#include "dstns_hydrology.h"
+#include "dstns_hydro_bindings.h"
+
+void put64(uint at, i64 v) {
+    rows[at] = uint(uint64_t(v) & uint64_t(0xFFFFFFFFu));
+    rows[at + 1u] = uint(uint64_t(v) >> 32);
+}
+
+void main() {
+    uint j = gl_GlobalInvocationID.x;
+    uint w = grid_w();
+    if (j >= grid_h()) return;
+    i64 stored = i64(0), boundary = i64(0), sea = i64(0), evap = i64(0), infil = i64(0), hmax = i64(0);
+    uint wet = 0u, flooded = 0u;
+    i64 wet_q24 = i64(16777);        // 1 mm
+    i64 flooded_q24 = i64(1677722);  // 10 cm
+    for (uint i = 0u; i < w; ++i) {
+        uint k = j * w + i;
+        i64 h = i64(depth[k]);
+        stored += h;
+        hmax = hyd_max(hmax, h);
+        if (h >= wet_q24) wet += 1u;
+        if (h >= flooded_q24) flooded += 1u;
+        boundary += i64(boundary_out[k]);
+        sea += i64(sea_out[k]);
+        evap += i64(evaporated[k]);
+        infil += i64(infiltrated[k]);
+    }
+    uint at = j * HYD_ROW_WORDS;
+    put64(at, stored);
+    put64(at + 2u, boundary);
+    put64(at + 4u, sea);
+    put64(at + 6u, evap);
+    put64(at + 8u, infil);
+    put64(at + 10u, hmax);
+    rows[at + 12u] = wet;
+    rows[at + 13u] = flooded;
+}

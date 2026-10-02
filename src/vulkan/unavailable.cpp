@@ -6,6 +6,7 @@
 
 #include "dstns/compute/field.hpp"
 #include "dstns/compute/vulkan.hpp"
+#include "dstns/environment/hydrology.hpp"
 
 namespace dstns::compute {
 
@@ -30,3 +31,12 @@ std::unique_ptr<FieldSolver> create_vulkan_field_solver(const ComputeOptions&, c
 }
 
 } // namespace dstns::compute
+
+namespace dstns::env {
+
+std::unique_ptr<HydrologySolver> make_vulkan_hydrology_solver(const compute::ComputeOptions&, const compute::LogSink&, std::string& reason) {
+    reason = "this build does not include the Vulkan backend";
+    return nullptr;
+}
+
+} // namespace dstns::env

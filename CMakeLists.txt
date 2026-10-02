@@ -54,7 +54,8 @@ target_include_directories(dstns_core PUBLIC include shaders/include)
 # The headers and volk are pinned and fetched like the other dependencies; the
 # shaders are compiled to SPIR-V here when glslang or glslc is available, and
 # otherwise taken from shaders/spirv/, which is committed for that purpose.
-set(DSTNS_SHADER_NAMES edge_step field_diffusion node_step scatter self_test) # name order
+set(DSTNS_SHADER_NAMES edge_step field_diffusion hydro_apply hydro_flux hydro_limit hydro_reduce hydro_roads hydro_scale hydro_source
+  node_step scatter self_test) # name order
 set(DSTNS_VULKAN_BUILT OFF)
 if(DSTNS_ENABLE_VULKAN)
   find_program(DSTNS_GLSLANG NAMES glslangValidator glslang)
@@ -70,6 +71,8 @@ if(DSTNS_ENABLE_VULKAN)
     file(READ "${CMAKE_SOURCE_DIR}/shaders/include/dstns_physics.h" dstns_physics_text)
     file(READ "${CMAKE_SOURCE_DIR}/shaders/include/dstns_glsl.h" dstns_prelude_text)
     file(READ "${CMAKE_SOURCE_DIR}/shaders/include/dstns_fields.h" dstns_fields_text)
+    file(READ "${CMAKE_SOURCE_DIR}/shaders/include/dstns_hydrology.h" dstns_hydrology_text)
+    file(READ "${CMAKE_SOURCE_DIR}/shaders/include/dstns_hydro_bindings.h" dstns_hydro_bindings_text)
     if(EXISTS "${CMAKE_SOURCE_DIR}/shaders/spirv/manifest.txt")
       file(STRINGS "${CMAKE_SOURCE_DIR}/shaders/spirv/manifest.txt" dstns_manifest REGEX "^[a-z_]+ [0-9a-f]+$")
     else()
@@ -77,7 +80,7 @@ if(DSTNS_ENABLE_VULKAN)
     endif()
     foreach(shader IN LISTS DSTNS_SHADER_NAMES)
       file(READ "${CMAKE_SOURCE_DIR}/shaders/${shader}.comp" dstns_source_text)
-      string(SHA256 dstns_hash "${dstns_source_text}${dstns_prelude_text}${dstns_physics_text}${dstns_fields_text}")
+      string(SHA256 dstns_hash "${dstns_source_text}${dstns_prelude_text}${dstns_physics_text}${dstns_fields_text}${dstns_hydrology_text}${dstns_hydro_bindings_text}")
       if(NOT EXISTS "${CMAKE_SOURCE_DIR}/shaders/spirv/${shader}.spv" OR NOT "${shader} ${dstns_hash}" IN_LIST dstns_manifest)
         set(dstns_spirv_problem "shaders/spirv/${shader}.spv is missing or older than its source, and no shader compiler (glslangValidator or glslc) was found")
       endif()
@@ -115,7 +118,8 @@ if(DSTNS_ENABLE_VULKAN)
           COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/shaders
           COMMAND ${compile}
           DEPENDS ${source} ${CMAKE_SOURCE_DIR}/shaders/include/dstns_physics.h ${CMAKE_SOURCE_DIR}/shaders/include/dstns_glsl.h
-                  ${CMAKE_SOURCE_DIR}/shaders/include/dstns_fields.h
+                  ${CMAKE_SOURCE_DIR}/shaders/include/dstns_fields.h ${CMAKE_SOURCE_DIR}/shaders/include/dstns_hydrology.h
+                  ${CMAKE_SOURCE_DIR}/shaders/include/dstns_hydro_bindings.h
           COMMENT "Compiling compute shader ${shader}"
           COMMAND_EXPAND_LISTS VERBATIM)
       else()
@@ -147,7 +151,8 @@ if(DSTNS_ENABLE_VULKAN)
               "-DCOMPILER=${dstns_compiler_version}" "-DOUTPUT=${dstns_embedded}" -P ${CMAKE_SOURCE_DIR}/cmake/EmbedSpirv.cmake
       DEPENDS ${dstns_spirv_files} ${CMAKE_SOURCE_DIR}/cmake/EmbedSpirv.cmake
               ${CMAKE_SOURCE_DIR}/shaders/include/dstns_physics.h ${CMAKE_SOURCE_DIR}/shaders/include/dstns_glsl.h
-              ${CMAKE_SOURCE_DIR}/shaders/include/dstns_fields.h
+              ${CMAKE_SOURCE_DIR}/shaders/include/dstns_fields.h ${CMAKE_SOURCE_DIR}/shaders/include/dstns_hydrology.h
+              ${CMAKE_SOURCE_DIR}/shaders/include/dstns_hydro_bindings.h
       COMMENT "Embedding the compute shaders"
       VERBATIM)
     add_custom_target(dstns_shaders DEPENDS ${dstns_embedded})
@@ -164,7 +169,7 @@ if(DSTNS_ENABLE_VULKAN)
     set_source_files_properties(${dstns_volk_source} PROPERTIES COMPILE_OPTIONS "-w")
     set(dstns_vulkan_sources
       src/vulkan/loader.cpp src/vulkan/context.cpp src/vulkan/memory.cpp src/vulkan/pipeline.cpp
-      src/vulkan/executor.cpp src/vulkan/gpu.cpp src/vulkan/backend.cpp src/vulkan/field.cpp src/vulkan/diagnostics.cpp)
+      src/vulkan/executor.cpp src/vulkan/gpu.cpp src/vulkan/backend.cpp src/vulkan/field.cpp src/vulkan/hydrology.cpp src/vulkan/diagnostics.cpp)
     # Vulkan structures are initialised as {sType} with the remaining members
     # value-initialised: the idiom the API is designed for.
     set_source_files_properties(${dstns_vulkan_sources} PROPERTIES COMPILE_OPTIONS "-Wno-missing-field-initializers")
@@ -206,7 +211,7 @@ add_executable(dstns_road_index tools/road-index/main.cpp)
 target_link_libraries(dstns_road_index PRIVATE dstns_core)
 add_executable(dstns_replay_verify tools/replay-verify/main.cpp)
 target_link_libraries(dstns_replay_verify PRIVATE dstns_core)
-add_executable(dstns_benchmark tools/benchmark/main.cpp tools/benchmark/compute.cpp)
+add_executable(dstns_benchmark tools/benchmark/main.cpp tools/benchmark/compute.cpp tools/benchmark/hydrology.cpp)
 target_link_libraries(dstns_benchmark PRIVATE dstns_core)
 
 if(DSTNS_BUILD_TESTS)
@@ -320,6 +325,12 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_hydrology_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_hydrology COMMAND dstns_hydrology_tests)
   set_tests_properties(dstns_hydrology PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 600)
+
+  add_executable(dstns_hydrology_parity_tests tests/compute/hydrology_parity_tests.cpp)
+  target_link_libraries(dstns_hydrology_parity_tests PRIVATE dstns_core)
+  target_compile_options(dstns_hydrology_parity_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_hydrology_parity COMMAND dstns_hydrology_parity_tests)
+  set_tests_properties(dstns_hydrology_parity PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" SKIP_RETURN_CODE 77 TIMEOUT 600)
 
   add_executable(dstns_perf_tests tests/performance/perf_tests.cpp)
   target_link_libraries(dstns_perf_tests PRIVATE dstns_core)

@@ -23,6 +23,8 @@
 // State produced at time t is read by other modules from the next step on
 // (never recursively within one instant).
 
+#include "dstns/compute/backend.hpp"
+#include "dstns/compute/options.hpp"
 #include "dstns/environment/hydrology.hpp"
 #include "dstns/environment/solar.hpp"
 #include "dstns/environment/terrain.hpp"
@@ -48,6 +50,22 @@ struct EnvironmentInputs {
     std::vector<StormCell> storms;
     bool dcm{true};
     bool hydrology{true};
+};
+
+/// Where the environment's grid solvers may run. Grids of at least
+/// `gpu_min_cells` use a Vulkan device when the compute preference allows one;
+/// a preference for Vulkan uses it at any size; cpu never does.
+///
+/// Measured on an Apple M4 (dstns_benchmark hydrology, and full days on the
+/// bundled district): with water on every cell the device wins from about
+/// 4,000 cells, but a city's water is sparse, and the CPU's passes over dry
+/// faces cost almost nothing while every device step pays ~0.8 ms to submit,
+/// wait and read back. A full day on an 11,664-cell district took 29 s with
+/// the CPU and 40 s with the device. Hence the default, about 360 x 360.
+struct EnvironmentCompute {
+    compute::ComputeOptions options;
+    compute::LogSink log;
+    std::uint32_t gpu_min_cells{131072};
 };
 
 /// Parameters of the representative urban surface. Generic ground and road
@@ -89,7 +107,8 @@ public:
     static constexpr std::uint32_t kDcmIntervalS = 60;
     static constexpr std::uint32_t kHydrologyIntervalS = 5;
 
-    void install(const Scenario& scenario, const SurfaceParameters& surface = {}, const HydrologyParams& hydrology = {});
+    void install(const Scenario& scenario, const SurfaceParameters& surface = {}, const HydrologyParams& hydrology = {},
+                 const EnvironmentCompute* compute = nullptr);
     void release();
     [[nodiscard]] bool installed() const { return terrain_ != nullptr; }
     /// The state before the first step: midnight, surface temperatures from a
@@ -98,7 +117,9 @@ public:
     /// Advance to `inputs.virtual_s`, running each module whose instant has come.
     void step(const EnvironmentInputs& inputs);
 
-    [[nodiscard]] const EnvironmentState& state() const { return state_; }
+    /// The complete state, fields included: a device-resident solver's
+    /// fields are brought to the host first. For checkpoints and field reads.
+    [[nodiscard]] const EnvironmentState& state() const;
     void restore(const EnvironmentState& state);
     [[nodiscard]] const Terrain& terrain() const { return *terrain_; }
 
@@ -122,7 +143,8 @@ private:
     void update_dcm(std::uint32_t virtual_s, const std::vector<StormCell>& storms, double dt_s);
     void cloud_field(const std::vector<StormCell>& storms);
     void update_hydrology(std::uint32_t virtual_s, const std::vector<StormCell>& storms);
-    void refresh_water_field();
+    void refresh_water_field() const;
+    void sync_water() const;
 
     std::shared_ptr<const Terrain> terrain_;
     SurfaceParameters surface_;
@@ -137,8 +159,11 @@ private:
     HydrologyParams hydrology_;
     HydrologyGrid hydrology_grid_;
     std::unique_ptr<HydrologySolver> hydrology_solver_;
-    std::vector<float> water_depth_m_;     // h in metres, for fields; rebuilt after each hydrology step
-    EnvironmentState state_;
+    // h in metres for fields, rebuilt on demand. With a device-resident
+    // solver the host's h, qx, qy go stale after a step until synced.
+    mutable std::vector<float> water_depth_m_;
+    mutable bool water_stale_{}, depth_stale_{};
+    mutable EnvironmentState state_;
     EnvironmentState initial_;
 };
 

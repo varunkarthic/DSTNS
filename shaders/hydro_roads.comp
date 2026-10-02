@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
+// Surface water, after a step: for every directed road edge, the deepest and
+// the mean water over the cells it crosses. The host reads two words per
+// edge, never the depth field. Mirrors CpuHydrology::summarise.
+
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "dstns_glsl.h"
+#include "dstns_hydrology.h"
+#include "dstns_hydro_bindings.h"
+
+void main() {
+    uint e = gl_GlobalInvocationID.x;
+    if (e >= params[12]) return;
+    uint a = road_offsets[e], b = road_offsets[e + 1u];
+    i64 sum = i64(0), deepest = i64(0);
+    for (uint k = a; k < b; ++k) {
+        i64 h = i64(depth[road_cells[k]]);
+        sum += h;
+        deepest = hyd_max(deepest, h);
+    }
+    roads[2u * e] = clamp32(deepest);
+    roads[2u * e + 1u] = b > a ? clamp32(sum / i64(b - a)) : 0;
+}

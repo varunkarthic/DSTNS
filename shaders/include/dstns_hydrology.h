@@ -28,7 +28,7 @@ const i64 HYD_FLOW_DEPTH_MAX = i64(1677721600);   // 100 m: deeper water is clam
 const i64 HYD_FRICTION_DEPTH_MAX = i64(1966080);  // 30 m in Q16: friction is negligible beyond
 const i64 HYD_DETA_MAX = i64(838860800);          // 50 m of surface difference across one face
 const i64 HYD_Q_MAX = i64(67108864);              // 64 m^2/s
-const u64 HYD_T_MAX = u64(1099511627776);         // friction factor cap, 2^40 in Q16
+const u64 HYD_T_MAX = u64(1u) << u64(40u);        // friction factor cap, 2^40 in Q16
 
 // Cell flags.
 const u32 HYD_SEA = u32(1u);                      // open water: a sink to the sea
@@ -64,7 +64,7 @@ DSTNS_FN i64 hyd_centred(i64 q, i64 before, i64 after, i64 theta_q16) {
     i64 a = (q < i64(0) ? -own : own);
     i64 b = (before + after < i64(0) ? -mix : mix);
     // (a + b / 2) / 65536, formed as a magnitude so the shift is of a non-negative value.
-    i64 sum = 2 * a + b;
+    i64 sum = i64(2) * a + b;
     i64 m = hyd_abs(sum) >> i64(17);
     return sum < i64(0) ? -m : m;
 }
@@ -116,8 +116,8 @@ DSTNS_FN i64 hyd_face_flux(i64 q, i64 qc, i64 zl, i64 hl, i64 zr, i64 hr, i64 a_
     }
     if (t16 > HYD_T_MAX) t16 = HYD_T_MAX;
     u64 den = u64(65536u) + t16;
-    u64 out = (u64(hyd_abs(num)) << u64(16u)) / den;
-    i64 qn = i64(out);
+    u64 quot = (u64(hyd_abs(num)) << u64(16u)) / den;
+    i64 qn = i64(quot);
     qn = hyd_min(qn, HYD_Q_MAX);
     return num < i64(0) ? -qn : qn;
 }

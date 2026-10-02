@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
+// Surface water, pass 1: the new discharge across every face, one invocation
+// per face (x faces first, then y faces), from the depths and the previous
+// step's discharges. Mirrors CpuHydrology::advance.
+
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "dstns_glsl.h"
+#include "dstns_hydrology.h"
+#include "dstns_hydro_bindings.h"
+
+void main() {
+    uint f = gl_GlobalInvocationID.x;
+    uint w = grid_w(), ht = grid_h();
+    uint nx = (w + 1u) * ht;
+    i64 a = param64(2u), k = param64(4u), hmin = param64(8u), theta = param64(10u);
+    if (f < nx) {
+        uint j = f / (w + 1u), i = f % (w + 1u);
+        i64 q = i64(qx_prev[f]);
+        i64 before = i64(qx_prev[j * (w + 1u) + (i == 0u ? 0u : i - 1u)]);
+        i64 after = i64(qx_prev[j * (w + 1u) + (i == w ? w : i + 1u)]);
+        i64 qc = hyd_centred(q, before, after, theta);
+        i64 r;
+        if (i == 0u) r = hyd_min(i64(0), hyd_face_flux(q, qc, cell_z(0u, j), i64(0), cell_z(0u, j), cell_h(0u, j), a, k, hmin));
+        else if (i == w) r = hyd_max(i64(0), hyd_face_flux(q, qc, cell_z(w - 1u, j), cell_h(w - 1u, j), cell_z(w - 1u, j), i64(0), a, k, hmin));
+        else r = hyd_face_flux(q, qc, cell_z(i - 1u, j), cell_h(i - 1u, j), cell_z(i, j), cell_h(i, j), a, k, hmin);
+        qx[f] = clamp32(r);
+        return;
+    }
+    uint g = f - nx;
+    if (g >= w * (ht + 1u)) return;
+    uint j = g / w, i = g % w;
+    i64 q = i64(qy_prev[g]);
+    i64 before = i64(qy_prev[(j == 0u ? 0u : j - 1u) * w + i]);
+    i64 after = i64(qy_prev[(j == ht ? ht : j + 1u) * w + i]);
+    i64 qc = hyd_centred(q, before, after, theta);
+    i64 r;
+    if (j == 0u) r = hyd_min(i64(0), hyd_face_flux(q, qc, cell_z(i, 0u), i64(0), cell_z(i, 0u), cell_h(i, 0u), a, k, hmin));
+    else if (j == ht) r = hyd_max(i64(0), hyd_face_flux(q, qc, cell_z(i, ht - 1u), cell_h(i, ht - 1u), cell_z(i, ht - 1u), i64(0), a, k, hmin));
+    else r = hyd_face_flux(q, qc, cell_z(i, j - 1u), cell_h(i, j - 1u), cell_z(i, j), cell_h(i, j), a, k, hmin);
+    qy[g] = clamp32(r);
+}

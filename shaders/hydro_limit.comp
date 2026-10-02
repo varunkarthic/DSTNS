@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Varun Karthic
+
+// Surface water, pass 2: each cell's limiter, the share of what is asked of
+// it that it can honour. Mirrors CpuHydrology::advance.
+
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "dstns_glsl.h"
+#include "dstns_hydrology.h"
+#include "dstns_hydro_bindings.h"
+
+void main() {
+    uint k = gl_GlobalInvocationID.x;
+    uint w = grid_w(), ht = grid_h();
+    if (k >= w * ht) return;
+    uint j = k / w, i = k % w;
+    i64 c = param64(6u);
+    i64 west = i64(qx[j * (w + 1u) + i]), east = i64(qx[j * (w + 1u) + i + 1u]);
+    i64 south = i64(qy[j * w + i]), north = i64(qy[(j + 1u) * w + i]);
+    i64 asked = i64(0);
+    if (west < i64(0)) asked += hyd_transfer(west, c);
+    if (east > i64(0)) asked += hyd_transfer(east, c);
+    if (south < i64(0)) asked += hyd_transfer(south, c);
+    if (north > i64(0)) asked += hyd_transfer(north, c);
+    limiter[k] = int(hyd_limiter(i64(depth[k]), asked));
+}

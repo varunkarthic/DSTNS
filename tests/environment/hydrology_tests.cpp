@@ -162,6 +162,7 @@ int main() {
         bool monotone = true;
         for (std::uint32_t i = 150; i + 1 < 399; ++i) monotone = monotone && s.h[g.grid.index(i + 1, 2)] <= s.h[g.grid.index(i, 2)] + q24(0.002);
         check(monotone, "the profile falls monotonically from the reservoir to the front: no checkerboard oscillation");
+        detect_hotspots(g, s);
         check(s.max_froude > 0.5 && s.supercritical_cells > 0 && !s.hotspots.empty(), "the supercritical front is flagged as where the approximation is weakest");
         check(near(metres(s.h[g.grid.index(180, 2)]), 0.77, 0.25), "the drawdown reaches back into the reservoir");
     }
@@ -225,6 +226,7 @@ int main() {
         check(ok, "mass is conserved exactly through rain and settling");
         check(s.stored == rained && s.ledger.boundary == 0, "every drop of the rain is still held in the walled bowl");
         check(s.stored == settled && s.ledger.boundary == boundary_then, "once settled, the pond neither drains nor evaporates away by itself");
+        detect_hotspots(g, s);
         check(s.max_froude < 0.5 && s.hotspots.empty(), "a settled pond is subcritical, with nothing flagged");
         const auto deepest = std::max_element(s.h.begin(), s.h.end()) - s.h.begin();
         const auto [di, dj] = std::pair{deepest % 40, deepest / 40};

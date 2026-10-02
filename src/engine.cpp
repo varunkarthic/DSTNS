@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <iomanip>
 #include <iterator>
 #include <limits>
@@ -349,7 +350,14 @@ void SimulationEngine::adopt_world(Scenario scenario) {
     if (graph_) graph_->attach_dynamic_source(nullptr);
     graph_ = std::make_unique<GraphStore>(std::move(scenario));
     compute_->install(graph_->scenario());
-    environment_.install(graph_->scenario());
+    {
+        env::EnvironmentCompute placement;
+        placement.options = compute_->options();
+        if (const char* v = std::getenv("DSTNS_HYDROLOGY_GPU_MIN_CELLS"); v && *v)
+            placement.gpu_min_cells = static_cast<std::uint32_t>(std::strtoul(v, nullptr, 10));
+        placement.log = [this](const std::string& level, const std::string& message) { logger_.system(level, "environment", message); };
+        environment_.install(graph_->scenario(), {}, {}, &placement);
+    }
     graph_->attach_dynamic_source(compute_.get());
 }
 
