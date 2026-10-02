@@ -976,6 +976,7 @@ nlohmann::json SimulationEngine::set_module(const std::string& m, bool enabled) 
     else if (m == "flooding") field = &cfg.flooding;
     else if (m == "news") field = &cfg.news;
     else if (m == "dcm") field = &cfg.dcm;
+    else if (m == "hydrology") field = &cfg.hydrology;
     else throw std::invalid_argument("unknown module: " + m);
     const auto old = *field;
     *field = enabled;
@@ -1057,6 +1058,7 @@ void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
         else if (m == "flooding") cfg.flooding = enabled;
         else if (m == "news") cfg.news = enabled;
         else if (m == "dcm") cfg.dcm = enabled;
+        else if (m == "hydrology") cfg.hydrology = enabled;
     } else if (c.type == "edge_override") {
         compute_->set_manual(v.at("edge").get<std::uint32_t>(),
                              {v.at("speed_multiplier").get<double>(), v.at("capacity_multiplier").get<double>(), v.at("closed").get<bool>()});
@@ -1153,6 +1155,7 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         env::EnvironmentInputs in;
         in.virtual_s = virtual_s_;
         in.dcm = sc.config.dcm;
+        in.hydrology = sc.config.hydrology;
         for (const auto& storm : request.storms) in.storms.push_back({storm.x_m, storm.y_m, storm.radius_m, storm.intensity});
         environment_.step(in);
     }
@@ -1400,7 +1403,8 @@ nlohmann::json SimulationEngine::status() const {
             {"dws", graph_->scenario().config.dws},
             {"flooding", graph_->scenario().config.flooding},
             {"news", graph_->scenario().config.news},
-            {"dcm", graph_->scenario().config.dcm}
+            {"dcm", graph_->scenario().config.dcm},
+            {"hydrology", graph_->scenario().config.hydrology}
         } : nlohmann::json::object()}
     });
 }
@@ -1926,7 +1930,7 @@ nlohmann::json SimulationEngine::environment() const {
         {"calendar", calendar_json(sc)},
         {"terrain", sc.terrain ? terrain_json(*sc.terrain) : nlohmann::json(nullptr)},
         {"roads", {{"max_abs_grade", max_grade}}},
-        {"modules", {{"dcm", sc.config.dcm}}},
+        {"modules", {{"dcm", sc.config.dcm}, {"hydrology", sc.config.hydrology}}},
         {"state", environment_.summary()},
         {"fields", std::move(fields)}
     });
@@ -1959,6 +1963,7 @@ nlohmann::json SimulationEngine::field(const std::string& name, std::uint32_t ma
     if (name == "slope") return raster(grid, values->data(), "m/m", 0.001);
     if (name == "irradiance") return raster(grid, values->data(), "W/m²", 1.0);
     if (name == "surface_temperature") return raster(grid, values->data(), "°C", 0.1);
+    if (name == "water_depth") return raster(grid, values->data(), "m", 0.001);
     return raster(grid, values->data(), "fraction", 0.01);
 }
 
@@ -2328,7 +2333,8 @@ nlohmann::json SimulationEngine::global_view() const {
             {"dws", sc.config.dws},
             {"flooding", sc.config.flooding},
             {"news", sc.config.news},
-            {"dcm", sc.config.dcm}
+            {"dcm", sc.config.dcm},
+            {"hydrology", sc.config.hydrology}
         }},
         {"calendar", calendar_json(sc)},
         {"manifest", {

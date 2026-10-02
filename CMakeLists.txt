@@ -44,7 +44,8 @@ add_library(dstns_core
   src/rng.cpp src/calendar.cpp src/utf8.cpp src/graph.cpp src/asb.cpp src/demand.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp
   src/compute/state.cpp src/compute/options.cpp src/compute/cpu_backend.cpp src/compute/dispatcher.cpp
   src/compute/synthetic.cpp src/compute/field.cpp
-  src/environment/png.cpp src/environment/terrain.cpp src/environment/solar.cpp src/environment/runtime.cpp)
+  src/environment/png.cpp src/environment/terrain.cpp src/environment/solar.cpp src/environment/runtime.cpp
+  src/environment/raster.cpp src/environment/hydrology.cpp)
 target_include_directories(dstns_core PUBLIC include shaders/include)
 
 # --- Vulkan compute backend ------------------------------------------------------
@@ -313,6 +314,12 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_solar_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_solar COMMAND dstns_solar_tests)
   set_tests_properties(dstns_solar PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_executable(dstns_hydrology_tests tests/environment/hydrology_tests.cpp)
+  target_link_libraries(dstns_hydrology_tests PRIVATE dstns_core)
+  target_compile_options(dstns_hydrology_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_hydrology COMMAND dstns_hydrology_tests)
+  set_tests_properties(dstns_hydrology PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 600)
 
   add_executable(dstns_perf_tests tests/performance/perf_tests.cpp)
   target_link_libraries(dstns_perf_tests PRIVATE dstns_core)

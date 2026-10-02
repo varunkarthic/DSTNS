@@ -18,10 +18,12 @@
 // meets the same update instants:
 //
 //     DCM: solar position, irradiance, surface energy    every 60 s
+//     DWS: rain, surface water flow, sinks               every 5 s (CFL substeps)
 //
 // State produced at time t is read by other modules from the next step on
 // (never recursively within one instant).
 
+#include "dstns/environment/hydrology.hpp"
 #include "dstns/environment/solar.hpp"
 #include "dstns/environment/terrain.hpp"
 #include "dstns/model.hpp"
@@ -45,6 +47,7 @@ struct EnvironmentInputs {
     std::uint32_t virtual_s{};          // the time this step ends at
     std::vector<StormCell> storms;
     bool dcm{true};
+    bool hydrology{true};
 };
 
 /// Parameters of the representative urban surface. Generic ground and road
@@ -76,14 +79,17 @@ struct EnvironmentState {
     std::vector<float> irradiance_w_m2;     // shortwave reaching each cell's surface
     std::vector<float> surface_temperature_c;
     std::vector<float> cloud_fraction;
+    std::vector<float> evaporation_m_s;     // potential, from the surface energy state
     double air_temperature_anomaly_c{};
+    HydrologyState water;
 };
 
 class EnvironmentRuntime {
 public:
     static constexpr std::uint32_t kDcmIntervalS = 60;
+    static constexpr std::uint32_t kHydrologyIntervalS = 5;
 
-    void install(const Scenario& scenario, const SurfaceParameters& surface = {});
+    void install(const Scenario& scenario, const SurfaceParameters& surface = {}, const HydrologyParams& hydrology = {});
     void release();
     [[nodiscard]] bool installed() const { return terrain_ != nullptr; }
     /// The state before the first step: midnight, surface temperatures from a
@@ -93,7 +99,7 @@ public:
     void step(const EnvironmentInputs& inputs);
 
     [[nodiscard]] const EnvironmentState& state() const { return state_; }
-    void restore(const EnvironmentState& state) { state_ = state; }
+    void restore(const EnvironmentState& state);
     [[nodiscard]] const Terrain& terrain() const { return *terrain_; }
 
     /// Summary for the API and reports.
@@ -106,9 +112,17 @@ public:
     /// Background air temperature at a solar time, deg C, for the run's place and month.
     [[nodiscard]] double air_temperature(double solar_time_h) const;
 
+    /// The surface water model's static grid and parameters.
+    [[nodiscard]] const HydrologyGrid& hydrology_grid() const { return hydrology_grid_; }
+    [[nodiscard]] const HydrologyParams& hydrology_params() const { return hydrology_; }
+    /// Rainfall rate at a point now, mm/h.
+    [[nodiscard]] double rain_rate_mm_h(double x_m, double y_m, const std::vector<StormCell>& storms) const;
+
 private:
     void update_dcm(std::uint32_t virtual_s, const std::vector<StormCell>& storms, double dt_s);
     void cloud_field(const std::vector<StormCell>& storms);
+    void update_hydrology(std::uint32_t virtual_s, const std::vector<StormCell>& storms);
+    void refresh_water_field();
 
     std::shared_ptr<const Terrain> terrain_;
     SurfaceParameters surface_;
@@ -120,6 +134,10 @@ private:
     std::vector<float> normal_x_, normal_y_, normal_z_;
     // The representative day's sun path, every 15 minutes: (clock s, elevation, azimuth).
     std::vector<std::array<double, 3>> sun_path_;
+    HydrologyParams hydrology_;
+    HydrologyGrid hydrology_grid_;
+    std::unique_ptr<HydrologySolver> hydrology_solver_;
+    std::vector<float> water_depth_m_;     // h in metres, for fields; rebuilt after each hydrology step
     EnvironmentState state_;
     EnvironmentState initial_;
 };

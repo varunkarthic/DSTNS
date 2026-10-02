@@ -141,7 +141,7 @@ struct ScenarioConfig {
     std::uint32_t min_incidents{4};
     bool traffic{true}, signals{true}, buildings{true}, dws{true}, flooding{true}, news{true}, incidents{true};
     // The coupled environment's modules.
-    bool dcm{true};
+    bool dcm{true}, hydrology{true};
     EnvironmentConfig environment;
 };
 
