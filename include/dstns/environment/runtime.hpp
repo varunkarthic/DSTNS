@@ -19,12 +19,15 @@
 //
 //     DCM: solar position, irradiance, surface energy    every 60 s
 //     DWS: rain, surface water flow, sinks               every 5 s (CFL substeps)
+//     DAS: background wind, gusts, road headwinds        every 60 s
+//          steady lattice Boltzmann wind field           every hour
 //
 // State produced at time t is read by other modules from the next step on
 // (never recursively within one instant).
 
 #include "dstns/compute/backend.hpp"
 #include "dstns/compute/options.hpp"
+#include "dstns/environment/atmosphere.hpp"
 #include "dstns/environment/drainage.hpp"
 #include "dstns/environment/hydrology.hpp"
 #include "dstns/environment/solar.hpp"
@@ -53,6 +56,7 @@ struct EnvironmentInputs {
     bool dcm{true};
     bool hydrology{true};
     bool drainage{true};
+    bool das{true};
 };
 
 /// Where the environment's grid solvers may run. Grids of at least
@@ -104,6 +108,22 @@ struct RoadEnvironment {
     bool closed{};                   // to the traffic stream (small passenger cars)
     std::array<bool, 4> passable{true, true, true, true}; // by VehicleClass
     double energy_kwh_per_km{};      // small passenger car at the road's speed
+    double headwind_mps{};           // the wind against this direction of travel (negative: a tailwind)
+};
+
+/// The wind: the latest steady solution (per lattice column, per m/s of the
+/// background it was solved for) and what scales it now. Grid fields are
+/// derived from these on demand, so a checkpoint holds only this much.
+struct WindState {
+    bool solved{};
+    std::uint32_t solved_s{}, updated_s{};
+    WindSolution solution;
+    std::vector<float> solved_heating;  // per lattice column, K: what the solution was solved with
+    std::uint32_t solves{}, skipped{};  // solve instants that solved, and that kept the last solution
+    BackgroundWind background;          // now
+    std::vector<StormCell> storms;      // now, for gusts
+    std::vector<float> road_headwind;   // per directed edge, m/s, as last applied
+    std::vector<double> road_factor;    // per directed edge: the stream's grade-and-wind speed factor
 };
 
 /// Everything that changes. Copyable: a checkpoint holds one of these.
@@ -118,15 +138,18 @@ struct EnvironmentState {
     double air_temperature_anomaly_c{};
     HydrologyState water;
     DrainageState drains;
+    WindState wind;
 };
 
 class EnvironmentRuntime {
 public:
     static constexpr std::uint32_t kDcmIntervalS = 60;
     static constexpr std::uint32_t kHydrologyIntervalS = 5;
+    static constexpr std::uint32_t kWindIntervalS = 60;
 
     void install(const Scenario& scenario, const SurfaceParameters& surface = {}, const HydrologyParams& hydrology = {},
-                 const EnvironmentCompute* compute = nullptr, const DrainageParams& drainage = {});
+                 const EnvironmentCompute* compute = nullptr, const DrainageParams& drainage = {},
+                 const AtmosphereParams& atmosphere = {});
     void release();
     [[nodiscard]] bool installed() const { return terrain_ != nullptr; }
     /// The state before the first step: midnight, surface temperatures from a
@@ -165,6 +188,17 @@ public:
     /// Changes whenever what road() returns may have changed (a water step, a
     /// restored checkpoint, a new world), so callers can skip unchanged work.
     [[nodiscard]] std::uint64_t road_revision() const { return road_revision_; }
+    /// The atmosphere: the canopy, the lattice and the run's wind climate.
+    [[nodiscard]] const UrbanCanopy& canopy() const { return canopy_; }
+    [[nodiscard]] const AtmosphereLattice& lattice() const { return lattice_; }
+    [[nodiscard]] const AtmosphereParams& atmosphere_params() const { return atmosphere_; }
+    [[nodiscard]] const WindClimate& climate_wind() const { return wind_climate_; }
+    /// The background wind at a virtual time: a pure function of the run,
+    /// so storms can drift with it without reading any state.
+    [[nodiscard]] BackgroundWind background_at(std::uint32_t virtual_s) const;
+    /// The wind at a point now, m/s east and north at the reference height;
+    /// zero while the wind has not been solved.
+    [[nodiscard]] std::pair<double, double> wind_at(double x_m, double y_m) const;
     /// Rainfall rate at a point now, mm/h.
     [[nodiscard]] double rain_rate_mm_h(double x_m, double y_m, const std::vector<StormCell>& storms) const;
 
@@ -173,6 +207,9 @@ private:
     void cloud_field(const std::vector<StormCell>& storms);
     void update_hydrology(std::uint32_t virtual_s, const std::vector<StormCell>& storms, bool drainage);
     void refresh_water_field() const;
+    void update_wind(std::uint32_t virtual_s, const std::vector<StormCell>& storms);
+    void refresh_wind_field() const;
+    [[nodiscard]] double gust(double x_m, double y_m) const;
     void sync_water() const;
 
     std::shared_ptr<const Terrain> terrain_;
@@ -192,6 +229,13 @@ private:
     // speed factor on it, its free speed and midpoint.
     std::vector<double> edge_grade_, grade_factor_, free_speed_;
     std::vector<std::pair<double, double>> edge_mid_;
+    std::vector<std::pair<double, double>> edge_dir_;   // unit vector from the edge's start to its end
+    AtmosphereParams atmosphere_;
+    UrbanCanopy canopy_;
+    AtmosphereLattice lattice_;
+    WindClimate wind_climate_;
+    mutable std::vector<float> wind_speed_m_;
+    mutable bool wind_stale_{true};
     HydrologyGrid hydrology_grid_;
     std::unique_ptr<HydrologySolver> hydrology_solver_;
     // h in metres for fields, rebuilt on demand. With a device-resident

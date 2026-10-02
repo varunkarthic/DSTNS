@@ -48,8 +48,9 @@ double normal(const DeterministicRng& rng, std::uint64_t object) {
 } // namespace
 
 void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParameters& surface, const HydrologyParams& hydrology,
-                                 const EnvironmentCompute* compute, const DrainageParams& drainage) {
+                                 const EnvironmentCompute* compute, const DrainageParams& drainage, const AtmosphereParams& atmosphere) {
     drainage_params_ = drainage;
+    atmosphere_ = atmosphere;
     terrain_ = scenario.terrain;
     if (!terrain_) {
         // A scenario built without terrain (tests that assemble one by hand)
@@ -96,6 +97,7 @@ void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParamete
     grade_factor_.clear();
     free_speed_.clear();
     edge_mid_.clear();
+    edge_dir_.clear();
     for (const auto& e : scenario.edges) {
         edge_grade_.push_back(e.grade);
         grade_factor_.push_back(grade_speed_factor(e.grade, 0, e.free_speed_mps));
@@ -103,6 +105,8 @@ void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParamete
         const auto& a = scenario.nodes[e.from.value].position;
         const auto& b = scenario.nodes[e.to.value].position;
         edge_mid_.push_back({(a.x_m + b.x_m) / 2, (a.y_m + b.y_m) / 2});
+        const double len = std::hypot(b.x_m - a.x_m, b.y_m - a.y_m);
+        edge_dir_.push_back(len > 0 ? std::pair{(b.x_m - a.x_m) / len, (b.y_m - a.y_m) / len} : std::pair{0.0, 0.0});
     }
     const auto& g = terrain_->grid;
     std::tie(latitude_, longitude_) = terrain_->projection.to_geo(g.origin_x_m + g.width * g.cell_m / 2, g.origin_y_m + g.height * g.cell_m / 2);
@@ -112,6 +116,12 @@ void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParamete
     // The day's departure from the month's mean: one draw from the run's own
     // atmosphere stream, about 1.5 degrees either way.
     anomaly_c_ = 1.5 * normal(DeterministicRng(scenario.seed.derive("das.climate")), 0);
+    // The atmosphere: the buildings, the lattice over them, the day's wind.
+    canopy_ = build_canopy(scenario, g, atmosphere_);
+    lattice_ = build_lattice(*terrain_, canopy_, atmosphere_);
+    wind_climate_ = wind_climate(scenario, latitude_);
+    wind_speed_m_.clear();
+    wind_stale_ = true;
 
     // Unit surface normals from the terrain gradient: n = (-dz/dx, -dz/dy, 1) / |.|.
     const auto cells = g.cells();
@@ -177,6 +187,7 @@ void EnvironmentRuntime::reset() { restore(initial_); }
 void EnvironmentRuntime::restore(const EnvironmentState& state) {
     state_ = state;
     ++road_revision_;
+    wind_stale_ = true;
     if (hydrology_solver_) hydrology_solver_->upload(state_.water);
     water_stale_ = false;
     depth_stale_ = true;
@@ -233,12 +244,17 @@ void EnvironmentRuntime::update_dcm(std::uint32_t t, const std::vector<StormCell
     const double open_air = air_temperature(pos.solar_time_h);
     const double deep_c = climate_.monthly_mean_c + anomaly_c_ + 2.0;  // the slab beneath, near the monthly mean
     const auto& p = surface_;
-    const double h_conv = p.convection_base_w_m2k + p.convection_wind_w_m3k * p.background_wind_mps;
     const auto cells = state_.surface_temperature_c.size();
     double cloud_sum = 0;
     const auto& water = state_.water.h;
-    const double wind = p.background_wind_mps;
+    // The wind over each cell, once the atmosphere has solved it; a fixed
+    // background until then. Convection (McAdams, h = 5.7 + 3.8 u) and
+    // evaporation both follow it.
+    const bool windy = state_.wind.solved;
+    if (windy) refresh_wind_field();
     for (std::size_t k = 0; k < cells; ++k) {
+        const double wind = windy ? double(wind_speed_m_[k]) : p.background_wind_mps;
+        const double h_conv = p.convection_base_w_m2k + p.convection_wind_w_m3k * wind;
         const double c = state_.cloud_fraction[k];
         cloud_sum += c;
         const double tr = cloud_transmission(c);
@@ -291,12 +307,121 @@ void EnvironmentRuntime::step(const EnvironmentInputs& in) {
         update_dcm(t, in.storms, double(t - state_.dcm_time_s));
     else if (!in.dcm && t % kDcmIntervalS == 0)
         state_.dcm_time_s = t;  // a disabled module holds its state; it does not catch up later
+    if (t % kWindIntervalS == 0) {
+        if (in.das) update_wind(t, in.storms);
+        else if (state_.wind.solved) {
+            // Switched off: the roads lose their wind at once.
+            state_.wind = {};
+            wind_stale_ = true;
+            ++road_revision_;
+        }
+    }
     const auto interval = std::uint32_t(hydrology_.interval_s);
     if (t % interval == 0) {
         if (in.hydrology) update_hydrology(t, in.storms, in.drainage);
         else state_.water.updated_s = t;
     }
     state_.time_s = t;
+}
+
+BackgroundWind EnvironmentRuntime::background_at(std::uint32_t t) const {
+    return background_wind(wind_climate_, solar_position(latitude_, longitude_, day_of_year_, t).solar_time_h);
+}
+
+double EnvironmentRuntime::gust(double x, double y) const {
+    // Under a storm cell's core the wind freshens: downdrafts spread out at
+    // the ground ahead of and beneath the rain.
+    double core = 0;
+    for (const auto& s : state_.wind.storms) core += std::clamp(s.intensity, 0.0, 1.0) * wendland(std::hypot(x - s.x_m, y - s.y_m), s.radius_m);
+    return 1 + atmosphere_.storm_gust * std::min(1.0, core);
+}
+
+std::pair<double, double> EnvironmentRuntime::wind_at(double x, double y) const {
+    const auto& w = state_.wind;
+    if (!w.solved || w.solution.u.empty()) return {0.0, 0.0};
+    // The steady solution, turned through however far the background has
+    // veered since it was solved, and scaled to the background speed now.
+    const double nu = sample_bilinear(lattice_.columns, w.solution.u.data(), x, y);
+    const double nv = sample_bilinear(lattice_.columns, w.solution.v.data(), x, y);
+    const double turn = (w.background.from_deg - w.solution.solved_for.from_deg) * kPi / 180;
+    const double c = std::cos(turn), sn = std::sin(turn);
+    const double scale = w.background.speed_mps * gust(x, y);
+    return {(nu * c + nv * sn) * scale, (-nu * sn + nv * c) * scale};
+}
+
+void EnvironmentRuntime::refresh_wind_field() const {
+    if (!wind_stale_) return;
+    wind_stale_ = false;
+    const auto& g = terrain_->grid;
+    wind_speed_m_.assign(g.cells(), 0);
+    if (!state_.wind.solved) return;
+    for (std::uint32_t j = 0; j < g.height; ++j)
+        for (std::uint32_t i = 0; i < g.width; ++i) {
+            const auto [u, v] = wind_at(g.centre_x(i), g.centre_y(j));
+            wind_speed_m_[g.index(i, j)] = static_cast<float>(std::hypot(u, v));
+        }
+}
+
+void EnvironmentRuntime::update_wind(std::uint32_t t, const std::vector<StormCell>& storms) {
+    auto& w = state_.wind;
+    const auto background = background_at(t);
+    if (!w.solved || t % atmosphere_.solve_interval_s == 0) {
+        // The street's heating, per lattice column: the surface above the air.
+        std::vector<float> heating;
+        const auto& g = terrain_->grid;
+        if (!state_.surface_temperature_c.empty()) {
+            const auto columns = std::size_t(lattice_.nx) * lattice_.ny;
+            std::vector<double> sum(columns, 0);
+            std::vector<int> count(columns, 0);
+            for (std::uint32_t j = 0; j < g.height; ++j)
+                for (std::uint32_t i = 0; i < g.width; ++i) {
+                    const auto c = std::size_t(j / lattice_.factor) * lattice_.nx + i / lattice_.factor;
+                    sum[c] += state_.surface_temperature_c[g.index(i, j)] - state_.solar.air_temperature_c;
+                    ++count[c];
+                }
+            heating.resize(columns);
+            for (std::size_t c = 0; c < columns; ++c) heating[c] = count[c] ? float(sum[c] / count[c]) : 0.0f;
+        }
+        // Solve again only if something the flow depends on has moved: the
+        // wind has veered, or the street's heating pattern has changed.
+        bool moved = !w.solved || heating.size() != w.solved_heating.size() ||
+                     std::abs(std::remainder(background.from_deg - w.solution.solved_for.from_deg, 360.0)) >= atmosphere_.resolve_turn_deg;
+        for (std::size_t c = 0; !moved && c < heating.size(); ++c)
+            moved = std::abs(heating[c] - w.solved_heating[c]) >= atmosphere_.resolve_heating_k;
+        if (moved) {
+            w.solution = solve_wind(lattice_, background, heating, state_.solar.air_temperature_c, atmosphere_);
+            w.solved_heating = std::move(heating);
+            w.solved = true;
+            w.solved_s = t;
+            ++w.solves;
+        } else {
+            ++w.skipped;
+        }
+    }
+    w.background = background;
+    w.storms = storms;
+    w.updated_s = t;
+    wind_stale_ = true;
+    // Each road's headwind, and the stream's speed factor for its grade and
+    // wind; recomputed only where the headwind has moved by a quarter of a
+    // metre per second since it was last applied.
+    const auto edges = edge_grade_.size();
+    const bool fresh = w.road_factor.size() != edges;
+    if (fresh) {
+        w.road_factor.assign(edges, 1.0);
+        w.road_headwind.assign(edges, 0.0f);
+    }
+    bool changed = fresh;
+    for (std::size_t e = 0; e < edges; ++e) {
+        const auto [x, y] = edge_mid_[e];
+        const auto [u, v] = wind_at(x, y);
+        const auto headwind = static_cast<float>(-(u * edge_dir_[e].first + v * edge_dir_[e].second));
+        if (!fresh && std::abs(headwind - w.road_headwind[e]) < 0.25f) continue;
+        w.road_headwind[e] = headwind;
+        w.road_factor[e] = grade_speed_factor(edge_grade_[e], headwind, free_speed_[e]);
+        changed = true;
+    }
+    if (changed) ++road_revision_;
 }
 
 double EnvironmentRuntime::rain_rate_mm_h(double x, double y, const std::vector<StormCell>& storms) const {
@@ -400,7 +525,10 @@ RoadEnvironment EnvironmentRuntime::road(std::size_t e, bool full) const {
     if (e >= grade_factor_.size()) return r;
     const auto& w = state_.water;
     r.grade = edge_grade_[e];
-    r.grade_factor = grade_factor_[e];
+    const auto& wind = state_.wind;
+    const bool windy = e < wind.road_factor.size();
+    r.grade_factor = windy ? wind.road_factor[e] : grade_factor_[e];
+    r.headwind_mps = windy ? wind.road_headwind[e] : 0.0;
     if (e < w.road_max.size()) {
         r.water_max_m = double(w.road_max[e]) / kQ24;
         r.water_mean_m = double(w.road_mean[e]) / kQ24;
@@ -420,7 +548,8 @@ RoadEnvironment EnvironmentRuntime::road(std::size_t e, bool full) const {
         const auto [x, y] = edge_mid_[e];
         r.surface_temperature_c = state_.surface_temperature_c.empty() ? 0.0
                                   : sample_bilinear(terrain_->grid, state_.surface_temperature_c.data(), x, y);
-        r.energy_kwh_per_km = energy_kwh_per_km(vehicle_params(VehicleClass::SmallPassenger), free_speed_[e] * r.speed_multiplier, r.grade, 0);
+        r.energy_kwh_per_km = energy_kwh_per_km(vehicle_params(VehicleClass::SmallPassenger), free_speed_[e] * r.speed_multiplier, r.grade,
+                                                r.headwind_mps);
     }
     return r;
 }
@@ -436,8 +565,10 @@ void EnvironmentRuntime::refresh_water_field() const {
 
 std::vector<std::pair<std::string, std::string>> EnvironmentRuntime::fields() const {
     if (!terrain_) return {};
-    return {{"elevation", "m"}, {"slope", "m/m"}, {"irradiance", "W/m²"}, {"surface_temperature", "°C"}, {"cloud", "fraction"},
-            {"water_depth", "m"}};
+    std::vector<std::pair<std::string, std::string>> list{{"elevation", "m"},          {"slope", "m/m"}, {"irradiance", "W/m²"},
+                                                          {"surface_temperature", "°C"}, {"cloud", "fraction"}, {"water_depth", "m"}};
+    if (state_.wind.solved) list.emplace_back("wind", "m/s");
+    return list;
 }
 
 const std::vector<float>* EnvironmentRuntime::field(const std::string& name) const {
@@ -450,6 +581,11 @@ const std::vector<float>* EnvironmentRuntime::field(const std::string& name) con
     if (name == "water_depth") {
         refresh_water_field();
         return &water_depth_m_;
+    }
+    if (name == "wind") {
+        if (!state_.wind.solved) return nullptr;
+        refresh_wind_field();
+        return &wind_speed_m_;
     }
     return nullptr;
 }
@@ -505,6 +641,38 @@ nlohmann::json EnvironmentRuntime::summary() const {
         {"time_s", state_.time_s},
         {"hydrology", std::move(hydrology)},
         {"drainage", drainage_summary(drainage_, state_.drains, drainage_params_)},
+        {"atmosphere", [&] {
+            const auto& w = state_.wind;
+            const auto& L = lattice_;
+            const auto& c = canopy_;
+            double mean = 0, peak = 0;
+            if (w.solved) {
+                refresh_wind_field();
+                for (const auto v : wind_speed_m_) {
+                    mean += v;
+                    peak = std::max(peak, double(v));
+                }
+                mean /= std::max<std::size_t>(1, wind_speed_m_.size());
+            }
+            return nlohmann::json{
+                {"solved", w.solved}, {"solved_s", w.solved_s}, {"updated_s", w.updated_s},
+                {"solves", w.solves}, {"solves_skipped", w.skipped},
+                {"solve_interval_s", atmosphere_.solve_interval_s}, {"interval_s", kWindIntervalS},
+                {"scheme", "lattice Boltzmann D3Q19, BGK with Smagorinsky eddy viscosity; porous-canopy building drag, log-law wall, Boussinesq buoyancy"},
+                {"solver", "CPU"},
+                {"lattice", {{"nx", L.nx}, {"ny", L.ny}, {"nz", L.nz}, {"dx_m", L.dx_m}, {"cells", L.cells()}}},
+                {"iterations", w.solution.iterations}, {"converged", w.solution.converged}, {"last_change", w.solution.last_change},
+                {"max_mach", w.solution.max_mach}, {"mean_density_error", w.solution.mean_density_error},
+                {"background", {{"speed_mps", w.background.speed_mps}, {"from_deg", w.background.from_deg}}},
+                {"solved_for", {{"speed_mps", w.solution.solved_for.speed_mps}, {"from_deg", w.solution.solved_for.from_deg}}},
+                {"climate", {{"belt", wind_climate_.belt}, {"mean_speed_mps", wind_climate_.mean_speed_mps},
+                             {"prevailing_from_deg", wind_climate_.prevailing_from_deg}}},
+                {"near_surface_mps", {{"mean", mean}, {"max", peak}}},
+                {"reference_height_m", atmosphere_.reference_height_m},
+                {"canopy", {{"buildings", c.buildings}, {"height_tagged", c.height_tagged}, {"levels_tagged", c.levels_tagged},
+                            {"estimated", c.estimated}, {"built_fraction", c.built_fraction}, {"mean_height_m", c.mean_height_m},
+                            {"max_height_m", c.max_height_m}, {"source", c.buildings ? "OpenStreetMap footprints" : "none mapped"}}}};
+        }()},
         {"water_system", {
             // Street and pipes together: rain in, and everything that has left.
             {"rain_m3", m3(w.ledger.rain)},

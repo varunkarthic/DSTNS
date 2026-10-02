@@ -268,6 +268,10 @@ def main():
             assert drains["data"]["pipes"] and all(0 <= p["from"] < nodes and 0 <= p["to"] < nodes and p["diameter_m"] > 0 for p in drains["data"]["pipes"])
             assert drains["data"]["outfalls"] and drains["data"]["summary"]["conservation_error_m3"] == 0
             assertions += 3
+            code, wind = call(base, "/api/v1/view/wind")
+            assert code == 200 and {"solved", "width", "height", "cell_m", "u", "v", "background"} <= set(wind["data"])
+            assert len(wind["data"]["u"]) == len(wind["data"]["v"]) == wind["data"]["width"] * wind["data"]["height"]
+            assertions += 2
 
             # 5. Double start conflict
             code, err = call(base, "/api/v1/playback/start", "POST", req_start)
@@ -425,7 +429,7 @@ def main():
             assertions += 1
 
             # 14. Module Enable / Disable
-            for mod in ("dws", "traffic", "signals", "buildings", "flooding", "news", "dcm", "hydrology", "dds", "vehicle_dynamics"):
+            for mod in ("dws", "traffic", "signals", "buildings", "flooding", "news", "dcm", "hydrology", "dds", "das", "vehicle_dynamics"):
                 code, off = call(base, f"/api/v1/control/modules/{mod}", "PUT", {"enabled": False})
                 assert code == 200 and off["enabled"] is False
                 code, on = call(base, f"/api/v1/control/modules/{mod}", "PUT", {"enabled": True})

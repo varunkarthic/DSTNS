@@ -87,6 +87,7 @@ public:
     /// The drainage network and its state: every pipe (the junctions it joins,
     /// diameter, slope, flow, utilisation) and every surcharged manhole.
     [[nodiscard]] nlohmann::json drainage() const;
+    [[nodiscard]] nlohmann::json wind() const;
 
     /**
      * Places, classified and paginated, with their live demand.

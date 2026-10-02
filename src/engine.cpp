@@ -79,7 +79,7 @@ nlohmann::json road_environment_json(const env::RoadEnvironment& r) {
     return {{"grade", r.grade}, {"water_max_m", r.water_max_m}, {"water_mean_m", r.water_mean_m}, {"flood_index", r.flood_index},
             {"surface_temperature_c", r.surface_temperature_c}, {"grade_speed_factor", r.grade_factor}, {"water_speed_factor", r.water_factor},
             {"speed_multiplier", r.speed_multiplier}, {"capacity_multiplier", r.capacity_multiplier}, {"closed_to_traffic", r.closed},
-            {"passable", passable}, {"energy_kwh_per_km", r.energy_kwh_per_km}};
+            {"passable", passable}, {"energy_kwh_per_km", r.energy_kwh_per_km}, {"headwind_mps", r.headwind_mps}};
 }
 
 nlohmann::json point_json(const Point& p) {
@@ -97,7 +97,17 @@ struct StormAtmosphericState {
     bool active;
 };
 
-StormAtmosphericState evaluate_storm_state(const DwsEvent& e, std::uint32_t now_ppm, const NodeStatic& epic_node) {
+/// The direction a storm drifts in, radians anticlockwise from east: with the
+/// atmosphere on, downwind of the background wind at the storm's start (the
+/// wind aloft steers it); otherwise the fixed direction it always had.
+double storm_heading(const Scenario& sc, const env::EnvironmentRuntime& environment, const DwsEvent& e) {
+    if (!sc.config.das || !environment.installed()) return (e.id.value * 1.3962634) + 0.785398;
+    const auto wind = environment.background_at(std::uint32_t(std::uint64_t(e.start_ppm) * day_s / ppm));
+    const double from = wind.from_deg * 0.017453292519943295;
+    return std::atan2(-std::cos(from), -std::sin(from));
+}
+
+StormAtmosphericState evaluate_storm_state(const DwsEvent& e, std::uint32_t now_ppm, const NodeStatic& epic_node, double heading) {
     if (now_ppm < e.start_ppm || now_ppm >= e.end_ppm) {
         return {epic_node.position.x_m, epic_node.position.y_m, epic_node.position.lat, epic_node.position.lon, e.radius_m, 0.0, 0.0, false};
     }
@@ -123,7 +133,7 @@ StormAtmosphericState evaluate_storm_state(const DwsEvent& e, std::uint32_t now_
     }
 
     // Drifting Epicenter: slow movement across terrain with wind vector
-    const double wind_angle = (e.id.value * 1.3962634) + 0.785398;
+    const double wind_angle = heading;
     const double drift_distance = e.radius_m * 0.30 * phase; // drifts slowly up to 30% of storm radius
     const double dx = drift_distance * std::cos(wind_angle);
     const double dy = drift_distance * std::sin(wind_angle);
@@ -997,6 +1007,7 @@ nlohmann::json SimulationEngine::set_module(const std::string& m, bool enabled) 
     else if (m == "hydrology") field = &cfg.hydrology;
     else if (m == "vehicle_dynamics") field = &cfg.vehicle_dynamics;
     else if (m == "dds") field = &cfg.dds;
+    else if (m == "das") field = &cfg.das;
     else throw std::invalid_argument("unknown module: " + m);
     const auto old = *field;
     *field = enabled;
@@ -1081,6 +1092,7 @@ void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
         else if (m == "hydrology") cfg.hydrology = enabled;
         else if (m == "vehicle_dynamics") cfg.vehicle_dynamics = enabled;
         else if (m == "dds") cfg.dds = enabled;
+        else if (m == "das") cfg.das = enabled;
     } else if (c.type == "edge_override") {
         compute_->set_manual(v.at("edge").get<std::uint32_t>(),
                              {v.at("speed_multiplier").get<double>(), v.at("capacity_multiplier").get<double>(), v.at("closed").get<bool>()});
@@ -1152,7 +1164,7 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
     if (sc.config.dws) {
         auto consider = [&](const DwsEvent& e) {
             if (e.epicenter.value >= sc.nodes.size()) return;
-            const auto storm = evaluate_storm_state(e, now_ppm, sc.nodes[e.epicenter.value]);
+            const auto storm = evaluate_storm_state(e, now_ppm, sc.nodes[e.epicenter.value], storm_heading(sc, environment_, e));
             if (storm.active) request.storms.push_back({storm.cur_x_m, storm.cur_y_m, storm.cur_radius_m, storm.cur_intensity});
         };
         for (const auto& e : sc.dws_events) consider(e);
@@ -1182,6 +1194,7 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         in.dcm = sc.config.dcm;
         in.hydrology = sc.config.hydrology;
         in.drainage = sc.config.dds;
+        in.das = sc.config.das;
         const auto surcharged_before = environment_.drainage_state().surcharged_nodes;
         for (const auto& storm : request.storms) in.storms.push_back({storm.x_m, storm.y_m, storm.radius_m, storm.intensity});
         environment_.step(in);
@@ -1457,6 +1470,7 @@ nlohmann::json SimulationEngine::status() const {
             {"dcm", graph_->scenario().config.dcm},
             {"hydrology", graph_->scenario().config.hydrology},
             {"dds", graph_->scenario().config.dds},
+            {"das", graph_->scenario().config.das},
             {"vehicle_dynamics", graph_->scenario().config.vehicle_dynamics}
         } : nlohmann::json::object()}
     });
@@ -1569,7 +1583,7 @@ nlohmann::json SimulationEngine::snapshot() const {
     const auto now_ppm = std::uint32_t(std::uint64_t(virtual_s_) * ppm / day_s);
     auto check_weather = [&](const DwsEvent& e) {
         if (e.epicenter.value < graph_->nodes().size()) {
-            const auto storm = evaluate_storm_state(e, now_ppm, graph_->nodes()[e.epicenter.value]);
+            const auto storm = evaluate_storm_state(e, now_ppm, graph_->nodes()[e.epicenter.value], storm_heading(graph_->scenario(), environment_, e));
             if (storm.active) {
                 active_weather_list.push_back({
                     {"id", e.id.value},
@@ -1987,7 +2001,7 @@ nlohmann::json SimulationEngine::environment() const {
         {"calendar", calendar_json(sc)},
         {"terrain", sc.terrain ? terrain_json(*sc.terrain) : nlohmann::json(nullptr)},
         {"roads", {{"max_abs_grade", max_grade}}},
-        {"modules", {{"dcm", sc.config.dcm}, {"hydrology", sc.config.hydrology}, {"dds", sc.config.dds}, {"vehicle_dynamics", sc.config.vehicle_dynamics}}},
+        {"modules", {{"dcm", sc.config.dcm}, {"hydrology", sc.config.hydrology}, {"dds", sc.config.dds}, {"das", sc.config.das}, {"vehicle_dynamics", sc.config.vehicle_dynamics}}},
         {"state", environment_.summary()},
         {"fields", std::move(fields)}
     });
@@ -2021,7 +2035,30 @@ nlohmann::json SimulationEngine::field(const std::string& name, std::uint32_t ma
     if (name == "irradiance") return raster(grid, values->data(), "W/m²", 1.0);
     if (name == "surface_temperature") return raster(grid, values->data(), "°C", 0.1);
     if (name == "water_depth") return raster(grid, values->data(), "m", 0.001);
+    if (name == "wind") return raster(grid, values->data(), "m/s", 0.1);
     return raster(grid, values->data(), "fraction", 0.01);
+}
+
+nlohmann::json SimulationEngine::wind() const {
+    std::lock_guard lock(mutex_);
+    if (!graph_ || !environment_.installed()) return envelope(nlohmann::json::object());
+    const auto& L = environment_.lattice();
+    const auto& state = environment_.state().wind;
+    auto u = nlohmann::json::array(), v = nlohmann::json::array();
+    double peak = 0;
+    for (std::uint32_t j = 0; j < L.ny; ++j)
+        for (std::uint32_t i = 0; i < L.nx; ++i) {
+            const auto [x, y] = environment_.wind_at(L.columns.centre_x(i), L.columns.centre_y(j));
+            u.push_back(std::round(x * 100) / 100);
+            v.push_back(std::round(y * 100) / 100);
+            peak = std::max(peak, std::hypot(x, y));
+        }
+    return envelope({{"enabled", graph_->scenario().config.das}, {"solved", state.solved}, {"updated_s", state.updated_s},
+                     {"width", L.nx}, {"height", L.ny}, {"origin_x_m", L.columns.origin_x_m}, {"origin_y_m", L.columns.origin_y_m},
+                     {"cell_m", L.dx_m}, {"height_m", environment_.atmosphere_params().reference_height_m},
+                     {"layout", "row-major, south row first; u east and v north, m/s"},
+                     {"background", {{"speed_mps", state.background.speed_mps}, {"from_deg", state.background.from_deg}}},
+                     {"max_mps", peak}, {"u", std::move(u)}, {"v", std::move(v)}});
 }
 
 nlohmann::json SimulationEngine::road_environment(std::size_t offset, std::size_t limit) const {
@@ -2283,7 +2320,7 @@ nlohmann::json SimulationEngine::global_view() const {
         const auto start_s = std::uint32_t(std::uint64_t(ev.start_ppm) * day_s / ppm);
         const auto end_s = std::uint32_t(std::uint64_t(ev.end_ppm) * day_s / ppm);
         const auto& epic_node = graph_->nodes()[ev.epicenter.value];
-        const auto storm = evaluate_storm_state(ev, now_ppm, epic_node);
+        const auto storm = evaluate_storm_state(ev, now_ppm, epic_node, storm_heading(graph_->scenario(), environment_, ev));
         const bool active = storm.active;
 
         if (storm.active) {
@@ -2439,6 +2476,7 @@ nlohmann::json SimulationEngine::global_view() const {
             {"dcm", sc.config.dcm},
             {"hydrology", sc.config.hydrology},
             {"dds", sc.config.dds},
+            {"das", sc.config.das},
             {"vehicle_dynamics", sc.config.vehicle_dynamics}
         }},
         {"calendar", calendar_json(sc)},
