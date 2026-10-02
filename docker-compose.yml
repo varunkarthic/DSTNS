@@ -14,6 +14,7 @@ services:
       context: .
       args:
         WITH_SUMO: "${DSTNS_WITH_SUMO:-0}"
+        WITH_VULKAN: "${DSTNS_WITH_VULKAN:-0}"
     image: dstns:latest
     restart: unless-stopped
     ports:
@@ -27,6 +28,9 @@ services:
       DSTNS_SPEED: "${DSTNS_SPEED:-1}"
       DSTNS_DURATION: "${DSTNS_DURATION:-3600}"
       DSTNS_OSM_FILE: "${DSTNS_OSM_FILE:-auto}"
+      # auto | cpu | vulkan. A GPU is visible only if passed in (see the
+      # Docker guide); without one the CPU backend runs, with identical results.
+      DSTNS_COMPUTE_BACKEND: "${DSTNS_COMPUTE_BACKEND:-auto}"
       DSTNS_MAP_CACHE: "${DSTNS_MAP_CACHE:-prune}"
       DSTNS_MAP_CACHE_KEEP: "${DSTNS_MAP_CACHE_KEEP:-3}"
       DSTNS_DISABLE_WORLD_REGENERATION: "${DSTNS_DISABLE_WORLD_REGENERATION:-0}"

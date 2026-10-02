@@ -33,8 +33,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # No shader compiler on this runner: the build must succeed from the
+      # committed SPIR-V, and fails here if shaders/spirv/ is older than the
+      # GLSL it was compiled from.
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=ON
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=ON -DDSTNS_BUILD_SHADERS=OFF -DDSTNS_VULKAN_REQUIRED=ON
       - name: Build
         run: cmake --build build -j"$(nproc)"
       - name: Native and HTTP suites
@@ -44,6 +47,7 @@ jobs:
       - name: Launcher suites without the terminal interface (compatibility mode)
         run: |
           python3 tests/launcher/test_core.py
+          python3 tests/launcher/test_compute.py
           python3 tests/launcher/test_interfaces.py
       - name: Launcher suites with the terminal interface
         run: |
@@ -57,6 +61,34 @@ jobs:
         run: ./build/dstns_replay_verify 382923
       - name: Licence headers
         run: python3 scripts/license-headers.py --check
+
+  vulkan:
+    name: Vulkan compute (software device, validation layers)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # Mesa's llvmpipe is a conformant Vulkan implementation on the CPU: it has
+      # no GPU's speed, but it runs every kernel, so CPU/Vulkan equivalence and
+      # the validation layers are checked on every change.
+      - name: Install Vulkan loader, llvmpipe, validation layers and glslang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libsqlite3-dev zlib1g-dev \
+            libvulkan1 mesa-vulkan-drivers vulkan-validationlayers vulkan-tools glslang-tools
+      - name: Configure (Vulkan required, shaders compiled from GLSL)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=ON -DDSTNS_VULKAN_REQUIRED=ON
+      - name: Build
+        run: cmake --build build -j"$(nproc)" --target dstns_server dstns_compute_equivalence_tests dstns_engine_compute_tests dstns_benchmark
+      - name: GPU diagnostics
+        run: ./build/dstns_server --gpu-diagnostics --allow-software-vulkan
+      - name: CPU and Vulkan equivalence, under validation
+        env:
+          DSTNS_VULKAN_VALIDATION: "1"
+        run: ./build/dstns_compute_equivalence_tests
+      - name: The engine on Vulkan
+        run: ./build/dstns_engine_compute_tests
+      - name: Compute benchmark (software device; correctness of the tool, not speed)
+        run: ./build/dstns_benchmark compute --sizes 1000,10000 --device llvmpipe --replay-steps 50
 
   observer:
     name: Observer

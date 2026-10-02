@@ -8,6 +8,12 @@
 #
 #   docker build -t dstns .
 #   docker build -t dstns --build-arg WITH_SUMO=1 .   # include Eclipse SUMO
+#   docker build -t dstns --build-arg WITH_VULKAN=1 . # include the Vulkan loader and
+#                                                     # Mesa drivers, for GPUs passed in
+#                                                     # with --device /dev/dri
+#
+# Without a GPU passed in, the container runs the physics on the CPU backend;
+# results are identical either way.
 #
 # The image is multi-architecture (linux/amd64 and linux/arm64): every stage
 # uses Debian packages, so it builds natively on Apple silicon and x86 alike.
@@ -30,16 +36,22 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY CMakeLists.txt ./
+COPY cmake cmake
 COPY include include
+COPY shaders shaders
 COPY src src
 COPY apps apps
 COPY tools tools
+# The Vulkan backend is always built (it costs nothing at run time without a
+# GPU); the shaders come precompiled from shaders/spirv/, so no shader
+# compiler is needed here.
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=OFF \
  && cmake --build build --target dstns_server dstns_scenario_export -j"$(nproc)"
 
 # ---- Stage 3: runtime ----------------------------------------------------
 FROM debian:${DEBIAN_RELEASE}-slim
 ARG WITH_SUMO=0
+ARG WITH_VULKAN=0
 LABEL org.opencontainers.image.title="DSTNS" \
       org.opencontainers.image.description="Deterministic Spatiotemporal Transport Network Simulator" \
       org.opencontainers.image.source="https://github.com/varunkarthic/DSTNS" \
@@ -49,6 +61,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       libsqlite3-0 zlib1g python3 ca-certificates tini \
  && if [ "$WITH_SUMO" = "1" ]; then apt-get install -y --no-install-recommends sumo; fi \
+ && if [ "$WITH_VULKAN" = "1" ]; then apt-get install -y --no-install-recommends libvulkan1 mesa-vulkan-drivers; fi \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin dstns
 
@@ -63,7 +76,7 @@ COPY data/fixtures/real_network.osm.xml /app/data/fixtures/real_network.osm.xml
 COPY docker/entrypoint.sh /usr/local/bin/dstns-entrypoint
 COPY docker/dstns-run /usr/local/bin/dstns-run
 RUN chmod 0755 /usr/local/bin/dstns-entrypoint /usr/local/bin/dstns-run \
- && mkdir -p /app/logs /app/data/maps /app/data/seed-store \
+ && mkdir -p /app/logs /app/data/maps /app/data/seed-store /app/data/cache \
  && chown -R dstns:dstns /app/logs /app/data
 
 # The map cache and logs are the only state worth keeping; mount volumes there.
@@ -78,7 +91,8 @@ ENV DSTNS_PORT=8090 \
     DSTNS_OSM_FILE=auto \
     DSTNS_MAP_CACHE=prune \
     DSTNS_MAP_CACHE_KEEP=3 \
-    SUMO_HOME=/usr/share/sumo
+    SUMO_HOME=/usr/share/sumo \
+    DSTNS_COMPUTE_BACKEND=auto
 
 USER dstns
 EXPOSE 8090
