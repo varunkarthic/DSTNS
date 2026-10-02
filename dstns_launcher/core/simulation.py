@@ -21,6 +21,7 @@ from . import api, configuration, seeds
 from .errors import SimulationRuntimeError, SimulationStartError
 from .paths import PATHS, Paths
 from .reporting import Level, Reporter
+from .process import check_cancelled
 
 LOG = logging.getLogger("dstns.launcher")
 POLL_SECONDS = 0.18
@@ -170,6 +171,7 @@ def map_recovery(paths: Paths = PATHS) -> str:
 def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Paths = PATHS,
               cancel: threading.Event | None = None) -> World:
     """Start a run and wait until the world is live, reporting real progress."""
+    check_cancelled(cancel)
     on_demand = request["map"]["osm_file"] == "auto"
     reporter.message(Level.INFO,
                      "Resolving the seed to a city district" if on_demand else "Loading the OpenStreetMap district",
@@ -238,10 +240,12 @@ def control(port: int, action: str, paths: Paths = PATHS) -> api.Response:
     return response
 
 
-def wait_for_observer(port: int, timeout: float, paths: Paths = PATHS) -> bool:
+def wait_for_observer(port: int, timeout: float, paths: Paths = PATHS, *,
+                      cancel: threading.Event | None = None) -> bool:
     """Wait until the observer page has loaded, so start-up is watched there."""
     until = time.monotonic() + timeout
     while time.monotonic() < until:
+        check_cancelled(cancel)
         response = api.call(port, "/api/v1/system/observer", timeout=2, paths=paths)
         if isinstance(response.body, dict) and (response.body.get("data") or {}).get("loaded"):
             return True

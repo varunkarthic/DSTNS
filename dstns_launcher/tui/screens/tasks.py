@@ -15,7 +15,7 @@ from ...core.environment import State
 from ...core.errors import DSTNSLauncherError
 from ...core.reporting import Level
 from ..base import Page, TuiReporter, confirm
-from ..widgets import Key, Menu, MenuItem, Row, Rule, StatusTable
+from ..widgets import Activity, Key, Menu, MenuItem, Row, Rule, StatusTable
 
 
 class TaskScreen(Page):
@@ -36,6 +36,7 @@ class TaskScreen(Page):
             with Vertical(id="content"):
                 yield Static("", id="task-title", classes="panel-title")
                 yield Rule()
+                yield Activity(id="activity")
                 yield StatusTable(id="steps", name_width=40)
                 yield Static("", id="task-result", classes="hint")
                 yield Rule("Output")
@@ -63,6 +64,7 @@ class TaskScreen(Page):
         self.query_one("#task-title", Static).update(item.label.upper())
         self.query_one("#task-result", Static).update("")
         self.header.set_state(State.RUNNING, "working")
+        self.query_one("#activity", Activity).start(item.label)
         self.execute(item.key)
 
     def reporter(self) -> TuiReporter:
@@ -76,6 +78,8 @@ class TaskScreen(Page):
         mapping = {"running": State.RUNNING, "pass": State.PASS, "fail": State.FAIL}
         self.steps[title] = Row(title, "" if state == "running" else summary, mapping[state])
         self.query_one("#steps", StatusTable).set_rows(list(self.steps.values()))
+        if state == "running":
+            self.query_one("#activity", Activity).start(title)
 
     def output(self, text: str) -> None:
         log = self.query_one("#output", RichLog)
@@ -84,6 +88,7 @@ class TaskScreen(Page):
 
     def done(self, ok: bool, summary: str) -> None:
         self.busy = False
+        self.query_one("#activity", Activity).stop()
         self.header.set_state(State.PASS if ok else State.FAIL, "done" if ok else "failed")
         self.query_one("#task-result", Static).update(Text(summary, style="#32D583" if ok else "#F04444"))
 

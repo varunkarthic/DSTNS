@@ -44,6 +44,13 @@ class UIInitializationError(DSTNSLauncherError):
     """A terminal interface could not start."""
 
 
+class OperationCancelled(DSTNSLauncherError):
+    """The operator cancelled an operation before it completed."""
+
+    def __init__(self) -> None:
+        super().__init__("Start-up was cancelled.")
+
+
 class CommandFailed(DSTNSLauncherError):
     """An external command exited with a non-zero status."""
 

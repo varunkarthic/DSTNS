@@ -300,5 +300,100 @@ class Runs(WithWorkspace):
         self.assertIsNone(api.health(1))
 
 
+class Cancellation(unittest.TestCase):
+    def test_timeout_stops_a_descendant_after_its_parent_exits(self):
+        from dstns_launcher.core import process
+        import subprocess
+
+        script = ("import subprocess,sys; "
+                  "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)']); "
+                  "print(p.pid,flush=True)")
+        result = process.run([sys.executable, "-c", script], timeout=1.0, check=False)
+        self.assertTrue(result.timed_out)
+        self.assertEqual(result.code, 124)
+        self.assertLess(result.seconds, 5)
+        state = subprocess.run(["ps", "-p", result.output.strip(), "-o", "stat="],
+                               capture_output=True, text=True).stdout.strip()
+        self.assertTrue(not state or state.startswith("Z"), state)
+
+    def test_cancellation_reaches_build_descendants_and_does_not_mark_build_complete(self):
+        import subprocess
+        import threading
+        import time
+        from dstns_launcher.core import build
+        from dstns_launcher.core.errors import OperationCancelled
+
+        cancel = threading.Event()
+        pid = []
+        class Capture(Reporter):
+            def step_output(self, _title, line):
+                if line.startswith("child="):
+                    pid.append(int(line.split("=")[1]))
+                    cancel.set()
+
+        script = ("import subprocess,sys,time; "
+                  "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)']); "
+                  "print('child='+str(p.pid),flush=True); time.sleep(60)")
+        marked = mock.Mock()
+        started = time.monotonic()
+        with self.assertRaises(OperationCancelled):
+            build.execute(build.BuildPlan([build.Step("Build", [sys.executable, "-c", script], after=marked)]),
+                          Capture(), cancel=cancel)
+        self.assertLess(time.monotonic() - started, 5)
+        marked.assert_not_called()
+        self.assertEqual(len(pid), 1)
+        # An unreaped zombie has exited and is no longer executing code.
+        state = subprocess.run(["ps", "-p", str(pid[0]), "-o", "stat="], capture_output=True, text=True).stdout.strip()
+        self.assertTrue(not state or state.startswith("Z"), state)
+
+    def test_interrupted_output_callback_stops_the_command(self):
+        from dstns_launcher.core import process
+        import subprocess
+
+        pid = []
+        def interrupt(line):
+            pid.append(int(line))
+            raise KeyboardInterrupt
+
+        with self.assertRaises(KeyboardInterrupt):
+            process.run([sys.executable, "-c", "import os,time; print(os.getpid(),flush=True); time.sleep(60)"],
+                        on_line=interrupt)
+        result = subprocess.run(["ps", "-p", str(pid[0]), "-o", "stat="], capture_output=True, text=True)
+        self.assertFalse(result.stdout.strip())
+
+    def test_cleanup_cancels_pending_start_before_it_can_create_a_run(self):
+        import threading
+        from dstns_launcher.core.session import Session
+        from dstns_launcher.core.errors import OperationCancelled
+        from dstns_launcher.core.process import check_cancelled
+
+        entered = threading.Event()
+        errors = []
+        session = Session()
+        def blocked_start(_reporter, _paths, *, cancel):
+            entered.set()
+            cancel.wait(3)
+            check_cancelled(cancel)
+            raise AssertionError("cleanup must signal cancellation")
+        def launch():
+            try:
+                session.launch(RunOptions(), Reporter())
+            except OperationCancelled:
+                pass
+            except BaseException as exc:
+                errors.append(exc)
+        with mock.patch("dstns_launcher.core.session.simulation.prepare_request", return_value={}), \
+                mock.patch("dstns_launcher.core.session.server.start", side_effect=blocked_start), \
+                mock.patch("dstns_launcher.core.session.simulation.start_run") as start_run:
+            worker = threading.Thread(target=launch)
+            worker.start()
+            self.assertTrue(entered.wait(2))
+            session.cleanup()
+            worker.join(timeout=2)
+            self.assertFalse(worker.is_alive())
+            self.assertFalse(errors, errors)
+            start_run.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

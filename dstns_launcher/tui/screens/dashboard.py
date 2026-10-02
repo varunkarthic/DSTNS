@@ -77,6 +77,8 @@ class DashboardScreen(Page):
         self.app.call_from_thread(self.polled, port, current)
 
     def polled(self, port: int | None, current) -> None:
+        if not self.is_mounted or not self.query("#menu"):
+            return
         self.server_port = port
         self.server_status = current
         self.refresh_menu()

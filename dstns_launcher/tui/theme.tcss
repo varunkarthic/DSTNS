@@ -92,14 +92,23 @@ Menu:focus {
     height: 1fr;
 }
 
-#splash > * {
-    width: auto;
+#splash-content {
+    width: 76;
+    max-width: 100%;
+    height: auto;
+}
+
+#splash-content > * {
+    width: 100%;
+    max-width: 100%;
     content-align: center middle;
     text-align: center;
 }
 
 #splash Wordmark {
     color: $cyan;
+    content-align: center middle;
+    text-align: center;
 }
 
 #splash .full-name {
@@ -116,11 +125,16 @@ Menu:focus {
 #splash .activity {
     color: $cyan;
     margin-top: 1;
+    width: 100%;
 }
 
 #splash .legal {
     color: $muted;
     margin-top: 2;
+}
+
+App.-small #splash .legal {
+    margin-top: 1;
 }
 
 /* --- Common body --------------------------------------------------------- */
@@ -158,6 +172,15 @@ Menu:focus {
 StatusTable {
     height: auto;
     width: 1fr;
+}
+
+RunningScreen #progress,
+RunningScreen #progress Bar {
+    width: 1fr;
+}
+
+RunningScreen #log {
+    min-height: 1;
 }
 
 /* --- Forms ---------------------------------------------------------------- */

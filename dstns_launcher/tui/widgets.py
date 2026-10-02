@@ -28,10 +28,67 @@ from ..core.environment import MARKERS, State
 
 LOGO = (Path(__file__).resolve().parent.parent / "assets" / "logo.txt").read_text(encoding="utf-8").rstrip("\n")
 LOGO_WIDTH = max(len(line) for line in LOGO.splitlines())
+SMALL_LOGO = (Path(__file__).resolve().parent.parent / "assets" / "logo-small.txt").read_text(encoding="utf-8").rstrip("\n")
+SMALL_LOGO_WIDTH = max(len(line) for line in SMALL_LOGO.splitlines())
 
 CYAN, TEXT, TEXT2, MUTED = "#22D3E6", "#E6F2F5", "#8CA7B2", "#58717C"
 TONES = {State.PASS: "#32D583", State.WARNING: "#F5B942", State.FAIL: "#F04444", State.SKIPPED: MUTED,
          State.RUNNING: CYAN, State.PENDING: MUTED}
+
+
+class Activity(Static):
+    """Bounded-rate activity, never a simulated percentage or a startup delay.
+
+    The marker uses ASCII even in Unicode terminals. Every frame includes the
+    work's label, and reduced-motion mode retains a static textual status.
+    """
+
+    DEFAULT_CSS = "Activity { height: auto; min-height: 1; width: 1fr; }"
+    FRAMES = ("[=   ]", "[ =  ]", "[  = ]", "[   =]", "[  = ]", "[ =  ]")
+
+    def __init__(self, label: str = "", **kwargs) -> None:
+        super().__init__("", **kwargs)
+        self.label = label
+        self.busy = bool(label)
+        self.frame = 0
+        self.ticker = None
+
+    def on_mount(self) -> None:
+        self.ticker = self.set_interval(0.25, self.tick, pause=True)
+        self._sync_timer()
+
+    def _sync_timer(self) -> None:
+        if self.ticker is not None:
+            if self.busy and getattr(self.app, "motion", False):
+                self.ticker.resume()
+            else:
+                self.ticker.pause()
+
+    def start(self, label: str) -> None:
+        self.label, self.busy = label, True
+        self.display = True
+        self._sync_timer()
+        self.refresh(layout=True)
+
+    def stop(self, label: str = "") -> None:
+        self.label, self.busy = label, False
+        self.display = bool(label)
+        self._sync_timer()
+        self.refresh(layout=True)
+
+    def tick(self) -> None:
+        if self.busy and self.screen is self.app.screen and getattr(self.app, "motion", False):
+            self.frame = (self.frame + 1) % len(self.FRAMES)
+            self.refresh()
+
+    def on_unmount(self) -> None:
+        self.busy = False
+        if self.ticker is not None:
+            self.ticker.stop()
+
+    def render(self) -> Text:
+        prefix = (self.FRAMES[self.frame] if getattr(self.app, "motion", False) else "[working]") if self.busy else ""
+        return Text(f"{prefix} {self.label}".strip(), style=CYAN, overflow="fold")
 
 
 def unicode_ok() -> bool:
@@ -75,7 +132,9 @@ class Wordmark(Static):
     def _draw(self) -> None:
         available = self.app.size.width - 4
         if unicode_ok() and available >= LOGO_WIDTH and self.app.size.height >= 22:
-            self.update(Text(LOGO, style=CYAN))
+            self.update(Text("\n".join(line.ljust(LOGO_WIDTH) for line in LOGO.splitlines()), style=CYAN))
+        elif unicode_ok() and available >= SMALL_LOGO_WIDTH and self.app.size.height >= 20:
+            self.update(Text("\n".join(line.ljust(SMALL_LOGO_WIDTH) for line in SMALL_LOGO.splitlines()), style=CYAN))
         else:
             self.update(Text("D S T N S", style=f"bold {CYAN}"))
 

@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import api, build, configuration
+from .process import check_cancelled
 from .errors import ConfigurationError, SimulationStartError
 from .paths import PATHS, Paths
 from .reporting import Level, Reporter
@@ -81,14 +82,18 @@ def active_port(paths: Paths = PATHS, extra: list[int] | None = None) -> int | N
     return None
 
 
-def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True) -> ServerHandle:
+def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True,
+          cancel: threading.Event | None = None) -> ServerHandle:
     """Attach to a healthy current server, or build and start one."""
+    check_cancelled(cancel)
     config = configuration.load(paths)
     port = configured_port(paths)
     host = config["api"].get("host") or "127.0.0.1"
     paths.logs.mkdir(parents=True, exist_ok=True)
     if build_first:
-        build.ensure_built(reporter, paths)
+        build.ensure_built(reporter, paths, cancel=cancel)
+
+    check_cancelled(cancel)
 
     if api.port_open(port, host):
         existing = api.health(port, paths=paths)
@@ -104,6 +109,7 @@ def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True)
         port = replacement
 
     command = [str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs)]
+    check_cancelled(cancel)
     reporter.message(Level.INFO, "Starting the DSTNS server", f"127.0.0.1:{port}")
     LOG.info("server start: %s", " ".join(command))
     try:
@@ -115,20 +121,26 @@ def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True)
     handle = ServerHandle(port, host, {}, child)
     threading.Thread(target=_drain, args=(child, handle.output), daemon=True).start()
 
-    deadline = time.monotonic() + HEALTH_TIMEOUT
-    while time.monotonic() < deadline:
-        if child.poll() is not None:
-            raise SimulationStartError(
-                f"The server exited with status {child.returncode} before it was ready.",
-                remedy="See the server output below, or logs/system.log.",
-                detail="\n".join(list(handle.output)[-14:]))
-        health = api.health(port, paths=paths)
-        if health:
-            handle.health = health
-            _write_active(paths, port)
-            reporter.message(Level.SUCCESS, "The DSTNS server is healthy", f"port {port} · {health.get('lifecycle', 'READY')}")
-            return handle
-        time.sleep(0.25)
+    try:
+        deadline = time.monotonic() + HEALTH_TIMEOUT
+        while time.monotonic() < deadline:
+            check_cancelled(cancel)
+            if child.poll() is not None:
+                raise SimulationStartError(
+                    f"The server exited with status {child.returncode} before it was ready.",
+                    remedy="See the server output below, or logs/system.log.",
+                    detail="\n".join(list(handle.output)[-14:]))
+            health = api.health(port, paths=paths)
+            if health:
+                check_cancelled(cancel)
+                handle.health = health
+                _write_active(paths, port)
+                reporter.message(Level.SUCCESS, "The DSTNS server is healthy", f"port {port} · {health.get('lifecycle', 'READY')}")
+                return handle
+            time.sleep(0.25)
+    except BaseException:
+        stop_process(child)
+        raise
     stop_process(child)
     raise SimulationStartError(
         f"Server did not become healthy within {HEALTH_TIMEOUT:g}s on port {port}.",

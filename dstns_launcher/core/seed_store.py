@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import sqlite3
 import sys
+from contextlib import closing
 from datetime import datetime, timezone
 
 VERSION = 'urban-crfg-v3'
@@ -25,7 +26,7 @@ def seed_id(value):
 def operate(action, data):
     db_path = Path(os.environ.get('DSTNS_SEED_DB', ROOT / 'data/seed-store/seeds.sqlite3'))
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path, timeout=10) as db:
+    with closing(sqlite3.connect(db_path, timeout=10)) as db, db:
         db.execute('PRAGMA journal_mode=WAL')
         db.execute('CREATE TABLE IF NOT EXISTS seeds (id TEXT PRIMARY KEY, seed TEXT NOT NULL, created_at TEXT NOT NULL, description TEXT NOT NULL, map_version TEXT NOT NULL, map_sha256 TEXT NOT NULL, config_json TEXT NOT NULL)')
         db.execute('PRAGMA user_version=1')

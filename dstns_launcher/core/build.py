@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import threading
 from typing import Callable
 
 from . import process
@@ -71,25 +72,29 @@ def plan(paths: Paths = PATHS, *, force_native: bool = False, force_ui: bool = F
     return result
 
 
-def execute(build_plan: BuildPlan, reporter: Reporter, paths: Paths = PATHS) -> None:
+def execute(build_plan: BuildPlan, reporter: Reporter, paths: Paths = PATHS, *,
+            cancel: threading.Event | None = None) -> None:
     """Run each step; the first failure raises :class:`~.errors.CommandFailed`."""
     for step in build_plan.steps:
+        process.check_cancelled(cancel)
         reporter.step_started(step.title)
         try:
             result = process.run(step.command, cwd=paths.root,
-                                 on_line=lambda line, title=step.title: reporter.step_output(title, line))
+                                 on_line=lambda line, title=step.title: reporter.step_output(title, line), cancel=cancel)
         except Exception as exc:
             reporter.step_finished(step.title, False, str(exc))
             raise
+        process.check_cancelled(cancel)
         if step.after:
             step.after()
         reporter.step_finished(step.title, True, duration(result.seconds))
 
 
-def ensure_built(reporter: Reporter, paths: Paths = PATHS, *, force_ui: bool = False) -> bool:
+def ensure_built(reporter: Reporter, paths: Paths = PATHS, *, force_ui: bool = False,
+                 cancel: threading.Event | None = None) -> bool:
     """Build whatever is out of date. Returns whether anything was built."""
     build_plan = plan(paths, force_ui=force_ui)
     if not build_plan.needed:
         return False
-    execute(build_plan, reporter, paths)
+    execute(build_plan, reporter, paths, cancel=cancel)
     return True

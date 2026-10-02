@@ -52,6 +52,7 @@ class Arguments:
     verbose: bool = False
     open: bool = field(default_factory=simulation.can_open_browser)
     no_splash: bool = False
+    no_animation: bool = False
     debug: bool = False
     reduced_ui: bool = False
     no_tui: bool = False
@@ -80,6 +81,8 @@ def parse(argv: list[str]) -> Arguments:
             positional.append("license")
         elif arg == "--no-splash":
             args.no_splash = True
+        elif arg == "--no-animation":
+            args.no_animation = True
         elif arg == "--debug":
             args.debug = True
         elif arg == "--reduced-ui":
@@ -150,6 +153,7 @@ Interface options
   --no-tui               Use plain line-oriented mode
   --no-color             Disable colour (NO_COLOR is also honoured)
   --no-splash            Skip the start-up screen
+  --no-animation         Keep activity indicators static
   --debug                Verbose diagnostics and tracebacks
   --verbose, -v          Show command output while tests and builds run
   --yes, -y              Do not ask for confirmation (reset)
@@ -300,7 +304,7 @@ def run_interactive(args: Arguments, caps: Capabilities, session: Session, initi
     """The Textual interface, or compatibility mode if it cannot run."""
     from .fallback.app import run_fallback
 
-    if args.no_tui:
+    if args.no_tui or caps.term == "dumb":
         return run_fallback(args, caps, session, initial, rich=False)
     if args.reduced_ui:
         return run_fallback(args, caps, session, initial, rich=True)
@@ -456,4 +460,3 @@ def entry() -> int:
 
     ensure_interface(sys.argv[1:])
     return main()
-

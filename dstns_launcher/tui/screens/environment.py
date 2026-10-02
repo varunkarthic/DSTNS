@@ -14,7 +14,7 @@ from textual.widgets import Static
 from ...core import environment
 from ...core.environment import Check, State
 from ..base import Page
-from ..widgets import Key, Menu, MenuItem, Row, Rule, StatusTable
+from ..widgets import Activity, Key, Menu, MenuItem, Row, Rule, StatusTable, Wordmark
 
 
 class EnvironmentScreen(Page):
@@ -22,14 +22,17 @@ class EnvironmentScreen(Page):
     KEYS = [Key("Enter", "Select", "Select", essential=True), Key("r", "Retry", "Retry"), Key("q", "Quit", "Quit", essential=True)]
     BINDINGS = Page.BINDINGS + [Binding("r", "retry", "Retry", show=False), Binding("q", "app.request_quit", "Quit", show=False)]
 
-    def __init__(self, *, config_problem=None) -> None:
+    def __init__(self, *, config_problem=None, results: list[Check] | None = None) -> None:
         super().__init__()
         self.config_problem = config_problem
+        self.results = results
         self.items: list[Check] = []
         self.done = False
 
     def compose_body(self) -> ComposeResult:
         with VerticalScroll(classes="body"):
+            yield Wordmark(classes="hide-medium")
+            yield Activity("Checking environment", id="activity")
             yield Static("Required", classes="section-title")
             yield Rule()
             yield StatusTable(id="required", name_width=20)
@@ -44,7 +47,13 @@ class EnvironmentScreen(Page):
     def on_mount(self) -> None:
         self.header.set_state(State.RUNNING, "checking")
         self.query_one("#actions", Menu).display = False
-        self.start_checks()
+        if self.results is None:
+            self.start_checks()
+        else:
+            self.items = self.results
+            self.app.checks = self.items
+            self.redraw()
+            self.finished()
 
     def start_checks(self) -> None:
         self.done = False
@@ -74,9 +83,12 @@ class EnvironmentScreen(Page):
 
         self.query_one("#required", StatusTable).set_rows(rows(True))
         self.query_one("#optional", StatusTable).set_rows(rows(False))
+        complete = sum(c.outcome.state not in (State.PENDING, State.RUNNING) for c in self.items)
+        self.query_one("#activity", Activity).start(f"Checking environment: {complete}/{len(self.items)} complete")
 
     def finished(self) -> None:
         self.done = True
+        self.query_one("#activity", Activity).stop("Environment check complete")
         blocking = environment.blocking(self.items)
         warnings = [c for c in self.items if c.outcome.state is State.WARNING]
         menu = self.query_one("#actions", Menu)

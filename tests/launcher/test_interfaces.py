@@ -58,8 +58,8 @@ class Arguments(unittest.TestCase):
         self.assertEqual(cli.parse(["seeds", "inspect", "x"]).item, "x")
 
     def test_new_interface_flags(self):
-        args = cli.parse(["--reduced-ui", "--no-tui", "--no-color", "--debug"])
-        self.assertTrue(args.reduced_ui and args.no_tui and args.no_color and args.debug)
+        args = cli.parse(["--reduced-ui", "--no-tui", "--no-color", "--no-animation", "--debug"])
+        self.assertTrue(args.reduced_ui and args.no_tui and args.no_color and args.no_animation and args.debug)
 
     def test_errors_keep_their_messages(self):
         with self.assertRaisesRegex(ConfigurationError, "Unknown option: --bogus"):
@@ -82,7 +82,7 @@ class ScriptedCommands(unittest.TestCase):
     def test_help_lists_commands_and_new_flags(self):
         code, out = run_main(["help"])
         self.assertEqual(code, 0)
-        for text in ("seeds save|list|inspect|delete", "--reduced-ui", "--no-tui", "--debug", "--mode=server"):
+        for text in ("seeds save|list|inspect|delete", "--reduced-ui", "--no-tui", "--no-animation", "--debug", "--mode=server"):
             self.assertIn(text, out)
 
     def test_failures_exit_non_zero_with_an_explanation(self):
@@ -221,7 +221,7 @@ class TextualInterface(unittest.TestCase):
     def make(self, width: int, height: int, *, colors: Colors = Colors.TRUECOLOR, initial: str = "home", argv=None):
         from dstns_launcher.tui.app import LauncherApp
 
-        return LauncherApp(cli.parse(argv or ["--no-open"]), caps(width=width, height=height, colors=colors),
+        return LauncherApp(cli.parse(argv or ["--no-open", "--no-splash"]), caps(width=width, height=height, colors=colors),
                            Session(), initial)
 
     def run_pilot(self, app, width: int, height: int, script):
@@ -370,6 +370,221 @@ class TextualInterface(unittest.TestCase):
 
         self.run_pilot(app, 100, 30, script)
         self.assertEqual(app.return_value.code, 0)
+
+
+class BootstrapRecovery(unittest.TestCase):
+    def test_dumb_terminal_does_not_install_or_open_textual(self):
+        from dstns_launcher import bootstrap
+
+        with mock.patch.dict(os.environ, {"TERM": "dumb"}), \
+                mock.patch.object(sys.stdin, "isatty", return_value=True), \
+                mock.patch.object(sys.stdout, "isatty", return_value=True):
+            self.assertFalse(bootstrap.wants_interface([]))
+        terminal = Capabilities(True, 80, 24, Colors.NONE, False, "dumb")
+        with mock.patch("dstns_launcher.fallback.app.run_fallback", return_value=0) as reduced:
+            cli.run_interactive(cli.parse([]), terminal, Session(), "home")
+        self.assertFalse(reduced.call_args.kwargs["rich"])
+
+    def test_unusable_private_interpreter_keeps_the_launcher_available(self):
+        from dstns_launcher import bootstrap
+
+        with mock.patch.dict(os.environ, {}, clear=True), \
+                mock.patch.object(bootstrap, "wants_interface", return_value=True), \
+                mock.patch.object(bootstrap, "has_textual", return_value=False), \
+                mock.patch.object(bootstrap, "_installed", return_value=True), \
+                mock.patch.object(bootstrap, "venv_python", return_value=Path(sys.executable)), \
+                mock.patch.object(os, "execve", side_effect=OSError("interpreter unavailable")), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            bootstrap.ensure_interface([])
+        self.assertIn("using compatibility mode", output.getvalue())
+
+
+@unittest.skipUnless(TEXTUAL, "Textual 8 is not installed")
+class LoadingFeedback(unittest.IsolatedAsyncioTestCase):
+    async def test_splash_holds_identity_and_runs_real_checks_once(self):
+        import time
+        from dstns_launcher.core.environment import Check, Outcome, State
+        from dstns_launcher.tui.app import LauncherApp
+        from dstns_launcher.tui.widgets import Activity
+
+        check_run = mock.Mock(return_value=Outcome(State.PASS, "Ready"))
+        check = Check("test", "Startup self-test", check_run)
+        app = LauncherApp(cli.parse(["--no-animation"]), caps(), Session(), "home")
+        with mock.patch("dstns_launcher.tui.screens.splash.environment.checks", return_value=[check]):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause(.2)
+                self.assertEqual(type(app.screen).__name__, "SplashScreen")
+                splash = app.screen
+                self.assertFalse(splash.query_one(Activity).busy, "completed checks must not keep spinning")
+                self.assertEqual(splash.query_one(Activity).render().plain, "Startup checks complete")
+                await pilot.pause(1)
+                self.assertIs(app.screen, splash)
+                for _ in range(60):
+                    if type(app.screen).__name__ == "DashboardScreen":
+                        break
+                    await pilot.pause(.05)
+                self.assertEqual(type(app.screen).__name__, "DashboardScreen")
+                self.assertGreaterEqual(time.monotonic() - splash.started, 3)
+                self.assertEqual(app.checks, [check])
+                check_run.assert_called_once()
+
+    async def test_splash_failure_opens_results_without_repeating_checks(self):
+        from dstns_launcher.core.environment import Check, Outcome, State
+        from dstns_launcher.tui.app import LauncherApp
+        from dstns_launcher.tui.screens.splash import SplashScreen
+
+        check_run = mock.Mock(return_value=Outcome(State.FAIL, "Invalid configuration", remedy="Fix the configuration"))
+        check = Check("test", "Configuration", check_run)
+        app = LauncherApp(cli.parse([]), caps(), Session(), "home")
+        with mock.patch("dstns_launcher.tui.screens.splash.environment.checks", return_value=[check]), \
+                mock.patch.object(SplashScreen, "MINIMUM_SECONDS", .1):
+            async with app.run_test(size=(50, 15)) as pilot:
+                for _ in range(30):
+                    await pilot.pause(.05)
+                    if type(app.screen).__name__ == "EnvironmentScreen":
+                        break
+                self.assertEqual(type(app.screen).__name__, "EnvironmentScreen")
+                self.assertTrue(app.screen.done)
+                self.assertTrue(app.screen.query_one("#actions").display)
+                check_run.assert_called_once()
+
+    async def test_small_running_screen_keeps_progress_and_log_visible(self):
+        from dstns_launcher.core.simulation import Metrics, Status, World
+        from dstns_launcher.tui.app import LauncherApp
+        from dstns_launcher.tui.screens.running import RunningScreen
+
+        app = LauncherApp(cli.parse(["--no-splash"]), caps(), Session(), "home")
+        with mock.patch("dstns_launcher.tui.screens.environment.environment.checks", return_value=[]), \
+                mock.patch.object(RunningScreen, "launch"), mock.patch.object(RunningScreen, "poll"):
+            async with app.run_test(size=(50, 15)) as pilot:
+                await pilot.pause(.1)
+                page = RunningScreen(options=cli.parse([]).run)
+                app.open(page)
+                await pilot.pause(.1)
+                app.session.world = World("382923", 0)
+                page.status = Status(True, "RUNNING", seed="382923", tick_rate=1, fraction=.25)
+                page.figures = Metrics(vehicles=300, congestion=10, closed_roads=0, storms=0)
+                page.launched()
+                page.render_facts()
+                await pilot.pause(.1)
+                footer = page.query_one("#keys").region
+                for selector in ("#progress-line", "#log"):
+                    region = page.query_one(selector).region
+                    self.assertGreater(region.height, 0)
+                    self.assertLessEqual(region.bottom, footer.y)
+                names = [row.name for row in page.query_one("#facts").rows]
+                self.assertIn("Simulation time", names)
+                self.assertNotIn("Storms", names)
+                await pilot.resize_terminal(120, 35)
+                await pilot.pause(.1)
+                self.assertIn("Storms", [row.name for row in page.query_one("#facts").rows])
+
+    async def test_no_splash_still_checks_environment_and_handles_tiny_terminal(self):
+        from dstns_launcher.tui.app import LauncherApp
+        from dstns_launcher.tui.screens.splash import SplashScreen
+
+        app = LauncherApp(cli.parse(["--no-splash", "--no-animation"]), caps(), Session(), "home")
+        with mock.patch.object(SplashScreen, "initialise", side_effect=AssertionError("splash must be skipped")):
+            async with app.run_test(size=(40, 12)) as pilot:
+                await pilot.pause(1)
+                self.assertEqual(type(app.screen).__name__, "TooSmallScreen")
+                await pilot.resize_terminal(100, 30)
+                for _ in range(100):
+                    await pilot.pause(.05)
+                    if type(app.screen).__name__ == "DashboardScreen":
+                        break
+                self.assertEqual(type(app.screen).__name__, "DashboardScreen")
+                self.assertIsNotNone(app.checks)
+
+    async def test_activity_moves_only_during_work_and_can_disable_motion(self):
+        from textual.app import App, ComposeResult
+        from dstns_launcher.tui.widgets import Activity
+
+        class Demo(App):
+            motion = True
+
+            def compose(self) -> ComposeResult:
+                yield Activity("Loading the map", id="activity")
+
+        app = Demo()
+        async with app.run_test(size=(50, 15)) as pilot:
+            activity = app.query_one(Activity)
+            first = activity.render().plain
+            await pilot.pause(.3)
+            self.assertNotEqual(first, activity.render().plain)
+            self.assertIn("Loading the map", activity.render().plain)
+            self.assertNotIn("%", activity.render().plain)
+            activity.stop("Ready")
+            frame = activity.frame
+            await pilot.pause(.35)
+            self.assertEqual(activity.frame, frame)
+            self.assertEqual(activity.render().plain, "Ready")
+            app.motion = False
+            activity.start("Preparing")
+            await pilot.pause(.35)
+            self.assertEqual(activity.frame, frame)
+            self.assertEqual(activity.render().plain, "[working] Preparing")
+            await activity.remove()
+            self.assertFalse(activity.busy)
+
+    async def test_environment_animation_is_tied_to_actual_check_completion(self):
+        import threading
+        from dstns_launcher.core.environment import Check, Outcome, State
+        from dstns_launcher.tui.app import LauncherApp
+        from dstns_launcher.tui.widgets import Activity
+
+        finished = threading.Event()
+        check = Check("test", "Blocked check", lambda: (finished.wait(5), Outcome(State.PASS, "Ready"))[1])
+        app = LauncherApp(cli.parse(["--no-splash"]), caps(), Session(), "home")
+        try:
+            with mock.patch("dstns_launcher.tui.screens.environment.environment.checks", return_value=[check]):
+                async with app.run_test(size=(100, 30)) as pilot:
+                    await pilot.pause(.1)
+                    activity = app.screen.query_one(Activity)
+                    first = activity.frame
+                    await pilot.pause(.3)
+                    self.assertNotEqual(first, activity.frame)
+                    self.assertIn("0/1 complete", activity.render().plain)
+                    finished.set()
+                    for _ in range(40):
+                        await pilot.pause(.05)
+                        if type(app.screen).__name__ == "DashboardScreen":
+                            break
+                    self.assertEqual(type(app.screen).__name__, "DashboardScreen")
+                    self.assertFalse(activity.busy)
+        finally:
+            finished.set()
+
+    async def test_preparation_progress_never_invents_a_percentage(self):
+        from dstns_launcher.tui.app import LauncherApp
+        from dstns_launcher.tui.screens.running import RunningScreen
+        from dstns_launcher.tui.widgets import Activity
+
+        app = LauncherApp(cli.parse(["--no-splash", "--no-animation"]), caps(), Session(), "home")
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(100):
+                await pilot.pause(.05)
+                if type(app.screen).__name__ == "DashboardScreen":
+                    break
+            with mock.patch.object(RunningScreen, "launch"):
+                page = RunningScreen(options=cli.parse([]).run)
+                app.open(page)
+                await pilot.pause(.1)
+            activity = page.query_one(Activity)
+            self.assertTrue(activity.busy)
+            self.assertFalse(page.query_one("#progress-line").display)
+            page.progress("Downloading map", 1048576, None)
+            self.assertIn("1.0 MiB", activity.render().plain)
+            self.assertFalse(page.query_one("#progress-line").display)
+            page.progress("Downloading map", 1048576, 2097152)
+            self.assertTrue(page.query_one("#progress-line").display)
+            self.assertEqual(page.query_one("#progress").percentage, .5)
+            page.progress_done()
+            self.assertFalse(page.query_one("#progress-line").display)
+            page.cancel.set()
+            page.launch_failed(ConfigurationError("Cancelled"))
+            await pilot.pause(.1)
+            self.assertFalse(activity.busy)
 
 
 if __name__ == "__main__":

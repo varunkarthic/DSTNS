@@ -79,6 +79,9 @@ class LauncherApp(App[Outcome]):
         self.session = session
         self.initial = initial
         self.unicode = caps.unicode
+        self.motion = caps.interactive and caps.term != "dumb" and not args.no_animation
+        if not self.motion:
+            self.animation_level = "none"
         self.layout_class = Layout.LARGE
         self.too_small: TooSmallScreen | None = None
         self._pending: list = []
@@ -92,9 +95,15 @@ class LauncherApp(App[Outcome]):
     def on_mount(self) -> None:
         from .screens.splash import SplashScreen
 
-        # The splash applies the size classes once it is on screen, so a
-        # too-small notice is always shown above it.
-        self.push_screen(SplashScreen(skip=self.args.no_splash))
+        # Apply size classes after the initial page is on screen, so a
+        # too-small notice is always shown above it, even with --no-splash.
+        if self.args.no_splash:
+            from .screens.environment import EnvironmentScreen
+
+            self.push_screen(EnvironmentScreen())
+        else:
+            self.push_screen(SplashScreen())
+        self.call_after_refresh(lambda: self.apply_layout(self.size.width, self.size.height))
 
     def after_environment(self) -> None:
         """Called once the environment check passes: show the dashboard, then the requested screen."""
@@ -117,8 +126,8 @@ class LauncherApp(App[Outcome]):
 
     # -- responsive layout --------------------------------------------------------
     def on_resize(self, event: events.Resize) -> None:
-        # Textual reports a size before the first screen exists; the splash
-        # applies the layout once it is on screen.
+        # Textual reports a size before the first screen exists; on_mount
+        # applies the layout once the initial page is on screen.
         if self._layout_ready:
             self.apply_layout(event.size.width, event.size.height)
 

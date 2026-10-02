@@ -29,7 +29,7 @@ PLAIN_FLAGS = {"--no-tui", "--reduced-ui", "--help", "-h", "--version", "-V", "-
 
 def wants_interface(argv: list[str]) -> bool:
     """Whether this invocation would open the full-screen interface."""
-    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+    if not (sys.stdin.isatty() and sys.stdout.isatty()) or os.environ.get("TERM") == "dumb":
         return False
     if any(arg in PLAIN_FLAGS or arg.startswith("--mode") for arg in argv):
         return False
@@ -77,7 +77,13 @@ def ensure_interface(argv: list[str]) -> None:
         if os.environ.get(NO_INSTALL) or not _install():
             return
     env = {**os.environ, MARKER: "1", "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT), os.environ.get("PYTHONPATH")]))}
-    os.execve(str(python), [str(python), "-m", "dstns_launcher", *argv], env)
+    try:
+        os.execve(str(python), [str(python), "-m", "dstns_launcher", *argv], env)
+    except OSError as exc:
+        # A broken or non-executable private environment must not prevent
+        # the standard-library compatibility launcher from starting.
+        print(f"DSTNS: the terminal interface could not start ({exc}); using compatibility mode.", flush=True)
+        LOG.warning("interface interpreter could not start: %s", exc)
 
 
 def _installed(python: Path) -> bool:

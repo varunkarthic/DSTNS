@@ -25,8 +25,9 @@ from ...core.configuration import RunOptions
 from ...core.environment import State
 from ...core.errors import DSTNSLauncherError
 from ...core.reporting import Level
+from ...core.terminal import Layout, layout_for
 from ..base import Page, TuiReporter, confirm, error_dialog
-from ..widgets import Key, Row, Rule, StatusTable
+from ..widgets import Activity, Key, Row, Rule, StatusTable
 
 POLL = 0.25          # status refresh, seconds
 FIGURES_EVERY = 1.0  # network totals
@@ -88,10 +89,10 @@ class RunningScreen(Page):
             with Horizontal(id="progress-line"):
                 yield Static("Progress", id="progress-label", classes="muted")
                 yield ProgressBar(total=100, show_eta=False, id="progress")
-            yield Static("", id="activity", classes="hint")
+            yield Activity(id="activity", classes="hint")
             yield Rule("Live log")
             yield RichLog(id="log", min_width=10, wrap=True, max_lines=2000, markup=False)
-            yield Static("", id="usage", classes="dim")
+            yield Static("", id="usage", classes="dim hide-small")
 
     def on_mount(self) -> None:
         log = self.query_one("#log", RichLog)
@@ -103,6 +104,8 @@ class RunningScreen(Page):
             self.header.set_state(State.RUNNING, "starting")
             self.set_keys([Key("Esc", "Cancel", "Cancel", essential=True), Key("f", "Follow log", "Follow")])
             self.query_one("#phase", Static).update("STARTING")
+            self.query_one("#progress-line").display = False
+            self.query_one("#activity", Activity).start("Preparing the simulation")
             self.launch()
         else:
             self.port = self.app.session.port if self.app.session.handle and self.app.session.handle.running() else None
@@ -110,20 +113,21 @@ class RunningScreen(Page):
             self.query_one("#phase", Static).update("SIMULATION")
         self.set_interval(POLL, self.poll)
 
+    def on_resize(self) -> None:
+        self.call_after_refresh(self.render_facts)
+
     # -- logging --------------------------------------------------------------------
     def say(self, level: Level, text: str, detail: str = "") -> None:
         stamp = datetime.now().strftime("%H:%M:%S")
         line = f"[{stamp}] {text}" + (f" · {detail}" if detail else "")
         self.app.run_log.append(line)
         self.query_one("#log", RichLog).write(Text(line, style=LEVEL_STYLE[level]))
+        if self.phase == "preparing" and level is Level.INFO:
+            self.query_one("#activity", Activity).start(text)
 
     def step(self, state: str, title: str, summary: str) -> None:
-        marks = {"running": State.RUNNING, "pass": State.PASS, "fail": State.FAIL}
-        state_ = marks[state]
-        from ..widgets import symbol
-
         if state == "running":
-            self.query_one("#activity", Static).update(Text.assemble(symbol(state_), f" {title}..."))
+            self.query_one("#activity", Activity).start(title)
         else:
             self.say(Level.SUCCESS if state == "pass" else Level.ERROR, title, summary)
 
@@ -134,17 +138,19 @@ class RunningScreen(Page):
 
     def progress(self, label: str, done: float, total: float | None) -> None:
         bar = self.query_one("#progress", ProgressBar)
-        if total:
+        self.query_one("#progress-line").display = bool(total and total > 0)
+        self.query_one("#progress-label", Static).update("Map download")
+        if total and total > 0:
             bar.update(total=total, progress=done)
             text = f"{label}: {done / 1048576:.1f} of {total / 1048576:.1f} MiB"
         else:
-            bar.update(total=None)
             text = f"{label}: {done / 1048576:.1f} MiB" if done else f"{label}..."
-        self.query_one("#activity", Static).update(Text(text, style="#22D3E6"))
+        self.query_one("#activity", Activity).start(text)
 
     def progress_done(self) -> None:
         self.query_one("#progress", ProgressBar).update(total=100, progress=0)
-        self.query_one("#activity", Static).update("")
+        self.query_one("#progress-line").display = False
+        self.query_one("#activity", Activity).start("Preparing the world")
 
     # -- start-up ----------------------------------------------------------------------
     @work(thread=True, exclusive=True, group="launch")
@@ -168,17 +174,20 @@ class RunningScreen(Page):
         self.phase = "live"
         self.port = self.app.session.port
         self.query_one("#phase", Static).update("SIMULATION")
-        self.query_one("#activity", Static).update("")
+        self.query_one("#activity", Activity).stop()
+        self.query_one("#progress-label", Static).update("Progress")
+        self.query_one("#progress-line").display = True
         self.set_keys(self.LIVE_KEYS)
         self.poll()
 
     def launch_failed(self, exc: BaseException) -> None:
+        self.query_one("#activity", Activity).stop()
+        self.query_one("#progress-line").display = False
         if self.cancel.is_set():
             self.app.pop_screen()
             return
         self.phase = "failed"
         self.header.set_state(State.FAIL, "failed")
-        self.query_one("#activity", Static).update("")
         self.say(Level.ERROR, str(exc))
 
         def decided(choice: str | None) -> None:
@@ -266,6 +275,11 @@ class RunningScreen(Page):
         rows.append(Row("Observer", f"http://127.0.0.1:{self.port}/"))
         handle = self.app.session.handle
         rows.append(Row("Server", f"port {self.port} · {'started by this launcher' if handle and handle.managed else 'already running'}"))
+        if layout_for(*self.app.size) is Layout.SMALL:
+            # Keep progress and live output visible at 50x15. Full telemetry
+            # returns on resize and remains available in the observer.
+            essential = {"Place", "Seed", "Simulation time", "State", "Speed"}
+            rows = [row for row in rows if row.name in essential]
         self.query_one("#facts", StatusTable).set_rows(rows)
         self.query_one("#progress", ProgressBar).update(total=100, progress=round(current.fraction * 100, 1))
         parts = []
@@ -332,7 +346,7 @@ class RunningScreen(Page):
             if choice == "yes":
                 self.stopping = True
                 self.header.set_state(State.RUNNING, "stopping")
-                self.query_one("#activity", Static).update(Text("Stopping simulation...", style="#F5B942"))
+                self.query_one("#activity", Activity).start("Stopping simulation")
                 self.say(Level.INFO, "Stopping simulation...")
                 if self.app.session.handle is None and self.port:
                     self.app.session.handle = server.ServerHandle(self.port, "127.0.0.1", {})
@@ -342,6 +356,7 @@ class RunningScreen(Page):
                                      "the run and shuts the server down.", "Stop"), decided)
 
     def stopped(self) -> None:
+        self.query_one("#activity", Activity).stop()
         handle = self.app.session.handle
         if handle and handle.running():
             self.stopping = False
@@ -373,6 +388,7 @@ class RunningScreen(Page):
             def decided(choice: str | None) -> None:
                 if choice == "yes":
                     self.cancel.set()
+                    self.query_one("#activity", Activity).start("Cancelling start-up")
                     self.say(Level.WARNING, "Cancelling start-up...")
 
             self.app.push_screen(confirm("Cancel start-up?", "The world is still being prepared.", "Cancel start-up",
