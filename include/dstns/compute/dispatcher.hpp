@@ -36,6 +36,9 @@ struct StepRequest {
     std::uint32_t virtual_s{}, dt{1};
     double day_profile{};
     bool traffic{true}, signals{true}, buildings{true}, flooding{true};
+    // Standing water reaches roads through the environment inputs rather than
+    // the node flood model.
+    bool environment{false};
     std::vector<StormSample> storms; // active storms, in schedule order then manual order
     std::vector<SurgeSample> surges; // active surges
 };
@@ -84,6 +87,10 @@ public:
     /// the override did before the compute layer existed.
     void set_manual(std::uint32_t edge, const ManualControl& control);
     [[nodiscard]] ManualControl manual(std::uint32_t edge) const;
+    /// The coupled environment's view of a road: speed and capacity
+    /// multipliers, a closure, and a flood index in [0, 1].
+    struct EnvironmentControl { double speed_multiplier{1}, capacity_multiplier{1}; bool closed{}; double flood{}; };
+    void set_environment(std::uint32_t edge, const EnvironmentControl& control);
     /// Recompose the incident multipliers of the edges that have incidents.
     void update_incidents(const Scenario& scenario, std::uint32_t virtual_s, bool enabled);
 
@@ -146,6 +153,7 @@ private:
     StepParams params_;
     std::vector<std::pair<std::uint32_t, std::uint32_t>> patches_;
     std::vector<std::int32_t> overrides_; // per node, as last set
+    bool coupled_{};                      // the last step took water from the environment
     std::vector<std::uint32_t> override_nodes_; // nodes with a non-zero override
 
     // Recovery from a lost device. While an accelerator runs, the host keeps

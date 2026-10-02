@@ -22,7 +22,7 @@ double ms_since(Clock::time_point start) {
 
 std::uint32_t modules_of(const StepRequest& r) {
     return (r.traffic ? MOD_TRAFFIC : 0u) | (r.signals ? MOD_SIGNALS : 0u) |
-           (r.buildings ? MOD_BUILDINGS : 0u) | (r.flooding ? MOD_FLOODING : 0u);
+           (r.buildings ? MOD_BUILDINGS : 0u) | (r.flooding ? MOD_FLOODING : 0u) | (r.environment ? MOD_ENVIRONMENT : 0u);
 }
 
 double median(std::vector<double> values) {
@@ -335,6 +335,14 @@ ManualControl ComputeDispatcher::manual(std::uint32_t edge) const {
             inputs_.get(tables_.edge_input(IN_MANUAL_CLOSED, edge)) != 0};
 }
 
+void ComputeDispatcher::set_environment(std::uint32_t edge, const EnvironmentControl& c) {
+    if (edge >= tables_.edge_count) return;
+    inputs_.set(tables_.edge_input(IN_ENV_SPEED, edge), to_q30(std::clamp(c.speed_multiplier, 0.0, 1.0)));
+    inputs_.set(tables_.edge_input(IN_ENV_CAPACITY, edge), to_q30(std::clamp(c.capacity_multiplier, 0.0, 1.0)));
+    inputs_.set(tables_.edge_input(IN_ENV_CLOSED, edge), c.closed ? 1u : 0u);
+    inputs_.set(tables_.edge_input(IN_ENV_FLOOD, edge), to_q30(std::clamp(c.flood, 0.0, 1.0)));
+}
+
 void ComputeDispatcher::update_incidents(const Scenario& scenario, std::uint32_t t, bool enabled) {
     for (const auto& [edge, list] : tables_.incident_edges) {
         double speed = 1.0, capacity = 1.0;
@@ -371,6 +379,7 @@ void ComputeDispatcher::patch_state(std::size_t offset, std::uint32_t value) {
 StepOutcome ComputeDispatcher::step(const StepRequest& r) {
     if (!installed_) throw std::logic_error("no world installed in the compute dispatcher");
     params_.begin(tables_, r.virtual_s, r.dt, modules_of(r), to_q30(std::clamp(r.day_profile, 0.0, 1.0)));
+    coupled_ = r.environment;
     for (const auto& s : r.storms)
         params_.add_storm(to_pos(s.x_m), to_pos(s.y_m), to_pos_radius(s.radius_m), to_q30(std::clamp(s.intensity, 0.0, 1.0)));
     for (const auto& s : r.surges) {
@@ -634,9 +643,13 @@ void ComputeDispatcher::materialize(std::vector<NodeDynamic>& nodes, std::vector
         d.signal_multiplier = from_q30(at(EV_SIGNAL));
         // Only traversable directions have environmental multipliers evaluated.
         d.rain_speed_multiplier = allowed ? from_q30(rain_speed_factor(rain)) : 1.0;
-        d.flood_speed_multiplier = allowed ? from_q30(flood_speed_factor(flood)) : 1.0;
+        // With the environment coupled, water acts through env_* below.
+        d.flood_speed_multiplier = allowed && !coupled_ ? from_q30(flood_speed_factor(flood)) : 1.0;
         d.rain_capacity_multiplier = allowed ? from_q30(rain_capacity_factor(rain)) : 1.0;
-        d.flood_capacity_multiplier = allowed ? from_q30(flood_capacity_factor(flood)) : 1.0;
+        d.flood_capacity_multiplier = allowed && !coupled_ ? from_q30(flood_capacity_factor(flood)) : 1.0;
+        d.env_speed_multiplier = from_q30(inputs_.get(t.edge_input(IN_ENV_SPEED, e)));
+        d.env_capacity_multiplier = from_q30(inputs_.get(t.edge_input(IN_ENV_CAPACITY, e)));
+        d.env_closed = inputs_.get(t.edge_input(IN_ENV_CLOSED, e)) != 0;
         d.manual_speed_multiplier = from_q30(inputs_.get(t.edge_input(IN_MANUAL_SPEED, e)));
         d.manual_capacity_multiplier = from_q30(inputs_.get(t.edge_input(IN_MANUAL_CAPACITY, e)));
         d.manual_closed = inputs_.get(t.edge_input(IN_MANUAL_CLOSED, e)) != 0;

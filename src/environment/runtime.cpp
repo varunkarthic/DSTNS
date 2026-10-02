@@ -89,6 +89,18 @@ void EnvironmentRuntime::install(const Scenario& scenario, const SurfaceParamete
         hydrology_solver_ = make_cpu_hydrology_solver();
         hydrology_solver_->install(hydrology_grid_);
     }
+    edge_grade_.clear();
+    grade_factor_.clear();
+    free_speed_.clear();
+    edge_mid_.clear();
+    for (const auto& e : scenario.edges) {
+        edge_grade_.push_back(e.grade);
+        grade_factor_.push_back(grade_speed_factor(e.grade, 0, e.free_speed_mps));
+        free_speed_.push_back(e.free_speed_mps);
+        const auto& a = scenario.nodes[e.from.value].position;
+        const auto& b = scenario.nodes[e.to.value].position;
+        edge_mid_.push_back({(a.x_m + b.x_m) / 2, (a.y_m + b.y_m) / 2});
+    }
     const auto& g = terrain_->grid;
     std::tie(latitude_, longitude_) = terrain_->projection.to_geo(g.origin_x_m + g.width * g.cell_m / 2, g.origin_y_m + g.height * g.cell_m / 2);
     month_ = scenario.month;
@@ -204,7 +216,9 @@ void EnvironmentRuntime::cloud_field(const std::vector<StormCell>& storms) {
 void EnvironmentRuntime::update_dcm(std::uint32_t t, const std::vector<StormCell>& storms, double dt) {
     // Wet surfaces cool by evaporation, so the energy balance reads the
     // current depths: bring a device-resident solver's fields over first.
-    if (state_.water.wet_cells) sync_water();
+    // Any water at all, not just "wet" cells: a sub-millimetre film still
+    // cools the surface, and both backends must see the same film.
+    if (state_.water.stored > 0) sync_water();
     const auto pos = solar_position(latitude_, longitude_, day_of_year_, t);
     const auto sky = clear_sky(pos.zenith_deg, day_of_year_);
     cloud_field(storms);
@@ -347,7 +361,7 @@ void EnvironmentRuntime::update_hydrology(std::uint32_t t, const std::vector<Sto
     // every backend, so a device-resident solver reads its fields once a
     // minute while there is water, and results do not depend on the backend.
     if (t % 60 == 0) {
-        if (w.wet_cells) {
+        if (w.stored > 0) {
             sync_water();
             detect_hotspots(hydrology_grid_, w);
         } else {
@@ -364,6 +378,36 @@ void EnvironmentRuntime::update_hydrology(std::uint32_t t, const std::vector<Sto
     w.peak_depth_m = std::max(w.peak_depth_m, double(w.h_max) / kQ24);
     w.peak_flooded_area_m2 = std::max(w.peak_flooded_area_m2, w.flooded_cells * area);
     depth_stale_ = true;
+}
+
+RoadEnvironment EnvironmentRuntime::road(std::size_t e, bool full) const {
+    RoadEnvironment r;
+    if (e >= grade_factor_.size()) return r;
+    const auto& w = state_.water;
+    r.grade = edge_grade_[e];
+    r.grade_factor = grade_factor_[e];
+    if (e < w.road_max.size()) {
+        r.water_max_m = double(w.road_max[e]) / kQ24;
+        r.water_mean_m = double(w.road_mean[e]) / kQ24;
+    }
+    // The flood index: puddles below 2 cm do not count; a car's wading depth is 1.
+    constexpr double kPuddleM = 0.02;
+    const double wading = vehicle_params(VehicleClass::SmallPassenger).wading_depth_m;
+    r.flood_index = std::clamp((r.water_max_m - kPuddleM) / (wading - kPuddleM), 0.0, 1.0);
+    r.water_factor = water_speed_factor(r.water_max_m);
+    for (std::size_t c = 0; c < kVehicleClasses.size(); ++c) r.passable[c] = r.water_max_m < vehicle_params(kVehicleClasses[c]).wading_depth_m;
+    r.closed = !r.passable[std::size_t(VehicleClass::SmallPassenger)];
+    r.speed_multiplier = r.grade_factor * r.water_factor;
+    // Capacity falls with the speed the water allows; grade's effect on
+    // capacity (heavier vehicles' longer headways uphill) is not modelled.
+    r.capacity_multiplier = r.water_factor;
+    if (full) {
+        const auto [x, y] = edge_mid_[e];
+        r.surface_temperature_c = state_.surface_temperature_c.empty() ? 0.0
+                                  : sample_bilinear(terrain_->grid, state_.surface_temperature_c.data(), x, y);
+        r.energy_kwh_per_km = energy_kwh_per_km(vehicle_params(VehicleClass::SmallPassenger), free_speed_[e] * r.speed_multiplier, r.grade, 0);
+    }
+    return r;
 }
 
 void EnvironmentRuntime::refresh_water_field() const {

@@ -73,6 +73,9 @@ struct EdgeDynamic {
     double rain_capacity_multiplier{1}, flood_capacity_multiplier{1};
     double manual_speed_multiplier{1}, manual_capacity_multiplier{1};
     double incident_speed_multiplier{1}, incident_capacity_multiplier{1};
+    // From the coupled environment: grade, wind and standing water.
+    double env_speed_multiplier{1}, env_capacity_multiplier{1};
+    bool env_closed{};
     std::uint32_t vehicle_count{}, halting_count{}; double vehicle_load{}, mean_speed_mps{}, occupancy{};
     bool manual_closed{}, incident_closed{}, closed{}; std::uint64_t state_revision{};
 };
@@ -141,7 +144,7 @@ struct ScenarioConfig {
     std::uint32_t min_incidents{4};
     bool traffic{true}, signals{true}, buildings{true}, dws{true}, flooding{true}, news{true}, incidents{true};
     // The coupled environment's modules.
-    bool dcm{true}, hydrology{true};
+    bool dcm{true}, hydrology{true}, vehicle_dynamics{true};
     EnvironmentConfig environment;
 };
 

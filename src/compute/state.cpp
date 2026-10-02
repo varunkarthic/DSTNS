@@ -126,6 +126,8 @@ void InputMirror::reset(const StaticTables& t) {
         words_[t.edge_input(IN_MANUAL_CAPACITY, e)] = one;
         words_[t.edge_input(IN_INCIDENT_SPEED, e)] = one;
         words_[t.edge_input(IN_INCIDENT_CAPACITY, e)] = one;
+        words_[t.edge_input(IN_ENV_SPEED, e)] = one;
+        words_[t.edge_input(IN_ENV_CAPACITY, e)] = one;
     }
     dirty_flag_.assign(words_.size(), false);
     dirty_.clear();
@@ -213,6 +215,7 @@ void cpu_edge_pass(const StaticTables& t, const StepParams& p, const std::vector
     const auto *i_mspeed = input(IN_MANUAL_SPEED), *i_mcap = input(IN_MANUAL_CAPACITY), *i_mclosed = input(IN_MANUAL_CLOSED);
     const auto *i_ispeed = input(IN_INCIDENT_SPEED), *i_icap = input(IN_INCIDENT_CAPACITY), *i_iclosed = input(IN_INCIDENT_CLOSED);
     const auto* i_attraction = input(IN_ATTRACTION);
+    const auto *i_espeed = input(IN_ENV_SPEED), *i_ecap = input(IN_ENV_CAPACITY), *i_eclosed = input(IN_ENV_CLOSED), *i_eflood = input(IN_ENV_FLOOD);
 
     for (std::uint32_t e = begin; e < end; ++e) {
         const auto from = s_from[e];
@@ -256,6 +259,10 @@ void cpu_edge_pass(const StaticTables& t, const StepParams& p, const std::vector
         c.incident_speed = i_ispeed[e];
         c.incident_capacity = i_icap[e];
         c.incident_closed = i_iclosed[e] != 0;
+        c.env_speed = i_espeed[e];
+        c.env_capacity = i_ecap[e];
+        c.env_closed = i_eclosed[e] != 0;
+        c.env_flood = i_eflood[e];
         const auto attraction = i64(static_cast<std::int32_t>(i_attraction[e]));
 
         u64 surge = Q16_ONE;

@@ -80,6 +80,10 @@ public:
     /// One environmental field as an overlay-ready raster on the environment
     /// grid, block-averaged so neither side exceeds `max_side` cells.
     [[nodiscard]] nlohmann::json field(const std::string& name, std::uint32_t max_side) const;
+    /// Every directed road's environmental state, paged: grade, water, flood
+    /// index, surface temperature, multipliers, closure and passability by
+    /// vehicle class, energy per kilometre.
+    [[nodiscard]] nlohmann::json road_environment(std::size_t offset, std::size_t limit) const;
 
     /**
      * Places, classified and paginated, with their live demand.

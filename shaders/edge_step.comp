@@ -78,6 +78,10 @@ void main() {
         c.incident_speed = inputs[IN_INCIDENT_SPEED * es + e];
         c.incident_capacity = inputs[IN_INCIDENT_CAPACITY * es + e];
         c.incident_closed = inputs[IN_INCIDENT_CLOSED * es + e] != 0u;
+        c.env_speed = inputs[IN_ENV_SPEED * es + e];
+        c.env_capacity = inputs[IN_ENV_CAPACITY * es + e];
+        c.env_closed = inputs[IN_ENV_CLOSED * es + e] != 0u;
+        c.env_flood = inputs[IN_ENV_FLOOD * es + e];
         i64 attraction = signed_word(inputs[IN_ATTRACTION * es + e]);
 
         u64 surge = Q16_ONE;

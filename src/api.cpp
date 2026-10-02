@@ -236,6 +236,7 @@ ScenarioConfig config_from(const json& j) {
         c.news = m.value("news", c.news);
         c.dcm = m.value("dcm", c.dcm);
         c.hydrology = m.value("hydrology", c.hydrology);
+        c.vehicle_dynamics = m.value("vehicle_dynamics", c.vehicle_dynamics);
     }
     if (j.contains("dws") && j.at("dws").contains("frequency") && j.at("dws").at("frequency").is_number()) {
         c.dws_frequency = j.at("dws").at("frequency");
@@ -545,6 +546,7 @@ void ApiServer::routes() {
                 {{"GET","/api/v1/view/global","Topology and snapshot in one response"}},
                 {{"GET","/api/v1/view/environment","Terrain provenance and the environment's state"}},
                 {{"GET","/api/v1/view/fields/{name}","An environmental field as a raster; ?max_side="}},
+                {{"GET","/api/v1/view/road-environment","Each road's grade, water, closure and passability; paged"}},
                 {{"POST","/api/v1/world/regenerate","Build a new world from a seed"}},
                 {{"GET","/api/v1/world/status","Preparation progress and durable errors"}}}),
             group("seeds","What a seed means, and seeds that mean what you ask",{
@@ -760,6 +762,9 @@ void ApiServer::routes() {
 
     // The coupled environment.
     server_->Get("/api/v1/view/environment", [this](const auto&, auto& r) { send(r, engine_.environment()); });
+    server_->Get("/api/v1/view/road-environment", [this](const httplib::Request& req, auto& r) {
+        send(r, engine_.road_environment(page_parameter(req, "offset", 0, 10'000'000), page_parameter(req, "limit", 500, 5000)));
+    });
     server_->Get(R"(/api/v1/view/fields/([a-z_]+))", [this](const httplib::Request& req, auto& r) {
         const auto side = static_cast<std::uint32_t>(std::min<std::uint64_t>(unsigned_parameter(req, "max_side", 160), 512));
         send(r, engine_.field(req.matches[1], side));

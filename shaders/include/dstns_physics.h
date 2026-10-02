@@ -147,7 +147,15 @@ const u32 IN_INCIDENT_SPEED = u32(3u);    // Q30
 const u32 IN_INCIDENT_CAPACITY = u32(4u); // Q30
 const u32 IN_INCIDENT_CLOSED = u32(5u);   // 0 or 1
 const u32 IN_ATTRACTION = u32(6u);        // Q28 signed
-const u32 EDGE_INPUT_FIELDS = u32(7u);
+// The coupled environment's view of the road: multipliers from grade, wind
+// and standing water (vehicle dynamics), a closure for water too deep to
+// drive through, and a flood index for the road's state. 1, 1, 0, 0 when no
+// environment is coupled, which leaves the step exactly as before.
+const u32 IN_ENV_SPEED = u32(7u);         // Q30
+const u32 IN_ENV_CAPACITY = u32(8u);      // Q30
+const u32 IN_ENV_CLOSED = u32(9u);        // 0 or 1
+const u32 IN_ENV_FLOOD = u32(10u);        // Q30, 0..1
+const u32 EDGE_INPUT_FIELDS = u32(11u);
 // After the edge fields: node overrides (node stride), then signal phases.
 
 // Step parameters: a fixed header, then the active storms and surges.
@@ -171,6 +179,11 @@ const u32 MOD_TRAFFIC = u32(1u);
 const u32 MOD_SIGNALS = u32(2u);
 const u32 MOD_BUILDINGS = u32(4u);
 const u32 MOD_FLOODING = u32(8u);
+// Standing water comes from the surface-water model through IN_ENV_*: the
+// edge's flood is IN_ENV_FLOOD, closure is IN_ENV_CLOSED, and the node flood
+// model's speed and capacity factors are not applied (the environment's
+// multipliers already carry the water's effect).
+const u32 MOD_ENVIRONMENT = u32(16u);
 
 // --- Arithmetic helpers -------------------------------------------------------
 
@@ -295,6 +308,10 @@ struct EdgeControls {
     u32 incident_speed;
     u32 incident_capacity;
     bool incident_closed;
+    u32 env_speed;
+    u32 env_capacity;
+    bool env_closed;
+    u32 env_flood;
 };
 
 struct EdgeValues {
@@ -325,8 +342,9 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
                               u64 flood_from, u64 flood_to, EdgeControls c, i64 attraction,
                               u64 surge, u64 signal, u64 dt, u64 day, u32 modules) {
     EdgeValues o = previous;
+    bool coupled = (modules & MOD_ENVIRONMENT) != u32(0u);
     u64 rain = (rain_from + rain_to) >> u64(1u);
-    u64 flood = (flood_from + flood_to) >> u64(1u);
+    u64 flood = coupled ? u64(c.env_flood) : (flood_from + flood_to) >> u64(1u);
     o.rain = u32(rain);
     o.flood = u32(flood);
     o.incident_speed = c.incident_speed;
@@ -372,11 +390,11 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
     }
 
     u64 rain_speed = rain_speed_factor(rain);
-    u64 flood_speed = flood_speed_factor(flood);
+    u64 flood_speed = coupled ? Q30_ONE : flood_speed_factor(flood);
     u64 rain_capacity = rain_capacity_factor(rain);
-    u64 flood_capacity = flood_capacity_factor(flood);
+    u64 flood_capacity = coupled ? Q30_ONE : flood_capacity_factor(flood);
 
-    bool closed = c.manual_closed || c.incident_closed || flood >= FLOOD_CLOSED_Q30;
+    bool closed = c.manual_closed || c.incident_closed || (coupled ? c.env_closed : flood >= FLOOD_CLOSED_Q30);
 
     // Speed relaxes towards its target at bounded acceleration and braking.
     u64 target_speed = u64(0u);
@@ -386,6 +404,7 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
         target_speed = (target_speed * flood_speed) >> u64(30u);
         target_speed = (target_speed * u64(c.manual_speed)) >> u64(30u);
         target_speed = (target_speed * u64(c.incident_speed)) >> u64(30u);
+        target_speed = (target_speed * u64(c.env_speed)) >> u64(30u);
     }
     u64 speed = u64(previous.speed);
     u64 acceleration = K_ACCELERATION_Q16 * dt;
@@ -402,6 +421,7 @@ DSTNS_FN EdgeValues edge_step(EdgeConstants s, EdgeValues previous, u64 rain_fro
     capacity = (capacity * flood_capacity) >> u64(30u);
     capacity = (capacity * u64(c.manual_capacity)) >> u64(30u);
     capacity = (capacity * u64(c.incident_capacity)) >> u64(30u);
+    capacity = (capacity * u64(c.env_capacity)) >> u64(30u);
 
     // Queue: the load relaxes towards a target set by demand and signal delay,
     // filling at the inflow rate and draining at the lanes' discharge rate.

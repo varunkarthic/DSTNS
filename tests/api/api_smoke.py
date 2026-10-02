@@ -252,6 +252,16 @@ def main():
             assert status["data"]["modules"]["dcm"] is False
             call(base, "/api/v1/control/modules/dcm", "PUT", {"enabled": True})
             assertions += 6
+            # Each road's environmental state, paged, and its trace in the snapshot.
+            code, roads = call(base, "/api/v1/view/road-environment?limit=5")
+            assert code == 200 and roads["data"]["total"] == len(started_map["data"]["edges"]) and len(roads["data"]["items"]) == 5
+            road = roads["data"]["items"][0]
+            assert {"grade", "water_max_m", "flood_index", "speed_multiplier", "closed_to_traffic", "passable", "energy_kwh_per_km"} <= set(road)
+            assert set(road["passable"]) == {"small passenger", "large passenger", "bus", "emergency"}
+            assert {v["name"] for v in roads["data"]["vehicle_classes"]} == set(road["passable"])
+            code, snap = call(base, "/api/v1/view/snapshot")
+            assert all("water_depth_m" in e and "env_speed_multiplier" in e for e in snap["data"]["edges"])
+            assertions += 5
 
             # 5. Double start conflict
             code, err = call(base, "/api/v1/playback/start", "POST", req_start)

@@ -73,6 +73,15 @@ nlohmann::json terrain_json(const env::Terrain& t) {
     };
 }
 
+nlohmann::json road_environment_json(const env::RoadEnvironment& r) {
+    nlohmann::json passable = nlohmann::json::object();
+    for (std::size_t c = 0; c < env::kVehicleClasses.size(); ++c) passable[env::to_string(env::kVehicleClasses[c])] = r.passable[c];
+    return {{"grade", r.grade}, {"water_max_m", r.water_max_m}, {"water_mean_m", r.water_mean_m}, {"flood_index", r.flood_index},
+            {"surface_temperature_c", r.surface_temperature_c}, {"grade_speed_factor", r.grade_factor}, {"water_speed_factor", r.water_factor},
+            {"speed_multiplier", r.speed_multiplier}, {"capacity_multiplier", r.capacity_multiplier}, {"closed_to_traffic", r.closed},
+            {"passable", passable}, {"energy_kwh_per_km", r.energy_kwh_per_km}};
+}
+
 nlohmann::json point_json(const Point& p) {
     return {{"lat", p.lat}, {"lon", p.lon}, {"x_m", p.x_m}, {"y_m", p.y_m}};
 }
@@ -985,6 +994,7 @@ nlohmann::json SimulationEngine::set_module(const std::string& m, bool enabled) 
     else if (m == "news") field = &cfg.news;
     else if (m == "dcm") field = &cfg.dcm;
     else if (m == "hydrology") field = &cfg.hydrology;
+    else if (m == "vehicle_dynamics") field = &cfg.vehicle_dynamics;
     else throw std::invalid_argument("unknown module: " + m);
     const auto old = *field;
     *field = enabled;
@@ -1067,6 +1077,7 @@ void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
         else if (m == "news") cfg.news = enabled;
         else if (m == "dcm") cfg.dcm = enabled;
         else if (m == "hydrology") cfg.hydrology = enabled;
+        else if (m == "vehicle_dynamics") cfg.vehicle_dynamics = enabled;
     } else if (c.type == "edge_override") {
         compute_->set_manual(v.at("edge").get<std::uint32_t>(),
                              {v.at("speed_multiplier").get<double>(), v.at("capacity_multiplier").get<double>(), v.at("closed").get<bool>()});
@@ -1131,7 +1142,10 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
     request.traffic = sc.config.traffic;
     request.signals = sc.config.signals;
     request.buildings = sc.config.buildings;
-    request.flooding = sc.config.flooding;
+    // Standing water reaches the roads from the surface-water model when it
+    // runs, and from the node flood model otherwise.
+    request.flooding = sc.config.flooding && !sc.config.hydrology;
+    request.environment = sc.config.flooding && sc.config.hydrology;
     if (sc.config.dws) {
         auto consider = [&](const DwsEvent& e) {
             if (e.epicenter.value >= sc.nodes.size()) return;
@@ -1166,6 +1180,18 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         in.hydrology = sc.config.hydrology;
         for (const auto& storm : request.storms) in.storms.push_back({storm.x_m, storm.y_m, storm.radius_m, storm.intensity});
         environment_.step(in);
+        // What the environment does to each road reaches the step as inputs.
+        const bool water = sc.config.flooding && sc.config.hydrology;
+        const bool dynamics = sc.config.vehicle_dynamics;
+        for (std::size_t e = 0; e < environment_.roads(); ++e) {
+            const auto road = environment_.road(e);
+            compute::ComputeDispatcher::EnvironmentControl control;
+            control.speed_multiplier = (dynamics ? road.grade_factor : 1.0) * (water ? road.water_factor : 1.0);
+            control.capacity_multiplier = water ? road.capacity_multiplier : 1.0;
+            control.closed = water && road.closed;
+            control.flood = water ? road.flood_index : 0.0;
+            compute_->set_environment(static_cast<std::uint32_t>(e), control);
+        }
     }
 
     const auto outcome = compute_->step(request);
@@ -1514,6 +1540,8 @@ nlohmann::json SimulationEngine::snapshot() const {
             {"incident_speed_multiplier",s.incident_speed_multiplier},{"signal_multiplier",s.signal_multiplier},
             {"demand_vph",s.demand_vph},{"effective_capacity_vph",s.effective_capacity_vph},
             {"mean_speed_mps",s.mean_speed_mps},
+            {"water_depth_m",i < environment_.roads() ? environment_.road(i).water_max_m : 0.0},
+            {"env_speed_multiplier",s.env_speed_multiplier},{"env_closed",s.env_closed},
             {"demand_causes",graph_->scenario().config.buildings?events_.demand_causes(graph_->scenario(),EdgeId{static_cast<std::uint32_t>(i)}):std::vector<std::string>{}}
         });
     }
@@ -1696,6 +1724,7 @@ nlohmann::json SimulationEngine::edges(std::size_t off, std::size_t lim) const {
                     {"congestion", s.congestion}
                 }},
                 {"weather", {{"rainfall", s.rainfall}, {"flood", s.flood}}},
+                {"environment", i < environment_.roads() ? road_environment_json(environment_.road(i, true)) : nlohmann::json(nullptr)},
                 {"control", {
                     {"closed", s.closed},
                     {"manual_speed_multiplier", s.manual_speed_multiplier},
@@ -1974,6 +2003,28 @@ nlohmann::json SimulationEngine::field(const std::string& name, std::uint32_t ma
     if (name == "surface_temperature") return raster(grid, values->data(), "°C", 0.1);
     if (name == "water_depth") return raster(grid, values->data(), "m", 0.001);
     return raster(grid, values->data(), "fraction", 0.01);
+}
+
+nlohmann::json SimulationEngine::road_environment(std::size_t offset, std::size_t limit) const {
+    std::lock_guard lock(mutex_);
+    auto items = nlohmann::json::array();
+    const auto total = graph_ ? environment_.roads() : 0;
+    for (std::size_t e = offset; e < total && e < offset + limit; ++e) {
+        auto item = road_environment_json(environment_.road(e, true));
+        item["edge_id"] = e;
+        items.push_back(std::move(item));
+    }
+    return envelope({{"offset", offset}, {"limit", limit}, {"total", total}, {"items", std::move(items)},
+                     {"vehicle_classes", [] {
+                          auto list = nlohmann::json::array();
+                          for (const auto c : env::kVehicleClasses) {
+                              const auto& p = env::vehicle_params(c);
+                              list.push_back({{"name", p.name}, {"mass_kg", p.mass_kg}, {"drag_area_m2", p.drag_area_m2},
+                                              {"rolling_coefficient", p.rolling_coefficient}, {"cruise_power_w", p.cruise_power_w},
+                                              {"wading_depth_m", p.wading_depth_m}, {"traffic_share", p.traffic_share}});
+                          }
+                          return list;
+                      }()}});
 }
 
 nlohmann::json SimulationEngine::news(std::uint64_t since, std::size_t limit) const {

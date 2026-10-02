@@ -27,6 +27,7 @@
 #include "dstns/compute/options.hpp"
 #include "dstns/environment/hydrology.hpp"
 #include "dstns/environment/solar.hpp"
+#include "dstns/environment/vehicles.hpp"
 #include "dstns/environment/terrain.hpp"
 #include "dstns/model.hpp"
 
@@ -89,6 +90,20 @@ struct SolarState {
     double air_temperature_c{};         // background, at the grid centre
 };
 
+/// One directed road as the environment leaves it: the bridge between the
+/// environmental models and traffic.
+struct RoadEnvironment {
+    double grade{};                  // rise over run, this direction
+    double water_max_m{}, water_mean_m{};
+    double flood_index{};            // 0 below 2 cm of water, 1 at a car's wading depth
+    double surface_temperature_c{};
+    double speed_multiplier{1}, capacity_multiplier{1};
+    double grade_factor{1}, water_factor{1};
+    bool closed{};                   // to the traffic stream (small passenger cars)
+    std::array<bool, 4> passable{true, true, true, true}; // by VehicleClass
+    double energy_kwh_per_km{};      // small passenger car at the road's speed
+};
+
 /// Everything that changes. Copyable: a checkpoint holds one of these.
 struct EnvironmentState {
     std::uint32_t time_s{};             // the virtual second this state describes
@@ -136,6 +151,10 @@ public:
     /// The surface water model's static grid and parameters.
     [[nodiscard]] const HydrologyGrid& hydrology_grid() const { return hydrology_grid_; }
     [[nodiscard]] const HydrologyParams& hydrology_params() const { return hydrology_; }
+    /// What the environment does to directed edge `e` now. `full` adds the
+    /// figures only views need (surface temperature, energy).
+    [[nodiscard]] RoadEnvironment road(std::size_t e, bool full = false) const;
+    [[nodiscard]] std::size_t roads() const { return grade_factor_.size(); }
     /// Rainfall rate at a point now, mm/h.
     [[nodiscard]] double rain_rate_mm_h(double x_m, double y_m, const std::vector<StormCell>& storms) const;
 
@@ -157,6 +176,10 @@ private:
     // The representative day's sun path, every 15 minutes: (clock s, elevation, azimuth).
     std::vector<std::array<double, 3>> sun_path_;
     HydrologyParams hydrology_;
+    // Per directed edge, fixed for the world: grade, the aggregate stream's
+    // speed factor on it, its free speed and midpoint.
+    std::vector<double> edge_grade_, grade_factor_, free_speed_;
+    std::vector<std::pair<double, double>> edge_mid_;
     HydrologyGrid hydrology_grid_;
     std::unique_ptr<HydrologySolver> hydrology_solver_;
     // h in metres for fields, rebuilt on demand. With a device-resident
