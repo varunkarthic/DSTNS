@@ -14,6 +14,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 import os
+# Terrain comes from a synthetic surface or the cache in tests, never the network.
+os.environ.setdefault("DSTNS_DEM_SOURCE", "flat")
 
 def free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -113,7 +115,11 @@ def main():
 
             code, err = call(base, "/api/v1/playback/start", "POST", {"tick_rate": -1})
             assert code == 400 and err["error"]["code"] == "INVALID_REQUEST"
-            assertions += 1
+            code, err = call(base, "/api/v1/playback/start", "POST", {"environment": {"dem": "lunar"}})
+            assert code == 400 and "environment.dem" in err["error"]["message"], err
+            code, err = call(base, "/api/v1/playback/start", "POST", {"environment": {"grid_cell_m": 0.1}})
+            assert code == 400, err
+            assertions += 3
 
             code, err = call(base, "/api/v1/control/transit/route", "POST", {"bus_id": "MISSING-NODES"})
             assert code == 410 and err["error"]["code"] == "TRANSIT_API_RETIRED"
@@ -216,6 +222,23 @@ def main():
             assert calendar["month_source"] == "seed" and 1 <= calendar["month"] <= 12
             assert calendar["month"] == calendar["seed_derived"]["month"]
             assertions += 3
+            # Terrain: provenance always, and an overlay-ready elevation raster.
+            code, environment = call(base, "/api/v1/view/environment")
+            terrain = environment["data"]["terrain"]
+            assert code == 200 and terrain["source"] == "flat" and terrain["degraded"] is False, terrain
+            assert terrain["grid"]["width"] >= 4 and terrain["hash"].startswith("sha256:")
+            assert any(f["name"] == "elevation" for f in environment["data"]["fields"])
+            code, elevation = call(base, "/api/v1/view/fields/elevation?max_side=16")
+            field = elevation["data"]
+            assert code == 200 and field["units"] == "m" and field["width"] <= 16 and field["height"] <= 16
+            assert len(field["values"]) == field["width"] * field["height"] and field["min"] == field["max"] == 0
+            code, unknown = call(base, "/api/v1/view/fields/lava")
+            assert code == 400, unknown
+            code, topo = call(base, "/api/v1/view/topology")
+            assert all("grade" in e for e in topo["data"]["edges"]) and all("elevation_m" in n for n in topo["data"]["nodes"])
+            code, manifest = call(base, "/api/v1/view/manifest")
+            assert manifest["data"]["terrain"]["hash"] == terrain["hash"]
+            assertions += 8
 
             # 5. Double start conflict
             code, err = call(base, "/api/v1/playback/start", "POST", req_start)

@@ -3,6 +3,7 @@
 
 #include "dstns/scenario.hpp"
 #include "dstns/calendar.hpp"
+#include "dstns/environment/terrain.hpp"
 #include "dstns/geo.hpp"
 #include "dstns/osm_fetch.hpp"
 #include "dstns/graph.hpp"
@@ -122,6 +123,13 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
     if(effective_config.traffic){plan_hotspots(s,traffic_rng);plan_trips(s,traffic_rng);}
     if(effective_config.dws)plan_weather(s,dws_rng);
     if(effective_config.incidents)plan_incidents(s,incident_rng);
+    // Terrain last among the inputs: it reads the finished road network and
+    // places to size its grid, and changes nothing the planners above used.
+    {
+        auto terrain=std::make_shared<env::Terrain>(env::build_terrain(s,s.config.environment));
+        env::apply_terrain(s,*terrain);
+        s.terrain=std::move(terrain);
+    }
     calculate_hashes(s);
     return s;
 }
@@ -378,7 +386,8 @@ void ScenarioCompiler::calculate_hashes(Scenario&s)const{
     for(const auto&t:s.trips)ev<<t.id<<','<<t.depart_virtual_s<<','<<t.from.value<<','<<t.to.value<<';';
     for(const auto&inc:s.incidents)ev<<inc.id<<','<<static_cast<int>(inc.type)<<','<<inc.edge.value<<','<<inc.start_virtual_s<<','<<inc.end_virtual_s<<';';
     s.event_hash="sha256:"+sha256(ev.str());
-    s.scenario_hash="sha256:"+sha256(s.seed.hex()+s.map_hash+s.graph_hash+s.event_hash+std::to_string(s.config.day)+"/month"+std::to_string(s.month));
+    s.scenario_hash="sha256:"+sha256(s.seed.hex()+s.map_hash+s.graph_hash+s.event_hash+std::to_string(s.config.day)+"/month"+std::to_string(s.month)
+                                     +(s.terrain?"/terrain"+s.terrain->hash:std::string{}));
 }
 
 void ScenarioCompiler::export_sumo(const Scenario&s,const std::filesystem::path&dir)const{

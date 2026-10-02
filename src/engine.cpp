@@ -4,6 +4,7 @@
 #include "dstns/engine.hpp"
 
 #include "dstns/calendar.hpp"
+#include "dstns/environment/terrain.hpp"
 
 #include "dstns/utf8.hpp"
 #include "dstns/sumo_bridge.hpp"
@@ -13,6 +14,7 @@
 #include <cmath>
 #include <iomanip>
 #include <iterator>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -52,6 +54,21 @@ nlohmann::json calendar_json(const Scenario& s) {
         {"seed_derived", {{"city", derived.city}, {"country", derived.country}, {"month", derived.month},
                           {"month_name", month_name(derived.month)}, {"day_type", day_type_name(derived.day)}}},
         {"representation", "month and day type only; there is no day of the month"}
+    };
+}
+
+nlohmann::json terrain_json(const env::Terrain& t) {
+    const auto& p = t.provenance;
+    return {
+        {"source", p.source}, {"provider", p.provider}, {"dataset", p.dataset}, {"licence", p.licence},
+        {"attribution", p.attribution}, {"note", p.note}, {"cache_id", p.cache_id}, {"fetched_at", p.fetched_at},
+        {"zoom", p.zoom}, {"native_resolution_m", p.native_resolution_m},
+        {"bounding_box", {{"south", p.south}, {"west", p.west}, {"north", p.north}, {"east", p.east}}},
+        {"observed", p.observed}, {"degraded", p.degraded},
+        {"data_class", p.observed ? "imported" : p.source == "synthetic" ? "synthetic" : p.degraded ? "fallback" : "assumed"},
+        {"grid", {{"width", t.grid.width}, {"height", t.grid.height}, {"cell_m", t.grid.cell_m},
+                  {"origin_x_m", t.grid.origin_x_m}, {"origin_y_m", t.grid.origin_y_m}}},
+        {"elevation_min_m", t.min_m}, {"elevation_max_m", t.max_m}, {"hash", t.hash}
     };
 }
 
@@ -389,6 +406,24 @@ void SimulationEngine::install_scenario(Scenario scenario, double tick_rate, std
                  "[" + hhmmss(virtual_s_) + "] Traffic light timing controllers online across " +
                  std::to_string(graph_->scenario().signals.size()) + " intersections.",
                  {{"signal_count", graph_->scenario().signals.size()}});
+    }
+    if (const auto& t = graph_->scenario().terrain) {
+        const auto& p = t->provenance;
+        std::ostringstream range;
+        range << std::fixed << std::setprecision(1) << t->min_m << " to " << t->max_m << " m";
+        if (p.degraded) {
+            logger_.system("WARN", "terrain", "terrain.fallback flat terrain in use: " + p.note);
+            add_news(5, "system", "warning", "TERRAIN_DEGRADED",
+                     "[" + hhmmss(virtual_s_) + "] Terrain unavailable; the run uses flat terrain and is marked degraded.",
+                     {{"reason", p.note}});
+        } else {
+            logger_.system("INFO", "terrain", "terrain.loaded source=" + p.source + (p.note.empty() ? "" : " (" + p.note + ")") +
+                           " grid=" + std::to_string(t->grid.width) + "x" + std::to_string(t->grid.height) + " elevation " + range.str());
+            if (p.source != "flat")
+                add_news(5, "system", "info", "TERRAIN_LOADED",
+                         "[" + hhmmss(virtual_s_) + "] Terrain loaded (" + p.source + "): elevation " + range.str() + ".",
+                         {{"source", p.source}, {"min_m", t->min_m}, {"max_m", t->max_m}});
+        }
     }
     add_news(4, "traffic", "info", "PHYSICS_ENGINE_ACTIVE",
              "[" + hhmmss(virtual_s_) + "] Aggregate traffic model active with deterministic queue dynamics.");
@@ -1371,7 +1406,8 @@ nlohmann::json SimulationEngine::topology() const {
             {"signal_green_s", n.signal ? n.signal_green_s : 0},
             {"building", n.building ? nlohmann::json(to_string(*n.building)) : nlohmann::json(nullptr)},
             {"building_impact", n.building_impact},
-            {"building_radius_m", n.building_radius_m}
+            {"building_radius_m", n.building_radius_m},
+            {"elevation_m", n.elevation_m}
         });
     }
     for (const auto& e : graph_->edges()) {
@@ -1389,6 +1425,7 @@ nlohmann::json SimulationEngine::topology() const {
             {"length_m", e.length_m},
             {"free_speed_mps", e.free_speed_mps},
             {"lanes", e.lanes},
+            {"grade", e.grade},
             {"geometry", std::move(geom)}
         });
     }
@@ -1657,6 +1694,7 @@ nlohmann::json SimulationEngine::manifest() const {
         {"scenario_hash", s.scenario_hash},
         {"map_source", s.config.osm_file.empty() ? "offline-deterministic-road-fixture" : "osm-xml"},
         {"calendar", calendar_json(s)},
+        {"terrain", s.terrain ? terrain_json(*s.terrain) : nlohmann::json(nullptr)},
         {"road_filter_version", "road-only/v1"}
     });
 }
@@ -1854,6 +1892,48 @@ nlohmann::json SimulationEngine::catalog(const std::string& kind) const {
         throw std::invalid_argument("unknown view catalog: " + kind);
     }
     return envelope({{"items", std::move(items)}});
+}
+
+nlohmann::json SimulationEngine::environment() const {
+    std::lock_guard lock(mutex_);
+    if (!graph_) return envelope(nlohmann::json::object());
+    const auto& sc = graph_->scenario();
+    nlohmann::json fields = nlohmann::json::array();
+    if (sc.terrain) fields.push_back({{"name", "elevation"}, {"units", "m"}, {"kind", "static"}});
+    double max_grade = 0;
+    for (const auto& e : sc.edges)
+        if (is_source_direction_allowed(e)) max_grade = std::max(max_grade, std::abs(e.grade));
+    return envelope({
+        {"schema_version", 1},
+        {"calendar", calendar_json(sc)},
+        {"terrain", sc.terrain ? terrain_json(*sc.terrain) : nlohmann::json(nullptr)},
+        {"roads", {{"max_abs_grade", max_grade}}},
+        {"fields", std::move(fields)}
+    });
+}
+
+nlohmann::json SimulationEngine::field(const std::string& name, std::uint32_t max_side) const {
+    std::lock_guard lock(mutex_);
+    if (!graph_) throw std::logic_error("no active simulation");
+    const auto& sc = graph_->scenario();
+    const auto raster = [&](const env::GridSpec& grid, const auto* values, const char* units, double precision) {
+        const auto [g, reduced] = env::downsample_mean(grid, values, std::clamp<std::uint32_t>(max_side, 8, 512));
+        auto out = nlohmann::json::array();
+        double lo = std::numeric_limits<double>::max(), hi = -lo;
+        for (const auto v : reduced) {
+            out.push_back(std::round(v / precision) * precision);
+            lo = std::min(lo, double(v));
+            hi = std::max(hi, double(v));
+        }
+        return envelope({{"name", name}, {"units", units}, {"width", g.width}, {"height", g.height},
+                         {"origin_x_m", g.origin_x_m}, {"origin_y_m", g.origin_y_m}, {"cell_m", g.cell_m},
+                         {"solver_cell_m", grid.cell_m}, {"min", lo}, {"max", hi},
+                         {"layout", "row-major, south row first; cell (0,0) is the south-west corner"},
+                         {"values", std::move(out)}});
+    };
+    if (name == "elevation" && sc.terrain) return raster(sc.terrain->grid, sc.terrain->elevation_m.data(), "m", 0.1);
+    if (name == "slope" && sc.terrain) return raster(sc.terrain->grid, sc.terrain->slope.data(), "m/m", 0.001);
+    throw std::invalid_argument("unknown field: " + name);
 }
 
 nlohmann::json SimulationEngine::news(std::uint64_t since, std::size_t limit) const {

@@ -3,6 +3,8 @@
 
 """Exercise both public launchers, stale output rebuilding, old-server avoidance and OSM startup."""
 import http.server,json,os,pathlib,socket,subprocess,tempfile,threading,time,unittest,urllib.request
+# Terrain comes from a synthetic surface or the cache in tests, never the network.
+os.environ.setdefault("DSTNS_DEM_SOURCE", "flat")
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 def read(port,route='/health'):
  with urllib.request.urlopen(f'http://127.0.0.1:{port}{route}',timeout=3) as response:return json.load(response)

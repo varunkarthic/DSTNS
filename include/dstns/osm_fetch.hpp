@@ -48,6 +48,14 @@ struct MapFetchStatus {
 // Cancel only the downloader process group owned by this server session.
 void cancel_map_download();
 
+// The helper-script machinery the map download uses, for other downloaders
+// (terrain tiles): a script found beside the binary, the configured Python,
+// and a child run in its own process group that cancel_map_download() stops.
+[[nodiscard]] std::filesystem::path find_helper_script(const std::string& name);
+[[nodiscard]] std::string python_command();
+[[nodiscard]] std::string quote_argument(const std::string& value);
+int run_download_command(const std::string& command, std::string& output);
+
 // How the map cache is trimmed when the server boots.
 enum class CachePolicy {
     Keep,   // never delete; the operator manages the directory

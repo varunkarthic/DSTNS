@@ -17,6 +17,8 @@ import tempfile
 import time
 import urllib.request
 import urllib.error
+# Terrain comes from a synthetic surface or the cache in tests, never the network.
+os.environ.setdefault("DSTNS_DEM_SOURCE", "flat")
 
 ROOT = Path(__file__).resolve().parents[2]
 

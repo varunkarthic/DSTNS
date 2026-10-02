@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -42,6 +43,7 @@ struct NodeStatic {
     NodeId id; std::int64_t osm_node_id{}; Point position; std::uint16_t degree{};
     bool bus_stop{}, signal{}; std::optional<BuildingType> building;
     double building_impact{}, building_radius_m{}, flood_susceptibility{}, drainage{};
+    double elevation_m{};   // from the terrain; 0 on flat terrain
     std::uint16_t signal_cycle_s{60}, signal_offset_s{0}, signal_green_s{27};
     std::vector<TimeWindow> tmax;
 };
@@ -52,6 +54,9 @@ struct EdgeStatic {
     std::uint32_t segment_index{}; RoadClass road_class{RoadClass::Residential};
     bool source_oneway{}, synthetic_reverse{}; std::uint16_t lanes{1};
     double length_m{}, free_speed_mps{}, base_capacity_vph{}, hotspot_susceptibility{}, flood_susceptibility{};
+    // Rise over run in this edge's direction of travel; its reverse twin has
+    // the negation. 0 on flat terrain.
+    double grade{};
     std::vector<Point> geometry;
     std::string name;
     std::map<std::string, std::string> tags;
@@ -101,6 +106,22 @@ struct MapFeature {
     NodeId anchor;
 };
 
+// The coupled environment: terrain and the models that live on it.
+struct EnvironmentConfig {
+    // auto: terrain tiles for an OpenStreetMap district, flat for a synthetic
+    // grid (DSTNS_DEM_SOURCE overrides what auto means); or terrarium, flat,
+    // synthetic:<shape>[:<parameter>].
+    std::string dem_source{"auto"};
+    std::string dem_cache_dir{"data/dem"};
+    bool dem_required{false};        // fail the run rather than fall back to flat
+    double grid_cell_m{25};          // environment grid resolution
+    double grid_margin_m{150};       // beyond the outermost road or place
+    std::uint32_t max_grid_cells{262144};
+    double sea_mask_m{-10};          // elevations below are open water
+    std::uint32_t dem_smoothing_passes{1}; // binomial passes over observed DEMs
+    double grade_baseline_m{100};    // shortest run a road grade is measured over
+};
+
 struct ScenarioConfig {
     // day: 0 weekday, 1 weekend, -1 derived from the seed. month: 1..12, or 0
     // derived from the seed. A derived value is part of what the seed means; a
@@ -119,7 +140,10 @@ struct ScenarioConfig {
     double stop_min_spacing_m{300}, stop_target_spacing_m{500}, stop_max_coverage_m{800};
     std::uint32_t min_incidents{4};
     bool traffic{true}, signals{true}, buildings{true}, dws{true}, flooding{true}, news{true}, incidents{true};
+    EnvironmentConfig environment;
 };
+
+namespace env { struct Terrain; }
 
 struct Scenario {
     Seed128 seed; ScenarioConfig config; NodeId root;
@@ -144,6 +168,8 @@ struct Scenario {
     std::vector<DwsEvent> dws_events; std::vector<PlannedTrip> trips;
     std::vector<Incident> incidents;
     std::vector<EdgeId> hotspot_edges;
+    // Immutable once compiled, so copies of a scenario share it.
+    std::shared_ptr<const env::Terrain> terrain;
     std::string map_hash, graph_hash, event_hash, scenario_hash;
 };
 

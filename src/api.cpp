@@ -250,6 +250,25 @@ ScenarioConfig config_from(const json& j) {
         if (c.map_district_nodes < 200 || c.map_district_nodes > 50000)
             throw std::invalid_argument("map.district_nodes must be in [200, 50000]");
     }
+    if (j.contains("environment") && j.at("environment").is_object()) {
+        const auto& e = j.at("environment");
+        auto& env = c.environment;
+        env.dem_source = e.value("dem", e.value("dem_source", env.dem_source));
+        env.dem_required = e.value("dem_required", env.dem_required);
+        env.grid_cell_m = e.value("grid_cell_m", env.grid_cell_m);
+        env.grid_margin_m = e.value("grid_margin_m", env.grid_margin_m);
+        env.max_grid_cells = e.value("max_grid_cells", env.max_grid_cells);
+        env.dem_smoothing_passes = e.value("dem_smoothing_passes", env.dem_smoothing_passes);
+        env.grade_baseline_m = e.value("grade_baseline_m", env.grade_baseline_m);
+        if (!(env.grid_cell_m >= 2 && env.grid_cell_m <= 1000)) throw std::invalid_argument("environment.grid_cell_m must be in [2, 1000]");
+        if (env.max_grid_cells < 16 || env.max_grid_cells > 4'194'304) throw std::invalid_argument("environment.max_grid_cells must be in [16, 4194304]");
+        if (env.dem_smoothing_passes > 8) throw std::invalid_argument("environment.dem_smoothing_passes must be at most 8");
+        if (!(env.grade_baseline_m >= 0 && env.grade_baseline_m <= 2000)) throw std::invalid_argument("environment.grade_baseline_m must be in [0, 2000]");
+        const auto& d = env.dem_source;
+        if (d != "auto" && d != "terrarium" && d != "flat" && d.rfind("synthetic:", 0) != 0)
+            throw std::invalid_argument("environment.dem must be auto, terrarium, flat or synthetic:<shape>");
+        // The cache location is the server's to choose, not a client's.
+    }
     if (j.contains("fixture")) {
         auto& f = j.at("fixture");
         c.grid_width = f.value("grid_width", c.grid_width);
@@ -522,6 +541,8 @@ void ApiServer::routes() {
                 {{"GET","/api/v1/view/stops","Bus stops, thinned to realistic spacing"}},
                 {{"GET","/api/v1/view/snapshot","Per-tick dynamic state for every node and edge"}},
                 {{"GET","/api/v1/view/global","Topology and snapshot in one response"}},
+                {{"GET","/api/v1/view/environment","Terrain provenance and the environment's state"}},
+                {{"GET","/api/v1/view/fields/{name}","An environmental field as a raster; ?max_side="}},
                 {{"POST","/api/v1/world/regenerate","Build a new world from a seed"}},
                 {{"GET","/api/v1/world/status","Preparation progress and durable errors"}}}),
             group("seeds","What a seed means, and seeds that mean what you ask",{
@@ -733,6 +754,13 @@ void ApiServer::routes() {
         auto status = engine_.world_status();
         status["data"]["enabled"] = !regeneration_disabled;
         send(r, status);
+    });
+
+    // The coupled environment.
+    server_->Get("/api/v1/view/environment", [this](const auto&, auto& r) { send(r, engine_.environment()); });
+    server_->Get(R"(/api/v1/view/fields/([a-z_]+))", [this](const httplib::Request& req, auto& r) {
+        const auto side = static_cast<std::uint32_t>(std::min<std::uint64_t>(unsigned_parameter(req, "max_side", 160), 512));
+        send(r, engine_.field(req.matches[1], side));
     });
 
     // Seeds. Pure functions of the seed and the catalogue: what a seed means,

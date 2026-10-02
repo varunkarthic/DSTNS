@@ -41,6 +41,7 @@ int main(int argc, char** argv) {
             }
             else if (a == "--logs" && i + 1 < argc) logs = argv[++i];
             else if (a == "--maps" && i + 1 < argc) maps = argv[++i];
+            else if (a == "--dem-cache" && i + 1 < argc) setenv("DSTNS_DEM_CACHE", argv[++i], 1);
             else if (a == "--map-cache" && i + 1 < argc) cache_policy = argv[++i];
             else if (a == "--map-cache-keep" && i + 1 < argc) cache_keep = std::stoul(argv[++i]);
             else if (a == "--compute" && i + 1 < argc) compute.backend = dstns::compute::parse_preference(argv[++i]);
@@ -65,7 +66,7 @@ int main(int argc, char** argv) {
                 return 0;
             }
             else if (a == "--help") {
-                std::cout << "dstns_server [--host ADDR (default 127.0.0.1)] [--port PORT] [--logs DIR] [--maps DIR]\n"
+                std::cout << "dstns_server [--host ADDR (default 127.0.0.1)] [--port PORT] [--logs DIR] [--maps DIR] [--dem-cache DIR]\n"
                              "             [--map-cache keep|prune|clear] [--map-cache-keep N]\n"
                              "             [--compute auto|cpu|vulkan] [--gpu-device auto|INDEX|UUID|NAME]\n"
                              "             [--allow-software-vulkan] [--require-vulkan] [--compute-verify]\n"

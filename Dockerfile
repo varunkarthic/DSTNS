@@ -70,17 +70,18 @@ COPY --from=engine /src/build/dstns_server /src/build/dstns_scenario_export /app
 COPY --from=ui /ui/dist /app/ui-engine/dist
 COPY config /app/config
 COPY scripts/fetch_osm.py /app/scripts/fetch_osm.py
+COPY scripts/fetch_dem.py /app/scripts/fetch_dem.py
 # A recorded real district, so a container can run with no network at all:
 # DSTNS_OSM_FILE=/app/data/fixtures/real_network.osm.xml
 COPY data/fixtures/real_network.osm.xml /app/data/fixtures/real_network.osm.xml
 COPY docker/entrypoint.sh /usr/local/bin/dstns-entrypoint
 COPY docker/dstns-run /usr/local/bin/dstns-run
 RUN chmod 0755 /usr/local/bin/dstns-entrypoint /usr/local/bin/dstns-run \
- && mkdir -p /app/logs /app/data/maps /app/data/seed-store /app/data/cache \
+ && mkdir -p /app/logs /app/data/maps /app/data/dem /app/data/seed-store /app/data/cache \
  && chown -R dstns:dstns /app/logs /app/data
 
 # The map cache and logs are the only state worth keeping; mount volumes there.
-VOLUME ["/app/data/maps", "/app/logs"]
+VOLUME ["/app/data/maps", "/app/data/dem", "/app/logs"]
 
 ENV DSTNS_PORT=8090 \
     DSTNS_AUTOSTART=1 \

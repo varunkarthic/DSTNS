@@ -33,6 +33,7 @@ set(HTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN OFF CACHE BOOL "No TLS in the engine"
 FetchContent_MakeAvailable(json httplib)
 find_package(SQLite3 REQUIRED)
 find_package(Threads REQUIRED)
+find_package(ZLIB REQUIRED)
 if(TARGET SQLite3::SQLite3)
   set(DSTNS_SQLITE_TARGET SQLite3::SQLite3)
 else()
@@ -42,7 +43,8 @@ endif()
 add_library(dstns_core
   src/rng.cpp src/calendar.cpp src/utf8.cpp src/graph.cpp src/asb.cpp src/demand.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp
   src/compute/state.cpp src/compute/options.cpp src/compute/cpu_backend.cpp src/compute/dispatcher.cpp
-  src/compute/synthetic.cpp src/compute/field.cpp)
+  src/compute/synthetic.cpp src/compute/field.cpp
+  src/environment/png.cpp src/environment/terrain.cpp)
 target_include_directories(dstns_core PUBLIC include shaders/include)
 
 # --- Vulkan compute backend ------------------------------------------------------
@@ -182,7 +184,7 @@ if(NOT DSTNS_VULKAN_BUILT)
   message(STATUS "Vulkan backend: not built; DSTNS uses the CPU backend")
 endif()
 target_compile_definitions(dstns_core PUBLIC DSTNS_VULKAN_BUILT=$<BOOL:${DSTNS_VULKAN_BUILT}>)
-target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib)
+target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib ZLIB::ZLIB)
 if(APPLE)
   target_link_libraries(dstns_core PUBLIC "-framework CoreFoundation" "-framework CFNetwork")
 endif()
@@ -300,11 +302,23 @@ if(DSTNS_BUILD_TESTS)
   add_test(NAME dstns_compute_fields COMMAND dstns_field_tests)
   set_tests_properties(dstns_compute_fields PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" SKIP_RETURN_CODE 77 TIMEOUT 600)
 
+  add_executable(dstns_terrain_tests tests/environment/terrain_tests.cpp)
+  target_link_libraries(dstns_terrain_tests PRIVATE dstns_core)
+  target_compile_options(dstns_terrain_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_terrain COMMAND dstns_terrain_tests)
+  set_tests_properties(dstns_terrain PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
   add_executable(dstns_perf_tests tests/performance/perf_tests.cpp)
   target_link_libraries(dstns_perf_tests PRIVATE dstns_core)
   target_compile_options(dstns_perf_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_performance_smoke COMMAND dstns_perf_tests)
   set_tests_properties(dstns_performance_smoke PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  # Suites never reach the network for terrain: "auto" means flat for them.
+  # A test that wants terrain names a source (a synthetic surface, or tiles it
+  # plants in a private cache), which this does not override.
+  get_property(dstns_all_tests DIRECTORY PROPERTY TESTS)
+  set_property(TEST ${dstns_all_tests} APPEND PROPERTY ENVIRONMENT "DSTNS_DEM_SOURCE=flat")
 endif()
 
 install(TARGETS dstns_server dstns_scenario_export dstns_road_index dstns_replay_verify dstns_benchmark RUNTIME DESTINATION bin)

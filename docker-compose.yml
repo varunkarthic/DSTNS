@@ -41,6 +41,7 @@ services:
       DSTNS_OVERPASS_ENDPOINTS: "${DSTNS_OVERPASS_ENDPOINTS:-}"
     volumes:
       - dstns-maps:/app/data/maps   # downloaded city extracts survive restarts
+      - dstns-dem:/app/data/dem     # downloaded terrain tiles survive restarts
       - dstns-logs:/app/logs        # system log, SQLite journal, operator token
 
   # Optional HTTPS front end. Generates a self-signed certificate on first
@@ -59,4 +60,5 @@ services:
 
 volumes:
   dstns-maps:
+  dstns-dem:
   dstns-logs:

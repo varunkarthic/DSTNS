@@ -18,6 +18,7 @@ port="${DSTNS_PORT:-8090}"
   --port "$port" \
   --logs /app/logs \
   --maps /app/data/maps \
+  --dem-cache /app/data/dem \
   --map-cache "${DSTNS_MAP_CACHE:-prune}" \
   --map-cache-keep "${DSTNS_MAP_CACHE_KEEP:-3}" &
 server=$!

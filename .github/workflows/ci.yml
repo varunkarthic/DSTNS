@@ -56,6 +56,7 @@ jobs:
       - name: CLI suites
         run: |
           python3 tests/cli/test_fetch_osm.py
+          python3 tests/cli/test_fetch_dem.py
           python3 tests/cli/test_seeds.py
       - name: Replay verification
         run: ./build/dstns_replay_verify 382923

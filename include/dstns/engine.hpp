@@ -73,6 +73,12 @@ public:
     [[nodiscard]] nlohmann::json snapshot() const; [[nodiscard]] nlohmann::json nodes(std::size_t offset,std::size_t limit) const;
     [[nodiscard]] nlohmann::json edges(std::size_t offset,std::size_t limit) const; [[nodiscard]] nlohmann::json manifest() const;
     [[nodiscard]] nlohmann::json catalog(const std::string& kind) const;
+    /// The coupled environment: terrain provenance and, as modules are added,
+    /// their state and summary statistics.
+    [[nodiscard]] nlohmann::json environment() const;
+    /// One environmental field as an overlay-ready raster on the environment
+    /// grid, block-averaged so neither side exceeds `max_side` cells.
+    [[nodiscard]] nlohmann::json field(const std::string& name, std::uint32_t max_side) const;
 
     /**
      * Places, classified and paginated, with their live demand.

@@ -29,6 +29,8 @@ data/maps/*.manifest.json
 data/maps/*.part
 data/maps/*.progress
 data/maps/*.tmp
+# Terrain tiles: a local cache, re-fetched on demand.
+data/dem/
 
 # Build and run outputs
 *.tsbuildinfo

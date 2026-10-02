@@ -177,6 +177,18 @@ MapFetchStatus current_map_fetch() {
     return copy;
 }
 
+std::filesystem::path find_helper_script(const std::string& name) {
+    for (const auto& prefix : {std::string("scripts/"), std::string("../scripts/"), std::string("/app/scripts/")}) {
+        std::error_code ec;
+        if (std::filesystem::is_regular_file(prefix + name, ec)) return prefix + name;
+    }
+    return {};
+}
+
+std::string python_command() { return python_interpreter(); }
+std::string quote_argument(const std::string& value) { return shell_quote(value); }
+int run_download_command(const std::string& command, std::string& output) { return run_capture(command, output); }
+
 std::filesystem::path find_fetch_script() {
     for (const auto* candidate : {"scripts/fetch_osm.py", "../scripts/fetch_osm.py", "/app/scripts/fetch_osm.py"}) {
         std::error_code ec;
