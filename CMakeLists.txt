@@ -279,6 +279,12 @@ if(DSTNS_BUILD_TESTS)
   # 77: no usable Vulkan device on this machine; the CPU backend is still tested elsewhere.
   set_tests_properties(dstns_compute_equivalence PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" SKIP_RETURN_CODE 77 TIMEOUT 900)
 
+  add_executable(dstns_engine_compute_tests tests/compute/engine_compute_tests.cpp)
+  target_link_libraries(dstns_engine_compute_tests PRIVATE dstns_core)
+  target_compile_options(dstns_engine_compute_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_engine_compute COMMAND dstns_engine_compute_tests)
+  set_tests_properties(dstns_engine_compute PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" SKIP_RETURN_CODE 77 TIMEOUT 900)
+
   add_executable(dstns_perf_tests tests/performance/perf_tests.cpp)
   target_link_libraries(dstns_perf_tests PRIVATE dstns_core)
   target_compile_options(dstns_perf_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)

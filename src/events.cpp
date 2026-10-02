@@ -19,8 +19,13 @@ void EventRuntime::initialize(const Scenario& s) {
     *this=EventRuntime{};
     signal_by_node_.assign(s.nodes.size(),-1);
     for(std::size_t i=0;i<s.signals.size();++i) {
-        const auto& p=s.signals[i]; auto remainder=std::uint32_t(p.offset_s); std::uint32_t phase=0;
-        while(remainder>=p.phases_s[phase]){remainder-=p.phases_s[phase];++phase;}
+        const auto& p=s.signals[i];
+        // The offset is a position within the cycle. Planning can round it up
+        // to exactly one cycle, which means the same as zero; wrapping it keeps
+        // the walk below inside the six phases (it once read past the end).
+        std::uint32_t cycle=0; for(const auto d:p.phases_s)cycle+=d;
+        auto remainder=cycle?std::uint32_t(p.offset_s)%cycle:0u; std::uint32_t phase=0;
+        while(phase+1<p.phases_s.size()&&remainder>=p.phases_s[phase]){remainder-=p.phases_s[phase];++phase;}
         signals.push_back({phase,p.phases_s[phase]-remainder,-static_cast<std::int64_t>(remainder)});
         signal_by_node_[p.node.value]=static_cast<int>(i);
         push({signals.back().next_transition,static_cast<std::uint32_t>(i),(phase+1)%6,0,"signals","Signal "+std::to_string(p.node.value)+" → "+phases[(phase+1)%6],0});

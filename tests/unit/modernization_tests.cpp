@@ -21,6 +21,10 @@ int main(){try{
     EventRuntime a,b;a.initialize(s);b.initialize(s);
     check(a.inspect(true,"all",0,200)==b.inspect(true,"all",0,200),"same deterministic queue");
     check(a.signals.size()>1,"signal fixture");
+    // A planned offset can round up to a whole cycle; it must wrap to the
+    // start of the cycle rather than walk past the last phase.
+    {auto wrapped=s;for(auto& plan:wrapped.signals)plan.offset_s=plan.cycle_s;EventRuntime w;w.initialize(wrapped);
+     for(const auto& state:w.signals)check(state.phase<6&&state.next_transition>0,"offset of a whole cycle wraps to phase 0");}
     bool independent=false;for(auto& state:a.signals)if(state.next_transition!=a.signals.front().next_transition)independent=true;check(independent,"independent offsets");
     for(const auto& plan:s.signals){check(plan.cycle_s>=50&&plan.cycle_s<=120,"bounded cycles");check(std::accumulate(plan.phases_s.begin(),plan.phases_s.end(),0)==plan.cycle_s,"exact phases");check(plan.phases_s[0]>=12&&plan.phases_s[3]>=12,"safe minimum greens");}
     for(unsigned t=1;t<3600;++t){(void)a.advance(s,t);if(t%73==0)(void)b.advance(s,t);for(const auto& state:a.signals){check(state.phase<6&&state.next_transition>t,"valid transitions");}}
