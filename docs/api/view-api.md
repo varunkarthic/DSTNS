@@ -83,8 +83,11 @@ both 0 on flat terrain. See [Terrain](../concepts/terrain.md).
 ```
 
 Fields are reduced for display by block means, so the solver's own resolution
-(`solver_cell_m`) never has to be sent. Available now: `elevation` (m, to 0.1 m)
-and `slope` (m/m). An unknown field returns 400.
+(`solver_cell_m`) never has to be sent. Available now: `elevation` (m, to 0.1 m),
+`slope` (m/m), `irradiance` (W/m²), `surface_temperature` (°C) and `cloud`
+(fraction). `/view/environment` lists what the current world offers, with each
+field's units and whether it is static or changes during the run. An unknown
+field returns 400.
 
 ## Snapshot
 

@@ -48,6 +48,12 @@ IDs, now also include the month.
   `GET /api/v1/view/environment`, `GET /api/v1/view/fields/{elevation,slope}`,
   `dstns_server --dem-cache`, `DSTNS_DEM_SOURCE`. Existing worlds are unchanged
   until a later module reads the grade; scenario hashes include the terrain.
+- **Sun and surface (DCM).** Solar position for the month's representative
+  day, clear-sky irradiance attenuated by storm cloud and projected on the
+  terrain, and an asphalt surface energy balance, updated every minute and
+  checkpointed with the rest of the run. Fields `irradiance`,
+  `surface_temperature`, `cloud`; a `dcm` module; the observer's **City** tab
+  with a sun-path card. Traffic is unaffected.
 - **Observer: field overlays and a compass.** Layers gains an exclusive field
   overlay group; Elevation draws a heatmap with a legend and a pointer readout.
 - RNG domains for the new modules, appended after the existing ones. Golden

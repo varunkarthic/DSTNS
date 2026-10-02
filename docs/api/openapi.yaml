@@ -758,7 +758,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [elevation, slope]
+          enum: [elevation, slope, irradiance, surface_temperature, cloud]
       - name: max_side
         in: query
         schema:

@@ -186,6 +186,7 @@ nav:
       - The coupled city:
           - Overview: concepts/coupled-city.md
           - Terrain (DEM): concepts/terrain.md
+          - Sun and surface (DCM): concepts/solar.md
       - Events and environment:
           - Events: concepts/events.md
           - Weather and flooding: concepts/weather.md

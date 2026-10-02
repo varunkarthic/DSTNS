@@ -19,7 +19,7 @@ with its mathematics.
 |---|---|---|---|---|
 | **Calendar** | Location, month, day type of the run | The seed | Implemented | [Seeds and places](../guide/seeds-and-places.md) |
 | **DEM** | Elevation, gradient, slope; road grade | Road network, terrain tiles | Implemented | [Terrain](terrain.md) |
-| **DCM** | Solar position and irradiance, surface temperature | Calendar, location, clock, terrain, cloud | Planned | |
+| **DCM** | Solar position and irradiance, surface temperature | Calendar, location, clock, terrain, cloud | Implemented | [Sun and surface](solar.md) |
 | **DWS** | Rainfall field, surface water depth and velocity | Storm schedule, terrain, wind, drainage | Planned (legacy node flood model in place) | [Weather and flooding](weather.md) |
 | **DDS** | Drain inlets, pipes, outfalls; flow and surcharge | Surface water, terrain | Planned | |
 | **DAS** | Near-surface wind field | Terrain, buildings, solar heating, background weather | Planned | |
@@ -76,6 +76,22 @@ replaced:
 | Scenario: graph, places, calendar, terrain, schedules | `Scenario` (compiled once) | Immutable for the run; copies share the terrain |
 | Traffic and road physics | `ComputeDispatcher` fixed-point state | Per step; checkpointed |
 | Signals, demand couplings, event history | `EventRuntime` | Per step; checkpointed |
+| Environmental fields: solar forcing, surface temperature (and later water, drainage, wind) | `EnvironmentRuntime` | Per module cadence; the whole state copied into each checkpoint |
+
+## Scheduling
+
+Each second of virtual time the engine runs, in order:
+
+1. advance the clock, evaluate storms, surges, signals and demand couplings;
+2. **environment**: each module whose instant has come (DCM every 60 s);
+3. **traffic**: the physics step on the compute backend;
+4. flood and weather events, incidents, the congestion index, demand recoupling.
+
+Every module cadence divides the 900 s checkpoint interval, so replay from any
+checkpoint meets the same update instants. State a module produces at time
+\( t \) is read by the others from the next step on, never recursively within
+one instant, so feedback loops (traffic → incidents → traffic) cannot oscillate
+inside a step.
 
 All environmental fields live on one **environment grid** (see
 [Terrain](terrain.md#the-environment-grid)), so one module's output is another's

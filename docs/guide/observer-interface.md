@@ -433,6 +433,16 @@ re-read every two seconds while it is shown, at display resolution.
 When the terrain comes from imported tiles, the map credit adds *Terrain:
 Mapzen, USGS, NASA, NOAA*.
 
+### The City tab
+
+The telemetry deck's **City** tab has one card per environmental module.
+**Sun and surface** draws the Sun's path through the representative day of the
+month, from sunrise on the east side to sunset on the west, with the Sun where
+it is now (hollow at night), and gives its elevation, azimuth, direct and
+surface irradiance, the air temperature and the range of surface temperatures.
+**Terrain** gives the elevation range, the steepest road and where the
+elevation came from. Every figure there is simulated or derived, and says so.
+
 ### Compass
 
 A compass at the top of the map shows north, east, south and west. The map is
