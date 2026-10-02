@@ -92,11 +92,50 @@ inputs and floating-point limitations.
 **With Docker** (nothing else to install):
 
 ```bash
+# The public image does not require a GitHub login.
 docker pull ghcr.io/varunkarthic/dstns:stable
-docker run -d --name dstns -p 127.0.0.1:8090:8090 \
-  -v dstns-maps:/app/data/maps -v dstns-logs:/app/logs \
+docker run -d --name dstns --restart unless-stopped \
+  -p 127.0.0.1:8090:8090 \
+  -v dstns-maps:/app/data/maps \
+  -v dstns-logs:/app/logs \
+  -e DSTNS_SEED=382923 \
   ghcr.io/varunkarthic/dstns:stable
 ```
+
+Open **<http://localhost:8090>**. The container starts the server and a
+simulation automatically; the first run downloads its city map from
+OpenStreetMap, so the container needs internet access. The map cache and logs
+survive container restarts in the named volumes. Change or omit
+`DSTNS_SEED=382923` to choose another repeatable seed or get a fresh random seed
+(`auto`, the default).
+
+Useful commands:
+
+```bash
+docker logs -f dstns  # follow startup and run progress
+docker exec dstns dstns-run --status  # inspect the current run
+docker exec dstns dstns-run --seed 42 --day-type weekend --speed 2
+docker stop dstns  # stop; keep cached maps and logs
+docker start dstns  # restart with a fresh run
+docker rm -f dstns  # remove the container; volumes remain
+docker volume rm dstns-maps dstns-logs  # optional: also delete saved data
+```
+
+The image includes an offline district if the host cannot reach OpenStreetMap.
+Stop the existing container first if it is using port 8090, then run:
+
+```bash
+docker run --rm -p 127.0.0.1:8090:8090 \
+  -e DSTNS_OSM_FILE=/app/data/fixtures/real_network.osm.xml \
+  ghcr.io/varunkarthic/dstns:stable
+```
+
+The GHCR package publishes both **linux/amd64** and **linux/arm64** images;
+Docker selects the matching image automatically, including on Apple silicon.
+If the package page also lists **`unknown/unknown`**, that row is build
+provenance/SBOM metadata attached to the multi-platform release, not another
+CPU architecture or an image to run. Use a normal image tag in `docker pull`;
+Docker ignores those metadata entries when selecting the runnable image.
 
 **From source** (macOS or Linux):
 
@@ -150,7 +189,12 @@ Pull the published image directly, with no repository checkout or compiler:
 docker pull ghcr.io/varunkarthic/dstns:stable
 ```
 
-The command automatically selects **AMD64 or ARM64**, including Apple silicon.
+Use `stable` for the latest build that passed CI, or select a version tag such
+as `2.1.0` after its release is published. The `2` and `2.1` tags are moving
+major/minor aliases; pin an image-index digest when an experiment needs an
+immutable image. The command automatically selects **AMD64 or ARM64**, including
+Apple silicon. A package-page `unknown/unknown` row is attached SBOM/provenance
+metadata, not a third runnable platform.
 Use the `docker run` command in [Quick start](#quick-start), or clone this repository
 and use Compose (which defaults to the same GHCR `stable` image):
 
