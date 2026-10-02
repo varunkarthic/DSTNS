@@ -222,15 +222,22 @@ int main() {
 
         // Backpressure cannot build up across the swap: reports that would
         // otherwise look like a badly lagging observer are not counted while
-        // the replacement is being prepared.
+        // the replacement is being prepared. On a busy machine preparation can
+        // finish before the first report gets in; then ask for another world.
         int reported = 0;
         bool stayed_normal = true, never_suspended = true, never_locked = true;
-        while (engine.world_generating()) {
-            auto during = engine.report_backpressure(900.0, 5.0, 5.0);
-            ++reported;
-            stayed_normal = stayed_normal && during["state"] == "NORMAL";
-            never_suspended = never_suspended && during["gui_suspended"] == false;
-            never_locked = never_locked && during["rate_locked"] == false;
+        for (int attempt = 0; attempt < 3 && reported == 0; ++attempt) {
+            if (attempt) {
+                (void)wait_for_world(engine);
+                engine.regenerate_world();
+            }
+            while (engine.world_generating()) {
+                auto during = engine.report_backpressure(900.0, 5.0, 5.0);
+                ++reported;
+                stayed_normal = stayed_normal && during["state"] == "NORMAL";
+                never_suspended = never_suspended && during["gui_suspended"] == false;
+                never_locked = never_locked && during["rate_locked"] == false;
+            }
         }
         check(reported > 0, "the observer kept reporting while the world was prepared");
         check(stayed_normal, "backpressure stays normal while a world is being prepared");
