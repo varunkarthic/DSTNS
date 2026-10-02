@@ -102,7 +102,10 @@ struct MapFeature {
 };
 
 struct ScenarioConfig {
-    std::uint32_t playback_duration_s{60}; double tick_rate{1}; int day{0};
+    // day: 0 weekday, 1 weekend, -1 derived from the seed. month: 1..12, or 0
+    // derived from the seed. A derived value is part of what the seed means; a
+    // configured one is recorded as configured, so a report can say which.
+    std::uint32_t playback_duration_s{60}; double tick_rate{1}; int day{-1}; int month{0};
     std::uint32_t grid_width{12}, grid_height{10}, max_nodes{50000};
     std::string osm_file;
     std::string saved_seed_id, map_selection_version{"urban-crfg-v3"};
@@ -127,6 +130,16 @@ struct Scenario {
     std::string map_city, map_country, map_source_file;
     double map_anchor_lat{}, map_anchor_lon{}, map_city_extent_m{};
     bool map_downloaded{false};
+    // The deterministic calendar. `location_*` is the catalogue city the seed
+    // names, whatever map the run uses; `map_city` above is set only when the
+    // road network was actually cut from that city. The requested values are
+    // what the configuration asked for (-1 / 0: derive), kept so a regenerated
+    // world derives afresh instead of inheriting this world's resolution.
+    std::string location_city, location_country, location_source{"seed"};
+    double location_lat{}, location_lon{};
+    int month{1};
+    std::string month_source{"seed"}, day_source{"seed"};
+    int requested_day{-1}, requested_month{0};
     std::vector<BusStop> bus_stops; std::vector<SignalPlan> signals;
     std::vector<DwsEvent> dws_events; std::vector<PlannedTrip> trips;
     std::vector<Incident> incidents;

@@ -131,6 +131,32 @@ def main():
             assert code == 200 and observer["data"]["loaded"] is True and observer["data"]["loads"] >= 1
             assertions += 2
 
+            # 3c. Seeds: what a seed means, and a seed that means what was asked.
+            code, locations = call(base, "/api/v1/seeds/locations")
+            assert code == 200 and locations["data"]["count"] == 181
+            assert any(c["city"] == "Ahmedabad" for c in locations["data"]["items"])
+            code, described = call(base, "/api/v1/seeds/describe?seed=630294815033")
+            assert code == 200 and described["data"]["location"]["city"] == "Dubai", described
+            assert 1 <= described["data"]["month"] <= 12 and described["data"]["day_type"] in ("weekday", "weekend")
+            code, generated = call(base, "/api/v1/seeds/generate", "POST",
+                                   {"location": "Ahmedabad", "month": "July", "day_type": "weekday"})
+            assert code == 200, generated
+            found = generated["data"]
+            assert found["location"]["city"] == "Ahmedabad" and found["month"] == 7 and found["day_type"] == "weekday"
+            assert found["seed"].isdigit() and found["candidates_examined"] >= 1
+            code, again = call(base, f"/api/v1/seeds/describe?seed={found['seed']}")
+            assert again["data"]["location"]["city"] == "Ahmedabad" and again["data"]["month"] == 7
+            assert again["data"]["day_type"] == "weekday"
+            code, anything = call(base, "/api/v1/seeds/generate", "POST", {"location": "auto", "month": "auto", "day_type": "auto"})
+            assert code == 200 and anything["data"]["seed"].isdigit()
+            code, bad = call(base, "/api/v1/seeds/generate", "POST", {"location": "Atlantis"})
+            assert code == 400, bad
+            code, bad = call(base, "/api/v1/seeds/generate", "POST", {"month": "Juli"})
+            assert code == 400, bad
+            code, bad = call(base, "/api/v1/seeds/describe")
+            assert code == 400, bad
+            assertions += 12
+
             # 3b. The seed is a number, in whichever form it is given.
             decimal_start = dict(req_start_template := {
                 "seed": "1311768467294899695",
@@ -182,6 +208,14 @@ def main():
             assert started_map["data"]["projection"]["units"] == "metres"
             assert "location" in started_map["data"]
             assertions += 5
+            # The calendar: the configured day type is used and says so; the
+            # month is the seed's.
+            code, status = call(base, "/api/v1/playback/status")
+            calendar = status["data"]["calendar"]
+            assert calendar["day_type"] == "weekday" and calendar["day_source"] == "configured", calendar
+            assert calendar["month_source"] == "seed" and 1 <= calendar["month"] <= 12
+            assert calendar["month"] == calendar["seed_derived"]["month"]
+            assertions += 3
 
             # 5. Double start conflict
             code, err = call(base, "/api/v1/playback/start", "POST", req_start)
@@ -423,6 +457,24 @@ def main():
             code, topo = call(base, "/api/v1/view/topology")
             assert code == 200 and topo["run_id"] == job["data"]["run_id"] and topo["data"]["edges"]
             assertions += 8
+            # The observer may name the new world's seed, for example one found
+            # under constraints; the month is then that seed's.
+            code, chosen = call(base, "/api/v1/world/regenerate", "POST", {"seed": found["seed"]})
+            assert code == 202 and chosen["data"]["seed"] == found["seed"], chosen
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:
+                code, job = call(base, "/api/v1/world/status")
+                if job["data"]["state"] != "generating":
+                    break
+                time.sleep(0.05)
+            assert job["data"]["state"] == "ready", job
+            code, status_after = call(base, "/api/v1/playback/status")
+            assert status_after["seed"] == found["seed"]
+            assert status_after["data"]["calendar"]["month"] == 7
+            assert status_after["data"]["calendar"]["location"]["city"] == "Ahmedabad"
+            code, bad = call(base, "/api/v1/world/regenerate", "POST", {"seed": "12ab"})
+            assert code == 400, bad
+            assertions += 5
             # Later sections expect a run positioned mid-day, as before.
             code, seek = call(base, "/api/v1/playback/seek", "POST", {"target_time": "15:30:00"})
             assert code == 200 and seek["lifecycle"] == "PAUSED"

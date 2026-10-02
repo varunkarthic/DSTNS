@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/scenario.hpp"
+#include "dstns/calendar.hpp"
 #include "dstns/geo.hpp"
 #include "dstns/osm_fetch.hpp"
 #include "dstns/graph.hpp"
@@ -42,6 +43,7 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
     if(config.max_nodes<2||config.max_nodes>50000)throw std::invalid_argument("max_nodes must be in [2,50000]");
     if(config.map_selection_version!="urban-crfg-v3")throw std::invalid_argument("unsupported map selection version");
     if(config.day < -1 || config.day>1)throw std::invalid_argument("invalid day type");
+    if(config.month < 0 || config.month>12)throw std::invalid_argument("month must be 1..12, or 0 for the seed's month");
     if(config.demand_bin_virtual_s==0||config.demand_bin_virtual_s>86400)throw std::invalid_argument("invalid demand bin");
     if(config.playback_duration_s<60||config.playback_duration_s>3600)throw std::invalid_argument("playback_duration_s must be in [60,3600]");
     auto effective_config = config;
@@ -78,8 +80,16 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
     DeterministicRng incident_rng(incident_seed);
     DeterministicRng scenario_rng(scenario_seed);
 
-    if(s.config.day<0)s.config.day=0;
-    if(s.config.day>1)throw std::invalid_argument("day must be 0, 1, or auto");
+    // The calendar: each property is the seed's unless the configuration
+    // names it. Derivations draw from their own streams (see calendar.hpp).
+    s.requested_day=config.day; s.requested_month=config.month;
+    if(s.config.day<0){s.config.day=derive_day_type(seed_value);s.day_source="seed";}else s.day_source="configured";
+    if(s.config.month<=0){s.month=derive_month(seed_value);s.month_source="seed";}else{s.month=s.config.month;s.month_source="configured";}
+    {
+        const auto& city=city_catalog().at(select_city_index(seed_value));
+        s.location_city=city.name;s.location_country=city.country;s.location_lat=city.lat;s.location_lon=city.lon;
+        s.location_source=located?"seed":(effective_config.osm_file.empty()?"seed (synthetic grid)":"map file");
+    }
     if(effective_config.osm_file.empty()){
         build_canonical_grid(s,map_rng);
         s.map_hash="sha256:"+sha256("dstns/offline-road-fixture/v1");
@@ -121,9 +131,12 @@ void ScenarioCompiler::build_canonical_grid(Scenario&s,const DeterministicRng&rn
     // Map seed mixing selects metropolitan transport region from global catalog
     // The same world catalogue the downloaded maps are drawn from, so a
     // synthetic grid sits where its seed says it does.
+    // The grid sits in the city the seed names, so its latitude (and with it
+    // the Sun and the climate) agrees with the seed's metadata. The draw on
+    // `rng` is kept so the offsets below are unchanged.
     const auto& catalog = city_catalog();
-    const auto city_idx = rng.bounded({RngDomain::MapSelection,0,0,0},static_cast<std::uint32_t>(catalog.size()));
-    const auto& city = catalog[city_idx];
+    (void)rng.bounded({RngDomain::MapSelection,0,0,0},static_cast<std::uint32_t>(catalog.size()));
+    const auto& city = catalog[select_city_index(s.seed)];
     const auto lat0 = city.lat + (rng.uniform01({RngDomain::MapSelection,0,1,0}) - 0.5) * 0.04;
     const auto lon0 = city.lon + (rng.uniform01({RngDomain::MapSelection,0,2,0}) - 0.5) * 0.04;
     s.nodes.reserve(std::size_t(w)*h);
@@ -365,7 +378,7 @@ void ScenarioCompiler::calculate_hashes(Scenario&s)const{
     for(const auto&t:s.trips)ev<<t.id<<','<<t.depart_virtual_s<<','<<t.from.value<<','<<t.to.value<<';';
     for(const auto&inc:s.incidents)ev<<inc.id<<','<<static_cast<int>(inc.type)<<','<<inc.edge.value<<','<<inc.start_virtual_s<<','<<inc.end_virtual_s<<';';
     s.event_hash="sha256:"+sha256(ev.str());
-    s.scenario_hash="sha256:"+sha256(s.seed.hex()+s.map_hash+s.graph_hash+s.event_hash+std::to_string(s.config.day));
+    s.scenario_hash="sha256:"+sha256(s.seed.hex()+s.map_hash+s.graph_hash+s.event_hash+std::to_string(s.config.day)+"/month"+std::to_string(s.month));
 }
 
 void ScenarioCompiler::export_sumo(const Scenario&s,const std::filesystem::path&dir)const{

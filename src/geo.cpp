@@ -256,13 +256,16 @@ std::filesystem::path MapLocation::cache_path(const std::filesystem::path& direc
     return directory / (cache_key() + ".osm.xml");
 }
 
+std::uint32_t select_city_index(Seed128 seed) {
+    const DeterministicRng city_rng{seed.derive("map.city")};
+    return city_rng.bounded({RngDomain::MapSelection, 0, 0, 0}, static_cast<std::uint32_t>(kCities.size()));
+}
+
 MapLocation select_map_location(Seed128 seed, double extent_m) {
     if (!(extent_m >= 500.0) || extent_m > 20000.0) {
         throw std::invalid_argument("city extract extent must be in [500, 20000] metres");
     }
-    const DeterministicRng city_rng{seed.derive("map.city")};
-    const auto& city = kCities.at(city_rng.bounded({RngDomain::MapSelection, 0, 0, 0},
-                                                   static_cast<std::uint32_t>(kCities.size())));
+    const auto& city = kCities.at(select_city_index(seed));
 
     MapLocation location;
     location.city = city.name;

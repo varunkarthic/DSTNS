@@ -33,9 +33,14 @@ struct Seed128 {
     auto operator<=>(const Seed128&) const = default;
 };
 
+// Each domain is a separate stream: a module draws only from its own, so
+// adding draws to one can never shift another. New domains are appended; the
+// numeric value of an existing domain is part of every seed's meaning.
 enum class RngDomain : std::uint32_t {
     MapSelection = 1, BusStops, Buildings, TrafficControl, TrafficOD,
-    TrafficSignals, DwsSchedule, DwsField, DaySelector, Incidents, Events
+    TrafficSignals, DwsSchedule, DwsField, DaySelector, Incidents, Events,
+    Calendar, Terrain, Solar, Atmosphere, Hydrology, Drainage,
+    DemandOD, Emergency, CausalIncidents
 };
 
 struct RngAddress {

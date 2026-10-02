@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+#include "dstns/calendar.hpp"
 #include "dstns/events.hpp"
 #include "dstns/engine.hpp"
 #include "dstns/osm.hpp"
@@ -17,7 +18,12 @@ void check(bool condition,const char* message){if(!condition)throw std::runtime_
 int main(){try{
     ScenarioConfig cfg;cfg.playback_duration_s=3600;cfg.grid_width=20;cfg.grid_height=20;
     ScenarioCompiler compiler;auto seed=Seed128::parse("0x12345678");auto s=compiler.compile(seed,cfg);
-    check(s.config.day==0,"weekday default");
+    // The day type is the seed's unless configured (it was a fixed weekday
+    // before the deterministic calendar).
+    check(s.config.day==derive_day_type(seed)&&s.day_source=="seed","day type derived from the seed by default");
+    // The checks below describe a weekday (school and office peaks), so they
+    // name one rather than relying on what this seed happens to derive.
+    cfg.day=0;s=compiler.compile(seed,cfg);check(s.config.day==0&&s.day_source=="configured","a configured day type is used and recorded");
     EventRuntime a,b;a.initialize(s);b.initialize(s);
     check(a.inspect(true,"all",0,200)==b.inspect(true,"all",0,200),"same deterministic queue");
     check(a.signals.size()>1,"signal fixture");

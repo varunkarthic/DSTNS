@@ -3,6 +3,8 @@
 
 #include "dstns/engine.hpp"
 
+#include "dstns/calendar.hpp"
+
 #include "dstns/utf8.hpp"
 #include "dstns/sumo_bridge.hpp"
 #include "dstns/osm_fetch.hpp"
@@ -37,6 +39,22 @@ std::string hhmmss(std::uint32_t s) {
     o << std::setfill('0') << std::setw(2) << s / 3600 << ':' << std::setw(2) << (s % 3600) / 60 << ':' << std::setw(2) << s % 60;
     return o.str();
 }
+// When and where the run is, and whether each came from the seed or from the
+// configuration. The seed's own values are listed too, so a configured
+// override is visible as one.
+nlohmann::json calendar_json(const Scenario& s) {
+    const auto derived = describe_seed(s.seed);
+    return {
+        {"location", {{"city", s.location_city}, {"country", s.location_country},
+                      {"latitude", s.location_lat}, {"longitude", s.location_lon}, {"source", s.location_source}}},
+        {"month", s.month}, {"month_name", month_name(s.month)}, {"month_source", s.month_source},
+        {"day", s.config.day}, {"day_type", day_type_name(s.config.day)}, {"day_source", s.day_source},
+        {"seed_derived", {{"city", derived.city}, {"country", derived.country}, {"month", derived.month},
+                          {"month_name", month_name(derived.month)}, {"day_type", day_type_name(derived.day)}}},
+        {"representation", "month and day type only; there is no day of the month"}
+    };
+}
+
 nlohmann::json point_json(const Point& p) {
     return {{"lat", p.lat}, {"lon", p.lon}, {"x_m", p.x_m}, {"y_m", p.y_m}};
 }
@@ -409,8 +427,10 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
             {"resolved_config", {
                 {"playback_duration_seconds", config.playback_duration_s},
                 {"tick_rate", tick_rate_},
-                {"day", graph_->scenario().config.day}
+                {"day", graph_->scenario().config.day},
+                {"month", graph_->scenario().month}
             }},
+            {"calendar", calendar_json(graph_->scenario())},
             {"stream", {
                 {"snapshot", "/api/v1/view/snapshot"},
                 {"bulk_stream", "/api/v1/view/stream"},
@@ -606,8 +626,19 @@ nlohmann::json SimulationEngine::step(std::uint32_t seconds) {
 nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request) {
     auto compile_lease = std::make_shared<CompileLease>(compiling_);
     std::uint64_t compile_generation;
-    // Short enough for an operator to read off the screen and retype.
+    // Short enough for an operator to read off the screen and retype. The
+    // observer may name the seed (one it generated under constraints, or one
+    // the operator typed); it never names the configuration.
     Seed128 seed = Seed128::secure64();
+    if (request.is_object() && request.contains("seed") && !request.at("seed").is_null()) {
+        const auto& value = request.at("seed");
+        if (!value.is_string()) throw std::invalid_argument("seed must be a decimal string");
+        const auto text = value.get<std::string>();
+        if (text.empty() || text.find_first_not_of("0123456789") != std::string::npos)
+            throw std::invalid_argument("seed must be a decimal integer");
+        seed = Seed128::from_decimal(text);
+        if (seed == Seed128{}) throw std::invalid_argument("seed must not be zero");
+    }
     ScenarioConfig config;
     std::string previous;
     double rate = 1.0;
@@ -627,6 +658,10 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
             ++playback_revision_;
         }
         config = graph_->scenario().config;
+        // Derive the calendar afresh for the new seed unless this run's
+        // configuration named it.
+        config.day = graph_->scenario().requested_day;
+        config.month = graph_->scenario().requested_month;
         // A seed-selected world stores the path of the tile it resolved to.
         // Re-rolling must let the new seed choose its own place, so restore
         // the "auto" source; an operator-pinned map file stays pinned.
@@ -1299,6 +1334,7 @@ nlohmann::json SimulationEngine::status() const {
         {"playback_revision", playback_revision_},
         {"run_id", run_id_},
         {"day", graph_ ? graph_->scenario().config.day : -1},
+        {"calendar", graph_ ? calendar_json(graph_->scenario()) : nlohmann::json(nullptr)},
         {"saved_seed_id", graph_ ? graph_->scenario().config.saved_seed_id : ""},
         {"map_selection_version", graph_ ? graph_->scenario().config.map_selection_version : ""},
         {"traffic_model", "DSTNS aggregate traffic model"},
@@ -1620,6 +1656,7 @@ nlohmann::json SimulationEngine::manifest() const {
         {"event_hash", s.event_hash},
         {"scenario_hash", s.scenario_hash},
         {"map_source", s.config.osm_file.empty() ? "offline-deterministic-road-fixture" : "osm-xml"},
+        {"calendar", calendar_json(s)},
         {"road_filter_version", "road-only/v1"}
     });
 }
@@ -2186,6 +2223,7 @@ nlohmann::json SimulationEngine::global_view() const {
             {"flooding", sc.config.flooding},
             {"news", sc.config.news}
         }},
+        {"calendar", calendar_json(sc)},
         {"manifest", {
             {"map_hash", sc.map_hash},
             {"graph_hash", sc.graph_hash},

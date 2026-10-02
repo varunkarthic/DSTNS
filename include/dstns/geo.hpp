@@ -80,4 +80,9 @@ inline constexpr double kMetresPerDegreeLat = 111320.0;
 // coordinates. extent_m bounds the downloaded extract around the city centre.
 [[nodiscard]] MapLocation select_map_location(Seed128 seed, double extent_m = 5000.0);
 
+// The catalogue index of the city a seed resolves to: the first half of
+// select_map_location, with no anchor and no extent. Cheap enough to evaluate
+// many thousands of times when searching for a seed with a given city.
+[[nodiscard]] std::uint32_t select_city_index(Seed128 seed);
+
 } // namespace dstns

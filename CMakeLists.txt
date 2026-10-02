@@ -40,7 +40,7 @@ else()
 endif()
 
 add_library(dstns_core
-  src/rng.cpp src/utf8.cpp src/graph.cpp src/asb.cpp src/demand.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp
+  src/rng.cpp src/calendar.cpp src/utf8.cpp src/graph.cpp src/asb.cpp src/demand.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp
   src/compute/state.cpp src/compute/options.cpp src/compute/cpu_backend.cpp src/compute/dispatcher.cpp
   src/compute/synthetic.cpp src/compute/field.cpp)
 target_include_directories(dstns_core PUBLIC include shaders/include)
@@ -220,6 +220,12 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_unit_tests COMMAND dstns_tests)
   set_tests_properties(dstns_unit_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_executable(dstns_calendar_tests tests/unit/calendar_tests.cpp)
+  target_link_libraries(dstns_calendar_tests PRIVATE dstns_core)
+  target_compile_options(dstns_calendar_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_calendar COMMAND dstns_calendar_tests)
+  set_tests_properties(dstns_calendar PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_executable(dstns_modern_tests tests/unit/modernization_tests.cpp)
   target_link_libraries(dstns_modern_tests PRIVATE dstns_core)

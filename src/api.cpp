@@ -5,6 +5,7 @@
 #include "dstns/compute/vulkan.hpp"
 
 #include "dstns/utf8.hpp"
+#include "dstns/calendar.hpp"
 #include "dstns/geo.hpp"
 #include "dstns/osm_fetch.hpp"
 #include "dstns/sumo_bridge.hpp"
@@ -160,6 +161,16 @@ std::uint64_t unsigned_parameter(const httplib::Request& request, const char* ke
     return parsed;
 }
 
+json seed_metadata_json(const Seed128& seed, const SeedMetadata& m, std::uint64_t attempts) {
+    json out{{"seed", seed.decimal()}, {"seed_hex", seed.hex()},
+             {"location", {{"city", m.city}, {"country", m.country}, {"index", m.city_index},
+                           {"latitude", m.latitude}, {"longitude", m.longitude}}},
+             {"month", m.month}, {"month_name", month_name(m.month)},
+             {"day", m.day}, {"day_type", day_type_name(m.day)}};
+    if (attempts) out["candidates_examined"] = attempts;
+    return out;
+}
+
 std::uint32_t time_value(const json& v) {
     if (v.is_number_unsigned()) {
         const auto val = v.get<std::uint64_t>();
@@ -188,9 +199,28 @@ ScenarioConfig config_from(const json& j) {
     if (j.contains("tick_rate")) c.tick_rate = j.at("tick_rate");
     if (!(c.tick_rate > 0 && c.tick_rate <= kMaxTickRate))
         throw std::invalid_argument("tick_rate must be in (0,5]");
-    if (j.contains("day")) {
-        if (j.at("day").is_string() && j.at("day") == "auto") c.day = -1;
-        else c.day = j.at("day");
+    // Absent or "auto": the seed's own day type and month. Otherwise the
+    // value is used and the run records it as configured.
+    if (j.contains("day") && !j.at("day").is_null()) {
+        const auto& d = j.at("day");
+        if (d.is_string() && d == "auto") c.day = -1;
+        else if (d.is_string()) {
+            const auto parsed = parse_day_type(d.get<std::string>());
+            if (!parsed) throw std::invalid_argument("day must be weekday, weekend, 0, 1 or auto");
+            c.day = *parsed;
+        } else c.day = d;
+    }
+    if (j.contains("month") && !j.at("month").is_null()) {
+        const auto& m = j.at("month");
+        if (m.is_string() && m == "auto") c.month = 0;
+        else if (m.is_string()) {
+            const auto parsed = parse_month(m.get<std::string>());
+            if (!parsed) throw std::invalid_argument("month must be 1..12, a month name, or auto");
+            c.month = *parsed;
+        } else {
+            c.month = m;
+            if (c.month < 0 || c.month > 12) throw std::invalid_argument("month must be 1..12, a month name, or auto");
+        }
     }
     c.saved_seed_id=j.value("saved_seed_id",std::string{});
     c.map_selection_version=j.value("map_selection_version",std::string("urban-crfg-v3"));
@@ -494,6 +524,10 @@ void ApiServer::routes() {
                 {{"GET","/api/v1/view/global","Topology and snapshot in one response"}},
                 {{"POST","/api/v1/world/regenerate","Build a new world from a seed"}},
                 {{"GET","/api/v1/world/status","Preparation progress and durable errors"}}}),
+            group("seeds","What a seed means, and seeds that mean what you ask",{
+                {{"GET","/api/v1/seeds/locations","The location catalogue a seed draws from"}},
+                {{"GET","/api/v1/seeds/describe","A seed's location, month and day type; ?seed="}},
+                {{"POST","/api/v1/seeds/generate","A seed with a chosen location, month and day type"}}}),
             group("control","Acting on the running simulation",{
                 {{"PUT","/api/v1/control/tick-rate","Set the simulation rate multiplier"}},
                 {{"POST","/api/v1/control/day","Switch between a weekday and a weekend"}},
@@ -676,11 +710,12 @@ void ApiServer::routes() {
         send(r, engine_.step(static_cast<std::uint32_t>(seconds)));
     });
 
-    // World regeneration. The observer may ask for a new world, but may not
-    // choose anything about it: the seed comes from the secure generator and
-    // every other parameter is copied from the run the operator started. That
-    // keeps scenario configuration with the CLI. Operators can disable this
-    // entirely with DSTNS_DISABLE_WORLD_REGENERATION=1.
+    // World regeneration. The observer may ask for a new world and may name
+    // its seed - typed by the operator, or found by /seeds/generate under a
+    // location, month and day-type constraint - but may not choose anything
+    // else: every other parameter is copied from the run the operator started.
+    // That keeps scenario configuration with the CLI. Operators can disable
+    // this entirely with DSTNS_DISABLE_WORLD_REGENERATION=1.
     const bool regeneration_disabled = [] {
         const char* v = std::getenv("DSTNS_DISABLE_WORLD_REGENERATION");
         return v && std::string(v) == "1";
@@ -698,6 +733,59 @@ void ApiServer::routes() {
         auto status = engine_.world_status();
         status["data"]["enabled"] = !regeneration_disabled;
         send(r, status);
+    });
+
+    // Seeds. Pure functions of the seed and the catalogue: what a seed means,
+    // and a seed that means what the operator asked for. Neither touches the
+    // running simulation.
+    server_->Get("/api/v1/seeds/locations", [](const auto&, auto& r) {
+        auto items = json::array();
+        const auto& catalog = city_catalog();
+        for (std::size_t i = 0; i < catalog.size(); ++i)
+            items.push_back({{"index", i}, {"city", catalog[i].name}, {"country", catalog[i].country},
+                             {"slug", catalog[i].slug()}, {"latitude", catalog[i].lat}, {"longitude", catalog[i].lon}});
+        send(r, {{"api_version", "1.0"}, {"data", {{"items", std::move(items)}, {"count", catalog.size()}}}});
+    });
+    server_->Get("/api/v1/seeds/describe", [](const httplib::Request& req, auto& r) {
+        if (!req.has_param("seed")) throw std::invalid_argument("seed is required");
+        const auto seed = seed_from(json{{"seed", req.get_param_value("seed")}});
+        send(r, {{"api_version", "1.0"}, {"data", seed_metadata_json(seed, describe_seed(seed), 0)}});
+    });
+    server_->Post("/api/v1/seeds/generate", [this](const auto& req, auto& r) {
+        const auto j = body(req);
+        SeedConstraints c;
+        const auto field = [&](const char* key) -> std::optional<std::string> {
+            if (!j.contains(key) || j.at(key).is_null()) return std::nullopt;
+            if (j.at(key).is_number_integer()) return std::to_string(j.at(key).template get<std::int64_t>());
+            const auto text = j.at(key).template get<std::string>();
+            if (text.empty() || text == "auto" || text == "Auto") return std::nullopt;
+            return text;
+        };
+        if (const auto v = field("location")) {
+            c.city_index = find_city(*v);
+            if (!c.city_index) throw std::invalid_argument("unknown location: " + *v);
+        }
+        if (const auto v = field("month")) {
+            c.month = parse_month(*v);
+            if (!c.month) throw std::invalid_argument("month must be 1..12, a month name, or auto");
+        }
+        if (const auto v = field("day_type")) {
+            c.day = parse_day_type(*v);
+            if (!c.day) throw std::invalid_argument("day_type must be weekday, weekend or auto");
+        }
+        const auto started = std::chrono::steady_clock::now();
+        const auto found = generate_constrained_seed(c);
+        const auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+        logger_.system("INFO", "seeds", "seed.constrained generated " + found.seed.decimal() + " (" + found.metadata.city + ", " +
+                       month_name(found.metadata.month) + ", " + day_type_name(found.metadata.day) + ") after " +
+                       std::to_string(found.attempts) + " candidates");
+        auto data = seed_metadata_json(found.seed, found.metadata, found.attempts);
+        data["search_ms"] = ms;
+        data["constraints"] = {
+            {"location", c.city_index ? json(city_catalog()[*c.city_index].name) : json("auto")},
+            {"month", c.month ? json(month_name(*c.month)) : json("auto")},
+            {"day_type", c.day ? json(day_type_name(*c.day)) : json("auto")}};
+        send(r, {{"api_version", "1.0"}, {"data", std::move(data)}});
     });
 
     // Control API
