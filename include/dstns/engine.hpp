@@ -22,10 +22,15 @@
 
 namespace dstns {
 
+class Narrator;
+class NarrationContext;
+
 enum class Lifecycle { Booting, Idle, Preparing, Ready, Running, Paused, Seeking, Stopping, Stopped, Completed, Error, Terminating };
 [[nodiscard]] const char* to_string(Lifecycle lifecycle);
 
-struct NewsItem { std::uint64_t news_id{}, event_id{}; std::uint32_t virtual_s{}; std::string category,severity,template_id,message; nlohmann::json data; };
+// narration_key names the item's narration, if it has one (see narrator.hpp);
+// it is presentation only and never part of the run's state.
+struct NewsItem { std::uint64_t news_id{}, event_id{}; std::uint32_t virtual_s{}; std::string category,severity,template_id,message; nlohmann::json data; std::string narration_key; };
 struct AppliedCommand { std::uint64_t id{}; std::string type,status{"applied"}; std::uint32_t virtual_s{}; nlohmann::json before,after; };
 
 class SimulationEngine {
@@ -87,7 +92,23 @@ public:
     /// The place taxonomy: every kind the classifier can produce, whether it is
     /// modelled, and how many of each this world holds.
     [[nodiscard]] nlohmann::json place_kinds() const;
-    [[nodiscard]] nlohmann::json news(std::uint64_t since,std::size_t limit) const; [[nodiscard]] nlohmann::json history() const;
+    /// News after `since`. Items narrated since completion sequence `since_narration` are listed under "narrated".
+    [[nodiscard]] nlohmann::json news(std::uint64_t since,std::size_t limit,std::uint64_t since_narration=0) const; [[nodiscard]] nlohmann::json history() const;
+    /**
+     * The topology response, serialized. A world's topology never changes, so
+     * its body is built once per world and only the envelope (clock, revision)
+     * is composed per request, instead of rebuilding megabytes of JSON under
+     * the engine lock every time an observer connects.
+     */
+    [[nodiscard]] std::string topology_text() const;
+
+    /**
+     * Attach a narrator: news items it can word are handed to it, and their
+     * narrations, once written, are served beside the core's text. Optional;
+     * the simulation never reads anything back from it.
+     */
+    void set_narrator(std::shared_ptr<Narrator> narrator);
+    [[nodiscard]] nlohmann::json narrator_status() const;
     [[nodiscard]] nlohmann::json global_view() const;
     [[nodiscard]] nlohmann::json export_sumo(const std::filesystem::path& directory) const;
     [[nodiscard]] nlohmann::json sumo_simulate(const std::filesystem::path& directory, std::uint32_t begin_s, std::uint32_t end_s) const;
@@ -121,6 +142,8 @@ private:
     std::uint64_t playback_revision_{}; // Never reset: distinguishes same-seed restarts.
     void loop(); void transition(Lifecycle next); void step_to(std::uint32_t target); void physics_step(std::uint32_t dt); void capture_checkpoint();
     void restore_to(std::uint32_t target); void anchor_wall_clock(); void catch_up_to_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
+    void prefetch_narrations();
+    [[nodiscard]] nlohmann::json news_json(const NewsItem& item,const char* time_key) const;
     [[nodiscard]] nlohmann::json clock_json() const; [[nodiscard]] nlohmann::json envelope(nlohmann::json data) const;
     AppliedCommand& record(std::string type,nlohmann::json before,nlohmann::json after);
     [[nodiscard]] nlohmann::json signal_state_json() const;
@@ -145,6 +168,9 @@ private:
     std::chrono::steady_clock::time_point asb_epoch_{std::chrono::steady_clock::now()};
     CongestionTracker congestion_;
     std::vector<const SignalPlan*> signal_by_node_;
+    std::shared_ptr<Narrator> narrator_;
+    std::unique_ptr<NarrationContext> narration_context_;
+    mutable std::shared_ptr<const std::string> topology_body_; // per world; reset on install
     std::map<std::uint32_t, int> signal_overrides_;
     std::uint64_t config_revision_{};
     // Read without the lock by request_terminate() and by long-running compiles.

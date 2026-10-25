@@ -446,6 +446,7 @@ void ApiServer::routes() {
                 {{"POST","/api/v1/system/backpressure","Report observer health"}},
                 {{"GET","/api/v1/system/ui-config","Operator defaults for the interface"}},
                 {{"GET","/api/v1/system/observer","Observer page-load count"}},
+                {{"GET","/api/v1/system/narrator","Narration model, queue and cache"}},
                 {{"POST","/api/v1/system/terminate","Stop the simulation and exit the process"}}}),
             group("playback","Moving through simulated time",{
                 {{"GET","/api/v1/playback/status","Clock, rate and lifecycle"}},
@@ -775,10 +776,12 @@ void ApiServer::routes() {
     server_->Get("/api/v1/view/run", [this](const auto&, auto& r) { send(r, engine_.status()); });
     server_->Get("/api/v1/view/config", [this](const auto&, auto& r) { send(r, engine_.status()); });
     server_->Get("/api/v1/view/manifest", [this](const auto&, auto& r) { send(r, engine_.manifest()); });
-    server_->Get("/api/v1/view/topology", [this](const auto&, auto& r) { send(r, engine_.topology()); });
-    server_->Get("/api/v1/topology", [this](const auto&, auto& r) { send(r, engine_.topology()); });
-    server_->Get("/api/v1/view/network", [this](const auto&, auto& r) { send(r, engine_.topology()); });
-    server_->Get("/api/v1/view/map/full", [this](const auto&, auto& r) { send(r, engine_.topology()); });
+    // Served from the per-world cache; see SimulationEngine::topology_text.
+    auto topology_handler = [this](const auto&, auto& r) { r.set_content(engine_.topology_text(), "application/json"); };
+    server_->Get("/api/v1/view/topology", topology_handler);
+    server_->Get("/api/v1/topology", topology_handler);
+    server_->Get("/api/v1/view/network", topology_handler);
+    server_->Get("/api/v1/view/map/full", topology_handler);
     server_->Get("/api/v1/view/snapshot", [this](const auto&, auto& r) {
         // Snapshots are the bulk of what the observer consumes, so their size
         // and cadence are what ASB reports as the delivered data rate.
@@ -857,8 +860,12 @@ void ApiServer::routes() {
     server_->Get("/api/v1/news", [this](const auto& req, auto& r) {
         send(r, engine_.news(
             unsigned_parameter(req, "since_news_id", 0),
-            static_cast<std::size_t>(std::min<std::uint64_t>(500, unsigned_parameter(req, "limit", 100)))
+            static_cast<std::size_t>(std::min<std::uint64_t>(500, unsigned_parameter(req, "limit", 100))),
+            unsigned_parameter(req, "since_narration", 0)
         ));
+    });
+    server_->Get("/api/v1/system/narrator", [this](const auto&, auto& r) {
+        send(r, {{"ok", true}, {"data", engine_.narrator_status()}});
     });
 
     // Logs API

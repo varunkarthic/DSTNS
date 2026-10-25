@@ -29,6 +29,18 @@ void EventRuntime::initialize(const Scenario& s) {
         signal_by_node_[p.node.value]=static_cast<int>(i);
         push({signals.back().next_transition,static_cast<std::uint32_t>(i),(phase+1)%6,0,"signals","Signal "+std::to_string(p.node.value)+" → "+phases[(phase+1)%6],0});
     }
+    {
+        auto groups=std::make_shared<std::vector<std::int8_t>>(s.edges.size(),std::int8_t{-1});
+        auto allowed=std::make_shared<std::vector<std::uint8_t>>(s.edges.size(),std::uint8_t{0});
+        for(const auto& e:s.edges){
+            (*allowed)[e.id.value]=is_source_direction_allowed(e);
+            if(signal_by_node_[e.to.value]<0)continue;
+            const auto& a=s.nodes[e.from.value].position;const auto& b=s.nodes[e.to.value].position;
+            (*groups)[e.id.value]=std::abs(b.y_m-a.y_m)>=std::abs(b.x_m-a.x_m)?1:0;
+        }
+        edge_signal_group_=std::move(groups);
+        edge_allowed_=std::move(allowed);
+    }
     demand.assign(s.features.size(),1.0);
     baseline_.assign(s.features.size(),1.0);
     scheduled_baseline_ = baseline_;
@@ -260,10 +272,11 @@ std::vector<DemandFactor> EventRuntime::demand_factors(std::size_t feature) cons
 void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time) {
     if(!s.config.buildings||!feature_edges_||demand.empty())return;
     bool network_changed=false;
-    for(const auto& e:s.edges) {
-        const bool available=is_source_direction_allowed(e)&&!edges[e.id.value].closed&&!edges[e.id.value].incident_closed;
-        if(edge_available_[e.id.value]!=available)network_changed=true;
-        edge_available_[e.id.value]=available;
+    const auto& allowed=*edge_allowed_;
+    for(std::size_t i=0;i<allowed.size();++i) {
+        const bool available=allowed[i]&&!edges[i].closed&&!edges[i].incident_closed;
+        if(edge_available_[i]!=available)network_changed=true;
+        edge_available_[i]=available;
     }
 
     // Pass one: read the network around each place. Everything a coupling needs
@@ -343,9 +356,9 @@ nlohmann::json EventRuntime::demand_json(const Scenario& s) const {
     return items;
 }
 double EventRuntime::signal_multiplier(const Scenario& s,const EdgeStatic& e) const {
-    const int idx=signal_by_node_[e.to.value];if(idx<0||!s.config.signals)return 1;
-    const auto& a=s.nodes[e.from.value].position;const auto& b=s.nodes[e.to.value].position;
-    const bool group_a=std::abs(b.y_m-a.y_m)>=std::abs(b.x_m-a.x_m);const auto phase=signals[idx].phase;
+    if(!s.config.signals||!edge_signal_group_)return 1;
+    const auto group=(*edge_signal_group_)[e.id.value];if(group<0)return 1;
+    const bool group_a=group==1;const auto phase=signals[signal_by_node_[e.to.value]].phase;
     if((group_a&&phase==0)||(!group_a&&phase==3))return 1;
     if((group_a&&phase==1)||(!group_a&&phase==4))return .4;
     return .08;

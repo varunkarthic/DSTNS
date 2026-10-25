@@ -24,6 +24,9 @@ public:
     [[nodiscard]] EdgeDynamic& edge_state(EdgeId id);
     [[nodiscard]] const std::vector<NodeDynamic>& node_states() const { return node_dynamic_; }
     [[nodiscard]] const std::vector<EdgeDynamic>& edge_states() const { return edge_dynamic_; }
+    // Unchecked whole-vector access for loops that already walk every id.
+    [[nodiscard]] std::vector<NodeDynamic>& node_states_mut() { return node_dynamic_; }
+    [[nodiscard]] std::vector<EdgeDynamic>& edge_states_mut() { return edge_dynamic_; }
     [[nodiscard]] std::span<const EdgeId> outgoing(NodeId id) const;
     [[nodiscard]] std::uint64_t state_revision() const { return state_revision_; }
     void commit();

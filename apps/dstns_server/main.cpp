@@ -4,6 +4,7 @@
 #include "dstns/api.hpp"
 #include "dstns/build_info.hpp"
 #include "dstns/logging.hpp"
+#include "dstns/narrator.hpp"
 #include "dstns/osm_fetch.hpp"
 
 #include <cstdlib>
@@ -20,6 +21,15 @@ int main(int argc, char** argv) {
         std::string host = "127.0.0.1", logs = "logs", maps = "data/maps", cache_policy = "prune";
         std::uint16_t port = 8090;
         std::size_t cache_keep = 1;
+        // Narration is presentation only (see narrator.hpp). "auto" uses Apple's
+        // on-device model where the fm command exists and stays off elsewhere.
+        auto env = [](const char* name, const char* fallback) {
+            const char* value = std::getenv(name);
+            return std::string(value && *value ? value : fallback);
+        };
+        std::string narrator = env("DSTNS_NARRATOR", "auto");
+        std::string narrator_model = env("DSTNS_NARRATOR_MODEL", "system");
+        std::string narrator_cache = env("DSTNS_NARRATOR_CACHE", "");
         for (int i = 1; i < argc; ++i) {
             std::string a = argv[i];
             if (a == "--host" && i + 1 < argc) host = argv[++i];
@@ -33,6 +43,9 @@ int main(int argc, char** argv) {
             else if (a == "--maps" && i + 1 < argc) maps = argv[++i];
             else if (a == "--map-cache" && i + 1 < argc) cache_policy = argv[++i];
             else if (a == "--map-cache-keep" && i + 1 < argc) cache_keep = std::stoul(argv[++i]);
+            else if (a == "--narrator" && i + 1 < argc) narrator = argv[++i];
+            else if (a == "--narrator-model" && i + 1 < argc) narrator_model = argv[++i];
+            else if (a == "--narrator-cache" && i + 1 < argc) narrator_cache = argv[++i];
             else if (a == "--version") {
                 std::cout << "DSTNS " << DSTNS_VERSION << "\n"
                           << "Channel: " << DSTNS_CHANNEL << "\n"
@@ -47,6 +60,8 @@ int main(int argc, char** argv) {
             else if (a == "--help") {
                 std::cout << "dstns_server [--host ADDR (default 127.0.0.1)] [--port PORT] [--logs DIR] [--maps DIR]\n"
                              "             [--map-cache keep|prune|clear] [--map-cache-keep N]\n"
+                             "             [--narrator auto|off|fm|http://HOST:PORT|unix:/PATH] [--narrator-model NAME]\n"
+                             "             [--narrator-cache FILE|none]\n"
                              "             [--version]\n";
                 return 0;
             } else {
@@ -76,6 +91,29 @@ int main(int argc, char** argv) {
             logger.system("WARN", "maps", std::string("Cache sweep skipped: ") + e.what());
         }
         dstns::SimulationEngine engine(logger);
+        try {
+            std::unique_ptr<dstns::NarrationBackend> backend;
+            if (narrator == "auto" || narrator == "fm") {
+                if (const auto fm = dstns::find_fm()) backend = dstns::make_fm_backend(*fm);
+                else if (narrator == "fm") throw std::invalid_argument("--narrator fm: the fm command was not found");
+            } else if (narrator != "off" && narrator != "none") {
+                backend = dstns::make_chat_backend(narrator, narrator_model);
+            }
+            if (backend) {
+                dstns::NarratorOptions options;
+                if (narrator_cache != "none")
+                    options.cache_path = narrator_cache.empty() ? std::filesystem::path(logs) / "narrations.db" : std::filesystem::path(narrator_cache);
+                const auto description = backend->describe().dump();
+                engine.set_narrator(std::make_shared<dstns::Narrator>(std::move(backend), options));
+                logger.system("INFO", "narrator", "Narration enabled: " + description);
+            } else {
+                logger.system("INFO", "narrator", "Narration off; news keeps the core's wording");
+            }
+        } catch (const std::invalid_argument&) {
+            throw;
+        } catch (const std::exception& e) {
+            logger.system("WARN", "narrator", std::string("Narration unavailable: ") + e.what());
+        }
         dstns::ApiServer api(engine, logger);
         api.listen(host, port);
         return 0;

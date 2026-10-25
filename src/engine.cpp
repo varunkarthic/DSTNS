@@ -6,6 +6,8 @@
 #include "dstns/utf8.hpp"
 #include "dstns/sumo_bridge.hpp"
 #include "dstns/osm_fetch.hpp"
+#include "dstns/narrator.hpp"
+#include "dstns/platform.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -14,6 +16,7 @@
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 #include <unordered_set>
 
 namespace dstns {
@@ -40,6 +43,36 @@ std::string hhmmss(std::uint32_t s) {
 double clamp01(double x) { return std::clamp(x, 0.0, 1.0); }
 nlohmann::json point_json(const Point& p) {
     return {{"lat", p.lat}, {"lon", p.lon}, {"x_m", p.x_m}, {"y_m", p.y_m}};
+}
+
+// A JSON array of `count` items. Large arrays are built in contiguous slices
+// on several cores - Apple silicon has four to sixteen performance cores idle
+// while one thread allocates a quarter of a million small objects - and joined
+// in order, so the result is the same as building it on one thread.
+template <class Item>
+nlohmann::json build_array(std::size_t count, Item item) {
+    constexpr std::size_t kSliceMin = 4096;
+    const auto cores = std::max(1u, std::thread::hardware_concurrency());
+    const auto slices = static_cast<std::size_t>(std::min<std::size_t>({count / kSliceMin, std::size_t{8}, std::size_t(cores / 2)}));
+    nlohmann::json::array_t out;
+    out.reserve(count);
+    if (slices < 2) {
+        for (std::size_t i = 0; i < count; ++i) out.push_back(item(i));
+        return out;
+    }
+    std::vector<nlohmann::json::array_t> parts(slices);
+    std::vector<std::thread> workers;
+    const auto per = (count + slices - 1) / slices;
+    for (std::size_t s = 1; s < slices; ++s)
+        workers.emplace_back([&, s] {
+            const auto from = s * per, to = std::min(count, from + per);
+            parts[s].reserve(to > from ? to - from : 0);
+            for (std::size_t i = from; i < to; ++i) parts[s].push_back(item(i));
+        });
+    for (std::size_t i = 0; i < std::min(count, per); ++i) parts[0].push_back(item(i));
+    for (auto& w : workers) w.join();
+    for (auto& part : parts) std::move(part.begin(), part.end(), std::back_inserter(out));
+    return out;
 }
 
 struct StormAtmosphericState {
@@ -99,6 +132,73 @@ StormAtmosphericState evaluate_storm_state(const DwsEvent& e, std::uint32_t now_
         phase,
         true
     };
+}
+
+// The news an incident or a storm produces, composed in one place so the item
+// the physics step emits and the narration prefetched for it when the world is
+// installed are built from identical text and data.
+struct NewsDraft {
+    std::uint64_t event_id; const char* category; const char* severity; const char* template_id;
+    std::string message; nlohmann::json data; std::uint32_t at;
+};
+
+NewsDraft incident_started(const Incident& inc) {
+    const char* sev = "warning";
+    if (inc.type == IncidentType::RoadClosure || inc.type == IncidentType::HazardSpill) sev = "alert";
+    else if (inc.type == IncidentType::Congestion) sev = "info";
+    const std::string level = std::string_view(sev) == "alert" ? "HIGH" : (std::string_view(sev) == "warning" ? "MID" : "LOW");
+    return {inc.id, "incident", sev, "INCIDENT_ACTIVATED",
+            "[" + hhmmss(inc.start_virtual_s) + "] " + inc.description + " on Edge #" + std::to_string(inc.edge.value) +
+                " near Node #" + std::to_string(inc.node.value) + ". (" + level + " SEVERITY)",
+            {{"incident_id", inc.id},
+             {"type", to_string(inc.type)},
+             {"edge_id", inc.edge.value},
+             {"node_id", inc.node.value},
+             {"speed_multiplier", inc.speed_multiplier},
+             {"capacity_multiplier", inc.capacity_multiplier},
+             {"closed", inc.closed},
+             {"end_virtual_s", inc.end_virtual_s}},
+            inc.start_virtual_s};
+}
+
+NewsDraft incident_cleared(const Incident& inc) {
+    return {inc.id + 500000, "incident", "info", "INCIDENT_RESOLVED",
+            "[" + hhmmss(inc.end_virtual_s) + "] Incident cleared on Edge #" + std::to_string(inc.edge.value) +
+                " (" + to_string(inc.type) + "): Normal traffic flow restored.",
+            {{"incident_id", inc.id},
+             {"type", to_string(inc.type)},
+             {"edge_id", inc.edge.value},
+             {"node_id", inc.node.value}},
+            inc.end_virtual_s};
+}
+
+struct StormTimes { std::uint32_t start, peak, end; };
+StormTimes storm_times(const DwsEvent& e) {
+    const auto start = std::uint32_t(std::uint64_t(e.start_ppm) * day_s / ppm);
+    const auto end = std::uint32_t(std::uint64_t(e.end_ppm) * day_s / ppm);
+    return {start, start + (end - start) / 2, end};
+}
+
+NewsDraft rain_started(const DwsEvent& e, std::uint32_t start) {
+    return {e.id.value, "weather", "warning", "DWS_RAIN_STARTED",
+            "[" + hhmmss(start) + "] Rain storm initiated at Node " + std::to_string(e.epicenter.value) +
+                " (Radius: " + std::to_string(static_cast<int>(e.radius_m)) + "m, Intensity: " +
+                std::to_string(static_cast<int>(e.intensity * 100)) + "%)",
+            {{"epicenter", e.epicenter.value}, {"radius_m", e.radius_m}, {"intensity", e.intensity}}, start};
+}
+
+NewsDraft rain_peak(const DwsEvent& e, std::uint32_t peak) {
+    return {e.id.value + 50000, "weather", "alert", "DWS_RAIN_PEAK",
+            "[" + hhmmss(peak) + "] Peak precipitation & runoff at Node " + std::to_string(e.epicenter.value) +
+                "; road friction reduced.",
+            {{"epicenter", e.epicenter.value}, {"intensity", e.intensity}}, peak};
+}
+
+NewsDraft rain_ended(const DwsEvent& e, std::uint32_t end) {
+    return {e.id.value + 100000, "weather", "info", "DWS_RAIN_ENDED",
+            "[" + hhmmss(end) + "] Rain storm cleared at Node " + std::to_string(e.epicenter.value) +
+                "; network returning to baseline conditions.",
+            nlohmann::json{}, end};
 }
 } // namespace
 
@@ -177,7 +277,13 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
             throw std::logic_error("world preparation cancelled by runtime change");
         preparing_stage_.store(0);
         run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
+        narration_context_.reset();
         graph_ = std::make_unique<GraphStore>(std::move(scenario));
+        topology_body_.reset();
+        if (narrator_) {
+            narration_context_ = std::make_unique<NarrationContext>(graph_->scenario());
+            prefetch_narrations();
+        }
         tick_rate_ = config.tick_rate;
         requested_tick_rate_ = config.tick_rate;
         asb_.reset();
@@ -306,7 +412,13 @@ nlohmann::json SimulationEngine::trigger_surge(NodeId node, double factor, doubl
 void SimulationEngine::install_scenario(Scenario scenario, double tick_rate, std::uint32_t start) {
     installed_at_ = std::chrono::steady_clock::now();
     run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
+    narration_context_.reset();
     graph_ = std::make_unique<GraphStore>(std::move(scenario));
+    topology_body_.reset();
+    if (narrator_) {
+        narration_context_ = std::make_unique<NarrationContext>(graph_->scenario());
+        prefetch_narrations();
+    }
     tick_rate_ = tick_rate;
     requested_tick_rate_ = tick_rate;
     asb_.reset();
@@ -431,6 +543,7 @@ nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig&
     // also used by regeneration, so the compile lease prevents overlap while
     // status and map-progress requests remain independently serviceable.
     world_worker_ = std::jthread([this, seed, config, start, generation, compile_lease](std::stop_token) {
+        set_thread_role(ThreadRole::Preparation);
         try {
             auto scenario = compiler_.compile(seed, config, compile_progress());
             std::lock_guard lock(mutex_);
@@ -518,6 +631,8 @@ nlohmann::json SimulationEngine::reset() {
     ++compile_generation_;
     preparation_error_.clear();
     if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused) stop();
+    narration_context_.reset();
+    topology_body_.reset();
     graph_.reset();
     run_id_.clear();
     virtual_s_ = 0;
@@ -636,6 +751,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
     logger_.system("INFO", "world", "Generating new world with seed " + seed.hex());
     // Assigning joins the previous (already finished) worker, if any.
     world_worker_ = std::jthread([this, seed, config, generation, compile_generation, compile_lease](std::stop_token) {
+        set_thread_role(ThreadRole::Preparation);
         auto fail = [&](const std::string& code, const std::string& message) {
             world_generating_.store(false);
             preparing_stage_.store(0);
@@ -1028,21 +1144,31 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
     }
     const auto day_profile = std::sin((double(virtual_s_) / day_s * 2 * 3.141592653589793) - 1.2) * .5 + .5;
 
+    // A storm's position and strength depend on the clock alone, so evaluate
+    // each once per tick rather than once per junction; the per-junction loop
+    // then combines them in the same order, which keeps every result identical.
+    auto& node_states = graph_->node_states_mut();
+    auto& edge_states = graph_->edge_states_mut();
+    struct ActiveStorm { double x_m, y_m, radius_m, intensity; };
+    std::vector<ActiveStorm> storms;
+    if (sc.config.dws) {
+        auto consider = [&](const DwsEvent& e) {
+            if (e.epicenter.value >= sc.nodes.size()) return;
+            const auto storm = evaluate_storm_state(e, now_ppm, sc.nodes[e.epicenter.value]);
+            if (storm.active) storms.push_back({storm.cur_x_m, storm.cur_y_m, storm.cur_radius_m, storm.cur_intensity});
+        };
+        for (const auto& e : sc.dws_events) consider(e);
+        for (const auto& e : manual_weather_) consider(e);
+    }
+
     for (const auto& n : sc.nodes) {
-        auto& ns = graph_->node_state(n.id);
+        auto& ns = node_states[n.id.value];
         ns.building_effect = 0;
 
         double rain = 0;
-        auto consume = [&](const DwsEvent& e) {
-            if (e.epicenter.value >= sc.nodes.size()) return;
-            const auto storm = evaluate_storm_state(e, now_ppm, sc.nodes[e.epicenter.value]);
-            if (!storm.active) return;
-            const double dist = std::hypot(n.position.x_m - storm.cur_x_m, n.position.y_m - storm.cur_y_m);
-            rain = 1.0 - (1.0 - rain) * (1.0 - storm.cur_intensity * wendland_c2(dist, storm.cur_radius_m));
-        };
-        if (sc.config.dws) {
-            for (const auto& e : sc.dws_events) consume(e);
-            for (const auto& e : manual_weather_) consume(e);
+        for (const auto& storm : storms) {
+            const double dist = std::hypot(n.position.x_m - storm.x_m, n.position.y_m - storm.y_m);
+            rain = 1.0 - (1.0 - rain) * (1.0 - storm.intensity * wendland_c2(dist, storm.radius_m));
         }
         ns.rainfall = clamp01(rain);
 
@@ -1056,8 +1182,7 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
     }
 
     // Reset incident impact on all edges each physics tick
-    for (std::size_t i = 0; i < graph_->edges().size(); ++i) {
-        auto& es = graph_->edge_state(EdgeId{static_cast<std::uint32_t>(i)});
+    for (auto& es : edge_states) {
         es.incident_speed_multiplier = 1.0;
         es.incident_capacity_multiplier = 1.0;
         es.incident_closed = false;
@@ -1067,8 +1192,8 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
     if (sc.config.incidents) {
         for (const auto& inc : sc.incidents) {
             if (virtual_s_ >= inc.start_virtual_s && virtual_s_ < inc.end_virtual_s) {
-                if (inc.edge.value < graph_->edges().size()) {
-                    auto& es = graph_->edge_state(inc.edge);
+                if (inc.edge.value < edge_states.size()) {
+                    auto& es = edge_states[inc.edge.value];
                     es.incident_speed_multiplier = std::min(es.incident_speed_multiplier, inc.speed_multiplier);
                     es.incident_capacity_multiplier = std::min(es.incident_capacity_multiplier, inc.capacity_multiplier);
                     if (inc.closed) {
@@ -1079,10 +1204,23 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         }
     }
 
+    // Surges, like storms, are a function of the clock: shape each once.
+    struct ActiveSurge { Point centre; double factor, radius_m; };
+    std::vector<ActiveSurge> surges;
+    for (const auto& s : active_surges_) {
+        if (virtual_s_ >= s.start_s && virtual_s_ <= s.end_s && s.end_s > s.start_s) {
+            const double rel_t = double(virtual_s_ - s.start_s) / double(s.end_s - s.start_s);
+            const double bell = std::sin(3.141592653589793 * rel_t);
+            const double bell_weight = bell * bell;
+            surges.push_back({sc.nodes[s.node.value].position, 1.0 + (s.factor - 1.0) * bell_weight,
+                              s.radius_m * (0.35 + 0.65 * bell_weight)});
+        }
+    }
+
     for (const auto& e : sc.edges) {
-        auto& es = graph_->edge_state(e.id);
-        const auto& na = graph_->node_states()[e.from.value];
-        const auto& nb = graph_->node_states()[e.to.value];
+        auto& es = edge_states[e.id.value];
+        const auto& na = node_states[e.from.value];
+        const auto& nb = node_states[e.to.value];
         es.rainfall = (na.rainfall + nb.rainfall) / 2;
         const bool was_flooded=es.flood>.01;
         es.flood = (na.flood + nb.flood) / 2;
@@ -1109,20 +1247,11 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
         
         // Active Surge Multiplier following a smooth Gaussian / Normal Distribution curve
         double surge_mult = 1.0;
-        for (const auto& s : active_surges_) {
-            if (virtual_s_ >= s.start_s && virtual_s_ <= s.end_s && s.end_s > s.start_s) {
-                const double rel_t = double(virtual_s_ - s.start_s) / double(s.end_s - s.start_s);
-                const double bell = std::sin(3.141592653589793 * rel_t);
-                const double bell_weight = bell * bell;
-                const double cur_factor = 1.0 + (s.factor - 1.0) * bell_weight;
-                const double cur_radius = s.radius_m * (0.35 + 0.65 * bell_weight);
-
-                const auto& sn = sc.nodes[s.node.value];
-                const double d1 = point_distance(sc.nodes[e.from.value].position, sn.position);
-                const double d2 = point_distance(sc.nodes[e.to.value].position, sn.position);
-                if (d1 <= cur_radius || d2 <= cur_radius) {
-                    surge_mult = std::max(surge_mult, cur_factor);
-                }
+        for (const auto& s : surges) {
+            const double d1 = point_distance(sc.nodes[e.from.value].position, s.centre);
+            const double d2 = point_distance(sc.nodes[e.to.value].position, s.centre);
+            if (d1 <= s.radius_m || d2 <= s.radius_m) {
+                surge_mult = std::max(surge_mult, s.factor);
             }
         }
 
@@ -1184,28 +1313,12 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
     }
 
     const auto previous = virtual_s_ >= dt ? virtual_s_ - dt : 0;
+    auto emit = [&](NewsDraft d) { add_news(d.event_id, d.category, d.severity, d.template_id, std::move(d.message), std::move(d.data)); };
     auto notify = [&](const DwsEvent& e) {
-        const auto start = std::uint32_t(std::uint64_t(e.start_ppm) * day_s / ppm);
-        const auto end = std::uint32_t(std::uint64_t(e.end_ppm) * day_s / ppm);
-        const auto peak = start + (end - start) / 2;
-        if (previous < start && virtual_s_ >= start) {
-            add_news(e.id.value, "weather", "warning", "DWS_RAIN_STARTED",
-                     "[" + hhmmss(start) + "] Rain storm initiated at Node " + std::to_string(e.epicenter.value) +
-                     " (Radius: " + std::to_string(static_cast<int>(e.radius_m)) + "m, Intensity: " +
-                     std::to_string(static_cast<int>(e.intensity * 100)) + "%)",
-                     {{"epicenter", e.epicenter.value}, {"radius_m", e.radius_m}, {"intensity", e.intensity}});
-        }
-        if (previous < peak && virtual_s_ >= peak && peak > start) {
-            add_news(e.id.value + 50000, "weather", "alert", "DWS_RAIN_PEAK",
-                     "[" + hhmmss(peak) + "] Peak precipitation & runoff at Node " + std::to_string(e.epicenter.value) +
-                     "; road friction reduced.",
-                     {{"epicenter", e.epicenter.value}, {"intensity", e.intensity}});
-        }
-        if (previous < end && virtual_s_ >= end) {
-            add_news(e.id.value + 100000, "weather", "info", "DWS_RAIN_ENDED",
-                     "[" + hhmmss(end) + "] Rain storm cleared at Node " + std::to_string(e.epicenter.value) +
-                     "; network returning to baseline conditions.");
-        }
+        const auto [start, peak, end] = storm_times(e);
+        if (previous < start && virtual_s_ >= start) emit(rain_started(e, start));
+        if (previous < peak && virtual_s_ >= peak && peak > start) emit(rain_peak(e, peak));
+        if (previous < end && virtual_s_ >= end) emit(rain_ended(e, end));
     };
     if (sc.config.dws) {
         for (const auto& e : sc.dws_events) notify(e);
@@ -1215,31 +1328,8 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
     // Active Deterministic Incident Lifecycle (Activation & Resolution)
     if (sc.config.incidents) {
         for (const auto& inc : sc.incidents) {
-            if (previous < inc.start_virtual_s && virtual_s_ >= inc.start_virtual_s) {
-                std::string sev = "warning";
-                if (inc.type == IncidentType::RoadClosure || inc.type == IncidentType::HazardSpill) sev = "alert";
-                else if (inc.type == IncidentType::Congestion) sev = "info";
-                add_news(inc.id, "incident", sev, "INCIDENT_ACTIVATED",
-                         "[" + hhmmss(inc.start_virtual_s) + "] " + inc.description + " on Edge #" + std::to_string(inc.edge.value) +
-                         " near Node #" + std::to_string(inc.node.value) + ". (" + (sev == "alert" ? "HIGH" : (sev == "warning" ? "MID" : "LOW")) + " SEVERITY)",
-                         {{"incident_id", inc.id},
-                          {"type", to_string(inc.type)},
-                          {"edge_id", inc.edge.value},
-                          {"node_id", inc.node.value},
-                          {"speed_multiplier", inc.speed_multiplier},
-                          {"capacity_multiplier", inc.capacity_multiplier},
-                          {"closed", inc.closed},
-                          {"end_virtual_s", inc.end_virtual_s}});
-            }
-            if (previous < inc.end_virtual_s && virtual_s_ >= inc.end_virtual_s) {
-                add_news(inc.id + 500000, "incident", "info", "INCIDENT_RESOLVED",
-                         "[" + hhmmss(inc.end_virtual_s) + "] Incident cleared on Edge #" + std::to_string(inc.edge.value) +
-                         " (" + to_string(inc.type) + "): Normal traffic flow restored.",
-                         {{"incident_id", inc.id},
-                          {"type", to_string(inc.type)},
-                          {"edge_id", inc.edge.value},
-                          {"node_id", inc.node.value}});
-            }
+            if (previous < inc.start_virtual_s && virtual_s_ >= inc.start_virtual_s) emit(incident_started(inc));
+            if (previous < inc.end_virtual_s && virtual_s_ >= inc.end_virtual_s) emit(incident_cleared(inc));
         }
     }
 
@@ -1312,6 +1402,7 @@ void SimulationEngine::restore_to(std::uint32_t target) {
 }
 
 void SimulationEngine::loop() {
+    set_thread_role(ThreadRole::Simulation);
     std::unique_lock lock(mutex_);
     while (!terminate_requested_) {
         cv_.wait_for(lock, std::chrono::milliseconds(50));
@@ -1321,7 +1412,21 @@ void SimulationEngine::loop() {
         if (lifecycle_ == Lifecycle::Running) {
             const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
             const auto rate = day_s / double(graph_->scenario().config.playback_duration_s) * tick_rate_;
-            step_to(std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(elapsed * rate)));
+            const auto target = std::min(day_s, anchor_virtual_s_ + static_cast<std::uint32_t>(elapsed * rate));
+            // Catch up in slices of about 20 ms, letting go of the lock between
+            // them: a snapshot, a pause or a seek then waits for one slice, not
+            // for however far behind the clock has fallen. The ticks are the
+            // same ones in the same order, so the run is unchanged.
+            while (lifecycle_ == Lifecycle::Running && virtual_s_ < target && !terminate_requested_) {
+                const auto slice_end = std::chrono::steady_clock::now() + std::chrono::milliseconds(20);
+                do step_to(virtual_s_ + 1);
+                while (virtual_s_ < target && std::chrono::steady_clock::now() < slice_end);
+                if (virtual_s_ < target) {
+                    lock.unlock();
+                    std::this_thread::yield();
+                    lock.lock();
+                }
+            }
         }
 
         const auto now = std::chrono::steady_clock::now();
@@ -1337,7 +1442,79 @@ void SimulationEngine::loop() {
 
 void SimulationEngine::add_news(std::uint64_t eid, std::string cat, std::string sev, std::string tid, std::string msg, nlohmann::json data) {
     if (graph_ && !graph_->scenario().config.news) return;
-    news_.push_back({next_news_id_++, eid, virtual_s_, std::move(cat), std::move(sev), std::move(tid), std::move(msg), std::move(data)});
+    NewsItem item{next_news_id_++, eid, virtual_s_, std::move(cat), std::move(sev), std::move(tid), std::move(msg), std::move(data), {}};
+    // Hand the facts to the narrator, which only queues them: the model is
+    // never waited on here, and what it writes is never read by the physics.
+    if (narrator_ && narration_context_) {
+        if (auto request = narration_request(*narration_context_, item.template_id, item.message, item.data, virtual_s_)) {
+            item.narration_key = request->key;
+            narrator_->request(*request, true);
+        }
+    }
+    news_.push_back(std::move(item));
+}
+
+// Incidents and storms are scheduled when the world is compiled, so their news
+// is known before it happens. Asking for those narrations now, earliest first,
+// means most are written before the clock reaches them. Caller holds mutex_.
+void SimulationEngine::prefetch_narrations() {
+    if (!narrator_ || !narration_context_ || !graph_) return;
+    const auto& sc = graph_->scenario();
+    auto ask = [&](const NewsDraft& d) {
+        if (auto request = narration_request(*narration_context_, d.template_id, d.message, d.data, d.at))
+            narrator_->request(*request, false);
+    };
+    if (sc.config.incidents) {
+        for (const auto& inc : sc.incidents) {
+            ask(incident_started(inc));
+            ask(incident_cleared(inc));
+        }
+    }
+    if (sc.config.dws) {
+        for (const auto& e : sc.dws_events) {
+            const auto [start, peak, end] = storm_times(e);
+            ask(rain_started(e, start));
+            if (peak > start) ask(rain_peak(e, peak));
+            ask(rain_ended(e, end));
+        }
+    }
+}
+
+void SimulationEngine::set_narrator(std::shared_ptr<Narrator> narrator) {
+    std::lock_guard lock(mutex_);
+    narrator_ = std::move(narrator);
+    narration_context_.reset();
+    if (narrator_ && graph_) {
+        narration_context_ = std::make_unique<NarrationContext>(graph_->scenario());
+        prefetch_narrations();
+    }
+}
+
+nlohmann::json SimulationEngine::narrator_status() const {
+    std::shared_ptr<Narrator> narrator;
+    {
+        std::lock_guard lock(mutex_);
+        narrator = narrator_;
+    }
+    if (!narrator) return {{"enabled", false}, {"state", "off"}};
+    return narrator->status();
+}
+
+nlohmann::json SimulationEngine::news_json(const NewsItem& n, const char* time_key) const {
+    nlohmann::json item{
+        {"news_id", n.news_id},
+        {"event_id", n.event_id},
+        {time_key, n.virtual_s},
+        {"simulated_current_time", hhmmss(n.virtual_s)},
+        {"category", n.category},
+        {"severity", n.severity},
+        {"template_id", n.template_id},
+        {"message", n.message},
+        {"data", n.data}
+    };
+    if (narrator_ && !n.narration_key.empty())
+        if (auto told = narrator_->lookup(n.narration_key)) item["narrative"] = std::move(told->text);
+    return item;
 }
 
 nlohmann::json SimulationEngine::clock_json() const {
@@ -1472,16 +1649,132 @@ nlohmann::json SimulationEngine::topology() const {
 }
 
 nlohmann::json SimulationEngine::snapshot() const {
-    std::lock_guard lock(mutex_);
-    if (!graph_) return envelope(nlohmann::json::object());
-    nlohmann::json ns = nlohmann::json::array(), es = nlohmann::json::array();
-    for (std::size_t i = 0; i < graph_->node_states().size(); ++i) {
-        const auto& s = graph_->node_states()[i];
-        ns.push_back({{"id", i}, {"rainfall", s.rainfall}, {"flood", s.flood}, {"building_effect", s.building_effect}});
+    // The per-node and per-edge arrays are most of a snapshot's cost. Copy the
+    // raw state under the lock - a memcpy - and build their JSON after
+    // releasing it, so a polling observer no longer holds the physics clock for
+    // the whole serialization.
+    std::vector<NodeDynamic> node_copy;
+    std::vector<EdgeDynamic> edge_copy;
+    std::vector<std::vector<std::string>> causes;
+    nlohmann::json result;
+    {
+        std::lock_guard lock(mutex_);
+        if (!graph_) return envelope(nlohmann::json::object());
+        node_copy = graph_->node_states();
+        edge_copy = graph_->edge_states();
+        causes.resize(edge_copy.size());
+        if (graph_->scenario().config.buildings)
+            for (std::size_t i = 0; i < edge_copy.size(); ++i)
+                causes[i] = events_.demand_causes(graph_->scenario(), EdgeId{static_cast<std::uint32_t>(i)});
+
+        nlohmann::json active_weather_list = nlohmann::json::array();
+        const auto now_ppm = std::uint32_t(std::uint64_t(virtual_s_) * ppm / day_s);
+        auto check_weather = [&](const DwsEvent& e) {
+            if (e.epicenter.value < graph_->nodes().size()) {
+                const auto storm = evaluate_storm_state(e, now_ppm, graph_->nodes()[e.epicenter.value]);
+                if (storm.active) {
+                    active_weather_list.push_back({
+                        {"id", e.id.value},
+                        {"epicenter_node", e.epicenter.value},
+                        {"lat", storm.cur_lat},
+                        {"lon", storm.cur_lon},
+                        {"x_m", storm.cur_x_m},
+                        {"y_m", storm.cur_y_m},
+                        {"radius_m", storm.cur_radius_m},
+                        {"intensity", storm.cur_intensity},
+                        {"phase", storm.phase},
+                        {"flood_gain", e.flood_gain}
+                    });
+                }
+            }
+        };
+        if(graph_->scenario().config.dws){for (const auto& e : graph_->scenario().dws_events) check_weather(e);
+        for (const auto& e : manual_weather_) check_weather(e);}
+
+        nlohmann::json active_incidents = nlohmann::json::array();
+        std::unordered_set<std::uint32_t> incident_edges;
+        for (const auto& inc : graph_->scenario().incidents) {
+            if (virtual_s_ >= inc.start_virtual_s && virtual_s_ < inc.end_virtual_s) {
+                if (inc.edge.value < graph_->edges().size()) {
+                    const auto& e = graph_->edges()[inc.edge.value];
+                    const auto& s = graph_->edge_states()[inc.edge.value];
+                    incident_edges.insert(inc.edge.value);
+                    active_incidents.push_back({
+                        {"incident_id", inc.id},
+                        {"type", to_string(inc.type)},
+                        {"description", inc.description},
+                        {"edge_id", e.id.value},
+                        {"from_node", e.from.value},
+                        {"to_node", e.to.value},
+                        {"node_id", inc.node.value},
+                        {"road_class", to_string(e.road_class)},
+                        {"congestion", s.congestion},
+                        {"flood", s.flood},
+                        {"closed", s.closed},
+                        {"effective_speed_mps", s.effective_speed_mps},
+                        {"vehicle_count", s.vehicle_count},
+                        {"speed_multiplier", inc.speed_multiplier},
+                        {"capacity_multiplier", inc.capacity_multiplier},
+                        {"start_virtual_s", inc.start_virtual_s},
+                        {"end_virtual_s", inc.end_virtual_s},
+                        {"remaining_s", inc.end_virtual_s > virtual_s_ ? (inc.end_virtual_s - virtual_s_) : 0}
+                    });
+                }
+            }
+        }
+        nlohmann::json event_stack = nlohmann::json::array();
+        const std::size_t stack_count = std::min<std::size_t>(news_.size(), 25);
+        for (std::size_t i = news_.size() - stack_count; i < news_.size(); ++i) event_stack.push_back(news_json(news_[i], "virtual_s"));
+
+        nlohmann::json active_surges_list = nlohmann::json::array();
+        for (const auto& s : active_surges_) {
+            if (virtual_s_ >= s.start_s && virtual_s_ <= s.end_s && s.node.value < graph_->nodes().size() && s.end_s > s.start_s) {
+                const auto& n = graph_->nodes()[s.node.value];
+                const double rel_t = double(virtual_s_ - s.start_s) / double(s.end_s - s.start_s);
+                const double bell = std::sin(3.141592653589793 * rel_t);
+                const double bell_weight = bell * bell;
+                const double cur_factor = 1.0 + (s.factor - 1.0) * bell_weight;
+                const double cur_radius = s.radius_m * (0.35 + 0.65 * bell_weight);
+
+                active_surges_list.push_back({
+                    {"id", s.id},
+                    {"node_id", s.node.value},
+                    {"lat", n.position.lat},
+                    {"lon", n.position.lon},
+                    {"x_m", n.position.x_m},
+                    {"y_m", n.position.y_m},
+                    {"radius_m", cur_radius},
+                    {"factor", cur_factor},
+                    {"start_s", s.start_s},
+                    {"end_s", s.end_s},
+                    {"remaining_s", s.end_s - virtual_s_},
+                    {"label", s.label}
+                });
+            }
+        }
+
+        auto congestion=congestion_.json();congestion.erase("history");
+        result = envelope({
+            {"signals",signal_state_json()},
+            {"demand",events_.demand_json(graph_->scenario())},
+            {"congestion",congestion},
+            {"topology_revision", 1},
+            {"active_weather_events", active_weather_list.size()},
+            {"active_weather", std::move(active_weather_list)},
+            {"active_surges", std::move(active_surges_list)},
+            {"active_incidents", std::move(active_incidents)},
+            {"event_stack", std::move(event_stack)}
+        });
     }
-    for (std::size_t i = 0; i < graph_->edge_states().size(); ++i) {
-        const auto& s = graph_->edge_states()[i];
-        es.push_back({
+
+    auto& data = result["data"];
+    data["nodes"] = build_array(node_copy.size(), [&](std::size_t i) {
+        const auto& s = node_copy[i];
+        return nlohmann::json{{"id", i}, {"rainfall", s.rainfall}, {"flood", s.flood}, {"building_effect", s.building_effect}};
+    });
+    data["edges"] = build_array(edge_copy.size(), [&](std::size_t i) {
+        const auto& s = edge_copy[i];
+        return nlohmann::json{
             {"id", i},
             {"congestion", s.congestion},
             {"rainfall", s.rainfall},
@@ -1494,123 +1787,10 @@ nlohmann::json SimulationEngine::snapshot() const {
             {"incident_speed_multiplier",s.incident_speed_multiplier},{"signal_multiplier",s.signal_multiplier},
             {"demand_vph",s.demand_vph},{"effective_capacity_vph",s.effective_capacity_vph},
             {"mean_speed_mps",s.mean_speed_mps},
-            {"demand_causes",graph_->scenario().config.buildings?events_.demand_causes(graph_->scenario(),EdgeId{static_cast<std::uint32_t>(i)}):std::vector<std::string>{}}
-        });
-    }
-
-    nlohmann::json active_weather_list = nlohmann::json::array();
-    const auto now_ppm = std::uint32_t(std::uint64_t(virtual_s_) * ppm / day_s);
-    auto check_weather = [&](const DwsEvent& e) {
-        if (e.epicenter.value < graph_->nodes().size()) {
-            const auto storm = evaluate_storm_state(e, now_ppm, graph_->nodes()[e.epicenter.value]);
-            if (storm.active) {
-                active_weather_list.push_back({
-                    {"id", e.id.value},
-                    {"epicenter_node", e.epicenter.value},
-                    {"lat", storm.cur_lat},
-                    {"lon", storm.cur_lon},
-                    {"x_m", storm.cur_x_m},
-                    {"y_m", storm.cur_y_m},
-                    {"radius_m", storm.cur_radius_m},
-                    {"intensity", storm.cur_intensity},
-                    {"phase", storm.phase},
-                    {"flood_gain", e.flood_gain}
-                });
-            }
-        }
-    };
-    if(graph_->scenario().config.dws){for (const auto& e : graph_->scenario().dws_events) check_weather(e);
-    for (const auto& e : manual_weather_) check_weather(e);}
-
-    nlohmann::json active_incidents = nlohmann::json::array();
-    std::unordered_set<std::uint32_t> incident_edges;
-    for (const auto& inc : graph_->scenario().incidents) {
-        if (virtual_s_ >= inc.start_virtual_s && virtual_s_ < inc.end_virtual_s) {
-            if (inc.edge.value < graph_->edges().size()) {
-                const auto& e = graph_->edges()[inc.edge.value];
-                const auto& s = graph_->edge_states()[inc.edge.value];
-                incident_edges.insert(inc.edge.value);
-                active_incidents.push_back({
-                    {"incident_id", inc.id},
-                    {"type", to_string(inc.type)},
-                    {"description", inc.description},
-                    {"edge_id", e.id.value},
-                    {"from_node", e.from.value},
-                    {"to_node", e.to.value},
-                    {"node_id", inc.node.value},
-                    {"road_class", to_string(e.road_class)},
-                    {"congestion", s.congestion},
-                    {"flood", s.flood},
-                    {"closed", s.closed},
-                    {"effective_speed_mps", s.effective_speed_mps},
-                    {"vehicle_count", s.vehicle_count},
-                    {"speed_multiplier", inc.speed_multiplier},
-                    {"capacity_multiplier", inc.capacity_multiplier},
-                    {"start_virtual_s", inc.start_virtual_s},
-                    {"end_virtual_s", inc.end_virtual_s},
-                    {"remaining_s", inc.end_virtual_s > virtual_s_ ? (inc.end_virtual_s - virtual_s_) : 0}
-                });
-            }
-        }
-    }
-    nlohmann::json event_stack = nlohmann::json::array();
-    const std::size_t stack_count = std::min<std::size_t>(news_.size(), 25);
-    for (std::size_t i = news_.size() - stack_count; i < news_.size(); ++i) {
-        const auto& n = news_[i];
-        event_stack.push_back({
-            {"news_id", n.news_id},
-            {"event_id", n.event_id},
-            {"simulated_current_time", hhmmss(n.virtual_s)},
-            {"virtual_s", n.virtual_s},
-            {"category", n.category},
-            {"severity", n.severity},
-            {"template_id", n.template_id},
-            {"message", n.message},
-            {"data", n.data}
-        });
-    }
-
-    nlohmann::json active_surges_list = nlohmann::json::array();
-    for (const auto& s : active_surges_) {
-        if (virtual_s_ >= s.start_s && virtual_s_ <= s.end_s && s.node.value < graph_->nodes().size() && s.end_s > s.start_s) {
-            const auto& n = graph_->nodes()[s.node.value];
-            const double rel_t = double(virtual_s_ - s.start_s) / double(s.end_s - s.start_s);
-            const double bell = std::sin(3.141592653589793 * rel_t);
-            const double bell_weight = bell * bell;
-            const double cur_factor = 1.0 + (s.factor - 1.0) * bell_weight;
-            const double cur_radius = s.radius_m * (0.35 + 0.65 * bell_weight);
-
-            active_surges_list.push_back({
-                {"id", s.id},
-                {"node_id", s.node.value},
-                {"lat", n.position.lat},
-                {"lon", n.position.lon},
-                {"x_m", n.position.x_m},
-                {"y_m", n.position.y_m},
-                {"radius_m", cur_radius},
-                {"factor", cur_factor},
-                {"start_s", s.start_s},
-                {"end_s", s.end_s},
-                {"remaining_s", s.end_s - virtual_s_},
-                {"label", s.label}
-            });
-        }
-    }
-
-    auto congestion=congestion_.json();congestion.erase("history");
-    return envelope({
-        {"signals",signal_state_json()},
-        {"demand",events_.demand_json(graph_->scenario())},
-        {"congestion",congestion},
-        {"topology_revision", 1},
-        {"nodes", std::move(ns)},
-        {"edges", std::move(es)},
-        {"active_weather_events", active_weather_list.size()},
-        {"active_weather", std::move(active_weather_list)},
-        {"active_surges", std::move(active_surges_list)},
-        {"active_incidents", std::move(active_incidents)},
-        {"event_stack", std::move(event_stack)}
+            {"demand_causes",std::move(causes[i])}
+        };
     });
+    return result;
 }
 
 nlohmann::json SimulationEngine::nodes(std::size_t off, std::size_t lim) const {
@@ -1901,25 +2081,51 @@ nlohmann::json SimulationEngine::catalog(const std::string& kind) const {
     return envelope({{"items", std::move(items)}});
 }
 
-nlohmann::json SimulationEngine::news(std::uint64_t since, std::size_t limit) const {
+nlohmann::json SimulationEngine::news(std::uint64_t since, std::size_t limit, std::uint64_t since_narration) const {
     std::lock_guard lock(mutex_);
+    // Read the narration sequence before scanning: anything finished after this
+    // point carries a higher number, so the client's next request picks it up.
+    const auto narration_sequence = narrator_ ? narrator_->sequence() : 0;
     nlohmann::json items = nlohmann::json::array();
     for (const auto& n : news_) {
-        if (n.news_id > since && items.size() < limit) {
-            items.push_back({
-                {"news_id", n.news_id},
-                {"event_id", n.event_id},
-                {"virtual_day_s", n.virtual_s},
-                {"simulated_current_time", hhmmss(n.virtual_s)},
-                {"category", n.category},
-                {"severity", n.severity},
-                {"template_id", n.template_id},
-                {"message", n.message},
-                {"data", n.data}
-            });
-        }
+        if (n.news_id > since && items.size() < limit) items.push_back(news_json(n, "virtual_day_s"));
     }
-    return envelope({{"items", std::move(items)}});
+    nlohmann::json data{{"items", std::move(items)}};
+    if (narrator_) {
+        // A narration usually finishes after its item was first served. List
+        // the recent ones the client already holds but has not seen worded.
+        auto narrated = nlohmann::json::array();
+        const auto window = std::min<std::size_t>(news_.size(), 200);
+        for (std::size_t i = news_.size() - window; i < news_.size(); ++i) {
+            const auto& n = news_[i];
+            if (n.narration_key.empty() || n.news_id > since) continue;
+            if (auto told = narrator_->lookup(n.narration_key); told && told->sequence > since_narration)
+                narrated.push_back({{"news_id", n.news_id}, {"narrative", std::move(told->text)}});
+        }
+        data["narrated"] = std::move(narrated);
+        data["narration_sequence"] = narration_sequence;
+    }
+    return envelope(std::move(data));
+}
+
+std::string SimulationEngine::topology_text() const {
+    nlohmann::json head;
+    std::shared_ptr<const std::string> body;
+    {
+        std::lock_guard lock(mutex_);
+        if (!graph_) return dump_json(envelope(nlohmann::json::object()));
+        if (!topology_body_) topology_body_ = std::make_shared<const std::string>(dump_json(topology()["data"]));
+        body = topology_body_;
+        head = envelope(nullptr);
+    }
+    // Compact JSON composes: the serialized envelope with the body in place of
+    // its null "data" is exactly the serialization of the whole response.
+    auto text = dump_json(head);
+    constexpr std::string_view slot = "\"data\":null";
+    const auto at = text.find(slot);
+    if (at == std::string::npos) return dump_json(topology());
+    text.replace(at + 7, 4, *body);
+    return text;
 }
 
 nlohmann::json SimulationEngine::history() const {

@@ -11,6 +11,7 @@ configure_file(include/dstns/build_info.hpp.in generated/dstns/build_info.hpp @O
 
 option(DSTNS_BUILD_TESTS "Build DSTNS tests" ON)
 option(DSTNS_ENABLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
+option(DSTNS_TUNE_FOR_HOST "Tune code generation for this machine's CPU (-mcpu=native); the binary may not run on older CPUs" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -42,7 +43,8 @@ else()
 endif()
 
 add_library(dstns_core
-  src/rng.cpp src/utf8.cpp src/graph.cpp src/asb.cpp src/demand.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp)
+  src/rng.cpp src/utf8.cpp src/graph.cpp src/asb.cpp src/demand.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp
+  src/narrator.cpp src/platform.cpp)
 target_include_directories(dstns_core PUBLIC include "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib)
 if(APPLE)
@@ -50,6 +52,14 @@ if(APPLE)
 endif()
 target_compile_definitions(dstns_core PUBLIC DSTNS_VERSION="${PROJECT_VERSION}")
 target_compile_options(dstns_core PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
+
+# Apple clang already targets apple-m1 (the baseline of every Apple silicon
+# Mac) by default. Host tuning is opt-in: it only changes instruction selection
+# and scheduling, never floating-point semantics, but the binary is then tied to
+# CPUs at least as new as the build machine's.
+if(DSTNS_TUNE_FOR_HOST AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  target_compile_options(dstns_core PRIVATE -mcpu=native)
+endif()
 
 if(DSTNS_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(dstns_core PUBLIC -fsanitize=address,undefined -fno-omit-frame-pointer)
@@ -71,7 +81,7 @@ target_link_libraries(dstns_benchmark PRIVATE dstns_core)
 if(DSTNS_BUILD_TESTS)
   enable_testing()
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  foreach(smoke loading termination hardening)
+  foreach(smoke loading termination hardening narration)
     add_test(NAME dstns_http_${smoke}
       COMMAND ${CMAKE_COMMAND} -E env "DSTNS_SERVER=$<TARGET_FILE:dstns_server>"
         ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/api/${smoke}_smoke.py")
@@ -136,6 +146,12 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_rep_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_replay_reproducibility COMMAND dstns_rep_tests)
   set_tests_properties(dstns_replay_reproducibility PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_executable(dstns_narrator_tests tests/unit/narrator_tests.cpp)
+  target_link_libraries(dstns_narrator_tests PRIVATE dstns_core)
+  target_compile_options(dstns_narrator_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_narration COMMAND dstns_narrator_tests)
+  set_tests_properties(dstns_narration PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 60)
 
   add_executable(dstns_perf_tests tests/performance/perf_tests.cpp)
   target_link_libraries(dstns_perf_tests PRIVATE dstns_core)

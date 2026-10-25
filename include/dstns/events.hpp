@@ -62,6 +62,11 @@ private:
     std::priority_queue<ScheduledEvent,std::vector<ScheduledEvent>,std::greater<ScheduledEvent>> queue_;
     std::deque<ScheduledEvent> history_;
     std::vector<int> signal_by_node_;
+    // Per edge, fixed for the world: which signal group its approach belongs
+    // to (-1 none, 0 B, 1 A) and whether its direction is traversable. Shared,
+    // not copied, by checkpoints.
+    std::shared_ptr<const std::vector<std::int8_t>> edge_signal_group_;
+    std::shared_ptr<const std::vector<std::uint8_t>> edge_allowed_;
     using EdgeFeatures = std::vector<std::vector<std::pair<std::uint32_t,double>>>;
     std::shared_ptr<const EdgeFeatures> edge_features_;
     std::vector<double> edge_demand_;
