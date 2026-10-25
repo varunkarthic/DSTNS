@@ -54,6 +54,9 @@
     "host": "127.0.0.1",
     "port": 8090
   },
+  "narration": {
+    "mode": "auto"
+  },
   "ui": {
     "port": 5173,
     "osm_background": true

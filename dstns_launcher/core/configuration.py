@@ -199,6 +199,12 @@ def _dws_spacing(value: Any, config: dict[str, Any]) -> str:
     return ""
 
 
+def _narration_mode(value: Any, config: dict[str, Any]) -> str:
+    if isinstance(value, str) and (value in {"auto", "fm", "off"} or value.startswith(("http://", "unix:/"))):
+        return ""
+    return "Use auto, fm, off, http://HOST:PORT or unix:/PATH."
+
+
 FIELDS: tuple[Field, ...] = (
     Field("day", "Day type", "Run", Kind.CHOICE, "Weekday or weekend demand profiles. --day-type overrides it.",
           choices=(("weekday", 0), ("weekend", 1)), default=0),
@@ -223,6 +229,10 @@ FIELDS: tuple[Field, ...] = (
           "127.0.0.1 keeps the server local; 0.0.0.0 exposes it to the network.", default="127.0.0.1"),
     Field("api.port", "Port", "Server", Kind.INTEGER,
           "Preferred port; the next free one is used if it is taken.", minimum=1, maximum=65535, default=8090),
+    Field("narration.mode", "Narration", "Server", Kind.TEXT,
+          "Plain-language news: auto uses Apple Foundation Models where available, fm requires them, off keeps the "
+          "default wording, or a Chat Completions endpoint (http://HOST:PORT, unix:/PATH). --narrator overrides it.",
+          default="auto", extra=_narration_mode),
 )
 
 CATEGORIES: tuple[str, ...] = tuple(dict.fromkeys(field.category for field in FIELDS))

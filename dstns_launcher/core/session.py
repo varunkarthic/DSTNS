@@ -12,7 +12,7 @@ import logging
 import threading
 from dataclasses import dataclass, field
 
-from . import api, server, simulation
+from . import api, narration, server, simulation
 from .configuration import RunOptions
 from .errors import SimulationStartError
 from .process import check_cancelled
@@ -93,6 +93,8 @@ class Session:
         else:
             self.world = simulation.start_run(handle.port, request, reporter, self.paths, cancel=cancel)
             self.observed_existing = False
+            if handle.managed:
+                narration.confirm(handle.port, reporter, self.paths, cancel=cancel)
         reporter.message(Level.INFO, "Observer ready", handle.url)
         if open_browser and observing:
             simulation.open_in_browser(handle.url)

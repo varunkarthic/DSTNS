@@ -55,6 +55,12 @@ interactively, it creates a private environment, `.venv-launcher/`, and installs
 pinned versions listed in `dstns_launcher/requirements.txt` into it. Nothing is
 installed into your system Python. Later starts use the environment directly.
 
+In a checkout that a cloud client syncs (OneDrive, iCloud Drive, Dropbox, Google
+Drive), the environment is created in the local cache instead -
+`~/Library/Caches/DSTNS/venv-launcher-<id>` on macOS, `~/.cache/dstns/` elsewhere -
+because the client evicts files it has uploaded and every import would then wait
+on the network. `DSTNS_LAUNCHER_VENV` chooses the location outright.
+
 If the installation cannot complete (no network, no `venv` module, an unwritable
 directory) the launcher continues in compatibility mode. Set
 `DSTNS_LAUNCHER_NO_INSTALL=1` to prevent the installation altogether. To install by
@@ -341,6 +347,30 @@ For `start` and `seeds save`:
 | `--max-nodes N` | Integer 2 to 50000 | Graph size cap |
 | `--osm-file PATH` | Existing file | Pin a map instead of letting the seed choose |
 | `--open`, `--no-open` | | Open the observer in a browser. Default: when a desktop is present |
+| `--narrator MODE` | `auto`, `fm`, `off`, `http://HOST:PORT`, `unix:/PATH` | [Natural-language narration](narration.md). Default: `narration.mode` in `config/defaults.json`, else `auto` |
+
+### Narration
+
+Before it starts a server, the launcher decides whether news will be worded by a
+language model, and tells you. `auto` and `fm` use Apple's on-device Foundation
+Model, and are checked in order: macOS, the `fm` command, `fm available`, and
+whether Apple's terms were accepted (`fm license --status`). An endpoint must
+answer `/v1/models`. If anything is missing the server is started with
+`--narrator off`, the news keeps its default wording, and the launcher says why and
+what would fix it:
+
+```text
+ [WARN]  Apple Foundation Models unavailable: using the default wording
+         the on-device model is not available (Apple Intelligence is turned off).
+         Turn on Apple Intelligence in System Settings and let the model finish downloading.
+```
+
+Once the run has started it reports what the server's narrator actually did -
+**Narration ready**, or a warning if the model stopped answering - and the
+**Narration** environment check shows the same decision. Attaching to a server
+that is already running reports that server's narration, which was fixed when it
+started. `--narrator` lasts for one invocation; set `narration.mode` (in the
+**Server** section of the configuration screen) to change the default.
 
 ### Interface options
 
@@ -405,11 +435,15 @@ server shutdown; it is separate from pausing simulation time.
 
 ## Diagnostics
 
-The launcher writes its own log to `logs/launcher.log` (rotated at 1 MB, two backups):
+The launcher writes its own log to `logs/launcher.log` (rotated at 1 MB, two backups;
+in a cloud-synced checkout, `~/Library/Logs/DSTNS/launcher.log` on macOS or
+`~/.local/state/dstns/launcher.log` elsewhere):
 the version, Python and operating system, the terminal's capabilities, environment
 check results, server starts and stops, fallbacks to compatibility mode, and the full
 traceback of any unexpected error. It never records the operator credential or
 environment values. Run with `--debug` for more detail, and for tracebacks on screen.
+If the log cannot be written, logging stops quietly for the session; it never
+interrupts the launcher.
 
 **Diagnostics** in the dashboard re-runs every check, optionally with the core, HTTP,
 loading and observer test suites, and shows the running server's version and SUMO

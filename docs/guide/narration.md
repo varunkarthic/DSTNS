@@ -45,6 +45,12 @@ dstns_server --narrator off                                                # nev
 The engine speaks plain HTTP: put a TLS-terminating proxy in front of a remote
 model, as you would in front of DSTNS itself.
 
+The launcher takes the same modes as `./launcher --narrator MODE` or
+`narration.mode` in `config/defaults.json`. It checks the choice before starting
+the server - `fm` installed, the model available, Apple's terms accepted, an
+endpoint answering - and when it is not usable, starts the server with narration
+off and prints why (see [Operator CLI](operator-cli.md#narration)).
+
 ## What is narrated
 
 | News | Facts the model is given |

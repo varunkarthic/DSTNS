@@ -46,6 +46,7 @@ jobs:
         run: |
           python3 tests/launcher/test_core.py
           python3 tests/launcher/test_interfaces.py
+          python3 tests/launcher/test_narration.py
       - name: Launcher suites with the terminal interface
         run: |
           python3 -m pip install --disable-pip-version-check -q -r dstns_launcher/requirements.txt

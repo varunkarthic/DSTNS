@@ -15,7 +15,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import api, build, configuration
+from . import api, build, configuration, narration
 from .process import check_cancelled
 from .errors import ConfigurationError, SimulationStartError
 from .paths import PATHS, Paths
@@ -101,6 +101,9 @@ def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True,
             _write_active(paths, port)
             reporter.message(Level.INFO, "Attached to the running DSTNS server",
                              f"port {port} · {(existing or {}).get('lifecycle', 'READY')}")
+            # Its narration was decided when it started; report it as it is.
+            reporter.message(Level.INFO, "Narration on the running server",
+                             narration.describe_server(narration.server_status(port, paths))[1])
             return ServerHandle(port, host, existing or {})
         replacement = api.free_port(port + 1)
         reporter.message(Level.WARNING,
@@ -108,7 +111,10 @@ def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True,
                          f"using {replacement}")
         port = replacement
 
-    command = [str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs)]
+    choice = narration.resolve(paths=paths)
+    narration.announce(choice, reporter)
+    command = [str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs),
+               "--narrator", choice.server_argument]
     check_cancelled(cancel)
     reporter.message(Level.INFO, "Starting the DSTNS server", f"127.0.0.1:{port}")
     LOG.info("server start: %s", " ".join(command))
@@ -162,8 +168,10 @@ def run_foreground(paths: Paths = PATHS) -> int:
             print(f"A DSTNS server is already running on port {port}.")
             return 0
         port = api.free_port(port + 1)
-    return subprocess.call([str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs)],
-                           cwd=paths.root)
+    choice = narration.resolve(paths=paths)
+    print(f"Narration: {choice.summary()}" + (f"\n  {choice.remedy}" if choice.fell_back and choice.remedy else ""))
+    return subprocess.call([str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs),
+                            "--narrator", choice.server_argument], cwd=paths.root)
 
 
 def shut_down(handle: ServerHandle, *, wait: float = 10.0) -> bool:

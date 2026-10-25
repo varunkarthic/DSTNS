@@ -39,6 +39,8 @@ environment. Choose **Start simulation**, or run `./launcher start` directly.
 | Animation is distracting or slow over SSH | Use `--no-animation`. Status labels remain visible. `--no-splash` skips only the opening wordmark. `TERM=dumb` automatically uses plain mode. |
 | Activity is moving but there is no percentage | The current operation has no measured total. The label and output identify the work; download percentages appear only with a known byte total. Check `logs/launcher.log` and `logs/system.log` for failures. |
 | An environment check fails | Read its remedy, fix the reported dependency or file, and choose **Retry**. **Diagnostics** can run additional test suites. |
+| `TimeoutError: [Errno 60] Operation timed out` from the launcher, in a OneDrive, iCloud Drive or Dropbox folder | The sync client has evicted files to the cloud, so reading them waits on the network. The launcher keeps its log and its private environment on local disk in a synced checkout; if the server's files in `logs/` are evicted, the **Workspace** check says so. Mark the folder "Always keep on this device", run `./launcher reset`, or set `DSTNS_LOGS_DIR` to a local folder. |
+| "Apple Foundation Models unavailable: using the default wording" | Narration is optional; the run is unaffected. The message gives the reason: no `fm` command (needs macOS 26+ with Apple Intelligence), the model not available or downloading, or Apple's terms not accepted (run `fm license`). Use `--narrator off` to silence it. |
 
 ```bash
 # Plain output and verbose diagnostics using a local map.

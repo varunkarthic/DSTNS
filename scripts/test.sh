@@ -12,5 +12,6 @@ python3 "$root/tests/cli/test_fetch_osm.py"
 python3 "$root/tests/cli/test_seeds.py"
 python3 "$root/tests/launcher/test_core.py"
 python3 "$root/tests/launcher/test_interfaces.py"
+python3 "$root/tests/launcher/test_narration.py"
 
 python3 "$root/tests/api/loading_smoke.py"

@@ -41,6 +41,13 @@ undefined before and differ now.
   storms and incidents, concurrent observers, and the narrator (with `--narrator`,
   a real model end to end). `--json` writes every figure with the machine and build.
 - `DSTNS_TUNE_FOR_HOST` CMake option for `-mcpu=native` builds.
+- The launcher chooses narration before it starts a server: `--narrator`, or
+  `narration.mode` in `config/defaults.json` (default `auto`). It checks for the
+  `fm` command, `fm available` and Apple's terms (or that an endpoint answers),
+  and when narration is unavailable or unsupported starts the server with it off,
+  keeps the default wording, and says why and how to fix it. After the run starts
+  it reports what the server's narrator actually did. A **Narration** environment
+  check shows the same decision.
 
 ### Changed
 
@@ -62,6 +69,12 @@ undefined before and differ now.
 ### Fixed
 
 - A signal's phase walk no longer reads past its phase table (see above).
+- The launcher no longer floods the terminal with logging tracebacks, or fails to
+  install its terminal interface, in a checkout synced by OneDrive, iCloud Drive or
+  Dropbox. Its log and private environment are kept on local disk there
+  (`~/Library/Logs/DSTNS`, `~/Library/Caches/DSTNS`; `DSTNS_LAUNCHER_VENV` overrides),
+  a log that cannot be written goes quiet instead of raising, and the **Workspace**
+  check warns when the server's runtime files have been evicted to the cloud.
 
 - GHCR publishing now builds and tests native Linux AMD64 and ARM64 images,
   then verifies the multi-platform manifest before promoting stable tags.

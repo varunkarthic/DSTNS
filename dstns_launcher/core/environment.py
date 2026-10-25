@@ -205,6 +205,8 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
         return Outcome(State.PASS, f"{len(extracts)} cached extract{'s' if len(extracts) != 1 else ''} · {size:.0f} MiB")
 
     def workspace() -> Outcome:
+        from .paths import cloud_synced, dataless
+
         probe = paths.logs / f".preflight-{os.getpid()}"
         try:
             paths.logs.mkdir(parents=True, exist_ok=True)
@@ -212,6 +214,16 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
             probe.unlink()
         except OSError as exc:
             return Outcome(State.FAIL, "not writable", str(exc), remedy=f"Make {paths.logs} writable by this user.")
+        if cloud_synced(paths.logs):
+            evicted = [entry.name for entry in paths.logs.iterdir() if dataless(entry)]
+            if evicted:
+                return Outcome(State.WARNING, f"{len(evicted)} runtime file(s) only in the cloud",
+                               "The sync client has evicted " + ", ".join(sorted(evicted)[:6])
+                               + "; the server waits on the network to open them and may time out.",
+                               remedy=f"Mark {paths.root} \"Always keep on this device\", run ./launcher reset, "
+                                      "or set DSTNS_LOGS_DIR to a local folder.")
+            return Outcome(State.PASS, "logs directory writable (in a synced folder)",
+                           f"The launcher's own log is kept at {paths.launcher_log}.")
         return Outcome(State.PASS, "logs directory writable")
 
     def core() -> Outcome:
@@ -239,6 +251,16 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
         return Outcome(State.PASS if found.works else State.WARNING, found.version or "found",
                        "" if found.works else "sumo or netconvert does not start",
                        remedy="" if found.works else "Reinstall SUMO, or set SUMO_HOME; see Troubleshooting.")
+
+    def narration_check() -> Outcome:
+        from . import narration
+
+        choice = narration.resolve(paths=paths)
+        if choice.enabled:
+            return Outcome(State.PASS, choice.label, "Incidents, storms and floods are worded in plain language.")
+        if not choice.fell_back:
+            return Outcome(State.SKIPPED, "off", "Turned off; news keeps the default wording.")
+        return Outcome(State.WARNING, f"unavailable · {narration.DEFAULT_WORDING}", choice.reason, remedy=choice.remedy)
 
     def port() -> Outcome:
         from . import configuration
@@ -312,6 +334,7 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
         Check("core", "Simulation core", core),
         Check("observer", "Observer bundle", observer, required=False),
         Check("port", "API port", port, required=False),
+        Check("narration", "Narration", narration_check, required=False),
         Check("sumo", "SUMO", sumo, required=False),
     ]
     if suites:

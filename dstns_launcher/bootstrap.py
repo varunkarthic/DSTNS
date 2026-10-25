@@ -4,22 +4,39 @@
 """Make the terminal interface available, without ever making it a requirement.
 
 Textual and Rich live in a private environment, ``.venv-launcher/``, created on
-first interactive use. If anything here fails (no network, no ``venv`` module,
-an unwritable directory), the launcher simply continues in compatibility mode.
-Scripted commands never trigger an installation.
+first interactive use. In a checkout that a cloud client syncs (OneDrive, iCloud
+Drive, Dropbox), the environment lives in the local cache directory instead: the
+client would otherwise evict its files, and every import would wait on the
+network. ``DSTNS_LAUNCHER_VENV`` chooses the location outright. If anything here
+fails (no network, no ``venv`` module, an unwritable directory), the launcher
+simply continues in compatibility mode. Scripted commands never trigger an
+installation.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-from .core.paths import ROOT
+from .core.paths import ROOT, cloud_synced, local_cache_dir
 
 LOG = logging.getLogger("dstns.launcher")
-VENV = ROOT / ".venv-launcher"
+
+
+def _venv_location() -> Path:
+    override = os.environ.get("DSTNS_LAUNCHER_VENV")
+    if override:
+        return Path(override).expanduser()
+    if cloud_synced(ROOT):
+        # One environment per checkout, named after its path.
+        return local_cache_dir() / f"venv-launcher-{hashlib.sha256(str(ROOT).encode()).hexdigest()[:10]}"
+    return ROOT / ".venv-launcher"
+
+
+VENV = _venv_location()
 REQUIREMENTS = Path(__file__).with_name("requirements.txt")
 MARKER = "DSTNS_LAUNCHER_BOOTSTRAPPED"
 NO_INSTALL = "DSTNS_LAUNCHER_NO_INSTALL"
@@ -34,7 +51,7 @@ def wants_interface(argv: list[str]) -> bool:
     if any(arg in PLAIN_FLAGS or arg.startswith("--mode") for arg in argv):
         return False
     values = {"--seed", "--saved-seed", "--save-seed", "--day-type", "--osm-file", "--max-nodes", "--duration",
-              "--speed", "--description", "--mode"}
+              "--speed", "--description", "--mode", "--narrator"}
     skip = False
     for arg in argv:
         if skip:
@@ -95,9 +112,11 @@ def _installed(python: Path) -> bool:
 
 
 def _install() -> bool:
-    print("DSTNS: installing the terminal interface (one time, into .venv-launcher/)...", flush=True)
+    where = ".venv-launcher/" if VENV == ROOT / ".venv-launcher" else str(VENV)
+    print(f"DSTNS: installing the terminal interface (one time, into {where})...", flush=True)
     try:
         if not venv_python().exists():
+            VENV.parent.mkdir(parents=True, exist_ok=True)
             subprocess.run([sys.executable, "-m", "venv", str(VENV)], check=True, capture_output=True, timeout=300)
         result = subprocess.run([str(venv_python()), "-m", "pip", "install", "--disable-pip-version-check", "-q",
                                  "-r", str(REQUIREMENTS)], capture_output=True, text=True, timeout=600)

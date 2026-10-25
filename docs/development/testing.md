@@ -26,6 +26,7 @@ python3 tests/cli/test_fetch_osm.py
 python3 tests/cli/test_seeds.py
 python3 tests/launcher/test_core.py
 python3 tests/launcher/test_interfaces.py
+python3 tests/launcher/test_narration.py
 python3 tests/cli/launcher_integration.py            # live wrappers and a real OSM map
 npm ci --prefix ui-engine && npm test --prefix ui-engine
 ```
@@ -109,6 +110,7 @@ The three CTest-registered HTTP suites above take the server path from
 | `python3 tests/cli/test_seeds.py` | Saved seeds: SQLite round trip, uniqueness, IDs, pinned-map integrity, argument validation |
 | `python3 tests/launcher/test_core.py` | Source fingerprints, configuration, API calls, seed storage, subprocess cancellation and session cleanup |
 | `python3 tests/launcher/test_interfaces.py` | Interface selection, fallback, keyboard navigation, responsive layouts and activity state |
+| `python3 tests/launcher/test_narration.py` | Choosing narration against a stand-in `fm` (available, missing, model unavailable, terms not accepted, not macOS) and endpoints; the fallback announced with its reason and the server started with `--narrator off`; the flag, setting and check; the launcher's log and environment kept off synced folders, and a failing log going quiet |
 | `python3 tests/cli/launcher_integration.py` | Both launchers end to end: a stale UI is rebuilt, an old server on the port is avoided, a real OSM map loads (about 1,200 nodes), and the Python launcher reattaches without restarting the run |
 
 ## Observer suites

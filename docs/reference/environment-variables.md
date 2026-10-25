@@ -34,6 +34,7 @@ scripts they run.
 | `DSTNS_LOGS_DIR` | `logs/` in the repository | Logs directory passed to the server and read for the credential |
 | `DSTNS_OPERATOR_TOKEN` | contents of `logs/operator.token` | Credential sent in the `X-DSTNS-Operator` header |
 | `DSTNS_SEED_DB` | `data/seed-store/seeds.sqlite3` | SQLite file holding saved seeds |
+| `DSTNS_LAUNCHER_VENV` | `.venv-launcher/`, or the local cache in a cloud-synced checkout | Where the launcher's private terminal-interface environment lives |
 | `DSTNS_LAUNCHER_NO_INSTALL` | unset | `1` prevents automatic installation of the optional terminal interface; compatibility mode remains available |
 | `NO_COLOR` | unset | Any nonempty value disables colour |
 | `TERM` | terminal-provided | `dumb` selects plain output and skips interface installation |

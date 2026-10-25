@@ -18,7 +18,7 @@ import sys
 import traceback
 from dataclasses import dataclass, field
 
-from .core import configuration, logsetup, maintenance, server, simulation, sumo, testing
+from .core import configuration, logsetup, maintenance, narration, server, simulation, sumo, testing
 from .core import seeds as seed_store
 from .core.configuration import RunOptions
 from .core.errors import ConfigurationError, DSTNSLauncherError
@@ -91,6 +91,20 @@ def parse(argv: list[str]) -> Arguments:
             args.no_tui = True
         elif arg == "--no-color":
             args.no_color = True
+        elif arg == "--narrator" or arg.startswith("--narrator="):
+            if "=" in arg:
+                value = arg.split("=", 1)[1]
+            elif index + 1 < len(argv) and not argv[index + 1].startswith("--"):
+                index += 1
+                value = argv[index]
+            else:
+                raise ConfigurationError("Missing value for --narrator", remedy="Use auto, fm, off, http://HOST:PORT or unix:/PATH.")
+            if not narration.valid_mode(value):
+                raise ConfigurationError(f'"{value}" is not a narration mode',
+                                         remedy="Use auto, fm, off, http://HOST:PORT or unix:/PATH.")
+            # The server is started deep inside either interface; the
+            # environment carries the choice there, as NO_COLOR does colour.
+            os.environ[narration.ENV] = value
         elif arg.startswith("--mode="):
             args.mode = arg.split("=", 1)[1]
         elif arg == "--mode" and index + 1 < len(argv):
@@ -147,6 +161,9 @@ Run options (start, seeds save)
   --max-nodes N          2 to 50000
   --osm-file PATH        Run this map instead of letting the seed choose
   --open, --no-open      Open the observer in a browser (default: when a desktop is present)
+  --narrator MODE        Plain-language news: auto (Apple Foundation Models where available),
+                         fm, off, or a Chat Completions endpoint http://HOST:PORT | unix:/PATH.
+                         Falls back to the default wording, and says why, when unavailable
 
 Interface options
   --reduced-ui           Use compatibility mode (Rich or plain text)

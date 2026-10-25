@@ -5,14 +5,54 @@
 
 Every path is derived from the repository root, so the launcher works from any
 working directory. ``DSTNS_LOGS_DIR`` moves the logs directory, as it always has.
+
+A checkout inside OneDrive, iCloud Drive, Dropbox or Google Drive is common, and
+those clients evict files to the cloud: reading or appending to one then waits on
+the network and can time out. The launcher's own files - its log and its private
+Python environment - are therefore kept on local disk when the checkout is
+synced (``~/Library/Logs/DSTNS``, ``~/Library/Caches/DSTNS`` on macOS; the XDG
+state and cache directories elsewhere).
 """
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+
+#: SF_DATALESS (macOS): the file is a cloud placeholder; its contents are not on this machine.
+DATALESS = 0x40000000
+_SYNC_PREFIXES = ("OneDrive", "Dropbox", "Google Drive", "GoogleDrive", "iCloud Drive")
+_SYNC_NAMES = {"Box", "Mobile Documents", "CloudStorage"}
+
+
+def cloud_synced(path: Path) -> bool:
+    """Whether ``path`` lies in a folder a cloud client syncs (and may evict)."""
+    return any(part in _SYNC_NAMES or part.startswith(_SYNC_PREFIXES) for part in Path(path).resolve().parts)
+
+
+def dataless(path: Path) -> bool:
+    """Whether ``path`` is a cloud placeholder, so that reading it would wait on the network."""
+    try:
+        return bool(getattr(os.stat(path), "st_flags", 0) & DATALESS)
+    except OSError:
+        return False
+
+
+def local_state_dir() -> Path:
+    """Logs that must stay on this machine."""
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Logs" / "DSTNS"
+    return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "dstns"
+
+
+def local_cache_dir() -> Path:
+    """Rebuildable files that must stay on this machine."""
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / "DSTNS"
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "dstns"
 
 
 @dataclass(frozen=True)
@@ -38,6 +78,10 @@ class Paths:
 
     @property
     def launcher_log(self) -> Path:
+        # Kept off a synced folder: a log that may be evicted to the cloud turns
+        # every line written into a network wait, and then a timeout.
+        if cloud_synced(self.logs):
+            return local_state_dir() / "launcher.log"
         return self.logs / "launcher.log"
 
     @property
