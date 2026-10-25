@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { NOTIFY_TEMPLATES } from "./notificationModel";
 import type { Envelope, News, Snapshot, Status, Topology } from "./types";
-export function useSimulation(dwellMs = 7000) {
+export function useSimulation(dwellMs = 7000, realistic = false) {
   const [status, setStatus] = useState<Envelope<Status> | null>(null),
     [snapshot, setSnapshot] = useState<Envelope<Snapshot> | null>(null),
     [topology, setTopology] = useState<Topology | null>(null);
@@ -21,6 +21,20 @@ export function useSimulation(dwellMs = 7000) {
   const [news, setNews] = useState<News[]>([]),
     [toasts, setToasts] = useState<News[]>([]);
   const receivedAt = useRef(new Map<number, number>());
+  // Read by the poller on every round, so switching style needs no restart.
+  const realisticRef = useRef(realistic);
+  const narrationSeen = useRef(0);
+  useEffect(() => {
+    realisticRef.current = realistic;
+    // Switching on: ask again for every narration still in the window, so
+    // items already on screen are reworded. Switching off: drop them.
+    narrationSeen.current = 0;
+    if (!realistic) {
+      const plain = (list: News[]) => (list.some((n) => n.narrative) ? list.map(({ narrative: _, ...n }) => n) : list);
+      setNews(plain);
+      setToasts(plain);
+    }
+  }, [realistic]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -30,7 +44,6 @@ export function useSimulation(dwellMs = 7000) {
       timer: ReturnType<typeof setTimeout>,
       run = "",
       since = 0,
-      narrationSeen = 0,
       initial = true,
       lastVirtual = -1;
     async function refresh() {
@@ -64,7 +77,7 @@ export function useSimulation(dwellMs = 7000) {
           setStage("Awaiting CLI startup");
           run = "";
           since = 0;
-          narrationSeen = 0;
+          narrationSeen.current = 0;
           initial = true;
           setNews([]);
           setToasts([]);
@@ -99,7 +112,7 @@ export function useSimulation(dwellMs = 7000) {
             setTopology(topo.data);
             run = st.run_id;
             since = 0;
-            narrationSeen = 0;
+            narrationSeen.current = 0;
             initial = true;
             setNews([]);
             setToasts([]);
@@ -114,14 +127,14 @@ export function useSimulation(dwellMs = 7000) {
           setError("");
           if (snap.clock.virtual_day_seconds < lastVirtual) {
             since = 0;
-            narrationSeen = 0;
+            narrationSeen.current = 0;
             initial = true;
             setNews([]);
             setToasts([]);
             receivedAt.current.clear();
           }
           lastVirtual = snap.clock.virtual_day_seconds;
-          const messages = await api.news(since, narrationSeen);
+          const messages = await api.news(since, narrationSeen.current, realisticRef.current);
           if (cancelled) return;
           if (messages.run_id === run) {
             const items = messages.data.items;
@@ -142,7 +155,7 @@ export function useSimulation(dwellMs = 7000) {
               setNews((old) => applyNarrations(old, narrated));
               setToasts((old) => applyNarrations(old, narrated));
             }
-            narrationSeen = messages.data.narration_sequence ?? narrationSeen;
+            narrationSeen.current = messages.data.narration_sequence ?? narrationSeen.current;
             since = Math.max(since, ...items.map((n) => n.news_id));
             initial = false;
           }

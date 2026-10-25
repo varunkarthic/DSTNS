@@ -109,6 +109,8 @@ type Mock = {
   topology?: unknown;
   preparation: string;
   topologyDelay: boolean;
+  narrator: Record<string, unknown>;
+  newsRequests: string[];
 };
 let state: Mock;
 
@@ -134,6 +136,8 @@ function mockApi(overrides: Partial<Mock> = {}) {
     worldQueue: [],
     preparation: "",
     topologyDelay: false,
+    narrator: { enabled: false, state: "off" },
+    newsRequests: [],
     ...overrides,
   };
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -156,6 +160,7 @@ function mockApi(overrides: Partial<Mock> = {}) {
     if (path.includes("/system/map-status"))
       return json({ api_version: "1.0", data: { active: false, preparation: state.preparation } });
     if (path.includes("/system/backpressure")) return json(state.backpressure);
+    if (path.includes("/system/narrator")) return json({ ok: true, data: state.narrator });
     if (path.includes("/world/regenerate")) {
       state.world = { ...state.world, state: "generating", stage: "compiling", seed: "4210818", previous_run_id: state.runId };
       return json({ api_version: "1.0", data: state.world }, 202);
@@ -175,8 +180,15 @@ function mockApi(overrides: Partial<Mock> = {}) {
     }
     else if (path.includes("/view/snapshot")) data = state.snapshot;
     else if (path.includes("/news")) {
-      const since = Number(new URL(path, "http://x").searchParams.get("since_news_id") ?? 0);
-      data = { items: state.news.filter((n) => (n.news_id as number) > since) };
+      state.newsRequests.push(path);
+      const params = new URL(path, "http://x").searchParams;
+      const since = Number(params.get("since_news_id") ?? 0);
+      // Like the core: narratives only for a client that asks for Realistic News.
+      const realistic = params.get("narration") === "realistic";
+      const items = state.news
+        .filter((n) => (n.news_id as number) > since)
+        .map(({ narrative, ...n }) => (realistic && narrative ? { ...n, narrative } : n));
+      data = realistic ? { items, narrated: [], narration_sequence: 1 } : { items };
     } else if (path.includes("/view/congestion")) data = { ...state.snapshot.congestion, history: [] };
     else if (path.includes("/view/event-queue")) {
       const category = new URL(path, "http://x").searchParams.get("category") ?? "all";
@@ -481,14 +493,15 @@ describe("notifications", () => {
     expect(head).not.toHaveTextContent(/Edge #0|Node #0/);
     fireEvent.click(head);
     expect(head).toHaveAttribute("aria-expanded", "true");
-    expect(capsule).toHaveTextContent("Multi-vehicle collision on Test Road. Lane blocked.");
+    // One of the Standard wordings, all of which name the road.
+    expect(capsule).toHaveTextContent(/Test Road/);
     expect(capsule).toHaveTextContent("Severity");
     // Raw fields stay behind the technical disclosure.
     fireEvent.click(within(capsule).getByRole("button", { name: /Technical details/ }));
     expect(capsule).toHaveTextContent("INCIDENT_ACTIVATED");
     // The other event is one click away.
     fireEvent.click(within(capsule).getByRole("button", { name: /Heavy rain/ }));
-    expect(capsule).toHaveTextContent(/Heavy rainfall has developed over/);
+    expect(capsule).toHaveTextContent(/Heavy rainfall has developed over|heavy downpour moving in over|Rain is now falling across/);
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(within(capsule).getByRole("button", { expanded: false })).toBeInTheDocument());
   }, 15000);
@@ -602,6 +615,57 @@ describe("auto focus", () => {
     fireEvent.click(screen.getByRole("menuitemradio", { name: /Latest/ }));
     await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
   });
+});
+
+describe("Realistic News", () => {
+  const crash = () =>
+    news({
+      category: "incident", severity: "alert", template_id: "INCIDENT_ACTIVATED",
+      message: "[06:00:00] Multi-vehicle collision: lane blocked on Edge #0 near Node #0. (HIGH SEVERITY)",
+      data: { incident_id: 9, type: "accident", edge_id: 0, closed: true },
+      narrative: "A two-car collision has Test Road down to one lane this morning, with recovery crews on the way.",
+    });
+
+  it("is offered only when the core's narrator is available", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const drawer = screen.getByRole("dialog", { name: "Settings" });
+    const style = within(drawer).getByRole("radiogroup", { name: "News style" });
+    expect(within(style).getByRole("radio", { name: "Standard" })).toHaveAttribute("aria-checked", "true");
+    expect(within(style).getByRole("radio", { name: "Realistic News" })).toBeDisabled();
+    expect(drawer).toHaveTextContent(/Unavailable/);
+    expect(state.newsRequests.every((r) => !r.includes("narration="))).toBe(true);
+  });
+
+  it("shows the model's item with a badge, and Standard wording when switched off", async () => {
+    mockApi({ uiConfig: { auto_focus: { mode: "disable" } }, narrator: { enabled: true, state: "ready", backend: { on_device: true } } });
+    render(<App />);
+    await ready();
+    await act(async () => {
+      state.news.push(crash());
+      await new Promise((r) => setTimeout(r, 1300));
+    });
+    expect(state.newsRequests.some((r) => r.includes("narration=realistic"))).toBe(true);
+    const capsule = await screen.findByRole("article", { name: "Notifications" });
+    fireEvent.click(within(capsule).getByRole("button", { expanded: false }));
+    expect(capsule).toHaveTextContent("A two-car collision has Test Road down to one lane");
+    expect(capsule).toHaveTextContent("Realistic News");
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const drawer = screen.getByRole("dialog", { name: "Settings" });
+    expect(drawer).toHaveTextContent(/Apple's on-device Foundation Model/);
+    fireEvent.click(within(drawer).getByRole("radio", { name: "Standard" }));
+    await waitFor(() => expect(capsule).not.toHaveTextContent("A two-car collision"));
+    expect(capsule).not.toHaveTextContent("Realistic News");
+    expect(capsule).toHaveTextContent(/Test Road/);
+    const before = state.newsRequests.length;
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1300));
+    });
+    expect(state.newsRequests.slice(before).every((r) => !r.includes("narration="))).toBe(true);
+  }, 15000);
 });
 
 describe("settings", () => {

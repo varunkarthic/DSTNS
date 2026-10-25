@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-// Narration: the fact builder, the checks on what a model writes, the narrator's
-// queue and caches, and the guarantee that matters most - a narrator changes
-// what the operator reads and nothing about the run.
+// Realistic News: the fact builder, the checks on what a model writes, the
+// narrator's queue and caches, the API serving narrations only on request, and
+// the guarantee that matters most - a narrator changes what the operator reads
+// and nothing about the run.
 //
 // The model is a scripted backend, so every path is exercised without a
 // language model installed.
@@ -65,22 +66,25 @@ const auto kSeed = Seed128::parse("0x0000000000000000000000000000BEEF");
 int main() {
     // ---- What the model may write -----------------------------------------
     {
-        const std::string facts = "Event: an incident has started\nKind: collision\nRoad: Uhuru Street\n"
-                                  "Area: the central district\nTraffic speed: 35% of normal\nExpected to clear: 14:20\n";
-        auto ok = accept_narration("A collision on Uhuru Street in the central district has slowed traffic to 35% of normal; it should clear by 14:20.", facts);
-        check(!ok.has_value(), "advice-like 'should' is refused");
-        ok = accept_narration("A collision on Uhuru Street in the central district has slowed traffic to 35% of normal. It is expected to clear by 14:20.", facts);
-        check(ok.has_value(), "a faithful sentence is kept");
-        check(!accept_narration("A collision on Uhuru Street has slowed traffic to 40% of normal.", facts).has_value(),
+        const std::string facts = "Event: an incident has just happened\nKind: collision\nRoad: Uhuru Street\n"
+                                  "Area: the central district\nTime: 08:10, the morning rush hour\n"
+                                  "Traffic speed: 35% of normal\nExpected to clear: 14:20\n";
+        auto ok = accept_narration("A two-car shunt on Uhuru Street has traffic crawling at about 35% of normal through the "
+                                   "central district this morning. Recovery crews are on their way, so drivers may want to "
+                                   "avoid the area; it should be clear by 14:20.", facts);
+        check(ok.has_value(), "plausible colour and advice are what Realistic News is for");
+        check(!accept_narration("A collision on Uhuru Street has slowed traffic to 40% of normal this morning.", facts).has_value(),
               "a number that is not among the facts is refused");
-        check(!accept_narration("A collision on Uhuru Street has left two people injured.", facts).has_value(),
-              "injuries the facts do not mention are refused");
-        check(!accept_narration("Rain may make the road slippery on Uhuru Street today.", facts).has_value(),
-              "speculation is refused");
-        check(!accept_narration("Event: an incident has started. Road: Uhuru Street.", facts).has_value(),
+        check(!accept_narration("A collision on Uhuru Street should clear by 15:30, police say.", facts).has_value(),
+              "a time that is not among the facts is refused");
+        check(!accept_narration("A collision on Uhuru Street has left one driver dead this morning.", facts).has_value(),
+              "deaths the facts do not mention are refused");
+        check(!accept_narration("Event: an incident has just happened. Road: Uhuru Street.", facts).has_value(),
               "facts echoed back as labels are refused");
-        check(!accept_narration("ok", facts).has_value(), "too short is refused");
-        check(!accept_narration(std::string(400, 'a'), facts).has_value(), "too long is refused");
+        check(!accept_narration("As an assistant, I can tell you Uhuru Street is slow.", facts).has_value(),
+              "the model speaking as itself is refused");
+        check(!accept_narration("Slow.", facts).has_value(), "too short is refused");
+        check(!accept_narration(std::string(600, 'a'), facts).has_value(), "too long is refused");
         const auto cleaned = accept_narration("  \"**A collision** on Uhuru Street\n has slowed traffic\"  ", facts);
         check(cleaned && *cleaned == "A collision on Uhuru Street has slowed traffic.", "quotes, markdown and newlines are cleaned and a full stop added");
     }
@@ -103,11 +107,32 @@ int main() {
             check(request->facts.find("Edge #") == std::string::npos && request->facts.find("SEVERITY") == std::string::npos,
                   "internal identifiers stay out of the facts");
             check(request->facts.find("Area: the ") != std::string::npos, "the district is named");
-            const auto again = narration_request(context, "INCIDENT_ACTIVATED", message, data, 0);
-            check(again && again->key == request->key, "identical facts share a key, whatever the time they fire");
+            check(request->facts.find("Time: ") != std::string::npos && request->facts.find("Day: a weekday") != std::string::npos,
+                  "the hour and the day are given");
+            const auto again = narration_request(context, "INCIDENT_ACTIVATED", message, data, inc.start_virtual_s);
+            check(again && again->key == request->key, "identical facts share a key");
+            const auto later = narration_request(context, "INCIDENT_ACTIVATED", message, data, inc.start_virtual_s + 7200);
+            check(later && later->key != request->key, "the hour is part of the story, so a different hour is a different item");
         }
-        check(!narration_request(context, "DEMAND_CHANGED", "x", nlohmann::json::object(), 0).has_value(),
-              "demand changes are not narrated");
+        check(!narration_request(context, "SIGNALS_ONLINE", "x", nlohmann::json::object(), 0).has_value(),
+              "system news is not narrated");
+        // A place's demand is narrated at its peak only.
+        std::size_t place = scenario.features.size();
+        for (std::size_t i = 0; i < scenario.features.size(); ++i)
+            if (scenario.features[i].demand_type) { place = i; break; }
+        if (place < scenario.features.size()) {
+            const nlohmann::json demand{{"feature_id", scenario.features[place].id}, {"multiplier", 1.6}};
+            const auto peak = narration_request(context, "DEMAND_CHANGED", "School arrival / departure peak · Riverside", demand, 30000);
+            check(peak && peak->facts.find("school run") != std::string::npos, "a school's peak is told as the school run");
+            check(!narration_request(context, "DEMAND_CHANGED", "School arrival / departure · Riverside", demand, 29000),
+                  "the steps either side of a peak are not narrated");
+        }
+        // Earlier incidents in the same district are part of the story.
+        if (scenario.incidents.size() >= 2) {
+            const auto& later = scenario.incidents.back();
+            const auto story = context.earlier_incidents(later.edge.value, later.start_virtual_s, 5);
+            for (const auto& item : story) check(item.find(" at ") != std::string::npos, "an earlier incident says when it happened");
+        }
         const auto ended = narration_request(context, "DWS_RAIN_ENDED", "[05:00:56] Rain storm cleared at Node 3; network returning", nlohmann::json{}, 0);
         check(ended && ended->facts.find("rain has cleared") != std::string::npos, "rain ending finds its node in the core's text");
     }
@@ -120,7 +145,7 @@ int main() {
         NarrationRequest b{"key-b", "INCIDENT_RESOLVED", "Event: an incident has cleared\nRoad: Bad Road\n", 20};
         {
             auto backend = std::make_unique<ScriptedBackend>([](const std::string& facts) -> std::optional<std::string> {
-                if (facts.find("Bad Road") != std::string::npos) return std::string("Two people were injured on Bad Road.");
+                if (facts.find("Bad Road") != std::string::npos) return std::string("One driver died on Bad Road this morning.");
                 return std::string("The incident on Uhuru Street has cleared.");
             });
             auto* script = backend.get();
@@ -188,7 +213,13 @@ int main() {
                 if (narrator) narrator->wait_idle(std::chrono::seconds(10));
                 for (int hour = 0; hour < 24; ++hour) engine.step(3600);
                 snapshot = engine.snapshot()["data"];
-                news = engine.news(0, 100000, 0)["data"];
+                news = engine.news(0, 100000, 0, true)["data"];
+                // The API serves narrations only to a client that asks.
+                const auto plain = engine.news(0, 100000, 0, false)["data"];
+                bool any = plain.contains("narrated") || plain.contains("narration_sequence");
+                for (const auto& item : plain["items"]) any = any || item.contains("narrative");
+                for (const auto& item : engine.snapshot()["data"]["event_stack"]) any = any || item.contains("narrative");
+                check(!any, "without ?narration=realistic neither the feed nor the snapshot carries narrations");
                 // The topology served from the cache is the topology.
                 check(engine.topology_text() == dump_json(engine.topology()), "the cached topology response equals the built one");
                 check(engine.topology_text() == dump_json(engine.topology()), "and stays equal when served again");

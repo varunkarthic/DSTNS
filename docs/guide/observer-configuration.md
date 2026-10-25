@@ -127,6 +127,13 @@ its category is muted; the exception applies to the focused event only.
 the command rail, telemetry, notifications, dialogs, tooltips and the report.
 Clicking the time control switches it.
 
+### `news`
+
+`{ "style": "realistic" }`. How news is worded: `realistic` for
+[Realistic News](narration.md), written by the on-device model when the core's
+narrator is available (Standard wording is used when it is not), or `standard`
+for the predefined wordings. Switched under **Settings → News**.
+
 ### `asb`
 
 `{ "enabled": true, "report_interval_ms": 1000 }`. See [ASB](../concepts/backpressure.md).

@@ -20,6 +20,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("news style", () => {
+  it("defaults to Realistic News and accepts only the two styles", () => {
+    expect(BUILT_IN.news.style).toBe("realistic");
+    expect(mergeConfig(BUILT_IN, { news: { style: "standard" } }).news.style).toBe("standard");
+    expect(mergeConfig(BUILT_IN, { news: { style: "gpt" } }).news.style).toBe("realistic");
+    expect(diffConfig(BUILT_IN, mergeConfig(BUILT_IN, { news: { style: "standard" } }))).toEqual({ news: { style: "standard" } });
+  });
+});
+
 describe("configuration merging", () => {
   it("leaves the defaults alone when the patch is empty or junk", () => {
     for (const junk of [null, undefined, 42, "nope", [], {}]) {

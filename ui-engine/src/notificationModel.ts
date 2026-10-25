@@ -99,6 +99,8 @@ export interface UiNotification {
   technical: { label: string; value: string }[];
   location?: string;
   coordinates?: { x_m: number; y_m: number };
+  /** "realistic" when the summary is a Realistic News item written by the on-device model. */
+  source?: "realistic" | "standard";
   /** Auto-focus target this notification describes, as a key prefix. */
   focusKey?: string;
   count: number;
@@ -186,6 +188,31 @@ function edgeName(topology: Topology | null, id: unknown): string | undefined {
 // Copy
 // ---------------------------------------------------------------------------
 
+/** Standard wordings for an incident starting, beside the core's own description. */
+const INCIDENT_WORDINGS: Record<string, (road: string, inArea: string) => string[]> = {
+  accident: (road, inArea) => [
+    `A collision on ${road} is holding up traffic${inArea}.`,
+    `Crash on ${road}${inArea}: a lane is blocked and emergency services are there.`,
+  ],
+  road_closure: (road, inArea) => [
+    `${capital(road)} is closed${inArea}; traffic is being turned away.`,
+    `Emergency closure on ${road}${inArea}. Find another route.`,
+  ],
+  congestion: (road, inArea) => [
+    `Traffic has backed up on ${road}${inArea}.`,
+    `Heavy, slow traffic on ${road}${inArea}; expect delays.`,
+  ],
+  vehicle_breakdown: (road, inArea) => [
+    `A broken-down vehicle is blocking a lane on ${road}${inArea}.`,
+    `Breakdown on ${road}${inArea}: expect delays while it is cleared.`,
+  ],
+  hazard_spill: (road, inArea) => [
+    `A spill on ${road}${inArea} has made the surface hazardous; traffic is crawling.`,
+    `Hazardous spill on ${road}${inArea}. Crews are cleaning up and speeds are well down.`,
+  ],
+  incident: (road, inArea) => [`An incident is affecting traffic on ${road}${inArea}.`],
+};
+
 export const INCIDENT_TITLES: Record<string, string> = {
   road_closure: "Road closure",
   accident: "Collision",
@@ -228,23 +255,42 @@ interface Described {
   location?: string;
   coordinates?: Place;
   focusKey?: string;
+  source?: "realistic" | "standard";
+}
+
+/** The product name for news written by the on-device model. */
+export const REALISTIC_NEWS = "Realistic News";
+
+/**
+ * One of several predefined wordings, chosen by the event's identity.
+ *
+ * Standard news varies its phrasing so a day's feed does not repeat itself,
+ * but an item must keep its wording across re-renders, the history and the
+ * report, so the choice is a hash of the event, not a random draw.
+ */
+export function pickWording(options: string[], item: Pick<News, "event_id" | "template_id">): string {
+  let hash = 2166136261;
+  for (const ch of `${item.template_id}:${item.event_id}`) hash = Math.imul(hash ^ ch.charCodeAt(0), 16777619);
+  return options[(hash >>> 0) % options.length];
 }
 
 /**
  * Describe a single news item in operator language.
  *
- * When the core's narrator has worded the item, its sentence becomes the
- * summary; the title, the measured details and the focus target are still
- * derived here from the item's data, and the core's own text stays available
- * under the technical fields.
+ * With Realistic News on, an item the on-device model has written arrives
+ * with a narrative, which becomes the summary; the title, the measured
+ * details and the focus target are still derived here from the item's data,
+ * and the core's own text stays available under the technical fields.
+ * Otherwise the summary is one of the predefined Standard wordings.
  */
 export function describeNews(item: News, topology: Topology | null): Described {
   const described = describeTemplate(item, topology);
   const narrative = item.narrative?.trim();
-  if (!narrative) return described;
+  if (!narrative) return { ...described, source: "standard" };
   return {
     ...described,
     summary: narrative,
+    source: "realistic",
     technical: [...described.technical, { label: "Core message", value: stripPrefix(item.message) }],
   };
 }
@@ -275,10 +321,40 @@ function describeTemplate(item: News, topology: Topology | null): Described {
       if (road) details.push({ label: "Nearest road", value: road });
       const copy =
         item.template_id === "DWS_RAIN_STARTED"
-          ? { title: heavy ? "Heavy rain" : "Rain started", summary: `${heavy ? "Heavy rainfall" : "Rainfall"} has developed over ${where}${near}.` }
+          ? {
+              title: heavy ? "Heavy rain" : "Rain started",
+              summary: pickWording(
+                [
+                  `${heavy ? "Heavy rainfall" : "Rainfall"} has developed over ${where}${near}.`,
+                  `${heavy ? "A heavy downpour" : "Showers"} moving in over ${where}${near}; expect wet roads.`,
+                  `Rain is now falling across ${where}${near}. Allow extra time for journeys.`,
+                ],
+                item,
+              ),
+            }
           : item.template_id === "DWS_RAIN_PEAK"
-            ? { title: "Rain at peak", summary: `Rainfall has reached peak intensity over ${where}${near}. Road friction is reduced.` }
-            : { title: "Rain cleared", summary: `Rain has cleared over ${where}. Roads are returning to normal conditions.` };
+            ? {
+                title: "Rain at peak",
+                summary: pickWording(
+                  [
+                    `Rainfall has reached peak intensity over ${where}${near}. Road friction is reduced.`,
+                    `The rain over ${where} is at its heaviest${near}, with spray and standing water on some roads.`,
+                    `Rain over ${where} has peaked${near}. Roads are slick and visibility is down.`,
+                  ],
+                  item,
+                ),
+              }
+            : {
+                title: "Rain cleared",
+                summary: pickWording(
+                  [
+                    `Rain has cleared over ${where}. Roads are returning to normal conditions.`,
+                    `The rain over ${where} has passed and roads are starting to dry.`,
+                    `Skies are clearing over ${where}; driving conditions are back to normal.`,
+                  ],
+                  item,
+                ),
+              };
       return {
         ...copy,
         details,
@@ -294,7 +370,14 @@ function describeTemplate(item: News, topology: Topology | null): Described {
       const district = place ? districtOf(topology, place) : undefined;
       return {
         title: "Flooding",
-        summary: `Flooding is affecting ${road ?? "a road"}${district ? ` in ${district}` : ""}.`,
+        summary: pickWording(
+          [
+            `Flooding is affecting ${road ?? "a road"}${district ? ` in ${district}` : ""}.`,
+            `Standing water has built up on ${road ?? "a road"}${district ? ` in ${district}` : ""}; take care.`,
+            `${capital(road ?? "a road")} is waterlogged${district ? ` in ${district}` : ""}, slowing traffic.`,
+          ],
+          item,
+        ),
         details: [
           ...(road ? [{ label: "Road", value: road }] : []),
           ...(typeof d.flood === "number" ? [{ label: "Flood level", value: pct(d.flood) }] : []),
@@ -315,7 +398,14 @@ function describeTemplate(item: News, topology: Topology | null): Described {
       if (item.template_id === "INCIDENT_RESOLVED")
         return {
           title: `${kind} cleared`,
-          summary: `The ${kind.toLowerCase()} on ${road} has cleared. Normal traffic flow is restored.`,
+          summary: pickWording(
+            [
+              `The ${kind.toLowerCase()} on ${road} has cleared. Normal traffic flow is restored.`,
+              `${capital(road)} is moving freely again after the ${kind.toLowerCase()}.`,
+              `All clear on ${road}: the ${kind.toLowerCase()} has been dealt with.`,
+            ],
+            item,
+          ),
           details: [{ label: "Road", value: road }],
           technical,
           location: district ? capital(district) : road,
@@ -324,7 +414,14 @@ function describeTemplate(item: News, topology: Topology | null): Described {
         };
       const [head, ...rest] = incidentDescription(item.message).split(":");
       const tail = rest.join(":").trim();
-      const summary = sentence(`${capital(head.trim() || kind)} on ${road}`) + (tail ? ` ${sentence(capital(tail))}` : "");
+      const inArea = district ? ` in ${district}` : "";
+      const summary = pickWording(
+        [
+          sentence(`${capital(head.trim() || kind)} on ${road}`) + (tail ? ` ${sentence(capital(tail))}` : ""),
+          ...(INCIDENT_WORDINGS[type] ?? INCIDENT_WORDINGS.incident)(road, inArea),
+        ],
+        item,
+      );
       const details: Described["details"] = [
         { label: "Severity", value: SEVERITY_LABEL[severityOf(item.severity)] },
         { label: "Road", value: road },
@@ -354,11 +451,25 @@ function describeTemplate(item: News, topology: Topology | null): Described {
       const where = name?.trim() || feature?.name || "a modelled place";
       const back = /returns to normal/i.test(label);
       const peak = /peak/i.test(label);
+      const reason = label.replace(/\s*peak$/i, "").trim();
+      const lowered = reason.toLowerCase();
+      const why = lowered.includes("school")
+        ? [`The school run is building traffic around ${where}.`, `Pupils coming and going at ${where} are adding to traffic nearby.`]
+        : lowered.includes("office")
+          ? [`Commuters heading to ${where} are adding to the traffic.`, `The office rush is filling the roads around ${where}.`]
+          : lowered.includes("retail")
+            ? [`Shoppers are out in force around ${where}.`, `It is a busy time at ${where}, and the roads nearby show it.`]
+            : lowered.includes("hospital")
+              ? [`Visitors and shift changes are bringing extra traffic to ${where}.`, `The roads around ${where} are busier than usual.`]
+              : [`More people than usual are heading to ${where}.`, `Traffic is picking up around ${where}.`];
       return {
         title: back ? "Demand normal" : peak ? "Demand at peak" : "Demand rising",
         summary: back
-          ? `Traffic demand around ${where} has returned to normal.`
-          : `${capital(label.replace(/\s*peak$/i, "").trim())} is ${peak ? "at its peak" : "raising traffic demand"} around ${where}.`,
+          ? pickWording(
+              [`Traffic demand around ${where} has returned to normal.`, `Things have quietened down around ${where}.`],
+              item,
+            )
+          : pickWording([`${capital(reason)} is ${peak ? "at its peak" : "raising traffic demand"} around ${where}.`, ...why], item),
         details: [
           { label: "Place", value: where },
           { label: "Demand", value: `${multiplier.toFixed(2)}× normal` },
@@ -373,7 +484,14 @@ function describeTemplate(item: News, topology: Topology | null): Described {
       const district = place ? districtOf(topology, place) : undefined;
       return {
         title: "Demand surge",
-        summary: `A demand surge is active in ${district ?? "the network"}.`,
+        summary: pickWording(
+          [
+            `A demand surge is active in ${district ?? "the network"}.`,
+            `Traffic has suddenly picked up across ${district ?? "the network"}.`,
+            `A rush of extra vehicles is hitting ${district ?? "the network"}.`,
+          ],
+          item,
+        ),
         details: [
           ...(typeof d.factor === "number" ? [{ label: "Demand", value: `+${Math.round((d.factor - 1) * 100)}%` }] : []),
           ...(typeof d.radius_m === "number" ? [{ label: "Radius", value: km(d.radius_m) }] : []),

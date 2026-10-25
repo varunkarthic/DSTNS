@@ -34,7 +34,7 @@ dstns_server [--host ADDR] [--port PORT] [--logs DIR] [--maps DIR]
 | `--maps DIR` | `data/maps` | Directory holding cached city extracts |
 | `--map-cache POLICY` | `prune` | What the start-up sweep does with cached extracts: `keep` leaves all, `prune` removes all but the newest N, `clear` removes all |
 | `--map-cache-keep N` | `1` | Extracts `prune` keeps. The container sets 3 |
-| `--narrator MODE` | `auto` | [Natural-language narration](../guide/narration.md): `auto` uses Apple's on-device model where `fm` is installed and is off elsewhere; `fm` requires it; `off`; or a Chat Completions endpoint |
+| `--narrator MODE` | `auto` | [Realistic News](../guide/narration.md): `auto` uses Apple's on-device model where `fm` is installed and is off elsewhere; `fm` requires it; `off`; or a Chat Completions endpoint |
 | `--narrator-model NAME` | `system` | Model name sent to a Chat Completions endpoint |
 | `--narrator-cache FILE` | `<logs>/narrations.db` | Persistent narration cache; `none` keeps it in memory |
 | `--version` | | Print the version and licence notice, then exit |

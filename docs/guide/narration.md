@@ -1,34 +1,40 @@
-# Natural-language narration
+# Realistic News
 
 The core words its news tersely, for machines as much as people:
 
-> [07:32:47] Commercial transit vehicle breakdown obstructing right lane on Edge #200 near Node #2652. (MID SEVERITY)
+> [07:32:47] Commercial transit vehicle breakdown obstructing right lane on Edge #4428 near Node #981. (MID SEVERITY)
 
-With narration on, the observer shows the same event the way a traffic desk
-would say it:
+The observer can show it two ways, chosen under **Settings → News → News style**:
 
-> A commercial transit vehicle is broken down in the right lane on the motorway in
-> the east district. Traffic speed is 55% of normal and road capacity is 60% of normal.
+**Realistic News** - written for this moment by a language model, by default
+Apple's on-device Foundation Model, the way a local traffic reporter would say it:
 
-The sentence is written by a language model - by default **Apple's on-device
-Foundation Model**, through the `fm` command that ships with macOS - from the
-facts of the event. It is wording only. The simulation decides everything first
-and never reads anything the model writes, so a run is the same with narration
-on, off, or failing.
+> A commercial transit vehicle has broken down on Adderley Street in the east
+> district, blocking the right lane during the morning rush. The road remains
+> open but movement is slow as crews work nearby, with queues forming near The
+> Crypt Jazz Restaurant. Keep to the left and allow extra space.
+
+**Standard** - one of several predefined wordings for each kind of event,
+chosen by the event so the same item always reads the same:
+
+> Breakdown on Adderley Street in the east district: expect delays while it is cleared.
+
+Either way it is wording only. The simulation decides everything first and never
+reads anything the model writes, so a run is the same with Realistic News on,
+off, or unavailable.
 
 ## Turning it on
 
-On a Mac with Apple Intelligence, there is nothing to do: `dstns_server` finds
-`fm`, starts `fm serve` on a private socket the first time there is something to
-narrate, and stops it on exit. Check it is running:
+On a Mac with Apple Intelligence there is nothing to do: the launcher reports
+**Apple Foundation Models: Available**, the server starts `fm serve` on a private
+socket when there is something to write and stops it on exit, and Realistic
+News is the observer's default. When the model is missing, unsupported or not
+ready the launcher says **Unavailable** and why; with `--narrator off` it says
+**Disabled**. The observer then offers Standard only, and says why in Settings.
 
-```bash
-curl -s localhost:8090/api/v1/system/narrator | python3 -m json.tool
-```
-
-Elsewhere (Linux, Docker, an older Mac) narration is off unless you point it at
-a model. Any server that speaks the OpenAI Chat Completions API will do -
-llama.cpp's `llama-server`, Ollama, vLLM, or `fm serve` on another machine:
+Elsewhere (Linux, Docker, an older Mac) point the server at any OpenAI-style
+Chat Completions endpoint - llama.cpp's `llama-server`, Ollama, vLLM, or `fm serve`
+on another machine:
 
 ```bash
 dstns_server --narrator http://127.0.0.1:11434 --narrator-model llama3.2   # Ollama
@@ -40,75 +46,84 @@ dstns_server --narrator off                                                # nev
 |---|---|---|---|
 | `--narrator` | `DSTNS_NARRATOR` | `auto` | `auto` uses `fm` where installed, otherwise off; `fm` requires it; `off`; or an endpoint `http://HOST:PORT` or `unix:/PATH` |
 | `--narrator-model` | `DSTNS_NARRATOR_MODEL` | `system` | The model name sent to an endpoint (`fm` serves `system`) |
-| `--narrator-cache` | `DSTNS_NARRATOR_CACHE` | `<logs>/narrations.db` | Where narrations are kept between runs; `none` keeps them in memory only |
-
-The engine speaks plain HTTP: put a TLS-terminating proxy in front of a remote
-model, as you would in front of DSTNS itself.
+| `--narrator-cache` | `DSTNS_NARRATOR_CACHE` | `<logs>/narrations.db` | Where items are kept between runs; `none` keeps them in memory only |
 
 The launcher takes the same modes as `./launcher --narrator MODE` or
-`narration.mode` in `config/defaults.json`. It checks the choice before starting
-the server - `fm` installed, the model available, Apple's terms accepted, an
-endpoint answering - and when it is not usable, starts the server with narration
-off and prints why (see [Operator CLI](operator-cli.md#narration)).
+`narration.mode` in `config/defaults.json`, checks them before starting the server
+(see [Operator CLI](operator-cli.md#narration)), and starts the server with
+narration off when the choice cannot be used. The observer's starting style is
+`news.style` in `config/ui-config.json` (see
+[Observer configuration](observer-configuration.md#news)).
 
-## What is narrated
+## Only for the observer
 
-| News | Facts the model is given |
+Realistic News belongs to the DSTNS observer. `GET /api/v1/news` serves exactly
+the core's feed unless the request asks for it by name with
+`narration=realistic`, which is what the observer sends when its style is
+Realistic News; snapshots never carry it. See the
+[News API](../api/news-api.md#realistic-news).
+
+## What it knows
+
+Each item is written from the event's facts and its context, all derived from the
+world so that an item can be written before its event fires:
+
+| Context | Example |
 |---|---|
-| `INCIDENT_ACTIVATED` | kind, the core's description, road name, district, closed or not, speed and capacity as a percentage of normal, expected clearing time |
-| `INCIDENT_RESOLVED` | kind, road, district, traffic flowing normally |
-| `DWS_RAIN_STARTED`, `DWS_RAIN_PEAK`, `DWS_RAIN_ENDED` | district, nearest named road, intensity, radius |
-| `FLOOD_STARTED` | road, district |
-| `TRAFFIC_SURGE_ACTIVE` | district, nearest named road, extra demand, radius, end time |
+| City, day type, time of day | Cape Town, South Africa · a weekday · 07:32, the morning rush hour |
+| Road and district | Adderley Street (or "a residential street") · the east district |
+| Places nearby | The Crypt Jazz Restaurant (restaurant); Vista High School (school) |
+| Weather at that place and time | heavy rain |
+| Earlier today | a collision at 06:10 on this same road |
+| What happened, for a clearance | Commercial transit vehicle breakdown obstructing right lane, started at 07:32 |
+| The angle of the story | the weather and driving conditions only; no crashes, breakdowns or crews |
 
-Internal identifiers (`Edge #200`, `Node #2652`) are never sent; roads are named
-from OpenStreetMap, or described by class ("a residential street") when unnamed.
-Districts use the same compass as the observer's notifications ("the north-east
-district"). Demand changes, signal changes and system messages are not
-narrated: they are frequent, already plain, or both.
+Internal identifiers (`Edge #4428`) are never sent.
+
+| News | Written by the model |
+|---|---|
+| Incidents starting and clearing | Always |
+| Rain starting, peaking and clearing; flooding; demand surges | Always |
+| A place at its busiest | For named schools, universities, hospitals, shopping centres and stations; a city's thousands of other demand changes keep Standard wording |
+| Signals, system messages, demand winding down | Never |
 
 ## Guardrails
 
-A model can be fluent and wrong, so every sentence is checked against the facts
-it was written from before it is kept. It is discarded - and the core's own
-wording shown - if it:
+The model is asked to add ordinary, plausible colour - the scene, what drivers
+are seeing, a word of advice - and that is the point. It is checked before it
+is kept, and its item is discarded, with the Standard wording shown instead, if it:
 
-- contains any number that is not among the facts;
-- mentions injuries, casualties, police, ambulances, fire, causes such as speeding,
-  or visibility, unless the facts do;
-- speculates or advises ("may", "might", "should", "avoid", "recommend");
+- contains any number or time that is not among the facts;
+- mentions deaths;
+- speaks as itself ("I", "as an assistant");
 - echoes the facts back as labels, or is a list rather than prose;
-- is shorter than 12 or longer than 280 characters.
+- is shorter than 20 or longer than 420 characters.
 
-A discarded narration is not asked for again. Requests run at temperature 0, so
-the same facts give the same sentence on the same model.
+A discarded item is not asked for again.
 
 ## Timing and caching
 
-The on-device model takes about one to three seconds a sentence on an M-series
-Mac. Three things keep that off the operator's path:
+The on-device model takes about four to six seconds an item on an M-series Mac.
+Nothing waits for it:
 
-1. **Nothing waits for it.** The physics step only queues the facts; two worker
-   threads, at utility priority so macOS places them on the efficiency cores,
-   talk to the model.
-2. **Scheduled news is narrated ahead of time.** Incidents and storms are planned
-   when the world is compiled, so their narrations are requested at install,
-   earliest first, and are usually ready before the clock reaches them.
-3. **Narrations are cached by their facts.** The key is a hash of the facts, so the
-   same event - after a seek, a replay, or a restart with the same seed - is
-   narrated once. The cache lives in memory (4,096 entries) and in SQLite
-   (`narrations.db`), so it survives restarts.
+1. **The physics step only queues the facts.** Two worker threads, at utility
+   priority so macOS places them on the efficiency cores, talk to the model.
+2. **Scheduled news is written ahead.** Incidents, storms and busy hours at notable
+   places are planned when the world is compiled, so they are requested at
+   install, earliest first, and are usually ready before the clock reaches them.
+3. **Items are cached by their facts** - in memory (4,096 entries) and in SQLite
+   (`narrations.db`) - so a seek, a replay or a restart reuses them. Floods,
+   surges and busy hours carry the hour rather than the minute, so repeats on
+   one road within the hour share an item.
 
-When a narration finishes after its item was delivered, the news feed carries it
-to the observer through the `since_narration` cursor (see the
-[News API](../api/news-api.md#narration)), and the notification updates in place.
-
-If the model stops answering, three failures in a row pause narration for 30
-seconds; the queue is bounded (256 items) and sheds the furthest-off prefetches
-first. Either way the news keeps flowing in the core's wording.
+An item finished after its news was delivered reaches the observer through the
+`since_narration` cursor, and the notification updates in place, marked
+**Realistic News**. If the model stops answering, three failures in a row pause
+it for 30 seconds; the queue is bounded (256 items) and sheds the furthest-off
+work first. Either way the news keeps flowing in Standard wording.
 
 ## Privacy
 
-With `fm`, everything stays on the Mac: the model runs on device and the socket
-is private to the user. With a remote endpoint, the facts listed above - road
-names, districts and times from a simulated day - are sent to it.
+With `fm`, everything stays on the Mac: the model runs on device and the socket is
+private to the user. With a remote endpoint, the facts listed above - from a
+simulated day - are sent to it.

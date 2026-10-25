@@ -4,7 +4,7 @@
 import { useScrollFade } from "./scrollFade";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, categoryIcon } from "./Icons";
-import { focusMatches, SEVERITY_LABEL } from "./notificationModel";
+import { focusMatches, SEVERITY_LABEL, REALISTIC_NEWS } from "./notificationModel";
 import type { UiNotification } from "./notificationModel";
 import { useTimeFormat } from "./preferences";
 import { formatDuration } from "./timeFormat";
@@ -107,6 +107,7 @@ export function NotificationCapsule(
                   <span className="capsule-kind">
                     {current.category === "incident" ? "Incident" : current.category.charAt(0).toUpperCase() + current.category.slice(1)}
                     {focused && <em className="capsule-following">Following</em>}
+                    {current.source === "realistic" && <em className="capsule-realistic" title="Written on this device by Apple's Foundation Model">{REALISTIC_NEWS}</em>}
                   </span>
                   {(!urgent || onDismissError) && <button type="button" className="capsule-icon-btn" aria-label={urgent ? "Dismiss error" : "Dismiss notification"} onClick={() => urgent ? onDismissError?.() : onDismiss(current)}>
                     <Icon name="close" size={14} />

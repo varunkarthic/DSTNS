@@ -28,6 +28,8 @@ export const STEP_OPTIONS = [1, 10, 60, 300] as const;
 export type ReduceMotionSetting = "auto" | "on" | "off";
 export type AutoFocusMode = "disable" | "enable" | "enable-force";
 export type AutoFocusStrategy = "round-robin" | "latest";
+/** How news is worded: by the on-device model (Realistic News), or from predefined wordings. */
+export type NewsStyle = "realistic" | "standard";
 
 export interface UiConfig {
   layers: Layers;
@@ -59,6 +61,8 @@ export interface UiConfig {
   tutorial: { enabled: boolean; show_on_startup: boolean };
   clock: { hour12: boolean };
   asb: { enabled: boolean; report_interval_ms: number };
+  /** Realistic News is used only when the core's narrator is available. */
+  news: { style: NewsStyle };
 }
 
 export const BUILT_IN: UiConfig = {
@@ -83,11 +87,13 @@ export const BUILT_IN: UiConfig = {
   tutorial: { enabled: true, show_on_startup: false },
   clock: { hour12: false },
   asb: { enabled: true, report_interval_ms: 1000 },
+  news: { style: "realistic" },
 };
 
 const REDUCE_MOTION: ReduceMotionSetting[] = ["auto", "on", "off"];
 const MODES: AutoFocusMode[] = ["disable", "enable", "enable-force"];
 const STRATEGIES: AutoFocusStrategy[] = ["round-robin", "latest"];
+const NEWS_STYLES: NewsStyle[] = ["realistic", "standard"];
 
 /** Accept a value only if it is one of the permitted literals. */
 function oneOf<T extends string>(value: unknown, allowed: T[], fallback: T): T {
@@ -133,6 +139,7 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
   const tutorial = (p.tutorial ?? {}) as Record<string, unknown>;
   const asb = (p.asb ?? {}) as Record<string, unknown>;
   const playback = (p.playback ?? {}) as Record<string, unknown>;
+  const news = (p.news ?? {}) as Record<string, unknown>;
 
   const layers = { ...base.layers };
   for (const key of Object.keys(base.layers) as (keyof Layers)[])
@@ -176,6 +183,7 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
       enabled: bool(asb.enabled, base.asb.enabled),
       report_interval_ms: num(asb.report_interval_ms, base.asb.report_interval_ms, 250, 10000),
     },
+    news: { style: oneOf(news.style, NEWS_STYLES, base.news.style) },
   };
 }
 
@@ -223,7 +231,7 @@ export function diffConfig(base: UiConfig, next: UiConfig): Record<string, unkno
     }
     return out;
   };
-  for (const key of ["auto_focus", "notifications", "playback", "clock", "asb", "tutorial"] as const) {
+  for (const key of ["auto_focus", "notifications", "playback", "clock", "asb", "tutorial", "news"] as const) {
     const changed = section(base[key], next[key]);
     if (Object.keys(changed).length) patch[key] = changed;
   }

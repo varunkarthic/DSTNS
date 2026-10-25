@@ -172,6 +172,7 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
         one_of((config.get("auto_focus") or {}).get("strategy"), ["round-robin", "latest"], "auto_focus.strategy")
         one_of((config.get("playback") or {}).get("skip_seconds"), [60, 300, 900, 3600], "playback.skip_seconds")
         one_of((config.get("playback") or {}).get("step_seconds"), [1, 10, 60, 300], "playback.step_seconds")
+        one_of((config.get("news") or {}).get("style"), ["realistic", "standard"], "news.style")
         for value in (config.get("notifications") or {}).get("dnd_categories") or []:
             one_of(value, categories, "notifications.dnd_categories")
         for value in (config.get("notifications") or {}).get("dnd_severities") or []:
@@ -266,11 +267,16 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
         from . import narration
 
         choice = narration.resolve(paths=paths)
-        if choice.enabled:
-            return Outcome(State.PASS, choice.label, "Incidents, storms and floods are worded in plain language.")
-        if not choice.fell_back:
-            return Outcome(State.SKIPPED, "off", "Turned off; news keeps the default wording.")
-        return Outcome(State.WARNING, f"unavailable · {narration.DEFAULT_WORDING}", choice.reason, remedy=choice.remedy)
+        status = choice.fm_status
+        if status == narration.AVAILABLE:
+            return Outcome(State.PASS, narration.AVAILABLE, f"{narration.BRAND}: news written on this Mac by the on-device model.")
+        if status == narration.UNAVAILABLE:
+            return Outcome(State.WARNING, narration.UNAVAILABLE, f"{choice.reason}. {narration.DEFAULT_WORDING} is used.",
+                           remedy=choice.remedy)
+        detail = (f"{narration.BRAND} via {choice.label}." if choice.enabled
+                  else f"Turned off; {narration.DEFAULT_WORDING} is used." if not choice.fell_back
+                  else f"{choice.reason}. {narration.DEFAULT_WORDING} is used.")
+        return Outcome(State.SKIPPED, narration.DISABLED, detail, remedy=choice.remedy if choice.fell_back else "")
 
     def port() -> Outcome:
         from . import configuration
@@ -344,7 +350,7 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
         Check("core", "Simulation core", core),
         Check("observer", "Observer bundle", observer, required=False),
         Check("port", "API port", port, required=False),
-        Check("narration", "Narration", narration_check, required=False),
+        Check("narration", "Apple Foundation Models", narration_check, required=False),
         Check("sumo", "SUMO", sumo, required=False),
     ]
     if suites:

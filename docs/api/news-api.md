@@ -6,7 +6,7 @@ News list are built from it.
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/api/v1/news?since_news_id=N&limit=L&since_narration=S` | Items with `news_id > N`, oldest first, at most `L` (1 to 500, default 100); `S` is the [narration](#narration) cursor |
+| GET | `/api/v1/news?since_news_id=N&limit=L` | Items with `news_id > N`, oldest first, at most `L` (1 to 500, default 100). Add `narration=realistic&since_narration=S` for [Realistic News](#realistic-news) |
 | GET | `/api/v1/news/stream` | The latest 100 items as one server-sent event (see [Streaming](streaming.md)) |
 
 The last 25 items also arrive in every snapshot as `event_stack`.
@@ -37,7 +37,7 @@ The last 25 items also arrive in every snapshot as `event_stack`.
 | `template_id` | A stable identifier for the kind of item (below); match on this, not on `message` |
 | `message` | Human-readable text; may change between versions |
 | `data` | Structured details, which vary by template |
-| `narrative` | Optional. The item in plain language, when a [narrator](#narration) is running and has worded it |
+| `narrative` | Only with `narration=realistic`: the item as [Realistic News](#realistic-news), when the narrator has written it |
 
 ## Templates
 
@@ -81,10 +81,12 @@ done
 
 Disabling the `news` module stops new items being posted; existing ones remain.
 
-## Narration
+## Realistic News
 
-When the server runs a narrator (see [Natural-language narration](../guide/narration.md)),
-items it words carry a `narrative` beside their `message`:
+[Realistic News](../guide/narration.md) is the observer's: by default the feed is
+exactly the core's, whatever narrator the server runs. A client that wants it
+asks by name with `narration=realistic`, and items the narrator has written then
+carry a `narrative` beside their `message`:
 
 ```json
 {
@@ -102,7 +104,7 @@ absent.
 
 A narration can finish after its item was delivered. To catch those without
 re-reading the feed, pass back the `narration_sequence` of the previous page as
-`since_narration`. The page then lists, under `narrated`, items you already
+`since_narration` (with `narration=realistic`). The page then lists, under `narrated`, items you already
 hold (`news_id <= since_news_id`, among the latest 200) whose narration
 finished since:
 
@@ -114,5 +116,6 @@ finished since:
 }
 ```
 
-Both fields are absent when no narrator is attached, so the page keeps its
-original shape. Reset the cursor to 0 whenever you reset `since_news_id`.
+Both fields appear only with `narration=realistic` and a narrator attached;
+otherwise the page keeps its original shape. Snapshots' `event_stack` never
+carries narratives. Reset the cursor to 0 whenever you reset `since_news_id`.

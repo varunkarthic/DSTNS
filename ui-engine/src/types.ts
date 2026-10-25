@@ -216,6 +216,13 @@ export interface News {
    */
   narrative?: string;
 }
+/** GET /api/v1/system/narrator: whether Realistic News can be offered. */
+export interface NarratorStatus {
+  enabled: boolean;
+  state: string;
+  backend?: { kind?: string; model?: string; on_device?: boolean } | null;
+  last_error?: string;
+}
 /** One page of the news feed. */
 export interface NewsPage {
   items: News[];

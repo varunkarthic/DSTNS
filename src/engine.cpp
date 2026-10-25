@@ -1478,6 +1478,18 @@ void SimulationEngine::prefetch_narrations() {
             ask(rain_ended(e, end));
         }
     }
+    // Places' busiest moments are scheduled too; narration_request keeps only the peaks.
+    if (sc.config.buildings && sc.config.news) {
+        const auto queued = events_.inspect(true, "demand", 0, 100000)["items"];
+        for (const auto& e : queued) {
+            const auto entity = e.value("entity", 0u);
+            if (entity >= sc.features.size()) continue;
+            const auto description = e.value("description", std::string());
+            const nlohmann::json data{{"feature_id", sc.features[entity].id}, {"multiplier", e.value("value", 1.0)}};
+            if (auto request = narration_request(*narration_context_, "DEMAND_CHANGED", description, data, e.value("virtual_s", 0u)))
+                narrator_->request(*request, false);
+        }
+    }
 }
 
 void SimulationEngine::set_narrator(std::shared_ptr<Narrator> narrator) {
@@ -1500,7 +1512,7 @@ nlohmann::json SimulationEngine::narrator_status() const {
     return narrator->status();
 }
 
-nlohmann::json SimulationEngine::news_json(const NewsItem& n, const char* time_key) const {
+nlohmann::json SimulationEngine::news_json(const NewsItem& n, const char* time_key, bool realistic) const {
     nlohmann::json item{
         {"news_id", n.news_id},
         {"event_id", n.event_id},
@@ -1512,7 +1524,7 @@ nlohmann::json SimulationEngine::news_json(const NewsItem& n, const char* time_k
         {"message", n.message},
         {"data", n.data}
     };
-    if (narrator_ && !n.narration_key.empty())
+    if (realistic && narrator_ && !n.narration_key.empty())
         if (auto told = narrator_->lookup(n.narration_key)) item["narrative"] = std::move(told->text);
     return item;
 }
@@ -2081,17 +2093,17 @@ nlohmann::json SimulationEngine::catalog(const std::string& kind) const {
     return envelope({{"items", std::move(items)}});
 }
 
-nlohmann::json SimulationEngine::news(std::uint64_t since, std::size_t limit, std::uint64_t since_narration) const {
+nlohmann::json SimulationEngine::news(std::uint64_t since, std::size_t limit, std::uint64_t since_narration, bool realistic) const {
     std::lock_guard lock(mutex_);
     // Read the narration sequence before scanning: anything finished after this
     // point carries a higher number, so the client's next request picks it up.
     const auto narration_sequence = narrator_ ? narrator_->sequence() : 0;
     nlohmann::json items = nlohmann::json::array();
     for (const auto& n : news_) {
-        if (n.news_id > since && items.size() < limit) items.push_back(news_json(n, "virtual_day_s"));
+        if (n.news_id > since && items.size() < limit) items.push_back(news_json(n, "virtual_day_s", realistic));
     }
     nlohmann::json data{{"items", std::move(items)}};
-    if (narrator_) {
+    if (narrator_ && realistic) {
         // A narration usually finishes after its item was first served. List
         // the recent ones the client already holds but has not seen worded.
         auto narrated = nlohmann::json::array();

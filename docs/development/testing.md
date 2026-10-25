@@ -120,7 +120,7 @@ npm test --prefix ui-engine          # Vitest, jsdom
 npx --prefix ui-engine tsc -b        # type check
 ```
 
-25 files, 292 tests. The main ones:
+25 files, 297 tests. The main ones:
 
 | File | Covers |
 |---|---|

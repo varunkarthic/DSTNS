@@ -865,7 +865,10 @@ void ApiServer::routes() {
         send(r, engine_.news(
             unsigned_parameter(req, "since_news_id", 0),
             static_cast<std::size_t>(std::min<std::uint64_t>(500, unsigned_parameter(req, "limit", 100))),
-            unsigned_parameter(req, "since_narration", 0)
+            unsigned_parameter(req, "since_narration", 0),
+            // Realistic News is the observer's; other clients get the core's
+            // feed unless they ask for it by name.
+            req.get_param_value("narration") == "realistic"
         ));
     });
     server_->Get("/api/v1/system/narrator", [this](const auto&, auto& r) {

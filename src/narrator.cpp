@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/narrator.hpp"
+#include "dstns/demand.hpp"
 #include "dstns/graph.hpp"
 #include "dstns/platform.hpp"
 #include "dstns/rng.hpp"
@@ -28,7 +29,7 @@ extern char** environ;
 namespace dstns {
 namespace {
 
-constexpr const char* kPromptVersion = "narration-v1";
+constexpr const char* kPromptVersion = "realistic-news-v2";
 
 std::string hhmm(std::uint32_t s) {
     char buffer[8];
@@ -87,12 +88,77 @@ std::string lower(std::string s) {
 // Facts
 // ---------------------------------------------------------------------------
 
+namespace {
+
+constexpr double kNearbyM = 350.0;  // how far a place can be and still be "nearby"
+
+/// A place kind as a reporter would name it, or "" for kinds not worth naming.
+const char* place_label(PlaceKind kind) {
+    switch (kind) {
+    case PlaceKind::School: return "school";
+    case PlaceKind::University: return "university";
+    case PlaceKind::Office: return "offices";
+    case PlaceKind::Retail: return "shops";
+    case PlaceKind::Mall: return "shopping centre";
+    case PlaceKind::Hospital: return "hospital";
+    case PlaceKind::Pharmacy: return "pharmacy";
+    case PlaceKind::Food: return "restaurant";
+    case PlaceKind::Transport: return "station";
+    case PlaceKind::Park: return "park";
+    case PlaceKind::Worship: return "place of worship";
+    case PlaceKind::Culture: return "venue";
+    case PlaceKind::Hotel: return "hotel";
+    default: return "";
+    }
+}
+
+/// The hour as a reporter would put it. `coarse` gives the hour alone, so that
+/// repeated events on one road within the hour share one cached item.
+std::string time_of_day(std::uint32_t s, bool weekend, bool coarse = false) {
+    const double h = double(s % 86400) / 3600.0;
+    std::string period;
+    if (h < 5) period = "the middle of the night";
+    else if (h < 7) period = "early morning";
+    else if (h < 9.5) period = weekend ? "morning" : "the morning rush hour";
+    else if (h < 12) period = "late morning";
+    else if (h < 14) period = "lunchtime";
+    else if (h < 16.5) period = "the afternoon";
+    else if (h < 19) period = weekend ? "early evening" : "the evening rush hour";
+    else if (h < 22) period = "the evening";
+    else period = "late at night";
+    return (coarse ? "around " + hhmm(s - s % 3600) : hhmm(s)) + ", " + period;
+}
+
+/// Places worth a news item when they are at their busiest.
+bool newsworthy(PlaceKind kind) {
+    return kind == PlaceKind::School || kind == PlaceKind::University || kind == PlaceKind::Hospital ||
+           kind == PlaceKind::Mall || kind == PlaceKind::Transport;
+}
+
+/// Why a place is busy, from the label the core gives its demand windows.
+std::string demand_reason(const std::string& label, const std::string& kind) {
+    const auto l = lower(label);
+    if (l.find("school") != std::string::npos) return "the school run (pupils arriving or leaving)";
+    if (l.find("office") != std::string::npos) return "the office commute";
+    if (l.find("retail") != std::string::npos) return "shoppers at the busiest time of day";
+    if (l.find("hospital") != std::string::npos) return "visitors, patients and staff changeovers";
+    if (!kind.empty()) return "people coming and going from the " + kind;
+    return "more people than usual coming and going";
+}
+
+} // namespace
+
 NarrationContext::NarrationContext(const Scenario& scenario) : scenario_(scenario) {
     road_by_node_.assign(scenario.nodes.size(), {});
     for (const auto& e : scenario.edges) {
         if (e.name.empty()) continue;
         if (e.from.value < road_by_node_.size() && road_by_node_[e.from.value].empty()) road_by_node_[e.from.value] = e.name;
         if (e.to.value < road_by_node_.size() && road_by_node_[e.to.value].empty()) road_by_node_[e.to.value] = e.name;
+    }
+    for (std::size_t i = 0; i < scenario.features.size(); ++i) {
+        const auto& f = scenario.features[i];
+        feature_by_id_.emplace(f.id, i);
+        if (!f.name.empty() && *place_label(classify_place(f))) named_places_.push_back(i);
     }
     if (scenario.nodes.empty()) return;
     double min_x = scenario.nodes.front().position.x_m, max_x = min_x;
@@ -132,40 +198,149 @@ std::string NarrationContext::district_of_edge(std::uint32_t edge) const {
     return edge < scenario_.edges.size() ? district(scenario_.edges[edge].from.value) : std::string("the network");
 }
 
+std::string NarrationContext::city() const {
+    if (scenario_.map_city.empty()) return "";
+    return scenario_.map_country.empty() ? scenario_.map_city : scenario_.map_city + ", " + scenario_.map_country;
+}
+
+std::string NarrationContext::day() const { return scenario_.config.day == 1 ? "the weekend" : "a weekday"; }
+
+Point NarrationContext::node_position(std::uint32_t node) const {
+    return node < scenario_.nodes.size() ? scenario_.nodes[node].position : Point{};
+}
+
+Point NarrationContext::edge_midpoint(std::uint32_t edge) const {
+    if (edge >= scenario_.edges.size()) return {};
+    const auto& a = node_position(scenario_.edges[edge].from.value);
+    const auto& b = node_position(scenario_.edges[edge].to.value);
+    return {(a.x_m + b.x_m) / 2, (a.y_m + b.y_m) / 2, (a.lat + b.lat) / 2, (a.lon + b.lon) / 2};
+}
+
+std::vector<std::string> NarrationContext::places_near(const Point& where, std::size_t limit) const {
+    std::vector<std::pair<double, std::size_t>> near;
+    for (const auto i : named_places_) {
+        const double d = point_distance(where, scenario_.features[i].center);
+        if (d <= kNearbyM) near.emplace_back(d, i);
+    }
+    std::sort(near.begin(), near.end());
+    std::vector<std::string> out;
+    for (const auto& [d, i] : near) {
+        const auto& f = scenario_.features[i];
+        auto text = f.name + " (" + place_label(classify_place(f)) + ")";
+        if (std::find(out.begin(), out.end(), text) == out.end()) out.push_back(std::move(text));
+        if (out.size() >= limit) break;
+    }
+    return out;
+}
+
+std::string NarrationContext::weather_at(const Point& where, std::uint32_t when) const {
+    if (!scenario_.config.dws) return "";
+    double strongest = 0;
+    for (const auto& e : scenario_.dws_events) {
+        const auto start = std::uint32_t(std::uint64_t(e.start_ppm) * 86400 / 1'000'000);
+        const auto end = std::uint32_t(std::uint64_t(e.end_ppm) * 86400 / 1'000'000);
+        if (when < start || when >= end || e.epicenter.value >= scenario_.nodes.size()) continue;
+        if (point_distance(where, scenario_.nodes[e.epicenter.value].position) <= e.radius_m * 1.3)
+            strongest = std::max(strongest, e.intensity);
+    }
+    if (strongest <= 0) return "";
+    return strongest > 0.6 ? "heavy rain" : "light rain";
+}
+
+std::vector<std::string> NarrationContext::earlier_incidents(std::uint32_t edge, std::uint32_t when, std::size_t limit) const {
+    if (!scenario_.config.incidents || edge >= scenario_.edges.size()) return {};
+    const auto here_road = road(edge);
+    const auto here_district = district_of_edge(edge);
+    std::vector<std::pair<std::uint32_t, std::string>> found;
+    for (const auto& inc : scenario_.incidents) {
+        if (inc.start_virtual_s >= when || (inc.edge.value == edge && inc.start_virtual_s + 60 >= when)) continue;
+        const auto there_road = road(inc.edge.value);
+        const bool same_road = !scenario_.edges[inc.edge.value].name.empty() && there_road == here_road;
+        if (!same_road && district_of_edge(inc.edge.value) != here_district) continue;
+        found.emplace_back(inc.start_virtual_s, "a " + incident_kind(to_string(inc.type)) + " at " + hhmm(inc.start_virtual_s) +
+                                                   (same_road ? " on this same road" : " on " + there_road + ", nearby"));
+    }
+    std::sort(found.begin(), found.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+    std::vector<std::string> out;
+    for (auto& [t, text] : found) {
+        out.push_back(std::move(text));
+        if (out.size() >= limit) break;
+    }
+    return out;
+}
+
+const MapFeature* NarrationContext::feature(const std::string& id) const {
+    const auto it = feature_by_id_.find(id);
+    return it == feature_by_id_.end() ? nullptr : &scenario_.features[it->second];
+}
+
+const Incident* NarrationContext::incident(std::uint64_t id) const {
+    for (const auto& inc : scenario_.incidents) if (inc.id == id) return &inc;
+    return nullptr;
+}
+
 std::optional<NarrationRequest> narration_request(const NarrationContext& context, const std::string& template_id,
                                                   const std::string& message, const nlohmann::json& data,
                                                   std::uint32_t due_s) {
-    // Most news (demand, signals, system) is not narrated: answer that before
-    // building anything, since this runs for every item on the physics thread.
+    // Most news (signals, system, demand winding down) is not narrated: answer
+    // that before building anything, since this runs on the physics thread.
     static const std::set<std::string, std::less<>> narrated{
         "INCIDENT_ACTIVATED", "INCIDENT_RESOLVED", "DWS_RAIN_STARTED", "DWS_RAIN_PEAK", "DWS_RAIN_ENDED",
-        "FLOOD_STARTED", "TRAFFIC_SURGE_ACTIVE"};
+        "FLOOD_STARTED", "TRAFFIC_SURGE_ACTIVE", "DEMAND_CHANGED"};
     if (!narrated.contains(template_id)) return std::nullopt;
+    // A place's demand rises and falls in eight steps; only its peak is news.
+    if (template_id == "DEMAND_CHANGED" && message.find(" peak · ") == std::string::npos) return std::nullopt;
+
     std::ostringstream f;
     auto line = [&](const char* label, const std::string& value) { if (!value.empty()) f << label << ": " << value << '\n'; };
+    auto list = [](const std::vector<std::string>& items) {
+        std::string out;
+        for (const auto& item : items) out += (out.empty() ? "" : "; ") + item;
+        return out;
+    };
+    const bool weekend = context.day() == "the weekend";
+    // Common to every item: where and when.
+    auto setting = [&](const Point& where, bool coarse = false) {
+        line("City", context.city());
+        line("Day", context.day());
+        line("Time", time_of_day(due_s, weekend, coarse));
+        line("Weather", context.weather_at(where, due_s));
+    };
 
     if (template_id == "INCIDENT_ACTIVATED" || template_id == "INCIDENT_RESOLVED") {
         const auto edge = field<std::uint32_t>(data, "edge_id");
         if (!edge) return std::nullopt;
         const auto kind = incident_kind(field<std::string>(data, "type").value_or(""));
+        const auto where = context.edge_midpoint(*edge);
         if (template_id == "INCIDENT_ACTIVATED") {
-            line("Event", "an incident has started");
+            line("Event", "an incident has just happened");
             line("Kind", kind);
             line("Situation", incident_situation(message));
             line("Road", context.road(*edge));
             line("Area", context.district_of_edge(*edge));
-            if (const auto closed = field<bool>(data, "closed")) line("Road closed", *closed ? "yes" : "no");
+            setting(where);
+            line("Nearby", list(context.places_near(where)));
+            line("Earlier today", list(context.earlier_incidents(*edge, due_s)));
+            if (const auto closed = field<bool>(data, "closed")) line("Road closed", *closed ? "yes, fully" : "no, still open but slow");
             if (const auto speed = field<double>(data, "speed_multiplier"); speed && *speed > 0 && *speed < 1)
                 line("Traffic speed", percent(*speed) + " of normal");
             if (const auto capacity = field<double>(data, "capacity_multiplier"); capacity && *capacity > 0 && *capacity < 1)
                 line("Road capacity", percent(*capacity) + " of normal");
             if (const auto end = field<std::uint32_t>(data, "end_virtual_s")) line("Expected to clear", hhmm(*end));
+            line("Angle", "the scene and its knock-on effect on traffic; crews or recovery vehicles fit this kind of incident");
         } else {
             line("Event", "an incident has cleared");
             line("Kind", kind);
+            if (const auto id = field<std::uint64_t>(data, "incident_id"))
+                if (const auto* earlier = context.incident(*id)) {
+                    line("What happened", incident_situation(earlier->description));
+                    line("Started at", hhmm(earlier->start_virtual_s));
+                }
             line("Road", context.road(*edge));
             line("Area", context.district_of_edge(*edge));
+            setting(where);
             line("Traffic", "flowing normally again");
+            line("Angle", "the road is moving again; refer back to what happened, exactly as described");
         }
     } else if (template_id == "DWS_RAIN_STARTED" || template_id == "DWS_RAIN_PEAK" || template_id == "DWS_RAIN_ENDED") {
         const auto epicenter = field<std::uint32_t>(data, "epicenter");
@@ -176,6 +351,7 @@ std::optional<NarrationRequest> narration_request(const NarrationContext& contex
             const auto node = static_cast<std::uint32_t>(std::strtoul(message.c_str() + at + 8, nullptr, 10));
             return narration_request(context, template_id, message, nlohmann::json{{"epicenter", node}}, due_s);
         }
+        const auto where = context.node_position(*epicenter);
         const auto intensity = field<double>(data, "intensity");
         const bool heavy = intensity && *intensity > 0.6;
         line("Event", template_id == "DWS_RAIN_STARTED" ? "rain has started"
@@ -183,28 +359,53 @@ std::optional<NarrationRequest> narration_request(const NarrationContext& contex
                                                         : "rain has cleared");
         line("Area", context.district(*epicenter));
         line("Near", context.road_near(*epicenter));
-        if (template_id != "DWS_RAIN_ENDED" && intensity) line("Intensity", std::string(heavy ? "heavy" : "light to moderate") + " (" + percent(*intensity) + ")");
+        line("City", context.city());
+        line("Day", context.day());
+        line("Time", time_of_day(due_s, weekend));
+        line("Nearby", list(context.places_near(where)));
+        if (template_id != "DWS_RAIN_ENDED" && intensity) line("Intensity", heavy ? "heavy" : "light to moderate");
         if (const auto radius = field<double>(data, "radius_m")) line("Radius", std::to_string(static_cast<int>(*radius)) + " m");
-        if (template_id == "DWS_RAIN_PEAK") line("Road surface", "reduced grip");
-        if (template_id == "DWS_RAIN_ENDED") line("Roads", "returning to normal conditions");
+        if (template_id == "DWS_RAIN_PEAK") line("Road surface", "wet, reduced grip");
+        if (template_id == "DWS_RAIN_ENDED") line("Roads", "drying out, returning to normal");
+        line("Angle", "the weather and driving conditions only; no crashes, breakdowns or crews");
     } else if (template_id == "FLOOD_STARTED") {
         const auto edge = field<std::uint32_t>(data, "edge_id");
         if (!edge) return std::nullopt;
-        line("Event", "standing water is affecting a road");
+        const auto where = context.edge_midpoint(*edge);
+        line("Event", "standing water is building up on a road");
         line("Road", context.road(*edge));
         line("Area", context.district_of_edge(*edge));
+        setting(where, true);
+        line("Nearby", list(context.places_near(where)));
+        line("Angle", "water on the road and how drivers are coping; no crashes, breakdowns or crews");
     } else if (template_id == "TRAFFIC_SURGE_ACTIVE") {
         const auto node = field<std::uint32_t>(data, "node_id");
         if (!node) return std::nullopt;
-        line("Event", "a surge in traffic demand has begun");
+        const auto where = context.node_position(*node);
+        line("Event", "a sudden surge in traffic");
         line("Area", context.district(*node));
         line("Near", context.road_near(*node));
+        setting(where, true);
+        line("Angle", "suddenly heavy traffic and what is drawing it; no crashes or breakdowns");
+        line("Nearby", list(context.places_near(where)));
         if (const auto factor = field<double>(data, "factor"); factor && *factor > 1)
-            line("Extra demand", "+" + std::to_string(static_cast<int>(std::lround((*factor - 1) * 100))) + "%");
-        if (const auto radius = field<double>(data, "radius_m")) line("Radius", std::to_string(static_cast<int>(*radius)) + " m");
+            line("Extra traffic", "+" + std::to_string(static_cast<int>(std::lround((*factor - 1) * 100))) + "%");
         if (const auto until = field<std::string>(data, "end_time")) line("Until", until->substr(0, 5));
-    } else {
-        return std::nullopt;
+    } else {  // DEMAND_CHANGED, at its peak
+        const auto id = field<std::string>(data, "feature_id");
+        const auto* place = id ? context.feature(*id) : nullptr;
+        // A busy hour at a named school, hospital, mall or station is news;
+        // the thousands of other peaks a city has in a day keep their Standard wording.
+        if (!place || place->name.empty() || !newsworthy(classify_place(*place))) return std::nullopt;
+        const std::string kind = place_label(classify_place(*place));
+        const auto label = message.substr(0, message.find(" · "));
+        line("Event", "traffic is at its busiest around a local place");
+        line("Place", place->name + " (" + kind + ")");
+        line("Why", demand_reason(label, kind));
+        line("Road", context.road_near(place->anchor.value));
+        line("Area", context.district(place->anchor.value));
+        setting(place->center, true);
+        line("Angle", "why it is busy and what that means for traffic nearby; no crashes, breakdowns or crews");
     }
 
     NarrationRequest request;
@@ -217,16 +418,18 @@ std::optional<NarrationRequest> narration_request(const NarrationContext& contex
 
 const std::string& narration_instructions() {
     static const std::string text =
-        "You write the message for one event in a city traffic operations feed. "
-        "Write one or two short, calm sentences in natural English. "
-        "Use only the facts given. Mention the road and the area when they are given. "
-        "Do not add causes, injuries, advice, predictions, or any number that is not in the facts. "
-        "No lists, labels, quotation marks or emoji.";
+        "You write one item for the local traffic and travel news in the city named in the facts, the way a radio "
+        "traffic reporter would say it. Write one to three short sentences, under 60 words. "
+        "Follow the Angle line: it says what the story is about. Add a little ordinary, plausible colour that fits "
+        "it, mention the road and the area, and only add advice to drivers if it is natural. "
+        "Never contradict the facts, never invent incidents the facts do not describe, never add numbers or "
+        "times that are not in the facts, never mention deaths, and never name real people, companies or brands. "
+        "Vary your wording. No headlines, lists, labels, quotation marks, hashtags or emoji.";
     return text;
 }
 
 std::optional<std::string> accept_narration(const std::string& output, const std::string& facts) {
-    // Clean: one line, no wrapping quotes or markdown emphasis.
+    // Clean: one paragraph, no wrapping quotes or markdown emphasis.
     std::string text;
     text.reserve(output.size());
     for (char c : output) {
@@ -240,18 +443,19 @@ std::optional<std::string> accept_narration(const std::string& output, const std
         while (!s.empty() && (s.back() == ' ' || s.back() == '"' || s.back() == '\'')) s.pop_back();
     };
     trim(text);
-    if (text.size() < 12 || text.size() > 280) return std::nullopt;
+    if (text.size() < 20 || text.size() > 420) return std::nullopt;
     if (!std::isupper(static_cast<unsigned char>(text.front()))) return std::nullopt;
     if (text.back() != '.' && text.back() != '!') text.push_back('.');
-    if (std::count_if(text.begin(), text.end(), [](char c) { return c == '.' || c == '!' || c == '?'; }) > 4) return std::nullopt;
+    if (std::count_if(text.begin(), text.end(), [](char c) { return c == '.' || c == '!' || c == '?'; }) > 6) return std::nullopt;
 
     const auto facts_lower = lower(facts);
     const auto text_lower = lower(text);
     // A label echoed back means the model listed the facts instead of writing.
-    for (const char* label : {"event:", "kind:", "situation:", "facts", "road:", "area:"})
+    for (const char* label : {"event:", "kind:", "situation:", "facts", "road:", "area:", "time:", "nearby:", "angle:"})
         if (text_lower.find(label) != std::string::npos) return std::nullopt;
 
-    // Every number it writes must be one it was given.
+    // Every number it writes must be one it was given: a wrong time or
+    // percentage reads as a fact.
     std::set<std::string> given;
     for (std::size_t i = 0; i < facts.size();) {
         if (!std::isdigit(static_cast<unsigned char>(facts[i]))) { ++i; continue; }
@@ -268,11 +472,9 @@ std::optional<std::string> accept_narration(const std::string& output, const std
         i = j;
     }
 
-    // Words that claim more than the facts say, unless the facts say them.
-    static constexpr const char* stems[]{"injur", "casualt", "fatal", "dead", "death", "died", "kill", "victim", "hospital",
-                                         "ambulance", "police", "fire", "drunk", "speeding", "advis", "recommend", "avoid",
-                                         "expect delays", "possibl", "probabl", "likely", "visibility", "sorry", "assistant"};
-    static constexpr const char* words[]{"may", "might", "could", "should", "please", "i", "we", "you", "your"};
+    // No deaths, and no model talking about itself.
+    static constexpr const char* stems[]{"dead", "death", "died", "dying", "kill", "fatal", "casualt", "corpse", "body bag",
+                                         "assistant", "language model", "sorry"};
     std::vector<std::string> tokens;
     {
         std::string token;
@@ -290,10 +492,7 @@ std::optional<std::string> accept_narration(const std::string& output, const std
         }
         for (const auto& t : tokens) if (t.rfind(stem, 0) == 0) return std::nullopt;
     }
-    for (const char* word : words) {
-        if (facts_lower.find(std::string(" ") + word + " ") != std::string::npos) continue;
-        for (const auto& t : tokens) if (t == word) return std::nullopt;
-    }
+    for (const auto& t : tokens) if (t == "i") return std::nullopt;
     return text;
 }
 
@@ -337,8 +536,10 @@ public:
         const nlohmann::json body{
             {"model", model_},
             {"stream", false},
-            {"temperature", 0},
-            {"max_tokens", 120},
+            // Some variety: two items about similar events should not read alike.
+            // The text is cached by its facts, so an event keeps its wording.
+            {"temperature", 0.7},
+            {"max_tokens", 220},
             {"messages", nlohmann::json::array({{{"role", "system"}, {"content", instructions}},
                                                 {{"role", "user"}, {"content", facts}}})}};
         if (cancelled_) return std::nullopt;
@@ -723,7 +924,8 @@ nlohmann::json Narrator::status() const {
                    {"persistent", db_ != nullptr}, {"path", options_.cache_path.string()}}},
         {"sequence", sequence_},
         {"last_error", last_error_},
-        {"role", "presentation only: narrations never feed back into the simulation"}
+        {"brand", "Realistic News"},
+        {"role", "presentation only: narrations never feed back into the simulation, and the API serves them only on request"}
     };
 }
 

@@ -160,20 +160,33 @@ class Telling(WithFm):
         narration.announce(narration.resolve("auto"), reporter)
         [(level, text, detail)] = reporter.messages
         self.assertIs(level, Level.WARNING)
-        self.assertIn("using the default wording", text)
+        self.assertEqual(text, "Apple Foundation Models: Unavailable")
         self.assertIn("fm command was not found", detail)
+        self.assertIn("Standard news", detail)
 
     def test_an_available_model_is_announced(self):
         fake_fm(self.bin)
         reporter = Recorder()
         narration.announce(narration.resolve("auto"), reporter)
-        self.assertEqual(reporter.messages[0][0], Level.INFO)
-        self.assertIn("Apple Foundation Models", reporter.messages[0][1])
+        self.assertEqual(reporter.messages[0][0], Level.SUCCESS)
+        self.assertEqual(reporter.messages[0][1], "Apple Foundation Models: Available")
+        self.assertIn("Realistic News", reporter.messages[0][2])
 
-    def test_off_is_quiet(self):
+    def test_off_is_reported_as_disabled(self):
+        fake_fm(self.bin)
         reporter = Recorder()
         narration.announce(narration.resolve("off"), reporter)
-        self.assertEqual(reporter.messages, [])
+        [(level, text, detail)] = reporter.messages
+        self.assertIs(level, Level.INFO)
+        self.assertEqual(text, "Apple Foundation Models: Disabled")
+        self.assertIn("Standard news", detail)
+
+    def test_three_states(self):
+        self.assertEqual(narration.resolve("auto").fm_status, "Unavailable")
+        fake_fm(self.bin)
+        self.assertEqual(narration.resolve("auto").fm_status, "Available")
+        self.assertEqual(narration.resolve("off").fm_status, "Disabled")
+        self.assertEqual(narration.resolve("http://127.0.0.1:9").fm_status, "Disabled")
 
     def test_server_reports_are_described(self):
         self.assertEqual(narration.describe_server(None)[0], "unknown")
@@ -181,7 +194,8 @@ class Telling(WithFm):
         state, text = narration.describe_server({"enabled": True, "state": "unavailable", "last_error": "the model is not reachable",
                                                  "backend": {"kind": "apple-foundation-models"}})
         self.assertEqual(state, "unavailable")
-        self.assertIn("default wording", text)
+        self.assertIn("Apple Foundation Models: Unavailable", text)
+        self.assertIn("Standard news", text)
 
     def test_server_is_told_to_keep_the_default_wording(self):
         workspace = Workspace()
@@ -201,7 +215,8 @@ class Telling(WithFm):
                 with self.assertRaises(SimulationStartError):
                     server.start(reporter, workspace.paths, build_first=False)
             self.assertEqual(commands[0][-2:], ["--narrator", "off"])
-            self.assertTrue(any(level is Level.WARNING and "default wording" in text for level, text, _ in reporter.messages))
+            self.assertTrue(any(level is Level.WARNING and text == "Apple Foundation Models: Unavailable"
+                                for level, text, _ in reporter.messages))
         finally:
             workspace.cleanup()
 
@@ -212,7 +227,14 @@ class Telling(WithFm):
             environment.run_checks([check])
             self.assertIs(check.outcome.state, environment.State.WARNING)
             self.assertFalse(check.required)
-            self.assertIn("default wording", check.outcome.value)
+            self.assertEqual(check.name, "Apple Foundation Models")
+            self.assertEqual(check.outcome.value, "Unavailable")
+            fake_fm(self.bin)
+            environment.run_checks([check])
+            self.assertEqual((check.outcome.state, check.outcome.value), (environment.State.PASS, "Available"))
+            with mock.patch.dict(os.environ, {narration.ENV: "off"}):
+                environment.run_checks([check])
+            self.assertEqual((check.outcome.state, check.outcome.value), (environment.State.SKIPPED, "Disabled"))
         finally:
             workspace.cleanup()
 

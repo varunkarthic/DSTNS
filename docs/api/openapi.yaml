@@ -793,12 +793,19 @@ paths:
       tags:
       - News
       operationId: listNews
-      description: Items may carry an optional `narrative` (plain-language wording from the narrator). With a
-        narrator attached the page also has `narrated` (late narrations for items already delivered) and
-        `narration_sequence` (pass back as since_narration).
+      description: The core's feed. With narration=realistic (the observer's Realistic News) and a narrator
+        attached, items carry an optional `narrative` and the page also has `narrated` (late items for news already
+        delivered) and `narration_sequence` (pass back as since_narration).
       parameters:
       - $ref: '#/components/parameters/SinceNews'
       - $ref: '#/components/parameters/Limit'
+      - name: narration
+        in: query
+        description: realistic asks for Realistic News narratives; without it none are served.
+        schema:
+          type: string
+          enum:
+          - realistic
       - name: since_narration
         in: query
         description: The narration_sequence of the previous page; 0 lists every finished narration in the window.

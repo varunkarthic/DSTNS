@@ -7,7 +7,8 @@ import type { ReactNode } from "react";
 import { Icon } from "./Icons";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from "./notificationModel";
 import { SKIP_OPTIONS, STEP_OPTIONS } from "./uiConfig";
-import type { AutoFocusStrategy } from "./uiConfig";
+import type { AutoFocusStrategy, NewsStyle } from "./uiConfig";
+import { REALISTIC_NEWS } from "./notificationModel";
 import { formatDuration } from "./timeFormat";
 
 /**
@@ -30,6 +31,10 @@ export interface SettingsValues {
   motionLocked: boolean;
   skipSeconds: number;
   stepSeconds: number;
+  newsStyle: NewsStyle;
+  /** Whether the core's narrator can write Realistic News right now. */
+  realisticAvailable: boolean;
+  narratorNote: string;
 }
 
 export interface SettingsActions {
@@ -43,6 +48,7 @@ export interface SettingsActions {
   onReduceMotion: (on: boolean) => void;
   onSkipSeconds: (s: number) => void;
   onStepSeconds: (s: number) => void;
+  onNewsStyle: (style: NewsStyle) => void;
 }
 
 export function Switch({
@@ -264,6 +270,31 @@ export function SettingsDrawer({
           <p className="settings-note">
             When Auto Focus moves the camera to an event, that event's notification is shown even if its category is muted.
           </p>
+        </Section>
+
+        <Section title="News">
+          <Row
+            title="News style"
+            hint={
+              values.realisticAvailable
+                ? values.newsStyle === "realistic"
+                  ? values.narratorNote
+                  : "Predefined wordings, varied from event to event."
+                : `${values.narratorNote} Standard wording is used.`
+            }
+            control={
+              <Segmented
+                label="News style"
+                value={values.realisticAvailable ? values.newsStyle : "standard"}
+                disabled={!values.realisticAvailable}
+                onChange={actions.onNewsStyle}
+                options={[
+                  { value: "realistic", label: REALISTIC_NEWS },
+                  { value: "standard", label: "Standard" },
+                ]}
+              />
+            }
+          />
         </Section>
 
         <Section title="Display">

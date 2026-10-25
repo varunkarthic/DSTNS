@@ -674,6 +674,16 @@
   background: var(--cyan-soft);
   letter-spacing: 0.06em;
 }
+/* Realistic News: the summary was written by the on-device model. */
+.capsule-realistic {
+  font-style: normal;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 8px;
+  color: var(--text-dim);
+  background: rgb(255 255 255 / 7%);
+  letter-spacing: 0.06em;
+}
 .capsule-icon-btn {
   width: 26px;
   height: 26px;

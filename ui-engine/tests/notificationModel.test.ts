@@ -9,6 +9,7 @@ import {
   districtOf,
   focusMatches,
   orderForDisplay,
+  pickWording,
   shouldDisplayNotification,
   stripPrefix,
 } from "../src/notificationModel";
@@ -98,7 +99,11 @@ describe("describeNews", () => {
       topology,
     );
     expect(n.title).toBe("Heavy rain");
-    expect(n.summary).toBe("Heavy rainfall has developed over the north-east district near Harbour Road.");
+    expect([
+      "Heavy rainfall has developed over the north-east district near Harbour Road.",
+      "A heavy downpour moving in over the north-east district near Harbour Road; expect wet roads.",
+      "Rain is now falling across the north-east district near Harbour Road. Allow extra time for journeys.",
+    ]).toContain(n.summary);
     expect(n.summary).not.toMatch(/Node|epicenter|0\.83/);
     expect(n.details).toContainEqual({ label: "Affected radius", value: "1.4 km" });
     expect(n.details).toContainEqual({ label: "Intensity", value: "83% (heavy)" });
@@ -127,7 +132,11 @@ describe("describeNews", () => {
       topology,
     );
     expect(n.title).toBe("Collision");
-    expect(n.summary).toBe("Multi-vehicle collision on Harbour Road. Lane blocked, emergency services on scene.");
+    expect([
+      "Multi-vehicle collision on Harbour Road. Lane blocked, emergency services on scene.",
+      "A collision on Harbour Road is holding up traffic in the north-east district.",
+      "Crash on Harbour Road in the north-east district: a lane is blocked and emergency services are there.",
+    ]).toContain(n.summary);
     expect(n.details).toContainEqual({ label: "Severity", value: "High" });
     expect(n.details).toContainEqual({ label: "Road closed", value: "Yes" });
     expect(n.details).toContainEqual({ label: "Speed limit", value: "30% of normal" });
@@ -141,7 +150,11 @@ describe("describeNews", () => {
       topology,
     );
     expect(n.title).toBe("Vehicle breakdown cleared");
-    expect(n.summary).toBe("The vehicle breakdown on Residential road has cleared. Normal traffic flow is restored.");
+    expect([
+      "The vehicle breakdown on Residential road has cleared. Normal traffic flow is restored.",
+      "Residential road is moving freely again after the vehicle breakdown.",
+      "All clear on Residential road: the vehicle breakdown has been dealt with.",
+    ]).toContain(n.summary);
   });
 
   it("describes demand changes by place", () => {
@@ -150,7 +163,11 @@ describe("describeNews", () => {
       topology,
     );
     expect(n.title).toBe("Demand at peak");
-    expect(n.summary).toBe("School arrival / departure is at its peak around Riverside School.");
+    expect([
+      "School arrival / departure is at its peak around Riverside School.",
+      "The school run is building traffic around Riverside School.",
+      "Pupils coming and going at Riverside School are adding to traffic nearby.",
+    ]).toContain(n.summary);
     expect(n.coordinates).toEqual({ x_m: -500, y_m: 800 });
     const back = describeNews(news({ template_id: "DEMAND_CHANGED", message: "Demand returns to normal · Riverside School", data: { multiplier: 1 } }), topology);
     expect(back.title).toBe("Demand normal");
@@ -164,7 +181,9 @@ describe("describeNews", () => {
 
   it("survives a missing topology", () => {
     const n = describeNews(news({ template_id: "FLOOD_STARTED", data: { edge_id: 0, flood: 0.4 } }), null);
-    expect(n.summary).toBe("Flooding is affecting a road.");
+    expect(["Flooding is affecting a road.", "Standing water has built up on a road; take care.", "A road is waterlogged, slowing traffic."]).toContain(
+      n.summary,
+    );
   });
 });
 
@@ -279,8 +298,23 @@ describe("narration", () => {
     });
   });
 
-  it("falls back to the template wording without a narration", () => {
-    expect(describeNews(incident("   "), topology).summary).toBe(describeNews(incident(), topology).summary);
+  it("falls back to the Standard wording without a narration", () => {
+    const item = incident();
+    const blank = describeNews({ ...item, narrative: "   " }, topology);
+    expect(blank.summary).toBe(describeNews(item, topology).summary);
+    expect(blank.source).toBe("standard");
+    expect(describeNews({ ...item, narrative: "Harbour Road is shut." }, topology).source).toBe("realistic");
+  });
+
+  it("chooses Standard wordings by the event, so an item keeps its wording", () => {
+    const options = ["a", "b", "c", "d"];
+    const chosen = new Set<string>();
+    for (let id = 0; id < 40; id++) {
+      const first = pickWording(options, { event_id: id, template_id: "FLOOD_STARTED" });
+      expect(pickWording(options, { event_id: id, template_id: "FLOOD_STARTED" })).toBe(first);
+      chosen.add(first);
+    }
+    expect(chosen.size).toBeGreaterThan(2);
   });
 
   it("keeps the grouped count after a narrated summary", () => {

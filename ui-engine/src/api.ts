@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import type { Envelope, Status, Topology, Snapshot, News, EventPage, Congestion, Backpressure, WorldStatus, NewsPage } from "./types";
+import type { Envelope, Status, Topology, Snapshot, News, EventPage, Congestion, Backpressure, WorldStatus, NewsPage, NarratorStatus } from "./types";
 const base =
   (import.meta.env.VITE_DSTNS_API_URL as string | undefined)?.replace(
     /\/$/,
@@ -52,10 +52,13 @@ export const api = {
   status: () => request<Envelope<Status>>("/api/v1/playback/status"),
   topology: () => request<Envelope<Topology>>("/api/v1/view/topology"),
   snapshot: () => request<Envelope<Snapshot>>("/api/v1/view/snapshot"),
-  news: (since = 0, sinceNarration = 0) =>
+  /** `realistic` asks for Realistic News narrations; without it the feed is the core's own. */
+  news: (since = 0, sinceNarration = 0, realistic = false) =>
     request<Envelope<NewsPage>>(
-      `/api/v1/news?since_news_id=${since}&limit=100&since_narration=${sinceNarration}`,
+      `/api/v1/news?since_news_id=${since}&limit=100` +
+        (realistic ? `&narration=realistic&since_narration=${sinceNarration}` : ""),
     ),
+  narrator: () => request<{ data: NarratorStatus }>("/api/v1/system/narrator"),
   events: (view = "future", category = "all", offset = 0) =>
     request<Envelope<EventPage>>(
       `/api/v1/view/event-queue?view=${encodeURIComponent(view)}&category=${encodeURIComponent(category)}&offset=${offset}&limit=30`,

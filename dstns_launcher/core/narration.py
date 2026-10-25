@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Varun Karthic
 
-"""Natural-language narration: which model the server should use, if any.
+"""Realistic News: which model the server should use to write the news, if any.
 
 The server can word incidents, storms and floods in plain language with Apple's
 on-device Foundation Model (the ``fm`` command) or any Chat Completions
@@ -35,7 +35,10 @@ if TYPE_CHECKING:
 ENV = "DSTNS_NARRATOR"
 MODES = ("auto", "fm", "off")
 FM_LABEL = "Apple Foundation Models (on device)"
-DEFAULT_WORDING = "news keeps the default wording"
+DEFAULT_WORDING = "Standard news"
+BRAND = "Realistic News"
+#: How the launcher reports Apple's on-device model.
+AVAILABLE, UNAVAILABLE, DISABLED = "Available", "Unavailable", "Disabled"
 SYSTEM_FM = Path("/usr/bin/fm")
 
 
@@ -58,10 +61,19 @@ class Choice:
         """Narration was wanted but is not available, so the default wording applies."""
         return not self.enabled and self.requested != "off"
 
+    @property
+    def fm_status(self) -> str:
+        """Apple Foundation Models: Available (in use), Unavailable (wanted but
+        missing, unsupported or not ready), or Disabled (turned off, or another
+        model chosen)."""
+        if self.server_argument == "fm":
+            return AVAILABLE
+        return UNAVAILABLE if self.requested in {"auto", "fm"} else DISABLED
+
     def summary(self) -> str:
         if self.enabled:
-            return self.label
-        return f"off · {DEFAULT_WORDING}" + (f" ({self.reason})" if self.reason else "")
+            return f"Apple Foundation Models: {self.fm_status} · {BRAND} via {self.label}"
+        return f"Apple Foundation Models: {self.fm_status} · {DEFAULT_WORDING}" + (f" ({self.reason})" if self.reason else "")
 
 
 def requested_mode(paths: Paths = PATHS) -> str:
@@ -169,16 +181,18 @@ def describe_server(status: dict[str, Any] | None) -> tuple[str, str]:
     if not status:
         return "unknown", "the server did not report narration (an older server?)"
     if not status.get("enabled"):
-        return "off", f"off · {DEFAULT_WORDING}"
+        return "off", f"Apple Foundation Models: {DISABLED} or {UNAVAILABLE} · {DEFAULT_WORDING}"
     backend = status.get("backend") or {}
-    name = FM_LABEL if backend.get("kind") == "apple-foundation-models" else f"Chat Completions at {backend.get('endpoint', '?')}"
+    apple = backend.get("kind") == "apple-foundation-models"
+    name = "Apple Foundation Models" if apple else f"Chat Completions at {backend.get('endpoint', '?')}"
     state = str(status.get("state") or "unknown")
     if state == "ready":
-        return "ready", f"{name} · {status.get('completed', 0)} narrated"
+        return "ready", (f"{name}: {AVAILABLE}" if apple else name) + f" · {status.get('completed', 0)} items written"
     if state == "starting":
-        return "starting", f"{name} · loading the model"
+        return "starting", (f"{name}: {AVAILABLE}" if apple else name) + " · loading the model"
     if state in {"backoff", "unavailable"}:
-        return state, f"{name} is not answering ({status.get('last_error') or state}); {DEFAULT_WORDING}"
+        reason = status.get("last_error") or state
+        return state, (f"{name}: {UNAVAILABLE} ({reason})" if apple else f"{name} is not answering ({reason})") + f"; {DEFAULT_WORDING}"
     return state, name
 
 
@@ -190,12 +204,19 @@ def announce(choice: Choice, reporter: "Reporter") -> None:
     """Say, before the server starts, what narration it will use."""
     from .reporting import Level
 
-    if choice.enabled:
-        reporter.message(Level.INFO, "Narration: " + choice.label, "plain-language news, checked against the facts")
-    elif choice.fell_back:
+    title = f"Apple Foundation Models: {choice.fm_status}"
+    if choice.fm_status == AVAILABLE:
+        reporter.message(Level.SUCCESS, title, f"{BRAND} on: news written on this Mac from each event and its context")
+    elif choice.fm_status == UNAVAILABLE:
         detail = choice.reason + (f". {choice.remedy}" if choice.remedy else "")
-        what = "Apple Foundation Models" if choice.requested in {"auto", "fm"} else "Narration"
-        reporter.message(Level.WARNING, f"{what} unavailable: using the default wording", detail)
+        reporter.message(Level.WARNING, title, f"{detail} Using {DEFAULT_WORDING}.")
+    elif choice.enabled:
+        reporter.message(Level.INFO, title, f"{BRAND} via {choice.label}")
+    elif choice.fell_back:
+        reporter.message(Level.WARNING, f"{title} · {BRAND} unavailable",
+                         choice.reason + (f". {choice.remedy}" if choice.remedy else "") + f" Using {DEFAULT_WORDING}.")
+    else:
+        reporter.message(Level.INFO, title, f"turned off; {DEFAULT_WORDING}")
 
 
 def server_status(port: int, paths: Paths = PATHS) -> dict[str, Any] | None:
@@ -225,8 +246,8 @@ def confirm(port: int, reporter: "Reporter", paths: Paths = PATHS, *, wait: floa
         status = server_status(port, paths)
     state, text = describe_server(status)
     if state == "ready":
-        reporter.message(Level.SUCCESS, "Narration ready", text)
+        reporter.message(Level.SUCCESS, f"{BRAND} ready", text)
     elif state == "starting":
-        reporter.message(Level.INFO, "Narration starting", text + "; the default wording is shown until it is ready")
+        reporter.message(Level.INFO, f"{BRAND} starting", text + f"; {DEFAULT_WORDING} is shown until it is ready")
     elif state in {"backoff", "unavailable"}:
-        reporter.message(Level.WARNING, "Narration unavailable: using the default wording", text)
+        reporter.message(Level.WARNING, f"{BRAND} unavailable: using {DEFAULT_WORDING}", text)

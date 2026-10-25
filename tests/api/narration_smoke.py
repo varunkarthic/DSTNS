@@ -2,13 +2,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Varun Karthic
 
-"""Narration over HTTP, against a stand-in Chat Completions server.
+"""Realistic News over HTTP, against a stand-in Chat Completions server.
 
 The stand-in plays the part `fm serve` plays on a Mac: it receives the facts of
-each narratable news item and answers with a sentence. Checks that the server
-sends facts rather than internal identifiers, that narrations reach the news
-feed (directly and through the since_narration cursor), that the narrator
-reports itself, and that --narrator off leaves the feed exactly as it was.
+each narratable news item and answers with an item. Checks that the server
+sends facts and context rather than internal identifiers, that narrations
+reach a client that asks for them (?narration=realistic, directly and through
+the since_narration cursor) and no other, that the narrator reports itself,
+and that --narrator off leaves the feed exactly as it was.
 """
 import http.server
 import json
@@ -48,7 +49,8 @@ class StandIn(http.server.BaseHTTPRequestHandler):
         facts = request['messages'][-1]['content']
         StandIn.facts.append(facts)
         cleared = 'cleared' in facts
-        text = 'The incident has cleared and traffic is moving normally again.' if cleared else 'Traffic is disrupted in the area.'
+        text = ('The incident has cleared and traffic is moving normally again.' if cleared
+                else 'Drivers are reporting slow traffic in the area this hour.')
         self._send({'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': text}}]})
 
 
@@ -120,15 +122,21 @@ def main():
             # Narrations were prefetched at prepare; any written after an item was
             # served arrive through the cursor.
             def narrated():
-                d = call('/api/v1/news?since_news_id=0&limit=500')[1]['data']
+                d = call('/api/v1/news?since_news_id=0&limit=500&narration=realistic')[1]['data']
                 return d if all('narrative' in n for n in d['items'] if n['template_id'].startswith('INCIDENT_')) else None
             feed = until(narrated)
             assert 'narration_sequence' in feed and feed['narration_sequence'] >= 1
-            cursor = call(f"/api/v1/news?since_news_id={feed['items'][-1]['news_id']}&since_narration=0")[1]['data']
+            cursor = call(f"/api/v1/news?since_news_id={feed['items'][-1]['news_id']}&since_narration=0&narration=realistic")[1]['data']
             assert any(n['narrative'] for n in cursor['narrated']), 'the cursor lists narrations of items already served'
-            caught_up = call(f"/api/v1/news?since_news_id={feed['items'][-1]['news_id']}&since_narration={feed['narration_sequence']}")[1]['data']
+            caught_up = call(f"/api/v1/news?since_news_id={feed['items'][-1]['news_id']}&since_narration={feed['narration_sequence']}&narration=realistic")[1]['data']
             assert caught_up['narrated'] == [], 'a client that is up to date is sent nothing again'
-            assert StandIn.facts and all('Edge #' not in f and 'Event:' in f for f in StandIn.facts), 'the model sees facts, not identifiers'
+            assert StandIn.facts and all('Edge #' not in f and 'Event:' in f and 'Time:' in f for f in StandIn.facts), \
+                'the model sees facts and context, not identifiers'
+            plain_with_narrator = call('/api/v1/news?since_news_id=0&limit=500')[1]['data']
+            assert all('narrative' not in n for n in plain_with_narrator['items']) and 'narrated' not in plain_with_narrator, \
+                'narrations are served only to a client that asks for them'
+            snapshot = call('/api/v1/view/snapshot')[1]['data']
+            assert all('narrative' not in n for n in snapshot['event_stack']), 'nor are they in the snapshot'
             narrator = call('/api/v1/system/narrator')[1]['data']
             assert narrator['enabled'] and narrator['backend']['endpoint'] == endpoint and narrator['completed'] >= 1, narrator
             core_text = [(n['template_id'], n['message']) for n in feed['items']]

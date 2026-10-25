@@ -347,27 +347,35 @@ For `start` and `seeds save`:
 | `--max-nodes N` | Integer 2 to 50000 | Graph size cap |
 | `--osm-file PATH` | Existing file | Pin a map instead of letting the seed choose |
 | `--open`, `--no-open` | | Open the observer in a browser. Default: when a desktop is present |
-| `--narrator MODE` | `auto`, `fm`, `off`, `http://HOST:PORT`, `unix:/PATH` | [Natural-language narration](narration.md). Default: `narration.mode` in `config/defaults.json`, else `auto` |
+| `--narrator MODE` | `auto`, `fm`, `off`, `http://HOST:PORT`, `unix:/PATH` | [Realistic News](narration.md). Default: `narration.mode` in `config/defaults.json`, else `auto` |
 
 ### Narration
 
-Before it starts a server, the launcher decides whether news will be worded by a
-language model, and tells you. `auto` and `fm` use Apple's on-device Foundation
-Model, and are checked in order: macOS, the `fm` command, `fm available`, and
-whether Apple's terms were accepted (`fm license --status`). An endpoint must
-answer `/v1/models`. If anything is missing the server is started with
-`--narrator off`, the news keeps its default wording, and the launcher says why and
+Before it starts a server, the launcher decides whether
+[Realistic News](narration.md) can be written, and reports Apple's on-device
+model in one of three states:
+
+| State | Meaning |
+|---|---|
+| **Available** | `fm` is installed, the model is ready and Apple's terms are accepted: Realistic News is on |
+| **Unavailable** | Wanted (`auto` or `fm`) but missing, unsupported, not ready or not agreed to: Standard news, with the reason |
+| **Disabled** | Turned off (`--narrator off`), or another model chosen with an endpoint |
+
+`auto` and `fm` are checked in order: macOS, the `fm` command, `fm available`, and
+`fm license --status`. An endpoint must answer `/v1/models`. When the model cannot
+be used the server is started with `--narrator off` and the launcher says why and
 what would fix it:
 
 ```text
- [WARN]  Apple Foundation Models unavailable: using the default wording
-         the on-device model is not available (Apple Intelligence is turned off).
-         Turn on Apple Intelligence in System Settings and let the model finish downloading.
+ [OK]    Apple Foundation Models: Available  Realistic News on: news written on this Mac from each event and its context
+ [WARN]  Apple Foundation Models: Unavailable  the on-device model is not available (Apple Intelligence is turned off).
+         Turn on Apple Intelligence in System Settings and let the model finish downloading. Using Standard news.
+ [INFO]  Apple Foundation Models: Disabled  turned off; Standard news
 ```
 
 Once the run has started it reports what the server's narrator actually did -
-**Narration ready**, or a warning if the model stopped answering - and the
-**Narration** environment check shows the same decision. Attaching to a server
+**Realistic News ready**, or a warning if the model stopped answering - and the
+**Apple Foundation Models** environment check shows the same state. Attaching to a server
 that is already running reports that server's narration, which was fixed when it
 started. `--narrator` lasts for one invocation; set `narration.mode` (in the
 **Server** section of the configuration screen) to change the default.

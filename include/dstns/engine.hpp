@@ -92,8 +92,13 @@ public:
     /// The place taxonomy: every kind the classifier can produce, whether it is
     /// modelled, and how many of each this world holds.
     [[nodiscard]] nlohmann::json place_kinds() const;
-    /// News after `since`. Items narrated since completion sequence `since_narration` are listed under "narrated".
-    [[nodiscard]] nlohmann::json news(std::uint64_t since,std::size_t limit,std::uint64_t since_narration=0) const; [[nodiscard]] nlohmann::json history() const;
+    /**
+     * News after `since`. With `realistic` (the observer's Realistic News
+     * setting; ?narration=realistic over HTTP) items carry their narrative,
+     * and items narrated since completion sequence `since_narration` are
+     * listed under "narrated". Without it the feed is exactly the core's.
+     */
+    [[nodiscard]] nlohmann::json news(std::uint64_t since,std::size_t limit,std::uint64_t since_narration=0,bool realistic=false) const; [[nodiscard]] nlohmann::json history() const;
     /**
      * The topology response, serialized. A world's topology never changes, so
      * its body is built once per world and only the envelope (clock, revision)
@@ -143,7 +148,7 @@ private:
     void loop(); void transition(Lifecycle next); void step_to(std::uint32_t target); void physics_step(std::uint32_t dt); void capture_checkpoint();
     void restore_to(std::uint32_t target); void anchor_wall_clock(); void catch_up_to_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
     void prefetch_narrations();
-    [[nodiscard]] nlohmann::json news_json(const NewsItem& item,const char* time_key) const;
+    [[nodiscard]] nlohmann::json news_json(const NewsItem& item,const char* time_key,bool realistic=false) const;
     [[nodiscard]] nlohmann::json clock_json() const; [[nodiscard]] nlohmann::json envelope(nlohmann::json data) const;
     AppliedCommand& record(std::string type,nlohmann::json before,nlohmann::json after);
     [[nodiscard]] nlohmann::json signal_state_json() const;

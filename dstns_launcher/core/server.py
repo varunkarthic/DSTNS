@@ -110,7 +110,7 @@ def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True,
             reporter.message(Level.INFO, "Attached to the running DSTNS server",
                              f"port {port} · {(existing or {}).get('lifecycle', 'READY')}")
             # Its narration was decided when it started; report it as it is.
-            reporter.message(Level.INFO, "Narration on the running server",
+            reporter.message(Level.INFO, f"{narration.BRAND} on the running server",
                              narration.describe_server(narration.server_status(port, paths))[1])
             return ServerHandle(port, host, existing or {})
         replacement = api.free_port(port + 1)
@@ -178,7 +178,7 @@ def run_foreground(paths: Paths = PATHS) -> int:
             return 0
         port = api.free_port(port + 1)
     choice = narration.resolve(paths=paths)
-    print(f"Narration: {choice.summary()}" + (f"\n  {choice.remedy}" if choice.fell_back and choice.remedy else ""))
+    print(choice.summary() + (f"\n  {choice.remedy}" if choice.fell_back and choice.remedy else ""))
     return subprocess.call([str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs), "--maps", str(_maps(paths)),
                             "--narrator", choice.server_argument], cwd=paths.root,
                            env={**os.environ, **paths.server_environment()})

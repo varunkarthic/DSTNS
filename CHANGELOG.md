@@ -49,6 +49,20 @@ undefined before and differ now.
   it reports what the server's narrator actually did. A **Narration** environment
   check shows the same decision.
 
+- Realistic News. The observer's **Settings → News** switches between Realistic
+  News, written by the on-device model like a local traffic report, and Standard,
+  predefined wordings that vary from event to event (`news.style` in
+  `config/ui-config.json`). Realistic News is written from the event and its
+  context - the city, road, district, hour, day type, named places nearby, the
+  weather at the time, earlier incidents that day - may add plausible colour but
+  not contradict the facts, invent numbers or mention deaths, and now also covers
+  the busiest hours at named schools, hospitals, shopping centres and stations.
+  It is the observer's alone: `/api/v1/news` serves narratives only with
+  `narration=realistic`, and snapshots never do. Notifications written this way
+  are marked **Realistic News**.
+- The launcher reports Apple Foundation Models as **Available**, **Unavailable** or
+  **Disabled**, in start-up messages and as an environment check.
+
 ### Changed
 
 - The topology response is built once per world and served from a cache: about

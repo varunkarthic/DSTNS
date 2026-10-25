@@ -48,7 +48,7 @@ import type { UiNotification } from "./notificationModel";
 import { focusNotification } from "./focusNotification";
 import { TelemetryRecorder, runtimeStatus, sampleFrom } from "./telemetryRecorder";
 import { DAY_SECONDS, formatDuration } from "./timeFormat";
-import type { Congestion, Layers, MapFeature, News, PlaceVisibility, WorldStatus } from "./types";
+import type { Congestion, Layers, MapFeature, NarratorStatus, News, PlaceVisibility, WorldStatus } from "./types";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
@@ -113,10 +113,36 @@ export function worldErrorMessage(code: string, message: string): string {
   return "The new world could not be generated. Retry, or return to the current world.";
 }
 
+/** What the News setting says about the narrator, for its hint. */
+function narratorNote(status: NarratorStatus | null): string {
+  if (!status) return "Unavailable: the core did not report a narrator.";
+  if (!status.enabled) return "Unavailable: Apple Foundation Models are not available or are turned off for this server.";
+  if (status.state === "unavailable" || status.state === "disabled")
+    return `Unavailable: ${status.last_error || "the model is not answering"}.`;
+  const model = status.backend?.on_device ? "Apple's on-device Foundation Model" : "the configured language model";
+  const loading = status.state === "starting" ? " It is loading; Standard wording shows meanwhile." : "";
+  return `Written by ${model} from the event, the road, the hour, the places nearby and the day so far.${loading}`;
+}
+
 export default function App() {
   // ---- Configuration ----------------------------------------------------
   const [config, setConfig] = useState<UiConfig>(BUILT_IN);
-  const sim = useSimulation(config.notifications.dwell_ms);
+  // Realistic News needs the core's narrator; ask what it is doing now and then.
+  const [narrator, setNarrator] = useState<NarratorStatus | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () =>
+      api.narrator().then((r) => live && setNarrator(r.data), () => live && setNarrator(null));
+    void load();
+    const timer = setInterval(load, 20000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, []);
+  const realisticAvailable = !!narrator?.enabled && narrator.state !== "unavailable" && narrator.state !== "disabled";
+  const realistic = config.news.style === "realistic" && realisticAvailable;
+  const sim = useSimulation(config.notifications.dwell_ms, realistic);
   const [operatorConfig, setOperatorConfig] = useState<UiConfig>(BUILT_IN);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [layers, setLayers] = useState<Layers>(BUILT_IN.layers);
@@ -889,6 +915,9 @@ export default function App() {
               motionLocked,
               skipSeconds: config.playback.skip_seconds,
               stepSeconds: config.playback.step_seconds,
+              newsStyle: config.news.style,
+              realisticAvailable,
+              narratorNote: narratorNote(narrator),
             }}
             actions={{
               onReset: resetSettings,
@@ -901,6 +930,7 @@ export default function App() {
               onReduceMotion: setMotion,
               onSkipSeconds: (s) => persist({ playback: { ...config.playback, skip_seconds: s } }),
               onStepSeconds: (s) => persist({ playback: { ...config.playback, step_seconds: s } }),
+              onNewsStyle: (style) => persist({ news: { style } }),
             }}
           />
 

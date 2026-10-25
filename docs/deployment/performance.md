@@ -96,7 +96,7 @@ threads. Apple's on-device Foundation Model, through `fm serve` on the M4,
 accepted 24 of 24 narrations at 2.7 s mean and 4.3 s worst latency. One world's
 72 incidents and storms take a single worker 21.6 s against a model answering in
 250 ms, and four workers 5.5 s. From the persistent cache, after a restart, they
-take 0.03 ms. See [Natural-language narration](../guide/narration.md).
+take 0.03 ms. See [Realistic News](../guide/narration.md).
 
 ## What makes it fast
 

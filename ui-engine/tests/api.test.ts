@@ -19,6 +19,15 @@ describe("Observer transport", () => {
     ])
       expect(api).not.toHaveProperty(key);
   });
+  it("asks for Realistic News narrations only when told to", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify({ run_id: "r", clock: {}, data: { items: [] } }), { status: 200 }),
+    );
+    await api.news(4, 2, false);
+    await api.news(4, 2, true);
+    expect(String(fetch.mock.calls[0][0])).not.toContain("narration");
+    expect(String(fetch.mock.calls[1][0])).toContain("narration=realistic&since_narration=2");
+  });
   it("uses pause endpoint", async () => {
     const fetch = vi
       .spyOn(globalThis, "fetch")

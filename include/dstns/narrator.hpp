@@ -25,16 +25,22 @@ struct sqlite3;
 namespace dstns {
 
 /**
- * Narration: plain-language wording for news the core has already decided.
+ * Realistic News: news items written the way a local traffic reporter would.
  *
  * The core composes its news as terse technical text ("Multi-vehicle
  * collision: lane blocked ... on Edge #412"). A narrator hands the facts of
- * such an item to a language model - Apple's on-device Foundation Model by
- * default - and keeps the sentence it writes. It is presentation only: the
- * model sees facts after the simulation has fixed them, its words are checked
- * against those facts before they are kept, and nothing it returns is ever read
- * back by the simulation. With no model available every item keeps the core's
- * own wording, exactly as before.
+ * such an item, with its context - the city, the road, the hour, the places
+ * nearby, the weather at the time, what has already happened on that road
+ * today - to a language model, Apple's on-device Foundation Model by default,
+ * and keeps what it writes. The model may add ordinary, plausible detail that
+ * fits the facts, as a reporter would; it may not contradict them or invent
+ * numbers or deaths, and what it writes is checked before it is kept.
+ *
+ * It is presentation only. The model sees facts after the simulation has fixed
+ * them, nothing it returns is read back by the simulation, and the API serves
+ * narrations only to a client that asks for them (the observer does, when its
+ * News setting is Realistic News). With no model available every item keeps
+ * the core's own wording.
  */
 
 /// The facts of one news item, as the model will see them.
@@ -46,9 +52,11 @@ struct NarrationRequest {
 };
 
 /**
- * Per-world lookups the fact builder needs: road names by junction and the
- * district grid. Built once when a world is installed, so a news item costs a
- * few table reads rather than a scan of the network.
+ * Per-world lookups the fact builder needs: road names by junction, the
+ * district grid, named places, and the day's schedule of storms and incidents.
+ * Built once when a world is installed. Everything here is derived from the
+ * scenario, so the facts for a scheduled event are the same whether they are
+ * built when the world is installed (to narrate ahead) or when it fires.
  */
 class NarrationContext {
 public:
@@ -57,9 +65,25 @@ public:
     [[nodiscard]] std::string road_near(std::uint32_t node) const; // nearest named road, or ""
     [[nodiscard]] std::string district(std::uint32_t node) const;  // "the north-east district"
     [[nodiscard]] std::string district_of_edge(std::uint32_t edge) const;
+    [[nodiscard]] std::string city() const;                        // "Cape Town, South Africa", or ""
+    [[nodiscard]] std::string day() const;                         // "a weekday" or "the weekend"
+    /// Up to `limit` named places within a few hundred metres, nearest first: "Groote Schuur Hospital (hospital)".
+    [[nodiscard]] std::vector<std::string> places_near(const Point& where, std::size_t limit = 2) const;
+    [[nodiscard]] Point edge_midpoint(std::uint32_t edge) const;
+    [[nodiscard]] Point node_position(std::uint32_t node) const;
+    /// "heavy rain" or "light rain" if a scheduled storm covers `where` at `when`, else "".
+    [[nodiscard]] std::string weather_at(const Point& where, std::uint32_t when) const;
+    /// Incidents earlier today on the same road or in the same district, latest first.
+    [[nodiscard]] std::vector<std::string> earlier_incidents(std::uint32_t edge, std::uint32_t when, std::size_t limit = 2) const;
+    /// A modelled place by its feature id, or nullptr.
+    [[nodiscard]] const MapFeature* feature(const std::string& id) const;
+    /// A scheduled incident by its id, or nullptr: a clearance refers back to what happened.
+    [[nodiscard]] const Incident* incident(std::uint64_t id) const;
 private:
     const Scenario& scenario_;
     std::vector<std::string> road_by_node_;
+    std::unordered_map<std::string, std::size_t> feature_by_id_;
+    std::vector<std::size_t> named_places_;
     double cx_{}, cy_{}, hx_{1}, hy_{1};
 };
 
@@ -71,9 +95,11 @@ private:
 /**
  * Check what the model wrote against the facts it was given.
  *
- * Returns the cleaned sentence, or nothing if it should not be shown: too long,
- * a list rather than prose, a number that is not among the facts, or words that
- * claim things the facts do not (injuries, causes, advice, speculation).
+ * Returns the cleaned item, or nothing if it should not be shown: too short or
+ * long, a list rather than prose, the facts echoed back as labels, a number or
+ * time that is not among the facts, deaths, or the model speaking as itself.
+ * Plausible colour - the kind of vehicle, crews at work, advice to drivers - is
+ * the point of Realistic News and is allowed.
  */
 [[nodiscard]] std::optional<std::string> accept_narration(const std::string& output, const std::string& facts);
 

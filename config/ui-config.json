@@ -94,5 +94,8 @@
       60,
       300
     ]
+  },
+  "news": {
+    "style": "realistic"
   }
 }
