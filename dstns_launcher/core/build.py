@@ -165,6 +165,13 @@ def observer_remedy(exc: BaseException) -> str:
     if "Library not loaded" in output or "dyld" in output:
         return ("Node.js is installed but does not start (a library it was built against is missing). "
                 "Reinstall it - with Homebrew: brew reinstall node - then run ./launcher ui build.")
+    certificate = ("UNABLE_TO_VERIFY", "unable to verify the first certificate", "SELF_SIGNED_CERT",
+                   "self-signed certificate", "CERT_HAS_EXPIRED", "unable to get local issuer certificate")
+    if any(marker in output for marker in certificate):
+        return ("npm could not download packages: the connection to the registry presented a certificate this Mac "
+                "does not trust, which usually means a network firewall or proxy is inspecting HTTPS. Ask your IT team "
+                "for its root certificate and set NODE_EXTRA_CA_CERTS to it, or build on another network, then run "
+                "./launcher ui build.")
     first = (output.splitlines() or [""])[0]
     if isinstance(exc, FileNotFoundError) or "not found" in first or getattr(exc, "code", 0) == 127:
         return "Node.js 20 or later is needed to build the observer. Install it, then run ./launcher ui build."

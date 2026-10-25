@@ -388,6 +388,16 @@ class ObserverBuild(unittest.TestCase):
         remedy = build.observer_remedy(CommandFailed(["npm", "ci"], -6, "dyld[1]: Library not loaded: libsimdjson.33.dylib"))
         self.assertIn("brew reinstall node", remedy)
 
+    def test_an_intercepted_registry_is_named(self):
+        from dstns_launcher.core import build
+        from dstns_launcher.core.errors import CommandFailed
+
+        output = ("npm warn audit request to https://registry.npmjs.org/ failed, reason: unable to verify the first "
+                  "certificate\nnpm error A complete log of this run can be found in: /tmp/x.log")
+        remedy = build.observer_remedy(CommandFailed(["npm", "ci"], 1, output))
+        self.assertIn("NODE_EXTRA_CA_CERTS", remedy)
+        self.assertNotIn("A complete log", remedy)
+
 
 class HeadlessStop(unittest.TestCase):
     def test_sigterm_stops_a_headless_start_without_deadlock(self):
