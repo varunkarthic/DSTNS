@@ -137,9 +137,9 @@ def world(port: int, request_seed: str = "", day: int = 0, paths: Paths = PATHS)
 def cached_maps(paths: Paths = PATHS) -> list[str]:
     """Maps already on disk, as ``--osm-file`` arguments."""
     try:
-        directory = (paths.root / (configuration.load(paths)["map"].get("cache_dir") or "data/maps")).resolve()
+        directory = paths.map_cache(configuration.load(paths)["map"].get("cache_dir"))
     except Exception:  # noqa: BLE001 - an unreadable configuration just means "look in the default place"
-        directory = paths.root / "data" / "maps"
+        directory = paths.map_cache()
     try:
         names = sorted(name.name for name in directory.iterdir() if name.name.endswith(".osm.xml"))
     except OSError:

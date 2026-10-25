@@ -15,6 +15,7 @@ import logging
 import os
 import signal
 import sys
+import time
 import traceback
 from dataclasses import dataclass, field
 
@@ -215,9 +216,13 @@ def command_ui(args: Arguments, out: Output, reporter: LineReporter) -> int:
         reporter.message(Level.SUCCESS, "Observer bundle rebuilt")
     elif action == "dev":
         reporter.message(Level.INFO, "Starting the observer development server (Vite)")
-        return os.spawnvp(os.P_WAIT, "npm", ["npm", "run", "dev", "--prefix", str(PATHS.ui_engine)])
+        if PATHS.observer_build != PATHS.ui_engine:
+            build.mirror_observer()
+        return os.spawnvp(os.P_WAIT, "npm", ["npm", "run", "dev", "--prefix", str(PATHS.observer_build)])
     elif action == "install":
-        process.run(["npm", "install", "--prefix", str(PATHS.ui_engine)], on_line=lambda line: reporter.step_output("npm", line))
+        if PATHS.observer_build != PATHS.ui_engine:
+            build.mirror_observer()
+        process.run(["npm", "install", "--prefix", str(PATHS.observer_build)], on_line=lambda line: reporter.step_output("npm", line))
         reporter.message(Level.SUCCESS, "Observer dependencies installed")
     elif action == "open":
         port = server.active_port()
@@ -310,7 +315,11 @@ def command_start_headless(args: Arguments, out: Output, reporter: LineReporter,
     handle = session.handle
     if handle is None or handle.process is None:
         return EXIT_OK
-    code = handle.process.wait()
+    # Poll rather than wait(): wait() holds subprocess's internal lock, and the
+    # SIGTERM handler, running on this same thread, stops the server through
+    # that lock too - a deadlock that left the launcher and its server hanging.
+    while (code := handle.process.poll()) is None:
+        time.sleep(0.2)
     return EXIT_OK if code in (0, -signal.SIGTERM) else EXIT_FAILURE
 
 

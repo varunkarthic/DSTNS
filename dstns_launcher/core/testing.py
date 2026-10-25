@@ -30,26 +30,33 @@ SCOPES = ("all", "unit", "api", "replay", "benchmark", "sumo", "ui")
 
 
 def stages(scope: str, paths: Paths = PATHS) -> list[Stage]:
-    build, server, root, ui = str(paths.build), str(paths.server), paths.root, str(paths.ui_engine)
+    build, server, root, ui = str(paths.build), str(paths.server), paths.root, str(paths.observer_build)
     python = sys.executable
     configure = Stage("Configure the test build", ("cmake", "-S", str(root), "-B", build, "-DDSTNS_BUILD_TESTS=ON"))
     compile_ = Stage("Build the core and test binaries", ("cmake", "--build", build, "-j4"))
     unit = Stage("Native suites (unit, property, replay, performance, HTTP)", ("ctest", "--test-dir", build, "--output-on-failure"))
     replay = Stage("Reproducibility verification", (str(paths.build / "dstns_replay_verify"),))
-    benchmark = Stage("Routing and snapshot benchmark", (str(paths.build / "dstns_benchmark"),))
+    benchmark = Stage("Load benchmark (quick)", (str(paths.build / "dstns_benchmark"), "--quick"))
     api = Stage("HTTP contract suite", (python, str(root / "tests" / "api" / "api_smoke.py"), "--server", server))
     sumo = Stage("SUMO integration smoke test", ("bash", str(root / "tests" / "integration" / "sumo_smoke.sh")))
     observer = Stage("Observer test suites", ("npm", "test", "--prefix", ui))
     bundle = Stage("Production observer bundle", ("npm", "run", "build", "--prefix", ui))
+    ui_stages = [observer, bundle]
+    if paths.observer_build != paths.ui_engine:
+        # A synced checkout builds and tests the observer from a local mirror.
+        mirror = Stage("Copy the observer sources to local disk",
+                       (python, "-c", "from dstns_launcher.core import build; build.mirror_observer()"))
+        install = Stage("Install observer dependencies", ("npm", "ci", "--prefix", ui))
+        ui_stages = [mirror, install, observer, bundle]
     return {
-        "all": [configure, compile_, unit, replay, benchmark, api, sumo, observer, bundle],
+        "all": [configure, compile_, unit, replay, benchmark, api, sumo, *ui_stages],
         "unit": [unit],
         "api": [api],
         "replay": [replay],
         "benchmark": [benchmark],
         "sumo": [sumo],
-        "ui": [observer],
-    }.get(scope, [configure, compile_, unit, replay, benchmark, api, sumo, observer, bundle])
+        "ui": ui_stages[:-1],
+    }.get(scope, [configure, compile_, unit, replay, benchmark, api, sumo, *ui_stages])
 
 
 def run(scope: str, reporter: Reporter, paths: Paths = PATHS) -> list[StageResult]:

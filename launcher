@@ -10,4 +10,11 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 export PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}"
+# In a folder a cloud client syncs, keep Python's bytecode on local disk: the
+# client evicts __pycache__ files, and each read then waits on the network.
+case "$root" in
+  */Library/CloudStorage/*|*/OneDrive*|*/Dropbox*|*"/Mobile Documents/"*|*"/Google Drive"*)
+    if [ "$(uname)" = Darwin ]; then cache="$HOME/Library/Caches/DSTNS"; else cache="${XDG_CACHE_HOME:-$HOME/.cache}/dstns"; fi
+    export PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-$cache/pycache}" ;;
+esac
 exec python3 -m dstns_launcher "$@"

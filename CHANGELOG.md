@@ -75,6 +75,20 @@ undefined before and differ now.
   (`~/Library/Logs/DSTNS`, `~/Library/Caches/DSTNS`; `DSTNS_LAUNCHER_VENV` overrides),
   a log that cannot be written goes quiet instead of raising, and the **Workspace**
   check warns when the server's runtime files have been evicted to the cloud.
+- The simulation core would not build or start from a checkout synced by OneDrive,
+  iCloud Drive or Dropbox: CMake could not create its files in `build/`, and the
+  server's logs and the observer were read from evicted files. In a synced
+  checkout the launcher now builds the core and the observer, caches maps, and
+  keeps the server's logs on local disk (`DSTNS_BUILD_DIR`, `DSTNS_LOGS_DIR`
+  override; the server reads the observer's location from `DSTNS_UI_DIST`), and
+  keeps Python's bytecode there too.
+- An observer that cannot be built (Node.js missing or no longer starting) no
+  longer stops the simulation from starting; the launcher names the cause and the
+  fix, and serves the previous build if there is one.
+- `./launcher start` without a terminal no longer hangs on SIGTERM: it waited on
+  the server holding a lock its own signal handler needed.
+- The server's model watchdog no longer leaves `fm serve` running when DSTNS has
+  exited but not yet been reaped.
 
 - GHCR publishing now builds and tests native Linux AMD64 and ARM64 images,
   then verifies the multi-platform manifest before promoting stable tags.

@@ -13,6 +13,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from . import api, build, configuration, narration
@@ -50,6 +51,13 @@ class ServerHandle:
 
     def exit_code(self) -> int | None:
         return None if self.process is None else self.process.poll()
+
+
+def _maps(paths: Paths) -> Path:
+    try:
+        return paths.map_cache(configuration.load(paths)["map"].get("cache_dir"))
+    except ConfigurationError:
+        return paths.map_cache()
 
 
 def configured_port(paths: Paths = PATHS) -> int:
@@ -113,14 +121,15 @@ def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True,
 
     choice = narration.resolve(paths=paths)
     narration.announce(choice, reporter)
-    command = [str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs),
+    command = [str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs), "--maps", str(_maps(paths)),
                "--narrator", choice.server_argument]
     check_cancelled(cancel)
     reporter.message(Level.INFO, "Starting the DSTNS server", f"127.0.0.1:{port}")
     LOG.info("server start: %s", " ".join(command))
     try:
         child = subprocess.Popen(command, cwd=paths.root, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT, text=True, errors="replace", bufsize=1)
+                                 stderr=subprocess.STDOUT, text=True, errors="replace", bufsize=1,
+                                 env={**os.environ, **paths.server_environment()})
     except OSError as exc:
         raise SimulationStartError("The DSTNS server could not be started.",
                                    remedy="Build it with ./launcher test unit, or run cmake --build build.") from exc
@@ -170,8 +179,9 @@ def run_foreground(paths: Paths = PATHS) -> int:
         port = api.free_port(port + 1)
     choice = narration.resolve(paths=paths)
     print(f"Narration: {choice.summary()}" + (f"\n  {choice.remedy}" if choice.fell_back and choice.remedy else ""))
-    return subprocess.call([str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs),
-                            "--narrator", choice.server_argument], cwd=paths.root)
+    return subprocess.call([str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs), "--maps", str(_maps(paths)),
+                            "--narrator", choice.server_argument], cwd=paths.root,
+                           env={**os.environ, **paths.server_environment()})
 
 
 def shut_down(handle: ServerHandle, *, wait: float = 10.0) -> bool:

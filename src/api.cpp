@@ -243,6 +243,10 @@ ApiServer::~ApiServer() {
 
 void ApiServer::routes() {
     auto find_dist = []() -> std::filesystem::path {
+        // The launcher builds the observer outside a cloud-synced checkout and
+        // says where with DSTNS_UI_DIST.
+        if (const char* chosen = std::getenv("DSTNS_UI_DIST"); chosen && *chosen && std::filesystem::exists(chosen))
+            return std::filesystem::absolute(chosen);
         for (const auto& dir : {
             "ui-engine/dist",
             "../ui-engine/dist",

@@ -464,11 +464,14 @@ public:
         std::filesystem::remove(socket_, ignored);
         // A watchdog shell owns the server: it stops fm when DSTNS exits by any
         // route, including a signal that skips our destructors, so a model
-        // server is never left running behind a dead simulation.
+        // server is never left running behind a dead simulation. It watches
+        // its own parent rather than probing the pid: an exited DSTNS that has
+        // not been reaped yet is a zombie, which kill -0 still reports alive,
+        // whereas its children are re-parented the moment it exits.
         static constexpr const char* watchdog =
             "p=$1; f=$2; s=$3; \"$f\" serve --socket \"$s\" & c=$!; "
             "trap 'kill $c 2>/dev/null; exit 0' TERM INT HUP; "
-            "while kill -0 \"$p\" 2>/dev/null && kill -0 \"$c\" 2>/dev/null; do sleep 1 & wait $!; done; "
+            "while [ \"$(ps -o ppid= -p $$ | tr -d ' ')\" = \"$p\" ] && kill -0 \"$c\" 2>/dev/null; do sleep 1 & wait $!; done; "
             "kill \"$c\" 2>/dev/null; wait \"$c\" 2>/dev/null";
         if (!process_.start({"/bin/sh", "-c", watchdog, "sh", std::to_string(getpid()), fm_.string(), socket_.string()})) return false;
         for (int i = 0; i < 100 && !cancelled_; ++i) {  // up to ten seconds for the model to load

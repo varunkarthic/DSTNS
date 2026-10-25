@@ -100,9 +100,14 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
 
     def node() -> Outcome:
         code, out, _ = _command(["node", "--version"], timeout=10)
-        if code != 0:
+        if code == 127:
             return Outcome(State.WARNING, "not found", "Needed only to build the observer.",
                            remedy="Install Node.js 20 or later if the observer must be rebuilt.")
+        if code != 0:
+            broken_library = "Library not loaded" in out
+            return Outcome(State.WARNING, "installed but does not start", out.strip().splitlines()[0][:200] if out.strip() else "",
+                           remedy=("A library Node.js was built against is missing; reinstall it (with Homebrew: "
+                                   "brew reinstall node)." if broken_library else "Reinstall Node.js 20 or later."))
         match = re.search(r"v(\d+)", out)
         major = int(match.group(1)) if match else 0
         ok = major >= 20
@@ -190,7 +195,12 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
                        out.strip()[:200], remedy="" if code == 0 else "Restore scripts/fetch_osm.py from the repository.")
 
     def map_cache() -> Outcome:
-        directory = root / "data" / "maps"
+        from . import configuration
+
+        try:
+            directory = paths.map_cache(configuration.load(paths)["map"].get("cache_dir"))
+        except Exception:  # noqa: BLE001 - reported by the configuration check
+            directory = paths.map_cache()
         probe = directory / f".preflight-{os.getpid()}"
         try:
             directory.mkdir(parents=True, exist_ok=True)
@@ -309,9 +319,9 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
         return Outcome(State.FAIL, "loading regression", out[-1500:], remedy="Run python3 tests/api/loading_smoke.py for details.")
 
     def observer_suite() -> Outcome:
-        if not (paths.ui_engine / "node_modules").exists():
+        if not (paths.observer_build / "node_modules").exists():
             return Outcome(State.SKIPPED, "dependencies not installed")
-        code, out, seconds = _command(["npx", "vitest", "run"], cwd=paths.ui_engine, timeout=300, env={"CI": "1"})
+        code, out, seconds = _command(["npx", "vitest", "run"], cwd=paths.observer_build, timeout=300, env={"CI": "1"})
         passed = re.search(r"Tests\s+(\d+)\s+passed", out)
         if code == 0:
             count = passed.group(1) if passed else "all"

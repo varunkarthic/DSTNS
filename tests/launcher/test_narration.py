@@ -275,5 +275,120 @@ class SyncedFolders(unittest.TestCase):
             self.assertEqual(errors.getvalue(), "", "no traceback reaches the terminal")
 
 
+
+class SyncedCheckout(unittest.TestCase):
+    """A checkout in a synced folder keeps everything it generates on local disk."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="dstns-sync-"))
+        self.root = self.tmp / "OneDrive-Personal" / "dstns"
+        (self.root / "ui-engine" / "src").mkdir(parents=True)
+        (self.root / "config").mkdir()
+        self.env = mock.patch.dict(os.environ, {})
+        self.env.start()
+        for name in ("DSTNS_LOGS_DIR", "DSTNS_BUILD_DIR"):
+            os.environ.pop(name, None)
+        self.cache = mock.patch("dstns_launcher.core.paths.local_cache_dir", return_value=self.tmp / "cache")
+        self.state = mock.patch("dstns_launcher.core.paths.local_state_dir", return_value=self.tmp / "state")
+        self.cache.start()
+        self.state.start()
+
+    def tearDown(self) -> None:
+        self.state.stop()
+        self.cache.stop()
+        self.env.stop()
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_generated_files_move_to_local_disk(self):
+        paths = Paths(self.root)
+        self.assertTrue(paths.synced)
+        for generated in (paths.build, paths.logs, paths.observer_build, paths.ui_dist, paths.map_cache()):
+            self.assertFalse(cloud_synced(generated), generated)
+        self.assertEqual(paths.server_environment(), {"DSTNS_UI_DIST": str(paths.ui_dist)})
+        self.assertEqual(paths.map_cache("elsewhere/maps"), (self.root / "elsewhere" / "maps").resolve())
+        with mock.patch.dict(os.environ, {"DSTNS_BUILD_DIR": str(self.tmp / "b"), "DSTNS_LOGS_DIR": str(self.tmp / "l")}):
+            self.assertEqual(paths.build, (self.tmp / "b").resolve())
+            self.assertEqual(paths.logs, (self.tmp / "l").resolve())
+
+    def test_an_ordinary_checkout_is_unchanged(self):
+        root = self.tmp / "src" / "dstns"
+        paths = Paths(root)
+        self.assertFalse(paths.synced)
+        self.assertEqual(paths.build, root / "build")
+        self.assertEqual(paths.logs, root / "logs")
+        self.assertEqual(paths.ui_dist, root / "ui-engine" / "dist")
+        self.assertEqual(paths.server_environment(), {})
+
+    def test_observer_sources_are_mirrored(self):
+        from dstns_launcher.core import build
+
+        paths = Paths(self.root)
+        (self.root / "ui-engine" / "src" / "App.tsx").write_text("app")
+        (self.root / "ui-engine" / "package.json").write_text("{}")
+        (self.root / "ui-engine" / "node_modules").mkdir()
+        (self.root / "config" / "ui-config.json").write_text("{}")
+        target = paths.observer_build
+        (target / "node_modules" / "kept").mkdir(parents=True)
+        (target / "stale.ts").parent.mkdir(parents=True, exist_ok=True)
+        (target / "stale.ts").write_text("old")
+        build.mirror_observer(paths)
+        self.assertEqual((target / "src" / "App.tsx").read_text(), "app")
+        self.assertTrue((target.parent / "config" / "ui-config.json").exists())
+        self.assertTrue((target / "node_modules" / "kept").exists(), "installed dependencies survive")
+        self.assertFalse((target / "stale.ts").exists(), "deleted sources do not linger")
+
+
+class ObserverBuild(unittest.TestCase):
+    def test_an_observer_failure_does_not_stop_the_core(self):
+        from dstns_launcher.core import build
+
+        reporter = Recorder()
+        failing = build.BuildPlan([build.Step("Build the observer", [sys.executable, "-c", "import sys; sys.exit(3)"], observer=True)])
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(build, "plan", return_value=failing):
+            self.assertTrue(build.ensure_built(reporter, Paths(Path(tmp))))
+        warning = [m for m in reporter.messages if m[0] is Level.WARNING]
+        self.assertTrue(warning and "observer could not be built" in warning[0][1])
+
+    def test_a_core_failure_still_stops_the_start(self):
+        from dstns_launcher.core import build
+        from dstns_launcher.core.errors import CommandFailed
+
+        failing = build.BuildPlan([build.Step("Compile the simulation core", [sys.executable, "-c", "import sys; sys.exit(3)"])])
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(build, "plan", return_value=failing):
+            with self.assertRaises(CommandFailed):
+                build.ensure_built(Recorder(), Paths(Path(tmp)))
+
+    def test_a_broken_node_is_named(self):
+        from dstns_launcher.core import build
+        from dstns_launcher.core.errors import CommandFailed
+
+        remedy = build.observer_remedy(CommandFailed(["npm", "ci"], -6, "dyld[1]: Library not loaded: libsimdjson.33.dylib"))
+        self.assertIn("brew reinstall node", remedy)
+
+
+class HeadlessStop(unittest.TestCase):
+    def test_sigterm_stops_a_headless_start_without_deadlock(self):
+        script = (
+            "import signal, subprocess, sys, threading, os\n"
+            "sys.path.insert(0, sys.argv[1])\n"
+            "from unittest import mock\n"
+            "from dstns_launcher import cli\n"
+            "from dstns_launcher.core.session import Session\n"
+            "from dstns_launcher.core.server import ServerHandle\n"
+            "session = Session()\n"
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+            "def launch(*a, **k): session.handle = ServerHandle(1, '127.0.0.1', {}, child)\n"
+            "session.launch = launch\n"
+            "cli._install_signal_handlers(session)\n"
+            "threading.Timer(0.5, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()\n"
+            "cli.command_start_headless(cli.Arguments(), None, mock.Mock(), session)\n"
+        )
+        import subprocess
+        result = subprocess.run([sys.executable, "-c", script, str(Path(__file__).resolve().parents[2])],
+                                timeout=20, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 143, result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

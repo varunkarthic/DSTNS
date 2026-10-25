@@ -433,6 +433,32 @@ server shutdown; it is separate from pausing simulation time.
 | 130 | Interrupted with Ctrl+C |
 | 143 | Terminated with `SIGTERM` |
 
+## Checkouts in OneDrive, iCloud Drive or Dropbox
+
+Sync clients evict files they have uploaded, and some refuse the burst of file
+creation a build makes; CMake then fails with "Could not create ...", and
+anything reading an evicted file times out. When the checkout is in a synced
+folder, the launcher keeps everything it generates on local disk and leaves only
+the sources in the synced folder:
+
+| What | Where (macOS; XDG state and cache directories elsewhere) |
+|---|---|
+| C++ build | `~/Library/Caches/DSTNS/checkout-<id>/build/` |
+| Observer build (a local mirror of `ui-engine/` and `config/`) | `~/Library/Caches/DSTNS/checkout-<id>/source/` |
+| Downloaded city extracts (when `map.cache_dir` is the default) | `~/Library/Caches/DSTNS/checkout-<id>/maps/` |
+| Server logs, journal and credential | `~/Library/Logs/DSTNS/logs-<id>/` |
+| Launcher log | `~/Library/Logs/DSTNS/launcher.log` |
+| Terminal-interface environment, Python bytecode | `~/Library/Caches/DSTNS/` |
+
+`<id>` names the checkout, so two checkouts never share a build.
+`DSTNS_BUILD_DIR` and `DSTNS_LOGS_DIR` choose those directories outright. The
+server is told where the observer is with `DSTNS_UI_DIST`. Saved seeds stay in
+`data/seed-store/`, with the checkout.
+
+If the observer cannot be built - most often because Node.js is missing or no
+longer starts - the launcher says why and starts the simulation anyway, serving
+the previous observer build if there is one.
+
 ## Diagnostics
 
 The launcher writes its own log to `logs/launcher.log` (rotated at 1 MB, two backups;

@@ -310,9 +310,10 @@ def start_request(
             "osm_file": "auto" if source == "auto" else str((paths.root / source).resolve()),
             "max_nodes": defaults["map"]["max_nodes"],
         }
-        for key in ("tile_radius_m", "cache_dir"):
-            if defaults["map"].get(key):
-                map_options[key] = defaults["map"][key]
+        if defaults["map"].get("tile_radius_m"):
+            map_options["tile_radius_m"] = defaults["map"]["tile_radius_m"]
+        if defaults["map"].get("cache_dir") or paths.synced:
+            map_options["cache_dir"] = str(paths.map_cache(defaults["map"].get("cache_dir")))
         request = {
             "seed": seed,
             "day": defaults.get("day", 0),
