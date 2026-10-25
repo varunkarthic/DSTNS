@@ -209,6 +209,20 @@ export interface News {
   template_id: string;
   message: string;
   data: Record<string, unknown>;
+  /**
+   * The same event in plain language, written by the core's narrator (Apple's
+   * on-device Foundation Model by default) from the facts above. Absent when no
+   * narrator is running or it has not finished yet; never more than wording.
+   */
+  narrative?: string;
+}
+/** One page of the news feed. */
+export interface NewsPage {
+  items: News[];
+  /** Narrations finished since `since_narration` for items already delivered. */
+  narrated?: { news_id: number; narrative: string }[];
+  /** Pass back as `since_narration` on the next request. Absent without a narrator. */
+  narration_sequence?: number;
 }
 export interface ScheduledEvent {
   id: number;

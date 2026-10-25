@@ -30,6 +30,7 @@ export function useSimulation(dwellMs = 7000) {
       timer: ReturnType<typeof setTimeout>,
       run = "",
       since = 0,
+      narrationSeen = 0,
       initial = true,
       lastVirtual = -1;
     async function refresh() {
@@ -63,6 +64,7 @@ export function useSimulation(dwellMs = 7000) {
           setStage("Awaiting CLI startup");
           run = "";
           since = 0;
+          narrationSeen = 0;
           initial = true;
           setNews([]);
           setToasts([]);
@@ -97,6 +99,7 @@ export function useSimulation(dwellMs = 7000) {
             setTopology(topo.data);
             run = st.run_id;
             since = 0;
+            narrationSeen = 0;
             initial = true;
             setNews([]);
             setToasts([]);
@@ -111,13 +114,14 @@ export function useSimulation(dwellMs = 7000) {
           setError("");
           if (snap.clock.virtual_day_seconds < lastVirtual) {
             since = 0;
+            narrationSeen = 0;
             initial = true;
             setNews([]);
             setToasts([]);
             receivedAt.current.clear();
           }
           lastVirtual = snap.clock.virtual_day_seconds;
-          const messages = await api.news(since);
+          const messages = await api.news(since, narrationSeen);
           if (cancelled) return;
           if (messages.run_id === run) {
             const items = messages.data.items;
@@ -132,6 +136,13 @@ export function useSimulation(dwellMs = 7000) {
               }
             }
             setNews((old) => mergeNews(items, old, 200));
+            // Narrations usually finish after their item first arrived.
+            const narrated = messages.data.narrated ?? [];
+            if (narrated.length) {
+              setNews((old) => applyNarrations(old, narrated));
+              setToasts((old) => applyNarrations(old, narrated));
+            }
+            narrationSeen = messages.data.narration_sequence ?? narrationSeen;
             since = Math.max(since, ...items.map((n) => n.news_id));
             initial = false;
           }
@@ -179,6 +190,20 @@ export function useSimulation(dwellMs = 7000) {
       setToasts((old) => old.filter((n) => !drop.has(n.news_id)));
     },
   };
+}
+
+/** Attach narrations that arrived after their items; untouched items keep their identity. */
+export function applyNarrations(list: News[], narrated: { news_id: number; narrative: string }[]): News[] {
+  if (!narrated.length) return list;
+  const byId = new Map(narrated.map((n) => [n.news_id, n.narrative]));
+  let changed = false;
+  const next = list.map((n) => {
+    const narrative = byId.get(n.news_id);
+    if (narrative === undefined || narrative === n.narrative) return n;
+    changed = true;
+    return { ...n, narrative };
+  });
+  return changed ? next : list;
 }
 
 /** Stable identity and bounded history even if a poll repeats messages. */

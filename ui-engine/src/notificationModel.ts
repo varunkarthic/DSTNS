@@ -230,8 +230,26 @@ interface Described {
   focusKey?: string;
 }
 
-/** Describe a single news item in operator language. */
+/**
+ * Describe a single news item in operator language.
+ *
+ * When the core's narrator has worded the item, its sentence becomes the
+ * summary; the title, the measured details and the focus target are still
+ * derived here from the item's data, and the core's own text stays available
+ * under the technical fields.
+ */
 export function describeNews(item: News, topology: Topology | null): Described {
+  const described = describeTemplate(item, topology);
+  const narrative = item.narrative?.trim();
+  if (!narrative) return described;
+  return {
+    ...described,
+    summary: narrative,
+    technical: [...described.technical, { label: "Core message", value: stripPrefix(item.message) }],
+  };
+}
+
+function describeTemplate(item: News, topology: Topology | null): Described {
   const d = (item.data ?? {}) as Record<string, unknown>;
   const technical: Described["technical"] = [
     ["Event ID", String(item.event_id)],

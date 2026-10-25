@@ -255,3 +255,37 @@ describe("ordering", () => {
     expect(orderForDisplay(list, null).map((n) => n.id)).toEqual(["c", "b", "a", "d"]);
   });
 });
+
+describe("narration", () => {
+  const incident = (narrative?: string) =>
+    news({
+      category: "incident", severity: "alert", template_id: "INCIDENT_ACTIVATED",
+      message:
+        "[02:00:00] Multi-vehicle collision: lane blocked, emergency services on scene on Edge #0 near Node #1. (HIGH SEVERITY)",
+      data: { incident_id: 4, type: "accident", edge_id: 0, closed: true, speed_multiplier: 0.3, end_virtual_s: 9000 },
+      narrative,
+    });
+
+  it("uses the narrator's sentence as the summary and keeps everything else", () => {
+    const plain = describeNews(incident(), topology);
+    const told = describeNews(incident("A collision has closed Harbour Road; emergency services are on scene."), topology);
+    expect(told.summary).toBe("A collision has closed Harbour Road; emergency services are on scene.");
+    expect(told.title).toBe(plain.title);
+    expect(told.details).toEqual(plain.details);
+    expect(told.focusKey).toBe(plain.focusKey);
+    expect(told.technical).toContainEqual({
+      label: "Core message",
+      value: "Multi-vehicle collision: lane blocked, emergency services on scene on Edge #0 near Node #1. (HIGH SEVERITY)",
+    });
+  });
+
+  it("falls back to the template wording without a narration", () => {
+    expect(describeNews(incident("   "), topology).summary).toBe(describeNews(incident(), topology).summary);
+  });
+
+  it("keeps the grouped count after a narrated summary", () => {
+    const items = [incident("Harbour Road is closed."), incident("Harbour Road is closed.")];
+    const [group] = buildNotifications(items, topology);
+    expect(group.summary).toMatch(/^Harbour Road is closed\./);
+  });
+});
