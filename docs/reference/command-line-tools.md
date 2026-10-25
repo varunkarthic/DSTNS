@@ -10,7 +10,7 @@ to use it. The operator CLI (`./launcher`) is documented separately in
 | [`dstns_scenario_export`](#dstns_scenario_export) | Compile a synthetic-grid scenario and write a SUMO bundle | No |
 | [`dstns_replay_verify`](#dstns_replay_verify) | Prove that one seed gives identical worlds twice | No |
 | [`dstns_road_index`](#dstns_road_index) | Compile an OSM file and print its graph and scenario hashes | No |
-| [`dstns_benchmark`](#dstns_benchmark) | Time compilation, A* routing and snapshots on a synthetic grid | No |
+| [`dstns_benchmark`](#dstns_benchmark) | Measure the system under increasing load: district size, events, observers, narration | No |
 | `scripts/fetch_osm.py` | Download one city extract from an Overpass endpoint | No |
 
 All binaries are written to `build/` by `cmake --build build -j`. See
@@ -21,6 +21,8 @@ All binaries are written to `build/` by `cmake --build build -j`. See
 ```text
 dstns_server [--host ADDR] [--port PORT] [--logs DIR] [--maps DIR]
              [--map-cache keep|prune|clear] [--map-cache-keep N]
+             [--narrator auto|off|fm|http://HOST:PORT|unix:/PATH] [--narrator-model NAME]
+             [--narrator-cache FILE|none]
              [--version]
 ```
 
@@ -32,6 +34,9 @@ dstns_server [--host ADDR] [--port PORT] [--logs DIR] [--maps DIR]
 | `--maps DIR` | `data/maps` | Directory holding cached city extracts |
 | `--map-cache POLICY` | `prune` | What the start-up sweep does with cached extracts: `keep` leaves all, `prune` removes all but the newest N, `clear` removes all |
 | `--map-cache-keep N` | `1` | Extracts `prune` keeps. The container sets 3 |
+| `--narrator MODE` | `auto` | [Natural-language narration](../guide/narration.md): `auto` uses Apple's on-device model where `fm` is installed and is off elsewhere; `fm` requires it; `off`; or a Chat Completions endpoint |
+| `--narrator-model NAME` | `system` | Model name sent to a Chat Completions endpoint |
+| `--narrator-cache FILE` | `<logs>/narrations.db` | Persistent narration cache; `none` keeps it in memory |
 | `--version` | | Print the version and licence notice, then exit |
 | `--help` | | Print the synopsis, then exit |
 
@@ -138,19 +143,31 @@ status 1. Running it without arguments prints the usage line and exits with 1.
 
 ## dstns_benchmark
 
-A rough performance probe on a synthetic square grid, with a fixed seed.
+Measures the system under increasing load, on synthetic square grids with a
+fixed seed, and prints one table per axis:
+
+| Suite | Load | Reports |
+|---|---|---|
+| `network` | grid side 10 to 100 (100 to 10,000 junctions) | compile time, physics tick, ticks per second against the fastest playback, backward seek, snapshot build and JSON, topology built and cached, A* route |
+| `events` | 0 to 96 storms and 4 to 256 incidents a day | physics tick and news volume |
+| `observers` | 0 to 32 observers polling once a second, and continuous pollers | whether the clock keeps up, snapshot latency p50 and p95 |
+| `narrator` | one world's incidents and storms | cost on the simulation thread; queue throughput against a model of fixed latency, cold and from the persistent cache; with `--narrator`, a real model end to end, with examples |
 
 ```text
-dstns_benchmark [GRID_DIM]
+dstns_benchmark [--quick] [--json FILE] [--narrator fm|http://HOST:PORT|unix:/PATH]
+                [--suite network,events,observers,narrator] [GRID ...]
 ```
 
-`GRID_DIM` is the side of the grid and defaults to 20 (400 nodes). The program
-prints the node and edge counts and how long compiling took, then the cost of 1,000 A* routes and of 100 dynamic snapshots.
-Use it to compare two builds on one machine, not to compare machines; for what the
-numbers mean see [Performance](../deployment/performance.md).
+`--quick` runs a smaller matrix in about a minute and a half; `--json` writes
+every figure, with the processor and build, to a file; `GRID ...` replaces the
+network suite's grid sides. Use it to compare two builds on one machine, not to
+compare machines; for what the numbers mean see
+[Performance](../deployment/performance.md).
 
 ```bash
-./build/dstns_benchmark 40
+./build/dstns_benchmark --quick
+./build/dstns_benchmark --narrator fm --json benchmark.json
+./build/dstns_benchmark --suite network 40 80
 ```
 
 ## scripts/fetch_osm.py

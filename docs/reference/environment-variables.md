@@ -14,6 +14,9 @@ Read by `dstns_server` and the API it hosts.
 | `DSTNS_ALLOWED_ORIGINS` | empty | Comma-separated origins allowed to make state-changing requests besides the server's own. Anything else gets 403 `CROSS_ORIGIN_FORBIDDEN` |
 | `DSTNS_DISABLE_WORLD_REGENERATION` | unset | `1` makes `POST /api/v1/world/regenerate` return 403, so viewers cannot replace the world |
 | `DSTNS_PYTHON` | `python3` | Interpreter used to run the map downloader |
+| `DSTNS_NARRATOR` | `auto` | Narration backend, as `--narrator`: `auto`, `fm`, `off`, `http://HOST:PORT` or `unix:/PATH`. See [Natural-language narration](../guide/narration.md) |
+| `DSTNS_NARRATOR_MODEL` | `system` | Model name for a Chat Completions endpoint, as `--narrator-model` |
+| `DSTNS_NARRATOR_CACHE` | `<logs>/narrations.db` | Persistent narration cache, as `--narrator-cache`; `none` for memory only |
 | `DSTNS_OVERPASS_ENDPOINTS` | built-in list | Comma-separated Overpass API endpoints the downloader tries in order |
 | `SUMO_HOME` | unset | Root of an Eclipse SUMO installation; needed only for the SUMO adapter. The image sets `/usr/share/sumo` |
 

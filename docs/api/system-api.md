@@ -14,6 +14,7 @@ configuration, the source offer, SUMO and shutdown. Routes are under
 | GET | `/observer` | Whether the observer page has loaded |
 | GET, POST | `/backpressure` | Read, or report to, Adaptive Simulation Backpressure |
 | GET | `/ui-config` | The observer's starting configuration |
+| GET | `/narrator` | The narration model, its queue and its cache |
 | GET | `/source` | The AGPL source offer |
 | POST | `/sumo-simulate` | Export, build and run SUMO ([SUMO adapter](../components/sumo-adapter.md)) |
 | POST | `/terminate`, `/terminate` (root) | Stop the run and exit the process |
@@ -104,6 +105,32 @@ The contents of `config/ui-config.json`, wrapped as `{"data": {...}}`; an empty
 object if the file is absent. A malformed file returns 500
 `UI_CONFIG_INVALID` and the observer falls back to its built-in defaults. See
 [Observer configuration](../guide/observer-configuration.md).
+
+## GET /narrator
+
+What the [narrator](../guide/narration.md) is doing, wrapped as `{"data": {...}}`:
+
+```json
+{
+  "enabled": true,
+  "state": "ready",
+  "backend": { "kind": "apple-foundation-models", "model": "system", "on_device": true,
+               "endpoint": "unix:/var/folders/.../T/dstns-fm-67334.sock", "command": "/usr/bin/fm serve" },
+  "queue": 0, "live_queue": 0, "prefetch_queue": 0, "in_flight": 0,
+  "requested": 49, "cache_hits": 12, "completed": 21, "refused": 0, "failed": 0, "dropped": 0,
+  "latency_ms": { "mean": 2005.6, "max": 3681.9 },
+  "cache": { "entries": 21, "capacity": 4096, "persistent": true, "path": "logs/narrations.db" },
+  "sequence": 21,
+  "last_error": "",
+  "role": "presentation only: narrations never feed back into the simulation"
+}
+```
+
+`state` is `starting` until the model first answers, then `ready`; `backoff`
+or `unavailable` after three failures in a row (narration pauses for 30
+seconds); `disabled` with no backend. Without a narrator the response is
+`{"enabled": false, "state": "off"}`. `refused` counts sentences discarded by
+the [guardrails](../guide/narration.md#guardrails).
 
 ## GET /source
 

@@ -161,6 +161,7 @@ nav:
       - Observing:
           - Observer interface: guide/observer-interface.md
           - Reports and exports: guide/reports.md
+          - Natural-language narration: guide/narration.md
       - Configuring:
           - Configuration: guide/configuration.md
           - Observer configuration: guide/observer-configuration.md

@@ -6,7 +6,7 @@ News list are built from it.
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/api/v1/news?since_news_id=N&limit=L` | Items with `news_id > N`, oldest first, at most `L` (1 to 500, default 100) |
+| GET | `/api/v1/news?since_news_id=N&limit=L&since_narration=S` | Items with `news_id > N`, oldest first, at most `L` (1 to 500, default 100); `S` is the [narration](#narration) cursor |
 | GET | `/api/v1/news/stream` | The latest 100 items as one server-sent event (see [Streaming](streaming.md)) |
 
 The last 25 items also arrive in every snapshot as `event_stack`.
@@ -37,6 +37,7 @@ The last 25 items also arrive in every snapshot as `event_stack`.
 | `template_id` | A stable identifier for the kind of item (below); match on this, not on `message` |
 | `message` | Human-readable text; may change between versions |
 | `data` | Structured details, which vary by template |
+| `narrative` | Optional. The item in plain language, when a [narrator](#narration) is running and has worded it |
 
 ## Templates
 
@@ -79,3 +80,39 @@ done
     observer does exactly this.
 
 Disabling the `news` module stops new items being posted; existing ones remain.
+
+## Narration
+
+When the server runs a narrator (see [Natural-language narration](../guide/narration.md)),
+items it words carry a `narrative` beside their `message`:
+
+```json
+{
+  "news_id": 41,
+  "template_id": "INCIDENT_ACTIVATED",
+  "message": "[06:37:06] Emergency road closure: through-traffic prohibited on corridor on Edge #1168 near Node #430. (HIGH SEVERITY)",
+  "narrative": "Through-traffic prohibited on Rua Bartholemew Dias Street in the north-west district. The road is closed.",
+  "data": { "incident_id": 2, "type": "road_closure", "edge_id": 1168, "closed": true }
+}
+```
+
+`message`, `data` and `template_id` are exactly what they would be without a
+narrator; match on them, and treat `narrative` as display text that may be
+absent.
+
+A narration can finish after its item was delivered. To catch those without
+re-reading the feed, pass back the `narration_sequence` of the previous page as
+`since_narration`. The page then lists, under `narrated`, items you already
+hold (`news_id <= since_news_id`, among the latest 200) whose narration
+finished since:
+
+```json
+{
+  "items": [],
+  "narrated": [{ "news_id": 41, "narrative": "Through-traffic prohibited on ..." }],
+  "narration_sequence": 17
+}
+```
+
+Both fields are absent when no narrator is attached, so the page keeps its
+original shape. Reset the cursor to 0 whenever you reset `since_news_id`.

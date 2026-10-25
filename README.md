@@ -67,6 +67,7 @@ map bytes and compatible build; see [Reproducible experiments](#reproducible-exp
 | **HTTP API** | Every view and control over JSON, a self-describing route index, and an [OpenAPI 3.1 description](https://dstns.readthedocs.io/api/openapi/). |
 | **Container deployment** | A multi-architecture image (about 234 MB) that starts a simulation with one command; optional TLS gateway and SUMO. |
 | **SUMO integration** | Export any world to Eclipse SUMO and run it microscopically as a batch job. |
+| **Natural-language narration** | Incidents, storms and floods worded in plain language by Apple's on-device Foundation Model (or any Chat Completions endpoint), checked against the facts and never read back by the simulation. [Read more](docs/guide/narration.md). |
 
 > [!NOTE]
 > The live model is **aggregate** — flows and queues per directed road segment,
@@ -475,6 +476,7 @@ ctest --test-dir build --output-on-failure          # native and registered HTTP
 npm test --prefix ui-engine                         # observer unit and component tests
 python3 tests/api/api_smoke.py --server build/dstns_server
 ./build/dstns_replay_verify 382923                  # reproducibility check
+./build/dstns_benchmark --quick                     # performance under load (see docs/deployment/performance.md)
 ```
 
 The commands above cover different layers: CTest validates registered native and

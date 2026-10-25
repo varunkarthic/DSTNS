@@ -12,7 +12,56 @@ only within one version.
 
 ## [Unreleased]
 
+**Results change for some seeds.** A signal whose compiled offset rounded up to a
+whole cycle made the engine read past the end of that signal's phase table (found
+with AddressSanitizer). The offset now wraps to the start of the cycle. Seeds
+without such a signal are unchanged, and no scenario hash changes, because the
+compiled offsets themselves are untouched; but a run that hit the over-read
+behaved according to whatever memory followed the table, so its results were
+undefined before and differ now.
+
+### Added
+
+- Natural-language narration of news. Incidents, storms, floods and surges are
+  worded in plain language by Apple's on-device Foundation Model through `fm
+  serve`, started and stopped by the server where `fm` is installed, or by any
+  OpenAI-style Chat Completions endpoint (`--narrator`, `--narrator-model`,
+  `--narrator-cache`, `DSTNS_NARRATOR*`). Presentation only: the model sees facts
+  after the simulation has fixed them, its sentences are checked against those
+  facts (invented numbers, injuries, speculation and advice are refused), and the
+  simulation never reads them; runs are byte-identical with it on or off.
+  Scheduled incidents and storms are narrated ahead of time at install; narrations
+  are cached by their facts in memory and in SQLite, so seeks, replays and
+  restarts reuse them. News items gain an optional `narrative`; `/api/v1/news`
+  gains the `since_narration` cursor with `narrated` and `narration_sequence`;
+  `GET /api/v1/system/narrator` reports the model, queue and cache. The observer
+  shows narrations as notification summaries and keeps the core's text under the
+  technical details.
+- `dstns_benchmark` measures the system under increasing load: district size,
+  storms and incidents, concurrent observers, and the narrator (with `--narrator`,
+  a real model end to end). `--json` writes every figure with the machine and build.
+- `DSTNS_TUNE_FOR_HOST` CMake option for `-mcpu=native` builds.
+
+### Changed
+
+- The topology response is built once per world and served from a cache: about
+  0.1 ms instead of 87 ms for a 2,500-junction grid, without rebuilding it under
+  the engine lock.
+- Snapshots copy the dynamic state under the engine lock and build their JSON
+  after releasing it, in parallel slices on several cores for large networks.
+- The engine catches up on the clock in slices of about 20 ms, releasing its lock
+  between them, so a snapshot, pause or seek waits for one slice instead of the
+  whole catch-up. The ticks and their order are unchanged.
+- A physics tick is about 22% faster: storms and surges are shaped once per tick
+  instead of per junction or edge, per-edge signal groups and traversable
+  directions are fixed at install, and the hot loops index state directly.
+  Results are bit-identical.
+- On Apple silicon the physics clock runs at interactive quality of service (the
+  performance cores) and narration at utility (the efficiency cores).
+
 ### Fixed
+
+- A signal's phase walk no longer reads past its phase table (see above).
 
 - GHCR publishing now builds and tests native Linux AMD64 and ARM64 images,
   then verifies the multi-platform manifest before promoting stable tags.

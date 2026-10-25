@@ -326,6 +326,21 @@ paths:
                         description: 0 when Overpass sent no Content-Length.
                       elapsed_s:
                         type: number
+  /api/v1/system/narrator:
+    get:
+      tags:
+      - System
+      operationId: narratorStatus
+      summary: Narration model, queue and cache
+      description: Presentation only. Reports the language-model backend (Apple Foundation Models via fm serve,
+        or a Chat Completions endpoint), its queue, guardrail refusals and the narration cache.
+      responses:
+        '200':
+          description: Narrator status, or {"enabled":false,"state":"off"} without a narrator
+          content:
+            application/json:
+              schema:
+                type: object
   /api/v1/system/ui-config:
     get:
       tags:
@@ -778,9 +793,19 @@ paths:
       tags:
       - News
       operationId: listNews
+      description: Items may carry an optional `narrative` (plain-language wording from the narrator). With a
+        narrator attached the page also has `narrated` (late narrations for items already delivered) and
+        `narration_sequence` (pass back as since_narration).
       parameters:
       - $ref: '#/components/parameters/SinceNews'
       - $ref: '#/components/parameters/Limit'
+      - name: since_narration
+        in: query
+        description: The narration_sequence of the previous page; 0 lists every finished narration in the window.
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
       responses:
         '200':
           $ref: '#/components/responses/Envelope'

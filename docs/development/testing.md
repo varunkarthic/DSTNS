@@ -20,7 +20,7 @@ from a clean checkout to reproduce CI. Or step by step:
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=ON
 cmake --build build -j
-ctest --test-dir build --output-on-failure          # 14 native + HTTP targets
+ctest --test-dir build --output-on-failure          # 16 native + HTTP targets
 python3 tests/api/api_smoke.py --server build/dstns_server
 python3 tests/cli/test_fetch_osm.py
 python3 tests/cli/test_seeds.py
@@ -67,10 +67,12 @@ Each target is a standalone executable under `build/`.
 | `dstns_world_and_stepping` | `dstns_world_tests` | Exact steps that leave the run paused; step and seek equivalence; completion at 24:00:00 by playing, stepping or seeking; regeneration with a fresh seed, failure leaving the old world untouched, and backpressure ignoring the swap; edge overrides surviving a backwards seek; undo and redo of signal toggles; surge and weather bounds; demand types |
 | `dstns_property_invariants` | `dstns_prop_tests` | Topology and attachment invariants; congestion, rain, flood, building effect, progress and speed staying in bounds over a run |
 | `dstns_replay_reproducibility` | `dstns_rep_tests` | Two independent compilations and engines agreeing on every hash and on full snapshots, for a grid and an OSM map |
+| `dstns_narration` | `dstns_narrator_tests` | The facts a model is given (no internal IDs, percentages, HH:MM) and the checks on what it writes (invented numbers, injuries, speculation, labels, length); the narrator's queue, bound, back-off, refusals and persistent cache; that an engine with a narrator produces byte-identical snapshots and news text to one without, with every incident narrated; the cached topology response equal to the built one; large snapshots assembled in order |
 | `dstns_performance_smoke` | `dstns_perf_tests` | 2,500 A* queries all resolving, with mean latency under a deliberately generous 500 µs. See [Performance](../deployment/performance.md) |
 | `dstns_http_loading` | `tests/api/loading_smoke.py` | 30 concurrent reads, start-up, conflicts, regeneration, cancellation, failure and retry over HTTP |
 | `dstns_http_termination` | `tests/api/termination_smoke.py` | Terminating a running session, and terminating during a stalled map download, kills the downloader's process group and exits 0 |
 | `dstns_http_hardening` | `tests/api/hardening_smoke.py` | Cross-site writes refused, same-origin and Origin-less writes allowed, no GET shutdown, IDs not wrapping, out-of-day seeks, negative query numbers and negative undo counts refused, weather, surge and SUMO bounds |
+| `dstns_http_narration` | `tests/api/narration_smoke.py` | Against a stand-in Chat Completions server: facts sent without identifiers, narrations in the feed and through the `since_narration` cursor, `/system/narrator`, and `--narrator off` leaving the feed's text and shape unchanged |
 
 Run one target and see its output:
 
@@ -116,7 +118,7 @@ npm test --prefix ui-engine          # Vitest, jsdom
 npx --prefix ui-engine tsc -b        # type check
 ```
 
-24 files, 286 tests. The main ones:
+25 files, 292 tests. The main ones:
 
 | File | Covers |
 |---|---|
@@ -125,7 +127,8 @@ npx --prefix ui-engine tsc -b        # type check
 | `report.test.ts` | Real PDFs from a busy day and an empty one: no overlapping text, margins, repeated headers, chart, provenance, 12-hour time |
 | `uiConfig.test.ts` | Merging and bounding `ui-config.json` |
 | `stacking.test.ts` | Dialogs paint above the header: the workspace is lifted to the scrim's level while a dialog is open |
-| `*Model.test.ts` | Notification grouping and history, telemetry, places and legends, Auto Focus geometry, tooltip placement, time formatting |
+| `*Model.test.ts` | Notification grouping and history, telemetry, places and legends, Auto Focus geometry, tooltip placement, time formatting; a narration replacing the summary while title, details and the core message are kept |
+| `narration.test.ts` | Late narrations attached to news already held, without disturbing untouched items |
 
 ## Browser suites
 
