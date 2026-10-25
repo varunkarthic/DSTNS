@@ -5,6 +5,7 @@
 #include "dstns/graph.hpp"
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 
 namespace dstns {
 namespace {
@@ -19,7 +20,10 @@ void EventRuntime::initialize(const Scenario& s) {
     *this=EventRuntime{};
     signal_by_node_.assign(s.nodes.size(),-1);
     for(std::size_t i=0;i<s.signals.size();++i) {
-        const auto& p=s.signals[i]; auto remainder=std::uint32_t(p.offset_s); std::uint32_t phase=0;
+        // The compiler rounds the offset, so it can equal a whole cycle; wrap it,
+        // or the walk below runs past the last phase.
+        const auto& p=s.signals[i]; const auto cycle=std::accumulate(p.phases_s.begin(),p.phases_s.end(),std::uint32_t{0});
+        auto remainder=cycle?std::uint32_t(p.offset_s)%cycle:0; std::uint32_t phase=0;
         while(remainder>=p.phases_s[phase]){remainder-=p.phases_s[phase];++phase;}
         signals.push_back({phase,p.phases_s[phase]-remainder,-static_cast<std::int64_t>(remainder)});
         signal_by_node_[p.node.value]=static_cast<int>(i);
