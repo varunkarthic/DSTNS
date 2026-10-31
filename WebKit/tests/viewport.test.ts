@@ -41,12 +41,11 @@ describe("minimum viewport", () => {
   });
 
   it("is wide enough for every speed the rail offers", () => {
-    // Below 1180px the rail drops the seed's label and the word Terminate.
-    // What remains: transport, the clock, seven speeds, the seed value, the
-    // re-roll, runtime status, Terminate and the gaps between them. The live
+    // Transport, the clock, the day, eight speeds, the labelled seed, the re-roll, runtime
+    // status, Terminate and the gaps between them, beside the tool dock. The live
     // measurement is in the browser suite; this keeps the arithmetic honest.
     const speeds = RATES.length * 33;
-    const rail = 200 + 124 + speeds + 110 + 36 + 90 + 44 + 60;
-    expect(rail).toBeLessThanOrEqual(MIN_WIDTH - 40);
+    const rail = 188 + 90 + 88 + speeds + 150 + 34 + 84 + 118 + 70;
+    expect(rail).toBeLessThanOrEqual(MIN_WIDTH - 90);
   });
 });

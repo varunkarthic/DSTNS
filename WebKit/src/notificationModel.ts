@@ -106,6 +106,8 @@ export interface UiNotification {
   count: number;
   /** The WebFabric application it came from, if not from the simulation. */
   app?: string;
+  /** Intentional system design: explains the system's own behaviour, so nothing silences it. */
+  isd?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -570,10 +572,11 @@ export function focusMatches(focusKey: string | undefined, targetKey: string | n
  * operator knows why the camera moved.
  */
 export function shouldDisplayNotification(
-  n: Pick<UiNotification, "category" | "severity" | "focusKey">,
+  n: Pick<UiNotification, "category" | "severity" | "focusKey" | "isd">,
   policy: DisplayPolicy,
   focus: { enabled: boolean; targetKey: string | null | undefined },
 ): boolean {
+  if (n.isd) return true;
   if (focus.enabled && focusMatches(n.focusKey, focus.targetKey)) return true;
   if (!policy.enabled) return false;
   if (!policy.dnd) return true;
@@ -585,7 +588,8 @@ export function orderForDisplay(list: UiNotification[], focusedKey: string | nul
   return [...list].sort((a, b) => {
     const fa = focusMatches(a.focusKey, focusedKey) ? 1 : 0;
     const fb = focusMatches(b.focusKey, focusedKey) ? 1 : 0;
-    return fb - fa || rank(b.severity) - rank(a.severity) || b.timestamp - a.timestamp;
+    // What explains the system's own behaviour is read first: it answers "what just happened?".
+    return Number(!!b.isd) - Number(!!a.isd) || fb - fa || rank(b.severity) - rank(a.severity) || b.timestamp - a.timestamp;
   });
 }
 

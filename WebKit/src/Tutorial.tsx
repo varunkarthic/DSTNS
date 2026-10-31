@@ -40,13 +40,18 @@ export function placeTutorialCard(
 
 function measureTarget(name: string): Rect | null {
   const el = document.querySelector<HTMLElement>(`[data-tutorial="${name}"]`);
-  const box = el?.getBoundingClientRect();
+  // A control that reserves room for its longest state is outlined around what it
+  // shows now, so the spotlight fits whichever state it is in.
+  const fit = el?.hasAttribute("data-tutorial-fit");
+  const contents = fit && el ? document.createRange() : null;
+  if (contents && el) contents.selectNodeContents(el);
+  const box = contents?.getBoundingClientRect() ?? el?.getBoundingClientRect();
   const w = window.innerWidth, h = window.innerHeight;
   if (!box || box.width <= 0 || box.height <= 0 || box.bottom <= 0 || box.right <= 0 || box.top >= h || box.left >= w) return null;
-  const pad = 4;
+  const pad = fit ? 8 : 4;
   const style = el ? getComputedStyle(el) : null;
   const rawRadius = style?.borderTopLeftRadius || style?.borderRadius || "0";
-  const round = rawRadius.includes("%") ? box.height * parseFloat(rawRadius) / 100 : parseFloat(rawRadius) || 0;
+  const round = fit ? 8 : rawRadius.includes("%") ? box.height * parseFloat(rawRadius) / 100 : parseFloat(rawRadius) || 0;
   const left = Math.max(4, box.left - pad);
   const top = Math.max(4, box.top - pad);
   return {

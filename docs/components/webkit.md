@@ -57,7 +57,7 @@ flowchart LR
 - **Same-origin requests.** In development Vite proxies `/api`; in production
   the server serves the bundle. Writes from other origins are refused by the
   server.
-- **Minimum size** 1024 × 640; below it the interface says so.
+- **Minimum size** 1280 × 640; below it the interface says so.
 - **Applications are data.** What applications declare is drawn by the observer in
   slots it controls, and arrives through one poll of its own.
 

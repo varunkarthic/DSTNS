@@ -73,7 +73,6 @@ export const TABS: { id: TelemetryTab; label: string; icon: IconName }[] = [
   { id: "incidents", label: "Incidents", icon: "incident" },
   { id: "notifications", label: "Notifications", icon: "notificationHistory" },
 ];
-/** Only there when an application has something to show. */
 const APPS_TAB: { id: TelemetryTab; label: string; icon: IconName } = { id: "apps", label: "Apps", icon: "fabric" };
 
 const VIEW_TITLE: Record<PanelView, string> = {
@@ -637,7 +636,7 @@ function Tabs({ tab, tabs, onTab, counts, idPrefix }: { tab: TelemetryTab; tabs:
 function TelemetryDeckImpl(props: Props) {
   const { snapshot, topology, runtime, compact, history } = props;
   const deckApps = useSlot("deck").items.length > 0;
-  const tabs = deckApps ? [...TABS, APPS_TAB] : TABS;
+  const tabs = useMemo(() => [...TABS, APPS_TAB], []);
   const [chosenTab, setTab] = useState<TelemetryTab>(() => {
     try {
       const saved = localStorage.getItem("dstns.telemetry-tab.v1") as TelemetryTab | null;
@@ -646,8 +645,8 @@ function TelemetryDeckImpl(props: Props) {
       return "stack";
     }
   });
-  const tourTab = TABS.find(t => props.tutorialTarget === `telemetry-${t.id}`)?.id;
-  const tab = tourTab ?? (chosenTab === "apps" && !deckApps ? "stack" : chosenTab);
+  const tourTab = tabs.find(t => props.tutorialTarget === `telemetry-${t.id}`)?.id;
+  const tab = tourTab ?? chosenTab;
   const chooseTab = (t: TelemetryTab) => {
     setTab(t);
     try {

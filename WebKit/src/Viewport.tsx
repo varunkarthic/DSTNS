@@ -2,28 +2,24 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useState } from "react";
-import { ISDHandler } from "./ISDHandler";
-import type { ISDCondition } from "./ISDHandler";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
-
-const VIEWPORT_NOTE: ISDCondition[] = ["viewport"];
 
 /**
  * Minimum supported viewport.
  *
  * DSTNS is an operator interface for laptop and desktop displays. The command
- * rail alone needs room for transport, the clock, eight speeds, the seed, the
- * runtime status and Terminate; below the size where those fit on one row, and
+ * rail alone needs room for transport, the clock, the day, eight speeds, the seed, the
+ * runtime status and Terminate, all with their labels; below the size where those fit on one row, and
  * where the map still has usable height beneath the header and above the rail,
  * the interface would be squeezed into something unusable. It says so instead.
  *
- * The figures come from the laid-out interface, not from a round number:
- * the rail measures about 980px at its most compact, plus the tool dock and
- * the page margins; and the map needs roughly 300px of height under the
- * header and above the rail.
+ * The figures come from the laid-out interface, not from a round number: the rail
+ * measures about 1160px with everything labelled, beside the tool dock and the page
+ * margins, which is why 1280 is the width; and the map needs roughly 300px of height
+ * under the header and above the rail. Most laptops, including 1366 by 768, clear this.
  */
-export const MIN_WIDTH = 1024;
+export const MIN_WIDTH = 1280;
 export const MIN_HEIGHT = 640;
 
 export function viewportTooSmall(width: number, height: number): boolean {
@@ -70,9 +66,9 @@ export function ViewportNotice({ width, height, reduceMotion }: { width: number;
         : `at least ${MIN_HEIGHT} pixels tall`;
   return (
     <div className={`viewport-notice${reduceMotion ? " still" : ""}`} role="alert" aria-live="polite">
-      <ISDHandler active={VIEWPORT_NOTE} />
       <div className="viewport-card">
         <Logo height={30} animated={!reduceMotion} />
+        <span className="viewport-isd">Intentional system design</span>
         <h1>This interface is not optimized for this screen size.</h1>
         <p>
           DSTNS is built for laptop and desktop displays. The simulation is unaffected and keeps running; the observer

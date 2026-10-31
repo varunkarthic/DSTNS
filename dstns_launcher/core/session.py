@@ -23,6 +23,9 @@ from .simulation import World
 
 LOG = logging.getLogger("dstns.launcher")
 
+# How long the observer has the screen before the engine is asked for a world.
+OBSERVER_LEAD_S = 4.5
+
 
 @dataclass
 class Session:
@@ -81,6 +84,10 @@ class Session:
             loaded = simulation.wait_for_observer(handle.port, 12, self.paths, cancel=cancel)
             reporter.message(Level.INFO, "Observer open" if loaded else "Observer opening",
                              f"{handle.url} · preparing the world")
+            # Intentional: the observer opens on its title and starts its film before
+            # any world is requested, so the whole start-up is seen from the beginning.
+            if loaded and cancel.wait(OBSERVER_LEAD_S):
+                check_cancelled(cancel)
         check_cancelled(cancel)
         if observing:
             current = api.call(handle.port, "/api/v1/view/topology", timeout=60, paths=self.paths)

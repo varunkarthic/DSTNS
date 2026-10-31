@@ -84,6 +84,12 @@ def prepare_request(options: configuration.RunOptions, paths: Paths = PATHS) -> 
     return request
 
 
+# Failed polls before a server is called gone: few for one attached to, whose process
+# cannot be checked, and many for one this launcher started and can see is still alive.
+GONE_POLL_LIMIT = 8
+BUSY_POLL_LIMIT = 90
+
+
 def status(port: int, paths: Paths = PATHS) -> Status:
     response = api.call(port, "/api/v1/playback/status", timeout=3, paths=paths)
     if not response.ok or not isinstance(response.body, dict):

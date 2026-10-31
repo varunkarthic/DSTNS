@@ -8,7 +8,7 @@
  * are revealed for their step and the previous layout is restored. The last step is
  * the playback group, and its action starts the simulation.
  */
-export const TUTORIAL_VERSION = "5";
+export const TUTORIAL_VERSION = "6";
 
 export interface TutorialStep {
   target: string;
@@ -23,6 +23,7 @@ const TOOLS = "Tools";
 const NOTIFICATIONS = "Notifications";
 const TELEMETRY = "Telemetry";
 const SESSION = "Session";
+const WEBFABRIC = "WebFabric";
 
 export const tutorialSteps: readonly TutorialStep[] = [
   { target: "map", chapter: MAP, title: "The live network", body: "The map displays the road network as simulated. Drag to pan and scroll to zoom. Hovering over a road, signal or place reports its current state. Distances are real metres. Vehicle markers represent aggregate flow and are not individually tracked journeys." },
@@ -49,6 +50,8 @@ export const tutorialSteps: readonly TutorialStep[] = [
   { target: "telemetry-queue", chapter: TELEMETRY, title: "Queue", body: "Queue separates upcoming transitions, such as signal phases and demand changes, from those already executed, and can be filtered by category. Paging limits what is loaded without changing the schedule." },
   { target: "telemetry-incidents", chapter: TELEMETRY, title: "Incidents", body: "This view collects incident, safety, closure and flooding messages with their time and location. It is a history, so resolved incidents remain listed after the active count returns to zero." },
   { target: "telemetry-notifications", chapter: TELEMETRY, title: "Notification history", body: "This view records events that were shown, grouped, silenced or followed by Auto Focus, and its filters explain why a message did or did not appear. Do Not Disturb changes delivery, not whether simulation events occur." },
+  { target: "telemetry-apps", chapter: WEBFABRIC, title: "WebFabric", body: "Independent applications connect through the Fabric API and appear here, in the design of DSTNS. They can add panels, map overlays, routes and animated vehicles along real roads. When this panel is collapsed, the WebFabric mark on the strip opens the same view." },
+  { target: "settings", chapter: WEBFABRIC, title: "Application permissions", body: "Each application's settings and permissions are in Settings, under WebFabric. Applications may add to their own surfaces by default. Dialogs, their own web pages, and anything that changes the simulation require explicit permission." },
   { target: "clock", chapter: SESSION, title: "Simulation time", body: "The clock shows virtual simulation time, with the share of the day beneath it, and the timeline alongside marks the 24-hour day. Selecting the clock switches the whole interface between 12-hour and 24-hour format." },
   { target: "rate", chapter: SESSION, title: "Simulation speed", body: "Speed ranges from 0.25× to 20× the configured playback pace. Adaptive Simulation Backpressure can temporarily apply a lower rate while retaining the requested rate for recovery. A lock indicates that the core is holding the speed." },
   { target: "seed", chapter: SESSION, title: "Reproducible worlds", body: "The seed determines the city district and the deterministic scenario. Selecting the number copies it. Generate asks for confirmation before preparing a replacement; if preparation fails, the current world remains available. A new world starts paused at 00:00." },

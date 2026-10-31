@@ -17,6 +17,22 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 20. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Latest changes to start-up, backpressure and the tray
+
+- **The map no longer empties under backpressure.** ASB's reset used to turn off every layer but signals. Roads and
+  buildings now stay, and detail returns as soon as the interface is back in sync.
+- **Speed reductions are explicit.** The slider keeps its thumb on your target and marks the speed applied, and the bar reads
+  for example `ASB 5×/10×`.
+- **Intentional system design** notes are now notifications in the tray, which Do Not Disturb does not silence.
+- **The opening:** a still title first, then the film, with stages paced so a fast start can still be seen. The launcher
+  waits 4.5 seconds after the observer loads before requesting a world. Five new scenes, including words in 3D particles, and
+  shorter captions.
+- **The minimum window is now 1280 × 640,** so the whole bottom bar fits with its labels.
+- **Notifications stop when the day ends.** The tutorial covers WebFabric, and the Apps tab is always present.
+- **The launcher** no longer reports a server it can see running as gone because it missed some polls.
+- The completion dialog is redesigned, edge resistance returns faster, the tutorial outlines the runtime status as it is,
+  and OpenStreetMap attribution sits with the coordinates and scale.
+
 ### Fixed: seeds that could never start
 
 - A seed whose coordinates fell on an isolated pocket of road failed with "mostly water or unmapped", even inside
@@ -30,7 +46,7 @@ responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `We
 - **Start-up film.** A WebGL2 particle scene re-forms into the wordmark, streets, a city, traffic, weather, a
   world of seeds and the WebFabric weave, with captions. Stage progress runs along the bottom. When the map is
   ready, the particles fly to its real roads and give way to it.
-- **`ISDHandler`** (Intentional System Design Handler). A small note when the system does something on purpose
+- **`ISDHandler`** (Intentional System Design Handler). A notification when the system does something on purpose
   that looks like a fault: Async, Restricted, a held or reduced speed, held reduced motion, a window that is too
   small, stepped movement above 5×, and an application that stopped checking in.
 - **WebFabric on the road network.** Overlay features `marker` (on a node), `entity` (on an edge) and `route`, and

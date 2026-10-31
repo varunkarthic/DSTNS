@@ -14,6 +14,7 @@ import { resistClamp } from "./resistance";
 export function QuantizedSlider({
   labels,
   index,
+  applied,
   onSelect,
   label,
   valueText,
@@ -24,6 +25,8 @@ export function QuantizedSlider({
 }: {
   labels: readonly string[];
   index: number;
+  /** A stop below `index` that is actually in force, when something is holding it back. */
+  applied?: number;
   onSelect: (index: number) => void;
   label: string;
   valueText: (index: number) => string;
@@ -100,7 +103,7 @@ export function QuantizedSlider({
   };
 
   return (
-    <div ref={root} className={`qslider${held ? " held" : ""}${disabled ? " disabled" : ""} ${className}`.trim()} data-tutorial={tutorial} data-tip-avoid>
+    <div ref={root} className={`qslider${held ? " held" : ""}${disabled ? " disabled" : ""}${applied !== undefined ? " capped" : ""} ${className}`.trim()} data-tutorial={tutorial} data-tip-avoid>
       <div
         ref={track}
         className="qslider-track"
@@ -123,11 +126,14 @@ export function QuantizedSlider({
         {labels.map((text, i) => (
           <i key={text} className={`qslider-stop${i <= index ? " passed" : ""}`} style={{ left: `${(i / Math.max(1, labels.length - 1)) * 100}%` }} aria-hidden="true" />
         ))}
+        {applied !== undefined && (
+          <span className="qslider-applied" aria-hidden="true" style={{ left: `${(applied / Math.max(1, labels.length - 1)) * 100}%` }} />
+        )}
         <span className="qslider-thumb" aria-hidden="true" />
       </div>
       <div className="qslider-labels" aria-hidden="true">
         {labels.map((text, i) => (
-          <button key={text} type="button" tabIndex={-1} disabled={disabled} className={i === index ? "on" : ""} style={{ left: `${(i / Math.max(1, labels.length - 1)) * 100}%` }} onClick={() => i !== index && onSelect(i)}>
+          <button key={text} type="button" tabIndex={-1} disabled={disabled} className={i === applied ? "applied" : i === index ? "on" : ""} style={{ left: `${(i / Math.max(1, labels.length - 1)) * 100}%` }} onClick={() => i !== index && onSelect(i)}>
             {text}
           </button>
         ))}

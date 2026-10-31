@@ -1,46 +1,61 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { ISD_NOTES, ISDHandler, nextNote } from "../src/ISDHandler";
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ISD_DWELL_MS, isdNote, isdNotification, newlyBegun, useISDNotifications } from "../src/ISDHandler";
 import type { ISDCondition } from "../src/ISDHandler";
+import { orderForDisplay, shouldDisplayNotification } from "../src/notificationModel";
+import type { UiNotification } from "../src/notificationModel";
+
+const figures = { requested: 10, applied: 5 };
+const ALL: ISDCondition[] = ["async", "restricted", "rate-locked", "rate-governed", "motion-locked", "reduced-detail", "large-steps", "app-lapsed"];
 
 describe("Intentional System Design Handler", () => {
-  it("says it is intended, why, and what to do next, for every condition", () => {
-    for (const note of Object.values(ISD_NOTES)) {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("says why and what to do next, for every condition", () => {
+    for (const condition of ALL) {
+      const note = isdNote(condition, figures);
       expect(note.title.length).toBeGreaterThan(0);
       expect(note.why.length).toBeGreaterThan(0);
       expect(note.next.length).toBeGreaterThan(0);
     }
   });
 
-  it("keeps the note showing while it holds, then moves to one not yet seen", () => {
-    expect(nextNote(["async", "restricted"], "restricted", new Set(["async", "restricted"]))).toBe("restricted");
-    expect(nextNote(["async", "restricted"], null, new Set(["async"]))).toBe("restricted");
-    expect(nextNote(["async"], null, new Set(["async"]))).toBeNull();
+  it("states the target and the speed actually applied when ASB reduces it", () => {
+    const note = isdNote("rate-governed", figures);
+    expect(note.title).toContain("5×");
+    expect(note.why).toContain("target is 10×");
+    expect(note.why).toContain("Adaptive Simulation Backpressure");
   });
 
-  it("appears when a condition begins and leaves when it ends", () => {
-    const view = render(<ISDHandler active={[]} />);
-    expect(screen.queryByRole("status")).toBeNull();
-    view.rerender(<ISDHandler active={["async"]} />);
-    expect(screen.getByText(ISD_NOTES.async.title)).toBeInTheDocument();
-    expect(screen.getByText("Intentional system design")).toBeInTheDocument();
-    view.rerender(<ISDHandler active={[]} />);
-    expect(screen.queryByText(ISD_NOTES.async.title)).toBeNull();
+  it("is not silenced by Do Not Disturb or by turning notifications off, and is read first", () => {
+    const note = isdNotification("async", figures, 0);
+    const silenced = { enabled: false, dnd: true, mutedCategories: ["system"], mutedSeverities: ["info"] } as never;
+    expect(shouldDisplayNotification(note, silenced, { enabled: false, targetKey: null })).toBe(true);
+    const other = { ...note, id: "other", isd: false, severity: "alert", timestamp: 9 } as UiNotification;
+    expect(orderForDisplay([other, note], null)[0].id).toBe(note.id);
   });
 
-  it("does not come back in the same session once seen, and shows the next when dismissed", () => {
-    const both: ISDCondition[] = ["rate-locked", "large-steps"];
-    const view = render(<ISDHandler active={both} />);
-    expect(screen.getByText(ISD_NOTES["rate-locked"].title)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-    expect(screen.getByText(ISD_NOTES["large-steps"].title)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-    expect(screen.queryByRole("status")).toBeNull();
-    view.rerender(<ISDHandler active={[]} />);
-    view.rerender(<ISDHandler active={both} />);
-    expect(screen.queryByRole("status")).toBeNull();
+  it("announces a condition once a page load", () => {
+    expect(newlyBegun(["async", "restricted"], new Set(["async"]))).toEqual(["restricted"]);
+    const { result, rerender } = renderHook(({ active }) => useISDNotifications(active, figures, 0), { initialProps: { active: [] as ISDCondition[] } });
+    expect(result.current).toEqual([]);
+    rerender({ active: ["rate-governed"] });
+    expect(result.current.map((n) => n.id)).toEqual(["isd:rate-governed"]);
+    rerender({ active: [] });
+    expect(result.current).toEqual([]);
+    rerender({ active: ["rate-governed"] });
+    expect(result.current).toEqual([]);
+  });
+
+  it("leaves the tray after its time, even if the condition holds", () => {
+    const { result, rerender } = renderHook(({ active }) => useISDNotifications(active, figures, 0), { initialProps: { active: [] as ISDCondition[] } });
+    rerender({ active: ["large-steps"] });
+    expect(result.current).toHaveLength(1);
+    act(() => vi.advanceTimersByTime(ISD_DWELL_MS + 1));
+    expect(result.current).toEqual([]);
   });
 });

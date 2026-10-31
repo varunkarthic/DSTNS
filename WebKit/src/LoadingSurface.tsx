@@ -21,6 +21,35 @@ import { BootScene } from "./BootScene";
  * map, because there is.
  */
 
+export type BootPhase = "blank" | "title" | "film";
+
+/**
+ * The first thing seen: still and plain, so that everything after it arrives. As the
+ * film starts, the name moves to its place in the corner and the rest fades.
+ */
+function BootTitle({ phase }: { phase: BootPhase }) {
+  const logo = useRef<HTMLDivElement>(null);
+  const [gone, setGone] = useState(phase === "film");
+  useLayoutEffect(() => {
+    if (phase !== "film" || gone) return;
+    const from = logo.current?.getBoundingClientRect();
+    const home = document.querySelector(".loading-mark .boot-logo")?.getBoundingClientRect();
+    if (from && home && logo.current) {
+      logo.current.style.transform = `translate(${home.left + home.width / 2 - (from.left + from.width / 2)}px, ${home.top + home.height / 2 - (from.top + from.height / 2)}px) scale(${home.height / from.height})`;
+    }
+    const timer = setTimeout(() => setGone(true), 950);
+    return () => clearTimeout(timer);
+  }, [phase, gone]);
+  if (gone) return null;
+  return (
+    <div className={`boot-title is-${phase}`}>
+      <div ref={logo} className="boot-title-logo"><Logo height={56} /></div>
+      <p>Designed by Varun Karthic</p>
+      <p className="boot-title-licence">© 2026 Varun Karthic · AGPL-3.0-or-later</p>
+    </div>
+  );
+}
+
 export interface LoadingStep {
   id: string;
   label: string;
@@ -48,6 +77,7 @@ export function LoadingSurface({
   eyebrow,
   aside,
   landing,
+  phase = "film",
 }: {
   /** "boot" covers the screen; "overlay" floats a card over the dimmed map. */
   mode: "boot" | "overlay";
@@ -76,6 +106,8 @@ export function LoadingSurface({
   aside?: ReactNode;
   /** Where the particles go when the map takes over. */
   landing?: () => Float32Array | null;
+  /** How far the opening has got: nothing, then the title, then the film. */
+  phase?: BootPhase;
 }) {
   // The wordmark hands over to the one in the header, so the screen resolves into
   // the interface instead of disappearing from in front of it.
@@ -177,7 +209,7 @@ export function LoadingSurface({
   return (
     <div
       ref={surface}
-      className={`loading-surface ${mode}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
+      className={`loading-surface ${mode} phase-${film ? phase : "film"}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
       role={role}
       aria-modal={role === "alertdialog" ? true : undefined}
       aria-labelledby={titleId}
@@ -185,8 +217,9 @@ export function LoadingSurface({
       aria-live={role === "status" ? "polite" : undefined}
     >
       {mode === "boot" && (
-        <BootScene playing={film} closing={closing} landing={landing} reduceMotion={reduceMotion} />
+        <BootScene playing={film && phase === "film"} asleep={film && phase !== "film"} closing={closing} landing={landing} reduceMotion={reduceMotion} />
       )}
+      {film && <BootTitle phase={phase} />}
       {body}
       {footer}
     </div>

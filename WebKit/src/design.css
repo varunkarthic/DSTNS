@@ -1445,14 +1445,6 @@ html, body, #root {
 .seed-value { font-size: 12px; }
 .runtime { flex: none; height: 28px; font-size: 11px; }
 .rail-terminate { flex: none; height: 34px; }
-@container rail (max-width: 1040px) {
-  .rail-label, .seed-key, .rail-sep { display: none; }
-}
-@container rail (max-width: 940px) {
-  .rail-terminate span { display: none; }
-  .rail-terminate { width: 34px; padding: 0; display: inline-grid; place-items: center; }
-  .runtime { font-size: 0; gap: 0; width: 28px; padding: 0; display: inline-grid; place-items: center; }
-}
 
 /* ---- Fine control ---------------------------------------------------------------------- */
 
@@ -2032,18 +2024,6 @@ html, body, #root {
 }
 .day-timeline.paused .day-head { background: var(--text-dim); }
 .day-hours { display: flex; justify-content: space-between; font: 500 9.5px/1 var(--font-mono, monospace); color: var(--text-faint); }
-@container rail (max-width: 1180px) {
-  .speed { width: 264px; }
-  .rail-terminate span { display: none; }
-  .rail-terminate { width: 34px; padding: 0; display: inline-grid; place-items: center; }
-  .rail .runtime { font-size: 0; gap: 0; width: 20px; display: inline-grid; place-items: center; }
-  .seed-key { display: none; }
-}
-@container rail (max-width: 1040px) {
-  .speed { width: 236px; }
-  .rail { gap: 10px; }
-  .day-hours span:nth-child(even) { visibility: hidden; }
-}
 .reduce-motion .day-fill, .reduce-motion .day-head { will-change: auto; }
 
 /* ---- Live telemetry: a line of figures, then the detail ---------------------------------------- */
@@ -2184,33 +2164,6 @@ html, body, #root {
 .tour-actions { display: flex; align-items: center; gap: 6px; margin: 0; padding: 10px 10px 10px 16px; }
 .tour-note { flex: 1; min-width: 0; font-size: 11px; color: var(--text-faint); }
 
-/* ---- Intentional system design ---------------------------------------------------------------- */
-.isd {
-  position: fixed;
-  z-index: 2600;
-  top: 76px;
-  left: 50%;
-  width: min(380px, calc(100vw - 24px));
-  padding: 10px 14px 14px;
-  transform: translateX(-50%);
-  background: var(--surface-solid);
-  border: 1px solid rgb(var(--border-rgb) / 16%);
-  box-shadow: var(--hud-shadow);
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--text-dim);
-  transition: transform var(--motion-overlay-ms, 460ms) var(--motion-overlay, ease-out), opacity var(--motion-fade-ms, 200ms) var(--motion-fade, ease-out);
-  @starting-style { transform: translate(-50%, -14px); opacity: 0; }
-}
-.isd header { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--accent); }
-.isd header span { flex: 1; }
-.isd header .icon-btn { width: 26px; height: 26px; margin-right: -6px; color: var(--text-dim); }
-.isd h3 { margin: 2px 0 4px; font-size: 14px; font-weight: 600; color: var(--text); }
-.isd p { margin: 0 0 10px; }
-.isd strong { display: block; margin-bottom: 4px; font-size: 11px; font-weight: 500; color: var(--text); }
-.isd ul { margin: 0; padding-left: 16px; }
-.isd li + li { margin-top: 2px; }
-
 /* ---- The start-up film ------------------------------------------------------------------------ */
 .loading-surface.boot .boot-scene { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .loading-surface.boot .loading-card.film {
@@ -2283,14 +2236,8 @@ html, body, #root {
 /* The words stay readable over whatever the film is showing. */
 .loading-surface.boot:has(.film)::after { content: ""; position: absolute; inset: auto 0 0 0; height: 46%; background: linear-gradient(to top, rgb(var(--surface-rgb, 6 18 28) / 92%), transparent); pointer-events: none; z-index: 0; }
 .loading-surface.boot:has(.film) > :not(canvas) { z-index: 1; }
-@container rail (max-width: 1180px) { .speed { width: 264px; } }
-@container rail (max-width: 1040px) { .speed { width: 236px; } }
-/* In a window too small for anything else, the note and the notice share the page. */
-.viewport-notice { display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 12px; overflow: auto; padding-block: 12px; }
-.viewport-notice .isd { position: static; flex: none; transform: none; @starting-style { transform: translateY(-14px); opacity: 0; } }
-.viewport-card { flex: none; }
 /* Its place is held, so the bar does not shift as the state changes. */
-@container rail (min-width: 1181px) { .rail .runtime { min-width: 84px; justify-content: flex-start; } }
+.rail .runtime { min-width: 84px; justify-content: flex-start; }
 
 /* The surface's own background sits on a layer of its own, so the map can show through
    while the particles are still on their way to its roads. */
@@ -2322,3 +2269,77 @@ html, body, #root {
 /* A failure is read from the card: nothing competes with it. */
 .loading-surface.boot .loading-error { background: rgb(var(--surface-rgb) / 88%); }
 .loading-surface.boot.closing.landing .boot-logo { opacity: 0; transition: transform 520ms var(--spring-expressiveSlow, ease-out), opacity 200ms var(--ease) 160ms; }
+
+/* ---- The bar fits whole at the minimum size ---------------------------------------------------- */
+.rail { gap: 12px; }
+.speed { flex: 0 1 280px; width: auto; min-width: 248px; }
+.seed-value { max-width: 150px; }
+@media (max-width: 1360px) { .rail { gap: 10px; padding-inline: 6px 8px; } .day-timeline { min-width: 88px; } }
+
+/* While ASB holds the speed back: the thumb on the target, the fill and a mark at what is applied. */
+.rail-label.reduced { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 44px; line-height: 1.15; color: var(--warn); }
+.rail-label.reduced > span { display: inline-flex; align-items: center; gap: 3px; font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em; }
+.rail-label.reduced strong { font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; }
+.rail-label.reduced small { margin-left: 1px; font-size: 10px; color: var(--text-faint); }
+.qslider.capped .qslider-fill { opacity: 0.32; }
+.qslider-applied { position: absolute; top: 50%; width: 3px; height: 14px; margin-left: -1.5px; border-radius: 2px; background: var(--warn); box-shadow: 0 0 0 2px var(--surface-solid); transform: translateY(-50%); pointer-events: none; transition: left var(--motion-shift-ms, 300ms) var(--motion-shift, ease-out); }
+.qslider-labels button.applied { color: var(--warn); font-weight: 600; }
+.qslider.capped .qslider-thumb { box-shadow: 0 0 0 2px rgb(var(--warn-rgb) / 55%); }
+
+/* Attribution sits with the map's other small print, on one line. */
+.app-shell .map-readout .map-attribution { position: static; inset: auto; padding: 0; background: none; border: 0; transform: none; font: inherit; font-size: 10.5px; color: var(--text-faint); white-space: nowrap; pointer-events: none; }
+.app-shell .map-readout { gap: 14px; }
+
+/* Intentional system design in the tray, and in the small-window notice. */
+.capsule.from-isd { box-shadow: var(--hud-shadow), inset 0 0 0 1px rgb(var(--line-rgb) / 22%); }
+.capsule.from-isd .capsule-icon { color: var(--accent); }
+.viewport-isd { display: block; margin-top: 12px; font-size: 10.5px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--accent); }
+
+/* ---- The day is complete ------------------------------------------------------------------------ */
+.dialog.done-dialog { width: min(520px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 32px); padding: 20px; overflow-y: auto; }
+.done-dialog .done-hero { display: flex; align-items: center; gap: 14px; margin: 0 0 16px; }
+.done-dialog .done-hero h2 { margin: 0; font-size: 18px; }
+.done-dialog .done-hero .dialog-body { margin: 2px 0 0; font-size: 13px; }
+.done-dialog .done-check { flex: none; width: 40px; height: 40px; }
+.done-dialog .done-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 0 0 12px; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); overflow: hidden; }
+.done-dialog .done-stats > div { min-width: 0; padding: 10px 12px; background: none; border: 0; border-radius: 0; border-left: 1px solid var(--well-line); }
+.done-dialog .done-stats > div:first-child { border-left: 0; }
+.done-dialog .done-stats dt { font-size: 10.5px; line-height: 1.25; min-height: 2.5em; color: var(--text-dim); }
+.done-dialog .done-stats dd { margin: 4px 0 0; font-size: 20px; line-height: 1.2; white-space: nowrap; }
+.done-dialog .done-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; margin: 0 0 16px; padding: 0 2px; }
+.done-dialog .done-facts > div { min-width: 0; }
+.done-dialog .done-facts dt { font-size: 10.5px; color: var(--text-faint); }
+.done-dialog .done-facts dd { margin: 2px 0 0; font-size: 13px; color: var(--text); }
+.done-dialog .done-seed { grid-column: 1 / -1; }
+.done-dialog .done-seed dd { font-size: 12px; overflow-wrap: anywhere; }
+.done-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.done-actions .btn { width: 100%; min-width: 0; justify-content: center; white-space: nowrap; }
+.done-actions .done-save, .done-actions .done-later { grid-column: 1 / -1; }
+
+/* ---- The opening: nothing, the title, then the film --------------------------------------------- */
+.boot-title { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; opacity: 0; color: var(--text); pointer-events: none; }
+.boot-title.is-title { opacity: 1; transition: opacity 900ms var(--ease); }
+.boot-title.is-film { opacity: 1; }
+.boot-title-logo { margin-bottom: 18px; transition: transform 900ms var(--motion-overlay, ease-out); }
+.boot-title p { margin: 0; font-size: 14px; color: var(--text); transition: opacity 320ms var(--ease); }
+.boot-title p.boot-title-licence { font-size: 12px; color: var(--text-faint); }
+.boot-title.is-film p { opacity: 0; }
+.loading-surface.still .boot-title, .loading-surface.still .boot-title * { transition: none; }
+/* Everything of the film waits for the title. */
+.loading-surface.boot.phase-blank .loading-card.film, .loading-surface.boot.phase-title .loading-card.film,
+.loading-surface.boot.phase-blank .loading-licence, .loading-surface.boot.phase-title .loading-licence { opacity: 0; }
+.loading-surface.boot .loading-card.film, .loading-surface.boot:has(.film) .loading-licence { transition: opacity 800ms var(--ease) 300ms; }
+.loading-surface.boot.phase-blank .film .boot-logo, .loading-surface.boot.phase-title .film .boot-logo { visibility: hidden; }
+.loading-surface.boot:has(.boot-title) .film .boot-logo { opacity: 0; }
+
+/* Room at the minimum size: the day takes what the speed does not need, and the deck's tabs all fit. */
+.rail > .tooltip-anchor:has(.speed) { flex: 0 1 290px; min-width: 248px; }
+.speed { width: 100%; flex: 1; }
+@media (max-width: 1360px) {
+  .tab-row { gap: 0; padding-inline: 2px; }
+  .tab-row button { padding-inline: 6px; font-size: 11.5px; }
+  .tab-row .count { margin-left: 3px; }
+  .metric { padding-inline: 8px; }
+  .metric-label { font-size: 9px; letter-spacing: 0.03em; }
+  .metric-sub { font-size: 10px; }
+}

@@ -105,7 +105,7 @@ export function NotificationCapsule(
   return (
     <div className="capsule-slot" data-tutorial="notifications" ref={root} data-tip-avoid>
       <article
-        className={`capsule sev-${current.severity}${open ? " open" : ""}${reduceMotion ? " still" : ""}${current.app ? " from-webfabric" : ""}`}
+        className={`capsule sev-${current.severity}${open ? " open" : ""}${reduceMotion ? " still" : ""}${current.app ? " from-webfabric" : ""}${current.isd ? " from-isd" : ""}`}
         aria-label="Notifications"
         role={urgent ? "alert" : undefined}
         aria-live={urgent ? "assertive" : "polite"}
@@ -115,7 +115,7 @@ export function NotificationCapsule(
               <>
                 <div className="capsule-detail-head">
                   <span className="capsule-kind">
-                    {current.app ? <><BrandLogo name="webfabric" height={13} /><span className="capsule-app">{current.app}</span></> : current.category === "incident" ? "Incident" : current.category.charAt(0).toUpperCase() + current.category.slice(1)}
+                    {current.app ? <><BrandLogo name="webfabric" height={13} /><span className="capsule-app">{current.app}</span></> : current.isd ? "Intentional system design" : current.category === "incident" ? "Incident" : current.category.charAt(0).toUpperCase() + current.category.slice(1)}
                     {focused && <em className="capsule-following">Following</em>}
                     {current.source === "realistic" && <em className="capsule-realistic" title="Written on this device by Apple's Foundation Model">{REALISTIC_NEWS}</em>}
                   </span>
@@ -218,8 +218,9 @@ export function NotificationCapsule(
           </span>
           <span className="capsule-text">
             {current.app && <small className="capsule-from">WebFabric · {current.app}</small>}
+            {current.isd && <small className="capsule-from">Intentional system design</small>}
             <strong>{current.title}</strong>
-            {!current.app && <span className="capsule-line">{current.location ?? time.text(current.summary)}</span>}
+            {!current.app && !current.isd && <span className="capsule-line">{current.location ?? time.text(current.summary)}</span>}
           </span>
           {!urgent && <span className="capsule-time mono">{time.time(current.timestamp, { seconds: false })}</span>}
           {others.length > 0 && (

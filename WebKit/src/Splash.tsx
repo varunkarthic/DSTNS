@@ -4,6 +4,7 @@
 import { formatBytes } from "./units";
 import { useEffect, useState } from "react";
 import { LoadingSurface } from "./LoadingSurface";
+import type { BootPhase } from "./LoadingSurface";
 import { Mark } from "./Logo";
 
 /**
@@ -42,6 +43,70 @@ export interface SplashStage {
   waiting?: boolean;
 }
 
+const TITLE_WAIT_MS = 2000;
+const TITLE_HOLD_MS = 2200;
+// Each stage has the screen for at least this long, including those the core has already
+// passed, so a fast start-up can still be seen from the beginning.
+const STAGE_MIN_MS = 1100;
+// A launcher asks for its world just as the film begins, so no one should be told to
+// start one in the meantime.
+const WAITING_GRACE_MS = 3500;
+
+const STAGE_DETAIL = ["Opening the observer", "Resolving the seed to a city district", "Reading the district's map data", "Building the road graph, signals and schedules", "Receiving roads, places and the first state"];
+
+/**
+ * The opening: nothing, then the title, then the film. A page opened on a world already
+ * running has seen this, or does not need to, and goes straight in.
+ */
+export function useBootPhase(live: boolean | null): BootPhase {
+  const [phase, setPhase] = useState<BootPhase>("blank");
+  useEffect(() => {
+    if (live) {
+      setPhase("film");
+      return;
+    }
+    const title = setTimeout(() => setPhase((old) => (old === "blank" ? "title" : old)), TITLE_WAIT_MS);
+    const film = setTimeout(() => setPhase("film"), TITLE_WAIT_MS + TITLE_HOLD_MS);
+    return () => {
+      clearTimeout(title);
+      clearTimeout(film);
+    };
+  }, [live]);
+  return phase;
+}
+
+/**
+ * What the start-up screen shows, one stage at a time. It only ever shows stages the core
+ * has reached, a little later than it reached them, and `holding` keeps the screen up
+ * until the last has been seen.
+ */
+export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabled: boolean): { stage: SplashStage | null; holding: boolean } {
+  const [shown, setShown] = useState(0);
+  const [graceOver, setGraceOver] = useState(false);
+  const running = enabled && phase === "film";
+  const goal = real ? real.step : BOOT_STEPS.length;
+  useEffect(() => {
+    if (!running || graceOver) return;
+    const timer = setTimeout(() => setGraceOver(true), WAITING_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [running, graceOver]);
+  useEffect(() => {
+    if (!running || shown >= goal) return;
+    const timer = setTimeout(() => setShown((step) => step + 1), STAGE_MIN_MS);
+    return () => clearTimeout(timer);
+  }, [running, shown, goal]);
+  if (!enabled) return { stage: real, holding: false };
+  if (!real && shown >= BOOT_STEPS.length) return { stage: null, holding: false };
+  const step = Math.min(shown, BOOT_STEPS.length - 1);
+  const holding = phase !== "film" || shown < goal || (!real && shown < BOOT_STEPS.length);
+  if (real?.waiting) {
+    if (graceOver) return { stage: real, holding: false };
+    return { stage: { step: 0, label: BOOT_STEPS[0].label, detail: STAGE_DETAIL[0] }, holding: true };
+  }
+  if (real && shown >= real.step) return { stage: real, holding };
+  return { stage: { step, label: BOOT_STEPS[step].label, detail: STAGE_DETAIL[step] }, holding };
+}
+
 const LICENCE = "Deterministic Spatiotemporal Transport Network Simulator · © 2026 Varun Karthic · AGPL-3.0-or-later · Map data © OpenStreetMap contributors (ODbL)";
 
 export function Splash({
@@ -50,19 +115,21 @@ export function Splash({
   closing = false,
   onDismiss,
   landing,
+  phase,
 }: {
   stage: SplashStage;
   reduceMotion: boolean;
   closing?: boolean;
   onDismiss?: () => void;
   landing?: () => Float32Array | null;
+  phase?: BootPhase;
 }) {
   // Only offer a way past the start-up screen once waiting has become
   // notable, so the option does not flash up during a fast start.
   const [stalled, setStalled] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    const timer = setTimeout(() => setStalled(true), 12000);
+    const timer = setTimeout(() => setStalled(true), 20000);
     const started = performance.now();
     const clock = setInterval(() => setElapsed(Math.floor((performance.now() - started) / 1000)), 1000);
     return () => {
@@ -76,13 +143,14 @@ export function Splash({
       mode="boot"
       eyebrow={stage.waiting ? "Welcome to DSTNS" : undefined}
       title={stage.label}
-      status={stage.waiting || elapsed < 3 ? stage.detail : `${stage.detail ?? "Working"} · ${elapsed} s`}
+      status={stage.waiting || elapsed < 15 ? stage.detail : `${stage.detail ?? "Working"} · ${elapsed} s`}
       steps={stage.waiting ? undefined : BOOT_STEPS}
       stepIndex={stage.step}
       progress={stage.progress}
       progressLabel={stage.label}
       idle={stage.waiting}
       landing={landing}
+      phase={phase}
       closing={closing}
       reduceMotion={reduceMotion}
       titleId="splash-title"

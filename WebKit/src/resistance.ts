@@ -51,11 +51,11 @@ export function resistZoomOut(scale: number, fitScale: number): number {
 
 const SCROLLING = /(auto|scroll)/;
 // Follows the pull closely, but smooths the steps a mouse wheel arrives in.
-const FOLLOW = { k: 620, c: 50 };
+const FOLLOW = { k: 1500, c: 78 };
 // How fast a stretch lets go, per second. A wheel has no release, and a trackpad goes
 // on sending events long after the fingers lift, so nothing waits for the input to
 // stop: the pull drains all the time, and the input only has to outrun it.
-const RELEASE = 7;
+const RELEASE = 15;
 
 function normalised(event: WheelEvent, page: number): [number, number] {
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? page : 1;

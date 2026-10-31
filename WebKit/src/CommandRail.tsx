@@ -183,7 +183,7 @@ export function CommandRail(props: CommandRailProps) {
       <SeedControl seed={props.seed} canRegenerate={props.canRegenerate && !pending} onRegenerate={props.onRegenerate} />
 
       <Tooltip label={`Runtime ${STATUS_LABEL[props.status]}`} detail={props.statusDetail.length ? props.statusDetail.join(" · ") : undefined}>
-        <span className={`runtime runtime-${props.status}`} data-tutorial="status" role="status" aria-label={`Runtime status ${STATUS_LABEL[props.status]}`}>
+        <span className={`runtime runtime-${props.status}`} data-tutorial="status" data-tutorial-fit role="status" aria-label={`Runtime status ${STATUS_LABEL[props.status]}`}>
           <i aria-hidden="true" />
           {STATUS_LABEL[props.status]}
         </span>
@@ -317,38 +317,45 @@ function SpeedControl({
   onRate: (rate: number) => void;
 }) {
   const [choice, setChoice] = useState<number | null>(null);
-  // The chosen stop shows at once; the core's answer follows on the next poll.
-  const index = choice ?? rateIndexOf(rate);
   const governed = requested !== undefined && Math.abs(requested - rate) > 1e-6;
+  // The chosen stop shows at once. While ASB holds the speed lower, the thumb stays on
+  // what was asked for, and the slider marks what is being applied.
+  const target = governed ? requested : rate;
+  const index = choice ?? rateIndexOf(target);
   useEffect(() => {
     if (choice === null) return;
-    if (rateIndexOf(rate) === choice) {
+    if (rateIndexOf(target) === choice) {
       setChoice(null);
       return;
     }
     const timer = setTimeout(() => setChoice(null), 2500);
     return () => clearTimeout(timer);
-  }, [choice, rate]);
+  }, [choice, target]);
   const detail = locked
-    ? "Held at 1× by Adaptive Simulation Backpressure until the interface is back in sync."
+    ? `Target ${rateLabel(target)}. Held at ${rateLabel(rate)} by Adaptive Simulation Backpressure until the interface is back in sync.`
     : governed
-      ? `Requested ${rateLabel(requested!)}. Applied ${rateLabel(rate)} while the interface catches up.`
+      ? `Target ${rateLabel(requested!)}. Reduced to ${rateLabel(rate)} by Adaptive Simulation Backpressure while the interface catches up.`
       : "How fast simulated time passes. Drag, click a speed, or use the arrow keys.";
   return (
     <Tooltip label="Simulation speed" detail={detail}>
       <div className={`speed${locked ? " locked" : ""}${governed ? " governed" : ""}`}>
-        <span className="rail-label">
-          {locked ? <Icon name="lock" size={12} /> : <span className="rail-label-mark">×</span>}
-          Speed
-        </span>
+        {governed || locked ? (
+          <span className="rail-label reduced" role="status" aria-label={`Speed reduced by Adaptive Simulation Backpressure: target ${rateLabel(target)}, applied ${rateLabel(rate)}`}>
+            <span>ASB {locked && <Icon name="lock" size={10} />}</span>
+            <strong className="mono">{rateLabel(rate)}<small>/{rateLabel(target)}</small></strong>
+          </span>
+        ) : (
+          <span className="rail-label">Speed</span>
+        )}
         <QuantizedSlider
           tutorial="rate"
           label="Simulation speed"
           labels={SPEED_LABELS}
           index={index}
+          applied={governed ? rateIndexOf(rate) : undefined}
           disabled={disabled}
           reduceMotion={reduceMotion}
-          valueText={(i) => `${RATES[i]} times speed`}
+          valueText={(i) => `${RATES[i]} times speed${governed ? `, reduced to ${rate} by backpressure` : ""}`}
           onSelect={(i) => {
             setChoice(i);
             onRate(RATES[i]);

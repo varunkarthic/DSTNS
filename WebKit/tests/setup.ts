@@ -30,3 +30,7 @@ if (!HTMLCanvasElement.prototype.getContext) {
   HTMLCanvasElement.prototype.getContext = (() =>
     null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 }
+
+// A size the interface supports, which is larger than jsdom's default.
+Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 1440 });
+Object.defineProperty(window, "innerHeight", { configurable: true, writable: true, value: 900 });

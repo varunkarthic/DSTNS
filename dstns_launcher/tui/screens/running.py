@@ -237,8 +237,14 @@ class RunningScreen(Page):
             log.write(Text(line, style="#8CA7B2" if "[INFO]" in line else "#F5B942"))
         if not current.reachable:
             self.misses += 1
-            if exited is not None or self.misses >= 8:
+            # A busy engine can miss a few polls. Only a process that has really
+            # gone, or one silent for this long, means the simulation has stopped.
+            handle = self.app.session.handle
+            running = handle is not None and handle.process is not None and exited is None
+            if exited is not None or self.misses >= (simulation.BUSY_POLL_LIMIT if running else simulation.GONE_POLL_LIMIT):
                 self.server_gone(exited)
+            elif self.misses >= 3:
+                self.header.set_state(State.WARNING, "server busy")
             return
         self.misses = 0
         self.status = current

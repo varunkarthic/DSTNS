@@ -10,6 +10,7 @@ over any connection and in any terminal.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Callable
 
 from ..core import configuration, environment, logs, maintenance, server, simulation, sumo, testing
@@ -201,6 +202,11 @@ class FallbackApp:
             self.out.heading("Simulation")
             self.out.rule()
             if not current.reachable:
+                # Still alive means busy: a loaded engine can miss a status poll.
+                if handle and handle.process is not None and handle.exit_code() is None:
+                    self.out.message(Level.INFO, "The server is busy; checking again")
+                    time.sleep(2)
+                    continue
                 self.out.message(Level.WARNING, "The server is no longer reachable")
                 return
             rows = [("State", current.lifecycle.capitalize()), ("Simulation time", f"{current.clock} / 24:00:00 ({current.fraction * 100:.1f}%)")]

@@ -145,6 +145,7 @@ try {
   await test("a planner gets room beside the map, and the map refits around it", async () => {
     const sidebar = page.getByRole("complementary", { name: /Route planner/ });
     await sidebar.waitFor({ timeout: 8000 });
+    await page.locator(".loading-surface").waitFor({ state: "detached", timeout: 30000 });
     await wait(900);
     const box = await sidebar.boundingBox();
     assert.ok(box.width > 340 && box.x >= 70 && box.x < 100, JSON.stringify(box));

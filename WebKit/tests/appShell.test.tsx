@@ -236,12 +236,12 @@ describe("observer shell", () => {
   it("does not offer playback control while the core is idle", async () => {
     mockApi({ lifecycle: "IDLE" });
     render(<App />);
-    expect(await screen.findByText("Waiting for a simulation")).toBeInTheDocument();
+    expect(await screen.findByText("Waiting for a simulation", {}, { timeout: 12000 })).toBeInTheDocument();
     expect(screen.getByText(/Start a run from the DSTNS CLI/)).toBeInTheDocument();
     // Waiting for a run is not presented as loading progress.
     expect(screen.queryByRole("list", { name: "Progress" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Pause simulation")).toBeDisabled();
-  });
+  }, 30000);
 
   it("surfaces a map download failure as an alert", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
@@ -802,8 +802,8 @@ describe("start-up", () => {
     state.topologyDelay = true;
     render(<App />);
     // The heading names the stage, and the step list below it marks it.
-    const surface = await screen.findByRole("status", { name: /Starting interface|Selecting world|Generating world|Initializing simulation/ }, { timeout: 4000 });
-    await waitFor(() => expect(surface.querySelector("h2")).toHaveTextContent(/Selecting world/), { timeout: 4000 });
+    const surface = await screen.findByRole("status", { name: /Starting interface|Selecting world|Generating world|Initializing simulation/ }, { timeout: 12000 });
+    await waitFor(() => expect(surface.querySelector("h2")).toHaveTextContent(/Selecting world/), { timeout: 12000 });
     const steps = within(surface).getByRole("list", { name: "Progress" });
     expect(within(steps).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       "Starting interface",
@@ -816,30 +816,31 @@ describe("start-up", () => {
     expect(within(steps).getByText("Starting interface").closest("li")).toHaveClass("done");
 
     state.preparation = "building";
-    await waitFor(() => expect(surface.querySelector("h2")).toHaveTextContent(/Generating world/), { timeout: 4000 });
+    await waitFor(() => expect(surface.querySelector("h2")).toHaveTextContent(/Generating world/), { timeout: 12000 });
     expect(within(steps).getByText("Selecting world").closest("li")).toHaveClass("done");
 
     // The map arrives, and the surface dissolves into it at once: no held screen.
     state.preparation = "";
     state.lifecycle = "RUNNING";
     state.topologyDelay = false;
-    await ready();
+    await screen.findByLabelText("Pause simulation", {}, { timeout: 12000 });
+    await waitFor(() => expect(document.querySelector(".loading-surface")).toBeNull(), { timeout: 8000 });
     await waitFor(() => expect(document.querySelector(".loading-surface")).toBeNull(), { timeout: 3000 });
   }, 20000);
 
   it("shows a failure screen when nothing has loaded, and clears when the simulator answers", async () => {
     mockApi({ lifecycle: "ERROR", preparation_error: "The map could not be read." } as never);
     render(<App />);
-    expect(await screen.findByRole("alertdialog", {}, { timeout: 4000 })).toHaveTextContent("The map could not be read.");
-  });
+    expect(await screen.findByRole("alertdialog", {}, { timeout: 12000 })).toHaveTextContent("The map could not be read.");
+  }, 30000);
 
   it("does not claim progress before a run exists", async () => {
     mockApi({ lifecycle: "IDLE" });
     render(<App />);
-    expect(await screen.findByText("Waiting for a simulation")).toBeInTheDocument();
+    expect(await screen.findByText("Waiting for a simulation", {}, { timeout: 12000 })).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Progress" })).not.toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
-  });
+  }, 30000);
 
   it("refuses to squeeze the interface onto a small display", async () => {
     mockApi();
@@ -848,7 +849,7 @@ describe("start-up", () => {
     sizeTo(900, 700);
     const notice = await screen.findByRole("alert");
     expect(notice).toHaveTextContent("This interface is not optimized for this screen size.");
-    expect(notice).toHaveTextContent("1024");
+    expect(notice).toHaveTextContent("1280");
     expect(notice).toHaveTextContent("900");
     expect(screen.queryByLabelText("Pause simulation")).not.toBeInTheDocument();
     // It leaves on its own once there is room again.

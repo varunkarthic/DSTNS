@@ -65,9 +65,14 @@ try {
   // reports the stages the core reaches. This is the first thing an operator
   // sees, so it is the first thing checked.
   await page.goto(base);
-  const startup = page.getByRole("status", { name: /Waiting for a simulation|Starting interface/ });
+  // The opening comes first: a still title, with the licence and nothing else.
+  await page.locator(".boot-title.is-title").waitFor({ timeout: 8000 });
+  const title = await page.locator(".boot-title").innerText();
+  assert.match(title, /Designed by Varun Karthic/);
+  assert.match(title, /AGPL-3.0-or-later/);
+  assert.doesNotMatch(title, /OpenStreetMap/);
+  const startup = page.getByRole("status", { name: /Waiting for a simulation/ });
   await startup.waitFor({ timeout: 20000 });
-  assert.match(await startup.innerText(), /Waiting for a simulation/);
   assert.equal(await page.getByRole("progressbar").count(), 0, "no progress is claimed before a run exists");
   assert.equal(await page.locator(".loading-steps").count(), 0, "no stages are listed before a run exists");
   // The shell's chrome arrives with the interface, not before it.
@@ -150,17 +155,59 @@ try {
     await page.screenshot({ path: path.join(out, "hud-1280.png") });
   });
   check("layout at the minimum supported size", async () => {
-    await page.setViewportSize({ width: 1024, height: 640 });
+    await page.setViewportSize({ width: 1280, height: 640 });
     await page.waitForTimeout(500);
-    await layout("1024x640");
+    await layout("1280x640");
     // Everything the rail carries has to fit on one row at the smallest
     // supported size: this is what that minimum was chosen against.
     const rail = await box(page.locator(".rail"));
-    assert.ok(rail.height <= 66, `rail stays one row at 1024 (${rail.height}px)`);
+    assert.ok(rail.height <= 66, `rail stays one row at 1280 (${rail.height}px)`);
     for (const name of [/Copy seed/, "Terminate"])
-      assert.ok(await page.getByRole("button", { name }).first().isVisible(), `${name} visible at 1024x640`);
-    assert.ok(await page.getByRole("slider", { name: "Simulation speed" }).isVisible(), "speed visible at 1024x640");
-    await page.screenshot({ path: path.join(out, "hud-1024.png") });
+      assert.ok(await page.getByRole("button", { name }).first().isVisible(), `${name} visible at 1280x640`);
+    assert.ok(await page.getByRole("slider", { name: "Simulation speed" }).isVisible(), "speed visible at 1280x640");
+    const labelBox = await page.locator(".rail-terminate > span").evaluate((el) => ({ w: el.getBoundingClientRect().width, d: getComputedStyle(el).display, n: el.textContent, W: innerWidth }));
+    assert.ok(labelBox.w > 0, `Terminate keeps its label at the minimum ${JSON.stringify(labelBox)}`);
+    const seedKey = await page.locator(".seed-value .seed-key").evaluate((el) => ({ w: el.getBoundingClientRect().width, d: getComputedStyle(el).display, W: innerWidth, H: innerHeight, rail: el.closest(".rail").clientWidth }));
+    assert.ok(seedKey.w > 0, `the seed keeps its label at the minimum ${JSON.stringify(seedKey)}`);
+    assert.ok(await page.locator(".rail").evaluate((el) => el.scrollWidth <= el.clientWidth), "nothing in the rail overflows at the minimum");
+    await page.screenshot({ path: path.join(out, "hud-min.png") });
+  });
+  check("when ASB reduces the speed, the target and the applied speed both show, and the map stays", async () => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.locator(".speed .qslider-labels button", { hasText: /^5$/ }).click();
+    await page.locator(".speed .qslider-labels button.on", { hasText: /^5$/ }).waitFor();
+    for (let i = 0; i < 40 && (await call("/api/v1/playback/status")).body.clock.tick_rate !== 5; i++) await page.waitForTimeout(100);
+    await page.waitForTimeout(1500);
+    await page.route("**/api/v1/system/backpressure", async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      const asb = body.data ?? body;
+      asb.requested_tick_rate = 10;
+      asb.rate_capped = true;
+      asb.rate_cap = 5;
+      asb.state = "NORMAL";
+      asb.synced = false;
+      asb.actions = [...(asb.actions ?? []), { action: "default_state", at_s: 1, reason: "test", score: 1, tick_rate_before: 10, tick_rate_after: 5 }];
+      await route.fulfill({ response, json: body });
+    });
+    const label = page.locator(".rail-label.reduced");
+    await label.waitFor({ timeout: 8000 });
+    assert.match(await label.getAttribute("aria-label"), /target 10×, applied 5×/);
+    assert.equal(await page.locator(".qslider-applied").count(), 1, "the slider marks the speed applied");
+    assert.equal(await page.locator(".qslider-labels button.on").innerText(), "10", "the thumb stays on the target");
+    assert.equal(await page.locator(".qslider-labels button.applied").innerText(), "5");
+    // ASB's reset keeps the map's roads and buildings, and says so.
+    await page.locator(".capsule.from-isd").first().waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Layers" }).click();
+    assert.equal(await page.getByRole("switch", { name: "Roads" }).getAttribute("aria-checked"), "true", "roads stay on");
+    assert.equal(await page.getByRole("switch", { name: "Buildings and places" }).getAttribute("aria-checked"), "true", "buildings stay on");
+    assert.equal(await page.getByRole("switch", { name: "Flow markers" }).getAttribute("aria-checked"), "false", "what is redrawn constantly goes");
+    await page.screenshot({ path: path.join(out, "asb-reduced.png") });
+    await page.keyboard.press("Escape");
+    await page.unroute("**/api/v1/system/backpressure");
+    await page.waitForTimeout(2000);
+    await page.locator(".speed .qslider-labels button", { hasText: /^1$/ }).first().click();
+    await page.waitForTimeout(600);
   });
   check("below the minimum, the interface says so instead of squeezing", async () => {
     await page.setViewportSize({ width: 900, height: 700 });
@@ -168,7 +215,7 @@ try {
     const notice = page.getByRole("alert");
     await notice.waitFor({ timeout: 5000 });
     assert.match(await notice.innerText(), /not optimized for this screen size/i);
-    assert.match(await notice.innerText(), /1024/);
+    assert.match(await notice.innerText(), /1280/);
     assert.equal(await page.locator(".rail").count(), 0, "the interface is not rendered at all");
     const scrollW = await page.evaluate(() => document.documentElement.scrollWidth);
     assert.ok(scrollW <= 901, "the notice itself does not scroll sideways");

@@ -513,15 +513,15 @@ export function CompletionDialog({
         <div><dt>Final time</dt><dd className="mono">{time.time(summary.finalTime)}</dd></div>
         <div><dt>Simulated</dt><dd>{formatDuration(summary.simulatedSeconds)}</dd></div>
         {summary.wallMs !== null && <div><dt>Observed for</dt><dd>{formatWallDuration(summary.wallMs)}</dd></div>}
-        <div><dt>Seed</dt><dd className="mono seed-cell">{summary.seed || "None"}</dd></div>
+        <div className="done-seed"><dt>Seed</dt><dd className="mono">{summary.seed || "None"}</dd></div>
       </dl>
       {reportError && (
         <p className="dialog-error" role="alert">
           {reportError}
         </p>
       )}
-      <div className="dialog-actions completion-actions">
-        <button className="btn primary" onClick={onDownload} disabled={pending}>
+      <div className="done-actions">
+        <button className="btn primary done-save" onClick={onDownload} disabled={pending}>
           <Icon name="download" size={16} />
           {pending ? "Preparing report" : "Save Report"}
         </button>
@@ -537,7 +537,7 @@ export function CompletionDialog({
             Generate a new world
           </button>
         )}
-        <button className="btn ghost" onClick={onClose}>
+        <button className="btn ghost done-later" onClick={onClose}>
           Not Now
         </button>
       </div>

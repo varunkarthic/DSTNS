@@ -241,7 +241,7 @@ try {
   // replaced by the notice rather than squeezed (see Viewport.tsx).
   for (const [width, height] of [
     [1280, 800],
-    [1024, 640],
+    [1280, 640],
   ]) {
     await page.setViewportSize({ width, height });
     await wait(300);

@@ -29,24 +29,35 @@ export const LANDING_MS = 1500;
 // With nothing to do, the network rests dimly, out of the way of what is on screen.
 const REST_DIM = 0.14;
 
+// Headlines of two to five words, and one short line: a viewer gets a few seconds with each.
 export const FILM_CHAPTERS: readonly { label: string; title: string; text: string }[] = [
-  { label: "Deterministic Spatiotemporal Transport Network Simulator", title: "A city's day, second by second", text: "DSTNS computes a full day of traffic for a real district, one second at a time." },
-  { label: "Networks", title: "Real streets", text: "Every world is a real district, built from OpenStreetMap." },
-  { label: "Demand", title: "Places that move people", text: "Schools, offices, malls and stores shape demand through the day." },
-  { label: "Physics", title: "One-second steps", text: "Traffic advances in fixed one-second steps, whatever the playback speed." },
-  { label: "Environment", title: "Weather and flooding", text: "Rain cells cross the district, and flooded roads change how traffic moves." },
-  { label: "Reproducibility", title: "One seed, one day", text: "The same seed gives the same day, second by second, on any machine." },
-  { label: "WebFabric", title: "Built to be extended", text: "Applications connect through Fabric and appear in the interface through WebFabric." },
+  { label: "Deterministic Spatiotemporal Transport Network Simulator", title: "A city, second by second", text: "One full day of real traffic." },
+  { label: "Networks", title: "Real streets", text: "Real districts, from OpenStreetMap." },
+  { label: "Time", title: "Every second counts", text: "A day is 86,400 fixed steps." },
+  { label: "Demand", title: "Places move people", text: "Schools, offices, malls and stores." },
+  { label: "Rhythm", title: "Rush hour, modelled", text: "Demand rises and falls through the day." },
+  { label: "Physics", title: "One-second steps", text: "The same at any playback speed." },
+  { label: "Incidents", title: "When roads close", text: "Traffic around them has to change." },
+  { label: "Environment", title: "Weather and flooding", text: "Rain crosses the city. Roads flood." },
+  { label: "Places", title: "Cities worldwide", text: "A seed chooses the district." },
+  { label: "Reproducibility", title: "One seed, one day", text: "The same result on any machine." },
+  { label: "Adaptive backpressure", title: "Always in step", text: "Speed adapts so the view keeps up." },
+  { label: "WebFabric", title: "Built to extend", text: "Applications connect through Fabric." },
 ];
 
 interface Camera { yaw: number; pitch: number; distance: number; spin: number }
 const CAMERAS: Camera[] = [
   { yaw: 0, pitch: 0, distance: 3.1, spin: 0.012 },
   { yaw: 0.5, pitch: 0.95, distance: 3.5, spin: 0.05 },
+  { yaw: -0.3, pitch: 0.12, distance: 3.0, spin: 0.03 },
   { yaw: -0.7, pitch: 0.62, distance: 3.2, spin: 0.06 },
+  { yaw: 0.3, pitch: 0.24, distance: 2.9, spin: -0.03 },
   { yaw: 0.9, pitch: 0.82, distance: 2.9, spin: -0.05 },
+  { yaw: 0.2, pitch: 1.05, distance: 3.2, spin: 0.07 },
   { yaw: -0.3, pitch: 0.34, distance: 3.3, spin: 0.04 },
+  { yaw: 0.3, pitch: -0.1, distance: 2.9, spin: -0.03 },
   { yaw: 0, pitch: 0.2, distance: 3.2, spin: 0.12 },
+  { yaw: 0.55, pitch: 0.2, distance: 3.2, spin: 0.02 },
   { yaw: 0.6, pitch: 0.72, distance: 3.0, spin: -0.04 },
 ];
 
@@ -112,6 +123,10 @@ function buildFormations(): Float32Array[] {
         else put(i, road.x, (random() - 0.5) * 0.006, road.z, 0, 0, 0, 0.18);
       }
     }, 12),
+    // Time: filled in once its typeface has loaded.
+    formation((put, random) => {
+      for (let i = 0; i < COUNT; i++) scatter(put, i, random);
+    }, 21),
     // A city: blocks standing between the roads.
     formation((put, random) => {
       const heights = cells.map(() => 0.1 + Math.pow(random(), 2.6) * 0.9);
@@ -133,6 +148,19 @@ function buildFormations(): Float32Array[] {
         put(i, x, up, z, 0, 0, 0, top ? 0.9 : 0.25 + (up / h) * 0.3);
       }
     }, 13),
+    // The day's rhythm: an hour to a column, with its two peaks.
+    formation((put, random) => {
+      const hours = 24;
+      const rhythm = (h: number) => 0.14 + 0.95 * Math.exp(-((h - 8.3) ** 2) / 3.4) + 1.15 * Math.exp(-((h - 17.6) ** 2) / 4.6) + 0.38 * Math.exp(-((h - 12.8) ** 2) / 14);
+      for (let i = 0; i < COUNT; i++) {
+        const hour = Math.floor(random() * hours);
+        const height = rhythm(hour);
+        const up = random() < 0.2 ? height : random() * height;
+        const x = (hour - (hours - 1) / 2) * 0.125 + (random() - 0.5) * 0.085;
+        const z = (random() - 0.5) * 0.5;
+        put(i, x, up - 0.55, z, 0, 0, 0, Math.min(1, 0.16 + (up / 1.25) * 0.95));
+      }
+    }, 22),
     // Traffic: the roads faint, and vehicles running along them.
     formation((put, random) => {
       for (let i = 0; i < COUNT; i++) {
@@ -142,6 +170,19 @@ function buildFormations(): Float32Array[] {
         else put(i, road.bx, 0.012, road.bz, road.ax - road.bx, 0, road.az - road.bz, 1);
       }
     }, 14),
+    // An incident: rings travelling out from where a road has closed.
+    formation((put, random) => {
+      for (let i = 0; i < COUNT; i++) {
+        if (i % 5 < 2) {
+          const road = onRoad(random);
+          put(i, road.x, 0, road.z, 0, 0, 0, 0.12);
+          continue;
+        }
+        const a = random() * Math.PI * 2;
+        const r = 0.04 + random() * 0.03;
+        put(i, Math.cos(a) * r, 0.02, Math.sin(a) * r, Math.cos(a) * 1.9, 0, Math.sin(a) * 1.9, 0.95);
+      }
+    }, 23),
     // Weather: rain falling from cells, onto roads and the rings it leaves there.
     formation((put, random) => {
       const storms = [[-0.7, -0.4, 0.8], [0.8, 0.5, 0.65], [0.1, 1.0, 0.45]];
@@ -160,6 +201,10 @@ function buildFormations(): Float32Array[] {
         }
       }
     }, 15),
+    // Cities: filled in once its typeface has loaded.
+    formation((put, random) => {
+      for (let i = 0; i < COUNT; i++) scatter(put, i, random);
+    }, 24),
     // Seeds: a world, with one district drawing the eye.
     formation((put, random) => {
       const golden = Math.PI * (3 - Math.sqrt(5));
@@ -175,6 +220,16 @@ function buildFormations(): Float32Array[] {
         else put(i, x * radius, y * radius, z * radius, 0, 0, 0, random() < 0.05 ? 0.7 : 0.14);
       }
     }, 16),
+    // Backpressure: a wide stream narrowing through a gate, and leaving it even.
+    formation((put, random) => {
+      for (let i = 0; i < COUNT; i++) {
+        const a = random() * Math.PI * 2;
+        const wide = Math.sqrt(random()) * 0.95;
+        const narrow = Math.sqrt(random()) * 0.15;
+        if (i % 2) put(i, -1.9, Math.sin(a) * wide, Math.cos(a) * wide, 1.9, (Math.sin(a) * narrow - Math.sin(a) * wide), (Math.cos(a) * narrow - Math.cos(a) * wide), 0.3 + random() * 0.3);
+        else put(i, 0, Math.sin(a) * narrow, Math.cos(a) * narrow, 1.9, 0, 0, 0.9);
+      }
+    }, 25),
     // WebFabric: strands passing over and under one another.
     formation((put, random) => {
       const strands = 15;
@@ -254,6 +309,35 @@ export function landingPoints(roads: readonly { x_m: number; y_m: number }[][], 
     data.set([(x / width) * 2 - 1, 1 - (y / height) * 2, 0.45 + random() * 0.55], i * 3);
   }
   return data;
+}
+
+/** A word in solid particles, deep enough to read as an object when the camera turns. */
+function wordFormation(word: string, seed: number): Float32Array | null {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  const font = `600 220px "Space Grotesk", system-ui, sans-serif`;
+  ctx.font = font;
+  const width = Math.ceil(ctx.measureText(word).width) + 20;
+  const height = 280;
+  canvas.width = width;
+  canvas.height = height;
+  ctx.font = font;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+  ctx.fillText(word, width / 2, height / 2);
+  const alpha = ctx.getImageData(0, 0, width, height).data;
+  const inside: number[] = [];
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (alpha[(y * width + x) * 4 + 3] > 120) inside.push(x, y);
+  if (!inside.length) return null;
+  const scale = Math.min(2.7 / width, 1.5 / height);
+  return formation((put, random) => {
+    for (let i = 0; i < COUNT; i++) {
+      const pick = Math.floor(random() * (inside.length / 2)) * 2;
+      const depth = (random() - 0.5) * 0.34;
+      put(i, (inside[pick] + random() - width / 2) * scale, (height / 2 - inside[pick + 1] - random()) * scale, depth, 0, 0, 0, depth > 0.12 ? 0.85 : 0.22);
+    }
+  }, seed);
 }
 
 const VERTEX = `#version 300 es
@@ -347,9 +431,11 @@ function rgb(value: string, fallback: [number, number, number]): [number, number
   return parts.length >= 3 && parts.every(Number.isFinite) ? [parts[0] / 255, parts[1] / 255, parts[2] / 255] : fallback;
 }
 
-export function BootScene({ playing, closing = false, landing, reduceMotion }: {
+export function BootScene({ playing, asleep = false, closing = false, landing, reduceMotion }: {
   /** The film runs; otherwise the network rests dimly behind whatever is on screen. */
   playing: boolean;
+  /** Nothing is drawn yet, because the title has the screen. */
+  asleep?: boolean;
   closing?: boolean;
   /** Where the map has drawn its roads, asked for once the surface starts to close. */
   landing?: () => Float32Array | null;
@@ -361,6 +447,8 @@ export function BootScene({ playing, closing = false, landing, reduceMotion }: {
   playingRef.current = playing;
   const closingRef = useRef(closing);
   closingRef.current = closing;
+  const asleepRef = useRef(asleep);
+  asleepRef.current = asleep;
   const landingRef = useRef(landing);
   landingRef.current = landing;
 
@@ -435,13 +523,23 @@ export function BootScene({ playing, closing = false, landing, reduceMotion }: {
       // The cloud stays what the film first gathers out of, and the wordmark takes its turn.
       scenes.push(buffer);
       wordmark = scenes.length - 1;
-      // Only a film that is playing, and has not moved on, opens on the wordmark.
-      if (reduceMotion || !playingRef.current || scene !== 0) return;
+      // A film already under way, and still on its opening, gathers into the wordmark now.
+      if (reduceMotion || !started || scene !== 0) return;
       to = wordmark;
       bind(from, to);
       blend = 0;
       velocity = 0;
     };
+    // The words wait for their typeface, and are swapped in without anyone seeing.
+    void document.fonts?.load(`600 220px "Space Grotesk"`).then(() => {
+      if (cancelled) return;
+      for (const [index, word] of [[2, "86,400"], [8, "150+"]] as const) {
+        const data = wordFormation(word, 30 + index);
+        if (!data) continue;
+        gl.bindBuffer(gl.ARRAY_BUFFER, scenes[index]);
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+      }
+    });
     image.src = `data:image/svg+xml,${encodeURIComponent(LOGO_SVG)}`;
 
     const size = () => {
@@ -468,6 +566,7 @@ export function BootScene({ playing, closing = false, landing, reduceMotion }: {
     themes.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-vision"] });
 
     let wordmark = -1;
+    let started = false;
     let landing = 0;
     let landingVelocity = 0;
     let landed = false; // Whether the particles have somewhere to land.
@@ -478,7 +577,7 @@ export function BootScene({ playing, closing = false, landing, reduceMotion }: {
     let held = 0;
     let time = 0;
     let frame = 0;
-    let dim = playingRef.current ? 1 : REST_DIM;
+    let dim = asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM;
     let strength = 1;
     let count = COUNT;
     let slow = 0;
@@ -510,6 +609,12 @@ export function BootScene({ playing, closing = false, landing, reduceMotion }: {
       blend = 0;
       velocity = 0;
       held = 0;
+      // Each scene has its own framing. The drift of the last one is folded into the
+      // camera, which then turns by the short way to where this one should be seen.
+      const turn = Math.PI * 2;
+      camera.yaw += camera.orbit;
+      camera.orbit = 0;
+      camera.yaw = CAMERAS[after].yaw + ((((camera.yaw - CAMERAS[after].yaw + Math.PI) % turn) + turn) % turn) - Math.PI;
       setChapter(after);
     };
     const tick = (now: number) => {
@@ -538,11 +643,22 @@ export function BootScene({ playing, closing = false, landing, reduceMotion }: {
       if (closingFor >= 0) closingFor += dt;
       if (landed) [landing, landingVelocity] = stepSpring(landing, landingVelocity, 1, LAND, dt);
       // Having landed, they give way to the map's own roads.
-      const dimTo = landed ? (closingFor > 0.85 ? 0 : 1) : closingRef.current ? 0 : playingRef.current ? 1 : REST_DIM;
-      dim += (dimTo - dim) * Math.min(1, dt * (landed ? 7 : 8));
+      const dimTo = landed ? (closingFor > 0.85 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM;
+      dim += (dimTo - dim) * Math.min(1, dt * (landed ? 7 : playingRef.current && !closingRef.current ? 2.4 : 8));
       if (playingRef.current) {
+        if (!started) {
+          // The film opens by gathering the cloud into the wordmark.
+          started = true;
+          held = 0;
+          if (wordmark >= 0) {
+            to = wordmark;
+            bind(from, to);
+            blend = 0;
+            velocity = 0;
+          }
+        }
         if (held > HOLD_S && !closingRef.current) next();
-      } else if (scene !== 1) {
+      } else if (!asleepRef.current && scene !== 1) {
         next(1);
       }
       paint();

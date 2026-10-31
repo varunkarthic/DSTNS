@@ -75,7 +75,7 @@ The map fills the window. Floating instrumentation sits over it:
   reduced motion, and Settings.
 - **Telemetry** (right): live measures and the Stack, News, Queue, Incidents
   and Notifications lists. It stops above the command rail and collapses to a
-  narrow strip. Below 1024 px only the strip is docked.
+  narrow strip.
 - **Lower HUD**: three zones above the rail. Notifications on the left, the
   Layers button and the road and place legends in the centre, coordinates and
   the scale bar on the right. The zones never overlap each other, the rail, the
@@ -620,14 +620,13 @@ language appear.
 ## Minimum screen size
 
 DSTNS is an operator interface for laptop and desktop displays. Below
-**1024 x 640** the interface is not squeezed: it is replaced by a notice in the
+**1280 x 640** the interface is not squeezed: it is replaced by a notice in the
 same design, saying so, reporting the current and required sizes, and leaving
 on its own as soon as the window is large enough. The simulation is unaffected.
 
 Those figures come from the laid-out interface rather than a round number. At
-1024 px the command rail still carries transport, the clock, all eight speeds,
-the seed, the re-roll, runtime status and Terminate on one row (it drops the
-seed's label and the word Terminate below 1180 px); at 640 px the map keeps
+1280 px the command rail carries transport, the clock, the day, all eight speeds,
+the labelled seed, the re-roll, runtime status and Terminate on one row; at 640 px the map keeps
 about 400 px between the header and the rail. The browser suite asserts both,
 along with the absence of any overlap at that size.
 

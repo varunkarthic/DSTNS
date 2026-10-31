@@ -4,6 +4,7 @@
 """Launcher operations, tested without any interface."""
 from __future__ import annotations
 
+import threading
 import json
 import os
 import re
@@ -403,6 +404,33 @@ class MapRecoveryTest(unittest.TestCase):
         self.assertIn("different seed", advice)
         self.assertNotIn("VPN", advice)
         self.assertIn("VPN", simulation.map_recovery(message="OSM download failed"))
+
+
+
+class ObserverFirstTest(unittest.TestCase):
+    def test_the_observer_opens_and_has_the_screen_before_a_world_is_requested(self):
+        from unittest import mock
+        from dstns_launcher.core import session as session_module
+        order = []
+        handle = mock.Mock(managed=True, port=1, url="http://x/", health={"lifecycle": "IDLE"}, process=None)
+        reporter = mock.Mock()
+        launcher = session_module.Session.__new__(session_module.Session)
+        launcher.paths = PATHS if "PATHS" in globals() else None
+        launcher.handle = None
+        launcher._lock = threading.Lock()
+        cancel = mock.Mock()
+        cancel.is_set.return_value = False
+        cancel.wait.side_effect = lambda seconds: order.append(("wait", seconds)) or False
+        with mock.patch.object(session_module.simulation, "prepare_request", return_value={"map": {"osm_file": "auto"}}), \
+                mock.patch.object(session_module.server, "start", return_value=handle), \
+                mock.patch.object(session_module.simulation, "open_in_browser", side_effect=lambda url: order.append("open")), \
+                mock.patch.object(session_module.simulation, "wait_for_observer", return_value=True), \
+                mock.patch.object(session_module.simulation, "start_run", side_effect=lambda *a, **k: order.append("start")), \
+                mock.patch.object(session_module.simulation, "check_cancelled", create=True), \
+                mock.patch.object(session_module.narration, "confirm"), \
+                mock.patch.object(session_module, "check_cancelled", create=True):
+            launcher._launch(mock.Mock(explicit=lambda: False), reporter, open_browser=True, cancel=cancel)
+        self.assertEqual(order, ["open", ("wait", session_module.OBSERVER_LEAD_S), "start"])
 
 
 if __name__ == "__main__":

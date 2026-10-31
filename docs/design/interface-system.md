@@ -140,6 +140,7 @@ One surface, `LoadingSurface` in `boot` mode, for every state before a map:
 
 | State | Shows |
 |---|---|
+| Opening | Nothing for two seconds, then a still title: the name, its designer and its licence. It then moves to the corner and the film begins |
 | Waiting | The film, and what to do. No progress, because nothing is loading |
 | Loading | The film, the current stage, and the five stages along the bottom. A segment fills only where a real total is known; otherwise it moves without claiming how far along it is |
 | Failed | What happened, that nothing was lost, and Reload. Clears by itself when the simulator answers |
@@ -165,6 +166,6 @@ do something. A few small bars still animate `width`.
 
 ## Intentional System Design
 
-`ISDHandler.tsx` explains what is on purpose but looks like a fault. A note states that it is intended, why, and
-what to do next, and appears once per page load, one at a time. To add a case, add an entry to `ISD_NOTES` and its
-condition where the handler is used. Real failures do not belong here: they go to the notification capsule.
+`ISDHandler.tsx` explains what is on purpose but looks like a fault. A notification in the tray states that it is
+intended, why, and what to do next. Do Not Disturb does not silence it, and it appears once per page load. To add a case,
+add it to `isdNote` and its condition where the hook is used. Real failures do not belong here: they are reported as errors.

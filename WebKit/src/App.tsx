@@ -12,7 +12,7 @@ import { Floating } from "./Popover";
 import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
-import { BootFailure, ShutdownSurface, Splash, splashStageFor } from "./Splash";
+import { BootFailure, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
 import { LANDING_MS, landingPoints } from "./BootScene";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
@@ -28,7 +28,7 @@ import {
 } from "./Dialogs";
 import type { CompletionSummary } from "./Dialogs";
 import { Tooltip } from "./Tooltip";
-import { ISDHandler } from "./ISDHandler";
+import { useISDNotifications } from "./ISDHandler";
 import type { ISDCondition } from "./ISDHandler";
 import { Tutorial } from "./Tutorial";
 import { useTutorial } from "./useTutorial";
@@ -310,9 +310,11 @@ export default function App() {
     },
     [narrow],
   );
+  // The tour waits for the start-up film to finish handing over.
+  const startupOnScreen = useRef(false);
   const tutorial = useTutorial({
     config: config.tutorial,
-    ready: configLoaded && valid && !!sim.topology && ["RUNNING", "PAUSED"].includes(lifecycle),
+    ready: configLoaded && valid && !!sim.topology && ["RUNNING", "PAUSED"].includes(lifecycle) && !startupOnScreen.current,
     runId,
     suspended: suspended || rateLocked,
     playbackRevision: status?.playback_revision,
@@ -321,7 +323,9 @@ export default function App() {
   });
 
   const fabricApps = useFabricApps();
+  const [reducedDetail, setReducedDetail] = useState(false);
   const appliedRate = clock?.tick_rate ?? 1;
+  const requestedRate = asb?.requested_tick_rate ?? appliedRate;
   // What looks like a fault but is not. The tour has the screen to itself.
   const intentional: ISDCondition[] = tutorial.active
     ? []
@@ -329,25 +333,28 @@ export default function App() {
         suspended && ("async" as const),
         asb?.state === "RESTRICTED" && ("restricted" as const),
         rateLocked && ("rate-locked" as const),
-        !rateLocked && !!asb && Math.abs(asb.requested_tick_rate - appliedRate) > 1e-6 && ("rate-governed" as const),
+        !rateLocked && !!asb && Math.abs(requestedRate - appliedRate) > 1e-6 && ("rate-governed" as const),
         motionLocked && !motionChoice && ("motion-locked" as const),
         lifecycle === "RUNNING" && appliedRate > 5 && ("large-steps" as const),
+        reducedDetail && ("reduced-detail" as const),
         fabricApps.some((app) => app.state === "suspended" && !app.user_suspended) && ("app-lapsed" as const),
       ].filter((condition): condition is Exclude<typeof condition, false> => !!condition);
 
-  // ASB's default state strips the presentation back to a minimum and soft
-  // restarts it, as a reload would, without reloading the page.
+  // ASB's default state strips the presentation back to a minimum and soft restarts
+  // it, as a reload would, without reloading the page. Roads and buildings stay: they
+  // are drawn once and cached, so they cost nothing per frame, and a map without them
+  // looks as if it has failed. What goes is what is redrawn all the time.
   const softReset = useCallback(() => {
-    setLayers({
-      ...BUILT_IN.layers,
-      roads: false,
+    setLayers((current) => ({
+      ...current,
+      roads: true,
+      buildings: true,
       traffic: false,
       vehicles: false,
-      buildings: false,
       labels: false,
       place_names: false,
       weather: false,
-    });
+    }));
     setLayersOpen(false);
     setSettingsOpen(false);
     setDialog(null);
@@ -359,13 +366,16 @@ export default function App() {
     if (resetToken !== seenReset.current) {
       seenReset.current = resetToken;
       if (!beforeAsbLayers.current) beforeAsbLayers.current = layers;
+      setReducedDetail(true);
       softReset();
     }
-    if (asb?.state === "NORMAL" && asb.synced && !asb.rate_capped && beforeAsbLayers.current) {
+    // A speed still being capped is not a reason to keep detail off once it is back in sync.
+    if (asb?.state === "NORMAL" && asb.synced && beforeAsbLayers.current) {
       setLayers(beforeAsbLayers.current);
       beforeAsbLayers.current = null;
+      setReducedDetail(false);
     }
-  }, [resetToken, softReset, asb?.state, asb?.synced, asb?.rate_capped, layers]);
+  }, [resetToken, softReset, asb?.state, asb?.synced, layers]);
 
   // ---- Telemetry recording ------------------------------------------------
   useEffect(() => {
@@ -489,7 +499,10 @@ export default function App() {
   // ---- Notifications ------------------------------------------------------
   const [dismissedFocus, setDismissedFocus] = useState<Set<string>>(new Set());
   useEffect(() => setDismissedFocus(new Set()), [runId]);
-  const notifications = useMemo(() => [...buildNotifications(sim.toasts, sim.topology), ...fabricNotes.notes], [sim.toasts, sim.topology, fabricNotes.notes]);
+  const isdNotes = useISDNotifications(intentional, { requested: requestedRate, applied: appliedRate }, virtual);
+  // Once the day has ended nothing more is happening in it, so its events stop too.
+  const dayOver = lifecycle === "COMPLETED";
+  const notifications = useMemo(() => [...isdNotes, ...(dayOver ? [] : buildNotifications(sim.toasts, sim.topology)), ...fabricNotes.notes], [isdNotes, dayOver, sim.toasts, sim.topology, fabricNotes.notes]);
   const policy = useMemo(
     () => ({
       enabled: config.notifications.enabled,
@@ -508,13 +521,13 @@ export default function App() {
     let list: UiNotification[] = orderForDisplay(visible, activeKey);
     // The event auto-focus is showing always has a notification, even if the
     // news that announced it has expired or was muted.
-    if (autoFocus && active && sim.snapshot && !dismissedFocus.has(active.key) && !list.some((n) => focusMatches(n.focusKey, activeKey)))
+    if (!dayOver && autoFocus && active && sim.snapshot && !dismissedFocus.has(active.key) && !list.some((n) => focusMatches(n.focusKey, activeKey)))
       list = [focusNotification(active, sim.snapshot.data, sim.topology, virtual), ...list];
     onScreen.current = new Set(list.map((n) => n.id));
     return { shown: list };
     // Rebuilt when inputs change; the virtual clock alone does not warrant it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notifications, policy, autoFocus, activeKey, active?.key, sim.snapshot, sim.topology, dismissedFocus]);
+  }, [notifications, policy, autoFocus, activeKey, active?.key, sim.snapshot, sim.topology, dismissedFocus, dayOver]);
   // ---- Notification history ------------------------------------------------
   // Every notification-worthy event is kept, whether or not it was shown.
   const historyStore = useRef(new NotificationHistory());
@@ -867,11 +880,19 @@ export default function App() {
   const systemError = sim.error || (sim.stale ? "Simulation data is stale. Reconnecting." : "") || actionError;
   const asbInfo = describeAsb(asb);
   const splashStage = splashStageFor(mapStatus as never, lifecycle, sim.stage, !!sim.topology, !!sim.status);
-  const showSplash = !splashDismissed && !!splashStage && !sim.error && !world.active;
+  // The opening plays once, for a page opened ahead of its world. Reloading a run goes straight in.
+  const firstLifecycle = useRef<string | null>(null);
+  if (firstLifecycle.current === null && sim.status) firstLifecycle.current = lifecycle;
+  const opening = firstLifecycle.current === null ? null : ["IDLE", "PREPARING", "BOOTING"].includes(firstLifecycle.current);
+  const bootPhase = useBootPhase(opening === null ? null : !opening);
+  const paced = usePacedStages(splashStage, bootPhase, opening !== false && !reduceMotion);
+  const shownStage = paced.stage;
+  const showSplash = !splashDismissed && (!!shownStage || paced.holding) && !sim.error && !world.active;
   // The start-up screen dissolves over the rendered map rather than vanishing.
-  const lastSplash = useRef(splashStage);
-  if (splashStage) lastSplash.current = splashStage;
+  const lastSplash = useRef(shownStage);
+  if (shownStage) lastSplash.current = shownStage;
   const splash = usePresence(showSplash, reduceMotion ? MOTION_MS.boot : LANDING_MS);
+  startupOnScreen.current = splash.mounted;
   const landOnRoads = useCallback(() => {
     const view = mapView.current;
     const box = document.querySelector(".static-map")?.getBoundingClientRect();
@@ -1174,7 +1195,7 @@ export default function App() {
           </div>
 
           {splash.mounted && lastSplash.current && (
-            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} onDismiss={() => setSplashDismissed(true)} />
+            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} onDismiss={() => setSplashDismissed(true)} />
           )}
           {failure.mounted && <BootFailure message={lastFailure.current} reachable={!!sim.status} closing={failure.closing} reduceMotion={reduceMotion} />}
           {shutDown && <ShutdownSurface reduceMotion={reduceMotion} />}
@@ -1265,7 +1286,6 @@ export default function App() {
             />
           )}
 
-          <ISDHandler active={intentional} />
           <FabricDialog blocked={!interactive || !!dialog || tutorial.active || settingsOpen} />
 
           {world.active && (

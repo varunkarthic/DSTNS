@@ -1199,9 +1199,6 @@ function NetworkMap({
           }
         }}
       />
-      <div className="map-attribution">
-        © OpenStreetMap contributors · {topology?.source || "Awaiting network"}
-      </div>
       {hover && <InfoCard {...hover} info={advanced ? hoverInfo ?? hover.info : { ...(hoverInfo ?? hover.info), metrics: undefined, technical: undefined }} />}
       <div className="map-vignette" aria-hidden="true" />
     </div>

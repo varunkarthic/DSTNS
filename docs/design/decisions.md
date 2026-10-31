@@ -354,9 +354,9 @@ coordinates, which are still those the seed selected.
 **Problem.** The interface suspending itself, a speed that will not change, or a window that refuses to draw
 all look like faults, though each one is protecting the run.
 
-**Decision.** `ISDHandler`, the Intentional System Design Handler, shows a small note when one of these
-begins: that it is intended, why, and what to do next. Each appears once per page load, one at a time. Real
-failures stay with the notification capsule.
+**Decision.** `ISDHandler`, the Intentional System Design Handler, puts a notification in the tray when one of
+these begins: that it is intended, why, and what to do next. Do Not Disturb does not silence it, because it answers "is
+something wrong?". Each appears once per page load and stays in the history. Real failures remain errors.
 
 **Consequences.** Adding a case means adding one entry and one condition. Saying "intentional" about a
 real fault would cost trust, so only states the system chooses qualify.
@@ -387,3 +387,24 @@ of fading away from it.
 
 **Consequences.** It costs one draw call, and draws fewer particles on a machine that cannot keep up. Without WebGL2 the
 captions still play over the plain background. With reduced motion it is one still picture.
+
+## 28. Backpressure takes away what is redrawn, not the map
+
+**Problem.** ASB's reset turned off every layer but signals. The result looked like a map failing to load, with no
+explanation, and stayed that way for as long as the speed was capped.
+
+**Decision.** Roads and buildings stay, because they are drawn once and cached. Traffic colours, flow markers, names and
+weather go, a notification says so, and they return as soon as the interface is back in sync, capped or not.
+
+**Consequences.** Slightly less is saved than before, since the static layers still have to be composited.
+
+## 29. The opening is paced, and only ever behind the truth
+
+**Problem.** A cached world is ready in a second, so the first stages were already complete when the screen appeared, and
+the film had no beginning.
+
+**Decision.** The launcher waits 4.5 seconds after the observer reports loaded before asking for a world. The page shows
+nothing for two seconds, then a still title, then the film. Stages are shown one at a time, at least 1.1 seconds each.
+
+**Consequences.** Start-up takes about ten seconds even at its fastest. Stages can lag what the core has done, but never
+lead it. A page opened on a running world, or with reduced motion, skips the pacing.
