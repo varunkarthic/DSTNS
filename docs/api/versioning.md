@@ -2,9 +2,9 @@
 
 | What | Version | Where reported |
 |---|---|---|
-| The API contract | `1.0`, under the `/api/v1` prefix | `api_version` in responses |
+| The API contract | `1.1`, under the `/api/v1` prefix | `api_version` in responses |
 | The engine | `2.1.0` | `version` in `/health` and `/system/info` |
-| The observer | `2.3.0` | About |
+| The observer | `3.0.0` | About |
 | Map selection | `urban-crfg-v3` | `map_selection_version` |
 | Algorithms | `DSTNS/1` | `/view/manifest` |
 
@@ -20,6 +20,9 @@ Within `/api/v1`:
   `POST /control/transit/route` does with `TRANSIT_API_RETIRED`.
 
 A breaking change would introduce `/api/v2` alongside `/api/v1`.
+
+Additions raise the minor version of the contract. `1.1` added the
+[Fabric API](fabric-api.md); nothing that existed in `1.0` changed.
 
 ## Security exceptions
 

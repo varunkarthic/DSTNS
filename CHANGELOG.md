@@ -12,6 +12,10 @@ only within one version.
 
 ## [Unreleased]
 
+**Observer 3.0.0, API contract 1.1.** Fabric and WebFabric leave the engine at 2.1.0, and
+every existing endpoint behaves as before: 155 recorded calls are replayed against the
+server to prove it. `api_version` in responses now reads `1.1`.
+
 **Results change for some seeds.** A signal whose compiled offset rounded up to a
 whole cycle made the engine read past the end of that signal's phase table (found
 with AddressSanitizer). The offset now wraps to the start of the cycle. Seeds
@@ -21,6 +25,24 @@ behaved according to whatever memory followed the table, so its results were
 undefined before and differ now.
 
 ### Added
+
+- **Fabric**: the HTTP API as its own library in `Fabric/`, one module per API group,
+  with a recorded contract test. See [Fabric](https://dstns.readthedocs.io/components/fabric/).
+- **WebFabric**: independent applications in the observer. An application registers
+  itself through `/api/v1/fabric/apps`, and declares status lines, header items, dock
+  controls, edge indicators, map overlays, panels, dialogs and settings as data.
+  Identity, grants and settings persist; a page of its own runs in a sandboxed frame;
+  control of the simulation needs a capability a person grants, and is recorded. See
+  [WebFabric](https://dstns.readthedocs.io/components/webfabric/) and
+  [Building applications](https://dstns.readthedocs.io/development/webfabric-apps/).
+- **Settings → Applications → WebFabric**: search, per-application settings drawn from a
+  schema, permissions, suspend, resume and forget.
+- A Fabric and a WebFabric logo in About, and a black and white favicon set in
+  `docs/assets/brand/favicons/`.
+- Failure and shutdown screens. Nothing loading, or a terminated server, now says so in
+  full rather than as a small error or a connection that never returns.
+- The map coasts when thrown, zooms smoothly about the pointer, and its camera redirects
+  in flight. The settings drawer can be dragged shut.
 
 - Natural-language narration of news. Incidents, storms, floods and surges are
   worded in plain language by Apple's on-device Foundation Model through `fm
@@ -64,6 +86,17 @@ undefined before and differ now.
   **Disabled**, in start-up messages and as an environment check.
 
 ### Changed
+
+- The engine and core features moved to `Core/`, and the server entry point to
+  `Core/server/`. Build targets and flags are unchanged.
+- All motion is one spring model. Dialogs and popovers enter through interruptible
+  transitions, so they reverse from wherever they have got to.
+- Start-up is one surface naming the real stage. The Welcome hold and staged delays are
+  gone, and the interface polls faster until a map exists: 3.3 s to 1.55 s from starting
+  a run to interactive, in Chrome on the bundled map. Idle no longer shows a spinner.
+- Text in Settings no longer competes with the map behind it. Switches, segmented
+  controls and text buttons meet the 24 px target minimum.
+- The observer's page is served with a Content Security Policy.
 
 - The topology response is built once per world and served from a cache: about
   0.1 ms instead of 87 ms for a 2,500-junction grid, without rebuilding it under

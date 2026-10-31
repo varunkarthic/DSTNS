@@ -9,6 +9,12 @@
  * mid-entrance turns it round instead of jumping to the start of its exit.
  */
 
+/* A scrolling region a keyboard can enter shows it, inside its own edge. */
+.stream:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 /* A press compresses and a release springs back, on every control of its kind. */
 :where(.btn, .map-dock button, .hud-button, .icon-btn, .rate-option, .capsule-action, .fabric-action) {
   transition:

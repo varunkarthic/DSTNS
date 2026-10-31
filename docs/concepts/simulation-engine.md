@@ -340,7 +340,7 @@ inside the standard envelope:
 
 ```json
 {
-  "ok": true, "api_version": "1.0", "run_id": "run_3fa2…", "seed": "382923",
+  "ok": true, "api_version": "1.1", "run_id": "run_3fa2…", "seed": "382923",
   "global_seed": "0x…", "state_revision": 1834, "config_revision": 3,
   "clock": { "playback_state": "RUNNING", "virtual_day_seconds": 29120,
              "simulated_current_time": "08:05:20", "simulation_percentage": 0.337,

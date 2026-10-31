@@ -208,7 +208,7 @@ docker compose logs -f               # follow the log
 `stable` and `latest` follow builds that pass CI and native container checks on both
 architectures. Version releases also publish `2.1.0`, `v2.1.0`, `2.1` and `2`;
 every build has short and full `sha-…` tags. Pin a digest for reproducible runs.
-The engine is **2.1.0**, the observer is **2.3.0**, and the developer is
+The engine is **2.1.0**, the observer is **3.0.0**, and the developer is
 **[Varun Karthic](https://github.com/varunkarthic)**. Image labels,
 `/app/build-info.json`, `dstns_server --version` and `/api/v1/system/info` record
 build provenance. See the [image tag policy](docs/deployment/docker.md#tags-and-build-identity).
@@ -486,6 +486,16 @@ the output from the current checkout is authoritative.
 
 CI runs the native, HTTP, observer, documentation and Docker builds on every
 push. Details: [Testing](https://dstns.readthedocs.io/development/testing/).
+
+## Fabric and WebFabric
+
+Other programs can build on DSTNS. **Fabric** is the layer through which everything
+reaches the core, and **WebFabric** lets independent applications appear in the
+observer. There is nothing to install: an application calls the API, registers itself,
+and declares its status lines, panels, map overlays and settings as data. Applications
+run side by side, ask for what they need, and act on the simulation only with
+permission. See [WebFabric](docs/components/webfabric.md) and
+[Building applications](docs/development/webfabric-apps.md).
 
 ## Project layout
 

@@ -30,7 +30,7 @@ needed on Apple silicon.
 
 Tags can move on a rebuild. For an exact experiment, record and use
 `ghcr.io/varunkarthic/dstns@sha256:<index-digest>`. The engine version remains
-**2.1.0**, the observer package is **2.3.0**, and the API contract is **1.0**.
+**2.1.0**, the observer package is **3.0.0**, and the API contract is **1.1**.
 The developer and image vendor are **Varun Karthic**
 ([varunkarthic](https://github.com/varunkarthic)).
 

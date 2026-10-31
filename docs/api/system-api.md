@@ -50,7 +50,7 @@ picked up without a restart.
 ## GET /map-status
 
 ```json
-{ "api_version": "1.0", "data": {
+{ "api_version": "1.1", "data": {
     "active": true, "preparation": "acquiring",
     "city": "Dar es Salaam", "country": "Tanzania",
     "phase": "download", "bytes": 23592960, "total": 0, "elapsed_s": 14.2 } }

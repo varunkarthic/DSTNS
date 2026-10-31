@@ -374,3 +374,29 @@ Do not open a public issue. Follow the
 [security policy](https://github.com/varunkarthic/DSTNS/blob/main/SECURITY.md):
 report privately through the repository's **Security** tab. The policy states
 the supported versions, what to include, response targets, scope and safe harbor.
+
+## Applications
+
+[WebFabric applications](../components/webfabric.md) register themselves through the
+[Fabric API](../api/fabric-api.md). What protects what:
+
+| Threat | Protection |
+|---|---|
+| An application's content running as code in the page | Declared UI is rendered as text from known fields, and the page has a Content Security Policy |
+| An application's own page reaching the observer, its storage, or the API | A sandboxed frame with an opaque origin; the browser enforces it, and Fabric refuses `Origin: null` |
+| One application reading or changing another's settings | Each needs that application's token; verified in `fabric_apps_smoke` |
+| An application granting itself capabilities | Grants need the operator credential or the observer's own origin |
+| Taking over a known application's identity | A live ID, or one holding grants, needs its token |
+| An application posing as DSTNS | Reserved names; notifications and dialogs are attributed; no declaration reaches branding or legal text |
+| Exhausting the server or the page | Bounds on applications, elements, sizes and rates, refused with a code |
+
+**What this does not protect against.** The API has always trusted whoever can reach it,
+and that has not changed. The `/control` and `/playback` routes take no credential, so a
+process on the machine, or anyone able to reach a server deliberately exposed with
+`--host`, can act on the simulation directly without any capability, and can send the
+`X-DSTNS-Host` header too. Capabilities are a boundary for frames and browsers, and
+consent and a record for well-behaved applications; they are not a defence against
+hostile local code. Keep the server on loopback, or behind the authenticating gateway.
+
+Registered tokens are stored in `fabric-apps.json` in the logs directory, readable only
+by its owner, as `operator.token` is.

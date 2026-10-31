@@ -201,6 +201,7 @@ nav:
           - View: api/view-api.md
           - News: api/news-api.md
           - System: api/system-api.md
+          - Fabric: api/fabric-api.md
           - Streaming: api/streaming.md
       - Contract:
           - Lifecycle: api/lifecycle.md
@@ -254,9 +255,12 @@ nav:
           - Logging system: components/logging-system.md
           - SUMO adapter: components/sumo-adapter.md
           - Observer (UI engine): components/ui-engine.md
+          - Fabric: components/fabric.md
+          - WebFabric: components/webfabric.md
       - Design:
           - design/index.md
           - Design decisions: design/decisions.md
+          - Interface system: design/interface-system.md
           - Mathematical foundation: design/mathematical-foundation.md
           - System architecture: design/system-architecture-spec.md
           - API, runtime and events: design/api-runtime-event-spec.md
@@ -264,6 +268,7 @@ nav:
           - development/index.md
           - Building from source: development/building.md
           - Testing: development/testing.md
+          - Building applications: development/webfabric-apps.md
           - Quality assurance: development/quality-assurance.md
           - Building the documentation: development/documentation.md
       - Release notes: changelog.md

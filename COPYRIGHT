@@ -24,6 +24,12 @@ Because DSTNS is normally operated over a network, section 13 of the
 AGPL applies: anyone interacting with a modified version of this program
 remotely must be offered the corresponding source of that version.
 
+Fabric and WebFabric are subsystems of DSTNS, and are covered by the copyright and
+licence above. Applications that only communicate with DSTNS through the Fabric API are
+independent programs: their authors choose their licences and are responsible for them,
+and this project imposes no terms on them through WebFabric. Fabric and WebFabric
+themselves, and any copy or modification of them, remain under the AGPL.
+
 ---
 
 Third-party data and components

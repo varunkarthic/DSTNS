@@ -42,7 +42,7 @@ Every field is optional; see [Configuration](../guide/configuration.md#start-req
 for each field's range.
 
 ```json
-{ "ok": true, "api_version": "1.0", "run_id": "",
+{ "ok": true, "api_version": "1.1", "run_id": "",
   "data": { "accepted": true, "lifecycle": "PREPARING", "seed": "382923", "seed_hex": "0x…" } }
 ```
 

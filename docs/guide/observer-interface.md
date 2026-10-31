@@ -59,10 +59,12 @@ preparation. A percentage is shown only for a download whose total size the
 core knows. Nothing is invented: when no run has been started the screen says
 so and shows no progress at all.
 
-The mark draws itself, the stages settle in beneath it, and once the first
-network arrives the screen dissolves while the map renders behind it, with the
-instrumentation fading up in place. The same surface, in an overlay form, is
-used for world generation and for failures.
+The heading names the current stage, and nothing is held for effect: once the
+first network arrives the screen dissolves while the map renders behind it, with
+the instrumentation fading up in place. While nothing has been asked for, nothing
+moves. If nothing can load, the same surface says what happened and clears by itself
+when the simulator answers, and after **Terminate** it says the server has shut down.
+In an overlay form, it is also used for world generation.
 
 ## Layout
 
@@ -368,9 +370,9 @@ Do Not Disturb, reduced motion and Settings. Icons are 18 px (Settings 20 px).
 Search opens a field beside the sidebar; results centre the map on the place
 and open its inspection card.
 
-**Settings** slides in from the left (320 ms) over the map, stopping above the
-command rail. It closes with Escape, the close button, or a click outside.
-Sections:
+**Settings** slides in from the left on a spring, over the map, stopping above the
+command rail. It closes with Escape, the close button, a click outside, or by dragging
+its header away. Sections:
 
 | Section | Settings |
 |---|---|
@@ -378,6 +380,7 @@ Sections:
 | Do Not Disturb | Switch; muted categories with descriptions; muted severities; a note on the Auto Focus override |
 | Display | 12 or 24 hour time; reduced motion |
 | Playback | Back and Forward interval; Step interval |
+| Applications | [WebFabric](../components/webfabric.md): registered applications, their settings and permissions |
 
 Each section is a self-contained block in `src/SettingsDrawer.tsx`, so new
 settings are added without reorganising the drawer.
@@ -638,7 +641,8 @@ confirmations (Terminate) use red; others use cyan.
 |---|---|
 | Core unreachable | Error banner; runtime status Offline; controls disabled |
 | Stale data | "Simulation data is stale. Reconnecting."; Degraded |
-| Map download failed at startup | Error banner with city, coordinates and cause |
+| Map download failed at startup | Failure screen with city, coordinates and cause, and Reload |
+| Server terminated | Shutdown screen saying how to start again |
 | World generation failed | Overlay with reason, Retry and Return |
 | Report failed | Error banner, and inside the completion dialog |
 | Clipboard refused | "Copy failed" in place |

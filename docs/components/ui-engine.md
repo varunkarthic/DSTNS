@@ -44,7 +44,9 @@ flowchart LR
 | `Tutorial.tsx`, `tutorialSteps.ts`, `useTutorial.ts` | The guided tour |
 | `report.ts`, `reportModel.ts`, `pdfLayout.ts` | The PDF report, built in the browser |
 | `uiConfig.ts`, `preferences.tsx` | Operator defaults merged with this browser's preferences |
-| `theme.css`, `system.css`, `hud.css`, `style.css` | Design tokens and layout |
+| `motion.ts`, `motion.css` | The spring model and shared interaction physics; see the [interface system](../design/interface-system.md) |
+| `webfabric/` | Registered applications: state, slots, sandboxed frames, overlays and settings; see [WebFabric](webfabric.md) |
+| `theme.css`, `system.css`, `hud.css`, `style.css`, `webfabric.css` | Design tokens and layout |
 
 ## Principles
 
@@ -56,6 +58,8 @@ flowchart LR
   the server serves the bundle. Writes from other origins are refused by the
   server.
 - **Minimum size** 1024 × 640; below it the interface says so.
+- **Applications are data.** What applications declare is drawn by the observer in
+  slots it controls, and arrives through one poll of its own.
 
 ## Working on it
 

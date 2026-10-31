@@ -111,6 +111,7 @@ isolation. The protections it provides are:
 | Quoted shell arguments, close-on-exec pipes | Command injection through paths | `Core/src/sumo_bridge.cpp`, `Core/src/osm_fetch.cpp` |
 | UTF-8 repair and JSON serialisation guard | Hostile or corrupt map text reaching responses and logs | `Core/src/utf8.cpp`, `Core/src/osm.cpp` |
 | Single-line log messages | Log forging | `Core/src/logging.cpp` |
+| Sandboxed frames, declarative UI, capability grants | An application reaching the observer or another application | `Fabric/src/`, `ui-engine/src/webfabric/`; see the [security guide](docs/deployment/security.md#applications) |
 | Non-root container user, no Docker socket | Escalation from a compromised process | `Dockerfile` |
 
 ## Running DSTNS safely

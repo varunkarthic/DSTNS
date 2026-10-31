@@ -31,6 +31,7 @@ never be committed.
 | `launcher.log` | rotating text | Launcher diagnostics, command failures and interface fallback details |
 | `launcher.json` | JSON | The port and process the CLI last used, so it can reattach |
 | `operator.token` | text, mode `0600` | The operator credential |
+| `fabric-apps.json` | JSON, mode `0600` | Registered applications: their tokens, grants and settings |
 
 Details and queries are in [Logging and diagnostics](../deployment/logging.md).
 

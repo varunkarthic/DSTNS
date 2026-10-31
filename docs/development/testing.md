@@ -200,3 +200,16 @@ every test.
 | `observer` | `npm ci`, type check, Vitest, production build |
 | `docs` | `mkdocs build --strict` and OpenAPI validation |
 | `docker` | Build the image and start it with the bundled map, waiting for a running simulation |
+
+## Fabric and WebFabric
+
+| Suite | Checks | Runs |
+|---|---|---|
+| `tests/api/fabric_contract_smoke.py` | The recorded HTTP contract: 155 calls, including refusals | `ctest` |
+| `tests/api/fabric_apps_smoke.py` | Registration, conflicts, capabilities, settings isolation and migration, persistence, leases, lossless delivery | `ctest` |
+| `ui-engine/tests/webfabric.test.tsx` | State merging, slots, rendering as text, settings forms, the frame bridge | `npm test` |
+| `ui-engine/tests/motion.test.ts`, `startup.test.tsx` | Spring behaviour; each start-up state | `npm test` |
+| `ui-engine/tests/browser-webfabric.mjs` | In Chrome, with mock applications: every slot, a hostile frame, control and audit, settings, failure isolation, and rendering under load | By hand, after `npm run build` |
+
+`fabric_contract_smoke.py --record` rewrites the baseline. Use it only for a deliberate,
+documented change to the contract.

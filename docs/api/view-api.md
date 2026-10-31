@@ -4,7 +4,7 @@ Reading the world and its state. Every route returns the standard envelope:
 
 ```json
 {
-  "ok": true, "api_version": "1.0",
+  "ok": true, "api_version": "1.1",
   "run_id": "run_4f1fccc516c6", "seed": "382923", "global_seed": "0x…05d7cb",
   "state_revision": 29162, "config_revision": 3,
   "clock": { "playback_state": "RUNNING", "virtual_day_seconds": 29160,

@@ -83,3 +83,12 @@ OpenStreetMap data, including the district bundled at
 [Open Database Licence 1.0](https://opendatacommons.org/licenses/odbl/1-0/). It is data,
 not part of the program, and the AGPL does not apply to it. Maps downloaded at run time
 carry a manifest recording their source, licence, query and checksum.
+
+## Applications and the licence
+
+Fabric and WebFabric are subsystems of DSTNS, © 2026 Varun Karthic, and are licensed as
+the rest of it is. Copying, modifying or redistributing them is subject to the AGPL.
+
+[Applications](components/webfabric.md) that only communicate with DSTNS through the
+Fabric API are independent programs. Their authors choose their licences and are
+responsible for them, and this project imposes no terms on them through WebFabric.

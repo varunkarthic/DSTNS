@@ -27,7 +27,7 @@ The types that recur across the API. Full machine-readable schemas are in the
 | Field | Type | Meaning |
 |---|---|---|
 | `ok` | boolean | `true` for success |
-| `api_version` | string | `"1.0"` |
+| `api_version` | string | `"1.1"` |
 | `run_id` | string | Empty without a world |
 | `seed`, `global_seed` | string | Decimal and hexadecimal forms |
 | `state_revision`, `config_revision` | integer | See [Lifecycle: revisions](lifecycle.md#revisions) |
@@ -37,7 +37,7 @@ The types that recur across the API. Full machine-readable schemas are in the
 ## Errors
 
 ```json
-{ "ok": false, "api_version": "1.0", "error": { "code": "INVALID_REQUEST", "message": "…" } }
+{ "ok": false, "api_version": "1.1", "error": { "code": "INVALID_REQUEST", "message": "…" } }
 ```
 
 See [Errors](errors.md).

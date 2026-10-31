@@ -24,6 +24,10 @@ intent; this page records the decisions as implemented.
 | [15](#15-only-the-operator-starts-runs) | Only the operator starts runs | Security |
 | [16](#16-local-by-default) | Local by default | Security |
 | [17](#17-verify-the-machine-before-starting) | Verify the machine before starting | Operations |
+| [18](#18-fabric-and-a-separate-core) | Fabric, and a separate core | Architecture |
+| [19](#19-applications-are-api-clients-that-declare-their-ui) | Applications are API clients that declare their UI | WebFabric |
+| [20](#20-capabilities-govern-fabrics-routes-not-the-machine) | Capabilities govern Fabric's routes, not the machine | Security |
+| [21](#21-motion-is-a-spring) | Motion is a spring | Observer |
 
 ## 1. The core is the single authority
 
@@ -256,3 +260,54 @@ continues and says what is reduced.
 **Consequences.** "Ready" is a statement about this machine. The check costs seconds
 and catches broken toolchains before a run does. See
 [Installation: start-up checks](../getting-started/installation.md#start-up-checks).
+
+## 18. Fabric, and a separate core
+
+**Problem.** One 660-line function held every route, and the engine and API shared a
+directory and a library.
+
+**Decision.** The engine and core features live in `Core/`. The API lives in `Fabric/`
+as its own library, one module per group, depending on the core and never the reverse.
+The code moved verbatim and no endpoint changed.
+
+**Consequences.** A recorded contract, replayed by `fabric_contract_smoke`, proves
+compatibility rather than asserting it.
+
+## 19. Applications are API clients that declare their UI
+
+**Problem.** DSTNS is a sandbox engine others build on, so many independent programs
+need to appear in one interface without being able to break it or each other.
+
+**Decision.** There is nothing to install. An application calls the API, registers
+itself, and declares what it wants on screen as data, which the observer renders in
+slots it controls. A page of its own runs in a sandboxed frame with an opaque origin.
+
+**Consequences.** An application cannot draw arbitrary things over the map, which is
+the point: its data never becomes code in the page, and limits, placement and palette
+stay with DSTNS. Unlike decision 14, application settings live on the server, because
+the application must read them.
+
+## 20. Capabilities govern Fabric's routes, not the machine
+
+**Problem.** Applications may control the simulation, but the existing `/control` and
+`/playback` routes take no credential, and they must not change.
+
+**Decision.** Control through Fabric needs a capability a person granted, is validated
+identically to the public route, and is recorded. Applications are never offered
+starting runs or terminating the server.
+
+**Consequences.** A sandboxed frame or another site really is stopped, by the browser.
+A local process is not, because it can call the unauthenticated routes as it always
+could. That is stated in the [security model](../deployment/security.md#applications)
+rather than implied away.
+
+## 21. Motion is a spring
+
+**Problem.** The interface had 115 transition declarations with assorted durations and
+curves, and timers in JavaScript that had to match them. Interrupted motion jumped.
+
+**Decision.** One model, stiffness and damping, generating CSS tokens and driving
+anything that must keep its velocity. See the [interface system](interface-system.md).
+
+**Consequences.** Motion is consistent and interruptible. Start-up holds nothing for
+effect, so it finishes when the work does.

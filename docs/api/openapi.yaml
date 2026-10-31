@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: DSTNS API
-  version: 1.0.0
+  version: 1.1.0
   description: 'Deterministic Spatiotemporal Transport Network Simulator runtime API.
 
 
@@ -18,6 +18,8 @@ tags:
 - name: Control
 - name: News
 - name: System
+- name: Fabric
+  description: Applications that register themselves with this server.
 paths:
   /health:
     get:
@@ -1098,6 +1100,481 @@ paths:
           minimum: 0
           maximum: 1000
           default: 100
+  /api/v1/fabric/apps:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricApps
+      summary: Registered applications
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      tags:
+      - Fabric
+      operationId: fabricRegister
+      summary: Register an application from its manifest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricApp
+      summary: One application
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    delete:
+      tags:
+      - Fabric
+      operationId: fabricRemove
+      summary: Unregister, or forget from the observer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/heartbeat:
+    post:
+      tags:
+      - Fabric
+      operationId: fabricHeartbeat
+      summary: Renew the application's lease
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/state:
+    put:
+      tags:
+      - Fabric
+      operationId: fabricState
+      summary: Report initialized, active or failed
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/ui:
+    put:
+      tags:
+      - Fabric
+      operationId: fabricUi
+      summary: Replace every declared element
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/ui/{element}:
+    put:
+      tags:
+      - Fabric
+      operationId: fabricElement
+      summary: Add or update one element
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: element
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    delete:
+      tags:
+      - Fabric
+      operationId: fabricElementRemove
+      summary: Remove one element
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: element
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/notifications:
+    post:
+      tags:
+      - Fabric
+      operationId: fabricNotify
+      summary: Send a notification
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '202':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/events:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricEvents
+      summary: Interactions, settings changes and lifecycle events
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: since
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/actions:
+    post:
+      tags:
+      - Fabric
+      operationId: fabricAction
+      summary: Record what a person did
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '202':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/settings:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricSettings
+      summary: The application's settings
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    put:
+      tags:
+      - Fabric
+      operationId: fabricSettingsUpdate
+      summary: Change settings
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    delete:
+      tags:
+      - Fabric
+      operationId: fabricSettingsReset
+      summary: Reset settings to defaults
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/grants:
+    put:
+      tags:
+      - Fabric
+      operationId: fabricGrants
+      summary: Set the granted capabilities
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/suspend:
+    post:
+      tags:
+      - Fabric
+      operationId: fabricSuspend
+      summary: Suspend the application
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/resume:
+    post:
+      tags:
+      - Fabric
+      operationId: fabricResume
+      summary: Resume the application
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/failure:
+    post:
+      tags:
+      - Fabric
+      operationId: fabricFailure
+      summary: Report that the application's interface failed
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/control:
+    post:
+      tags:
+      - Fabric
+      operationId: fabricControl
+      summary: Act on the simulation, by capability
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/audit:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricAudit
+      summary: Control actions taken by applications
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/state:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricObserverState
+      summary: Everything applications declare, for the observer
+      parameters:
+      - name: since
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: notifications_since
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
 components:
   securitySchemes:
     OperatorKey:
