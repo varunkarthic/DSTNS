@@ -1,6 +1,6 @@
 # Simulation engine
 
-`SimulationEngine` (`include/dstns/engine.hpp`, `src/engine.cpp`) owns a run:
+`SimulationEngine` (`Core/include/dstns/engine.hpp`, `Core/src/engine.cpp`) owns a run:
 its lifecycle, its virtual clock, the per-second physics, checkpoints and
 seeking, operator controls with undo and redo, world regeneration, and every
 read view the API serves. This page documents each of those in the order a

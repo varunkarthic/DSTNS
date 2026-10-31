@@ -64,7 +64,7 @@ Vulnerabilities in the code and configuration in this repository, including:
 
 | Area | Examples |
 |---|---|
-| HTTP API (`src/api.cpp`) | Authentication bypass on `playback/start` or `playback/prepare`; cross-site request forgery; DNS rebinding; unbounded memory use from a single request |
+| HTTP API (`Fabric/src/`) | Authentication bypass on `playback/start` or `playback/prepare`; cross-site request forgery; DNS rebinding; unbounded memory use from a single request |
 | Input handling | Memory-safety errors, integer wrap-around, injection or path traversal through request bodies, query strings, saved seeds or configuration files |
 | Map pipeline | Crashes, resource exhaustion or code execution from a crafted OpenStreetMap file; command injection in the map downloader |
 | SUMO adapter | Shell injection, writing outside the requested directory |
@@ -101,16 +101,16 @@ isolation. The protections it provides are:
 
 | Control | Protects against | Where |
 |---|---|---|
-| Loopback bind by default (`127.0.0.1`) | Exposure of the API to the network | `apps/dstns_server/main.cpp`, `docker-compose.yml` |
-| `Host` header check on loopback | DNS rebinding | `src/api.cpp` (`host_allowed`) |
-| `Origin` check on state-changing requests | Cross-site request forgery | `src/api.cpp` (`same_origin`) |
-| CORS only for the server's own and allowed origins | A web page reading a local run | `src/api.cpp` |
-| Operator credential for `start` and `prepare` | A reachable client choosing what runs | `apps/dstns_server/main.cpp`, `src/api.cpp` |
-| POST-only shutdown | Shutdown triggered by a link or image | `src/api.cpp` |
-| Range-checked IDs, times, counts and bounds | Wrap-around and out-of-range values | `src/api.cpp`, `src/engine.cpp` |
-| Quoted shell arguments, close-on-exec pipes | Command injection through paths | `src/sumo_bridge.cpp`, `src/osm_fetch.cpp` |
-| UTF-8 repair and JSON serialisation guard | Hostile or corrupt map text reaching responses and logs | `src/utf8.cpp`, `src/osm.cpp` |
-| Single-line log messages | Log forging | `src/logging.cpp` |
+| Loopback bind by default (`127.0.0.1`) | Exposure of the API to the network | `Core/server/main.cpp`, `docker-compose.yml` |
+| `Host` header check on loopback | DNS rebinding | `Fabric/src/` (`host_allowed`) |
+| `Origin` check on state-changing requests | Cross-site request forgery | `Fabric/src/` (`same_origin`) |
+| CORS only for the server's own and allowed origins | A web page reading a local run | `Fabric/src/` |
+| Operator credential for `start` and `prepare` | A reachable client choosing what runs | `Core/server/main.cpp`, `Fabric/src/` |
+| POST-only shutdown | Shutdown triggered by a link or image | `Fabric/src/` |
+| Range-checked IDs, times, counts and bounds | Wrap-around and out-of-range values | `Fabric/src/`, `Core/src/engine.cpp` |
+| Quoted shell arguments, close-on-exec pipes | Command injection through paths | `Core/src/sumo_bridge.cpp`, `Core/src/osm_fetch.cpp` |
+| UTF-8 repair and JSON serialisation guard | Hostile or corrupt map text reaching responses and logs | `Core/src/utf8.cpp`, `Core/src/osm.cpp` |
+| Single-line log messages | Log forging | `Core/src/logging.cpp` |
 | Non-root container user, no Docker socket | Escalation from a compromised process | `Dockerfile` |
 
 ## Running DSTNS safely

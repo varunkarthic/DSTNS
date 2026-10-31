@@ -20,7 +20,16 @@ public:
     void listen(const std::string& host,std::uint16_t port);
     void stop();
 private:
-    void routes();
+    // Fabric: one module per API group, in Fabric/src/. Registration order is not
+    // significant, because no two routes match the same request.
+    void install_guards();
+    void routes_static();
+    void routes_system();
+    void routes_playback();
+    void routes_world();
+    void routes_control();
+    void routes_view();
+    void routes_observation();
     SimulationEngine& engine_; RuntimeLogger& logger_; std::unique_ptr<httplib::Server> server_; std::atomic_bool stopping_{};
     std::atomic_bool termination_started_{};
     std::thread shutdown_worker_;

@@ -1,6 +1,6 @@
 # OSM loader (`dstns::OsmRoadLoader`)
 
-Source: `include/dstns/osm.hpp`, `src/osm.cpp`.
+Source: `Core/include/dstns/osm.hpp`, `Core/src/osm.cpp`.
 
 Turns an OpenStreetMap XML file into a connected, canonically numbered,
 true-scale road graph with its places.

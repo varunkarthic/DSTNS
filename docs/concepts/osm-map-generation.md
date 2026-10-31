@@ -8,7 +8,7 @@ extract, parsing it, growing the district, and numbering it canonically.
 
 ## From seed to place
 
-With `map.osm_file: "auto"`, `select_map_location` (`src/geo.cpp`) resolves
+With `map.osm_file: "auto"`, `select_map_location` (`Core/src/geo.cpp`) resolves
 the seed under the `urban-crfg-v3` selection version:
 
 1. **City.** A sub-seed derived as `seed.derive("map.city")` picks one of 181
@@ -57,7 +57,7 @@ according to `--map-cache` (see [Configuration](../guide/configuration.md#server
 
 ## Parsing
 
-`OsmRoadLoader::load_xml` (`src/osm.cpp`) is a single-pass tokenizer over
+`OsmRoadLoader::load_xml` (`Core/src/osm.cpp`) is a single-pass tokenizer over
 `<node>` and `<way>` elements. Attribute values are UTF-8-repaired and capped
 at 512 bytes, and XML entities are decoded. Coordinates must be finite and
 within ±90 and ±180 degrees, or the map is refused.
@@ -162,7 +162,7 @@ chosen to contain \( n^\ast \) nodes:
 D = \{\, v \;:\; d(\text{root}, v) \le \rho \,\}, \qquad |D| = n^{\ast}
 \]
 
-The loop, condensed from `src/osm.cpp`:
+The loop, condensed from `Core/src/osm.cpp`:
 
 ```cpp
 while (!pq.empty() && selected.size() < target_nodes) {

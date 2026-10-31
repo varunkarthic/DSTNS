@@ -1,6 +1,6 @@
 # HTTP API server (`dstns::ApiServer`)
 
-Source: `include/dstns/api.hpp`, `src/api.cpp`, on
+Source: `Fabric/include/dstns/api.hpp`, `Fabric/src/`, on
 [cpp-httplib](https://github.com/yhirose/cpp-httplib) 0.28.
 
 ## Responsibilities

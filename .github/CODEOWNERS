@@ -2,8 +2,8 @@
 *                      @varunkarthic
 /SECURITY.md           @varunkarthic
 /.github/              @varunkarthic
-/src/api.cpp           @varunkarthic
-/src/sumo_bridge.cpp   @varunkarthic
-/src/osm_fetch.cpp     @varunkarthic
+/Fabric/               @varunkarthic
+/Core/src/sumo_bridge.cpp @varunkarthic
+/Core/src/osm_fetch.cpp @varunkarthic
 /Dockerfile            @varunkarthic
 /docker/               @varunkarthic

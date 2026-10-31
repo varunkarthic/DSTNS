@@ -48,22 +48,23 @@ holds simulation state of its own; both read what the core publishes.
 
 | Path | Contents |
 |---|---|
-| `apps/dstns_server/main.cpp` | Process entry: flags, operator credential, cache sweep, engine and API start-up |
-| `include/dstns/`, `src/` | The core library `dstns_core` |
-| `src/engine.cpp` | `SimulationEngine`: lifecycle, clock, physics step, checkpoints, controls, undo/redo, views |
-| `src/api.cpp` | `ApiServer`: every HTTP route, request validation, error mapping, CSRF guard |
-| `src/scenario.cpp` | `ScenarioCompiler`: seed and config to a complete `Scenario` (graph, signals, stops, trips, weather, incidents) |
-| `src/osm.cpp` | `OsmRoadLoader`: OSM XML to a connected, canonically numbered road graph and its places |
-| `src/osm_fetch.cpp` | On-demand map download through `scripts/fetch_osm.py`, progress, cache sweep |
-| `src/geo.cpp` | The 181-city catalogue and seed-to-location resolution |
-| `src/graph.cpp` | `GraphStore` (static graph plus per-tick dynamic arrays) and `RoutePlanner` (A*) |
-| `src/events.cpp` | `EventRuntime`: signal controller heap, demand schedule, couplings, event history |
-| `src/demand.cpp` | Place taxonomy, diurnal demand curves, demand couplings, bus-stop thinning |
-| `src/asb.cpp` | Adaptive Simulation Backpressure |
-| `src/rng.cpp` | `Seed128`, SHA-256 sub-seed derivation, counter-based Philox RNG |
-| `src/sumo_bridge.cpp` | SUMO detection, export, `netconvert` and `sumo` invocation |
-| `src/logging.cpp` | `RuntimeLogger`: text system log and SQLite runtime journal |
-| `src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
+| `Core/server/main.cpp` | Process entry: flags, operator credential, cache sweep, engine and API start-up |
+| `Core/` | The core library `dstns_core` (engine, scenario, OSM, events, ASB)
+| `Fabric/` | The HTTP API library `dstns_fabric`, one route module per API group |
+| `Core/src/engine.cpp` | `SimulationEngine`: lifecycle, clock, physics step, checkpoints, controls, undo/redo, views |
+| `Fabric/src/` | `ApiServer`: every HTTP route, request validation, error mapping, CSRF guard |
+| `Core/src/scenario.cpp` | `ScenarioCompiler`: seed and config to a complete `Scenario` (graph, signals, stops, trips, weather, incidents) |
+| `Core/src/osm.cpp` | `OsmRoadLoader`: OSM XML to a connected, canonically numbered road graph and its places |
+| `Core/src/osm_fetch.cpp` | On-demand map download through `scripts/fetch_osm.py`, progress, cache sweep |
+| `Core/src/geo.cpp` | The 181-city catalogue and seed-to-location resolution |
+| `Core/src/graph.cpp` | `GraphStore` (static graph plus per-tick dynamic arrays) and `RoutePlanner` (A*) |
+| `Core/src/events.cpp` | `EventRuntime`: signal controller heap, demand schedule, couplings, event history |
+| `Core/src/demand.cpp` | Place taxonomy, diurnal demand curves, demand couplings, bus-stop thinning |
+| `Core/src/asb.cpp` | Adaptive Simulation Backpressure |
+| `Core/src/rng.cpp` | `Seed128`, SHA-256 sub-seed derivation, counter-based Philox RNG |
+| `Core/src/sumo_bridge.cpp` | SUMO detection, export, `netconvert` and `sumo` invocation |
+| `Core/src/logging.cpp` | `RuntimeLogger`: text system log and SQLite runtime journal |
+| `Core/src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
 | `ui-engine/` | The observer: React 19, Vite, Vitest, jsPDF |
 | `dstns_launcher/` | Python launcher: shared service core, Textual screens and compatibility interface |
 | `launcher`, `launcher.py` | Thin wrappers that start the CLI |

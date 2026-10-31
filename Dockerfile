@@ -43,9 +43,8 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY CMakeLists.txt ./
-COPY include include
-COPY src src
-COPY apps apps
+COPY Core Core
+COPY Fabric Fabric
 COPY tools tools
 RUN grep -Fx "project(dstns VERSION $VERSION LANGUAGES CXX)" CMakeLists.txt
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=OFF \

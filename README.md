@@ -491,7 +491,8 @@ push. Details: [Testing](https://dstns.readthedocs.io/development/testing/).
 
 ```text
 apps/dstns_server/    server entry point
-include/dstns/, src/  the C++ core: engine, API, scenario, OSM, events, backpressure
+Core/Core/                 the C++ core: engine, scenario, OSM, events, backpressure
+Fabric/               the HTTP API over the core, and the application registry
 ui-engine/            the observer (React, Vite, Vitest)
 dstns_launcher/       the Python launcher, terminal interface and shared service core
 tests/                native, HTTP and CLI suites, fixtures

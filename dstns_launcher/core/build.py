@@ -15,7 +15,7 @@ from .errors import CommandFailed
 from .paths import PATHS, Paths
 from .reporting import Level, Reporter, duration
 
-NATIVE_INPUTS = ["CMakeLists.txt", "src", "include", "apps/dstns_server"]
+NATIVE_INPUTS = ["CMakeLists.txt", "Core", "Fabric"]
 UI_INPUTS = [
     "ui-engine/src", "ui-engine/public", "ui-engine/package.json", "ui-engine/package-lock.json",
     "ui-engine/index.html", "ui-engine/vite.config.ts", "ui-engine/tsconfig.json",
@@ -76,7 +76,7 @@ def plan(paths: Paths = PATHS, *, force_native: bool = False, force_ui: bool = F
     ui_stamp = paths.ui_dist / ".launcher-source"
     native: BuildState | None = None
     observer: BuildState | None = None
-    if (paths.root / "src").exists():
+    if (paths.root / "Core").exists():
         native = needs_build(paths.root, NATIVE_INPUTS, paths.server, native_stamp)
     if (paths.ui_engine / "src").exists():
         observer = needs_build(paths.root, UI_INPUTS, paths.ui_dist / "index.html", ui_stamp)

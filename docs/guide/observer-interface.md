@@ -704,7 +704,7 @@ props. World generation state (`requestedSeed`, `status`, `error`) is local to
 
 Core additions for this interface: `SimulationEngine::step()`,
 `regenerate_world()`, `world_status()` and `preparation_stage()` in
-`src/engine.cpp`, with routes in `src/api.cpp`. Starting a world is shared
+`Core/src/engine.cpp`, with routes in `Fabric/src/`. Starting a world is shared
 between the CLI start path and regeneration through `install_scenario()`.
 
 ### Design system

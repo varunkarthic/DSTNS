@@ -1,6 +1,6 @@
 # CRFG: Connected Radial Frontier Growth
 
-Source: `OsmRoadLoader::load_xml` (`src/osm.cpp`).
+Source: `OsmRoadLoader::load_xml` (`Core/src/osm.cpp`).
 
 CRFG cuts a connected district of real streets out of a city extract by
 growing outward from a root along road distance, the way a district looks on

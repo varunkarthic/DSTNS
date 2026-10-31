@@ -34,7 +34,7 @@ cmake --build build -j
 
 | Target | Kind | Purpose |
 |---|---|---|
-| `dstns_core` | static library | Everything in `src/` |
+| `dstns_core` | static library | Everything in `Core/src/` |
 | `dstns_server` | executable | The server |
 | `dstns_scenario_export` | tool | Compile a scenario and write SUMO files |
 | `dstns_replay_verify` | tool | Compile and run a seed twice; compare every hash and snapshot |

@@ -76,7 +76,7 @@ behind the [TLS gateway](docker.md#tls-gateway) or another authenticating proxy.
 
 ## The request guard
 
-Every request passes one function, the pre-routing guard in `src/api.cpp`, before
+Every request passes one function, the pre-routing guard in `Fabric/src/`, before
 any route handler runs.
 
 ```mermaid

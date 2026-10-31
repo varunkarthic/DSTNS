@@ -29,7 +29,7 @@ Lag is judged *relative to the rate*, because at 20× the observer is expected t
 be several virtual seconds behind simply because each poll covers more ground.
 A fixed threshold would declare every fast run unhealthy.
 
-Thresholds (`include/dstns/asb.hpp`, exported so tests state the contract in the
+Thresholds (`Core/include/dstns/asb.hpp`, exported so tests state the contract in the
 same terms the implementation does):
 
 ```
@@ -46,7 +46,7 @@ position rather than flapping on noise.
 
 ## The control law
 
-This section gives the exact arithmetic (`src/asb.cpp`), with a worked example.
+This section gives the exact arithmetic (`Core/src/asb.cpp`), with a worked example.
 
 ### Component scores
 

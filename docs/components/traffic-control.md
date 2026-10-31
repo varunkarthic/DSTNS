@@ -1,6 +1,6 @@
 # Traffic model
 
-Source: `SimulationEngine::physics_step` (`src/engine.cpp`).
+Source: `SimulationEngine::physics_step` (`Core/src/engine.cpp`).
 
 The aggregate traffic model computes, every virtual second and for every
 traversable directed edge: demand, effective speed and capacity, a vehicle

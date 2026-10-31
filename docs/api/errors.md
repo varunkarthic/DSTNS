@@ -12,7 +12,7 @@ Every error response has the same shape:
 
 `code` is stable and meant for programs; `message` is meant for people and may
 change. Handlers validate by throwing, and one exception handler in
-`src/api.cpp` maps each exception type to a status and code, so the same kind
+`Fabric/src/` maps each exception type to a status and code, so the same kind
 of failure always looks the same whichever route raised it.
 
 ## Status codes

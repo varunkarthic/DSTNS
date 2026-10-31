@@ -7,7 +7,7 @@ project(dstns VERSION 2.1.0 LANGUAGES CXX)
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
 set(DSTNS_CHANNEL "local" CACHE STRING "Release channel")
-configure_file(include/dstns/build_info.hpp.in generated/dstns/build_info.hpp @ONLY)
+configure_file(Core/include/dstns/build_info.hpp.in generated/dstns/build_info.hpp @ONLY)
 
 option(DSTNS_BUILD_TESTS "Build DSTNS tests" ON)
 option(DSTNS_ENABLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
@@ -43,9 +43,9 @@ else()
 endif()
 
 add_library(dstns_core
-  src/rng.cpp src/utf8.cpp src/graph.cpp src/asb.cpp src/demand.cpp src/geo.cpp src/osm.cpp src/osm_fetch.cpp src/scenario.cpp src/engine.cpp src/events.cpp src/logging.cpp src/api.cpp src/sumo_bridge.cpp
-  src/narrator.cpp src/platform.cpp)
-target_include_directories(dstns_core PUBLIC include "${CMAKE_CURRENT_BINARY_DIR}/generated")
+  Core/src/rng.cpp Core/src/utf8.cpp Core/src/graph.cpp Core/src/asb.cpp Core/src/demand.cpp Core/src/geo.cpp Core/src/osm.cpp Core/src/osm_fetch.cpp Core/src/scenario.cpp Core/src/engine.cpp Core/src/events.cpp Core/src/logging.cpp Core/src/sumo_bridge.cpp
+  Core/src/narrator.cpp Core/src/platform.cpp)
+target_include_directories(dstns_core PUBLIC Core/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib)
 if(APPLE)
   target_link_libraries(dstns_core PUBLIC "-framework CoreFoundation" "-framework CFNetwork")
@@ -66,9 +66,18 @@ if(DSTNS_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_link_options(dstns_core PUBLIC -fsanitize=address,undefined)
 endif()
 
-add_executable(dstns_server apps/dstns_server/main.cpp)
+# Fabric: the HTTP API over the core. Depends on the core; the core never on it.
+add_library(dstns_fabric
+  Fabric/src/api.cpp Fabric/src/support.cpp Fabric/src/guards.cpp Fabric/src/routes_static.cpp Fabric/src/routes_system.cpp
+  Fabric/src/routes_playback.cpp Fabric/src/routes_world.cpp Fabric/src/routes_control.cpp Fabric/src/routes_view.cpp
+  Fabric/src/routes_observation.cpp)
+target_include_directories(dstns_fabric PUBLIC Fabric/include)
+target_link_libraries(dstns_fabric PUBLIC dstns_core)
+target_compile_options(dstns_fabric PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
+
+add_executable(dstns_server Core/server/main.cpp)
 target_compile_definitions(dstns_server PRIVATE DSTNS_VERSION="${PROJECT_VERSION}")
-target_link_libraries(dstns_server PRIVATE dstns_core)
+target_link_libraries(dstns_server PRIVATE dstns_fabric)
 add_executable(dstns_scenario_export tools/scenario-inspect/main.cpp)
 target_link_libraries(dstns_scenario_export PRIVATE dstns_core)
 add_executable(dstns_road_index tools/road-index/main.cpp)
@@ -81,7 +90,7 @@ target_link_libraries(dstns_benchmark PRIVATE dstns_core)
 if(DSTNS_BUILD_TESTS)
   enable_testing()
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  foreach(smoke loading termination hardening narration)
+  foreach(smoke loading termination hardening narration fabric_contract)
     add_test(NAME dstns_http_${smoke}
       COMMAND ${CMAKE_COMMAND} -E env "DSTNS_SERVER=$<TARGET_FILE:dstns_server>"
         ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/api/${smoke}_smoke.py")

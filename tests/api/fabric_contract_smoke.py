@@ -10,8 +10,8 @@ the status must match, every recorded response key must still exist with the sam
 type, and recorded headers must match. New routes and new keys are allowed, which
 is the compatibility promise in docs/api/versioning.md.
 
-    tests/api/fabric_contract.py            compare
-    tests/api/fabric_contract.py --record   rewrite the baseline (only for an
+    tests/api/fabric_contract_smoke.py            compare
+    tests/api/fabric_contract_smoke.py --record   rewrite the baseline (only for an
                                             intentional, documented contract change)
 """
 import json
@@ -157,8 +157,8 @@ def main():
                 try:
                     if predicate():
                         return
-                except OSError:
-                    pass
+                except (OSError, AssertionError):
+                    pass  # Not listening yet, or still starting the run.
                 time.sleep(0.05)
             raise AssertionError(f"timed out waiting for {what}")
 

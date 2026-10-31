@@ -10,7 +10,7 @@ lists every setting, its range, and which component actually reads it.
 
 For a run started from the CLI, later sources win:
 
-1. Built-in defaults in `ScenarioConfig` (`include/dstns/model.hpp`)
+1. Built-in defaults in `ScenarioConfig` (`Core/include/dstns/model.hpp`)
 2. `config/defaults.json`
 3. A saved seed (`--saved-seed ID`), which replaces 2 entirely
 4. CLI flags (`--seed`, `--day-type`, `--duration`, `--speed`, `--max-nodes`, `--osm-file`)

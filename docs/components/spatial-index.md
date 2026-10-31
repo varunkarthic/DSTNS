@@ -8,9 +8,9 @@ thousand nodes.
 
 | Function | Source | Computes |
 |---|---|---|
-| `point_distance(a, b)` | `src/graph.cpp` | Euclidean distance in projected metres \( (x_m, y_m) \), not great-circle |
-| `wendland_c2(d, r)` | `src/graph.cpp` | The compact kernel \( (1-q)^4(1+4q) \), \( q = d/r < 1 \) |
-| `temporal_beta(p, window)` | `src/graph.cpp` | A smooth Beta-shaped activity window with peak 1, for node-level building schedules |
+| `point_distance(a, b)` | `Core/src/graph.cpp` | Euclidean distance in projected metres \( (x_m, y_m) \), not great-circle |
+| `wendland_c2(d, r)` | `Core/src/graph.cpp` | The compact kernel \( (1-q)^4(1+4q) \), \( q = d/r < 1 \) |
+| `temporal_beta(p, window)` | `Core/src/graph.cpp` | A smooth Beta-shaped activity window with peak 1, for node-level building schedules |
 
 The kernel is exactly 0 at and beyond its radius and has continuous first and
 second derivatives, so nothing has a hard edge.

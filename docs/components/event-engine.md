@@ -1,6 +1,6 @@
 # Event engine
 
-Source: `EventRuntime` (`include/dstns/events.hpp`, `src/events.cpp`) and the
+Source: `EventRuntime` (`Core/include/dstns/events.hpp`, `Core/src/events.cpp`) and the
 control side of `SimulationEngine`.
 
 ## Two kinds of events

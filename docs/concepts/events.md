@@ -28,7 +28,7 @@ produce the same schedule, and `event_hash` fingerprints it.
 
 ## The event runtime
 
-`EventRuntime` (`src/events.cpp`) owns the schedule during a run:
+`EventRuntime` (`Core/src/events.cpp`) owns the schedule during a run:
 
 - **A min-heap of pending events** ordered by `(time, sequence)`. Signals keep
   exactly one pending transition each, so a network of 10,000 controllers

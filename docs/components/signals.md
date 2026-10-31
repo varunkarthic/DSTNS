@@ -1,7 +1,7 @@
 # Signal planning and control (`dstns::ScenarioCompiler::plan_signals`)
 
-Source: `ScenarioCompiler::plan_signals` (`src/scenario.cpp`) places and times
-controllers; `EventRuntime` (`src/events.cpp`) runs them; the engine applies
+Source: `ScenarioCompiler::plan_signals` (`Core/src/scenario.cpp`) places and times
+controllers; `EventRuntime` (`Core/src/events.cpp`) runs them; the engine applies
 manual overrides.
 
 ## Where controllers go

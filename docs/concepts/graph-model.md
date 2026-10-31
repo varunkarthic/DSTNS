@@ -3,8 +3,8 @@
 The road network is a directed graph. This page defines its nodes and edges, the
 invariants that always hold, how static geometry is separated from dynamic state,
 and how to verify the invariants against a running server. The code is
-`GraphStore` and `RoutePlanner` in `include/dstns/graph.hpp` and `src/graph.cpp`,
-with the data types in `include/dstns/model.hpp`.
+`GraphStore` and `RoutePlanner` in `Core/include/dstns/graph.hpp` and `Core/src/graph.cpp`,
+with the data types in `Core/include/dstns/model.hpp`.
 
 ## Definition
 

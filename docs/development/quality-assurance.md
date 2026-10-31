@@ -28,7 +28,7 @@ and in continuous integration on Ubuntu 24.04.
 ## Review method
 
 Code review complements the automated gates. A review covers the engine
-(`src/engine.cpp`), the HTTP layer (`src/api.cpp`), the SUMO bridge, the OSM loader
+(`Core/src/engine.cpp`), the HTTP layer (`Fabric/src/`), the SUMO bridge, the OSM loader
 and downloader, the logger, the server entry point, the observer's API client,
 polling, dialog state and Auto Focus, and the operator CLI's validation, process
 management and server launch. It proceeds in four steps:
@@ -131,7 +131,7 @@ server binary, **T** tools, **D** delivery.
 |---|---|---|---|---|
 | C1 | Medium | The CLI validated `playback.tick_rate` and `--speed` against `(0, 10]` while the engine refuses anything above 5, so a configuration the CLI approved failed when the run started. | A single `MAX_TICK_RATE = 5`, matching the engine's `kMaxTickRate`. | `node --check`, CLI suites |
 | C2 | Low | `dstns_server --port 70000` wrapped to 4464 and listened there. | Ports outside `[1, 65535]` are refused. | Manual check |
-| C3 | Low | An unused helper in `src/geo.cpp` produced a warning on every build. | Removed. | Clean build |
+| C3 | Low | An unused helper in `Core/src/geo.cpp` produced a warning on every build. | Removed. | Clean build |
 | T1 | Low | `dstns_replay_verify` accepted only hexadecimal seeds, although users see decimal ones, and parsed `--help` as a seed. | Decimal seeds and `--help` are accepted. | Manual check |
 
 ### Delivery

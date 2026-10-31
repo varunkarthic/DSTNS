@@ -1,7 +1,7 @@
 # Playback and checkpoints (`dstns::SimulationEngine`)
 
 Source: `SimulationEngine::loop`, `step_to`, `capture_checkpoint`,
-`restore_to`, `seek`, `step`, `set_tick_rate` in `src/engine.cpp`.
+`restore_to`, `seek`, `step`, `set_tick_rate` in `Core/src/engine.cpp`.
 
 ## Clocks
 
