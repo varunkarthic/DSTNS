@@ -173,7 +173,7 @@ function mockApi(overrides: Partial<Mock> = {}) {
     if (path.includes("/playback/step")) return json({ simulated_seconds: state.clock.virtual_day_seconds + 60, stepped_seconds: 60, lifecycle: "PAUSED" });
     let data: unknown = {};
     if (path.includes("/playback/status"))
-      data = { lifecycle: state.lifecycle, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v3", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1 };
+      data = { lifecycle: state.lifecycle, preparation_error: (state as unknown as { preparation_error?: string }).preparation_error, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v3", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1 };
     else if (path.includes("/view/topology")) {
       if (state.topologyDelay) return json({ error: { code: "NOT_READY", message: "no topology yet" } }, 409);
       data = state.topology ?? topology;
@@ -770,10 +770,9 @@ describe("start-up", () => {
     state.preparation = "selecting";
     state.topologyDelay = true;
     render(<App />);
-    // The heading reassures; the stage itself is named in the status line and
-    // marked in the step list below it.
-    const surface = await screen.findByRole("status", { name: /Getting things ready|This will only take a moment|Almost there/ }, { timeout: 4000 });
-    await waitFor(() => expect(surface.querySelector(".loading-status")).toHaveTextContent(/Selecting world/), { timeout: 4000 });
+    // The heading names the stage, and the step list below it marks it.
+    const surface = await screen.findByRole("status", { name: /Starting interface|Selecting world|Generating world|Initializing simulation/ }, { timeout: 4000 });
+    await waitFor(() => expect(surface.querySelector("h2")).toHaveTextContent(/Selecting world/), { timeout: 4000 });
     const steps = within(surface).getByRole("list", { name: "Progress" });
     expect(within(steps).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       "Starting interface",
@@ -786,20 +785,22 @@ describe("start-up", () => {
     expect(within(steps).getByText("Starting interface").closest("li")).toHaveClass("done");
 
     state.preparation = "building";
-    await waitFor(() => expect(surface.querySelector(".loading-status")).toHaveTextContent(/Generating world/), { timeout: 4000 });
+    await waitFor(() => expect(surface.querySelector("h2")).toHaveTextContent(/Generating world/), { timeout: 4000 });
     expect(within(steps).getByText("Selecting world").closest("li")).toHaveClass("done");
 
-    // The map arrives: the stages give way to the welcome screen, which hands
-    // over to the map rather than the map simply appearing.
+    // The map arrives, and the surface dissolves into it at once: no held screen.
     state.preparation = "";
     state.lifecycle = "RUNNING";
     state.topologyDelay = false;
     await ready();
-    await waitFor(() => expect(document.querySelector(".loading-surface.welcome")).toBeTruthy(), { timeout: 4000 });
-    expect(document.querySelector(".loading-surface.welcome")).toHaveTextContent("Starting DSTNS");
-    // And then it leaves rather than disappearing.
-    await waitFor(() => expect(document.querySelector(".loading-surface")).toBeNull(), { timeout: 6000 });
+    await waitFor(() => expect(document.querySelector(".loading-surface")).toBeNull(), { timeout: 3000 });
   }, 20000);
+
+  it("shows a failure screen when nothing has loaded, and clears when the simulator answers", async () => {
+    mockApi({ lifecycle: "ERROR", preparation_error: "The map could not be read." } as never);
+    render(<App />);
+    expect(await screen.findByRole("alertdialog", {}, { timeout: 4000 })).toHaveTextContent("The map could not be read.");
+  });
 
   it("does not claim progress before a run exists", async () => {
     mockApi({ lifecycle: "IDLE" });

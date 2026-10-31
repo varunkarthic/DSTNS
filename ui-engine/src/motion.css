@@ -1,0 +1,99 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+   Copyright (C) 2026 Varun Karthic */
+
+/* Shared interaction physics. The springs themselves are in motion.ts, which
+ * publishes them as --spring-* tokens and routes --ease and --t-* through them.
+ *
+ * Surfaces enter through transitions with @starting-style rather than keyframes,
+ * because a transition reverses from wherever it has got to: closing a dialog
+ * mid-entrance turns it round instead of jumping to the start of its exit.
+ */
+
+/* A press compresses and a release springs back, on every control of its kind. */
+:where(.btn, .map-dock button, .hud-button, .icon-btn, .rate-option, .capsule-action, .fabric-action) {
+  transition:
+    transform var(--spring-lively-ms, 180ms) var(--spring-lively, ease-out),
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease);
+}
+:where(.btn, .map-dock button, .hud-button, .icon-btn, .rate-option, .capsule-action, .fabric-action):active:not(:disabled) {
+  transform: scale(0.95);
+  transition-duration: var(--spring-spatialFast-ms, 120ms);
+}
+
+/* The selection pill and switch thumb are thrown, and land with a little life. */
+.segmented-pill,
+.switch i {
+  transition-timing-function: var(--spring-lively, ease-out);
+  transition-duration: var(--spring-lively-ms, 200ms);
+}
+
+/* Dialogs and their scrim. */
+.scrim {
+  transition:
+    opacity var(--spring-effectsDefault-ms, 180ms) var(--spring-effectsDefault, ease-out),
+    backdrop-filter var(--spring-effectsDefault-ms, 180ms) var(--spring-effectsDefault, ease-out);
+}
+.dialog {
+  transition:
+    transform var(--spring-spatialDefault-ms, 220ms) var(--spring-spatialDefault, ease-out),
+    opacity var(--spring-effectsDefault-ms, 180ms) var(--spring-effectsDefault, ease-out);
+}
+.scrim.closing {
+  opacity: 0;
+  pointer-events: none;
+}
+.scrim.closing .dialog {
+  opacity: 0;
+  transform: translateY(8px) scale(0.985);
+}
+@starting-style {
+  .scrim {
+    opacity: 0;
+  }
+  .dialog {
+    opacity: 0;
+    transform: translateY(14px) scale(0.975);
+  }
+}
+.reduce-motion .scrim,
+.reduce-motion .dialog {
+  transition: opacity 120ms linear;
+  transform: none;
+}
+
+/* Popovers and menus rise from their anchor. */
+.layers-popover,
+.dock-menu,
+.dock-search {
+  transition:
+    transform var(--spring-spatialDefault-ms, 220ms) var(--spring-spatialDefault, ease-out),
+    opacity var(--spring-effectsFast-ms, 140ms) var(--spring-effectsFast, ease-out);
+}
+@starting-style {
+  .layers-popover {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  .dock-menu,
+  .dock-search {
+    opacity: 0;
+    transform: translateX(-10px) scale(0.98);
+  }
+}
+
+/* Progress and proportion bars follow their value on a spring. */
+.loading-progress i {
+  transition: transform var(--spring-spatialSlow-ms, 300ms) var(--spring-spatialSlow, ease-out);
+}
+
+/* Under reduced motion, travel, scale and blur become a short fade or nothing. */
+.reduce-motion :is(.btn, .map-dock button, .hud-button, .icon-btn, .rate-option, .capsule-action, .fabric-action):active:not(:disabled) {
+  transform: none;
+}
+.reduce-motion :is(.layers-popover, .dock-menu, .dock-search, .segmented-pill, .switch i) {
+  transition: none;
+}

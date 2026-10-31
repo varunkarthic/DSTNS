@@ -10,7 +10,7 @@ import { LayersPopover } from "./LayersPopover";
 import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
-import { Splash, Welcome, splashStageFor, WELCOME_MS, WELCOME_EXIT_MS } from "./Splash";
+import { BootFailure, ShutdownSurface, Splash, splashStageFor } from "./Splash";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
 import { NotificationHistory } from "./notificationHistory";
@@ -33,6 +33,7 @@ import { useSimulation } from "./useSimulation";
 import { useBackpressure, describeAsb, formatRate } from "./useBackpressure";
 import { api } from "./api";
 import { formatCoordinate, scaleBarFor } from "./mapProjection";
+import { MOTION_MS } from "./motion";
 import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
 import type { UiConfig, AutoFocusStrategy } from "./uiConfig";
 import { TimeFormatProvider } from "./preferences";
@@ -64,8 +65,9 @@ import "./style.css";
 import "./theme.css";
 import "./hud.css";
 import "./system.css";
+import "./motion.css";
 
-export const VERSION = "2.3.0";
+export const VERSION = "3.0.0";
 
 const DECK_KEY = "dstns.telemetry-mode.v1";
 
@@ -194,6 +196,7 @@ export default function App() {
   const [view, setView] = useState<MapView>({ scale: 1, metresPerPixel: 1 });
   const [mapStatus, setMapStatus] = useState<Record<string, unknown> | null>(null);
   const [splashDismissed, setSplashDismissed] = useState(false);
+  const [shutDown, setShutDown] = useState(false);
   const [manualFocus, setManualFocus] = useState<FocusRequest | null>(null);
   const [world, setWorld] = useState<WorldJob>(NO_WORLD_JOB);
   const [regenerationEnabled, setRegenerationEnabled] = useState(true);
@@ -545,6 +548,13 @@ export default function App() {
     }
   }, []);
 
+  // A terminated server does not come back, so the interface says so rather than
+  // reporting a lost connection for ever.
+  const terminate = useCallback(async () => {
+    await api.terminate();
+    setShutDown(true);
+  }, []);
+
   // The clear a closing dialog has scheduled. Opening another dialog cancels
   // it, or the clear would take the new dialog with it a moment after it
   // appeared.
@@ -561,7 +571,7 @@ export default function App() {
       dialogCloseTimer.current = null;
       setDialog(null);
       setDialogClosing(false);
-    }, 180);
+    }, MOTION_MS.overlay);
   }, [cancelDialogClose]);
   /** Open a dialog, replacing any that is open or still leaving. */
   const openDialog = useCallback(
@@ -756,8 +766,9 @@ export default function App() {
     setDismissedFocus(new Set());
     setDialog(null);
     logControl("regenerate", `ready ${world.status?.seed ?? ""}`);
-    const t1 = setTimeout(() => setWorld((w) => ({ ...w, closing: true })), 900);
-    const t2 = setTimeout(() => setWorld(NO_WORLD_JOB), 1180);
+    // Ready is the one result worth a moment's reading: it hands over a new world.
+    const t1 = setTimeout(() => setWorld((w) => ({ ...w, closing: true })), 700);
+    const t2 = setTimeout(() => setWorld(NO_WORLD_JOB), 700 + MOTION_MS.overlay);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -774,21 +785,13 @@ export default function App() {
   // The start-up screen dissolves over the rendered map rather than vanishing.
   const lastSplash = useRef(splashStage);
   if (splashStage) lastSplash.current = splashStage;
-  const splash = usePresence(showSplash, 520);
-
-  // Once the stages are done, hold the welcome screen for a beat before the
-  // map appears. It is shown on every load, including a reload, because it is
-  // the hand-over from start-up and a reload starts up again.
-  const [welcomeDone, setWelcomeDone] = useState(false);
-  const bootedOnce = useRef(false);
-  if (showSplash) bootedOnce.current = true;
-  const showWelcome = bootedOnce.current && !showSplash && !welcomeDone && !sim.error;
-  const welcome = usePresence(showWelcome, WELCOME_EXIT_MS);
-  useEffect(() => {
-    if (!showWelcome) return;
-    const timer = setTimeout(() => setWelcomeDone(true), WELCOME_MS);
-    return () => clearTimeout(timer);
-  }, [showWelcome]);
+  const splash = usePresence(showSplash, MOTION_MS.boot);
+  // Nothing has ever loaded and the simulator is not answering, or refused the
+  // world. Once a world is on screen a lost connection is shown over it instead.
+  const bootFailure = sim.error && !sim.topology && !world.active && !shutDown ? sim.error : "";
+  const lastFailure = useRef(bootFailure);
+  if (bootFailure) lastFailure.current = bootFailure;
+  const failure = usePresence(!!bootFailure, MOTION_MS.boot);
   const statusDetail = [
     ...(asb ? [`${formatRate(asb.throughput?.bytes_per_s ?? 0)}`, `${(asb.throughput?.snapshots_per_s ?? 0).toFixed(1)} snapshots/s`] : []),
     ...(sim.latencyMs !== null ? [`${sim.latencyMs} ms round trip`] : []),
@@ -811,7 +814,7 @@ export default function App() {
       <div
         inert={tutorial.active || undefined}
         data-tour-target={tutorial.active ? tutorialTarget : undefined}
-        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${showSplash || showWelcome ? " booting" : ""}${world.active ? " world-busy" : ""}`}
+        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${showSplash || bootFailure || shutDown ? " booting" : ""}${world.active ? " world-busy" : ""}`}
       >
         {asb && asb.state !== "NORMAL" && (
           <div className={`asb-banner ${asbInfo.tone}`} role="status">
@@ -1054,7 +1057,8 @@ export default function App() {
           {splash.mounted && lastSplash.current && (
             <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} onDismiss={() => setSplashDismissed(true)} />
           )}
-          {!splash.mounted && welcome.mounted && <Welcome closing={welcome.closing} reduceMotion={reduceMotion} />}
+          {failure.mounted && <BootFailure message={lastFailure.current} closing={failure.closing} reduceMotion={reduceMotion} />}
+          {shutDown && <ShutdownSurface reduceMotion={reduceMotion} />}
 
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} onResetPreferences={resetAllPreferences} />}
           {dialog === "reset" && (
@@ -1086,7 +1090,7 @@ export default function App() {
                 closeDialog();
                 // Let the dialog finish leaving before the world overlay
                 // arrives, so the two are never on screen together.
-                window.setTimeout(() => void requestWorld(), 190);
+                window.setTimeout(() => void requestWorld(), MOTION_MS.overlay);
               }}
             />
           )}
@@ -1102,7 +1106,7 @@ export default function App() {
               onConfirm={() => {
                 closeDialog();
                 logControl("terminate");
-                void action(() => api.terminate());
+                void action(terminate);
               }}
             />
           )}
@@ -1162,7 +1166,7 @@ export default function App() {
               pending={pending}
               onPlayPause={() => action(lifecycle === "PAUSED" ? api.play : api.pause)}
               onReset={() => action(() => api.seek(0))}
-              onTerminate={() => action(() => api.terminate())}
+              onTerminate={() => action(terminate)}
             />
           )}
         </main>

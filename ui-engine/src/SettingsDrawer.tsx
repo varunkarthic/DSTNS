@@ -3,7 +3,8 @@
 
 import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+import { Spring, SPRINGS } from "./motion";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Icon } from "./Icons";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from "./notificationModel";
 import { SKIP_OPTIONS, STEP_OPTIONS } from "./uiConfig";
@@ -145,9 +146,53 @@ export function SettingsDrawer({
   values: SettingsValues;
   actions: SettingsActions;
 }) {
+  const reduceMotion = values.reduceMotion;
   const scroll = useScrollFade<HTMLDivElement>();
   const panel = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const spring = useRef<Spring | null>(null);
+  const drag = useRef<{ x: number; lastX: number; at: number; v: number } | null>(null);
+  const hidden = () => -((panel.current?.offsetWidth ?? 360) + 24);
+
+  // The drawer's position is a spring, so opening and closing, in any order and
+  // at any moment, and letting go of a drag, all carry their velocity.
+  useEffect(() => {
+    const element = panel.current;
+    if (!element) return;
+    spring.current ??= new Spring(hidden(), SPRINGS.spatialDefault, (x) => {
+      element.style.transform = `translateX(${x.toFixed(2)}px)`;
+    }, 0.2);
+    if (reduceMotion) spring.current.jump(open ? 0 : hidden());
+    else spring.current.set(open ? 0 : hidden());
+  }, [open, reduceMotion]);
+  useEffect(() => () => spring.current?.stop(), []);
+
+  const onDragStart = (e: ReactPointerEvent) => {
+    if (reduceMotion || (e.target as Element).closest("button")) return;
+    drag.current = { x: e.clientX, lastX: e.clientX, at: e.timeStamp, v: 0 };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onDragMove = (e: ReactPointerEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    const dt = (e.timeStamp - d.at) / 1000;
+    if (dt > 0.004) {
+      d.v = d.v * 0.6 + ((e.clientX - d.lastX) / dt) * 0.4;
+      d.lastX = e.clientX;
+      d.at = e.timeStamp;
+    }
+    // Pulling further open meets resistance; pushing it shut follows the pointer.
+    const dx = e.clientX - d.x;
+    spring.current?.jump(dx > 0 ? Math.sqrt(dx) * 2 : dx);
+  };
+  const onDragEnd = () => {
+    const d = drag.current;
+    if (!d || !spring.current) return;
+    drag.current = null;
+    spring.current.velocity = d.v;
+    if (spring.current.value < hidden() * 0.35 || d.v < -500) onClose();
+    else spring.current.set(0, d.v);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -185,7 +230,7 @@ export function SettingsDrawer({
       inert={!open || undefined}
       role="dialog"
     >
-      <header className="settings-head">
+      <header className="settings-head" onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}>
         <h2>Settings</h2>
         <button ref={closeRef} type="button" className="icon-btn" aria-label="Close settings" onClick={onClose}>
           <Icon name="close" size={16} />

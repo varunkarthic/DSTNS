@@ -28,6 +28,7 @@
   --icon-sm: 14px;
   --icon-md: 16px;
 
+  --surface-solid: rgb(6 16 26 / 97%);
   --glass: var(--hud-bg);
   --glass-strong: var(--hud-bg-strong);
   --glass-line: var(--hud-border);
@@ -696,7 +697,7 @@ body:has(.reduce-motion) .floating {
   pointer-events: auto;
   transform-origin: top right;
   transition:
-    opacity 200ms var(--ease) 60ms,
+    opacity var(--t-select) var(--ease) var(--t-fast),
     transform var(--t-morph) var(--ease);
 }
 .telemetry-deck.compact .deck-full {
@@ -704,7 +705,7 @@ body:has(.reduce-motion) .floating {
   transform: translateX(10px) scale(0.985);
   pointer-events: none;
   transition:
-    opacity 120ms var(--ease),
+    opacity var(--t-fast) var(--ease),
     transform var(--t-morph) var(--ease);
 }
 .deck-strip {
@@ -722,12 +723,12 @@ body:has(.reduce-motion) .floating {
   padding: 8px 0 10px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 120ms var(--ease);
+  transition: opacity var(--t-fast) var(--ease);
 }
 .telemetry-deck.compact .deck-strip {
   opacity: 1;
   pointer-events: auto;
-  transition: opacity 200ms var(--ease) 110ms;
+  transition: opacity var(--t-select) var(--ease) var(--t-fast);
 }
 .reduce-motion .deck-surface,
 .reduce-motion .deck-full,
@@ -814,7 +815,7 @@ body:has(.reduce-motion) .floating {
   width: 100%;
   transform-origin: left;
   background: var(--ok);
-  transition: transform 400ms var(--ease);
+  transition: transform var(--t-expand) var(--ease);
 }
 .meter.thin > i {
   transform: none;
@@ -1585,10 +1586,15 @@ body:has(.reduce-motion) .floating {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  animation: fade-in 260ms var(--ease);
   transition:
-    opacity 480ms var(--ease),
-    backdrop-filter 480ms var(--ease);
+    opacity var(--spring-effectsSlow-ms, var(--t-expand)) var(--spring-effectsSlow, ease-out),
+    backdrop-filter var(--spring-effectsSlow-ms, var(--t-expand)) var(--spring-effectsSlow, ease-out),
+    filter var(--spring-effectsSlow-ms, var(--t-expand)) var(--spring-effectsSlow, ease-out);
+}
+.loading-surface.overlay {
+  @starting-style {
+    opacity: 0;
+  }
 }
 .loading-surface.boot {
   background:
@@ -1608,8 +1614,7 @@ body:has(.reduce-motion) .floating {
 /* The start-up screen does not vanish: it dissolves. The surface lifts and
    blurs as it fades, so the map behind it resolves into focus rather than
    being switched on. */
-.loading-surface.boot.closing .loading-card,
-.loading-surface.boot.closing .welcome-body {
+.loading-surface.boot.closing .loading-card {
   transform: scale(1.04);
   filter: blur(6px);
 }
@@ -1617,8 +1622,7 @@ body:has(.reduce-motion) .floating {
   filter: blur(3px);
 }
 .loading-surface.boot.still.closing,
-.loading-surface.boot.still.closing .loading-card,
-.loading-surface.boot.still.closing .welcome-body {
+.loading-surface.boot.still.closing .loading-card {
   filter: none;
   transform: none;
 }
@@ -1626,8 +1630,8 @@ body:has(.reduce-motion) .floating {
 /* Boot takes the whole screen, so the card carries no panel of its own - the
    mark, the ring and the stages sit directly on the backdrop. */
 .loading-surface.boot .loading-card {
-  width: min(460px, 100%);
-  gap: 12px;
+  width: min(620px, 100%);
+  gap: 10px;
   padding: 0;
   background: none;
   border: none;
@@ -1635,75 +1639,74 @@ body:has(.reduce-motion) .floating {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
+/* One line of stages: a dot on a shared rail, and what it means beneath it. */
 .loading-surface.boot .loading-steps {
-  margin-top: 14px;
-  padding: 14px 16px;
-  gap: 10px;
+  order: 5;
+  width: 100%;
+  margin-top: 22px;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px;
+  background: none;
+  border: none;
 }
-
-/* The welcome screen: the mark, the name, and the licence at the foot. */
-.loading-surface.welcome {
-  justify-content: center;
-}
-.welcome-body {
+.loading-surface.boot .loading-steps li {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.3;
   text-align: center;
-  animation: welcome-in 620ms var(--ease) both;
-  transition:
-    transform 720ms var(--ease),
-    filter 720ms var(--ease);
+  text-wrap: balance;
 }
-.welcome-mark {
-  filter: drop-shadow(0 0 34px rgb(53 215 255 / 30%));
+.loading-surface.boot .loading-card h2 {
+  margin-top: 14px;
+  font-size: 17px;
 }
-.welcome-mark.animated {
-  animation: mark-settle 820ms var(--ease) both;
+.loading-surface.boot .loading-status {
+  min-height: 1.5em;
 }
-.loading-surface.welcome h2 {
-  margin: 0;
-  font-family: var(--font-body);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text);
+.loading-surface.boot .loading-actions {
+  order: 6;
+  margin-top: 16px;
 }
-.welcome-sub {
-  max-width: 34ch;
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-faint);
+/* The bar's slot is always there. Working, a soft band passes along it; only a
+   real total turns it into a measurement. */
+.loading-surface.boot .loading-progress {
+  width: min(280px, 100%);
+  height: 3px;
+  margin-top: 8px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
 }
-@keyframes welcome-in {
+.loading-surface.boot .loading-progress.idle {
+  visibility: hidden;
+}
+.loading-surface.boot .loading-progress.working::before {
+  content: "";
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: boot-band 1.5s ease-in-out infinite;
+}
+@keyframes boot-band {
   from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.99);
+    transform: translateX(-100%);
   }
   to {
-    opacity: 1;
-    transform: none;
+    transform: translateX(250%);
   }
 }
-@keyframes mark-settle {
-  from {
-    opacity: 0;
-    transform: scale(0.88);
-  }
-  60% {
-    opacity: 1;
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.loading-surface.still .loading-progress.working::before {
+  animation: none;
+  transform: translateX(75%);
 }
-.loading-surface.still .welcome-body,
-.loading-surface.still .welcome-mark {
-  animation: none !important;
-}
+
 .loading-card {
   width: min(400px, 100%);
   display: flex;
@@ -1717,8 +1720,8 @@ body:has(.reduce-motion) .floating {
   text-align: center;
   animation: dialog-in 280ms var(--ease);
   transition:
-    transform 480ms var(--ease),
-    filter 480ms var(--ease);
+    transform var(--t-expand) var(--ease),
+    filter var(--t-expand) var(--ease);
 }
 .loading-mark {
   margin: 2px 0 10px;
@@ -1776,7 +1779,7 @@ body:has(.reduce-motion) .floating {
   stroke: currentColor;
   stroke-width: 3;
   stroke-linecap: round;
-  transition: stroke-dasharray 420ms var(--ease);
+  transition: stroke-dasharray var(--t-expand) var(--ease);
 }
 .loading-ring:not(.known):not(.done):not(.failed) svg {
   animation: ring-spin 1.1s linear infinite;
@@ -1894,7 +1897,7 @@ body:has(.reduce-motion) .floating {
   height: 100%;
   background: var(--accent);
   transform-origin: left;
-  transition: transform 320ms var(--ease);
+  transition: transform var(--t-expand) var(--ease);
 }
 .loading-error {
   width: 100%;
@@ -1932,9 +1935,6 @@ body:has(.reduce-motion) .floating {
   text-align: center;
   color: var(--text-faint);
 }
-.welcome-licence {
-  bottom: 26px;
-}
 .loading-surface.still,
 .loading-surface.still .loading-card {
   animation: none;
@@ -1949,8 +1949,8 @@ body:has(.reduce-motion) .floating {
 .app-shell .telemetry-deck,
 .app-shell .map-dock {
   transition:
-    opacity 420ms var(--ease),
-    transform 420ms var(--ease);
+    opacity var(--t-expand) var(--ease),
+    transform var(--t-expand) var(--ease);
 }
 .app-shell.booting .rail,
 .app-shell.booting .lower-hud,
@@ -2084,40 +2084,23 @@ body:has(.reduce-motion) .floating {
 }
 
 /* ---- Preloader entrance -------------------------------------------------
- * The mark draws itself, then the stages and status settle in beneath it, so
- * start-up reads as one movement rather than a screen appearing at once.
+ * The surface settles in as one movement, with nothing held back: work that is
+ * already done is never made to look as if it is still happening.
  */
 
-.loading-surface.boot .loading-card > *:not(.loading-mark) {
-  animation: boot-settle 420ms var(--ease) both;
-}
-.loading-surface.boot .loading-ring {
-  animation-delay: 420ms;
-}
-.loading-surface.boot h2 {
-  animation-delay: 500ms;
-}
-.loading-surface.boot .loading-seed {
-  animation-delay: 540ms;
-}
-.loading-surface.boot .loading-steps {
-  animation-delay: 580ms;
-}
-.loading-surface.boot .loading-status,
-.loading-surface.boot .loading-progress {
-  animation-delay: 660ms;
-}
-.loading-surface.boot .loading-actions {
-  animation-delay: 740ms;
-}
-@keyframes boot-settle {
-  from {
+.loading-surface.boot .loading-card {
+  transition:
+    transform var(--spring-spatialSlow-ms, var(--t-panel)) var(--spring-spatialSlow, ease-out),
+    filter var(--spring-effectsSlow-ms, var(--t-expand)) var(--spring-effectsSlow, ease-out),
+    opacity var(--spring-effectsDefault-ms, var(--t-select)) var(--spring-effectsDefault, ease-out);
+  animation: none;
+  @starting-style {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
 }
-.loading-surface.boot.still .loading-card > * {
-  animation: none;
+.loading-surface.boot.still .loading-card {
+  transition: none;
 }
 
 /* One baseline and a reserved slot for every HUD control. */

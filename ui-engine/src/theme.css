@@ -79,7 +79,7 @@
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
-  --radius-panel: 28px;
+  --radius-panel: var(--r-xl);
   --radius-full: 9999px;
 
   /* Chrome */
@@ -277,9 +277,9 @@ button:disabled {
   font-size: 11px;
   font-weight: 500;
   transition:
-    background 0.2s,
-    color 0.2s,
-    border-color 0.2s;
+    background var(--t-select),
+    color var(--t-select),
+    border-color var(--t-select);
 }
 .btn:hover:not(:disabled) {
   background: var(--surface-container-high);
@@ -381,8 +381,8 @@ button:disabled {
   color: var(--on-surface);
   font-size: 18px;
   transition:
-    background 0.2s,
-    color 0.2s;
+    background var(--t-select),
+    color var(--t-select);
 }
 .map-dock button:hover:not(:disabled) {
   background: var(--surface-container-high);
@@ -538,7 +538,7 @@ button:disabled {
   border-radius: var(--radius-2xl);
   background: rgb(16 29 41 / 70%);
   border: 1px solid rgb(60 73 77 / 30%);
-  transition: border-color 0.2s;
+  transition: border-color var(--t-select);
 }
 .metric:hover {
   border-color: rgb(178 235 255 / 40%);
@@ -628,7 +628,7 @@ button:disabled {
   height: 100%;
   border-radius: var(--radius-full);
   background: var(--secondary);
-  transition: width 0.4s ease;
+  transition: width var(--t-expand) var(--ease);
 }
 .meter > b {
   position: absolute;
@@ -665,8 +665,8 @@ button:disabled {
   justify-content: center;
   gap: 6px;
   transition:
-    background 0.2s,
-    color 0.2s;
+    background var(--t-select),
+    color var(--t-select);
 }
 .tab-row button:hover {
   color: var(--on-surface);
@@ -704,7 +704,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  transition: border-color 0.2s;
+  transition: border-color var(--t-select);
 }
 .stream-card:hover {
   border-color: rgb(178 235 255 / 30%);
@@ -895,7 +895,7 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s;
+  transition: transform var(--t-fast);
 }
 .scrubber:hover .head {
   transform: translateX(-50%) scale(1.25);
@@ -974,8 +974,8 @@ button:disabled {
   font-size: 9px;
   color: var(--on-surface-variant);
   transition:
-    background 0.2s,
-    color 0.2s;
+    background var(--t-select),
+    color var(--t-select);
 }
 .segmented button[aria-pressed="true"] {
   background: var(--primary-container);
@@ -1077,8 +1077,8 @@ button:disabled {
   justify-content: center;
   color: var(--on-surface-variant);
   transition:
-    background 0.2s,
-    color 0.2s;
+    background var(--t-select),
+    color var(--t-select);
 }
 .transport button:hover:not(:disabled) {
   background: var(--surface-container);
@@ -1740,7 +1740,7 @@ button:disabled {
   height: 100%;
   border-radius: var(--radius-full);
   background: linear-gradient(90deg, var(--primary-container), var(--secondary));
-  transition: width 320ms var(--ease-out);
+  transition: width var(--t-expand) var(--ease-out);
 }
 /* No Content-Length: sweep rather than invent a percentage. */
 .splash-track.indeterminate > i {
@@ -1873,7 +1873,7 @@ button:disabled {
  * out of its fixed corner and let it fill the map. */
 .map-dock { z-index: var(--z-dock); }
 .map-dock button {
-  transition: background 0.18s, color 0.18s, transform 0.18s var(--spring);
+  transition: background var(--t-select), color var(--t-select), transform var(--t-select) var(--spring);
 }
 .map-dock button:active:not(:disabled) { transform: scale(0.9); }
 .map-dock button.muted-active {
@@ -1891,7 +1891,6 @@ button:disabled {
   padding: 10px;
   border-radius: var(--radius-xl);
   z-index: var(--z-popover);
-  animation: dock-in 180ms var(--ease-out);
 }
 .dock-menu { top: 150px; }
 .dock-search { top: 96px; }
@@ -1917,7 +1916,7 @@ button:disabled {
   padding: 8px 10px;
   border-radius: var(--radius-lg);
   text-align: left;
-  transition: background 0.18s;
+  transition: background var(--t-select);
 }
 .dock-choice button:hover { background: var(--surface-container-high); }
 .dock-choice button.selected {
@@ -1961,13 +1960,11 @@ button:disabled {
 /* ---- Display Layers above everything --------------------------- */
 .layers-popover {
   z-index: var(--z-popover);
-  animation: dialog-in 180ms var(--ease-out);
 }
-.reduce-motion .layers-popover { animation: none; }
 .layer-group label {
   padding: 3px 4px;
   border-radius: var(--radius);
-  transition: background 0.15s;
+  transition: background var(--t-fast);
 }
 .layer-group label:hover { background: rgb(31 43 56 / 60%); }
 
@@ -1983,10 +1980,7 @@ button:disabled {
   /* the map stays visible behind, softened rather than hidden. */
   background: rgb(3 10 18 / 55%);
   backdrop-filter: blur(7px) saturate(115%);
-  animation: fade-in 170ms var(--ease-out);
 }
-.scrim.closing { animation: fade-out 150ms var(--ease-out) forwards; }
-@keyframes fade-out { to { opacity: 0; } }
 
 .dialog {
   width: min(520px, 100%);
@@ -1994,17 +1988,10 @@ button:disabled {
   overflow-y: auto;
   padding: var(--space-lg);
   border-radius: var(--radius-panel);
-  animation: dialog-in 220ms var(--ease-out);
 }
-.scrim.closing .dialog { animation: dialog-out 150ms var(--ease-out) forwards; }
 @keyframes dialog-in {
   from { opacity: 0; transform: translateY(12px) scale(0.98); }
 }
-@keyframes dialog-out {
-  to { opacity: 0; transform: translateY(6px) scale(0.99); }
-}
-.reduce-motion .scrim,
-.reduce-motion .dialog { animation: none !important; }
 
 .dialog h2 {
   margin: 0 0 var(--space-sm);
@@ -2108,7 +2095,7 @@ a.btn { text-decoration: none; }
   gap: 2px;
   padding: 4px 8px;
   border-radius: var(--radius-lg);
-  transition: background 0.18s;
+  transition: background var(--t-select);
 }
 .clock-pod:hover { background: rgb(31 43 56 / 55%); }
 .clock-pod .value { font-size: 23px; font-weight: 700; letter-spacing: -0.02em; color: var(--primary); }
@@ -2142,7 +2129,7 @@ a.btn { text-decoration: none; }
   font-family: var(--font-mono);
   font-size: 8px;
   color: var(--outline);
-  transition: color 0.18s, transform 0.18s var(--spring);
+  transition: color var(--t-select), transform var(--t-select) var(--spring);
 }
 .rate-pod .ticks button:hover:not(:disabled) { color: var(--primary); }
 .rate-pod .ticks button.current {
@@ -2151,21 +2138,21 @@ a.btn { text-decoration: none; }
   transform: translateX(-50%) scale(1.15);
 }
 /* The handle eases to its mark in JS; the fill follows with a matching curve. */
-.rate-slider .rail > i { transition: width 90ms linear; }
+.rate-slider .rail > i { transition: width var(--t-fast) linear; }
 .reduce-motion .rate-slider .rail > i { transition: none; }
 
 .transport { gap: 8px; }
 .transport button {
   width: 34px;
   height: 34px;
-  transition: background 0.18s, color 0.18s, transform 0.2s var(--spring);
+  transition: background var(--t-select), color var(--t-select), transform var(--t-select) var(--spring);
 }
 .transport button:hover:not(:disabled) { transform: translateY(-1px); }
 .transport button:active:not(:disabled) { transform: scale(0.88); }
 .transport .play {
   width: 42px;
   height: 42px;
-  transition: background 0.18s, box-shadow 0.25s, transform 0.22s var(--spring);
+  transition: background var(--t-select), box-shadow var(--t-panel), transform var(--t-select) var(--spring);
 }
 .transport .play:hover:not(:disabled) {
   transform: scale(1.07);
@@ -2194,7 +2181,7 @@ a.btn { text-decoration: none; }
   color: var(--on-primary);
 }
 .btn:active:not(:disabled) { transform: scale(0.96); }
-.btn { transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.16s var(--spring); }
+.btn { transition: background var(--t-select), color var(--t-select), border-color var(--t-select), transform var(--t-select) var(--spring); }
 .reduce-motion .btn { transition: none; transform: none !important; }
 .hud-chip .accent { color: var(--primary); }
 
@@ -2336,8 +2323,8 @@ a.btn { text-decoration: none; }
 .dock-icon {
   display: block;
   transition:
-    transform 0.25s var(--spring),
-    opacity 0.2s;
+    transform var(--t-panel) var(--spring),
+    opacity var(--t-select);
 }
 .reduce-motion .dock-icon {
   transition: none;
@@ -2382,8 +2369,8 @@ a.btn { text-decoration: none; }
 .toast {
   position: relative;
   transition:
-    transform 0.25s var(--ease-out),
-    box-shadow 0.25s;
+    transform var(--t-panel) var(--ease-out),
+    box-shadow var(--t-panel);
 }
 .toast.still {
   animation: none;
@@ -2431,7 +2418,7 @@ a.btn { text-decoration: none; }
   font-size: 9px;
   letter-spacing: 0.04em;
   white-space: nowrap;
-  transition: background 0.18s;
+  transition: background var(--t-select);
 }
 .toast-count:hover {
   background: rgb(53 215 255 / 30%);

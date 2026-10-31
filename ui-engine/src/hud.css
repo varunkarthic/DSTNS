@@ -286,7 +286,7 @@
   transform: rotate(180deg);
 }
 .rail-btn .icon {
-  transition: transform 420ms var(--ease);
+  transition: transform var(--t-expand) var(--ease);
 }
 
 /* Time and progress. */
@@ -320,7 +320,7 @@
   stroke-width: 2.2;
   stroke-linecap: round;
   filter: drop-shadow(0 0 3px rgb(55 215 255 / 50%));
-  transition: stroke-dasharray 600ms var(--ease);
+  transition: stroke-dasharray var(--t-expand) var(--ease);
 }
 .time-value {
   position: relative;
@@ -400,7 +400,7 @@
   background: var(--cyan-soft);
   box-shadow: inset 0 0 0 1px rgb(55 215 255 / 45%);
   transform: translateX(calc(var(--pos) * var(--slot)));
-  transition: transform 520ms var(--ease);
+  transition: transform var(--t-expand) var(--ease);
 }
 .speed button {
   position: relative;
@@ -953,6 +953,7 @@
   gap: 10px;
 }
 .text-button {
+  min-height: 24px;
   font-size: 11px;
   color: var(--cyan);
 }
@@ -1017,10 +1018,10 @@
 /* Switch. */
 .switch {
   position: relative;
-  width: 34px;
-  height: 20px;
+  width: 40px;
+  height: 24px;
   flex: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgb(255 255 255 / 12%);
   transition: background var(--t-select) var(--ease);
 }
@@ -1028,9 +1029,9 @@
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
   background: #cbd7df;
   box-shadow: 0 1px 3px rgb(0 0 0 / 40%);
   transition:
@@ -1039,17 +1040,17 @@
     width var(--t-hover) var(--ease);
 }
 .switch:active:not(:disabled) i {
-  width: 18px;
+  width: 22px;
 }
 .switch.on {
   background: rgb(55 215 255 / 55%);
 }
 .switch.on i {
-  transform: translateX(14px);
+  transform: translateX(16px);
   background: #ffffff;
 }
 .switch.on:active:not(:disabled) i {
-  transform: translateX(10px);
+  transform: translateX(12px);
 }
 
 /* ---- Tool dock --------------------------------------------------------------------- */
@@ -1093,7 +1094,7 @@
   box-shadow: inset 0 0 0 1px rgb(255 185 56 / 45%);
 }
 .map-dock .settings-trigger .icon {
-  transition: transform 520ms var(--ease);
+  transition: transform var(--t-expand) var(--ease);
 }
 .map-dock .settings-trigger:hover .icon,
 .map-dock .settings-trigger.active .icon {
@@ -1204,23 +1205,22 @@
   width: min(360px, calc(100% - 24px));
   display: flex;
   flex-direction: column;
-  border-radius: 22px;
-  background: var(--hud-bg-strong);
+  border-radius: var(--r-xl);
+  /* Opaque enough that nothing on the map competes with text being read. */
+  background: var(--surface-solid);
   transform: translateX(calc(-100% - 24px));
   opacity: 0;
   visibility: hidden;
+  will-change: transform;
+  /* The transform is a spring, set from SettingsDrawer. */
   transition:
-    transform 320ms var(--ease),
-    opacity 240ms var(--ease),
-    visibility 0s linear 320ms;
+    opacity var(--t-select) var(--ease),
+    visibility 0s linear var(--t-expand);
 }
 .settings-drawer.open {
-  transform: none;
   opacity: 1;
   visibility: visible;
-  transition:
-    transform 320ms var(--ease),
-    opacity 200ms var(--ease);
+  transition: opacity var(--t-select) var(--ease);
 }
 .reduce-motion .settings-drawer {
   transition: none;
@@ -1230,6 +1230,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 16px 8px 20px;
+  touch-action: none;
+  cursor: grab;
+}
+.settings-head:active {
+  cursor: grabbing;
 }
 .settings-head h2 {
   margin: 0;
@@ -1381,7 +1386,7 @@
   grid-template-columns: repeat(var(--count), minmax(0, 1fr));
   flex: none;
   min-width: 128px;
-  height: 30px;
+  min-height: 30px;
   padding: 2px;
   border-radius: 15px;
   background: rgb(255 255 255 / 5%);
@@ -1401,6 +1406,7 @@
 }
 .segmented button {
   position: relative;
+  min-height: 24px;
   padding: 0 9px;
   font-size: 11px;
   white-space: nowrap;
@@ -1432,8 +1438,8 @@
   pointer-events: none;
   opacity: 0;
   transition:
-    opacity 140ms var(--ease),
-    transform 140ms var(--ease);
+    opacity var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
 }
 .tip.tip-top {
   transform: translateY(3px);
@@ -1508,8 +1514,8 @@
   opacity: 0;
   transform: translateY(-3px);
   transition:
-    opacity 140ms var(--ease),
-    transform 140ms var(--ease);
+    opacity var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
 }
 .inspect-card.shown {
   opacity: 1;
@@ -1939,7 +1945,7 @@
   stroke: var(--cyan);
   stroke-width: 3;
   stroke-linecap: round;
-  transition: stroke-dasharray 500ms var(--ease);
+  transition: stroke-dasharray var(--t-expand) var(--ease);
 }
 .world-ring:not(.done):not(.failed) svg {
   animation: ring-spin 1.6s linear infinite;
@@ -2035,7 +2041,7 @@
   display: block;
   height: 100%;
   background: var(--cyan);
-  transition: width 400ms var(--ease);
+  transition: width var(--t-expand) var(--ease);
 }
 .world-dialog .dialog-actions {
   justify-content: center;
@@ -2070,9 +2076,9 @@
     0 0 0 200vmax rgb(3 10 18 / 58%);
   pointer-events: none;
   transition:
-    transform 380ms var(--ease),
-    width 380ms var(--ease),
-    height 380ms var(--ease);
+    transform var(--t-expand) var(--ease),
+    width var(--t-expand) var(--ease),
+    height var(--t-expand) var(--ease);
 }
 .tour-spotlight.none {
   box-shadow: 0 0 0 200vmax rgb(3 10 18 / 58%);
@@ -2090,8 +2096,8 @@
   box-shadow: 0 24px 60px -16px rgb(0 0 0 / 80%);
   opacity: 0;
   transition:
-    transform 380ms var(--ease),
-    opacity 200ms var(--ease);
+    transform var(--t-expand) var(--ease),
+    opacity var(--t-select) var(--ease);
 }
 .tour-card.placed {
   opacity: 1;

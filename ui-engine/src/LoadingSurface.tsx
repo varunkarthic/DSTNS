@@ -43,6 +43,7 @@ export function LoadingSurface({
   footer,
   titleId = "loading-title",
   role = "status",
+  idle = false,
 }: {
   /** "boot" covers the screen; "overlay" floats a card over the dimmed map. */
   mode: "boot" | "overlay";
@@ -63,6 +64,8 @@ export function LoadingSurface({
   footer?: ReactNode;
   titleId?: string;
   role?: "status" | "alertdialog";
+  /** Nothing is in progress, so nothing may look as if it is. */
+  idle?: boolean;
 }) {
   const done = !!steps && stepIndex >= steps.length - 1 && !failed;
   const known = typeof progress === "number" && Number.isFinite(progress);
@@ -70,26 +73,28 @@ export function LoadingSurface({
   const body = (
     <div className="loading-card" data-tip-avoid>
       {mode === "boot" && (
-        <div className={`loading-mark${reduceMotion ? "" : " animated"}`}>
-          <Mark size={96} />
+        <div className={`loading-mark${reduceMotion || idle || failed ? "" : " animated"}`}>
+          <Mark size={72} />
         </div>
       )}
-      <div className={`loading-ring${failed ? " failed" : ""}${done ? " done" : ""}${known ? " known" : ""}`} aria-hidden="true">
-        <svg viewBox="0 0 48 48" width="48" height="48">
-          <circle className="loading-ring-track" cx="24" cy="24" r="20" />
-          <circle
-            className="loading-ring-arc"
-            cx="24"
-            cy="24"
-            r="20"
-            pathLength={100}
-            style={{ strokeDasharray: `${failed || done ? 100 : known ? Math.max(4, percent) : 26} 100` }}
-          />
-        </svg>
-        {/* Boot already leads with the mark; repeating it inside the ring
-            would show the same D twice. */}
-        {failed ? <Icon name="incident" size={18} /> : mode === "boot" ? null : <img className="loading-favicon" src="/favicon.svg" alt="" />}
-      </div>
+      {/* Boot leads with the mark and reports progress on one line beneath it;
+          the ring belongs to the overlay, and to a failure anywhere. */}
+      {(mode === "overlay" || failed) && (
+        <div className={`loading-ring${failed ? " failed" : ""}${done ? " done" : ""}${known ? " known" : ""}`} aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="48" height="48">
+            <circle className="loading-ring-track" cx="24" cy="24" r="20" />
+            <circle
+              className="loading-ring-arc"
+              cx="24"
+              cy="24"
+              r="20"
+              pathLength={100}
+              style={{ strokeDasharray: `${failed || done ? 100 : known ? Math.max(4, percent) : 26} 100` }}
+            />
+          </svg>
+          {failed ? <Icon name="incident" size={18} /> : <img className="loading-favicon" src="/favicon.svg" alt="" />}
+        </div>
+      )}
       <h2 id={titleId}>{title}</h2>
       {seed && (
         <p className="loading-seed">
@@ -124,10 +129,13 @@ export function LoadingSurface({
               {status}
             </p>
           )}
-          {known && (
+          {known ? (
             <div className="loading-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={progressLabel}>
               <i style={{ transform: `scaleX(${percent / 100})` }} />
             </div>
+          ) : (
+            // The bar's place is held, so the layout does not move when a total arrives.
+            mode === "boot" && <div className={`loading-progress${idle ? " idle" : " working"}`} aria-hidden="true" />
           )}
           {note && <p className="loading-note">{note}</p>}
         </>

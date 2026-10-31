@@ -11,7 +11,7 @@ import { Mark } from "./Logo";
  * The interface starts before the core has a map: a district is often being
  * downloaded from OpenStreetMap, which takes tens of seconds. The start-up
  * screen reports what is actually happening, stage by stage, and dissolves
- * into the map once the first network has arrived.
+ * into the map the moment the first network has arrived: it holds nothing back.
  */
 
 /**
@@ -28,23 +28,6 @@ export const BOOT_STEPS = [
   { id: "initialize", label: "Initializing simulation" },
 ] as const;
 
-/**
- * What the screen says while it waits.
- *
- * The stage list already says what the machine is doing. This says what the
- * person can expect, which is a different question and the one they are
- * actually asking. It moves forward with the work and never promises a time.
- */
-export function reassurance(step: number, total: number, waiting = false): string {
-  // Nothing is being got ready when nothing has been asked for: say what is
-  // true instead of reassuring about work that is not happening.
-  if (waiting) return "";
-  if (step <= 0) return "Getting things ready";
-  if (step >= total - 1) return "Almost there";
-  if (step >= total - 2) return "Just a moment";
-  return "This will only take a moment";
-}
-
 export interface SplashStage {
   /** Short phrase: what is happening right now. */
   label: string;
@@ -58,40 +41,7 @@ export interface SplashStage {
   waiting?: boolean;
 }
 
-/**
- * The welcome screen.
- *
- * Between the last stage finishing and the map appearing there is a beat where
- * the work is done but nothing is ready to look at. Rather than flashing
- * through it, the screen names the product, credits the licence, and hands over
- * deliberately - the moment an operating system spends telling you it is
- * yours before it shows you the desktop.
- */
-export function Welcome({ closing = false, reduceMotion }: { closing?: boolean; reduceMotion: boolean }) {
-  return (
-    <div
-      className={`loading-surface boot welcome${closing ? " closing" : ""}${reduceMotion ? " still" : ""}`}
-      role="status"
-      aria-labelledby="welcome-title"
-    >
-      <div className="welcome-body">
-        <div className={`welcome-mark${reduceMotion ? "" : " animated"}`}>
-          <Mark size={104} />
-        </div>
-        <h2 id="welcome-title">Starting DSTNS</h2>
-        <p className="welcome-sub">Deterministic Spatiotemporal Transport Network Simulator</p>
-      </div>
-      <p className="loading-licence welcome-licence">
-        © 2026 Varun Karthic · Licensed under AGPL-3.0-or-later · Map data © OpenStreetMap contributors (ODbL)
-      </p>
-    </div>
-  );
-}
-
-/** How long the welcome screen is held before it dissolves into the map. */
-export const WELCOME_MS = 1600;
-/** How long its progressive blur takes to clear. */
-export const WELCOME_EXIT_MS = 720;
+const LICENCE = "Deterministic Spatiotemporal Transport Network Simulator · © 2026 Varun Karthic · AGPL-3.0-or-later · Map data © OpenStreetMap contributors (ODbL)";
 
 export function Splash({
   stage,
@@ -115,27 +65,62 @@ export function Splash({
   return (
     <LoadingSurface
       mode="boot"
-      title={reassurance(stage.step, BOOT_STEPS.length, stage.waiting) || stage.label}
-      status={stage.waiting ? stage.detail : stage.detail ? `${stage.label} · ${stage.detail}` : stage.label}
+      title={stage.label}
+      status={stage.detail}
       steps={stage.waiting ? undefined : BOOT_STEPS}
       stepIndex={stage.step}
       progress={stage.progress}
       progressLabel={stage.label}
+      idle={stage.waiting}
       closing={closing}
       reduceMotion={reduceMotion}
       titleId="splash-title"
       actions={
-        stalled && onDismiss && !closing ? (
+        stalled && onDismiss && !closing && !stage.waiting ? (
           <button type="button" className="btn ghost" onClick={onDismiss}>
             Continue without waiting
           </button>
         ) : undefined
       }
-      footer={
-        <p className="loading-licence">
-          Deterministic Spatiotemporal Transport Network Simulator · © 2026 Varun Karthic · AGPL-3.0-or-later · Map data © OpenStreetMap contributors (ODbL)
-        </p>
+      footer={<p className="loading-licence">{LICENCE}</p>}
+    />
+  );
+}
+
+/** Nothing could be loaded. Says what happened and what is safe, and keeps trying behind it. */
+export function BootFailure({ message, reduceMotion, closing = false }: { message: string; reduceMotion: boolean; closing?: boolean }) {
+  return (
+    <LoadingSurface
+      mode="boot"
+      role="alertdialog"
+      failed
+      title="DSTNS could not start"
+      error={message}
+      note="Nothing has been lost. This screen clears by itself as soon as the simulator answers."
+      closing={closing}
+      reduceMotion={reduceMotion}
+      titleId="boot-failure-title"
+      actions={
+        <button type="button" className="btn" onClick={() => window.location.reload()}>
+          Reload
+        </button>
       }
+      footer={<p className="loading-licence">{LICENCE}</p>}
+    />
+  );
+}
+
+/** The session was terminated: the server has gone, and nothing here will come back. */
+export function ShutdownSurface({ reduceMotion }: { reduceMotion: boolean }) {
+  return (
+    <LoadingSurface
+      mode="boot"
+      idle
+      title="DSTNS has shut down"
+      status="The simulation and its server have stopped. Start a new run from the DSTNS CLI."
+      reduceMotion={reduceMotion}
+      titleId="shutdown-title"
+      footer={<p className="loading-licence">{LICENCE}</p>}
     />
   );
 }

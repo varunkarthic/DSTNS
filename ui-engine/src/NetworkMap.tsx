@@ -6,12 +6,15 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import type { RefObject } from "react";
 import { canvasGlyph } from "./placeGlyphs";
+import { animate, SPRINGS, stepSpring } from "./motion";
+import type { SpringPreset } from "./motion";
 import { mapFitLayout, mapInsets, metresToGeographic } from "./mapProjection";
 import { viewportFor } from "./autoFocus";
 import type { Bounds } from "./autoFocus";
@@ -46,6 +49,8 @@ export type MapControls = {
   /** Show the inspection card for a place, as hovering it would. */
   inspectFeature: (id: string) => void;
 };
+/** Pixels per metre; a map point (x_m, y_m) sits at (x + x_m * scale, y - y_m * scale). */
+export type MapTransform = { x: number; y: number; scale: number };
 export type MapView = {
   scale: number;
   metresPerPixel: number;
@@ -68,6 +73,7 @@ type Props = {
   focus?: { bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number } | null;
   controls?: RefObject<MapControls | null>;
   onView?: (view: MapView) => void;
+  onTransform?: (view: MapTransform) => void;
   onCursor?: (position: { lat: number; lon: number } | null) => void;
   /** The telemetry deck is collapsed to its strip, freeing the right side. */
   deckCompact?: boolean;
@@ -112,6 +118,7 @@ function NetworkMap({
   focus,
   controls,
   onView,
+  onTransform,
   onCursor,
   deckCompact = false,
 }: Props) {
@@ -585,48 +592,85 @@ function NetworkMap({
   // Smooth camera glide. The operator is carried to an event rather than
   // teleported: the view eases over a duration scaled to the distance, and any
   // manual pan, zoom or drag cancels it immediately.
-  const glide = useRef<number | undefined>(undefined);
+  const coasting = useRef<(() => void) | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
+  const dragSpeed = useRef({ x: 0, y: 0, at: 0, vx: 0, vy: 0 });
+  // The camera runs on three springs: the centre in map space, and zoom on a log
+  // scale so it feels uniform in speed. They hold their velocity, so a new target
+  // redirects a move in flight rather than stopping and restarting it.
+  const camera = useRef<{ cx: number; cy: number; zoom: number; vx: number; vy: number; vz: number; tx: number; ty: number; tz: number; preset: SpringPreset; cancel: () => void } | null>(null);
   const cancelGlide = useCallback(() => {
-    if (glide.current !== undefined) cancelAnimationFrame(glide.current);
-    glide.current = undefined;
+    camera.current?.cancel();
+    camera.current = null;
+    coasting.current?.();
+    coasting.current = null;
   }, []);
   useEffect(() => cancelGlide, [cancelGlide]);
   const glideTo = useCallback(
-    (target: View) => {
-      cancelGlide();
-      let from: View | null = null;
-      let duration = 0;
-      const started = performance.now();
-      const step = (now: number) => {
-        setView((current) => {
-          if (!from) {
-            from = current;
-            // Longer moves and larger zoom changes take a little longer.
-            const travel = Math.hypot(target.x - current.x, target.y - current.y) / Math.max(1, size.w);
-            const zoom = Math.abs(Math.log(target.scale / Math.max(1e-6, current.scale)));
-            duration = reduceMotion ? 0 : Math.min(1400, 650 + travel * 500 + zoom * 180);
-          }
-          const t = duration ? Math.min(1, (now - started) / duration) : 1;
-          // Ease-in-out cubic: gentle departure and arrival.
-          const k = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-          if (t >= 1) glide.current = undefined;
-          // Interpolate zoom geometrically so it feels uniform in speed.
-          const scale = from.scale * Math.pow(target.scale / from.scale, k);
-          // Keep the point under the moving centre on a straight path.
-          const layout = mapFitLayout(size.w, size.h, compactRef.current);
-          const fromCentre = { x: (layout.centerX - from.x) / from.scale, y: (layout.centerY - from.y) / from.scale };
-          const toCentre = { x: (layout.centerX - target.x) / target.scale, y: (layout.centerY - target.y) / target.scale };
-          const cx = fromCentre.x + (toCentre.x - fromCentre.x) * k;
-          const cy = fromCentre.y + (toCentre.y - fromCentre.y) * k;
-          return { scale, x: layout.centerX - cx * scale, y: layout.centerY - cy * scale };
-        });
-        if (glide.current !== undefined) glide.current = requestAnimationFrame(step);
+    (target: View, preset: SpringPreset = SPRINGS.camera) => {
+      coasting.current?.();
+      coasting.current = null;
+      if (reduceMotion) {
+        cancelGlide();
+        setView(target);
+        return;
+      }
+      const layout = mapFitLayout(size.w, size.h, compactRef.current);
+      const current = viewRef.current;
+      const tx = (layout.centerX - target.x) / target.scale;
+      const ty = (layout.centerY - target.y) / target.scale;
+      const tz = Math.log(target.scale);
+      if (camera.current) {
+        Object.assign(camera.current, { tx, ty, tz, preset });
+        return;
+      }
+      const state = {
+        cx: (layout.centerX - current.x) / current.scale,
+        cy: (layout.centerY - current.y) / current.scale,
+        zoom: Math.log(current.scale),
+        vx: 0, vy: 0, vz: 0, tx, ty, tz, preset,
+        cancel: () => {},
       };
-      glide.current = requestAnimationFrame(step);
+      camera.current = state;
+      state.cancel = animate((dt) => {
+        [state.cx, state.vx] = stepSpring(state.cx, state.vx, state.tx, state.preset, dt);
+        [state.cy, state.vy] = stepSpring(state.cy, state.vy, state.ty, state.preset, dt);
+        [state.zoom, state.vz] = stepSpring(state.zoom, state.vz, state.tz, state.preset, dt);
+        const scale = Math.exp(state.zoom);
+        const place = mapFitLayout(size.w, size.h, compactRef.current);
+        // Half a screen pixel and barely moving: as good as there.
+        const settled =
+          Math.hypot(state.cx - state.tx, state.cy - state.ty) * scale < 0.5 &&
+          Math.abs(state.zoom - state.tz) < 0.001 &&
+          Math.hypot(state.vx, state.vy) * scale < 5 &&
+          Math.abs(state.vz) < 0.01;
+        if (settled) {
+          camera.current = null;
+          const final = Math.exp(state.tz);
+          setView({ scale: final, x: place.centerX - state.tx * final, y: place.centerY - state.ty * final });
+          return false;
+        }
+        setView({ scale, x: place.centerX - state.cx * scale, y: place.centerY - state.cy * scale });
+        return true;
+      });
     },
     [cancelGlide, reduceMotion, size.w, size.h],
+  );
+  // Released with speed, the map coasts to rest under friction.
+  const coast = useCallback(
+    (vx: number, vy: number) => {
+      cancelGlide();
+      if (reduceMotion || Math.hypot(vx, vy) < 80) return;
+      coasting.current = animate((dt) => {
+        const decay = Math.exp(-5.5 * dt);
+        vx *= decay;
+        vy *= decay;
+        setView((v) => ({ ...v, x: v.x + vx * dt, y: v.y + vy * dt }));
+        return Math.hypot(vx, vy) >= 12;
+      });
+    },
+    [cancelGlide, reduceMotion],
   );
   useEffect(() => {
     if (!focus || !size.w) return;
@@ -843,14 +887,17 @@ function NetworkMap({
         280,
       );
   };
+  // Zooming accumulates on the value it is heading for, so a burst of wheel
+  // events is one smooth move about the pointer, not a series of steps.
+  const zoomTarget = useRef<View | null>(null);
   const zoom = (factor: number, cx = size.w / 2, cy = size.h / 2) => {
-    cancelGlide();
     clearHover();
-    setView((v) => {
-      const scale = Math.min(8, Math.max(0.025, v.scale * factor)),
-        ratio = scale / v.scale;
-      return { scale, x: cx - (cx - v.x) * ratio, y: cy - (cy - v.y) * ratio };
-    });
+    const from = camera.current && zoomTarget.current ? zoomTarget.current : viewRef.current;
+    const scale = Math.min(8, Math.max(0.025, from.scale * factor));
+    const ratio = scale / from.scale;
+    const target = { scale, x: cx - (cx - from.x) * ratio, y: cy - (cy - from.y) * ratio };
+    zoomTarget.current = target;
+    glideTo(target, SPRINGS.cameraZoom);
   };
   useImperativeHandle(
     controls,
@@ -884,6 +931,11 @@ function NetworkMap({
   useEffect(() => {
     onView?.({ scale: view.scale, metresPerPixel: 1 / view.scale });
   }, [view.scale, onView]);
+  // Every frame of a pan or glide: handed straight to whatever draws over the
+  // map, because routing it through React state would re-render the whole shell.
+  useLayoutEffect(() => {
+    onTransform?.(view);
+  }, [view, onTransform]);
   const reportCursor = useCallback(
     (clientX: number, clientY: number) => {
       if (!onCursor) return;
@@ -959,7 +1011,6 @@ function NetworkMap({
         tabIndex={0}
         aria-label="Simulation map. Drag to pan, scroll or press plus and minus to zoom, arrow keys to move. Hover entities to inspect. Place search is in the map dock."
         onWheel={(e) => {
-          cancelGlide();
           const r = e.currentTarget.getBoundingClientRect();
           zoom(e.deltaY > 0 ? 0.9 : 1.1, e.clientX - r.left, e.clientY - r.top);
         }}
@@ -967,16 +1018,30 @@ function NetworkMap({
           cancelGlide();
           clearHover();
           drag.current = { x: e.clientX, y: e.clientY, view };
+          dragSpeed.current = { x: e.clientX, y: e.clientY, at: e.timeStamp, vx: 0, vy: 0 };
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
-        onPointerUp={() => {
+        onPointerUp={(e) => {
           drag.current = null;
+          const speed = dragSpeed.current;
+          // A pause before letting go means the map was placed, not thrown.
+          if (e.timeStamp - speed.at < 80) coast(speed.vx, speed.vy);
         }}
         onPointerCancel={() => {
           drag.current = null;
         }}
         onPointerMove={(e) => {
           if (drag.current) {
+            const speed = dragSpeed.current;
+            const dt = (e.timeStamp - speed.at) / 1000;
+            if (dt > 0.004) {
+              // Smoothed, so the last jittery sample does not decide the throw.
+              speed.vx = speed.vx * 0.6 + ((e.clientX - speed.x) / dt) * 0.4;
+              speed.vy = speed.vy * 0.6 + ((e.clientY - speed.y) / dt) * 0.4;
+              speed.x = e.clientX;
+              speed.y = e.clientY;
+              speed.at = e.timeStamp;
+            }
             setView({
               ...drag.current.view,
               x: drag.current.view.x + e.clientX - drag.current.x,

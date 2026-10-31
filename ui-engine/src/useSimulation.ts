@@ -164,7 +164,9 @@ export function useSimulation(dwellMs = 7000, realistic = false) {
         if (!cancelled)
           setError(e instanceof Error ? e.message : "Connection failed.");
       } finally {
-        if (!cancelled) timer = setTimeout(refresh, 1000);
+        // Quickly until there is a map, so a finished stage is not left on screen
+        // waiting for the next poll; then at the pace the core publishes.
+        if (!cancelled) timer = setTimeout(refresh, run ? 1000 : 250);
       }
     }
     void refresh();
