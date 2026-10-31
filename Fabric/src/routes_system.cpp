@@ -25,7 +25,7 @@ void ApiServer::routes_system() {
     // world selection and the download are watched rather than hidden.
     server_->Get("/api/v1/system/observer", [this](const auto&, auto& r) {
         const auto loads = observer_loads_.load();
-        send(r, {{"api_version", "1.0"}, {"data", {{"loaded", loads > 0}, {"loads", loads}}}});
+        send(r, {{"api_version", kApiVersion}, {"data", {{"loaded", loads > 0}, {"loads", loads}}}});
     });
 
     // Health & System Status
@@ -127,6 +127,23 @@ void ApiServer::routes_system() {
                 {{"GET","/api/v1/view/logs/system","System log"}},
                 {{"GET","/api/v1/view/logs/events","Event log"}},
                 {{"GET","/api/v1/view/logs/api","API access log"}}}),
+            group("fabric","Applications that register themselves with this server",{
+                {{"GET","/api/v1/fabric/apps","Registered applications"}},
+                {{"POST","/api/v1/fabric/apps","Register an application from its manifest"}},
+                {{"GET","/api/v1/fabric/apps/{id}","One application"}},
+                {{"DELETE","/api/v1/fabric/apps/{id}","Unregister"}},
+                {{"POST","/api/v1/fabric/apps/{id}/heartbeat","Renew the application's lease"}},
+                {{"PUT","/api/v1/fabric/apps/{id}/state","Report initialized, active or failed"}},
+                {{"PUT","/api/v1/fabric/apps/{id}/ui","Declare the application's UI"}},
+                {{"PUT","/api/v1/fabric/apps/{id}/ui/{element}","Update one element"}},
+                {{"POST","/api/v1/fabric/apps/{id}/notifications","Send a notification"}},
+                {{"GET","/api/v1/fabric/apps/{id}/events","Interactions, settings changes and lifecycle events"}},
+                {{"GET","/api/v1/fabric/apps/{id}/settings","The application's settings"}},
+                {{"PUT","/api/v1/fabric/apps/{id}/settings","Change settings"}},
+                {{"PUT","/api/v1/fabric/apps/{id}/grants","Grant or revoke capabilities"}},
+                {{"POST","/api/v1/fabric/apps/{id}/control","Act on the simulation, by capability"}},
+                {{"GET","/api/v1/fabric/audit","Control actions taken by applications"}},
+                {{"GET","/api/v1/fabric/state","Everything applications declare, for the observer"}}}),
         });
     };
     server_->Get("/api/v1/system/endpoints", [index_of_api](const auto&, auto& r) {
@@ -189,7 +206,7 @@ void ApiServer::routes_system() {
     // interacting with it must be told where to obtain the corresponding
     // source of the version they are running.
     server_->Get("/api/v1/system/source", [](const auto&, auto& r) {
-        send(r, {{"api_version", "1.0"},
+        send(r, {{"api_version", kApiVersion},
                  {"data", {
                      {"program", "DSTNS"},
                      {"version", DSTNS_VERSION},
@@ -211,7 +228,7 @@ void ApiServer::routes_system() {
     // it reports only progress through a map the seed already determined.
     server_->Get("/api/v1/system/map-status", [this](const auto&, auto& r) {
         const auto status = current_map_fetch();
-        send(r, {{"api_version", "1.0"},
+        send(r, {{"api_version", kApiVersion},
                  {"data", {{"active", status.active},
                            // What a preparation is spending its time on, even
                            // while no map is being downloaded.
@@ -235,19 +252,19 @@ void ApiServer::routes_system() {
             try {
                 json parsed;
                 in >> parsed;
-                send(r, {{"api_version", "1.0"}, {"data", parsed}});
+                send(r, {{"api_version", kApiVersion}, {"data", parsed}});
                 return;
             } catch (const json::parse_error& e) {
                 // A malformed file must not take the interface down; the client
                 // falls back to its built-in defaults and the operator is told.
-                send(r, {{"api_version", "1.0"},
+                send(r, {{"api_version", kApiVersion},
                          {"error", {{"code", "UI_CONFIG_INVALID"},
                                     {"message", std::string("config/ui-config.json is not valid JSON: ") + e.what()}}}},
                      500);
                 return;
             }
         }
-        send(r, {{"api_version", "1.0"}, {"data", json::object()}});
+        send(r, {{"api_version", kApiVersion}, {"data", json::object()}});
     });
 
     // ASB. The observer reports how far behind it is; the response carries the

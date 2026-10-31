@@ -490,8 +490,7 @@ push. Details: [Testing](https://dstns.readthedocs.io/development/testing/).
 ## Project layout
 
 ```text
-apps/dstns_server/    server entry point
-Core/Core/                 the C++ core: engine, scenario, OSM, events, backpressure
+Core/                 the C++ core: engine, scenario, OSM, events, backpressure, server entry point
 Fabric/               the HTTP API over the core, and the application registry
 ui-engine/            the observer (React, Vite, Vitest)
 dstns_launcher/       the Python launcher, terminal interface and shared service core

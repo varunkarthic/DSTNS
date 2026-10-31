@@ -70,7 +70,7 @@ endif()
 add_library(dstns_fabric
   Fabric/src/api.cpp Fabric/src/support.cpp Fabric/src/guards.cpp Fabric/src/routes_static.cpp Fabric/src/routes_system.cpp
   Fabric/src/routes_playback.cpp Fabric/src/routes_world.cpp Fabric/src/routes_control.cpp Fabric/src/routes_view.cpp
-  Fabric/src/routes_observation.cpp)
+  Fabric/src/routes_observation.cpp Fabric/src/routes_apps.cpp Fabric/src/registry.cpp Fabric/src/operations.cpp)
 target_include_directories(dstns_fabric PUBLIC Fabric/include)
 target_link_libraries(dstns_fabric PUBLIC dstns_core)
 target_compile_options(dstns_fabric PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
@@ -90,7 +90,7 @@ target_link_libraries(dstns_benchmark PRIVATE dstns_core)
 if(DSTNS_BUILD_TESTS)
   enable_testing()
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  foreach(smoke loading termination hardening narration fabric_contract)
+  foreach(smoke loading termination hardening narration fabric_contract fabric_apps)
     add_test(NAME dstns_http_${smoke}
       COMMAND ${CMAKE_COMMAND} -E env "DSTNS_SERVER=$<TARGET_FILE:dstns_server>"
         ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/api/${smoke}_smoke.py")

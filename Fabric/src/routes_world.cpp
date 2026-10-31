@@ -22,7 +22,7 @@ void ApiServer::routes_world() {
     }();
     server_->Post("/api/v1/world/regenerate", [this, regeneration_disabled](const auto& req, auto& r) {
         if (regeneration_disabled) {
-            send(r, {{"api_version", "1.0"},
+            send(r, {{"api_version", kApiVersion},
                      {"error", {{"code", "WORLD_REGENERATION_DISABLED"},
                                 {"message", "World regeneration is disabled by the operator."}}}}, 403);
             return;

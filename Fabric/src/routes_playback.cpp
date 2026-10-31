@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
+#include "operations.hpp"
 #include "support.hpp"
 
 namespace dstns {
@@ -31,10 +32,7 @@ void ApiServer::routes_playback() {
 
     // Advance a fixed amount of virtual time and hold there.
     server_->Post("/api/v1/playback/step", [this](const auto& req, auto& r) {
-        const auto j = body(req);
-        const auto seconds = j.contains("seconds") ? j.at("seconds").template get<std::int64_t>() : 60;
-        if (seconds < 1 || seconds > 3600) throw std::invalid_argument("seconds must be in [1, 3600]");
-        send(r, engine_.step(static_cast<std::uint32_t>(seconds)));
+        send(r, step(engine_, body(req)));
     });
 
     server_->Post("/api/v1/playback/prepare", [this](const httplib::Request& req, httplib::Response& r) {

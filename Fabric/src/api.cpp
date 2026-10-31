@@ -2,13 +2,15 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
+#include "dstns/fabric/registry.hpp"
 
 #include <httplib.h>
 
 namespace dstns {
 
 ApiServer::ApiServer(SimulationEngine& e, RuntimeLogger& l)
-    : engine_(e), logger_(l), server_(std::make_unique<httplib::Server>()) {
+    : engine_(e), logger_(l), server_(std::make_unique<httplib::Server>()),
+      registry_(std::make_unique<fabric::AppRegistry>(l.log_directory() / "fabric-apps.json")) {
     install_guards();
     routes_static();
     routes_system();
@@ -17,6 +19,7 @@ ApiServer::ApiServer(SimulationEngine& e, RuntimeLogger& l)
     routes_control();
     routes_view();
     routes_observation();
+    routes_apps();
 }
 
 ApiServer::~ApiServer() {

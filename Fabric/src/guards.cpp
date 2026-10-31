@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
+#include "dstns/fabric/registry.hpp"
 #include "dstns/osm_fetch.hpp"
 #include "support.hpp"
 
@@ -62,6 +63,10 @@ void ApiServer::install_guards() {
         int status = 500;
         try {
             if (ep) std::rethrow_exception(ep);
+        } catch (const Refusal& e) {
+            // A deliberate refusal, not a fault, so it is not logged as an error.
+            send(res, {{"ok", false}, {"api_version", kApiVersion}, {"error", {{"code", e.code}, {"message", e.what()}}}}, e.status);
+            return;
         } catch (const MapFetchError& e) {
             // The seed names a real place that could not be downloaded. This is
             // upstream/environmental, and retryable, so it must not look like a
@@ -96,7 +101,7 @@ void ApiServer::install_guards() {
         } catch (const std::exception& e) {
             message = e.what();
         }
-        send(res, {{"ok", false}, {"api_version", "1.0"}, {"error", {{"code", code}, {"message", message}}}}, status);
+        send(res, {{"ok", false}, {"api_version", kApiVersion}, {"error", {{"code", code}, {"message", message}}}}, status);
         logger_.system("ERROR", "api", req.method + " " + req.path + ": " + message);
     });
 

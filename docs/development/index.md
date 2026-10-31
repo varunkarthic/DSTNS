@@ -17,7 +17,7 @@ read it, build it and adapt it for your own use.
 
 ```text
 DSTNS/
-├── apps/dstns_server/        server entry point (flags, token, cache sweep)
+├── Core/server/              server entry point (flags, token, cache sweep)
 ├── Core/                     the core library: engine, scenario, OSM, events, ASB, …
 ├── Fabric/                   the HTTP API over the core, and the application registry
 ├── tools/                    dstns_scenario_export, _replay_verify, _road_index, _benchmark

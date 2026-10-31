@@ -566,7 +566,7 @@ nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig&
     });
     return {
         {"ok", true},
-        {"api_version", "1.0"},
+        {"api_version", kApiVersion},
         {"run_id", ""},
         {"data", {
             {"accepted", true}, {"lifecycle", "PREPARING"}, {"seed", seed.decimal()}, {"seed_hex", seed.hex()}
@@ -830,7 +830,7 @@ nlohmann::json SimulationEngine::world_status_locked() const {
     nlohmann::json error = nullptr;
     if (j.state == "failed") error = {{"code", j.error_code}, {"message", j.error}};
     return {
-        {"api_version", "1.0"},
+        {"api_version", kApiVersion},
         {"data", {
             {"state", j.state},
             {"stage", stage},
@@ -1547,7 +1547,7 @@ nlohmann::json SimulationEngine::clock_json() const {
 nlohmann::json SimulationEngine::envelope(nlohmann::json data) const {
     return {
         {"ok", true},
-        {"api_version", "1.0"},
+        {"api_version", kApiVersion},
         {"run_id", run_id_},
         {"global_seed", graph_ ? graph_->scenario().seed.hex() : ""},
         {"seed", graph_ ? graph_->scenario().seed.decimal() : ""},
