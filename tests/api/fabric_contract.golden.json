@@ -1,0 +1,5327 @@
+{
+"00 POST /api/v1/playback/start {\"seed\": \"12345\", \"playback_duration_seconds\": 3600, \"map\": {\"osm_file\": \"tests/fixtures/roads.osm.xml\"}} ['X-DSTNS-Operator']": {
+"body": {
+"api_version": "string",
+"data": {
+"accepted": "boolean",
+"lifecycle": "string",
+"seed": "string",
+"seed_hex": "string"
+},
+"ok": "boolean",
+"run_id": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 202,
+"type": "application/json"
+},
+"01 POST /api/v1/playback/prepare {\"seed\": \"12345\", \"playback_duration_seconds\": 3600, \"map\": {\"osm_file\": \"tests/fixtures/roads.osm.xml\"}} ['X-DSTNS-Operator']": {
+"body": {
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 403,
+"type": "application/json"
+},
+"02 POST /api/v1/playback/pause {} ": {
+"body": {
+"changed": "boolean",
+"lifecycle": "string",
+"ok": "boolean",
+"playback_revision": "number",
+"run_id": "string",
+"simulated_seconds": "number",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"03 POST /api/v1/playback/play {} ['Origin']": {
+"body": {
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 403,
+"type": "application/json"
+},
+"04 POST /api/v1/playback/play {} ['Origin']": {
+"body": {
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 403,
+"type": "application/json"
+},
+"05 GET /health null ['Host']": {
+"body": {
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 421,
+"type": "application/json"
+},
+"06 POST /api/v1/playback/play {} ": {
+"body": {
+"changed": "boolean",
+"lifecycle": "string",
+"ok": "boolean",
+"simulated_seconds": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"07 POST /api/v1/playback/pause {} ": {
+"body": {
+"changed": "boolean",
+"lifecycle": "string",
+"ok": "boolean",
+"playback_revision": "number",
+"run_id": "string",
+"simulated_seconds": "number",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"08 POST /api/v1/playback/seek {\"target_time\": 60} ": {
+"body": {
+"lifecycle": "string",
+"ok": "boolean",
+"simulated_seconds": "number",
+"state_revision": "number",
+"target_time": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"09 POST /api/v1/playback/seek {\"target_time\": 90000} ": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"10 POST /api/v1/playback/seek {} ": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"11 POST /api/v1/playback/step {\"seconds\": 1} ": {
+"body": {
+"from_seconds": "number",
+"lifecycle": "string",
+"ok": "boolean",
+"playback_revision": "number",
+"simulated_seconds": "number",
+"state_revision": "number",
+"stepped_seconds": "number",
+"target_time": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"12 POST /api/v1/playback/step {\"seconds\": 0} ": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"13 PUT /api/v1/control/tick-rate {\"tick_rate\": 1} ": {
+"body": {
+"base_rate": "number",
+"command_id": "number",
+"ok": "boolean",
+"previous_tick_rate": "number",
+"rate_governed_by_asb": "boolean",
+"requested_tick_rate": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"14 PUT /api/v1/control/tick-rate {\"tick_rate\": \"fast\"} ": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"15 POST /api/v1/control/day {\"day\": 1} ": {
+"body": {
+"command_id": "number",
+"config_revision": "number",
+"day": "number",
+"ok": "boolean",
+"previous_day": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"16 PUT /api/v1/control/modules/news {\"enabled\": true} ": {
+"body": {
+"command_id": "number",
+"config_revision": "number",
+"enabled": "boolean",
+"module": "string",
+"ok": "boolean",
+"previous_enabled": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"17 POST /api/v1/control/modules/news/enable {} ": {
+"body": {
+"command_id": "number",
+"config_revision": "number",
+"enabled": "boolean",
+"module": "string",
+"ok": "boolean",
+"previous_enabled": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"18 POST /api/v1/control/events/weather {\"epicenter_node\": 0} ": {
+"body": {
+"command_id": "number",
+"delayed_by_dws_gate": "boolean",
+"effective_start_playback_s": "number",
+"event_id": "number",
+"ok": "boolean",
+"requested_start_playback_s": "number",
+"status": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 202,
+"type": "application/json"
+},
+"19 POST /api/v1/control/events/weather {\"epicenter_node\": 0, \"duration_virtual_minutes\": 0} ": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"20 POST /api/v1/control/events/traffic {\"target\": {\"type\": \"edge\", \"id\": 0}, \"congestion_pressure\": 0.5} ": {
+"body": {
+"command_id": "number",
+"edge_id": "number",
+"ok": "boolean",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 202,
+"type": "application/json"
+},
+"21 POST /api/v1/control/events/traffic {\"target\": {\"type\": \"node\", \"id\": 0}, \"congestion_pressure\": 0.5} ": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"22 POST /api/v1/control/events/surge {\"node_id\": 0} ": {
+"body": {
+"end_time": "string",
+"factor": "number",
+"node_id": "number",
+"ok": "boolean",
+"radius_m": "number",
+"start_time": "string",
+"surge_id": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 202,
+"type": "application/json"
+},
+"23 PUT /api/v1/control/edges/0 {\"speed_multiplier\": 0.5} ": {
+"body": {
+"command_id": "number",
+"edge_id": "number",
+"ok": "boolean",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"24 POST /api/v1/control/edges/0/override {\"closed\": false} ": {
+"body": {
+"command_id": "number",
+"edge_id": "number",
+"ok": "boolean",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"25 POST /api/v1/control/edges/4294967297/override {} ": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"26 POST /api/v1/control/transit/route {} ": {
+"body": {
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Deprecation": "true",
+"Vary": "Origin"
+},
+"status": 410,
+"type": "application/json"
+},
+"27 POST /api/v1/control/undo {\"count\": 1} ": {
+"body": {
+"ok": "boolean",
+"redo_depth": "number",
+"undo_depth": "number",
+"undone": [
+"number"
+]
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"28 POST /api/v1/control/undo {\"count\": -1} ": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"29 POST /api/v1/control/redo {\"count\": 1} ": {
+"body": {
+"ok": "boolean",
+"redo_depth": "number",
+"redone": [
+"number"
+],
+"undo_depth": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"30 POST /api/v1/system/backpressure {\"virtual_lag_s\": 0, \"client_frame_s\": 0.016, \"since_poll_s\": 0} ": {
+"body": {
+"actions": [],
+"applied_tick_rate": "number",
+"gui_suspended": "boolean",
+"motion_locked": "boolean",
+"ok": "boolean",
+"rate_cap": "number",
+"rate_capped": "boolean",
+"rate_locked": "boolean",
+"raw_score": "number",
+"requested_tick_rate": "number",
+"score": "number",
+"state": "string",
+"state_for_s": "number",
+"stressed_for_s": "number",
+"synced": "boolean",
+"thresholds": {
+"critical": "number",
+"escalate_after_s": "number",
+"recover_after_s": "number",
+"restricted_hold_s": "number",
+"stressed": "number",
+"synced": "number"
+},
+"throughput": {
+"bytes_per_s": "number",
+"snapshots_per_s": "number"
+}
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"31 POST /api/v1/playback/pause \"{not json\" ": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"32 POST /api/v1/playback/reset {} ": {
+"body": {
+"lifecycle": "string",
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"33 POST /stop {} ": {
+"body": {
+"changed": "boolean",
+"lifecycle": "string",
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"34 OPTIONS /api/v1/playback/pause null ['Origin']": {
+"body": "string",
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 204,
+"type": ""
+},
+"35 POST /terminate {} ": {
+"body": {
+"message": "string",
+"ok": "boolean",
+"product": "string",
+"service": "string",
+"status": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"POST /api/v1/playback/start without credential": {
+"body": {
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 403,
+"type": "application/json"
+},
+"idle GET /": {
+"body": "string",
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "text/html; charset=utf-8"
+},
+"idle GET /api/v1": {
+"body": {
+"base": "string",
+"groups": [
+{
+"endpoints": [
+{
+"description": "string",
+"method": "string",
+"path": "string"
+}
+],
+"group": "string",
+"purpose": "string"
+}
+],
+"ok": "boolean",
+"version": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/control/history": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"commands": [],
+"redo_depth": "number",
+"undo_depth": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/news": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": []
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/news/stream": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": []
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "text/event-stream"
+},
+"idle GET /api/v1/news?since_news_id=-1": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"idle GET /api/v1/places": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [],
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/playback/status": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"checkpoint_count": "number",
+"day": "number",
+"lifecycle": "string",
+"map_selection_version": "string",
+"modules": {},
+"paused": "boolean",
+"playback_revision": "number",
+"preparation_error": "string",
+"run_id": "string",
+"saved_seed_id": "string",
+"simulated_seconds": "number",
+"traffic_model": "string",
+"virtual_seconds_remaining": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/system/backpressure": {
+"body": {
+"actions": [],
+"applied_tick_rate": "number",
+"gui_suspended": "boolean",
+"motion_locked": "boolean",
+"ok": "boolean",
+"rate_cap": "number",
+"rate_capped": "boolean",
+"rate_locked": "boolean",
+"raw_score": "number",
+"requested_tick_rate": "number",
+"score": "number",
+"state": "string",
+"state_for_s": "number",
+"stressed_for_s": "number",
+"synced": "boolean",
+"thresholds": {
+"critical": "number",
+"escalate_after_s": "number",
+"recover_after_s": "number",
+"restricted_hold_s": "number",
+"stressed": "number",
+"synced": "number"
+},
+"throughput": {
+"bytes_per_s": "number",
+"snapshots_per_s": "number"
+}
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/system/endpoints": {
+"body": {
+"base": "string",
+"groups": [
+{
+"endpoints": [
+{
+"description": "string",
+"method": "string",
+"path": "string"
+}
+],
+"group": "string",
+"purpose": "string"
+}
+],
+"ok": "boolean",
+"version": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/system/health": {
+"body": {
+"lifecycle": "string",
+"observer_ui_version": "string",
+"ok": "boolean",
+"product": "string",
+"service": "string",
+"version": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/system/info": {
+"body": {
+"build": {
+"architecture": "string",
+"channel": "string",
+"compiler": "string",
+"cpp_standard": "number",
+"created": "string",
+"revision": "string",
+"type": "string"
+},
+"lifecycle": "string",
+"ok": "boolean",
+"product": "string",
+"service": "string",
+"sumo": {
+"available": "boolean",
+"netconvert_binary": "string",
+"sumo_binary": "string",
+"sumo_home": "string",
+"version": "string"
+},
+"version": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/system/map-status": {
+"body": {
+"api_version": "string",
+"data": {
+"active": "boolean",
+"bytes": "number",
+"city": "string",
+"country": "string",
+"elapsed_s": "number",
+"phase": "string",
+"preparation": "string",
+"total": "number"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/system/narrator": {
+"body": {
+"data": {
+"backend": {
+"command": "string",
+"endpoint": "string",
+"kind": "string",
+"model": "string",
+"on_device": "boolean"
+},
+"brand": "string",
+"cache": {
+"capacity": "number",
+"entries": "number",
+"path": "string",
+"persistent": "boolean"
+},
+"cache_hits": "number",
+"completed": "number",
+"dropped": "number",
+"enabled": "boolean",
+"failed": "number",
+"in_flight": "number",
+"last_error": "string",
+"latency_ms": {
+"max": "number",
+"mean": "number"
+},
+"live_queue": "number",
+"prefetch_queue": "number",
+"queue": "number",
+"refused": "number",
+"requested": "number",
+"role": "string",
+"sequence": "number",
+"state": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/system/observer": {
+"body": {
+"api_version": "string",
+"data": {
+"loaded": "boolean",
+"loads": "number"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/system/source": {
+"body": {
+"api_version": "string",
+"data": {
+"copyright": "string",
+"license": "string",
+"license_url": "string",
+"map_data": {
+"license": "string",
+"source": "string",
+"url": "string"
+},
+"program": "string",
+"source_offer": "string",
+"version": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/system/status": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"checkpoint_count": "number",
+"day": "number",
+"lifecycle": "string",
+"map_selection_version": "string",
+"modules": {},
+"paused": "boolean",
+"playback_revision": "number",
+"preparation_error": "string",
+"run_id": "string",
+"saved_seed_id": "string",
+"simulated_seconds": "number",
+"traffic_model": "string",
+"virtual_seconds_remaining": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/system/ui-config": {
+"body": {
+"api_version": "string",
+"data": {
+"_comment": "string",
+"_enums": {
+"auto_focus.mode": [
+"string"
+],
+"auto_focus.strategy": [
+"string"
+],
+"notifications.dnd_categories": [
+"string"
+],
+"notifications.dnd_severities": [
+"string"
+],
+"playback.skip_seconds": [
+"number"
+],
+"playback.step_seconds": [
+"number"
+],
+"reduce_motion": [
+"string"
+]
+},
+"asb": {
+"enabled": "boolean",
+"report_interval_ms": "number"
+},
+"auto_focus": {
+"dwell_seconds": "number",
+"mode": "string",
+"strategy": "string",
+"zoom": "number"
+},
+"clock": {
+"hour12": "boolean"
+},
+"layers": {
+"buildings": "boolean",
+"events": "boolean",
+"flooding": "boolean",
+"incidents": "boolean",
+"labels": "boolean",
+"other_places": "boolean",
+"place_names": "boolean",
+"roads": "boolean",
+"signals": "boolean",
+"traffic": "boolean",
+"vehicles": "boolean",
+"weather": "boolean"
+},
+"news": {
+"style": "string"
+},
+"notifications": {
+"dnd": "boolean",
+"dnd_categories": [
+"string"
+],
+"dnd_severities": [],
+"dwell_ms": "number",
+"enabled": "boolean",
+"max_visible": "number"
+},
+"playback": {
+"skip_seconds": "number",
+"step_seconds": "number"
+},
+"reduce_motion": "string",
+"schema_version": "string",
+"tutorial": {
+"enabled": "boolean",
+"show_on_startup": "boolean"
+}
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/topology": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/all": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/buildings": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/bus-stops": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/config": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"checkpoint_count": "number",
+"day": "number",
+"lifecycle": "string",
+"map_selection_version": "string",
+"modules": {},
+"paused": "boolean",
+"playback_revision": "number",
+"preparation_error": "string",
+"run_id": "string",
+"saved_seed_id": "string",
+"simulated_seconds": "number",
+"traffic_model": "string",
+"virtual_seconds_remaining": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/congestion": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/edges": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [],
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/edges/0": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 404,
+"type": "application/json"
+},
+"idle GET /api/v1/view/event-queue": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"executed_count": "number",
+"history_retention": "number",
+"items": [],
+"limit": "number",
+"offset": "number",
+"pending_count": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/event-queue?view=bad": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"idle GET /api/v1/view/event-queue?view=history": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"executed_count": "number",
+"history_retention": "number",
+"items": [],
+"limit": "number",
+"offset": "number",
+"pending_count": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/events": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/global": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/global.json": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/incidents": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/logs/api": {
+"body": {
+"data": {
+"items": [
+{
+"id": "number",
+"latency_us": "number",
+"method": "string",
+"path": "string",
+"status": "number",
+"ts": "string"
+}
+]
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/logs/events": {
+"body": {
+"data": {
+"items": []
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/logs/system": {
+"body": {
+"data": {
+"lines": [
+"string"
+]
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/manifest": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/map/full": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/metrics": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/network": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/nodes": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [],
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/nodes/0": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 404,
+"type": "application/json"
+},
+"idle GET /api/v1/view/nodes/999999": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 404,
+"type": "application/json"
+},
+"idle GET /api/v1/view/nodes?limit=0": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"idle GET /api/v1/view/place-kinds": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"commercial": "boolean",
+"count": "number",
+"generator": "boolean",
+"kind": "string",
+"modelled": "boolean"
+}
+],
+"stop_spacing_m": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/places": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [],
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/run": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"checkpoint_count": "number",
+"day": "number",
+"lifecycle": "string",
+"map_selection_version": "string",
+"modules": {},
+"paused": "boolean",
+"playback_revision": "number",
+"preparation_error": "string",
+"run_id": "string",
+"saved_seed_id": "string",
+"simulated_seconds": "number",
+"traffic_model": "string",
+"virtual_seconds_remaining": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/signals": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/snapshot": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/stops": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [],
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/stream": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "text/event-stream"
+},
+"idle GET /api/v1/view/topology": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/traffic": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/weather": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/view/world": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /api/v1/world/status": {
+"body": {
+"api_version": "string",
+"data": {
+"elapsed_s": "number",
+"enabled": "boolean",
+"error": "null",
+"generation": "number",
+"map": "null",
+"previous_run_id": "string",
+"run_id": "string",
+"seed": "string",
+"seed_hex": "string",
+"stage": "string",
+"state": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /health": {
+"body": {
+"lifecycle": "string",
+"observer_ui_version": "string",
+"ok": "boolean",
+"product": "string",
+"service": "string",
+"version": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"idle GET /index.html": {
+"body": "string",
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "text/html; charset=utf-8"
+},
+"idle GET /no/such/route": {
+"body": "string",
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 404,
+"type": ""
+},
+"running GET /": {
+"body": "string",
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "text/html; charset=utf-8"
+},
+"running GET /api/v1": {
+"body": {
+"base": "string",
+"groups": [
+{
+"endpoints": [
+{
+"description": "string",
+"method": "string",
+"path": "string"
+}
+],
+"group": "string",
+"purpose": "string"
+}
+],
+"ok": "boolean",
+"version": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/control/history": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"commands": [],
+"redo_depth": "number",
+"undo_depth": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/news": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"category": "string",
+"data": {
+"scenario_hash": "string"
+},
+"event_id": "number",
+"message": "string",
+"news_id": "number",
+"severity": "string",
+"simulated_current_time": "string",
+"template_id": "string",
+"virtual_day_s": "number"
+}
+]
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/news/stream": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"category": "string",
+"data": {
+"scenario_hash": "string"
+},
+"event_id": "number",
+"message": "string",
+"news_id": "number",
+"severity": "string",
+"simulated_current_time": "string",
+"template_id": "string",
+"virtual_day_s": "number"
+}
+]
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "text/event-stream"
+},
+"running GET /api/v1/news?since_news_id=-1": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"running GET /api/v1/places": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [],
+"kind": "string",
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/playback/status": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"checkpoint_count": "number",
+"day": "number",
+"lifecycle": "string",
+"map_selection_version": "string",
+"modules": {
+"buildings": "boolean",
+"dws": "boolean",
+"flooding": "boolean",
+"news": "boolean",
+"signals": "boolean",
+"traffic": "boolean"
+},
+"paused": "boolean",
+"playback_revision": "number",
+"preparation_error": "string",
+"run_id": "string",
+"saved_seed_id": "string",
+"simulated_seconds": "number",
+"traffic_model": "string",
+"virtual_seconds_remaining": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/system/backpressure": {
+"body": {
+"actions": [],
+"applied_tick_rate": "number",
+"gui_suspended": "boolean",
+"motion_locked": "boolean",
+"ok": "boolean",
+"rate_cap": "number",
+"rate_capped": "boolean",
+"rate_locked": "boolean",
+"raw_score": "number",
+"requested_tick_rate": "number",
+"score": "number",
+"state": "string",
+"state_for_s": "number",
+"stressed_for_s": "number",
+"synced": "boolean",
+"thresholds": {
+"critical": "number",
+"escalate_after_s": "number",
+"recover_after_s": "number",
+"restricted_hold_s": "number",
+"stressed": "number",
+"synced": "number"
+},
+"throughput": {
+"bytes_per_s": "number",
+"snapshots_per_s": "number"
+}
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/system/endpoints": {
+"body": {
+"base": "string",
+"groups": [
+{
+"endpoints": [
+{
+"description": "string",
+"method": "string",
+"path": "string"
+}
+],
+"group": "string",
+"purpose": "string"
+}
+],
+"ok": "boolean",
+"version": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/system/health": {
+"body": {
+"lifecycle": "string",
+"observer_ui_version": "string",
+"ok": "boolean",
+"product": "string",
+"service": "string",
+"version": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/system/info": {
+"body": {
+"build": {
+"architecture": "string",
+"channel": "string",
+"compiler": "string",
+"cpp_standard": "number",
+"created": "string",
+"revision": "string",
+"type": "string"
+},
+"lifecycle": "string",
+"ok": "boolean",
+"product": "string",
+"service": "string",
+"sumo": {
+"available": "boolean",
+"netconvert_binary": "string",
+"sumo_binary": "string",
+"sumo_home": "string",
+"version": "string"
+},
+"version": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/system/map-status": {
+"body": {
+"api_version": "string",
+"data": {
+"active": "boolean",
+"bytes": "number",
+"city": "string",
+"country": "string",
+"elapsed_s": "number",
+"phase": "string",
+"preparation": "string",
+"total": "number"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/system/narrator": {
+"body": {
+"data": {
+"backend": {
+"command": "string",
+"endpoint": "string",
+"kind": "string",
+"model": "string",
+"on_device": "boolean"
+},
+"brand": "string",
+"cache": {
+"capacity": "number",
+"entries": "number",
+"path": "string",
+"persistent": "boolean"
+},
+"cache_hits": "number",
+"completed": "number",
+"dropped": "number",
+"enabled": "boolean",
+"failed": "number",
+"in_flight": "number",
+"last_error": "string",
+"latency_ms": {
+"max": "number",
+"mean": "number"
+},
+"live_queue": "number",
+"prefetch_queue": "number",
+"queue": "number",
+"refused": "number",
+"requested": "number",
+"role": "string",
+"sequence": "number",
+"state": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/system/observer": {
+"body": {
+"api_version": "string",
+"data": {
+"loaded": "boolean",
+"loads": "number"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/system/source": {
+"body": {
+"api_version": "string",
+"data": {
+"copyright": "string",
+"license": "string",
+"license_url": "string",
+"map_data": {
+"license": "string",
+"source": "string",
+"url": "string"
+},
+"program": "string",
+"source_offer": "string",
+"version": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/system/status": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"checkpoint_count": "number",
+"day": "number",
+"lifecycle": "string",
+"map_selection_version": "string",
+"modules": {
+"buildings": "boolean",
+"dws": "boolean",
+"flooding": "boolean",
+"news": "boolean",
+"signals": "boolean",
+"traffic": "boolean"
+},
+"paused": "boolean",
+"playback_revision": "number",
+"preparation_error": "string",
+"run_id": "string",
+"saved_seed_id": "string",
+"simulated_seconds": "number",
+"traffic_model": "string",
+"virtual_seconds_remaining": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/system/ui-config": {
+"body": {
+"api_version": "string",
+"data": {
+"_comment": "string",
+"_enums": {
+"auto_focus.mode": [
+"string"
+],
+"auto_focus.strategy": [
+"string"
+],
+"notifications.dnd_categories": [
+"string"
+],
+"notifications.dnd_severities": [
+"string"
+],
+"playback.skip_seconds": [
+"number"
+],
+"playback.step_seconds": [
+"number"
+],
+"reduce_motion": [
+"string"
+]
+},
+"asb": {
+"enabled": "boolean",
+"report_interval_ms": "number"
+},
+"auto_focus": {
+"dwell_seconds": "number",
+"mode": "string",
+"strategy": "string",
+"zoom": "number"
+},
+"clock": {
+"hour12": "boolean"
+},
+"layers": {
+"buildings": "boolean",
+"events": "boolean",
+"flooding": "boolean",
+"incidents": "boolean",
+"labels": "boolean",
+"other_places": "boolean",
+"place_names": "boolean",
+"roads": "boolean",
+"signals": "boolean",
+"traffic": "boolean",
+"vehicles": "boolean",
+"weather": "boolean"
+},
+"news": {
+"style": "string"
+},
+"notifications": {
+"dnd": "boolean",
+"dnd_categories": [
+"string"
+],
+"dnd_severities": [],
+"dwell_ms": "number",
+"enabled": "boolean",
+"max_visible": "number"
+},
+"playback": {
+"skip_seconds": "number",
+"step_seconds": "number"
+},
+"reduce_motion": "string",
+"schema_version": "string",
+"tutorial": {
+"enabled": "boolean",
+"show_on_startup": "boolean"
+}
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/topology": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"bounds": {
+"max_lat": "number",
+"max_lon": "number",
+"min_lat": "number",
+"min_lon": "number"
+},
+"edges": [
+{
+"free_speed_mps": "number",
+"from": "number",
+"geometry": [
+{
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+}
+],
+"id": "number",
+"lanes": "number",
+"length_m": "number",
+"name": "string",
+"reverse_twin": "number",
+"road_class": "string",
+"synthetic_reverse": "boolean",
+"tags": {
+"highway": "string",
+"oneway": "string"
+},
+"to": "number"
+}
+],
+"features": [],
+"graph_hash": "string",
+"location": {
+"anchor_lat": "number",
+"anchor_lon": "number",
+"city": "string",
+"city_extent_m": "number",
+"country": "string",
+"downloaded": "boolean"
+},
+"map_selection_version": "string",
+"nodes": [
+{
+"building": "null",
+"building_impact": "number",
+"building_radius_m": "number",
+"bus_stop": "boolean",
+"bus_stop_radius_m": "number",
+"degree": "number",
+"id": "number",
+"osm_node_id": "number",
+"position": {
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+},
+"signal": "boolean",
+"signal_cycle_s": "number",
+"signal_green_s": "number",
+"signal_offset_s": "number"
+}
+],
+"projection": {
+"name": "string",
+"origin_lat": "number",
+"origin_lon": "number",
+"units": "string"
+},
+"root_node": "number",
+"source": "string",
+"topology_revision": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/all": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"active_incidents": [],
+"bounds": {
+"center_lat": "number",
+"center_lon": "number",
+"max_lat": "number",
+"max_lon": "number",
+"min_lat": "number",
+"min_lon": "number"
+},
+"buildings": [],
+"bus_stops": [
+{
+"anchor_node": "number",
+"edge_id": "number",
+"id": "number",
+"nearest_stop_distance_m": "number",
+"position_m": "number"
+}
+],
+"config_revision": "number",
+"edges": [
+{
+"base_capacity_vph": "number",
+"dynamic": {
+"closed": "boolean",
+"congestion": "number",
+"congestion_model": "number",
+"congestion_observed": "number",
+"demand_vph": "number",
+"effective_capacity_vph": "number",
+"effective_speed_kmh": "number",
+"effective_speed_mps": "number",
+"flood": "number",
+"flood_capacity_multiplier": "number",
+"flood_speed_multiplier": "number",
+"halting_count": "number",
+"manual_capacity_multiplier": "number",
+"manual_closed": "boolean",
+"manual_speed_multiplier": "number",
+"mean_speed_kmh": "number",
+"mean_speed_mps": "number",
+"occupancy": "number",
+"rain_capacity_multiplier": "number",
+"rain_speed_multiplier": "number",
+"rainfall": "number",
+"signal_multiplier": "number",
+"state_revision": "number",
+"vehicle_count": "number"
+},
+"flood_susceptibility": "number",
+"free_speed_kmh": "number",
+"free_speed_mps": "number",
+"from": "number",
+"geometry": [
+{
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+}
+],
+"hotspot_susceptibility": "number",
+"id": "number",
+"lanes": "number",
+"length_m": "number",
+"osm_way_id": "number",
+"reverse_twin": "number",
+"road_class": "string",
+"segment_index": "number",
+"source_oneway": "boolean",
+"synthetic_reverse": "boolean",
+"to": "number"
+}
+],
+"global_seed": "string",
+"lifecycle": "string",
+"manifest": {
+"event_hash": "string",
+"graph_hash": "string",
+"map_hash": "string",
+"scenario_hash": "string"
+},
+"metrics": {
+"active_weather_count": "number",
+"average_network_congestion": "number",
+"closed_edges_count": "number",
+"flooded_edges_count": "number",
+"mean_network_congestion": "number",
+"mean_network_speed_kmh": "number",
+"mean_network_speed_mps": "number",
+"total_edges": "number",
+"total_nodes": "number",
+"total_vehicles": "number"
+},
+"modules": {
+"buildings": "boolean",
+"dws": "boolean",
+"flooding": "boolean",
+"news": "boolean",
+"signals": "boolean",
+"traffic": "boolean"
+},
+"nodes": [
+{
+"building": "null",
+"degree": "number",
+"drainage": "number",
+"dynamic": {
+"building_effect": "number",
+"flood": "number",
+"rainfall": "number",
+"state_revision": "number"
+},
+"flood_susceptibility": "number",
+"id": "number",
+"osm_node_id": "number",
+"position": {
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+},
+"roles": {
+"building": "boolean",
+"bus_stop": "boolean",
+"signal": "boolean"
+},
+"time_windows": []
+}
+],
+"playback_revision": "number",
+"product": "string",
+"recent_events": [
+{
+"category": "string",
+"data": {
+"scenario_hash": "string"
+},
+"event_id": "number",
+"message": "string",
+"news_id": "number",
+"severity": "string",
+"simulated_current_time": "string",
+"template_id": "string",
+"virtual_day_seconds": "number"
+}
+],
+"run_id": "string",
+"seed": "string",
+"signals": [],
+"state_revision": "number",
+"version": "string",
+"weather": {
+"active_count": "number",
+"active_events": [],
+"scheduled_events": [
+{
+"end_ppm": "number",
+"end_time": "string",
+"epicenter_node": "number",
+"flood_gain": "number",
+"id": "number",
+"intensity": "number",
+"lat": "number",
+"lon": "number",
+"radius_m": "number",
+"start_ppm": "number",
+"start_time": "string",
+"status": "string"
+}
+]
+}
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/buildings": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": []
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/bus-stops": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"anchor_node": "number",
+"edge": "number",
+"id": "number",
+"nearest_stop_distance_m": "number",
+"position_m": "number"
+}
+]
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/config": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"checkpoint_count": "number",
+"day": "number",
+"lifecycle": "string",
+"map_selection_version": "string",
+"modules": {
+"buildings": "boolean",
+"dws": "boolean",
+"flooding": "boolean",
+"news": "boolean",
+"signals": "boolean",
+"traffic": "boolean"
+},
+"paused": "boolean",
+"playback_revision": "number",
+"preparation_error": "string",
+"run_id": "string",
+"saved_seed_id": "string",
+"simulated_seconds": "number",
+"traffic_model": "string",
+"virtual_seconds_remaining": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/congestion": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"average": "number",
+"current": "number",
+"delta": "number",
+"ema_tau_virtual_s": "number",
+"history": [
+{
+"average": "number",
+"current": "number",
+"virtual_s": "number"
+}
+],
+"source": "string",
+"weighting": "string"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/edges": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"control": {
+"closed": "boolean",
+"manual_capacity_multiplier": "number",
+"manual_speed_multiplier": "number"
+},
+"from": "number",
+"id": "number",
+"reverse_twin": "number",
+"road": {
+"base_capacity_vph": "number",
+"class": "string",
+"free_speed_mps": "number",
+"lanes": "number",
+"length_m": "number"
+},
+"source": {
+"osm_way_id": "number",
+"synthetic_reverse": "boolean"
+},
+"to": "number",
+"traffic": {
+"congestion": "number",
+"demand_vph": "number",
+"effective_capacity_vph": "number",
+"effective_speed_mps": "number",
+"halting_count": "number",
+"mean_speed_mps": "number",
+"occupancy": "number",
+"vehicle_count": "number"
+},
+"weather": {
+"flood": "number",
+"rainfall": "number"
+}
+}
+],
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/edges/0": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"control": {
+"closed": "boolean",
+"manual_capacity_multiplier": "number",
+"manual_speed_multiplier": "number"
+},
+"from": "number",
+"id": "number",
+"reverse_twin": "number",
+"road": {
+"base_capacity_vph": "number",
+"class": "string",
+"free_speed_mps": "number",
+"lanes": "number",
+"length_m": "number"
+},
+"source": {
+"osm_way_id": "number",
+"synthetic_reverse": "boolean"
+},
+"to": "number",
+"traffic": {
+"congestion": "number",
+"demand_vph": "number",
+"effective_capacity_vph": "number",
+"effective_speed_mps": "number",
+"halting_count": "number",
+"mean_speed_mps": "number",
+"occupancy": "number",
+"vehicle_count": "number"
+},
+"weather": {
+"flood": "number",
+"rainfall": "number"
+}
+}
+],
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/event-queue": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"executed_count": "number",
+"history_retention": "number",
+"items": [
+{
+"category": "string",
+"description": "string",
+"entity": "number",
+"id": "number",
+"phase": "number",
+"status": "string",
+"value": "number",
+"virtual_s": "number"
+}
+],
+"limit": "number",
+"offset": "number",
+"pending_count": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/event-queue?view=bad": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"running GET /api/v1/view/event-queue?view=history": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"executed_count": "number",
+"history_retention": "number",
+"items": [],
+"limit": "number",
+"offset": "number",
+"pending_count": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/events": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"active": "boolean",
+"end_ppm": "number",
+"epicenter_node": "number",
+"event_id": "number",
+"intensity": "number",
+"radius_m": "number",
+"source": "string",
+"start_ppm": "number"
+}
+]
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/global": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"active_incidents": [],
+"bounds": {
+"center_lat": "number",
+"center_lon": "number",
+"max_lat": "number",
+"max_lon": "number",
+"min_lat": "number",
+"min_lon": "number"
+},
+"buildings": [],
+"bus_stops": [
+{
+"anchor_node": "number",
+"edge_id": "number",
+"id": "number",
+"nearest_stop_distance_m": "number",
+"position_m": "number"
+}
+],
+"config_revision": "number",
+"edges": [
+{
+"base_capacity_vph": "number",
+"dynamic": {
+"closed": "boolean",
+"congestion": "number",
+"congestion_model": "number",
+"congestion_observed": "number",
+"demand_vph": "number",
+"effective_capacity_vph": "number",
+"effective_speed_kmh": "number",
+"effective_speed_mps": "number",
+"flood": "number",
+"flood_capacity_multiplier": "number",
+"flood_speed_multiplier": "number",
+"halting_count": "number",
+"manual_capacity_multiplier": "number",
+"manual_closed": "boolean",
+"manual_speed_multiplier": "number",
+"mean_speed_kmh": "number",
+"mean_speed_mps": "number",
+"occupancy": "number",
+"rain_capacity_multiplier": "number",
+"rain_speed_multiplier": "number",
+"rainfall": "number",
+"signal_multiplier": "number",
+"state_revision": "number",
+"vehicle_count": "number"
+},
+"flood_susceptibility": "number",
+"free_speed_kmh": "number",
+"free_speed_mps": "number",
+"from": "number",
+"geometry": [
+{
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+}
+],
+"hotspot_susceptibility": "number",
+"id": "number",
+"lanes": "number",
+"length_m": "number",
+"osm_way_id": "number",
+"reverse_twin": "number",
+"road_class": "string",
+"segment_index": "number",
+"source_oneway": "boolean",
+"synthetic_reverse": "boolean",
+"to": "number"
+}
+],
+"global_seed": "string",
+"lifecycle": "string",
+"manifest": {
+"event_hash": "string",
+"graph_hash": "string",
+"map_hash": "string",
+"scenario_hash": "string"
+},
+"metrics": {
+"active_weather_count": "number",
+"average_network_congestion": "number",
+"closed_edges_count": "number",
+"flooded_edges_count": "number",
+"mean_network_congestion": "number",
+"mean_network_speed_kmh": "number",
+"mean_network_speed_mps": "number",
+"total_edges": "number",
+"total_nodes": "number",
+"total_vehicles": "number"
+},
+"modules": {
+"buildings": "boolean",
+"dws": "boolean",
+"flooding": "boolean",
+"news": "boolean",
+"signals": "boolean",
+"traffic": "boolean"
+},
+"nodes": [
+{
+"building": "null",
+"degree": "number",
+"drainage": "number",
+"dynamic": {
+"building_effect": "number",
+"flood": "number",
+"rainfall": "number",
+"state_revision": "number"
+},
+"flood_susceptibility": "number",
+"id": "number",
+"osm_node_id": "number",
+"position": {
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+},
+"roles": {
+"building": "boolean",
+"bus_stop": "boolean",
+"signal": "boolean"
+},
+"time_windows": []
+}
+],
+"playback_revision": "number",
+"product": "string",
+"recent_events": [
+{
+"category": "string",
+"data": {
+"scenario_hash": "string"
+},
+"event_id": "number",
+"message": "string",
+"news_id": "number",
+"severity": "string",
+"simulated_current_time": "string",
+"template_id": "string",
+"virtual_day_seconds": "number"
+}
+],
+"run_id": "string",
+"seed": "string",
+"signals": [],
+"state_revision": "number",
+"version": "string",
+"weather": {
+"active_count": "number",
+"active_events": [],
+"scheduled_events": [
+{
+"end_ppm": "number",
+"end_time": "string",
+"epicenter_node": "number",
+"flood_gain": "number",
+"id": "number",
+"intensity": "number",
+"lat": "number",
+"lon": "number",
+"radius_m": "number",
+"start_ppm": "number",
+"start_time": "string",
+"status": "string"
+}
+]
+}
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/global.json": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"active_incidents": [],
+"bounds": {
+"center_lat": "number",
+"center_lon": "number",
+"max_lat": "number",
+"max_lon": "number",
+"min_lat": "number",
+"min_lon": "number"
+},
+"buildings": [],
+"bus_stops": [
+{
+"anchor_node": "number",
+"edge_id": "number",
+"id": "number",
+"nearest_stop_distance_m": "number",
+"position_m": "number"
+}
+],
+"config_revision": "number",
+"edges": [
+{
+"base_capacity_vph": "number",
+"dynamic": {
+"closed": "boolean",
+"congestion": "number",
+"congestion_model": "number",
+"congestion_observed": "number",
+"demand_vph": "number",
+"effective_capacity_vph": "number",
+"effective_speed_kmh": "number",
+"effective_speed_mps": "number",
+"flood": "number",
+"flood_capacity_multiplier": "number",
+"flood_speed_multiplier": "number",
+"halting_count": "number",
+"manual_capacity_multiplier": "number",
+"manual_closed": "boolean",
+"manual_speed_multiplier": "number",
+"mean_speed_kmh": "number",
+"mean_speed_mps": "number",
+"occupancy": "number",
+"rain_capacity_multiplier": "number",
+"rain_speed_multiplier": "number",
+"rainfall": "number",
+"signal_multiplier": "number",
+"state_revision": "number",
+"vehicle_count": "number"
+},
+"flood_susceptibility": "number",
+"free_speed_kmh": "number",
+"free_speed_mps": "number",
+"from": "number",
+"geometry": [
+{
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+}
+],
+"hotspot_susceptibility": "number",
+"id": "number",
+"lanes": "number",
+"length_m": "number",
+"osm_way_id": "number",
+"reverse_twin": "number",
+"road_class": "string",
+"segment_index": "number",
+"source_oneway": "boolean",
+"synthetic_reverse": "boolean",
+"to": "number"
+}
+],
+"global_seed": "string",
+"lifecycle": "string",
+"manifest": {
+"event_hash": "string",
+"graph_hash": "string",
+"map_hash": "string",
+"scenario_hash": "string"
+},
+"metrics": {
+"active_weather_count": "number",
+"average_network_congestion": "number",
+"closed_edges_count": "number",
+"flooded_edges_count": "number",
+"mean_network_congestion": "number",
+"mean_network_speed_kmh": "number",
+"mean_network_speed_mps": "number",
+"total_edges": "number",
+"total_nodes": "number",
+"total_vehicles": "number"
+},
+"modules": {
+"buildings": "boolean",
+"dws": "boolean",
+"flooding": "boolean",
+"news": "boolean",
+"signals": "boolean",
+"traffic": "boolean"
+},
+"nodes": [
+{
+"building": "null",
+"degree": "number",
+"drainage": "number",
+"dynamic": {
+"building_effect": "number",
+"flood": "number",
+"rainfall": "number",
+"state_revision": "number"
+},
+"flood_susceptibility": "number",
+"id": "number",
+"osm_node_id": "number",
+"position": {
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+},
+"roles": {
+"building": "boolean",
+"bus_stop": "boolean",
+"signal": "boolean"
+},
+"time_windows": []
+}
+],
+"playback_revision": "number",
+"product": "string",
+"recent_events": [
+{
+"category": "string",
+"data": {
+"scenario_hash": "string"
+},
+"event_id": "number",
+"message": "string",
+"news_id": "number",
+"severity": "string",
+"simulated_current_time": "string",
+"template_id": "string",
+"virtual_day_seconds": "number"
+}
+],
+"run_id": "string",
+"seed": "string",
+"signals": [],
+"state_revision": "number",
+"version": "string",
+"weather": {
+"active_count": "number",
+"active_events": [],
+"scheduled_events": [
+{
+"end_ppm": "number",
+"end_time": "string",
+"epicenter_node": "number",
+"flood_gain": "number",
+"id": "number",
+"intensity": "number",
+"lat": "number",
+"lon": "number",
+"radius_m": "number",
+"start_ppm": "number",
+"start_time": "string",
+"status": "string"
+}
+]
+}
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/incidents": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"active": "boolean",
+"capacity_multiplier": "number",
+"closed": "boolean",
+"description": "string",
+"edge_id": "number",
+"end_virtual_s": "number",
+"incident_id": "number",
+"node_id": "number",
+"speed_multiplier": "number",
+"start_virtual_s": "number",
+"type": "string"
+}
+]
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/logs/api": {
+"body": {
+"data": {
+"items": [
+{
+"id": "number",
+"latency_us": "number",
+"method": "string",
+"path": "string",
+"status": "number",
+"ts": "string"
+}
+]
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/logs/events": {
+"body": {
+"data": {
+"items": []
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/logs/system": {
+"body": {
+"data": {
+"lines": [
+"string"
+]
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/manifest": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"algorithm_version": "string",
+"determinism_level": "number",
+"event_hash": "string",
+"graph_hash": "string",
+"map_hash": "string",
+"map_source": "string",
+"product": "string",
+"road_filter_version": "string",
+"scenario_hash": "string",
+"seed": "string",
+"seed_hex": "string",
+"version": "string"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/map/full": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"bounds": {
+"max_lat": "number",
+"max_lon": "number",
+"min_lat": "number",
+"min_lon": "number"
+},
+"edges": [
+{
+"free_speed_mps": "number",
+"from": "number",
+"geometry": [
+{
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+}
+],
+"id": "number",
+"lanes": "number",
+"length_m": "number",
+"name": "string",
+"reverse_twin": "number",
+"road_class": "string",
+"synthetic_reverse": "boolean",
+"tags": {
+"highway": "string",
+"oneway": "string"
+},
+"to": "number"
+}
+],
+"features": [],
+"graph_hash": "string",
+"location": {
+"anchor_lat": "number",
+"anchor_lon": "number",
+"city": "string",
+"city_extent_m": "number",
+"country": "string",
+"downloaded": "boolean"
+},
+"map_selection_version": "string",
+"nodes": [
+{
+"building": "null",
+"building_impact": "number",
+"building_radius_m": "number",
+"bus_stop": "boolean",
+"bus_stop_radius_m": "number",
+"degree": "number",
+"id": "number",
+"osm_node_id": "number",
+"position": {
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+},
+"signal": "boolean",
+"signal_cycle_s": "number",
+"signal_green_s": "number",
+"signal_offset_s": "number"
+}
+],
+"projection": {
+"name": "string",
+"origin_lat": "number",
+"origin_lon": "number",
+"units": "string"
+},
+"root_node": "number",
+"source": "string",
+"topology_revision": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/metrics": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"active_dws_events": "number",
+"closed_edge_count": "number",
+"flooded_edge_count": "number",
+"halting_vehicle_count": "number",
+"hotspot_edge_count": "number",
+"mean_vehicle_speed_mps": "number",
+"network_congestion_length_weighted": "number",
+"network_congestion_p95": "number",
+"vehicle_count": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/network": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"bounds": {
+"max_lat": "number",
+"max_lon": "number",
+"min_lat": "number",
+"min_lon": "number"
+},
+"edges": [
+{
+"free_speed_mps": "number",
+"from": "number",
+"geometry": [
+{
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+}
+],
+"id": "number",
+"lanes": "number",
+"length_m": "number",
+"name": "string",
+"reverse_twin": "number",
+"road_class": "string",
+"synthetic_reverse": "boolean",
+"tags": {
+"highway": "string",
+"oneway": "string"
+},
+"to": "number"
+}
+],
+"features": [],
+"graph_hash": "string",
+"location": {
+"anchor_lat": "number",
+"anchor_lon": "number",
+"city": "string",
+"city_extent_m": "number",
+"country": "string",
+"downloaded": "boolean"
+},
+"map_selection_version": "string",
+"nodes": [
+{
+"building": "null",
+"building_impact": "number",
+"building_radius_m": "number",
+"bus_stop": "boolean",
+"bus_stop_radius_m": "number",
+"degree": "number",
+"id": "number",
+"osm_node_id": "number",
+"position": {
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+},
+"signal": "boolean",
+"signal_cycle_s": "number",
+"signal_green_s": "number",
+"signal_offset_s": "number"
+}
+],
+"projection": {
+"name": "string",
+"origin_lat": "number",
+"origin_lon": "number",
+"units": "string"
+},
+"root_node": "number",
+"source": "string",
+"topology_revision": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/nodes": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"building": "null",
+"degree": "number",
+"id": "number",
+"osm_node_id": "number",
+"position": {
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+},
+"roles": {
+"building": "boolean",
+"bus_stop": "boolean",
+"signal": "boolean"
+},
+"weather": {
+"drainage": "number",
+"flood": "number",
+"flood_susceptibility": "number",
+"rainfall": "number"
+}
+}
+],
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/nodes/0": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"building": "null",
+"degree": "number",
+"id": "number",
+"osm_node_id": "number",
+"position": {
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+},
+"roles": {
+"building": "boolean",
+"bus_stop": "boolean",
+"signal": "boolean"
+},
+"weather": {
+"drainage": "number",
+"flood": "number",
+"flood_susceptibility": "number",
+"rainfall": "number"
+}
+}
+],
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/nodes/999999": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 404,
+"type": "application/json"
+},
+"running GET /api/v1/view/nodes?limit=0": {
+"body": {
+"api_version": "string",
+"error": {
+"code": "string",
+"message": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 400,
+"type": "application/json"
+},
+"running GET /api/v1/view/place-kinds": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"commercial": "boolean",
+"count": "number",
+"generator": "boolean",
+"kind": "string",
+"modelled": "boolean"
+}
+],
+"stop_spacing_m": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/places": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [],
+"kind": "string",
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/run": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"checkpoint_count": "number",
+"day": "number",
+"lifecycle": "string",
+"map_selection_version": "string",
+"modules": {
+"buildings": "boolean",
+"dws": "boolean",
+"flooding": "boolean",
+"news": "boolean",
+"signals": "boolean",
+"traffic": "boolean"
+},
+"paused": "boolean",
+"playback_revision": "number",
+"preparation_error": "string",
+"run_id": "string",
+"saved_seed_id": "string",
+"simulated_seconds": "number",
+"traffic_model": "string",
+"virtual_seconds_remaining": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/signals": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": []
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/snapshot": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"active_incidents": [],
+"active_surges": [],
+"active_weather": [],
+"active_weather_events": "number",
+"congestion": {
+"average": "number",
+"current": "number",
+"delta": "number",
+"ema_tau_virtual_s": "number",
+"source": "string",
+"weighting": "string"
+},
+"demand": [],
+"edges": [
+{
+"closed": "boolean",
+"congestion": "number",
+"demand_causes": [],
+"demand_vph": "number",
+"effective_capacity_vph": "number",
+"effective_speed_mps": "number",
+"flood": "number",
+"halting_count": "number",
+"id": "number",
+"incident_closed": "boolean",
+"incident_speed_multiplier": "number",
+"manual_closed": "boolean",
+"mean_speed_mps": "number",
+"rainfall": "number",
+"signal_multiplier": "number",
+"vehicle_count": "number"
+}
+],
+"event_stack": [
+{
+"category": "string",
+"data": {
+"scenario_hash": "string"
+},
+"event_id": "number",
+"message": "string",
+"news_id": "number",
+"severity": "string",
+"simulated_current_time": "string",
+"template_id": "string",
+"virtual_s": "number"
+}
+],
+"nodes": [
+{
+"building_effect": "number",
+"flood": "number",
+"id": "number",
+"rainfall": "number"
+}
+],
+"signals": [],
+"topology_revision": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/stops": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [],
+"kind": "string",
+"limit": "number",
+"offset": "number",
+"total": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/stream": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"active_incidents": [],
+"active_surges": [],
+"active_weather": [],
+"active_weather_events": "number",
+"congestion": {
+"average": "number",
+"current": "number",
+"delta": "number",
+"ema_tau_virtual_s": "number",
+"source": "string",
+"weighting": "string"
+},
+"demand": [],
+"edges": [
+{
+"closed": "boolean",
+"congestion": "number",
+"demand_causes": [],
+"demand_vph": "number",
+"effective_capacity_vph": "number",
+"effective_speed_mps": "number",
+"flood": "number",
+"halting_count": "number",
+"id": "number",
+"incident_closed": "boolean",
+"incident_speed_multiplier": "number",
+"manual_closed": "boolean",
+"mean_speed_mps": "number",
+"rainfall": "number",
+"signal_multiplier": "number",
+"vehicle_count": "number"
+}
+],
+"event_stack": [
+{
+"category": "string",
+"data": {
+"scenario_hash": "string"
+},
+"event_id": "number",
+"message": "string",
+"news_id": "number",
+"severity": "string",
+"simulated_current_time": "string",
+"template_id": "string",
+"virtual_s": "number"
+}
+],
+"nodes": [
+{
+"building_effect": "number",
+"flood": "number",
+"id": "number",
+"rainfall": "number"
+}
+],
+"signals": [],
+"topology_revision": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "text/event-stream"
+},
+"running GET /api/v1/view/topology": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"bounds": {
+"max_lat": "number",
+"max_lon": "number",
+"min_lat": "number",
+"min_lon": "number"
+},
+"edges": [
+{
+"free_speed_mps": "number",
+"from": "number",
+"geometry": [
+{
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+}
+],
+"id": "number",
+"lanes": "number",
+"length_m": "number",
+"name": "string",
+"reverse_twin": "number",
+"road_class": "string",
+"synthetic_reverse": "boolean",
+"tags": {
+"highway": "string",
+"oneway": "string"
+},
+"to": "number"
+}
+],
+"features": [],
+"graph_hash": "string",
+"location": {
+"anchor_lat": "number",
+"anchor_lon": "number",
+"city": "string",
+"city_extent_m": "number",
+"country": "string",
+"downloaded": "boolean"
+},
+"map_selection_version": "string",
+"nodes": [
+{
+"building": "null",
+"building_impact": "number",
+"building_radius_m": "number",
+"bus_stop": "boolean",
+"bus_stop_radius_m": "number",
+"degree": "number",
+"id": "number",
+"osm_node_id": "number",
+"position": {
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+},
+"signal": "boolean",
+"signal_cycle_s": "number",
+"signal_green_s": "number",
+"signal_offset_s": "number"
+}
+],
+"projection": {
+"name": "string",
+"origin_lat": "number",
+"origin_lon": "number",
+"units": "string"
+},
+"root_node": "number",
+"source": "string",
+"topology_revision": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/traffic": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"active_dws_events": "number",
+"closed_edge_count": "number",
+"flooded_edge_count": "number",
+"halting_vehicle_count": "number",
+"hotspot_edge_count": "number",
+"mean_vehicle_speed_mps": "number",
+"network_congestion_length_weighted": "number",
+"network_congestion_p95": "number",
+"vehicle_count": "number"
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/weather": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"items": [
+{
+"active": "boolean",
+"end_ppm": "number",
+"epicenter_node": "number",
+"event_id": "number",
+"intensity": "number",
+"radius_m": "number",
+"source": "string",
+"start_ppm": "number"
+}
+]
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/view/world": {
+"body": {
+"api_version": "string",
+"clock": {
+"base_rate": "number",
+"playback_duration_seconds": "number",
+"playback_state": "string",
+"simulated_current_time": "string",
+"simulation_percentage": "number",
+"target_virtual_rate": "number",
+"tick_rate": "number",
+"virtual_day_seconds": "number"
+},
+"config_revision": "number",
+"data": {
+"active_incidents": [],
+"bounds": {
+"center_lat": "number",
+"center_lon": "number",
+"max_lat": "number",
+"max_lon": "number",
+"min_lat": "number",
+"min_lon": "number"
+},
+"buildings": [],
+"bus_stops": [
+{
+"anchor_node": "number",
+"edge_id": "number",
+"id": "number",
+"nearest_stop_distance_m": "number",
+"position_m": "number"
+}
+],
+"config_revision": "number",
+"edges": [
+{
+"base_capacity_vph": "number",
+"dynamic": {
+"closed": "boolean",
+"congestion": "number",
+"congestion_model": "number",
+"congestion_observed": "number",
+"demand_vph": "number",
+"effective_capacity_vph": "number",
+"effective_speed_kmh": "number",
+"effective_speed_mps": "number",
+"flood": "number",
+"flood_capacity_multiplier": "number",
+"flood_speed_multiplier": "number",
+"halting_count": "number",
+"manual_capacity_multiplier": "number",
+"manual_closed": "boolean",
+"manual_speed_multiplier": "number",
+"mean_speed_kmh": "number",
+"mean_speed_mps": "number",
+"occupancy": "number",
+"rain_capacity_multiplier": "number",
+"rain_speed_multiplier": "number",
+"rainfall": "number",
+"signal_multiplier": "number",
+"state_revision": "number",
+"vehicle_count": "number"
+},
+"flood_susceptibility": "number",
+"free_speed_kmh": "number",
+"free_speed_mps": "number",
+"from": "number",
+"geometry": [
+{
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+}
+],
+"hotspot_susceptibility": "number",
+"id": "number",
+"lanes": "number",
+"length_m": "number",
+"osm_way_id": "number",
+"reverse_twin": "number",
+"road_class": "string",
+"segment_index": "number",
+"source_oneway": "boolean",
+"synthetic_reverse": "boolean",
+"to": "number"
+}
+],
+"global_seed": "string",
+"lifecycle": "string",
+"manifest": {
+"event_hash": "string",
+"graph_hash": "string",
+"map_hash": "string",
+"scenario_hash": "string"
+},
+"metrics": {
+"active_weather_count": "number",
+"average_network_congestion": "number",
+"closed_edges_count": "number",
+"flooded_edges_count": "number",
+"mean_network_congestion": "number",
+"mean_network_speed_kmh": "number",
+"mean_network_speed_mps": "number",
+"total_edges": "number",
+"total_nodes": "number",
+"total_vehicles": "number"
+},
+"modules": {
+"buildings": "boolean",
+"dws": "boolean",
+"flooding": "boolean",
+"news": "boolean",
+"signals": "boolean",
+"traffic": "boolean"
+},
+"nodes": [
+{
+"building": "null",
+"degree": "number",
+"drainage": "number",
+"dynamic": {
+"building_effect": "number",
+"flood": "number",
+"rainfall": "number",
+"state_revision": "number"
+},
+"flood_susceptibility": "number",
+"id": "number",
+"osm_node_id": "number",
+"position": {
+"lat": "number",
+"lon": "number",
+"x_m": "number",
+"y_m": "number"
+},
+"roles": {
+"building": "boolean",
+"bus_stop": "boolean",
+"signal": "boolean"
+},
+"time_windows": []
+}
+],
+"playback_revision": "number",
+"product": "string",
+"recent_events": [
+{
+"category": "string",
+"data": {
+"scenario_hash": "string"
+},
+"event_id": "number",
+"message": "string",
+"news_id": "number",
+"severity": "string",
+"simulated_current_time": "string",
+"template_id": "string",
+"virtual_day_seconds": "number"
+}
+],
+"run_id": "string",
+"seed": "string",
+"signals": [],
+"state_revision": "number",
+"version": "string",
+"weather": {
+"active_count": "number",
+"active_events": [],
+"scheduled_events": [
+{
+"end_ppm": "number",
+"end_time": "string",
+"epicenter_node": "number",
+"flood_gain": "number",
+"id": "number",
+"intensity": "number",
+"lat": "number",
+"lon": "number",
+"radius_m": "number",
+"start_ppm": "number",
+"start_time": "string",
+"status": "string"
+}
+]
+}
+},
+"global_seed": "string",
+"ok": "boolean",
+"run_id": "string",
+"seed": "string",
+"state_revision": "number"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /api/v1/world/status": {
+"body": {
+"api_version": "string",
+"data": {
+"elapsed_s": "number",
+"enabled": "boolean",
+"error": "null",
+"generation": "number",
+"map": "null",
+"previous_run_id": "string",
+"run_id": "string",
+"seed": "string",
+"seed_hex": "string",
+"stage": "string",
+"state": "string"
+},
+"ok": "boolean"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /health": {
+"body": {
+"lifecycle": "string",
+"observer_ui_version": "string",
+"ok": "boolean",
+"product": "string",
+"service": "string",
+"version": "string"
+},
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "application/json"
+},
+"running GET /index.html": {
+"body": "string",
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 200,
+"type": "text/html; charset=utf-8"
+},
+"running GET /no/such/route": {
+"body": "string",
+"headers": {
+"Cache-Control": "no-store",
+"Vary": "Origin"
+},
+"status": 404,
+"type": ""
+}
+}

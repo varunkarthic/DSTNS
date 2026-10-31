@@ -70,3 +70,7 @@ artifacts/
 
 # Private environment for the launcher's terminal interface
 .venv-launcher/
+
+# Local AI development context, and the local-only document generator
+context/
+dstns_local_services.py
