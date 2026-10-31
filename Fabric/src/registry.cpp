@@ -17,7 +17,7 @@ using json = nlohmann::json;
 
 // Bounds, so one application cannot exhaust the server or the page. Nothing is
 // silently discarded at these limits: a request over one is refused with a code.
-constexpr std::size_t kMaxApps = 64, kMaxElements = 64, kMaxUiBytes = 512 * 1024, kMaxEventQueue = 1000,
+constexpr std::size_t kMaxApps = 64, kMaxElements = 64, kMaxUiBytes = 4 * 1024 * 1024, kMaxEventQueue = 1000,
                       kMaxNotifications = 1000, kMaxAudit = 2000, kMaxFields = 128, kMaxPage = 200;
 constexpr double kNotificationBurst = 40, kNotificationsPerSecond = 20;
 constexpr int kManifestVersion = 1, kApiMajor = 1;
@@ -25,11 +25,11 @@ constexpr int kManifestVersion = 1, kApiMajor = 1;
 // Requested and granted without asking: they only add to the application's own
 // surfaces. Everything else interrupts the viewer, runs the application's own
 // code in the page, or changes the simulation, so a person grants it.
-const std::set<std::string> kAutomatic = {"ui.header", "ui.status", "ui.panels", "ui.notifications", "ui.overlays",
+const std::set<std::string> kAutomatic = {"ui.header", "ui.status", "ui.panels", "ui.sidebar", "ui.notifications", "ui.overlays",
                                           "ui.map-controls", "ui.indicators", "settings", "sim.read"};
 const std::set<std::string> kExplicit = {"ui.dialogs", "ui.frames", "control.playback", "control.events", "control.world"};
 const std::map<std::string, std::string> kSlotCapability = {
-    {"header", "ui.header"}, {"status", "ui.status"}, {"panel", "ui.panels"}, {"overlay", "ui.overlays"},
+    {"header", "ui.header"}, {"status", "ui.status"}, {"panel", "ui.panels"}, {"sidebar", "ui.sidebar"}, {"overlay", "ui.overlays"},
     {"map_control", "ui.map-controls"}, {"indicator", "ui.indicators"}, {"dialog", "ui.dialogs"}};
 const std::set<std::string> kTones = {"neutral", "accent", "ok", "warn", "danger"};
 const std::set<std::string> kReportedStates = {"initialized", "active", "failed"};
@@ -217,7 +217,7 @@ void AppRegistry::touch(App& app) {
         app.lease_lapsed = false;
         app.state = app.user_suspended ? "suspended" : "active";
         app.detail.clear();
-        changed();
+        mark(app);
     }
 }
 
@@ -231,12 +231,12 @@ void AppRegistry::sweep() {
             app.detail = "The application stopped responding.";
             app.lease_lapsed = false;
             app.elements = json::array();
-            changed();
+            mark(app);
         } else if (silent > app.lease_s && !app.lease_lapsed) {
             app.lease_lapsed = true;
             app.state = "suspended";
             app.detail = "The application has not checked in.";
-            changed();
+            mark(app);
         }
     }
 }
@@ -291,8 +291,8 @@ json AppRegistry::register_app(const json& raw, const std::string& presented) {
         app.elements = manifest.at("ui");
         app.manifest.erase("ui");
     }
-    const auto& installed = apps_[id] = std::move(app);
-    changed();
+    auto& installed = apps_[id] = std::move(app);
+    mark(installed);
     persist();
     return {{"app", public_view(installed, true)}, {"token", installed.token}};
 }
@@ -338,8 +338,8 @@ void AppRegistry::check_element(const App& app, const json& element) const {
     // A declared URL is only ever loaded into a sandboxed frame, and only over http(s).
     if (element.contains("frame")) {
         const auto url = element.at("frame").is_string() ? element.at("frame").get<std::string>() : std::string{};
-        if (slot != "panel" || !(url.starts_with("http://") || url.starts_with("https://")) || url.size() > 2000)
-            throw Refusal(400, "INVALID_ELEMENT", "frame must be an http or https URL on a panel");
+        if ((slot != "panel" && slot != "sidebar") || !(url.starts_with("http://") || url.starts_with("https://")) || url.size() > 2000)
+            throw Refusal(400, "INVALID_ELEMENT", "frame must be an http or https URL on a panel or sidebar");
         if (app.manifest.contains("capabilities")) {
             const auto& requested = app.manifest.at("capabilities");
             if (std::find(requested.begin(), requested.end(), "ui.frames") == requested.end())
@@ -428,11 +428,35 @@ json AppRegistry::state(std::uint64_t since, std::uint64_t notifications_since) 
         out["unchanged"] = true;
         return out;
     }
+    // A first request gets everything. After that, only what changed: an application
+    // moving its buses once a second must not resend its whole network.
     auto apps = json::array();
-    for (const auto& [id, app] : apps_) apps.push_back(public_view(app, true));
+    for (const auto& [id, app] : apps_) {
+        if (since && app.changed_at <= since) continue;
+        auto view = public_view(app, true);
+        if (since && app.ui_all_at <= since) {
+            auto patch = json::array();
+            auto order = json::array();
+            for (const auto& element : view["ui"]) {
+                const auto name = element.at("id").get<std::string>();
+                order.push_back(name);
+                const auto rev = app.element_rev.find(name);
+                if (rev != app.element_rev.end() && rev->second > since) patch.push_back(element);
+            }
+            view.erase("ui");
+            view["ui_patch"] = std::move(patch);
+            view["ui_order"] = std::move(order);
+        }
+        apps.push_back(std::move(view));
+    }
     std::sort(apps.begin(), apps.end(), [](const json& a, const json& b) { return a.at("order") < b.at("order"); });
+    auto removed = json::array();
+    for (const auto& [rev, id] : forgotten_)
+        if (rev > since) removed.push_back(id);
     out["unchanged"] = false;
+    out["full"] = since == 0;
     out["apps"] = std::move(apps);
+    out["removed"] = std::move(removed);
     return out;
 }
 
@@ -441,13 +465,16 @@ void AppRegistry::remove(const std::string& id, bool forget) {
     auto& app = find(id);
     if (forget) {
         apps_.erase(id);
+        ++revision_;
+        forgotten_.emplace_back(revision_, id);
+        if (forgotten_.size() > 256) forgotten_.pop_front();
     } else {
         app.state = "unloaded";
         app.detail = "The application unregistered itself.";
         app.elements = json::array();
         app.lease_lapsed = false;
+        mark(app);
     }
-    changed();
     persist();
 }
 
@@ -458,7 +485,7 @@ void AppRegistry::heartbeat(const std::string& id) {
     touch(app);
     if (app.state == "registered" || app.state == "initialized") {
         app.state = "active";
-        changed();
+        mark(app);
     }
 }
 
@@ -469,7 +496,7 @@ void AppRegistry::set_state(const std::string& id, const std::string& state, con
     if (app.user_suspended) throw Refusal(409, "APP_SUSPENDED", "the viewer has suspended this application");
     app.state = state;
     app.detail = detail.substr(0, 280);
-    changed();
+    mark(app);
 }
 
 void AppRegistry::suspend(const std::string& id, bool suspended) {
@@ -480,7 +507,7 @@ void AppRegistry::suspend(const std::string& id, bool suspended) {
     app.state = suspended ? "suspended" : "active";
     app.detail = suspended ? "Suspended from Settings." : "";
     push_event(app, suspended ? "app.suspended" : "app.resumed", json::object());
-    changed();
+    mark(app);
     persist();
 }
 
@@ -491,7 +518,7 @@ void AppRegistry::report_failure(const std::string& id, const std::string& detai
     app.state = "failed";
     app.detail = detail.substr(0, 280);
     push_event(app, "app.failed", {{"detail", app.detail}});
-    changed();
+    mark(app);
 }
 
 void AppRegistry::set_ui(const std::string& id, const json& elements) {
@@ -506,7 +533,7 @@ void AppRegistry::set_ui(const std::string& id, const json& elements) {
         if (!ids.insert(element.at("id").get<std::string>()).second) throw Refusal(400, "INVALID_ELEMENT", "element IDs must be unique");
     }
     app.elements = elements;
-    changed();
+    mark(app);
 }
 
 void AppRegistry::upsert_element(const std::string& id, const std::string& element, const json& value) {
@@ -523,7 +550,9 @@ void AppRegistry::upsert_element(const std::string& id, const std::string& eleme
     if (next.size() > kMaxElements) throw Refusal(413, "UI_TOO_LARGE", "at most " + std::to_string(kMaxElements) + " elements");
     if (ui_bytes(next) > kMaxUiBytes) throw Refusal(413, "UI_TOO_LARGE", "the declared UI is too large");
     app.elements = std::move(next);
-    changed();
+    ++revision_;
+    app.changed_at = revision_;
+    app.element_rev[element] = revision_;
 }
 
 void AppRegistry::remove_element(const std::string& id, const std::string& element) {
@@ -533,7 +562,8 @@ void AppRegistry::remove_element(const std::string& id, const std::string& eleme
     const auto existing = std::find_if(items.begin(), items.end(), [&](const json& item) { return item.at("id") == element; });
     if (existing == items.end()) throw Refusal(404, "ELEMENT_NOT_FOUND", "no such element: " + element);
     items.erase(existing);
-    changed();
+    ++revision_;
+    app.changed_at = revision_;
 }
 
 std::uint64_t AppRegistry::notify(const std::string& id, const json& notification) {
@@ -602,7 +632,7 @@ json AppRegistry::update_settings(const std::string& id, const json& changes) {
     // Checked in full first, so a request applies completely or not at all.
     for (const auto& [key, value] : changes.items()) app.values[key] = value;
     push_event(app, "settings.changed", {{"changes", changes}, {"values", app.values}});
-    changed();
+    mark(app);
     persist();
     return {{"version", app.settings_version}, {"values", app.values}};
 }
@@ -614,7 +644,7 @@ json AppRegistry::reset_settings(const std::string& id) {
     for (const auto& field : schema_fields(app.manifest)) values[field.at("id").get<std::string>()] = field.at("default");
     app.values = std::move(values);
     push_event(app, "settings.changed", {{"changes", app.values}, {"values", app.values}, {"reset", true}});
-    changed();
+    mark(app);
     persist();
     return {{"version", app.settings_version}, {"values", app.values}};
 }
@@ -632,7 +662,7 @@ json AppRegistry::set_grants(const std::string& id, const json& capabilities) {
     }
     app.granted = std::move(granted);
     push_event(app, "capabilities.changed", {{"granted", app.granted}});
-    changed();
+    mark(app);
     persist();
     return public_view(app, false);
 }

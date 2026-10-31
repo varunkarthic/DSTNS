@@ -110,6 +110,71 @@ try {
   const dialogs = await register("org.mock.prompt", "Prompter", ["ui.dialogs"], [{ id: "ask", slot: "dialog", title: "A question", body: "Proceed?", actions: [{ id: "yes", label: "Yes" }] }]);
   const controller = await register("org.mock.control", "Controller", ["control.playback"]);
 
+  // Modelled on a real planner: its work sits beside the map.
+  const net = await until(async () => {
+    const body = (await call("GET", "/api/v1/view/topology")).body;
+    const data = body?.data ?? body;
+    return Array.isArray(data?.edges) && data.edges.length ? data : null;
+  }, "the network", 30000);
+  const edge = (i) => net.edges[i % net.edges.length].geometry.map((p) => [p.x_m, p.y_m]);
+  const lines = Array.from({ length: 6 }, (_, i) => ({ type: "line", series: i, width: 2.5, points: edge(i * 37).concat(edge(i * 37 + 1), edge(i * 37 + 2)) }));
+  const bus = (t) => ({ id: "buses", slot: "overlay", features: Array.from({ length: 6 }, (_, i) => { const pts = edge(i * 37); const p = pts[t % pts.length]; return { id: `bus-${i}`, type: "point", size: 5, series: i, x_m: p[0], y_m: p[1] }; }) });
+  const planner = await register("org.mock.planner", "Route planner", ["ui.sidebar", "ui.overlays", "settings"], [
+    { id: "routes", slot: "overlay", features: lines },
+    bus(0),
+    { id: "main", slot: "sidebar", title: "Route planner", label: "Bus network and journeys", widgets: [
+      { type: "chips", items: [{ label: "City", value: "Berlin" }, { label: "Time", value: "18:00:00" }, { label: "Seed", value: "0x2026" }, { label: "Demand", value: "catchment" }] },
+      { type: "input", id: "at", label: "Plan for", input_type: "time", value: "18:00:00", submit: "Re-plan" },
+      { type: "tabs", id: "algo", tabs: [
+        { id: "net", caption: "Algorithm 1", label: "The network", widgets: [
+          { type: "heading", text: "What Algorithm 1 built" },
+          { type: "text", text: "Greedy demand covering: start each line at the busiest stop not yet served, and keep extending it to whichever stop adds the most demand per extra minute of driving." },
+          { type: "stats", items: [{ label: "Demand covered", value: "91.3", caption: "%", tone: "accent" }, { label: "Lines", value: "6", caption: "/6" }, { label: "Stops", value: "72" }] },
+          { type: "progress", label: "Coverage", value: 0.913, tone: "accent" },
+          { type: "heading", text: "Lines" },
+          { type: "list", id: "lines", rows: [47.6, 25.2, 8.7, 4.2, 4.0, 3.1].map((share, i) => ({ id: `r${i}`, badge: `R${i}`, subtitle: `${11 + i} stops · ${(7.3 + i / 10).toFixed(1)} min out`, share: share / 47.6, value: `${share}%`, series: i })) },
+        ] },
+        { id: "trip", caption: "Algorithm 2", label: "A journey", widgets: [{ type: "button", id: "from", label: "Choose where to start", pick: true }] },
+      ] },
+      { type: "legend", legend: [{ label: "Bus line", series: 0, mark: "line" }, { label: "Your ride", tone: "accent", mark: "line" }, { label: "Stop", tone: "warn", mark: "dot" }, { label: "Walk", tone: "ok", mark: "dash" }, { id: "moving", label: "Moving buses", value: true }, { id: "live", label: "Live traffic", value: false }] },
+    ] },
+  ]);
+
+  await test("a planner gets room beside the map, and the map refits around it", async () => {
+    const sidebar = page.getByRole("complementary", { name: /Route planner/ });
+    await sidebar.waitFor({ timeout: 8000 });
+    await wait(900);
+    const box = await sidebar.boundingBox();
+    assert.ok(box.width > 340 && box.x >= 70 && box.x < 100, JSON.stringify(box));
+    assert.equal(await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest(".fabric-sidebar"), { x: box.x + 30, y: box.y + 30 }), true, "nothing covers it");
+    await sidebar.getByRole("button", { name: /R1/ }).click();
+    await until(async () => (await call("GET", "/api/v1/fabric/apps/org.mock.planner/events", undefined, planner)).body.data.items.some((e) => e.data.element === "lines" && e.data.value === "r1"), "a row selection");
+    await sidebar.getByRole("tab", { name: /A journey/ }).click();
+    await sidebar.getByRole("button", { name: "Choose where to start" }).click();
+    await page.getByText(/Click a place on the map/).waitFor();
+    await page.mouse.click(900, 400);
+    const picked = await until(async () => (await call("GET", "/api/v1/fabric/apps/org.mock.planner/events", undefined, planner)).body.data.items.find((e) => e.data.action === "pick"), "the picked place");
+    assert.ok(Number.isFinite(picked.data.value.x_m) && Number.isFinite(picked.data.value.lat), JSON.stringify(picked.data.value));
+    await sidebar.getByRole("tab", { name: /The network/ }).click();
+    await wait(400);
+    // Buses move by updating one element; the rest of the network is not resent.
+    const mark = (await call("GET", "/api/v1/fabric/state")).body.data.revision;
+    assert.equal((await call("PUT", "/api/v1/fabric/apps/org.mock.planner/ui/buses", bus(1), planner)).code, 200);
+    const delta = (await call("GET", `/api/v1/fabric/state?since=${mark}`)).body.data.apps[0];
+    assert.deepEqual(delta.ui_patch.map((e) => e.id), ["buses"]);
+    await wait(700);
+    await page.screenshot({ path: path.join(out, "planner.png") });
+    await sidebar.getByRole("button", { name: "Put the sidebar away" }).click();
+    await page.getByRole("button", { name: "Open Route planner" }).waitFor();
+    await wait(500);
+    assert.ok((await sidebar.boundingBox().catch(() => null))?.x < 0 || !(await sidebar.isVisible()), "it has gone");
+    await page.getByRole("button", { name: "Open Route planner" }).click();
+    await wait(500);
+    assert.ok((await sidebar.boundingBox()).x > 70, "it comes back");
+    await call("DELETE", "/api/v1/fabric/apps/org.mock.planner", undefined, planner);
+    await sidebar.waitFor({ state: "detached", timeout: 6000 });
+  });
+
   await test("declared UI appears in every slot, within limits", async () => {
     await page.getByRole("status", { name: "Application status" }).waitFor({ timeout: 8000 });
     assert.equal(await page.locator(".fabric-status-item:not(.more)").count(), 4, "four status lines fit");
@@ -193,7 +258,7 @@ try {
 
   await test("notifications are attributed in the capsule", async () => {
     assert.equal((await call("POST", "/api/v1/fabric/apps/org.mock.traffic/notifications", { title: "Sweep finished", severity: "warning" }, traffic)).code, 202);
-    await page.getByText("Traffic Lab: Sweep finished").waitFor({ timeout: 6000 });
+    await page.getByText("Traffic Lab: Sweep finished").first().waitFor({ timeout: 6000 });
   });
 
   await test("a granted app controls the simulation, and it is recorded", async () => {

@@ -47,7 +47,7 @@ class Configuration(WithWorkspace):
 
     def test_invalid_values_are_refused_with_the_engine_bounds(self):
         config = configuration.load(self.paths)
-        for key, value, message in (("duration_seconds", 59, "duration_seconds"), ("tick_rate", 5.5, "tick_rate"),
+        for key, value, message in (("duration_seconds", 59, "duration_seconds"), ("tick_rate", 20.5, "tick_rate"),
                                     ("tick_rate", 0, "tick_rate")):
             broken = json.loads(json.dumps(config))
             broken["playback"][key] = value
@@ -127,7 +127,7 @@ class StartRequest(WithWorkspace):
             (RunOptions(seed="-4"), "decimal integer"),
             (RunOptions(seed=str(1 << 128)), "128 bits"),
             (RunOptions(speed="nan"), "must be"),
-            (RunOptions(speed="6"), r"--speed must be in"),
+            (RunOptions(speed="21"), r"--speed must be in"),
             (RunOptions(duration="9999"), r"--duration must be in"),
             (RunOptions(duration="90.5"), r"--duration must be in"),
             (RunOptions(day_type="holiday"), "weekday or weekend"),

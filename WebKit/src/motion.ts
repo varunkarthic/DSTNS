@@ -30,6 +30,10 @@ export const SPRINGS = {
   effectsSlow: { k: 196, c: 28 },
   /** Direct manipulation: a press, a thumb. Overshoots under 5%, so it reads as a response, not a bounce. */
   lively: { k: 420, c: 30 },
+  /** The expressive scheme, for moments meant to be felt. Overshoot stays under 12%. */
+  expressiveFast: { k: 700, c: 34 },
+  expressiveDefault: { k: 380, c: 24 },
+  expressiveSlow: { k: 200, c: 17 },
   /** The map's camera: a long, heavy move that never overshoots the place it is showing. */
   camera: { k: 42, c: 13 },
   /** A wheel or button zoom, which must track the input closely. */
@@ -37,6 +41,45 @@ export const SPRINGS = {
 } as const satisfies Record<string, SpringPreset>;
 
 export type SpringName = keyof typeof SPRINGS;
+
+/**
+ * What a movement is for decides its spring, so related movements stay related:
+ * a press and a thumb share one, every overlay shares another.
+ */
+export const PURPOSES = {
+  press: "spatialFast", release: "lively", focus: "effectsFast", hover: "effectsFast", tooltip: "spatialFast",
+  thumb: "expressiveFast", reveal: "spatialDefault", dismiss: "effectsFast", expand: "expressiveDefault", collapse: "spatialFast",
+  shift: "spatialDefault", morph: "spatialDefault", shared: "spatialSlow", overlay: "expressiveDefault", page: "spatialSlow",
+  drag: "spatialDefault", snap: "expressiveFast", success: "expressiveDefault", error: "spatialFast", fade: "effectsDefault",
+  shadow: "effectsDefault", blur: "effectsSlow", loading: "effectsSlow", stagger: "spatialDefault",
+} as const satisfies Record<string, SpringName>;
+
+/** Velocity over the last ~100 ms of samples, in units per second. Robust to uneven event timing. */
+export function createVelocityTracker(windowMs = 100) {
+  const samples: { t: number; x: number }[] = [];
+  return {
+    add(x: number, t = performance.now()) {
+      samples.push({ t, x });
+      while (samples.length > 2 && t - samples[0].t > windowMs) samples.shift();
+    },
+    velocity() {
+      if (samples.length < 2) return 0;
+      const first = samples[0];
+      const last = samples[samples.length - 1];
+      const dt = (last.t - first.t) / 1000;
+      return dt > 0 ? (last.x - first.x) / dt : 0;
+    },
+    reset() {
+      samples.length = 0;
+    },
+  };
+}
+
+/** The snap point a released gesture settles on, carrying its momentum forward. */
+export function projectSnap(position: number, velocity: number, points: readonly number[], deceleration = 0.992) {
+  const projected = position + ((velocity / 1000) * deceleration) / (1 - deceleration);
+  return points.reduce((best, point) => (Math.abs(point - projected) < Math.abs(best - projected) ? point : best), points[0]);
+}
 
 /** Position of a spring from 0 towards 1 at time `t` seconds, starting at rest. */
 export function springProgress({ k, c }: SpringPreset, t: number): number {
@@ -90,6 +133,10 @@ export function installMotionTokens(root: HTMLElement = document.documentElement
   for (const name of Object.keys(SPRINGS) as SpringName[]) {
     set(`--spring-${name}`, springEasing(SPRINGS[name]));
     set(`--spring-${name}-ms`, `${durationMs(name)}ms`);
+  }
+  for (const purpose of Object.keys(PURPOSES) as (keyof typeof PURPOSES)[]) {
+    set(`--motion-${purpose}`, `var(--spring-${PURPOSES[purpose]})`);
+    set(`--motion-${purpose}-ms`, `var(--spring-${PURPOSES[purpose]}-ms)`);
   }
   set("--ease", "var(--spring-spatialDefault)");
   set("--ease-out", "var(--spring-spatialDefault)");

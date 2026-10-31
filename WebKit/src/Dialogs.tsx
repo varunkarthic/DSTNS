@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import { Spring, SPRINGS } from "./motion";
+import { Badge } from "./settingsControls";
 import fabricLogo from "./assets/brand/fabric-white.png";
 import webfabricLogo from "./assets/brand/webfabric-white.png";
 import { api } from "./api";
@@ -99,14 +101,36 @@ export function Scrim({
   );
 }
 
+/** A figure that counts up to its value on a spring, so the result arrives rather than appears. */
+function Stat({ label, value, digits = 0, suffix = "" }: { label: string; value: number; digits?: number; suffix?: string }) {
+  const out = useRef<HTMLElement>(null);
+  const text = (n: number) => `${n.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}${suffix}`;
+  useEffect(() => {
+    if (document.querySelector(".reduce-motion")) return;
+    const spring = new Spring(0, SPRINGS.spatialSlow, (n) => {
+      if (out.current) out.current.textContent = text(n);
+    }, 0.001);
+    spring.set(value);
+    return () => spring.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd ref={out as never} className="mono">{text(value)}</dd>
+    </div>
+  );
+}
+
 /** About DSTNS: a card over the map rather than a separate page. */
 export function AboutCard({
   version,
   onClose,
   closing,
   location,
-  seed, status, topology, onResetPreferences,
+  seed, status, topology, onResetPreferences, narratorBadge,
 }: {
+  narratorBadge?: string;
   status?: Envelope<Status> | null;
   topology?: Topology | null;
   onResetPreferences?: () => void;
@@ -156,35 +180,73 @@ export function AboutCard({
       </div>
 
       <div {...scroll} className={`about-scroll ${scroll.className}`} tabIndex={0} aria-label="System details">
-      <dl className="about-facts">
-        <div>
-          <dt>Simulating</dt>
-          <dd>{location?.city ? `${location.city}, ${location.country}` : status?.run_id ? "Pinned map" : "No run"}</dd>
+      <section className="about-section">
+        <h3>This run</h3>
+        <dl className="about-facts">
+          <div>
+            <dt>Simulating</dt>
+            <dd>{location?.city ? `${location.city}, ${location.country}` : status?.run_id ? "Pinned map" : "No run"}</dd>
+          </div>
+          <div>
+            <dt>Seed</dt>
+            <dd className="about-seed">
+              <span className="mono">{seed || "None"}</span>
+              {seed && (
+                <button type="button" className="icon-btn small" aria-label={copied ? "Seed copied" : "Copy seed"} onClick={() => void copySeed()}>
+                  <Icon name={copied ? "check" : "copy"} size={14} />
+                </button>
+              )}
+            </dd>
+          </div>
+          <div><dt>Lifecycle</dt><dd>{status?.data.lifecycle || "Unavailable"}</dd></div>
+          <div><dt>Network</dt><dd>{topology ? `${topology.nodes.length.toLocaleString()} nodes · ${topology.edges.length.toLocaleString()} edges · ${topology.features.length.toLocaleString()} places` : "Unavailable"}</dd></div>
+          <div className="advanced-only"><dt>Coordinates</dt><dd className="mono">{topology?.location?.city ? `${topology.location.anchor_lat.toFixed(6)}, ${topology.location.anchor_lon.toFixed(6)}` : "Unavailable"}</dd></div>
+          <div className="advanced-only"><dt>Run</dt><dd className="mono">{status?.run_id || "No run"}</dd></div>
+          <div className="advanced-only"><dt>Graph hash</dt><dd className="mono">{topology?.graph_hash || "Unavailable"}</dd></div>
+          <div className="advanced-only"><dt>Map source</dt><dd>{topology?.source || "Unavailable"}</dd></div>
+          <div className="advanced-only"><dt>Map selection</dt><dd>{topology?.map_selection_version || "Unavailable"}</dd></div>
+        </dl>
+      </section>
+
+      <section className="about-section">
+        <h3>Built to be built on</h3>
+        <div className="subsystem-cards">
+          <article className="subsystem-card">
+            <img className="brand-logo" src={fabricLogo} alt="Fabric" height={18} />
+            <p>
+              The layer through which everything reaches the simulator. Every program talks to DSTNS through one documented API, which
+              keeps working as the engine beneath it changes.
+            </p>
+          </article>
+          <article className="subsystem-card">
+            <img className="brand-logo" src={webfabricLogo} alt="WebFabric" height={18} />
+            <p>
+              Lets independent applications, such as a bus network planner, appear here beside the simulation. They register themselves,
+              ask for what they need, and you decide what they may do in Settings.
+            </p>
+          </article>
         </div>
-        <div>
-          <dt>Seed</dt>
-          <dd className="about-seed">
-            <span className="mono">{seed || "None"}</span>
-            {seed && (
-              <button type="button" className="icon-btn small" aria-label={copied ? "Seed copied" : "Copy seed"} onClick={() => void copySeed()}>
-                <Icon name={copied ? "check" : "copy"} size={14} />
-              </button>
-            )}
-          </dd>
-        </div>
-        <div><dt>Coordinates</dt><dd className="mono">{topology?.location?.city ? `${topology.location.anchor_lat.toFixed(6)}, ${topology.location.anchor_lon.toFixed(6)}` : "Unavailable"}</dd></div>
-        <div><dt>Run</dt><dd className="mono">{status?.run_id || "No run"}</dd></div>
-        <div><dt>Lifecycle</dt><dd>{status?.data.lifecycle || "Unavailable"}</dd></div>
-        <div><dt>Engine version</dt><dd>{system?.version || "Unavailable"}</dd></div>
-        <div><dt>Compiler</dt><dd>{typeof system?.build?.compiler === "string" ? system.build.compiler : "Unavailable"}</dd></div>
-        <div><dt>C++ standard</dt><dd>{typeof system?.build?.cpp_standard === "number" ? system.build.cpp_standard : "Unavailable"}</dd></div>
-        <div><dt>SUMO adapter</dt><dd>{system?.sumo?.available ? system.sumo.version || "Available" : system ? "Not installed" : "Unavailable"}</dd></div>
-        <div><dt>API version</dt><dd>{status?.api_version || "Unavailable"}</dd></div>
-        <div><dt>Map source</dt><dd>{topology?.source || "Unavailable"}</dd></div>
-        <div><dt>Map selection</dt><dd>{topology?.map_selection_version || "Unavailable"}</dd></div>
-        <div><dt>Graph hash</dt><dd className="mono">{topology?.graph_hash || "Unavailable"}</dd></div>
-        <div><dt>Network</dt><dd>{topology ? `${topology.nodes.length.toLocaleString()} nodes · ${topology.edges.length.toLocaleString()} edges · ${topology.features.length.toLocaleString()} places` : "Unavailable"}</dd></div>
-      </dl>
+        <p className="about-fineprint">Fabric and WebFabric are DSTNS subsystems, © 2026 Varun Karthic, under the same licence.</p>
+      </section>
+
+      <section className="about-section">
+        <h3>The system</h3>
+        <dl className="about-facts">
+          <div><dt>Engine</dt><dd>{system?.version || "Unavailable"}</dd></div>
+          <div><dt>Interface</dt><dd>{version}</dd></div>
+          <div><dt>API</dt><dd>{status?.api_version || "Unavailable"}</dd></div>
+          <div>
+            <dt>Realistic News</dt>
+            <dd>{narratorBadge ? <Badge tone="warn">{narratorBadge}</Badge> : <Badge tone="ok">Available</Badge>}</dd>
+          </div>
+          <div>
+            <dt>SUMO adapter</dt>
+            <dd>{system?.sumo?.available ? <Badge tone="ok">{system.sumo.version || "Available"}</Badge> : <Badge>{system ? "Not installed" : "Unavailable"}</Badge>}</dd>
+          </div>
+          <div className="advanced-only"><dt>Compiler</dt><dd>{typeof system?.build?.compiler === "string" ? system.build.compiler : "Unavailable"}</dd></div>
+          <div className="advanced-only"><dt>C++ standard</dt><dd>{typeof system?.build?.cpp_standard === "number" ? system.build.cpp_standard : "Unavailable"}</dd></div>
+        </dl>
+      </section>
 
       <div className={`disclosure${licence ? " open" : ""}`}>
         <button type="button" className="disclosure-head" aria-expanded={licence} aria-controls="about-licence" onClick={() => setLicence((v) => !v)}>
@@ -210,14 +272,6 @@ export function AboutCard({
         </div>
       </div>
 
-      <div className="about-subsystems">
-        <img src={fabricLogo} alt="Fabric" height={16} />
-        <img src={webfabricLogo} alt="WebFabric" height={16} />
-      </div>
-      <p className="settings-note">
-        Fabric and WebFabric are DSTNS subsystems, © 2026 Varun Karthic, under the same licence.
-      </p>
-
       <div className="about-links">
         <a className="link-row" href="/api/v1/system/source">
           <Icon name="download" size={16} />
@@ -235,11 +289,11 @@ export function AboutCard({
         </a>
       </div>
 
-      </div>
       <div className="about-reset">
         <div><strong>Interface preferences</strong><p>Restore settings, Layers, Places and telemetry layout to the operator’s defaults. Your simulation and recorded events stay as they are.</p></div>
         <button className="btn" onClick={() => { onResetPreferences?.(); setResetDone(true); }}><Icon name="reset" size={16} />Reset all preferences</button>
         <span role="status">{resetDone ? "Interface preferences restored." : ""}</span>
+      </div>
       </div>
       <div className="dialog-actions">
         <button className="btn primary" onClick={onClose}>
@@ -437,30 +491,29 @@ export function CompletionDialog({
   onClose: () => void;
 }) {
   const time = useTimeFormat();
-  const fact = (label: string, value: ReactNode) => (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
-  );
   return (
-    <Scrim onClose={onClose} labelledBy="complete-title" closing={closing}>
-      <span className="dialog-icon ok" aria-hidden="true">
-        <Icon name="check" size={20} strokeWidth={2.2} />
-      </span>
-      <h2 id="complete-title">The day is complete</h2>
-      <p className="dialog-body">
-        {summary.city ? `A full day in ${summary.city} has finished.` : "A full day has finished."} Here is how it went.
-      </p>
-      <dl className="summary-grid">
-        {fact("Final time", <span className="mono">{time.time(summary.finalTime)}</span>)}
-        {fact("Simulated", formatDuration(summary.simulatedSeconds))}
-        {summary.wallMs !== null && fact("Observed for", formatWallDuration(summary.wallMs))}
-        {summary.incidents !== null && fact("Incidents", summary.incidents.toLocaleString())}
-        {summary.significant !== null && fact("Significant events", summary.significant.toLocaleString())}
-        {summary.rainEvents !== null && fact("Rain events", summary.rainEvents.toLocaleString())}
-        {summary.peakCongestion !== null && fact("Peak congestion", `${summary.peakCongestion.toFixed(1)}%`)}
-        {fact("Seed", <span className="mono seed-cell">{summary.seed || "None"}</span>)}
+    <Scrim onClose={onClose} labelledBy="complete-title" closing={closing} className="done-dialog">
+      <div className="done-hero">
+        <svg className="done-check" viewBox="0 0 52 52" width="52" height="52" aria-hidden="true">
+          <circle cx="26" cy="26" r="24" pathLength={1} />
+          <path d="M15 27l8 8 14-16" pathLength={1} />
+        </svg>
+        <div>
+          <h2 id="complete-title">The day is complete</h2>
+          <p className="dialog-body">{summary.city ? `A full day in ${summary.city} has finished.` : "A full day has finished."}</p>
+        </div>
+      </div>
+      <dl className="done-stats">
+        {summary.peakCongestion !== null && <Stat label="Peak congestion" value={summary.peakCongestion} digits={1} suffix="%" />}
+        {summary.incidents !== null && <Stat label="Incidents" value={summary.incidents} />}
+        {summary.significant !== null && <Stat label="Significant events" value={summary.significant} />}
+        {summary.rainEvents !== null && <Stat label="Rain events" value={summary.rainEvents} />}
+      </dl>
+      <dl className="done-facts">
+        <div><dt>Final time</dt><dd className="mono">{time.time(summary.finalTime)}</dd></div>
+        <div><dt>Simulated</dt><dd>{formatDuration(summary.simulatedSeconds)}</dd></div>
+        {summary.wallMs !== null && <div><dt>Observed for</dt><dd>{formatWallDuration(summary.wallMs)}</dd></div>}
+        <div><dt>Seed</dt><dd className="mono seed-cell">{summary.seed || "None"}</dd></div>
       </dl>
       {reportError && (
         <p className="dialog-error" role="alert">

@@ -28,6 +28,7 @@ intent; this page records the decisions as implemented.
 | [19](#19-applications-are-api-clients-that-declare-their-ui) | Applications are API clients that declare their UI | WebFabric |
 | [20](#20-capabilities-govern-fabrics-routes-not-the-machine) | Capabilities govern Fabric's routes, not the machine | Security |
 | [21](#21-motion-is-a-spring) | Motion is a spring | Observer |
+| [22](#22-limits-resist-rather-than-stop) | Limits resist rather than stop | Observer |
 
 ## 1. The core is the single authority
 
@@ -311,3 +312,15 @@ anything that must keep its velocity. See the [interface system](interface-syste
 
 **Consequences.** Motion is consistent and interruptible. Start-up holds nothing for
 effect, so it finishes when the work does.
+
+## 22. Limits resist rather than stop
+
+**Problem.** A list that simply stops, or a map that refuses to zoom further, feels broken: nothing
+says that this is the end rather than a fault.
+
+**Decision.** Dynamic Logarithmic Resistance: past any limit, things give ever less, up to a
+bound that follows their size, then spring home. It is installed once for every scrolling
+region, so no menu has to ask. See the [interface system](interface-system.md).
+
+**Consequences.** The same gesture feels the same everywhere. It costs a little: content moves
+through a custom property while being stretched, only at the limit.

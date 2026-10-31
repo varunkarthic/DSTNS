@@ -51,7 +51,7 @@ and anything that depends on them stays hidden until then (`blocked_ui`).
 
 | Capability | Allows | Granted |
 |---|---|---|
-| `ui.header`, `ui.status`, `ui.panels`, `ui.overlays`, `ui.map-controls`, `ui.indicators` | Those [slots](../components/webfabric.md#slots) | Automatically |
+| `ui.header`, `ui.status`, `ui.panels`, `ui.sidebar`, `ui.overlays`, `ui.map-controls`, `ui.indicators` | Those [slots](../components/webfabric.md#slots) | Automatically |
 | `ui.notifications` | Sending notifications; Do Not Disturb still applies | Automatically |
 | `settings` | Changing your own settings | Automatically |
 | `sim.read` | The simulation summary in your frames | Automatically |
@@ -116,12 +116,20 @@ addEventListener("message", ({ data }) => {
 });
 ```
 
+## A planner beside the map
+
+An application with real work to show, such as a bus network planner, takes the `sidebar` slot:
+tabs for its algorithms, lines as a `list`, a `legend` with switches, and its network as
+an `overlay` using `series` colours. Keep the network and the vehicles in separate overlay
+elements: the vehicles can then update every second, as named points that glide, without
+resending the network. A button with `pick: true` asks a person for a place on the map.
+
 ## Be a good neighbour
 
 - Update a status element rather than sending notifications for anything frequent.
   Notifications are limited to about 20 a second, and past that you get `429`.
 - Update one element with `PUT .../ui/{element}` rather than resending everything.
-- Declared UI is limited to 64 elements and 512 KiB per application.
+- Declared UI is limited to 64 elements and 4 MiB per application.
 - Handle `409 APP_NOT_ACTIVE`: a person may have suspended you.
 
 Your application is your own work. See

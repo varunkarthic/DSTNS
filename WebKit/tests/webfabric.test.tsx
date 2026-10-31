@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppFrame } from "../src/webfabric/AppFrame";
 import { paintOverlay } from "../src/webfabric/Overlay";
 import { WebFabricSettings } from "../src/webfabric/Settings";
-import { AppBoundary, FabricDialog, FabricDockItems, FabricPanel, FabricStatus } from "../src/webfabric/Slots";
-import { fabric, mergeApps, selectSlot, SLOT_LIMITS, toUiNotification } from "../src/webfabric/store";
+import { AppBoundary, FabricDialog, FabricDockItems, FabricPanel, FabricSidebar, FabricStatus } from "../src/webfabric/Slots";
+import { applyDelta, fabric, mergeApps, selectSlot, SLOT_LIMITS, toUiNotification } from "../src/webfabric/store";
 import type { FabricApp, FabricElement } from "../src/webfabric/store";
 
 // Representative applications: exercised here, never shipped.
@@ -81,6 +81,18 @@ describe("state updates", () => {
     stop();
     expect(seen).toEqual([1, 2, 3]);
     expect(toUiNotification(note(9), 60).title).toBe("A: t");
+  });
+});
+
+describe("deltas", () => {
+  it("folds changed elements into what is held, and drops what went", () => {
+    const a = mockApp("org.x.a", 0, { ui: [status("one"), status("two"), status("three")] });
+    const b = mockApp("org.x.b", 1, { ui: [status("b")] });
+    const next = applyDelta([a, b], [{ ...a, ui: undefined as never, ui_patch: [status("two", { value: 9 })], ui_order: ["two", "one"] }], ["org.x.b"]);
+    expect(next.map((x) => x.id)).toEqual(["org.x.a"]);
+    expect(next[0].ui.map((e) => e.id)).toEqual(["two", "one"]);
+    expect(next[0].ui[0].value).toBe(9);
+    expect(next[0].ui[1]).toBe(a.ui[0]);
   });
 });
 
@@ -161,12 +173,64 @@ describe("slots", () => {
   });
 });
 
+describe("sidebar", () => {
+  const planner = () => mockApp("org.x.bus", 0, { name: "Route planner", ui: [{ id: "main", slot: "sidebar", title: "Route planner", label: "Bus network", widgets: [
+    { type: "chips", items: [{ label: "City", value: "Dar es Salaam" }] },
+    { type: "tabs", tabs: [
+      { id: "net", caption: "Algorithm 1", label: "The network", widgets: [
+        { type: "stats", items: [{ label: "Demand covered", value: "91.3", caption: "%", tone: "accent" }, { label: "Lines", value: "6" }] },
+        { type: "list", id: "lines", rows: [{ id: "r0", badge: "R0", subtitle: "11 stops", share: 0.476, value: "47.6%", series: 0 }] },
+        { type: "button", id: "pick", label: "Choose a stop", pick: true },
+      ] },
+      { id: "trip", caption: "Algorithm 2", label: "A journey", widgets: [{ type: "input", id: "at", label: "Plan for", input_type: "time", value: "18:00:00", submit: "Re-plan" }] },
+    ] },
+    { type: "legend", legend: [{ label: "Bus line", series: 0, mark: "line" }, { id: "buses", label: "Moving buses", value: false }] },
+  ] }] });
+
+  it("takes room from the map, lays out an application's work, and can be put away", async () => {
+    const inset = vi.fn();
+    render(<FabricSidebar onInset={inset} reduceMotion />);
+    expect(inset).toHaveBeenLastCalledWith(0);
+    load([planner()]);
+    expect(inset.mock.lastCall![0]).toBeGreaterThan(300);
+    expect(screen.getByRole("complementary", { name: /Route planner/ })).toHaveTextContent("Dar es Salaam");
+    expect(screen.getByText("91.3")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Put the sidebar away" }));
+    expect(inset).toHaveBeenLastCalledWith(0);
+    fireEvent.click(screen.getByRole("button", { name: "Open Route planner" }));
+    expect(inset.mock.lastCall![0]).toBeGreaterThan(300);
+  });
+
+  it("reports selections, tabs, switches and submitted values to the application", async () => {
+    render(<FabricSidebar onInset={() => undefined} reduceMotion />);
+    load([planner()]);
+    fireEvent.click(screen.getByRole("button", { name: /R0/ }));
+    await waitFor(() => expect(requests.at(-1)?.body).toMatchObject({ element: "lines", action: "select", value: "r0" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Moving buses" }));
+    await waitFor(() => expect(requests.at(-1)?.body).toMatchObject({ element: "buses", action: "change", value: true }));
+    fireEvent.click(screen.getByRole("tab", { name: /A journey/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Re-plan" }));
+    await waitFor(() => expect(requests.at(-1)?.body).toMatchObject({ element: "at", action: "submit", value: "18:00:00" }));
+  });
+
+  it("turns the next map click into a place, once, and can be cancelled", async () => {
+    render(<FabricSidebar onInset={() => undefined} reduceMotion />);
+    load([planner()]);
+    expect(fabric.deliverPick({ x_m: 1, y_m: 2 })).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Choose a stop" }));
+    expect(await screen.findByText(/Click a place on the map/)).toBeInTheDocument();
+    act(() => { expect(fabric.deliverPick({ x_m: 1, y_m: 2 })).toBe(true); });
+    await waitFor(() => expect(requests.at(-1)?.body).toMatchObject({ element: "pick", action: "pick", value: { x_m: 1, y_m: 2 } }));
+    expect(screen.queryByText(/Click a place on the map/)).toBeNull();
+  });
+});
+
 describe("overlays", () => {
   it("places map metres through the camera and takes colour only from the palette", () => {
     const calls: unknown[][] = [];
     const ctx = new Proxy({}, { get: (_, key) => (key === "fillText" || key === "arc" || key === "moveTo" || key === "lineTo" ? (...args: unknown[]) => calls.push([key, ...args]) : () => undefined), set: () => true }) as unknown as CanvasRenderingContext2D;
     const tones: string[] = [];
-    paintOverlay(ctx, [{ type: "circle", x_m: 100, y_m: 50, radius_m: 20, tone: "danger", label: "Here" }, { type: "line", points: [[0, 0], [10, 10]] }], { x: 10, y: 20, scale: 2 }, (tone) => { tones.push(tone); return "#000"; });
+    paintOverlay(ctx, [{ type: "circle", x_m: 100, y_m: 50, radius_m: 20, tone: "danger", label: "Here" }, { type: "line", points: [[0, 0], [10, 10]] }], { x: 10, y: 20, scale: 2 }, (feature) => { tones.push(feature.tone ?? "accent"); return "#000"; });
     expect(calls[0]).toEqual(["arc", 210, -80, 40, 0, Math.PI * 2]);
     expect(calls).toContainEqual(["moveTo", 10, 20]);
     expect(calls).toContainEqual(["lineTo", 30, 0]);

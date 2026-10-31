@@ -159,8 +159,7 @@ try {
     assert.ok(rail.height <= 66, `rail stays one row at 1024 (${rail.height}px)`);
     for (const name of [/Copy seed/, "Terminate"])
       assert.ok(await page.getByRole("button", { name }).first().isVisible(), `${name} visible at 1024x640`);
-    for (const rate of ["0.25 times speed", "5 times speed"])
-      assert.ok(await page.getByRole("radio", { name: rate, exact: true }).isVisible(), `${rate} visible at 1024x640`);
+    assert.ok(await page.getByRole("slider", { name: "Simulation speed" }).isVisible(), "speed visible at 1024x640");
     await page.screenshot({ path: path.join(out, "hud-1024.png") });
   });
   check("below the minimum, the interface says so instead of squeezing", async () => {
@@ -207,7 +206,9 @@ try {
     const time = page.getByRole("button", { name: /Simulation time/ });
     await time.hover();
     await page.locator(".time-hint").filter({ hasText: /% complete/ }).waitFor();
-    await page.getByRole("radio", { name: "2 times speed" }).click();
+    const speed = page.getByRole("slider", { name: "Simulation speed" });
+    await speed.focus();
+    await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(1500);
     assert.equal((await call("/api/v1/playback/status")).body.clock.tick_rate, 2, "speed reached the engine");
     const before = (await call("/api/v1/playback/status")).body.clock.virtual_day_seconds;

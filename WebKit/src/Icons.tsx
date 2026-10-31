@@ -331,6 +331,9 @@ const PATHS: Record<string, ReactNode> = {
 
 export type IconName = keyof typeof PATHS;
 
+/** Glyphs whose drawing sits off the box's centre, moved so their hover area centres on them. */
+const OPTICAL: Record<string, [number, number]> = { layers: [0, 1.5], cloudRain: [0.3, -0.7], panelCollapse: [-0.8, 0], panelExpand: [-0.8, 0] };
+
 export function Icon({
   name,
   size = 16,
@@ -345,6 +348,7 @@ export function Icon({
   return (
     <svg
       className={`icon ${className}`.trim()}
+      data-icon={typeof name === "string" ? name : undefined}
       viewBox="0 0 24 24"
       width={size}
       height={size}
@@ -357,7 +361,7 @@ export function Icon({
       focusable="false"
       style={{ width: size, height: size, flex: "none" }}
     >
-      {PATHS[name] ?? PATHS.info}
+      {OPTICAL[name] ? <g transform={`translate(${OPTICAL[name][0]} ${OPTICAL[name][1]})`}>{PATHS[name]}</g> : PATHS[name] ?? PATHS.info}
     </svg>
   );
 }

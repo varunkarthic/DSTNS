@@ -35,13 +35,13 @@
   --glass-line-strong: var(--hud-border-strong);
   --glass-blur: var(--hud-blur);
   --glass-shadow: var(--hud-shadow), var(--hud-highlight);
-  --well: rgb(255 255 255 / 4%);
-  --well-line: rgb(178 235 255 / 8%);
-  --hover: rgb(255 255 255 / 7%);
-  --pressed: rgb(255 255 255 / 10%);
+  --well: rgb(var(--ink-rgb) / 4%);
+  --well-line: rgb(var(--line-rgb) / 8%);
+  --hover: rgb(var(--ink-rgb) / 7%);
+  --pressed: rgb(var(--ink-rgb) / 10%);
   --accent: var(--cyan);
   --accent-soft: var(--cyan-soft);
-  --accent-line: rgb(55 215 255 / 45%);
+  --accent-line: rgb(var(--accent-rgb) / 45%);
   --ok: #5fe3c0;
   --danger: var(--red);
   --warn: var(--amber);
@@ -116,12 +116,12 @@
 .btn.primary {
   background: var(--accent);
   border-color: transparent;
-  color: #04212b;
+  color: var(--on-accent);
   font-weight: 600;
 }
 .btn.primary:hover:not(:disabled) {
-  background: #7fe6ff;
-  color: #04212b;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .btn.ghost {
   background: none;
@@ -129,14 +129,14 @@
   color: var(--text-dim);
 }
 .btn.danger-solid {
-  background: rgb(255 107 115 / 16%);
-  border-color: rgb(255 107 115 / 45%);
+  background: rgb(var(--danger-rgb) / 16%);
+  border-color: rgb(var(--danger-rgb) / 45%);
   color: var(--danger);
   font-weight: 600;
 }
 .btn.danger-solid:hover:not(:disabled) {
-  background: rgb(255 107 115 / 26%);
-  color: #ffd0d3;
+  background: rgb(var(--danger-rgb) / 26%);
+  color: var(--danger);
 }
 
 .icon-btn {
@@ -293,7 +293,7 @@ body:has(.reduce-motion) .floating {
   border-radius: var(--r-sm);
   font-size: 11.5px;
   color: var(--amber);
-  background: rgb(255 185 56 / 9%);
+  background: rgb(var(--warn-rgb) / 9%);
 }
 .floating-foot {
   display: flex;
@@ -541,7 +541,7 @@ body:has(.reduce-motion) .floating {
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
-  color: #d7e4f5;
+  color: var(--text);
   background: var(--tint, #162e3b);
   border: 1.2px solid #638591;
 }
@@ -884,7 +884,7 @@ body:has(.reduce-motion) .floating {
   font-size: 9.5px;
   font-weight: 600;
   color: var(--danger);
-  background: rgb(255 107 115 / 14%);
+  background: rgb(var(--danger-rgb) / 14%);
 }
 .tab-row .count.muted {
   color: var(--text-dim);
@@ -903,14 +903,14 @@ body:has(.reduce-motion) .floating {
   padding-right: 2px;
   outline: none;
   scrollbar-width: thin;
-  scrollbar-color: rgb(178 235 255 / 18%) transparent;
+  scrollbar-color: rgb(var(--line-rgb) / 18%) transparent;
 }
 .stream::-webkit-scrollbar {
   width: 6px;
 }
 .stream::-webkit-scrollbar-thumb {
   border-radius: 3px;
-  background: rgb(178 235 255 / 18%);
+  background: rgb(var(--line-rgb) / 18%);
 }
 .stream-card {
   border-radius: var(--r-md);
@@ -918,7 +918,7 @@ body:has(.reduce-motion) .floating {
   border: 1px solid var(--well-line);
 }
 .stream-card.alert {
-  border-color: rgb(255 107 115 / 30%);
+  border-color: rgb(var(--danger-rgb) / 30%);
 }
 .row-icon {
   border-radius: var(--r-sm);
@@ -936,7 +936,7 @@ body:has(.reduce-motion) .floating {
 }
 .tag.mint {
   color: var(--ok);
-  background: rgb(95 227 192 / 12%);
+  background: rgb(var(--ok-rgb) / 12%);
 }
 .tag.cyan {
   color: var(--accent);
@@ -944,11 +944,11 @@ body:has(.reduce-motion) .floating {
 }
 .tag.red {
   color: var(--danger);
-  background: rgb(255 107 115 / 13%);
+  background: rgb(var(--danger-rgb) / 13%);
 }
 .tag.amber {
   color: var(--amber);
-  background: rgb(255 185 56 / 12%);
+  background: rgb(var(--warn-rgb) / 12%);
 }
 .tag.grey {
   color: var(--text-dim);
@@ -1055,12 +1055,12 @@ body:has(.reduce-motion) .floating {
 }
 .flag.shown {
   color: var(--ok);
-  background: rgb(95 227 192 / 11%);
+  background: rgb(var(--ok-rgb) / 11%);
 }
 .flag.silenced {
   color: var(--text-dim);
-  background: rgb(255 255 255 / 6%);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%);
+  background: rgb(var(--ink-rgb) / 6%);
+  box-shadow: inset 0 0 0 1px rgb(var(--ink-rgb) / 12%);
 }
 .flag.focus {
   color: var(--accent);
@@ -1068,11 +1068,11 @@ body:has(.reduce-motion) .floating {
 }
 .flag.sev-alert {
   color: var(--danger);
-  background: rgb(255 107 115 / 12%);
+  background: rgb(var(--danger-rgb) / 12%);
 }
 .flag.sev-warning {
   color: var(--amber);
-  background: rgb(255 185 56 / 11%);
+  background: rgb(var(--warn-rgb) / 11%);
 }
 .history-chevron {
   margin-top: 4px;
@@ -1173,7 +1173,7 @@ body:has(.reduce-motion) .floating {
   color: #8fd0ff;
 }
 .wx-moderate {
-  color: #4ba9ff;
+  color: var(--state-flooded);
 }
 .wx-heavy {
   color: #b18cff;
@@ -1598,12 +1598,12 @@ body:has(.reduce-motion) .floating {
 }
 .loading-surface.boot {
   background:
-    radial-gradient(ellipse at 50% 42%, rgb(14 42 58 / 92%), rgb(3 13 23 / 99%) 68%),
-    #030d17;
+    radial-gradient(ellipse at 50% 42%, rgb(var(--raised-rgb) / 92%), rgb(var(--surface-rgb) / 99%) 68%),
+    var(--surface);
 }
 .loading-surface.overlay {
   z-index: calc(var(--z-scrim) + 2);
-  background: rgb(3 10 18 / 48%);
+  background: rgb(var(--scrim-rgb) / 48%);
   backdrop-filter: blur(6px) saturate(115%);
   -webkit-backdrop-filter: blur(6px) saturate(115%);
 }
@@ -1725,7 +1725,7 @@ body:has(.reduce-motion) .floating {
 }
 .loading-mark {
   margin: 2px 0 10px;
-  filter: drop-shadow(0 0 26px rgb(53 215 255 / 26%));
+  filter: drop-shadow(0 0 26px rgb(var(--accent-rgb) / 26%));
 }
 /* The mark breathes while there is work outstanding: slow enough to read as
    patience rather than as a progress indicator, which the ring already is. */
@@ -1771,7 +1771,7 @@ body:has(.reduce-motion) .floating {
 }
 .loading-ring-track {
   fill: none;
-  stroke: rgb(178 235 255 / 12%);
+  stroke: rgb(var(--line-rgb) / 12%);
   stroke-width: 3;
 }
 .loading-ring-arc {
@@ -1855,8 +1855,8 @@ body:has(.reduce-motion) .floating {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 1.5px solid rgb(178 235 255 / 20%);
-  color: #04212b;
+  border: 1.5px solid rgb(var(--line-rgb) / 20%);
+  color: var(--on-accent);
   transition:
     background var(--t-pop) var(--ease),
     border-color var(--t-pop) var(--ease);
@@ -1867,7 +1867,7 @@ body:has(.reduce-motion) .floating {
 }
 .loading-steps li.active .loading-step-dot {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgb(55 215 255 / 15%);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 15%);
 }
 .loading-steps li.active .loading-step-dot:has(.icon) {
   background: var(--ok);
@@ -1906,8 +1906,8 @@ body:has(.reduce-motion) .floating {
   border-radius: var(--r-md);
   font-size: 12px;
   line-height: 18px;
-  color: #ffd0d3;
-  background: rgb(255 107 115 / 10%);
+  color: var(--danger);
+  background: rgb(var(--danger-rgb) / 10%);
   text-align: left;
 }
 .loading-note {
@@ -2007,8 +2007,8 @@ body:has(.reduce-motion) .floating {
   place-items: center;
   padding: 20px;
   background:
-    radial-gradient(ellipse at 50% 38%, rgb(14 42 58 / 92%), rgb(3 13 23 / 99%) 70%),
-    #030d17;
+    radial-gradient(ellipse at 50% 38%, rgb(var(--raised-rgb) / 92%), rgb(var(--surface-rgb) / 99%) 70%),
+    var(--surface);
   animation: fade-in 220ms var(--ease);
 }
 .viewport-card {

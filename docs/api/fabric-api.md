@@ -50,6 +50,7 @@ Every element has an `id` and a `slot`. The other fields depend on the slot:
 | `map_control` | `label`, `icon`, `active`, `opens` |
 | `indicator` | `edge` (`top`, `right`, `bottom`, `left`), `position` (0 to 1), `label`, `tone` |
 | `panel` | `title`, and `widgets` or `frame` |
+| `sidebar` | `title`, `label`, and `widgets` or `frame` |
 | `dialog` | `title`, `body`, `actions` (`id`, `label`, `tone`; up to 3) |
 | `overlay` | `features` |
 
@@ -60,11 +61,19 @@ sends an event. `icon` names an icon the observer has, such as `pin`, `gauge` or
 **Widgets:** `text` (`text`); `stat` (`label`, `value`, `tone`); `progress` (`label`,
 `value` from 0 to 1, `tone`); `button` (`id`, `label`, `tone`); `toggle` (`id`,
 `label`, `value`); `select` (`id`, `label`, `value`, `options`); `slider` (`id`,
-`label`, `value`, `min`, `max`, `step`).
+`label`, `value`, `min`, `max`, `step`); `heading` and `note` (`text`); `stats` and `chips`
+(`items`: `label`, `value`, `caption`, `tone`); `list` (`id`, `rows`: `id`, `badge`, `subtitle`,
+`share` from 0 to 1, `value`, `series`, `selected`); `legend` (`legend`: `id`, `label`, `series`
+or `tone`, `mark` of `line`, `dash` or `dot`, and `value` to make it a switch); `tabs` (`tabs`:
+`id`, `caption`, `label`, `widgets`); `input` (`id`, `label`, `input_type` of `text`, `time` or
+`number`, `value`, `submit`). A `button` with `pick: true` reports the next click on the map
+as an action `pick`, with `x_m`, `y_m`, `lat` and `lon`.
 
 **Overlay features**, in the core's metres (see the [View API](view-api.md)):
 `{"type": "point" | "circle", "x_m", "y_m", "radius_m", "label", "tone"}` and
-`{"type": "line" | "polygon", "points": [[x_m, y_m], ...], "tone"}`.
+`{"type": "line" | "polygon", "points": [[x_m, y_m], ...], "tone"}`. Any feature may use
+`series` instead of `tone`; lines take `width` and `dash`, points take `size` and `hollow`, and
+a point with an `id` glides to each new position.
 
 ## Notifications and events
 
@@ -110,8 +119,10 @@ process; each is also written to the system log.
 
 `GET /fabric/state?since=R&notifications_since=N` returns `revision`,
 `notification_sequence`, `notifications` newer than `N`, and `unchanged`. When
-`since` differs from the current revision it also returns `apps`, including declared
-UI that is currently shown.
+`since` differs from the current revision it also returns `apps`. With `since=0` (`full: true`)
+that is everything, with `ui`. After that it is only applications that changed, each with
+`ui_patch` (changed elements) and `ui_order` (the IDs now shown), or `ui` if all of it changed,
+and `removed` lists applications that were forgotten.
 
 ## Errors
 
@@ -126,6 +137,6 @@ UI that is currently shown.
 | `404 APP_NOT_FOUND`, `ELEMENT_NOT_FOUND` | No such thing |
 | `409 APP_ID_CONFLICT` | The ID is taken; present its token |
 | `409 APP_NOT_ACTIVE`, `APP_SUSPENDED` | The application is suspended, failed or unloaded |
-| `413 UI_TOO_LARGE` | Over 64 elements or 512 KiB |
+| `413 UI_TOO_LARGE` | Over 64 elements or 4 MiB |
 | `422 APP_INCOMPATIBLE` | The manifest asks for a version this server does not provide |
 | `429 RATE_LIMITED`, `APP_LIMIT_REACHED` | Send fewer, or the server holds its 64 applications |

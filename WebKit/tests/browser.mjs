@@ -129,7 +129,7 @@ try {
   );
   await page.getByRole("button", { name: "Pause simulation" }).click();
   await page.getByRole("button", { name: "Resume simulation" }).waitFor();
-  const rate = page.getByRole("radio", { name: "1 times speed" });
+  const rate = page.getByRole("slider", { name: "Simulation speed" });
   await rate.focus();
   await rate.press("ArrowRight");
   await wait(1200);

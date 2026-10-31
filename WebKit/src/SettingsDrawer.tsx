@@ -6,7 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import { Spring, SPRINGS } from "./motion";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { Icon } from "./Icons";
-import { Row, Section, Segmented, Switch } from "./settingsControls";
+import { Badge, Row, Section, Segmented, Switch } from "./settingsControls";
+import { COLOR_VISION_OPTIONS } from "./appearance";
+import type { ColorVision, ThemeSetting } from "./appearance";
+import { createVelocityTracker } from "./motion";
+import { dlr } from "./dlr";
 import { useFabricApps } from "./webfabric/store";
 import { WebFabricSettings } from "./webfabric/Settings";
 import webfabricLogo from "./assets/brand/webfabric-white.png";
@@ -40,6 +44,12 @@ export interface SettingsValues {
   /** Whether the core's narrator can write Realistic News right now. */
   realisticAvailable: boolean;
   narratorNote: string;
+  /** A short reason, when Realistic News cannot run here. */
+  narratorBadge?: string;
+  theme: ThemeSetting;
+  colorVision: ColorVision;
+  reduceTransparency: boolean;
+  advanced: boolean;
 }
 
 export interface SettingsActions {
@@ -54,6 +64,10 @@ export interface SettingsActions {
   onSkipSeconds: (s: number) => void;
   onStepSeconds: (s: number) => void;
   onNewsStyle: (style: NewsStyle) => void;
+  onTheme: (theme: ThemeSetting) => void;
+  onColorVision: (vision: ColorVision) => void;
+  onReduceTransparency: (on: boolean) => void;
+  onAdvanced: (on: boolean) => void;
 }
 
 function toggle(list: string[], id: string, on: boolean, order: string[]) {
@@ -77,11 +91,13 @@ export function SettingsDrawer({
   const reduceMotion = values.reduceMotion;
   const [page, setPage] = useState<"main" | "webfabric">("main");
   const apps = useFabricApps();
+  const waitingApps = apps.filter((app) => app.capabilities.pending.length > 0 && app.state !== "unloaded").length;
   const scroll = useScrollFade<HTMLDivElement>();
   const panel = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const spring = useRef<Spring | null>(null);
-  const drag = useRef<{ x: number; lastX: number; at: number; v: number } | null>(null);
+  const drag = useRef<{ x: number } | null>(null);
+  const tracker = useRef(createVelocityTracker());
   const hidden = () => -((panel.current?.offsetWidth ?? 360) + 24);
 
   // The drawer's position is a spring, so opening and closing, in any order and
@@ -99,29 +115,26 @@ export function SettingsDrawer({
 
   const onDragStart = (e: ReactPointerEvent) => {
     if (reduceMotion || (e.target as Element).closest("button")) return;
-    drag.current = { x: e.clientX, lastX: e.clientX, at: e.timeStamp, v: 0 };
+    drag.current = { x: e.clientX };
+    tracker.current.reset();
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onDragMove = (e: ReactPointerEvent) => {
     const d = drag.current;
     if (!d) return;
-    const dt = (e.timeStamp - d.at) / 1000;
-    if (dt > 0.004) {
-      d.v = d.v * 0.6 + ((e.clientX - d.lastX) / dt) * 0.4;
-      d.lastX = e.clientX;
-      d.at = e.timeStamp;
-    }
+    tracker.current.add(e.clientX, e.timeStamp);
     // Pulling further open meets resistance; pushing it shut follows the pointer.
     const dx = e.clientX - d.x;
-    spring.current?.jump(dx > 0 ? Math.sqrt(dx) * 2 : dx);
+    spring.current?.jump(dx > 0 ? dlr(dx, 28) : dx);
   };
   const onDragEnd = () => {
     const d = drag.current;
     if (!d || !spring.current) return;
     drag.current = null;
-    spring.current.velocity = d.v;
-    if (spring.current.value < hidden() * 0.35 || d.v < -500) onClose();
-    else spring.current.set(0, d.v);
+    const velocity = tracker.current.velocity();
+    spring.current.velocity = velocity;
+    if (spring.current.value < hidden() * 0.35 || velocity < -500) onClose();
+    else spring.current.set(0, velocity);
   };
 
   useEffect(() => {
@@ -173,14 +186,61 @@ export function SettingsDrawer({
         ) : (
         <>
         <button type="button" className="btn" onClick={actions.onReset}><Icon name="reset" size={16} />Reset settings</button>
+        <Section title="Accessibility">
+          <Row
+            title="Appearance"
+            hint={values.theme === "system" ? "Follows this device." : undefined}
+            control={
+              <Segmented
+                label="Appearance"
+                value={values.theme}
+                onChange={actions.onTheme}
+                options={[
+                  { value: "dark", label: "Dark" },
+                  { value: "light", label: "Light" },
+                  { value: "system", label: "Auto" },
+                ]}
+              />
+            }
+          />
+          <Row
+            title="Colour vision"
+            hint={COLOR_VISION_OPTIONS.find((o) => o.value === values.colorVision)?.hint}
+            htmlFor="set-vision"
+            control={
+              <select id="set-vision" className="fabric-input" value={values.colorVision} onChange={(e) => actions.onColorVision(e.target.value as ColorVision)}>
+                {COLOR_VISION_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            }
+          />
+          <Row
+            title="Reduce motion"
+            hint={values.motionLocked ? undefined : "Replaces movement with short fades, and stills flow markers."}
+            badge={values.motionLocked ? <Badge tone="warn">Held by backpressure</Badge> : undefined}
+            htmlFor="set-motion"
+            control={<Switch id="set-motion" label="Reduce motion" checked={values.reduceMotion} disabled={values.motionLocked} onChange={actions.onReduceMotion} />}
+          />
+          <Row
+            title="Reduce transparency"
+            hint="Replaces glass with solid surfaces, for stronger contrast."
+            htmlFor="set-transparency"
+            control={<Switch id="set-transparency" label="Reduce transparency" checked={values.reduceTransparency} onChange={actions.onReduceTransparency} />}
+          />
+          <Row
+            title="Advanced mode"
+            hint="Shows demand multipliers, radii, identifiers and technical details. Off keeps things in plain language."
+            htmlFor="set-advanced"
+            control={<Switch id="set-advanced" label="Advanced mode" checked={values.advanced} onChange={actions.onAdvanced} />}
+          />
+        </Section>
+
         <Section title="Auto Focus">
           <Row
             title="Auto Focus Events"
-            hint={
-              values.autoFocusAvailable
-                ? "Automatically follow significant simulation events. The camera frames each event's full footprint."
-                : "Disabled for this deployment in ui-config.json."
-            }
+            badge={values.autoFocusAvailable ? undefined : <Badge>Off for this deployment</Badge>}
+            hint={values.autoFocusAvailable ? "Automatically follow significant simulation events. The camera frames each event's full footprint." : undefined}
             htmlFor="set-autofocus"
             control={
               <Switch id="set-autofocus" label="Auto Focus Events" checked={values.autoFocus} disabled={!values.autoFocusAvailable} onChange={actions.onAutoFocus} />
@@ -254,6 +314,7 @@ export function SettingsDrawer({
         <Section title="News">
           <Row
             title="News style"
+            badge={values.narratorBadge ? <Badge tone="warn">{values.narratorBadge}</Badge> : undefined}
             hint={
               values.realisticAvailable
                 ? values.newsStyle === "realistic"
@@ -276,7 +337,7 @@ export function SettingsDrawer({
           />
         </Section>
 
-        <Section title="Display">
+        <Section title="Time and playback">
           <Row
             title="Time format"
             hint="Applies to every simulation timestamp."
@@ -292,15 +353,6 @@ export function SettingsDrawer({
               />
             }
           />
-          <Row
-            title="Reduce motion"
-            hint={values.motionLocked ? "Held on by Adaptive Simulation Backpressure." : "Stills flow markers and non-essential animation."}
-            htmlFor="set-motion"
-            control={<Switch id="set-motion" label="Reduce motion" checked={values.reduceMotion} disabled={values.motionLocked} onChange={actions.onReduceMotion} />}
-          />
-        </Section>
-
-        <Section title="Playback">
           <Row
             title="Back and Forward"
             hint="Virtual time skipped per press."
@@ -331,6 +383,7 @@ export function SettingsDrawer({
           <button type="button" className="settings-nav" onClick={() => setPage("webfabric")}>
             <img src={webfabricLogo} alt="WebFabric" height={16} />
             <small>
+              {waitingApps > 0 && <Badge tone="warn">{waitingApps} waiting</Badge>}
               {apps.length === 1 ? "1 application" : `${apps.length} applications`}
               <Icon name="chevronRight" size={14} />
             </small>

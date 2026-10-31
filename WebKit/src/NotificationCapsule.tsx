@@ -43,13 +43,14 @@ export function NotificationCapsule(
   const root = useRef<HTMLDivElement>(null);
   const bodyScroll = useScrollFade<HTMLDivElement>();
 
-  // While open, keep what the operator is reading, and add anything new.
+  // While open, what the person is reading is theirs. Newer events wait behind a
+  // count rather than moving the list or the scroll position under them.
   const list = useMemo(() => {
     if (!held) return items;
     const live = new Map(items.map((n) => [n.id, n]));
-    const kept = held.map((n) => live.get(n.id) ?? n);
-    return [...kept, ...items.filter((n) => !held.some((h) => h.id === n.id))];
+    return held.map((n) => live.get(n.id) ?? n);
   }, [held, items]);
+  const waiting = held ? items.filter((n) => !held.some((h) => h.id === n.id)).length : 0;
 
   // Runtime failures always preempt a selected/held simulation event. They
   // are not inserted into the held list, so recovery removes them immediately.
@@ -113,6 +114,7 @@ export function NotificationCapsule(
                     <Icon name="close" size={14} />
                   </button>}
                 </div>
+                <h3 className="capsule-full-title">{current.title}</h3>
                 <p className="capsule-summary">{time.text(current.summary)}</p>
                 <dl className="capsule-facts">
                   <div>
@@ -161,6 +163,12 @@ export function NotificationCapsule(
                       </dl>
                     )}
                   </div>
+                )}
+                {waiting > 0 && (
+                  <button type="button" className="capsule-waiting" onClick={() => setHeld(items.some((n) => n.id === current.id) ? items : [current, ...items])}>
+                    <Icon name="bell" size={14} />
+                    {waiting === 1 ? "1 new event" : `${waiting} new events`}
+                  </button>
                 )}
                 {others.length > 0 && (
                   <div className="capsule-others">

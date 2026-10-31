@@ -1,20 +1,69 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import { appearance } from "./appearance";
+import { SPRINGS, stepSpring } from "./motion";
 import type {
   EdgeState,
   Topology,
   Inspection,
   TopologyEdge,
+  WeatherState,
   Point,
 } from "./types";
 export const stateColors = {
-  flooded: "#4ba9ff",
-  blocked: "#ff6577",
-  severe: "#ff6577",
-  moderate: "#ffca66",
-  clear: "#57d9b0",
+  get flooded() { return appearance.meaning.flooded; },
+  get blocked() { return appearance.meaning.severe; },
+  get severe() { return appearance.meaning.severe; },
+  get moderate() { return appearance.meaning.moderate; },
+  get clear() { return appearance.meaning.clear; },
 };
+
+export interface RainCell { x: number; y: number; r: number; alpha: number; vx: number; vy: number; vr: number; va: number; live: boolean; intensity: number; source: WeatherState }
+export type RainCells = Map<number, RainCell>;
+const RAIN_SPRING = { k: 48, c: 14 };
+
+/**
+ * Rain cells as they are drawn. The core publishes a position and radius once a
+ * second; each cell chases them on a spring, opens from nothing when it starts and
+ * fades as it ends. `dt` of 1000 means no animation: reduced motion.
+ */
+export function stepRainCells(cells: RainCells, weather: readonly WeatherState[], dt: number) {
+  const seen = new Set<number>();
+  for (const w of weather) {
+    seen.add(w.id);
+    const cell = cells.get(w.id);
+    if (cell) {
+      cell.live = true;
+      cell.source = w;
+      cell.intensity = w.intensity;
+    } else {
+      cells.set(w.id, { x: w.x_m, y: w.y_m, r: 0, alpha: 0, vx: 0, vy: 0, vr: 0, va: 0, live: true, intensity: w.intensity, source: w });
+    }
+  }
+  const drawn: (WeatherState & { alpha: number; moving: boolean })[] = [];
+  for (const [id, cell] of cells) {
+    if (!seen.has(id)) cell.live = false;
+    const s = cell.source;
+    const goalR = cell.live ? s.radius_m : s.radius_m * 1.06;
+    const goalA = cell.live ? 1 : 0;
+    if (dt >= 1000) {
+      cell.x = s.x_m; cell.y = s.y_m; cell.r = goalR; cell.alpha = goalA;
+    } else {
+      [cell.x, cell.vx] = stepSpring(cell.x, cell.vx, s.x_m, RAIN_SPRING, dt);
+      [cell.y, cell.vy] = stepSpring(cell.y, cell.vy, s.y_m, RAIN_SPRING, dt);
+      [cell.r, cell.vr] = stepSpring(cell.r, cell.vr, goalR, RAIN_SPRING, dt);
+      [cell.alpha, cell.va] = stepSpring(cell.alpha, cell.va, goalA, SPRINGS.effectsSlow, dt);
+    }
+    if (!cell.live && cell.alpha < 0.01) {
+      cells.delete(id);
+      continue;
+    }
+    const moving = dt < 1000 && (Math.abs(cell.vx) + Math.abs(cell.vy) + Math.abs(cell.vr) > 0.5 || Math.abs(cell.va) > 0.01 || Math.abs(cell.r - goalR) > 0.5);
+    drawn.push({ ...s, x_m: cell.x, y_m: cell.y, radius_m: Math.max(1, cell.r), intensity: cell.intensity, alpha: Math.max(0, Math.min(1, cell.alpha)), moving });
+  }
+  return drawn;
+}
 export function roadState(s?: EdgeState): keyof typeof stateColors {
   if (!s) return "clear";
   if (s.flood > 0.01) return "flooded";
@@ -237,13 +286,14 @@ export function placeTitle(feature: {
 // demand builds, peaks red, then cools back the same way as the window closes.
 // Because the underlying multiplier follows a raised cosine, the visible
 // progression is white -> orange -> red -> orange -> white on its own.
+const rgbOf = (hex: string): [number, number, number] => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
 export function demandColor(multiplier: number): string {
   const t = Math.max(0, Math.min(1, (multiplier - 1) / 0.9));
   if (t <= 0.02) return "#dce8f2";
   const stops: [number, [number, number, number]][] = [
     [0.0, [220, 232, 242]],
-    [0.45, [255, 185, 56]],
-    [1.0, [255, 91, 101]],
+    [0.45, rgbOf(appearance.meaning.moderate)],
+    [1.0, rgbOf(appearance.meaning.severe)],
   ];
   let lo = stops[0], hi = stops[stops.length - 1];
   for (let i = 1; i < stops.length; i++)

@@ -155,18 +155,14 @@ such text, so they follow the preference too. Midnight at the end of the day is
 
 ## Speed
 
-A segmented control with a sliding highlight, offering exactly 0.25×, 0.5×,
-1×, 2×, 3× and 5×. It is a `radiogroup`: arrow keys, Home and End move the
-selection and send the new rate. The core accepts any rate in (0, 20].
+A slider with eight evenly spaced stops: 0.25×, 0.5×, 1×, 2×, 3×, 5×, 10× and 20×. Drag it,
+throw it (it settles on the stop its momentum reaches), or use the arrow keys, Home and End.
+Past either end it resists. The core accepts any rate in (0, 20], and results do not depend
+on the rate, because physics steps are fixed at one second. Above 5× a second of real time
+spans more simulated time than one snapshot shows, so the picture moves in larger steps.
 
-Every label sits on one baseline in a segment of the same width, and the weight
-does not change with selection, so nothing shifts when the choice moves. The
-highlight is placed over the *measured* segment of the nearest offered rate
-(`pillGeometry()`), not from an assumed segment width, so it stays aligned at
-every window size; it moves in 170 ms. When backpressure lowers the applied
-rate the highlight follows it and turns amber, and the requested rate keeps a
-dotted amber underline. When backpressure locks the rate at 1× the control is
-disabled and shows a lock badge.
+When backpressure holds the speed, the value turns amber or shows a lock, and the tooltip gives
+the requested and applied rates.
 
 ## Seed and new worlds
 
@@ -290,6 +286,11 @@ command rail.
 
 ## Do Not Disturb
 
+Turning it on stops new notifications; one already on screen lives out its time rather than
+vanishing. While a notification is open, what you are reading stays still: newer events wait
+behind a count, and the list, the scroll position and any open technical details do not move.
+
+
 DND is decided in one function, `shouldDisplayNotification()`:
 
 ```text
@@ -376,10 +377,10 @@ its header away. Sections:
 
 | Section | Settings |
 |---|---|
+| Accessibility | Light or dark; colour vision; reduce motion; reduce transparency; advanced mode |
 | Auto Focus | Auto Focus Events switch; Round-Robin or Latest |
 | Do Not Disturb | Switch; muted categories with descriptions; muted severities; a note on the Auto Focus override |
-| Display | 12 or 24 hour time; reduced motion |
-| Playback | Back and Forward interval; Step interval |
+| Time and playback | 12 or 24 hour time; Back and Forward interval; Step interval |
 | Applications | [WebFabric](../components/webfabric.md): registered applications, their settings and permissions |
 
 Each section is a self-contained block in `src/SettingsDrawer.tsx`, so new

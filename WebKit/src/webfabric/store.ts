@@ -15,11 +15,43 @@ import type { UiNotification } from "../notificationModel";
  */
 
 export type Tone = "neutral" | "accent" | "ok" | "warn" | "danger";
-export type Slot = "header" | "status" | "panel" | "overlay" | "map_control" | "indicator" | "dialog";
+export type Slot = "header" | "status" | "panel" | "sidebar" | "overlay" | "map_control" | "indicator" | "dialog";
+
+export interface FabricRow {
+  id?: string;
+  badge?: string;
+  title?: string;
+  subtitle?: string;
+  value?: string | number;
+  /** 0 to 1, drawn as a bar under the row. */
+  share?: number;
+  series?: number;
+  selected?: boolean;
+}
+
+export interface FabricLegendItem {
+  id?: string;
+  label: string;
+  series?: number;
+  tone?: Tone;
+  mark?: "line" | "dash" | "dot";
+  /** A switch rather than a key, reported as a change. */
+  value?: boolean;
+}
 
 export interface FabricWidget {
-  type: "text" | "stat" | "progress" | "button" | "toggle" | "select" | "slider";
+  type: "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input";
   id?: string;
+  /** For a button: the next click on the map is reported as a place. */
+  pick?: boolean;
+  items?: FabricStatItem[];
+  rows?: FabricRow[];
+  legend?: FabricLegendItem[];
+  tabs?: { id: string; label: string; caption?: string; widgets?: FabricWidget[] }[];
+  input_type?: "text" | "time" | "number";
+  submit?: string;
+  placeholder?: string;
+  caption?: string;
   label?: string;
   text?: string;
   value?: unknown;
@@ -30,7 +62,22 @@ export interface FabricWidget {
   options?: { value: string | number; label: string }[];
 }
 
+export interface FabricStatItem {
+  label: string;
+  value: string | number;
+  caption?: string;
+  tone?: Tone;
+}
+
 export interface OverlayFeature {
+  /** A point with an ID glides to its new position instead of jumping. */
+  id?: string;
+  series?: number;
+  width?: number;
+  dash?: boolean;
+  hollow?: boolean;
+  /** Metres for lines; pixels for a point's size. */
+  size?: number;
   type: "point" | "circle" | "line" | "polygon";
   x_m?: number;
   y_m?: number;
@@ -94,6 +141,9 @@ export interface FabricApp {
   settings: SettingsSchema | null;
   ui: FabricElement[];
   blocked_ui: string[];
+  /** Instead of `ui`, after the first poll: what changed, and the order of what remains. */
+  ui_patch?: FabricElement[];
+  ui_order?: string[];
 }
 
 export interface FabricNotification {
@@ -110,11 +160,13 @@ interface StatePayload {
   notification_sequence: number;
   notifications: FabricNotification[];
   unchanged: boolean;
+  full?: boolean;
   apps?: FabricApp[];
+  removed?: string[];
 }
 
 /** How many of each kind fit on screen, in registration order, shared by all applications. */
-export const SLOT_LIMITS: Record<Slot, number> = { header: 3, status: 4, map_control: 4, indicator: 8, panel: 32, overlay: 16, dialog: 1 };
+export const SLOT_LIMITS: Record<Slot, number> = { sidebar: 8, header: 3, status: 4, map_control: 4, indicator: 8, panel: 32, overlay: 16, dialog: 1 };
 
 const NO_APPS: FabricApp[] = [];
 
@@ -142,6 +194,24 @@ export function mergeApps(previous: FabricApp[], incoming: FabricApp[]): FabricA
     return merged;
   });
   return changed ? next : previous;
+}
+
+/** Fold a delta from the server into what is held: changed elements, the new order, what has gone. */
+export function applyDelta(previous: FabricApp[], incoming: FabricApp[], removed: readonly string[] = []): FabricApp[] {
+  const held = new Map(previous.filter((app) => !removed.includes(app.id)).map((app) => [app.id, app]));
+  for (const app of incoming) {
+    const old = held.get(app.id);
+    if (app.ui) {
+      held.set(app.id, app);
+      continue;
+    }
+    const patch = new Map((app.ui_patch ?? []).map((element) => [element.id, element]));
+    const before = new Map((old?.ui ?? []).map((element) => [element.id, element]));
+    const ui = (app.ui_order ?? []).map((id) => patch.get(id) ?? before.get(id)).filter((element): element is FabricElement => !!element);
+    const { ui_patch: _patch, ui_order: _order, ...rest } = app;
+    held.set(app.id, { ...rest, ui });
+  }
+  return [...held.values()].sort((a, b) => a.order - b.order);
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -176,6 +246,7 @@ class FabricStore {
   private sim: SimSummary | null = null;
   private simListeners = new Set<(sim: SimSummary) => void>();
   private openPanel: string | null = null;
+  private picking: { appId: string; element: string } | null = null;
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -211,7 +282,7 @@ class FabricStore {
       this.cursor = state.notification_sequence; // The server restarted.
     }
     if (!state.unchanged && state.apps) {
-      const next = mergeApps(this.apps, state.apps);
+      const next = mergeApps(this.apps, state.full === false ? applyDelta(this.apps, state.apps, state.removed) : state.apps);
       if (next !== this.apps) {
         this.apps = next;
         if (this.openPanel && !this.findPanel(this.openPanel)) this.openPanel = null;
@@ -244,6 +315,23 @@ class FabricStore {
     this.openPanel = key;
     this.emit();
   }
+
+  // A button that asks for a place: the next click on the map answers it.
+  armPick(appId: string, element: string) {
+    this.picking = { appId, element };
+    this.emit();
+  }
+  cancelPick = () => {
+    this.picking = null;
+    this.emit();
+  };
+  getPicking = () => this.picking;
+  deliverPick = (point: { x_m: number; y_m: number; lat?: number; lon?: number }) => {
+    if (!this.picking) return false;
+    void this.action(this.picking.appId, this.picking.element, "pick", point).catch(() => undefined);
+    this.cancelPick();
+    return true;
+  };
 
   onNotifications(listener: (notes: FabricNotification[]) => void) {
     this.noteListeners.add(listener);
@@ -306,6 +394,10 @@ export const fabric = new FabricStore();
 
 export function useFabricApps(): FabricApp[] {
   return useSyncExternalStore(fabric.subscribe, fabric.getApps);
+}
+
+export function usePicking() {
+  return useSyncExternalStore(fabric.subscribe, fabric.getPicking);
 }
 
 export function useOpenPanel(): string | null {

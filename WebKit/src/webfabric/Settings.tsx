@@ -27,6 +27,7 @@ export const CAPABILITY_LABEL: Record<string, { label: string; hint: string; sen
   "ui.header": { label: "Header items", hint: "Add buttons to the header." },
   "ui.status": { label: "Status", hint: "Show status lines over the map." },
   "ui.panels": { label: "Panels", hint: "Open its own side panels." },
+  "ui.sidebar": { label: "Sidebar", hint: "Lay out its work beside the map." },
   "ui.notifications": { label: "Notifications", hint: "Send notifications. Do Not Disturb still applies." },
   "ui.overlays": { label: "Map overlays", hint: "Draw on the map." },
   "ui.map-controls": { label: "Map controls", hint: "Add buttons to the map dock." },

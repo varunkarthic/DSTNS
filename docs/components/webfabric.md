@@ -35,13 +35,15 @@ ignored.
 | `indicator` | A mark on an edge of the map | 8 | `ui.indicators` |
 | `overlay` | Shapes on the map | 16 | `ui.overlays` |
 | `panel` | A side panel, one open at a time | 32 | `ui.panels` |
+| `sidebar` | Room beside the map for an application's work. The map refits around it; several share it by tabs, and a person can put it away | 8 | `ui.sidebar` |
 | `dialog` | A dialog, one at a time, when nothing else is | 1 | `ui.dialogs` |
 
 Limits are shared, in registration order, so a conflict resolves the same way every
 time and no application can push another off screen by updating more often.
 
-Applications name **tones** (`neutral`, `accent`, `ok`, `warn`, `danger`), never
-colours. Fabric refuses anything else. Branding, tokens and legal text are not
+Applications name **tones** (`neutral`, `accent`, `ok`, `warn`, `danger`) and numbered
+**series** (0 to 7, for things like bus lines), never colours. Fabric refuses anything
+else, so light mode and colour-vision palettes reach application content by themselves. Branding, tokens and legal text are not
 reachable from any declaration, and the reserved names `dstns`, `fabric` and
 `webfabric` cannot be registered. Every notification is prefixed with the name of the
 application that sent it, and every dialog says who it is from.
@@ -81,6 +83,8 @@ Each is reachable only with that application's token or from the observer.
 | Rule | Why |
 |---|---|
 | One poll for all applications | Twelve applications cost the same as one |
+| After the first poll, only changes travel | An application moving its buses resends one element, not its network |
+| Named overlay points glide | A bus reported once a second moves on a spring between reports |
 | Declared UI is state and coalesces | A thousand updates between polls are one render of the latest value |
 | Unchanged elements keep their identity | Memoised components skip them, so one application updating does not redraw the others |
 | Overlays redraw outside React | A camera move does not re-render the shell |

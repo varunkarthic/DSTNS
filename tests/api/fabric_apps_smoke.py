@@ -174,6 +174,20 @@ def main():
             target = next(x for x in state["apps"] if x["id"] == b)
             assert len(target["ui"]) == 1, "200 updates are one element"
 
+            # After the first poll, only what changed comes back.
+            mark = call("GET", "/api/v1/fabric/state")[1]["data"]["revision"]
+            assert call("PUT", f"{BASE}/{b}/ui/other", {"slot": "status", "label": "Other"}, tb)[0] == 200
+            assert call("PUT", f"{BASE}/{b}/ui/s", {"slot": "status", "label": "Tick", "value": "x"}, tb)[0] == 200
+            patch = call("GET", f"/api/v1/fabric/state?since={mark}")[1]["data"]
+            assert [x["id"] for x in patch["apps"]] == [b], patch["apps"]
+            assert sorted(e["id"] for e in patch["apps"][0]["ui_patch"]) == ["other", "s"] and "ui" not in patch["apps"][0]
+            assert patch["apps"][0]["ui_order"] == ["s", "other"]
+            mark = patch["revision"]
+            assert call("PUT", f"{BASE}/{b}/ui/s", {"slot": "status", "label": "Tick", "value": "y"}, tb)[0] == 200
+            patch = call("GET", f"/api/v1/fabric/state?since={mark}")[1]["data"]
+            assert [e["id"] for e in patch["apps"][0]["ui_patch"]] == ["s"], "one element, not the application's whole UI"
+            assert call("DELETE", f"{BASE}/{b}/ui/other", token=tb)[0] == 200
+
             # Notifications are never lost silently: delivered in order or refused.
             sent, refused = [], 0
             for n in range(120):
@@ -233,8 +247,10 @@ def main():
             assert call("DELETE", f"{BASE}/{ids[2]}", token=tokens[ids[2]])[0] == 200
             assert call("GET", f"{BASE}/{ids[2]}")[1]["data"]["state"] == "unloaded"
             assert code(call("DELETE", f"{BASE}/{ids[3]}", token=tb)) == "APP_TOKEN_INVALID"
+            mark = call("GET", "/api/v1/fabric/state")[1]["data"]["revision"]
             assert call("DELETE", f"{BASE}/{ids[4]}", headers=HOST)[0] == 200
             assert call("GET", f"{BASE}/{ids[4]}")[0] == 404
+            assert call("GET", f"/api/v1/fabric/state?since={mark}")[1]["data"]["removed"] == [ids[4]], "the observer learns it has gone"
         finally:
             server.stop()
 

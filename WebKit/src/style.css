@@ -3,8 +3,8 @@
 
 :root {
   font-family: Inter, system-ui, sans-serif;
-  color: #d7e4f5;
-  background: #030f1b;
+  color: var(--text);
+  background: var(--surface);
   font-synthesis: none;
   --surface: #071420;
   --panel: rgba(16, 29, 41, 0.86);
@@ -61,7 +61,7 @@ button:disabled {
 button[aria-pressed="true"] {
   background: #37d7ff18;
   border-color: #37d7ff88;
-  color: #b2ebff;
+  color: var(--text-dim);
 }
 button:focus-visible,
 input:focus-visible,
@@ -164,7 +164,7 @@ small {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #869398;
+  background: var(--text-faint);
   display: inline-block;
 }
 .connected:before,
@@ -180,7 +180,7 @@ small {
 .network-map {
   position: absolute;
   inset: 0;
-  background-color: #030f1b;
+  background-color: var(--surface);
   background-image: radial-gradient(#3c494d45 0.6px, transparent 0.6px);
   background-size: 40px 40px;
 }
@@ -280,7 +280,7 @@ small {
 }
 .congestion-values strong {
   font: 600 46px var(--headline);
-  color: #b2ebff;
+  color: var(--text-dim);
   line-height: 1.1;
 }
 .congestion-values strong small {
@@ -561,7 +561,7 @@ dd {
   border-radius: 50%;
   font-size: 20px;
   background: #37d7ff20;
-  color: #b2ebff;
+  color: var(--text-dim);
   border-color: #37d7ff66;
 }
 .clock {
@@ -603,14 +603,14 @@ progress {
   display: block;
   margin: 7px 0 8px;
   border-radius: 4px;
-  background: #3c494d;
+  background: var(--border);
 }
 progress::-webkit-progress-bar {
-  background: #3c494d;
+  background: var(--border);
   border-radius: 4px;
 }
 progress::-webkit-progress-value {
-  background: #37d7ff;
+  background: var(--accent);
   border-radius: 4px;
 }
 .speed {
@@ -739,7 +739,7 @@ progress::-webkit-progress-value {
   top: 84px;
   z-index: 10;
   padding: 12px 18px;
-  color: #ffb4ab;
+  color: var(--danger);
   border-color: #ff657744;
   font-size: 12px;
   max-width: 460px;
@@ -749,7 +749,7 @@ progress::-webkit-progress-value {
 }
 .error-text {
   font-size: 11px;
-  color: #ffb4ab;
+  color: var(--danger);
   padding: 0 16px;
 }
 .toasts {
@@ -793,7 +793,7 @@ progress::-webkit-progress-value {
   width: 4px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3c494d;
+  background: var(--border);
   border-radius: 8px;
 }
 .reduce-motion *,

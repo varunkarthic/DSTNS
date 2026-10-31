@@ -18,13 +18,18 @@ destination or continuity, it should not happen.
 | `effectsDefault` | 400 | 40 | Fades, shadow |
 | `effectsSlow` | 196 | 28 | Blur, the start-up dissolve |
 | `lively` | 420 | 30 | Direct manipulation: release, switch thumb, selection pill |
+| `expressiveFast`, `expressiveDefault`, `expressiveSlow` | 700, 380, 200 | 34, 24, 17 | Moments meant to be felt: a thumb landing, an expand, a page arriving. Overshoot stays under 12% |
 | `camera` | 42 | 13 | The map's long moves. Never overshoots |
 | `cameraZoom` | 260 | 32.2 | Wheel and button zoom |
 
 **Spatial** springs move position, size and shape, and may overshoot slightly.
 **Effects** springs change opacity, colour, blur and shadow, and are critically damped
-because those cannot overshoot. Overshoot above 5% needs a written reason, and nothing
-here has one.
+because those cannot overshoot. Overshoot above 5% is for the expressive scheme only.
+
+Ask for a spring by what the movement is for, through `--motion-<purpose>` and
+`--motion-<purpose>-ms` (`press`, `release`, `thumb`, `hover`, `reveal`, `dismiss`, `expand`,
+`collapse`, `shift`, `overlay`, `page`, `drag`, `snap`, `success`, `fade`, `blur`, `stagger`), so
+related movements stay related.
 
 ### Using it
 
@@ -45,6 +50,37 @@ here has one.
 Adaptive Simulation Backpressure can hold it on. Under `.reduce-motion`, travel, scale
 and blur collapse to a short fade or nothing, the map camera jumps, and the map does not
 coast. Test the three modes, not only the full one.
+
+## Dynamic Logarithmic Resistance
+
+Whatever has a limit answers being pushed past it the same way: it gives, ever less the
+further it goes, up to a bound, then springs home. That says "this is the end" without a
+hard stop. `dlr.ts` holds it:
+
+\[ d(p) = b\left(1 - \frac{1}{1 + \ln(1 + 0.35\,p / b)}\right) \]
+
+for a pull \(p\) past the limit and a bound \(b\) that follows the size of what is being
+stretched, so a small menu gives less than a long panel.
+
+| Where | Limit |
+|---|---|
+| Every scrolling region | Its top and bottom. `installDLR` covers them all, so a new menu needs nothing |
+| Map zoom | 5% past fit is free, resistance to a hard 10%, and it settles back to 5% |
+| Map pan | Part of the network stays on screen |
+| Settings drawer | Pulling further open |
+| Speed slider | Either end |
+
+## Accessibility settings
+
+| Setting | Effect |
+|---|---|
+| Appearance | Dark, light, or following the device. Colours are tokens (`--ink-rgb`, `--surface-rgb`, `--line-rgb`), and the map's canvas reads the same palette from `appearance.ts` |
+| Colour vision | Palettes for protanopia, deuteranopia, tritanopia and monochrome, for road states, severity and application series. `tests/appearance.test.ts` simulates each with the Machado 2009 matrices and requires the road states to stay apart |
+| Reduce motion | As above |
+| Reduce transparency | Solid surfaces, no blur |
+| Advanced mode | Off, demand multipliers, radii, identifiers and technical details step aside. Mark such things `.advanced-only` |
+
+Never write a raw colour. Add it to the palette, or use a token.
 
 ## Tokens
 
@@ -68,17 +104,22 @@ One surface, `LoadingSurface` in `boot` mode, for every state before a map:
 | State | Shows |
 |---|---|
 | Waiting | The mark and what to do. No motion, because nothing is happening |
-| Loading | The mark, the real stage, and the five stages on one line. A bar only where a real total is known; otherwise a band that claims no amount |
+| Loading | The mark, the real stage, and the five stages on one line. A bar only where a real total is known; otherwise a band that claims no amount. After a few seconds, how long it has been |
 | Failed | What happened, that nothing was lost, and Reload. Clears by itself when the simulator answers |
 | Shut down | That the server has stopped, and how to start again |
 
-It dissolves into the map as soon as the map exists. Nothing is held for effect, and
+Behind it is a street network on springs: junctions give way to the pointer and ring when
+clicked, and it lights up with the real stages, never with a timer. Facts true of every run
+pass beneath the stages, so a slow map download has something in it.
+
+It dissolves into the map as soon as the map exists, and the interface arrives around it in
+a stagger. Nothing is held for effect, and
 stages are never shown as if they were still running after they finish.
 
 ## Known limits
 
-The four stylesheets (`style.css`, `theme.css`, `hud.css`, `system.css`) still overlap,
-with later files winning. Merging them into cascade layers would change which rules win
+The stylesheets (`style.css`, `theme.css`, `hud.css`, `system.css`, then `design.css`) still
+overlap, with later files winning. Merging them into cascade layers would change which rules win
 wherever specificity and load order disagree, so it needs a visual regression suite
 first. Tokens and shared rules are the path in the meantime: do not add a fifth way to
 do something. A few small bars still animate `width`.

@@ -36,3 +36,24 @@ it('keeps a lone system error expanded until recovery',()=>{
   rerender(<NotificationCapsule {...props}/>);
   expect(screen.queryByRole('alert')).toBeNull();
 });
+it('keeps what is being read still: new events wait behind a count, and the full text is there',()=>{
+  const long={...event,title:'A very long title that a collapsed capsule would have to cut off',summary:'The whole of a long summary, every word of it, available once opened.',technical:[{label:'Cell',value:'7'}]};
+  const later={...event,id:'later',title:'Something newer',summary:'Newer'};
+  const props={focusedKey:null,reduceMotion:true,onDismiss:vi.fn()};
+  const {rerender,container}=render(<NotificationCapsule {...props} items={[long]}/>);
+  fireEvent.click(screen.getByRole('button',{name:/Expand notification/}));
+  expect(container.querySelector('.capsule-full-title')).toHaveTextContent(long.title);
+  expect(container.querySelector('.capsule-summary')).toHaveTextContent(long.summary);
+  fireEvent.click(screen.getByRole('button',{name:/Technical details/}));
+  expect(screen.getByText('Cell')).toBeInTheDocument();
+  rerender(<NotificationCapsule {...props} items={[later,long]}/>);
+  // The same event, the same details open, and the newcomer not in the list.
+  expect(container.querySelector('.capsule-full-title')).toHaveTextContent(long.title);
+  expect(screen.getByText('Cell')).toBeInTheDocument();
+  expect(screen.queryByText('Something newer')).toBeNull();
+  const waiting=screen.getByRole('button',{name:'1 new event'});
+  fireEvent.click(waiting);
+  expect(container.querySelector('.capsule-full-title')).toHaveTextContent(long.title);
+  expect(screen.getByText('Something newer')).toBeInTheDocument();
+});
+

@@ -13,7 +13,10 @@ import {
 } from "react";
 import type { RefObject } from "react";
 import { canvasGlyph } from "./placeGlyphs";
-import { animate, SPRINGS, stepSpring } from "./motion";
+import { animate, createVelocityTracker, SPRINGS, stepSpring } from "./motion";
+import { appearance } from "./appearance";
+import type { RainCells } from "./mapModel";
+import { dlrClamp, resistZoomOut, ZOOM_REST } from "./dlr";
 import type { SpringPreset } from "./motion";
 import { mapFitLayout, mapInsets, metresToGeographic } from "./mapProjection";
 import { viewportFor } from "./autoFocus";
@@ -29,6 +32,7 @@ import {
   roadInspection,
   roadState,
   stateColors,
+  stepRainCells,
 } from "./mapModel";
 import type {
   Inspection,
@@ -74,6 +78,13 @@ type Props = {
   controls?: RefObject<MapControls | null>;
   onView?: (view: MapView) => void;
   onTransform?: (view: MapTransform) => void;
+  advanced?: boolean;
+  /** Changes when the palette does, so the map repaints in the new colours. */
+  appearanceKey?: number;
+  /** Width taken from the map's left by an application's sidebar. */
+  leftInset?: number;
+  /** When a click is wanted as a place on the map, it goes here. Returns whether it was taken. */
+  onMapPick?: (point: { x_m: number; y_m: number; lat?: number; lon?: number }) => boolean;
   onCursor?: (position: { lat: number; lon: number } | null) => void;
   /** The telemetry deck is collapsed to its strip, freeing the right side. */
   deckCompact?: boolean;
@@ -119,6 +130,10 @@ function NetworkMap({
   controls,
   onView,
   onTransform,
+  advanced = true,
+  appearanceKey = 0,
+  leftInset = 0,
+  onMapPick,
   onCursor,
   deckCompact = false,
 }: Props) {
@@ -183,12 +198,13 @@ function NetworkMap({
   );
   // Read through a ref: collapsing the deck changes where the next framing
   // lands, but must not refit or move the map the operator is looking at.
+  const leftRef = useRef(leftInset);
   const compactRef = useRef(deckCompact);
   compactRef.current = deckCompact;
   /** The view that frames `bounds` (metres, y north) clear of the chrome. */
   const viewForBounds = useCallback(
     (bounds: Bounds, padding: number, minSpan?: number): View => {
-      const v = viewportFor(bounds, { width: size.w, height: size.h, insets: mapInsets(size.w, size.h, compactRef.current) }, { padding, maxScale: 8, minScale: 0.025, minSpan });
+      const v = viewportFor(bounds, { width: size.w, height: size.h, insets: mapInsets(size.w, size.h, compactRef.current, leftRef.current) }, { padding, maxScale: 8, minScale: 0.025, minSpan });
       return { scale: v.scale, x: v.screen.x - v.centre.x * v.scale, y: v.screen.y + v.centre.y * v.scale };
     },
     [size],
@@ -199,9 +215,13 @@ function NetworkMap({
     // Cached geometry is in canvas orientation (y down); bounds are y north.
     return viewForBounds({ minX: b.minX, maxX: b.maxX, minY: -b.maxY, maxY: -b.minY }, 0.03, 0);
   }, [cached, viewForBounds]);
+  const fitScale = useRef(0);
   const fit = useCallback(() => {
     const next = networkView();
-    if (next) setView(next);
+    if (next) {
+      fitScale.current = next.scale;
+      setView(next);
+    }
   }, [networkView]);
   useEffect(() => {
     const el = host.current;
@@ -253,21 +273,21 @@ function NetworkMap({
           "forest",
           "recreation_ground",
         ].includes(f.category)
-          ? "#102c2d"
-          : "#122430";
-        ctx.strokeStyle = "#29424e";
+          ? appearance.land.park
+          : appearance.land.land;
+        ctx.strokeStyle = appearance.land.buildingLine;
         ctx.lineWidth = 0.7 / view.scale;
         ctx.fill(g.path);
         if (view.scale > 0.15) ctx.stroke(g.path);
       });
     topology.edges.forEach((e, i) => {
       if (e.synthetic_reverse || !visible(cached.roads[i])) return;
-      ctx.strokeStyle = "#071420";
+      ctx.strokeStyle = appearance.land.roadBed;
       ctx.lineWidth = (e.road_class === "primary" ? 5 : 3) / view.scale;
       ctx.stroke(cached.roads[i].path);
     });
     ctx.restore();
-  }, [topology, cached, view, size, layers.buildings]); // Static geography never depends on a simulation tick.
+  }, [topology, cached, view, size, layers.buildings, appearanceKey]); // Static geography never depends on a simulation tick.
   useEffect(() => {
     if (!topology || !cached || !dynamic.current) return;
     let frame = 0;
@@ -308,7 +328,7 @@ function NetworkMap({
               : s && s.congestion > 0.35
                 ? "moderate"
                 : "clear";
-        ctx.strokeStyle = layers.traffic ? stateColors[status] : "#4a626c";
+        ctx.strokeStyle = layers.traffic ? stateColors[status] : appearance.land.neutralRoad;
         ctx.globalAlpha = e.road_class === "service" ? 0.45 : 0.83;
         ctx.lineWidth =
           (["primary", "motorway"].includes(e.road_class) ? 2.5 : 1.3) /
@@ -317,8 +337,14 @@ function NetworkMap({
       });
       ctx.restore();
       ctx.globalAlpha = 1;
+      // Rain cells move, grow and fade on springs, between the core's once-a-second states.
+      const paintedAt = performance.now();
+      const rainNow = stepRainCells(rain.current, snapshot?.active_weather ?? [], reduceMotion ? 1000 : Math.min(0.05, (paintedAt - lastPaint.current) / 1000));
+      lastPaint.current = paintedAt;
       if (layers.weather)
-        for (const w of snapshot?.active_weather ?? []) {
+        for (const w of rainNow) {
+          const fade = w.alpha;
+          ctx.globalAlpha = fade;
           const x = w.x_m * view.scale + view.x,
             y = -w.y_m * view.scale + view.y,
             r = w.radius_m * view.scale;
@@ -374,7 +400,7 @@ function NetworkMap({
           ctx.stroke();
           ctx.setLineDash([]);
           ctx.lineDashOffset = 0;
-          ctx.fillStyle = "#b2ebff";
+          ctx.fillStyle = appearance.land.label;
           ctx.font = "10px Inter";
           ctx.fillText(`Rain ${(w.intensity * 100).toFixed(0)}%`, x + 8, y - r - 6);
         }
@@ -392,7 +418,7 @@ function NetworkMap({
             cell = `${Math.floor(x / 120)},${Math.floor(y / 35)}`;
           if (labels.has(cell)) return;
           labels.add(cell);
-          ctx.fillStyle = "#c1d7df";
+          ctx.fillStyle = appearance.land.label;
           ctx.fillText(e.name.slice(0, 30), x + 5, y - 5);
         });
       const poiCells = new Set<string>();
@@ -423,16 +449,16 @@ function NetworkMap({
           const multiplier = demand?.multiplier ?? 1;
           // Demand exists only where the core models it for this feature.
           const warm = !!demand && multiplier > 1.01;
-          const tint = warm ? demandColor(multiplier) : "#162e3b";
+          const tint = warm ? demandColor(multiplier) : appearance.land.marker;
           ctx.fillStyle = tint;
-          ctx.strokeStyle = warm ? tint : "#638591";
+          ctx.strokeStyle = warm ? tint : appearance.land.markerLine;
           ctx.lineWidth = warm ? 1.6 : 1.2;
           ctx.beginPath();
           ctx.roundRect(p.x - 8, p.y - 8, 16, 16, 5);
           ctx.fill();
           ctx.stroke();
           // Keep the glyph readable against whatever the ramp produced.
-          const ink = warm && multiplier > 1.35 ? "#071420" : warm ? "#31210a" : "#d7e4f5";
+          const ink = warm && multiplier > 1.35 ? "#071420" : warm ? "#31210a" : appearance.land.markerInk;
           const glyph = canvasGlyph(kind.id);
           if (glyph) {
             // The glyphs are drawn in the icon set's 24-unit box; scale that
@@ -456,7 +482,7 @@ function NetworkMap({
           ctx.font = "bold 10px Inter";
           ctx.textAlign = "start";
           if (layers.place_names && view.scale > 1 && f.name) {
-            ctx.fillStyle = "#bbc9ce";
+            ctx.fillStyle = appearance.land.label;
             ctx.fillText(f.name.slice(0, 24), p.x + 12, p.y + 3);
           }
         });
@@ -466,15 +492,15 @@ function NetworkMap({
           if (!node) continue;
           const p = screen(node.position);
           if (p.x < 0 || p.x > size.w || p.y < 0 || p.y > size.h) continue;
-          ctx.fillStyle = "#06131e";
+          ctx.fillStyle = appearance.land.signal;
           ctx.fillRect(p.x - 5, p.y - 7, 17, 12);
           [signal.group_a, signal.group_b].forEach((s, i) => {
             ctx.fillStyle = signal.enabled
               ? s === "green"
-                ? "#57d9b0"
+                ? stateColors.clear
                 : s === "amber"
-                  ? "#ffca66"
-                  : "#ff6577"
+                  ? stateColors.moderate
+                  : stateColors.severe
               : "#647681";
             ctx.beginPath();
             ctx.arc(p.x + i * 7, p.y - 1, 2.7, 0, Math.PI * 2);
@@ -570,7 +596,8 @@ function NetworkMap({
         1,
         Math.max(0.12, quality.current * (cost > 11 ? 0.82 : cost < 5 ? 1.05 : 1)),
       );
-      if (running && !reduceMotion) frame = requestAnimationFrame(draw);
+      ctx.globalAlpha = 1;
+      if ((running && !reduceMotion) || rainNow.some((cell) => cell.moving)) frame = requestAnimationFrame(draw);
     };
     draw();
     return () => cancelAnimationFrame(frame);
@@ -595,7 +622,11 @@ function NetworkMap({
   const coasting = useRef<(() => void) | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
-  const dragSpeed = useRef({ x: 0, y: 0, at: 0, vx: 0, vy: 0 });
+  const trackX = useRef(createVelocityTracker());
+  const trackY = useRef(createVelocityTracker());
+  const dragMoved = useRef(false);
+  const rain = useRef<RainCells>(new Map());
+  const lastPaint = useRef(performance.now());
   // The camera runs on three springs: the centre in map space, and zoom on a log
   // scale so it feels uniform in speed. They hold their velocity, so a new target
   // redirects a move in flight rather than stopping and restarting it.
@@ -616,7 +647,7 @@ function NetworkMap({
         setView(target);
         return;
       }
-      const layout = mapFitLayout(size.w, size.h, compactRef.current);
+      const layout = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
       const current = viewRef.current;
       const tx = (layout.centerX - target.x) / target.scale;
       const ty = (layout.centerY - target.y) / target.scale;
@@ -638,7 +669,7 @@ function NetworkMap({
         [state.cy, state.vy] = stepSpring(state.cy, state.vy, state.ty, state.preset, dt);
         [state.zoom, state.vz] = stepSpring(state.zoom, state.vz, state.tz, state.preset, dt);
         const scale = Math.exp(state.zoom);
-        const place = mapFitLayout(size.w, size.h, compactRef.current);
+        const place = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
         // Half a screen pixel and barely moving: as good as there.
         const settled =
           Math.hypot(state.cx - state.tx, state.cy - state.ty) * scale < 0.5 &&
@@ -657,21 +688,66 @@ function NetworkMap({
     },
     [cancelGlide, reduceMotion, size.w, size.h],
   );
+  // How far the network may be dragged: part of it stays on screen. Past that it
+  // resists, and springs back on release.
+  const panLimits = useCallback(
+    (scale: number) => {
+      if (!cached) return null;
+      const b = cached.bounds;
+      const margin = 60;
+      return {
+        minX: margin - b.maxX * scale,
+        maxX: size.w - margin - b.minX * scale,
+        minY: margin - b.maxY * scale,
+        maxY: size.h - margin - b.minY * scale,
+      };
+    },
+    [cached, size.w, size.h],
+  );
+  const settlePan = useCallback(() => {
+    const limits = panLimits(viewRef.current.scale);
+    if (!limits) return;
+    const v = viewRef.current;
+    const x = Math.min(limits.maxX, Math.max(limits.minX, v.x));
+    const y = Math.min(limits.maxY, Math.max(limits.minY, v.y));
+    if (x !== v.x || y !== v.y) glideTo({ scale: v.scale, x, y }, SPRINGS.spatialSlow);
+  }, [panLimits, glideTo]);
   // Released with speed, the map coasts to rest under friction.
   const coast = useCallback(
     (vx: number, vy: number) => {
       cancelGlide();
-      if (reduceMotion || Math.hypot(vx, vy) < 80) return;
+      if (reduceMotion || Math.hypot(vx, vy) < 80) {
+        settlePan();
+        return;
+      }
       coasting.current = animate((dt) => {
         const decay = Math.exp(-5.5 * dt);
         vx *= decay;
         vy *= decay;
-        setView((v) => ({ ...v, x: v.x + vx * dt, y: v.y + vy * dt }));
-        return Math.hypot(vx, vy) >= 12;
+        const v = viewRef.current;
+        const limits = panLimits(v.scale);
+        const out = limits && (v.x < limits.minX || v.x > limits.maxX || v.y < limits.minY || v.y > limits.maxY);
+        if (out || Math.hypot(vx, vy) < 12) {
+          coasting.current = null;
+          settlePan();
+          return false;
+        }
+        setView((c) => ({ ...c, x: c.x + vx * dt, y: c.y + vy * dt }));
+        return true;
       });
     },
-    [cancelGlide, reduceMotion],
+    [cancelGlide, reduceMotion, panLimits, settlePan],
   );
+  // An application's sidebar taking or giving back room refits what is on screen.
+  useEffect(() => {
+    if (leftRef.current === leftInset) return;
+    leftRef.current = leftInset;
+    const next = networkView();
+    if (next) {
+      fitScale.current = next.scale;
+      glideTo(next, SPRINGS.spatialSlow);
+    }
+  }, [leftInset, networkView, glideTo]);
   useEffect(() => {
     if (!focus || !size.w) return;
     if (focus.bounds) {
@@ -679,7 +755,7 @@ function NetworkMap({
       return;
     }
     if (focus.x_m === undefined || focus.y_m === undefined) return;
-    const layout = mapFitLayout(size.w, size.h, compactRef.current);
+    const layout = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
     const scale = focus.scale ?? viewRef.current.scale;
     glideTo({ scale, x: layout.centerX - focus.x_m * scale, y: layout.centerY + focus.y_m * scale });
     // Only a new token starts a glide; view changes during it must not restart it.
@@ -890,14 +966,31 @@ function NetworkMap({
   // Zooming accumulates on the value it is heading for, so a burst of wheel
   // events is one smooth move about the pointer, not a series of steps.
   const zoomTarget = useRef<View | null>(null);
+  const rawScale = useRef<number | null>(null);
+  const zoomRest = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(zoomRest.current), []);
   const zoom = (factor: number, cx = size.w / 2, cy = size.h / 2) => {
     clearHover();
     const from = camera.current && zoomTarget.current ? zoomTarget.current : viewRef.current;
-    const scale = Math.min(8, Math.max(0.025, from.scale * factor));
+    // Asked-for zoom is kept apart from what is shown: past fit, the map resists
+    // however hard it is pushed, and turning back answers immediately.
+    const asked = Math.min(8, Math.max(0.005, (rawScale.current ?? from.scale) * factor));
+    rawScale.current = asked;
+    const scale = fitScale.current ? resistZoomOut(asked, fitScale.current) : Math.max(0.025, asked);
     const ratio = scale / from.scale;
     const target = { scale, x: cx - (cx - from.x) * ratio, y: cy - (cy - from.y) * ratio };
     zoomTarget.current = target;
     glideTo(target, SPRINGS.cameraZoom);
+    clearTimeout(zoomRest.current);
+    zoomRest.current = setTimeout(() => {
+      rawScale.current = null;
+      const rest = fitScale.current * ZOOM_REST;
+      const fitted = networkView();
+      if (fitScale.current && fitted && target.scale < rest - 1e-6) {
+        const layout = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
+        glideTo({ scale: rest, x: layout.centerX - (layout.centerX - fitted.x) * ZOOM_REST, y: layout.centerY - (layout.centerY - fitted.y) * ZOOM_REST }, SPRINGS.spatialSlow);
+      }
+    }, 160);
   };
   useImperativeHandle(
     controls,
@@ -913,7 +1006,7 @@ function NetworkMap({
         if (!feature) return;
         // Anchored at the centre of the visible map area, where the camera is
         // gliding to, rather than at a stale pointer position.
-        const layout = mapFitLayout(size.w, size.h, compactRef.current);
+        const layout = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
         const rect = host.current?.getBoundingClientRect();
         setHover({
           info: placeInspection(feature, state.demand.get(feature.id)),
@@ -1018,34 +1111,39 @@ function NetworkMap({
           cancelGlide();
           clearHover();
           drag.current = { x: e.clientX, y: e.clientY, view };
-          dragSpeed.current = { x: e.clientX, y: e.clientY, at: e.timeStamp, vx: 0, vy: 0 };
+          trackX.current.reset();
+          trackY.current.reset();
+          dragMoved.current = false;
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
         onPointerUp={(e) => {
+          const started = drag.current;
           drag.current = null;
-          const speed = dragSpeed.current;
+          if (!dragMoved.current && started && onMapPick) {
+            const r = e.currentTarget.getBoundingClientRect();
+            const x_m = (e.clientX - r.left - view.x) / view.scale;
+            const y_m = -(e.clientY - r.top - view.y) / view.scale;
+            const place = topology?.projection ? metresToGeographic(x_m, y_m, topology.projection) : undefined;
+            if (onMapPick({ x_m, y_m, lat: place?.lat, lon: place?.lon })) return;
+          }
           // A pause before letting go means the map was placed, not thrown.
-          if (e.timeStamp - speed.at < 80) coast(speed.vx, speed.vy);
+          coast(trackX.current.velocity(), trackY.current.velocity());
         }}
         onPointerCancel={() => {
           drag.current = null;
         }}
         onPointerMove={(e) => {
           if (drag.current) {
-            const speed = dragSpeed.current;
-            const dt = (e.timeStamp - speed.at) / 1000;
-            if (dt > 0.004) {
-              // Smoothed, so the last jittery sample does not decide the throw.
-              speed.vx = speed.vx * 0.6 + ((e.clientX - speed.x) / dt) * 0.4;
-              speed.vy = speed.vy * 0.6 + ((e.clientY - speed.y) / dt) * 0.4;
-              speed.x = e.clientX;
-              speed.y = e.clientY;
-              speed.at = e.timeStamp;
-            }
+            if (Math.hypot(e.clientX - drag.current.x, e.clientY - drag.current.y) > 3) dragMoved.current = true;
+            trackX.current.add(e.clientX, e.timeStamp);
+            trackY.current.add(e.clientY, e.timeStamp);
+            const rawX = drag.current.view.x + e.clientX - drag.current.x;
+            const rawY = drag.current.view.y + e.clientY - drag.current.y;
+            const limits = panLimits(drag.current.view.scale);
             setView({
               ...drag.current.view,
-              x: drag.current.view.x + e.clientX - drag.current.x,
-              y: drag.current.view.y + e.clientY - drag.current.y,
+              x: limits ? dlrClamp(rawX, limits.minX, limits.maxX, 90) : rawX,
+              y: limits ? dlrClamp(rawY, limits.minY, limits.maxY, 90) : rawY,
             });
           } else inspectAt(e.clientX, e.clientY);
           reportCursor(e.clientX, e.clientY);
@@ -1075,7 +1173,7 @@ function NetworkMap({
       <div className="map-attribution">
         © OpenStreetMap contributors · {topology?.source || "Awaiting network"}
       </div>
-      {hover && <InfoCard {...hover} info={hoverInfo ?? hover.info} />}
+      {hover && <InfoCard {...hover} info={advanced ? hoverInfo ?? hover.info : { ...(hoverInfo ?? hover.info), metrics: undefined }} />}
       <div className="map-vignette" aria-hidden="true" />
     </div>
   );

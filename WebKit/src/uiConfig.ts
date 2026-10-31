@@ -4,6 +4,7 @@
 import { defaultLayers, defaultPlaceVisibility } from "./types";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from "./notificationModel";
 import type { Layers, PlaceVisibility } from "./types";
+import type { ColorVision, ThemeSetting } from "./appearance";
 
 // ---------------------------------------------------------------------------
 // Observer configuration
@@ -63,6 +64,13 @@ export interface UiConfig {
   asb: { enabled: boolean; report_interval_ms: number };
   /** Realistic News is used only when the core's narrator is available. */
   news: { style: NewsStyle };
+  accessibility: {
+    theme: ThemeSetting;
+    color_vision: ColorVision;
+    reduce_transparency: boolean;
+    /** Off, measures meant for specialists give way to plain language. */
+    advanced: boolean;
+  };
 }
 
 export const BUILT_IN: UiConfig = {
@@ -88,6 +96,7 @@ export const BUILT_IN: UiConfig = {
   clock: { hour12: false },
   asb: { enabled: true, report_interval_ms: 1000 },
   news: { style: "realistic" },
+  accessibility: { theme: "dark", color_vision: "standard", reduce_transparency: false, advanced: true },
 };
 
 const REDUCE_MOTION: ReduceMotionSetting[] = ["auto", "on", "off"];
@@ -140,6 +149,7 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
   const asb = (p.asb ?? {}) as Record<string, unknown>;
   const playback = (p.playback ?? {}) as Record<string, unknown>;
   const news = (p.news ?? {}) as Record<string, unknown>;
+  const accessibility = (p.accessibility ?? {}) as Record<string, unknown>;
 
   const layers = { ...base.layers };
   for (const key of Object.keys(base.layers) as (keyof Layers)[])
@@ -184,6 +194,12 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
       report_interval_ms: num(asb.report_interval_ms, base.asb.report_interval_ms, 250, 10000),
     },
     news: { style: oneOf(news.style, NEWS_STYLES, base.news.style) },
+    accessibility: {
+      theme: oneOf(accessibility.theme, ["system", "dark", "light"] as ThemeSetting[], base.accessibility.theme),
+      color_vision: oneOf(accessibility.color_vision, ["standard", "protanopia", "deuteranopia", "tritanopia", "monochrome"] as ColorVision[], base.accessibility.color_vision),
+      reduce_transparency: bool(accessibility.reduce_transparency, base.accessibility.reduce_transparency),
+      advanced: bool(accessibility.advanced, base.accessibility.advanced),
+    },
   };
 }
 
@@ -231,7 +247,7 @@ export function diffConfig(base: UiConfig, next: UiConfig): Record<string, unkno
     }
     return out;
   };
-  for (const key of ["auto_focus", "notifications", "playback", "clock", "asb", "tutorial", "news"] as const) {
+  for (const key of ["auto_focus", "notifications", "playback", "clock", "asb", "tutorial", "news", "accessibility"] as const) {
     const changed = section(base[key], next[key]);
     if (Object.keys(changed).length) patch[key] = changed;
   }

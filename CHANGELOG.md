@@ -12,9 +12,10 @@ only within one version.
 
 ## [Unreleased]
 
-**Observer 3.0.0, API contract 1.1.** Fabric and WebFabric leave the engine at 2.1.0, and
-every existing endpoint behaves as before: 155 recorded calls are replayed against the
-server to prove it. `api_version` in responses now reads `1.1`.
+**Observer 3.0.0, API contract 1.2.** The engine stays at 2.1.0, and every existing endpoint
+behaves as before, 155 recorded calls being replayed to prove it, with one deliberate widening:
+`tick_rate` now accepts up to 20. Results for a seed do not depend on the rate. `api_version` in
+responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
 **Results change for some seeds.** A signal whose compiled offset rounded up to a
 whole cycle made the engine read past the end of that signal's phase table (found
@@ -26,6 +27,21 @@ undefined before and differ now.
 
 ### Added
 
+- **Accessibility settings**: light mode; colour-vision palettes for protanopia, deuteranopia,
+  tritanopia and monochrome; reduce transparency; and an advanced mode which, off, removes
+  demand multipliers, radii, identifiers and technical details.
+- **Dynamic Logarithmic Resistance**: past any limit, content gives ever less then springs home,
+  in every scrolling region, the settings drawer, the speed slider and map panning.
+- Zooming out is limited to 5% past fit, with resistance to a hard 10%.
+- A speed slider with stops from 0.25× to 20×, including new 10× and 20× rates, that settles with
+  the momentum of the gesture.
+- Badges for states such as Realistic News not being supported on this device, an uninstalled SUMO,
+  speed or motion held by backpressure, and applications waiting for permission.
+- An interactive start-up screen: a street network on springs that responds to the pointer and
+  lights up with the real stages, with elapsed time and facts during a long wait.
+- WebFabric sidebar: room beside the map for an application such as a bus planner, with tabs, lists,
+  statistics, legends and inputs, numbered series colours, overlay points that glide, map picking, and
+  a state poll that sends only what changed.
 - **Fabric**: the HTTP API as its own library in `Fabric/`, one module per API group,
   with a recorded contract test. See [Fabric](https://dstns.readthedocs.io/components/fabric/).
 - **WebFabric**: independent applications in the observer. An application registers
@@ -89,6 +105,13 @@ undefined before and differ now.
 
 - The engine and core features moved to `Core/`, and the server entry point to
   `Core/server/`. Build targets and flags are unchanged.
+- The lower HUD is one quiet row, with coordinates and scale as a caption on the map. Settings are
+  grouped, with more room. About explains Fabric and WebFabric. The end-of-day dialog is redrawn, with
+  figures that count up. Icons move on hover and selection, and their centres match their hover areas.
+- Rain cells, the map fit and zoom, the progress ring and collapse and expand all move on springs. The
+  interface arrives around the map in a stagger, and the map quietens when the day ends.
+- Do Not Disturb stops new notifications without removing one already on screen. An open notification
+  shows its full text and stays still: newer events wait behind a count.
 - All motion is one spring model. Dialogs and popovers enter through interruptible
   transitions, so they reverse from wherever they have got to.
 - Start-up is one surface naming the real stage. The Welcome hold and staged delays are

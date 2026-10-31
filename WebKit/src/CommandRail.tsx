@@ -2,7 +2,9 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, PointerEvent } from "react";
+import { animate, createVelocityTracker, projectSnap, Spring, SPRINGS, stepSpring } from "./motion";
+import { dlrClamp } from "./dlr";
 import { Icon, ActionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 import { useTimeFormat } from "./preferences";
@@ -19,10 +21,10 @@ import type { Clock, Lifecycle } from "./types";
  */
 
 /** Speeds offered, as multiples of the configured playback pace. */
-// The rates the operator may choose. 5x is the ceiling the core enforces:
-// beyond it the step outruns what can be drawn and measured, so the speed
-// would cost more in fidelity than it returns in time.
-export const RATES = [0.25, 0.5, 1, 2, 3, 5] as const;
+// The rates the operator may choose. 20x is the ceiling the core enforces. Above 5x
+// a second of real time spans more simulated time than one snapshot shows, so the
+// picture moves in larger steps; results do not change.
+export const RATES = [0.25, 0.5, 1, 2, 3, 5, 10, 20] as const;
 
 /** Index of the offered rate nearest to `rate`. */
 export function rateIndexOf(rate: number): number {
@@ -36,23 +38,6 @@ export function rateIndexOf(rate: number): number {
     }
   });
   return best;
-}
-
-/** A segment's measured box within the speed control. */
-export interface Slot {
-  x: number;
-  width: number;
-}
-
-/**
- * Where the selection highlight sits: exactly over the measured segment of
- * the offered rate nearest the applied one. Measuring the rendered segments,
- * rather than assuming equal widths, keeps it aligned at every viewport size
- * and font. Returns null until the segments have been measured.
- */
-export function pillGeometry(slots: readonly Slot[], rate: number): Slot | null {
-  const slot = slots[rateIndexOf(rate)];
-  return slot && slot.width > 0 ? slot : null;
 }
 
 export function rateLabel(rate: number): string {
@@ -200,6 +185,8 @@ export function CommandRail(props: CommandRailProps) {
         label={time.time(virtual)}
         hour12={time.hour12}
         onToggle={time.toggle}
+        running={lifecycle === "RUNNING"}
+        tickRate={clock?.tick_rate ?? 1}
       />
 
       <SpeedControl
@@ -207,6 +194,7 @@ export function CommandRail(props: CommandRailProps) {
         requested={props.requestedRate}
         disabled={!live || props.rateLocked}
         locked={props.rateLocked}
+        reduceMotion={props.reduceMotion}
         onRate={props.onRate}
       />
 
@@ -231,6 +219,49 @@ export function CommandRail(props: CommandRailProps) {
   );
 }
 
+/**
+ * Drives the progress ring every frame. Between polls it advances at the running
+ * rate, so even at 20x it moves rather than jumps; a seek or skip arrives as a new
+ * target for a spring, so it travels there rather than teleporting.
+ */
+export function useSmoothProgress(percent: number, ratePerSecond: number, reduceMotion: boolean) {
+  const path = useRef<SVGPathElement>(null);
+  const goal = useRef({ percent, at: 0, rate: ratePerSecond });
+  const state = useRef({ x: percent, v: 0, cancel: null as (() => void) | null });
+  const paint = (value: number) => path.current?.style.setProperty("stroke-dasharray", `${Math.max(0, Math.min(100, value)).toFixed(3)} 100`);
+  useLayoutEffect(() => {
+    goal.current = { percent, at: performance.now(), rate: ratePerSecond };
+    const s = state.current;
+    if (reduceMotion || typeof requestAnimationFrame !== "function") {
+      s.cancel?.();
+      s.cancel = null;
+      s.x = percent;
+      paint(percent);
+      return;
+    }
+    s.cancel ??= animate((dt) => {
+      const g = goal.current;
+      const target = g.percent + (g.rate * (performance.now() - g.at)) / 864000;
+      [s.x, s.v] = stepSpring(s.x, s.v, target, SPRINGS.spatialSlow, dt);
+      paint(s.x);
+      if (!g.rate && Math.abs(s.x - target) < 0.005 && Math.abs(s.v) < 0.01) {
+        s.cancel = null;
+        return false;
+      }
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [percent, ratePerSecond, reduceMotion]);
+  useEffect(() => {
+    const s = state.current;
+    return () => {
+      s.cancel?.();
+      s.cancel = null;
+    };
+  }, []);
+  return path;
+}
+
 function TimeControl({
   seconds,
   hasClock,
@@ -240,7 +271,11 @@ function TimeControl({
   label,
   hour12,
   onToggle,
+  running,
+  tickRate,
 }: {
+  running: boolean;
+  tickRate: number;
   seconds: number;
   hasClock: boolean;
   percent: number;
@@ -252,6 +287,7 @@ function TimeControl({
 }) {
   const W = 132, H = 40;
   const d = stadiumPath(W, H);
+  const fill = useSmoothProgress(percent, running ? tickRate : 0, reduceMotion);
   return (
     <button
       type="button"
@@ -264,7 +300,7 @@ function TimeControl({
     >
       <svg className="time-ring" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
         <path className="ring-track" d={d} pathLength={100} />
-        <path className="ring-fill" d={d} pathLength={100} style={{ strokeDasharray: `${percent} 100` }} />
+        <path ref={fill} className="ring-fill" d={d} pathLength={100} />
       </svg>
       <span className="time-value mono">{hasClock ? label : "--:--:--"}</span>
       <span className="time-hint" aria-hidden="true">
@@ -279,86 +315,143 @@ function SpeedControl({
   requested,
   disabled,
   locked,
+  reduceMotion,
   onRate,
 }: {
   rate: number;
   requested?: number;
   disabled: boolean;
   locked: boolean;
+  reduceMotion: boolean;
   onRate: (rate: number) => void;
 }) {
-  const group = useRef<HTMLDivElement>(null);
-  const index = rateIndexOf(rate);
+  const track = useRef<HTMLDivElement>(null);
+  const thumb = useRef<HTMLDivElement>(null);
+  const spring = useRef<Spring | null>(null);
+  const tracker = useRef(createVelocityTracker());
+  const dragging = useRef(false);
+  const [width, setWidth] = useState(0);
+  const [choice, setChoice] = useState<number | null>(null);
+  const [held, setHeld] = useState(false);
+  // The chosen stop shows at once; the core's answer follows on the next poll.
+  const index = choice ?? rateIndexOf(rate);
   const governed = requested !== undefined && Math.abs(requested - rate) > 1e-6;
-  const requestedIndex = governed ? rateIndexOf(requested!) : -1;
-  const [slots, setSlots] = useState<Slot[]>([]);
+  const stops = RATES.map((_, i) => (i / (RATES.length - 1)) * width);
+
+  useEffect(() => {
+    if (choice !== null && rateIndexOf(rate) === choice) setChoice(null);
+    if (choice === null) return;
+    const timer = setTimeout(() => setChoice(null), 2500);
+    return () => clearTimeout(timer);
+  }, [choice, rate]);
+
   useLayoutEffect(() => {
-    const el = group.current;
+    const el = track.current;
     if (!el) return;
-    const measure = () =>
-      setSlots(
-        Array.from(el.querySelectorAll<HTMLButtonElement>("[role='radio']")).map((b) => ({ x: b.offsetLeft, width: b.offsetWidth })),
-      );
+    const measure = () => setWidth(el.clientWidth);
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const pill = pillGeometry(slots, rate);
 
-  const move = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
+  // The thumb is a spring, so a stop is reached with the momentum of the gesture.
+  useEffect(() => {
+    if (!thumb.current || !width) return;
+    const target = stops[index];
+    spring.current ??= new Spring(target, SPRINGS.expressiveFast, (x) => thumb.current?.parentElement?.style.setProperty("--speed-x", `${x.toFixed(2)}px`), 0.1);
+    if (dragging.current) return;
+    if (reduceMotion) spring.current.jump(target);
+    else spring.current.set(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, width, reduceMotion]);
+  useEffect(() => () => spring.current?.stop(), []);
+
+  const choose = (next: number) => {
+    if (next === rateIndexOf(rate) && choice === null) return;
+    setChoice(next);
+    onRate(RATES[next]);
+  };
+  const place = (clientX: number) => {
+    const rect = track.current!.getBoundingClientRect();
+    return clientX - rect.left - track.current!.clientLeft;
+  };
+  const onDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (disabled || !width) return;
+    dragging.current = true;
+    setHeld(true);
+    tracker.current.reset();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const x = place(e.clientX);
+    tracker.current.add(x, e.timeStamp);
+    spring.current?.set(Math.max(0, Math.min(width, x)));
+  };
+  const onMove = (e: PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return;
+    const x = place(e.clientX);
+    tracker.current.add(x, e.timeStamp);
+    // Past either end it gives a little and no further.
+    spring.current?.jump(dlrClamp(x, 0, width, 12));
+  };
+  const onUp = () => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    setHeld(false);
+    const value = spring.current?.value ?? stops[index];
+    const velocity = tracker.current.velocity();
+    const landed = projectSnap(Math.max(0, Math.min(width, value)), velocity, stops);
+    const next = stops.indexOf(landed);
+    if (reduceMotion) spring.current?.jump(landed);
+    else spring.current?.set(landed, velocity);
+    choose(next);
+  };
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const delta = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : 0;
-    const target = e.key === "Home" ? 0 : e.key === "End" ? RATES.length - 1 : delta ? i + delta : -1;
+    const target = e.key === "Home" ? 0 : e.key === "End" ? RATES.length - 1 : delta ? index + delta : -1;
     if (target < 0 || target >= RATES.length || disabled) return;
     e.preventDefault();
-    onRate(RATES[target]);
-    group.current?.querySelectorAll<HTMLButtonElement>("[role='radio']")[target]?.focus();
+    choose(target);
   };
 
   const detail = locked
     ? "Held at 1× by Adaptive Simulation Backpressure until the interface is back in sync."
     : governed
       ? `Requested ${rateLabel(requested!)}. Applied ${rateLabel(rate)} while the interface catches up.`
-      : `Current speed ${rateLabel(rate)}.`;
+      : "Drag, or use the arrow keys. It settles on the nearest stop.";
 
   return (
-    <Tooltip label="Simulation speed" detail={detail}>
-      <div
-        ref={group}
-        className={`speed${locked ? " locked" : ""}${governed ? " governed" : ""}`}
-        role="radiogroup"
-        aria-label="Simulation speed"
-        aria-disabled={disabled}
-        data-tutorial="rate"
-        style={{ ["--count" as string]: RATES.length }}
-      >
-        <span
-          className={`speed-pill${pill ? " placed" : ""}`}
-          aria-hidden="true"
-          style={pill ? { transform: `translateX(${pill.x}px)`, width: pill.width } : undefined}
-        />
-        {RATES.map((value, i) => (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={i === index}
-            aria-label={`${value} times speed`}
-            tabIndex={i === index ? 0 : -1}
-            disabled={disabled}
-            className={`${i === index ? "on" : ""}${i === requestedIndex ? " requested" : ""}`}
-            onClick={() => onRate(value)}
-            onKeyDown={(e) => move(e, i)}
-          >
-            {rateLabel(value)}
-          </button>
-        ))}
-        {locked && (
-          <span className="speed-lock" aria-hidden="true">
-            <Icon name="lock" size={14} />
-          </span>
-        )}
+    <Tooltip label="Simulation speed" detail={detail} disabled={held}>
+      <div className={`speed${locked ? " locked" : ""}${governed ? " governed" : ""}${held ? " held" : ""}${disabled ? " disabled" : ""}`} data-tutorial="rate" data-tip-avoid>
+        <div
+          ref={track}
+          className="speed-track"
+          role="slider"
+          tabIndex={disabled ? -1 : 0}
+          aria-label="Simulation speed"
+          aria-valuemin={0}
+          aria-valuemax={RATES.length - 1}
+          aria-valuenow={index}
+          aria-valuetext={`${RATES[index]} times speed`}
+          aria-disabled={disabled}
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          onKeyDown={onKey}
+        >
+          <span className="speed-line" aria-hidden="true" />
+          <span className="speed-fill" aria-hidden="true" />
+          {RATES.map((value, i) => (
+            <i key={value} className={`speed-stop${i <= index ? " passed" : ""}`} style={{ left: `${(i / (RATES.length - 1)) * 100}%` }} aria-hidden="true" />
+          ))}
+          <div ref={thumb} className="speed-thumb" aria-hidden="true">
+            {held && <span className="speed-bubble mono">{rateLabel(RATES[index])}</span>}
+          </div>
+        </div>
+        <span className="speed-value mono" key={index} aria-hidden="true">
+          {locked ? <Icon name="lock" size={14} /> : rateLabel(RATES[index])}
+        </span>
       </div>
     </Tooltip>
   );

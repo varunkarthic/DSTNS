@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import { RATES } from "../src/CommandRail";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, { worldErrorMessage } from "../src/App";
@@ -295,25 +296,23 @@ describe("command rail", () => {
     await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 0)).toBe(true));
   });
 
-  it("offers exactly the six supported speeds and sets the real engine rate", async () => {
+  it("offers each supported speed as a stop on a slider, and sets the real engine rate", async () => {
     mockApi();
     render(<App />);
     await ready();
-    const group = screen.getByRole("radiogroup", { name: "Simulation speed" });
-    const options = within(group).getAllByRole("radio");
-    // 5x is the ceiling the core enforces; the rail never offers a speed the
-    // core would refuse.
-    expect(options.map((o) => o.textContent)).toEqual(["0.25×", "0.5×", "1×", "2×", "3×", "5×"]);
-    expect(within(group).getByRole("radio", { name: "1 times speed" })).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(within(group).getByRole("radio", { name: "3 times speed" }));
+    const slider = screen.getByRole("slider", { name: "Simulation speed" });
+    // 20x is the ceiling the core enforces; the slider never offers a speed the core would refuse.
+    expect(RATES).toEqual([0.25, 0.5, 1, 2, 3, 5, 10, 20]);
+    expect(slider).toHaveAttribute("aria-valuetext", "1 times speed");
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
     await waitFor(() => {
       const tick = calls.find((c) => c.path.includes("/control/tick-rate"));
-      expect(tick && JSON.parse(tick.body)).toEqual({ tick_rate: 3 });
+      expect(tick && JSON.parse(tick.body)).toEqual({ tick_rate: 2 });
     });
-    // Arrow keys move between the offered steps.
+    expect(slider).toHaveAttribute("aria-valuetext", "2 times speed");
     calls.length = 0;
-    fireEvent.keyDown(within(group).getByRole("radio", { name: "1 times speed" }), { key: "ArrowLeft" });
-    await waitFor(() => expect(calls.some((c) => c.path.includes("/control/tick-rate") && JSON.parse(c.body).tick_rate === 0.5)).toBe(true));
+    fireEvent.keyDown(slider, { key: "End" });
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/control/tick-rate") && JSON.parse(c.body).tick_rate === 20)).toBe(true));
   });
 
   it("shows progress and switches 12/24 hour time everywhere from one control", async () => {
@@ -504,6 +503,21 @@ describe("notifications", () => {
     expect(capsule).toHaveTextContent(/Heavy rainfall has developed over|heavy downpour moving in over|Rain is now falling across/);
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(within(capsule).getByRole("button", { expanded: false })).toBeInTheDocument());
+  }, 15000);
+
+  it("lets a notification on screen live out its time when Do Not Disturb starts, and stops new ones", async () => {
+    mockApi({ uiConfig: { auto_focus: { mode: "disable" }, notifications: { dnd_categories: ["weather"], dwell_ms: 60000 } } });
+    render(<App />);
+    await ready();
+    state.news.push(news({ news_id: 50, category: "weather", template_id: "DWS_RAIN_STARTED", title: "Rain started", message: "Rain over the district" }));
+    await screen.findByRole("button", { name: /Rain started.*Expand notification/s }, { timeout: 4000 });
+    fireEvent.click(screen.getByRole("button", { name: "Do Not Disturb" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Do Not Disturb" })).toHaveAttribute("aria-pressed", "true"));
+    // Still there: turning it on is not a reason to take away what is being read.
+    expect(screen.getByRole("button", { name: /Rain started/ })).toBeInTheDocument();
+    state.news.push(news({ news_id: 51, category: "weather", template_id: "DWS_RAIN_STARTED", title: "More rain", message: "Rain elsewhere", edge_id: 1, id: 2 } as never));
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(screen.queryByRole("button", { name: /More rain/ })).toBeNull();
   }, 15000);
 
   it("silences muted categories under Do Not Disturb without touching the core", async () => {
@@ -1047,7 +1061,7 @@ describe("dialogs and suspension", () => {
     mockApi({ backpressure: { ...backpressure, state: "RESTRICTED", score: 0.9, synced: false, rate_locked: true, motion_locked: true, applied_tick_rate: 1, requested_tick_rate: 3 } });
     render(<App />);
     await screen.findByText("ASB · Restricted", {}, { timeout: 4000 });
-    expect(screen.getByRole("radiogroup", { name: "Simulation speed" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("slider", { name: "Simulation speed" })).toHaveAttribute("aria-disabled", "true");
     const motion = screen.getByRole("button", { name: "Reduce motion" });
     expect(motion).toBeDisabled();
     expect(motion).toHaveAttribute("aria-pressed", "true");

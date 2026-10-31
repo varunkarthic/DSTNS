@@ -117,12 +117,12 @@ export function deckSpace(width: number, compact = false): number {
   return width <= 1280 ? 340 : 420;
 }
 
-export function mapFitLayout(width: number, height: number, compact = false): MapFitLayout {
+export function mapFitLayout(width: number, height: number, compact = false, left = 0): MapFitLayout {
   const deck = deckSpace(width, compact);
   const margin = 110;
   return {
-    available: Math.max(280, width - deck - margin),
-    centerX: (width - deck) / 2,
+    available: Math.max(280, width - deck - left - margin),
+    centerX: left + (width - deck - left) / 2,
     // The command rail occupies the bottom; bias the network above it.
     centerY: (height - 60) / 2,
   };
@@ -134,10 +134,10 @@ export function mapFitLayout(width: number, height: number, compact = false): Ma
  * with the lower HUD at the bottom. Framing an event inside what remains
  * keeps it clear of the controls.
  */
-export function mapInsets(width: number, _height: number, compact = false) {
+export function mapInsets(width: number, _height: number, compact = false, sidebar = 0) {
   return {
     top: 24,
-    left: width <= 720 ? 16 : 76,
+    left: sidebar || (width <= 720 ? 16 : 76),
     right: deckSpace(width, compact) + 24,
     bottom: width <= 720 ? 196 : 150,
   };

@@ -26,6 +26,10 @@ export function TimeFormatProvider({ hour12, onToggle, children }: { hour12: boo
   return <TimeFormatContext.Provider value={value}>{children}</TimeFormatContext.Provider>;
 }
 
+/** Whether specialist measures and technical details are shown. */
+export const AdvancedContext = createContext(true);
+export const useAdvanced = () => useContext(AdvancedContext);
+
 export function useTimeFormat() {
   const { hour12, toggle } = useContext(TimeFormatContext);
   return useMemo(

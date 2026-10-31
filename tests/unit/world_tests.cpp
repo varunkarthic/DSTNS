@@ -290,10 +290,9 @@ int main() {
         // 5x is the ceiling: past it the step outruns what can be drawn and
         // measured, so the operator is not offered a speed that degrades the
         // picture it is meant to speed up.
-        check(engine.set_tick_rate(kMaxTickRate)["requested_tick_rate"].get<double>() == kMaxTickRate, "5x is an accepted playback rate");
+        check(engine.set_tick_rate(kMaxTickRate)["requested_tick_rate"].get<double>() == kMaxTickRate, "the top speed is an accepted playback rate");
         check(engine.set_tick_rate(0.25)["requested_tick_rate"].get<double>() == 0.25, "0.25x is an accepted playback rate");
-        check(throws_invalid([&] { (void)engine.set_tick_rate(kMaxTickRate + 0.5); }), "rates above 5x are rejected");
-        check(throws_invalid([&] { (void)engine.set_tick_rate(10); }), "the former 10x ceiling is no longer accepted");
+        check(throws_invalid([&] { (void)engine.set_tick_rate(kMaxTickRate + 0.5); }), "rates above the top speed are rejected");
         check(throws_invalid([&] { (void)engine.set_tick_rate(0); }), "a zero rate is rejected");
         auto config = fixture();
         config.tick_rate = kMaxTickRate;

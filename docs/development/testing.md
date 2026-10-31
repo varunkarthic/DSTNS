@@ -208,7 +208,7 @@ every test.
 | `tests/api/fabric_contract_smoke.py` | The recorded HTTP contract: 155 calls, including refusals | `ctest` |
 | `tests/api/fabric_apps_smoke.py` | Registration, conflicts, capabilities, settings isolation and migration, persistence, leases, lossless delivery | `ctest` |
 | `WebKit/tests/webfabric.test.tsx` | State merging, slots, rendering as text, settings forms, the frame bridge | `npm test` |
-| `WebKit/tests/motion.test.ts`, `startup.test.tsx` | Spring behaviour; each start-up state | `npm test` |
+| `WebKit/tests/motion.test.ts`, `dlr.test.ts`, `appearance.test.ts`, `startup.test.tsx` | Springs and rain cells; resistance and zoom limits; colour-vision separation; each start-up state | `npm test` |
 | `WebKit/tests/browser-webfabric.mjs` | In Chrome, with mock applications: every slot, a hostile frame, control and audit, settings, failure isolation, and rendering under load | By hand, after `npm run build` |
 
 `fabric_contract_smoke.py --record` rewrites the baseline. Use it only for a deliberate,

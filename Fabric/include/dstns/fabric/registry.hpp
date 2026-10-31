@@ -92,12 +92,17 @@ private:
         double bucket{};
         Clock::time_point bucket_at{};
         std::uint64_t order{};
+        std::uint64_t changed_at{};
+        std::uint64_t ui_all_at{};
+        std::map<std::string, std::uint64_t> element_rev;
     };
 
     App& find(const std::string& id);
     void touch(App& app);
     void sweep();
-    void changed() { ++revision_; }
+    void mark(App& app) {
+        app.changed_at = app.ui_all_at = ++revision_;
+    }
     void persist();
     void push_event(App& app, const std::string& type, const nlohmann::json& data);
     void adopt_settings(App& app);
@@ -110,6 +115,7 @@ private:
     std::map<std::string, App> apps_;
     std::deque<nlohmann::json> notifications_;
     std::deque<nlohmann::json> audit_;
+    std::deque<std::pair<std::uint64_t, std::string>> forgotten_;
     std::uint64_t revision_{1}, notification_sequence_{}, audit_sequence_{}, next_order_{};
 };
 

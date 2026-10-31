@@ -43,11 +43,16 @@ export function Section({ title, children }: { title: string; children: ReactNod
   );
 }
 
-export function Row({ title, hint, control, htmlFor }: { title: string; hint?: string; control: ReactNode; htmlFor?: string }) {
+/** A short statement of a state: unsupported, held, waiting. */
+export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "accent" | "ok" | "warn" | "danger"; children: ReactNode }) {
+  return <span className={`status-badge tone-${tone}`}>{children}</span>;
+}
+
+export function Row({ title, hint, control, htmlFor, badge }: { title: string; hint?: string; control: ReactNode; htmlFor?: string; badge?: ReactNode }) {
   return (
     <div className="settings-row">
       <label className="settings-row-text" htmlFor={htmlFor}>
-        <strong>{title}</strong>
+        <strong>{title}{badge}</strong>
         {hint && <span>{hint}</span>}
       </label>
       {control}

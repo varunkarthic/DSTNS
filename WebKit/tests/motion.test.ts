@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { settleTime, Spring, springEasing, springProgress, SPRINGS, stepSpring } from "../src/motion";
+import { createVelocityTracker, projectSnap, PURPOSES, settleTime, Spring, springEasing, springProgress, SPRINGS, stepSpring } from "../src/motion";
+import { stepRainCells } from "../src/mapModel";
 
 const peak = (preset: { k: number; c: number }) => {
   let most = 0;
@@ -67,5 +68,53 @@ describe("springs", () => {
     expect(spring.value).toBe(10);
     expect(spring.velocity).toBe(0);
     expect(seen.at(-1)).toBe(10);
+  });
+});
+
+describe("gesture helpers", () => {
+  it("tracks velocity over its recent window", () => {
+    const tracker = createVelocityTracker();
+    tracker.add(0, 0);
+    tracker.add(50, 50);
+    tracker.add(100, 100);
+    expect(tracker.velocity()).toBeCloseTo(1000);
+    tracker.reset();
+    expect(tracker.velocity()).toBe(0);
+  });
+
+  it("settles on the nearest stop at rest, and carries momentum past it when thrown", () => {
+    const stops = [0, 20, 40, 60, 80, 100];
+    expect(projectSnap(22, 0, stops)).toBe(20);
+    expect(projectSnap(22, 400, stops)).toBeGreaterThan(20);
+    expect(projectSnap(90, 99999, stops)).toBe(100);
+  });
+
+  it("the expressive scheme stays under its 12% ceiling", () => {
+    for (const name of ["expressiveFast", "expressiveDefault", "expressiveSlow"] as const) expect(peak(SPRINGS[name])).toBeLessThan(1.12);
+  });
+
+  it("every purpose names a real spring", () => {
+    for (const name of Object.values(PURPOSES)) expect(SPRINGS[name]).toBeDefined();
+  });
+});
+
+describe("rain cells", () => {
+  const cell = (over = {}) => ({ id: 1, x_m: 100, y_m: 0, radius_m: 300, intensity: 0.5, ...over });
+  it("open from nothing, chase the core's position, and fade out when gone", () => {
+    const cells = new Map();
+    let drawn = stepRainCells(cells, [cell()], 1 / 60);
+    expect(drawn[0].radius_m).toBeLessThan(50);
+    expect(drawn[0].moving).toBe(true);
+    for (let i = 0; i < 300; i++) drawn = stepRainCells(cells, [cell()], 1 / 60);
+    expect(drawn[0].radius_m).toBeCloseTo(300, 0);
+    drawn = stepRainCells(cells, [cell({ x_m: 500 })], 1 / 60);
+    expect(drawn[0].x_m).toBeLessThan(120);
+    for (let i = 0; i < 300; i++) drawn = stepRainCells(cells, [], 1 / 60);
+    expect(drawn).toHaveLength(0);
+    expect(cells.size).toBe(0);
+  });
+  it("go straight to their place under reduced motion", () => {
+    const drawn = stepRainCells(new Map(), [cell()], 1000);
+    expect(drawn[0]).toMatchObject({ radius_m: 300, alpha: 1, moving: false });
   });
 });

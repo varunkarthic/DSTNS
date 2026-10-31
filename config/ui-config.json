@@ -53,6 +53,12 @@
     "enabled": true,
     "report_interval_ms": 1000
   },
+  "accessibility": {
+    "theme": "dark",
+    "color_vision": "standard",
+    "reduce_transparency": false,
+    "advanced": true
+  },
   "_enums": {
     "reduce_motion": [
       "auto",

@@ -8,9 +8,10 @@ import { Tooltip } from "../Tooltip";
 import { Scrim } from "../Dialogs";
 import { Switch } from "../settingsControls";
 import { useScrollFade } from "../scrollFade";
+import { Spring, SPRINGS } from "../motion";
 import { AppFrame } from "./AppFrame";
-import { fabric, useFabricApps, useOpenPanel, useSlot } from "./store";
-import type { FabricApp, FabricElement, FabricWidget, Tone } from "./store";
+import { fabric, useFabricApps, useOpenPanel, usePicking, useSlot } from "./store";
+import type { FabricApp, FabricElement, FabricRow, FabricWidget, Tone } from "./store";
 
 /**
  * Where applications' declared UI appears. Each slot belongs to the observer: it
@@ -138,6 +139,74 @@ export function FabricIndicators() {
   );
 }
 
+const seriesStyle = (series?: number) => (typeof series === "number" ? { ["--tone" as string]: `var(--series-${Math.abs(Math.trunc(series)) % 8})` } : undefined);
+
+const FabricRowItem = memo(function FabricRowItem({ row, onSelect }: { row: FabricRow; onSelect?: () => void }) {
+  const share = typeof row.share === "number" ? Math.min(1, Math.max(0, row.share)) : null;
+  const inner = (
+    <>
+      {row.badge && <span className="fabric-row-badge mono">{text(row.badge).slice(0, 6)}</span>}
+      <span className="fabric-row-text">
+        <span>{text(row.subtitle) || text(row.title)}</span>
+        {share !== null && <span className="fabric-row-bar"><i style={{ transform: `scaleX(${share})` }} /></span>}
+      </span>
+      {row.value !== undefined && <span className="fabric-row-value mono">{text(row.value)}</span>}
+    </>
+  );
+  return (
+    <li style={seriesStyle(row.series)} className={row.selected ? "selected" : undefined}>
+      {onSelect ? <button type="button" aria-pressed={row.selected === true} onClick={onSelect}>{inner}</button> : <div>{inner}</div>}
+    </li>
+  );
+});
+
+function FabricTabs({ app, element, widget }: { app: FabricApp; element: FabricElement; widget: FabricWidget }) {
+  const tabs = Array.isArray(widget.tabs) ? widget.tabs.slice(0, 6) : [];
+  const [active, setActive] = useState(tabs[0]?.id);
+  const current = tabs.find((tab) => tab.id === active) ?? tabs[0];
+  if (!current) return null;
+  const index = tabs.indexOf(current);
+  return (
+    <>
+      <div className="fabric-tabs" role="tablist" style={{ ["--count" as string]: tabs.length, ["--pos" as string]: index }}>
+        <span className="fabric-tabs-pill" aria-hidden="true" />
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === current}
+            onClick={() => {
+              setActive(tab.id);
+              void fabric.action(app.id, widget.id ?? element.id, "tab", tab.id).catch(() => undefined);
+            }}
+          >
+            {tab.caption && <small className="mono">{text(tab.caption)}</small>}
+            <strong>{text(tab.label)}</strong>
+          </button>
+        ))}
+      </div>
+      <div className="fabric-tab-body" key={current.id} role="tabpanel">
+        {(Array.isArray(current.widgets) ? current.widgets : []).map((child, i) => (
+          <Widget key={child.id ?? i} app={app} element={element} widget={child} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function FabricInput({ widget, onSubmit }: { widget: FabricWidget; onSubmit: (value: string) => void }) {
+  const [value, setValue] = useState(text(widget.value));
+  const kind = widget.input_type === "time" || widget.input_type === "number" ? widget.input_type : "text";
+  return (
+    <form className="fabric-input-row" onSubmit={(e) => { e.preventDefault(); onSubmit(value); }}>
+      {widget.label && <label>{text(widget.label)}</label>}
+      <input className="fabric-input mono" type={kind} step={kind === "time" ? 1 : undefined} value={value} aria-label={text(widget.label) || "Value"} placeholder={widget.placeholder} onChange={(e) => setValue(e.target.value)} />
+      {widget.submit && <button type="submit" className="btn fabric-action">{text(widget.submit)}</button>}
+    </form>
+  );
+}
+
 function Widget({ app, element, widget }: { app: FabricApp; element: FabricElement; widget: FabricWidget }) {
   const name = widget.id ?? element.id;
   const send = (action: string, value?: unknown) => void fabric.action(app.id, name, action, value).catch(() => undefined);
@@ -145,6 +214,61 @@ function Widget({ app, element, widget }: { app: FabricApp; element: FabricEleme
   switch (widget.type) {
     case "text":
       return <p className="fabric-text">{text(widget.text) || text(widget.value)}</p>;
+    case "heading":
+      return <h3 className="fabric-heading">{text(widget.text) || label}</h3>;
+    case "note":
+      return <p className="fabric-note">{text(widget.text) || label}</p>;
+    case "stats":
+      return (
+        <dl className="fabric-stats">
+          {(Array.isArray(widget.items) ? widget.items : []).slice(0, 4).map((item, index) => (
+            <div key={index} className={toneClass(item.tone).trim()}>
+              <dt>{text(item.label)}</dt>
+              <dd className="mono">{text(item.value)}{item.caption && <small>{text(item.caption)}</small>}</dd>
+            </div>
+          ))}
+        </dl>
+      );
+    case "chips":
+      return (
+        <dl className="fabric-chips">
+          {(Array.isArray(widget.items) ? widget.items : []).slice(0, 8).map((item, index) => (
+            <div key={index}><dt>{text(item.label)}</dt><dd className="mono">{text(item.value)}</dd></div>
+          ))}
+        </dl>
+      );
+    case "list":
+      return (
+        <ul className="fabric-rows" aria-label={label || undefined}>
+          {(Array.isArray(widget.rows) ? widget.rows : []).slice(0, 200).map((row, index) => (
+            <FabricRowItem key={row.id ?? index} row={row} onSelect={row.id ? () => send("select", row.id) : undefined} />
+          ))}
+        </ul>
+      );
+    case "legend":
+      return (
+        <ul className="fabric-legend">
+          {(Array.isArray(widget.legend) ? widget.legend : []).slice(0, 24).map((item, index) => (
+            <li key={item.id ?? index} style={seriesStyle(item.series)} className={toneClass(item.tone).trim()}>
+              {typeof item.value === "boolean" ? (
+                <label>
+                  <input type="checkbox" checked={item.value} onChange={(e) => void fabric.action(app.id, item.id ?? name, "change", e.target.checked).catch(() => undefined)} />
+                  <span>{text(item.label)}</span>
+                </label>
+              ) : (
+                <>
+                  <i className={`mark-${item.mark ?? "line"}`} aria-hidden="true" />
+                  <span>{text(item.label)}</span>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      );
+    case "tabs":
+      return <FabricTabs app={app} element={element} widget={widget} />;
+    case "input":
+      return <FabricInput widget={widget} onSubmit={(value) => send("submit", value)} />;
     case "stat":
       return (
         <div className={`fabric-stat${toneClass(widget.tone)}`}>
@@ -165,7 +289,7 @@ function Widget({ app, element, widget }: { app: FabricApp; element: FabricEleme
     }
     case "button":
       return (
-        <button type="button" className={`btn fabric-action${toneClass(widget.tone)}`} onClick={() => send("activate")}>
+        <button type="button" className={`btn fabric-action${toneClass(widget.tone)}`} onClick={() => (widget.pick ? fabric.armPick(app.id, name) : send("activate"))}>
           {label || name}
         </button>
       );
@@ -241,6 +365,99 @@ export function FabricPanel() {
         )}
       </aside>
     </AppBoundary>
+  );
+}
+
+const SIDEBAR_WIDTH = 372;
+
+/**
+ * Room on the map's left for an application to lay out its work, such as a planner
+ * with its lines and journeys. The map refits beside it. Several applications share
+ * it by tabs, and a person can put it away.
+ */
+export function FabricSidebar({ onInset, reduceMotion }: { onInset: (width: number) => void; reduceMotion: boolean }) {
+  const { items } = useSlot("sidebar");
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const panel = useRef<HTMLElement>(null);
+  const picking = usePicking();
+  const scroll = useScrollFade<HTMLDivElement>();
+  const key = ({ app, element }: { app: FabricApp; element: FabricElement }) => `${app.id}/${element.id}`;
+  const current = items.find((item) => key(item) === activeKey) ?? items[0];
+  const present = !!current;
+  const hidden = -(SIDEBAR_WIDTH + 96);
+  const spring = useRef<Spring | null>(null);
+  useEffect(() => {
+    onInset(present && !collapsed ? 84 + SIDEBAR_WIDTH + 16 : 0);
+    return () => onInset(0);
+  }, [present, collapsed, onInset]);
+  useEffect(() => {
+    if (!panel.current) return;
+    const element = panel.current;
+    spring.current ??= new Spring(hidden, SPRINGS.expressiveDefault, (x) => element.style.setProperty("--sidebar-x", `${x.toFixed(2)}px`), 0.2);
+    if (reduceMotion) spring.current.jump(collapsed ? hidden : 0);
+    else spring.current.set(collapsed ? hidden : 0);
+  }, [collapsed, reduceMotion, present, hidden]);
+  useEffect(() => {
+    if (!picking) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") fabric.cancelPick();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [picking]);
+  if (!current) {
+    spring.current = null;
+    return null;
+  }
+  const { app, element } = current;
+  return (
+    <>
+      <aside ref={panel} className="fabric-sidebar" aria-label={`${text(element.title) || app.name}, ${app.name}`} inert={collapsed || undefined}>
+        <header>
+          <div>
+            <h2>{text(element.title) || app.name}</h2>
+            {element.label && <small>{text(element.label)}</small>}
+          </div>
+          <button type="button" className="icon-btn" aria-label="Put the sidebar away" onClick={() => setCollapsed(true)}>
+            <Icon name="panelCollapse" size={16} className="flip" />
+          </button>
+        </header>
+        {items.length > 1 && (
+          <div className="fabric-sidebar-apps" role="tablist" aria-label="Applications">
+            {items.map((item) => (
+              <button key={key(item)} type="button" role="tab" aria-selected={item === current} onClick={() => setActiveKey(key(item))}>
+                {item.app.name}
+              </button>
+            ))}
+          </div>
+        )}
+        <AppBoundary key={key(current)} app={app}>
+          {element.frame ? (
+            <AppFrame app={app} element={element} />
+          ) : (
+            <div {...scroll} className={`fabric-panel-body ${scroll.className}`} tabIndex={0}>
+              {(Array.isArray(element.widgets) ? element.widgets : []).map((widget, index) => (
+                <Widget key={widget.id ?? index} app={app} element={element} widget={widget} />
+              ))}
+            </div>
+          )}
+        </AppBoundary>
+      </aside>
+      {collapsed && (
+        <button type="button" className="fabric-sidebar-tab" aria-label={`Open ${app.name}`} onClick={() => setCollapsed(false)}>
+          <Icon name="panelExpand" size={16} className="flip" />
+          <span>{app.name}</span>
+        </button>
+      )}
+      {picking && (
+        <div className="fabric-picking" role="status">
+          <Icon name="pin" size={14} />
+          Click a place on the map for {app.name}
+          <button type="button" onClick={fabric.cancelPick}>Cancel</button>
+        </div>
+      )}
+    </>
   );
 }
 

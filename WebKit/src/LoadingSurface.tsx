@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "./Icons";
 import { Mark } from "./Logo";
+import { BootScene } from "./BootScene";
 
 /**
  * The loading surface.
@@ -44,6 +45,8 @@ export function LoadingSurface({
   titleId = "loading-title",
   role = "status",
   idle = false,
+  eyebrow,
+  aside,
 }: {
   /** "boot" covers the screen; "overlay" floats a card over the dimmed map. */
   mode: "boot" | "overlay";
@@ -66,6 +69,10 @@ export function LoadingSurface({
   role?: "status" | "alertdialog";
   /** Nothing is in progress, so nothing may look as if it is. */
   idle?: boolean;
+  /** A line above the title, for the welcome. */
+  eyebrow?: string;
+  /** Something to read while waiting. */
+  aside?: ReactNode;
 }) {
   const done = !!steps && stepIndex >= steps.length - 1 && !failed;
   const known = typeof progress === "number" && Number.isFinite(progress);
@@ -95,7 +102,8 @@ export function LoadingSurface({
           {failed ? <Icon name="incident" size={18} /> : <img className="loading-favicon" src="/favicon.svg" alt="" />}
         </div>
       )}
-      <h2 id={titleId}>{title}</h2>
+      {eyebrow && <p className="loading-eyebrow">{eyebrow}</p>}
+      <h2 id={titleId} key={title}>{title}</h2>
       {seed && (
         <p className="loading-seed">
           <span>Seed</span> <span className="mono">{seed}</span>
@@ -114,6 +122,7 @@ export function LoadingSurface({
         <>
           {steps && steps.length > 0 && (
             <ol className="loading-steps" aria-label="Progress">
+              <span className="loading-steps-rail" aria-hidden="true"><i style={{ transform: `scaleX(${steps.length > 1 ? Math.min(1, stepIndex / (steps.length - 1)) : 0})` }} /></span>
               {steps.map((s, i) => (
                 <li key={s.id} className={i < stepIndex ? "done" : i === stepIndex ? "active" : ""} aria-current={i === stepIndex ? "step" : undefined}>
                   <span className="loading-step-dot" aria-hidden="true">
@@ -140,6 +149,7 @@ export function LoadingSurface({
           {note && <p className="loading-note">{note}</p>}
         </>
       )}
+      {aside}
       {actions && <div className="loading-actions">{actions}</div>}
     </div>
   );
@@ -152,6 +162,9 @@ export function LoadingSurface({
       aria-describedby={`${titleId}-detail`}
       aria-live={role === "status" ? "polite" : undefined}
     >
+      {mode === "boot" && (
+        <BootScene progress={steps?.length ? (Math.min(stepIndex, steps.length - 1) + (known ? percent / 100 : 0.5)) / steps.length : 0} idle={idle || failed} reduceMotion={reduceMotion} />
+      )}
       {body}
       {footer}
     </div>

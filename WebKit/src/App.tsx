@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import NetworkMap from "./NetworkMap";
 import type { MapControls, MapView } from "./NetworkMap";
@@ -35,13 +35,15 @@ import { useBackpressure, describeAsb, formatRate } from "./useBackpressure";
 import { api } from "./api";
 import { formatCoordinate, scaleBarFor } from "./mapProjection";
 import { MOTION_MS } from "./motion";
+import { applyAppearance, resolveTheme } from "./appearance";
+import { installDLR } from "./dlr";
 import { fabric, useFabricNotifications } from "./webfabric/store";
-import { FabricDialog, FabricDockItems, FabricHeader, FabricIndicators, FabricPanel, FabricStatus } from "./webfabric/Slots";
+import { FabricDialog, FabricDockItems, FabricHeader, FabricIndicators, FabricPanel, FabricSidebar, FabricStatus } from "./webfabric/Slots";
 import { FabricOverlay } from "./webfabric/Overlay";
 import type { FabricOverlayHandle } from "./webfabric/Overlay";
 import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
 import type { UiConfig, AutoFocusStrategy } from "./uiConfig";
-import { TimeFormatProvider } from "./preferences";
+import { AdvancedContext, TimeFormatProvider } from "./preferences";
 import { boundsOf, chooseTarget, focusTargets, framingSignature, networkBounds } from "./autoFocus";
 import type { Bounds } from "./autoFocus";
 import {
@@ -72,6 +74,7 @@ import "./hud.css";
 import "./system.css";
 import "./motion.css";
 import "./webfabric.css";
+import "./design.css";
 
 export const VERSION = "3.0.0";
 
@@ -122,6 +125,14 @@ export function worldErrorMessage(code: string, message: string): string {
 }
 
 /** What the News setting says about the narrator, for its hint. */
+/** Why Realistic News cannot run, in a word or two; nothing when it can. */
+export function narratorBadge(status: NarratorStatus | null): string | undefined {
+  if (!status || !status.enabled) return "Not supported on this device";
+  if (status.state === "unavailable" || status.state === "disabled") return "Model not responding";
+  if (status.state === "starting") return "Loading";
+  return undefined;
+}
+
 function narratorNote(status: NarratorStatus | null): string {
   if (!status) return "Unavailable: the core did not report a narrator.";
   if (!status.enabled) return "Unavailable: Apple Foundation Models are not available or are turned off for this server.";
@@ -188,6 +199,17 @@ export default function App() {
   const hour12 = config.clock.hour12;
   const dnd = config.notifications.dnd;
   const toggleHour12 = useCallback(() => persist({ clock: { hour12: !config.clock.hour12 } }), [persist, config.clock.hour12]);
+
+  // ---- Appearance ---------------------------------------------------------
+  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
+  const access = config.accessibility;
+  const theme = resolveTheme(access.theme, prefersDark);
+  const [appearanceKey, setAppearanceKey] = useState(0);
+  useLayoutEffect(() => {
+    applyAppearance({ theme, vision: access.color_vision, reduceTransparency: access.reduce_transparency, advanced: access.advanced });
+    setAppearanceKey((n) => n + 1);
+  }, [theme, access.color_vision, access.reduce_transparency, access.advanced]);
+  useEffect(() => installDLR(), []);
 
   // ---- Shell state ------------------------------------------------------
   const [layersOpen, setLayersOpen] = useState(false);
@@ -422,6 +444,7 @@ export default function App() {
     // Once per delivered snapshot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sim.snapshot]);
+  const [sidebarInset, setSidebarInset] = useState(0);
   const overlay = useRef<FabricOverlayHandle>(null);
   const onMapTransform = useCallback<NonNullable<ComponentProps<typeof NetworkMap>["onTransform"]>>((view) => overlay.current?.draw(view), []);
   const fabricNotes = useFabricNotifications(config.notifications.dwell_ms, virtual);
@@ -439,14 +462,18 @@ export default function App() {
     }),
     [config.notifications, dnd],
   );
+  const onScreen = useRef(new Set<string>());
   const { shown } = useMemo(() => {
     const focus = { enabled: autoFocus, targetKey: activeKey };
-    const visible = notifications.filter((n) => shouldDisplayNotification(n, policy, focus));
+    // Do Not Disturb stops new notifications. One already on screen lives out its
+    // time: it was seen, and taking it away mid-read would be its own disturbance.
+    const visible = notifications.filter((n) => shouldDisplayNotification(n, policy, focus) || (policy.enabled && onScreen.current.has(n.id)));
     let list: UiNotification[] = orderForDisplay(visible, activeKey);
     // The event auto-focus is showing always has a notification, even if the
     // news that announced it has expired or was muted.
     if (autoFocus && active && sim.snapshot && !dismissedFocus.has(active.key) && !list.some((n) => focusMatches(n.focusKey, activeKey)))
       list = [focusNotification(active, sim.snapshot.data, sim.topology, virtual), ...list];
+    onScreen.current = new Set(list.map((n) => n.id));
     return { shown: list };
     // Rebuilt when inputs change; the virtual clock alone does not warrant it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -657,8 +684,8 @@ export default function App() {
   /** Back to the kinds shown out of the box, forgetting every per-kind choice. */
   const resetPlaces = () => changePlaces({ ...operatorConfig.places });
   const resetSettings = () => {
-    const { auto_focus, notifications, playback, clock, reduce_motion } = operatorConfig;
-    persist({ auto_focus, notifications, playback, clock, reduce_motion });
+    const { auto_focus, notifications, playback, clock, reduce_motion, accessibility } = operatorConfig;
+    persist({ auto_focus, notifications, playback, clock, reduce_motion, accessibility });
     setMotionChoice(resolveReduceMotion(reduce_motion));
     setAutoFocus(auto_focus.mode === "enable-force");
     setManualFocus(null);
@@ -833,11 +860,12 @@ export default function App() {
   }
 
   return (
+    <AdvancedContext.Provider value={access.advanced}>
     <TimeFormatProvider hour12={hour12} onToggle={toggleHour12}>
       <div
         inert={tutorial.active || undefined}
         data-tour-target={tutorial.active ? tutorialTarget : undefined}
-        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${showSplash || bootFailure || shutDown ? " booting" : ""}${world.active ? " world-busy" : ""}`}
+        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${showSplash || bootFailure || shutDown ? " booting" : ""}${world.active ? " world-busy" : ""}${lifecycle === "COMPLETED" ? " day-complete" : ""}`}
       >
         {asb && asb.state !== "NORMAL" && (
           <div className={`asb-banner ${asbInfo.tone}`} role="status">
@@ -904,12 +932,17 @@ export default function App() {
               onTransform={onMapTransform}
               onCursor={setCursor}
               deckCompact={deckCompact}
+              advanced={access.advanced}
+              appearanceKey={appearanceKey}
+              leftInset={sidebarInset}
+              onMapPick={fabric.deliverPick}
             />
             <FabricOverlay ref={overlay} />
           </div>
 
           {interactive && (
             <>
+              <FabricSidebar onInset={setSidebarInset} reduceMotion={reduceMotion} />
               <FabricStatus />
               <FabricIndicators />
               <FabricPanel />
@@ -956,6 +989,11 @@ export default function App() {
               newsStyle: config.news.style,
               realisticAvailable,
               narratorNote: narratorNote(narrator),
+              narratorBadge: narratorBadge(narrator),
+              theme: access.theme,
+              colorVision: access.color_vision,
+              reduceTransparency: access.reduce_transparency,
+              advanced: access.advanced,
             }}
             actions={{
               onReset: resetSettings,
@@ -969,6 +1007,10 @@ export default function App() {
               onSkipSeconds: (s) => persist({ playback: { ...config.playback, skip_seconds: s } }),
               onStepSeconds: (s) => persist({ playback: { ...config.playback, step_seconds: s } }),
               onNewsStyle: (style) => persist({ news: { style } }),
+              onTheme: (value) => persist({ accessibility: { ...access, theme: value } }),
+              onColorVision: (value) => persist({ accessibility: { ...access, color_vision: value } }),
+              onReduceTransparency: (value) => persist({ accessibility: { ...access, reduce_transparency: value } }),
+              onAdvanced: (value) => persist({ accessibility: { ...access, advanced: value } }),
             }}
           />
 
@@ -989,6 +1031,22 @@ export default function App() {
             onCollapse={() => setCollapsed(true)}
             onExpand={() => setCollapsed(false)}
           />
+
+          <div className="map-readout" data-tip-avoid>
+            <span className="mono" aria-label="Pointer coordinates">
+              {cursor
+                ? formatCoordinate(cursor.lat, cursor.lon)
+                : location
+                  ? formatCoordinate(location.anchor_lat, location.anchor_lon)
+                  : origin
+                    ? formatCoordinate(origin.origin_lat, origin.origin_lon)
+                    : "No coordinates"}
+            </span>
+            <span className="map-scale-mark mono" aria-label={`Map scale ${scaleBar.label}`}>
+              <i style={{ width: Math.round(scaleBar.pixels) }} />
+              {scaleBar.label}
+            </span>
+          </div>
 
           <div className="bottom-stack">
             <div className="lower-hud">
@@ -1032,20 +1090,6 @@ export default function App() {
                     <span>Layers</span>
                   </button>
                 </div>
-                <span className="hud-pill hud-readout mono" aria-label="Pointer coordinates" data-tip-avoid>
-                  <Icon name="pin" size={14} />
-                  {cursor
-                    ? formatCoordinate(cursor.lat, cursor.lon)
-                    : location
-                      ? formatCoordinate(location.anchor_lat, location.anchor_lon)
-                      : origin
-                        ? formatCoordinate(origin.origin_lat, origin.origin_lon)
-                        : "No coordinates"}
-                </span>
-                <span className="hud-pill hud-readout scale-readout" aria-label={`Map scale ${scaleBar.label}`} data-tip-avoid>
-                  <i style={{ width: Math.round(scaleBar.pixels) }} />
-                  <span className="mono">{scaleBar.label}</span>
-                </span>
               </div>
             </div>
 
@@ -1095,7 +1139,7 @@ export default function App() {
           {failure.mounted && <BootFailure message={lastFailure.current} closing={failure.closing} reduceMotion={reduceMotion} />}
           {shutDown && <ShutdownSurface reduceMotion={reduceMotion} />}
 
-          {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} onResetPreferences={resetAllPreferences} />}
+          {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} onResetPreferences={resetAllPreferences} narratorBadge={narratorBadge(narrator)} />}
           {dialog === "reset" && (
             <ConfirmCard
               title="Reset the simulation?"
@@ -1217,5 +1261,6 @@ export default function App() {
         />
       )}
     </TimeFormatProvider>
+    </AdvancedContext.Provider>
   );
 }
