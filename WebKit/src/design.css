@@ -482,7 +482,6 @@ dd .status-badge {
     transform 620ms var(--spring-expressiveDefault, ease-out),
     opacity var(--t-select) var(--ease);
   clip-path: inset(-10px -10px -10px -10px);
-  filter: drop-shadow(0 0 22px rgb(var(--accent-rgb) / 28%));
   @starting-style {
     clip-path: inset(-10px 100% -10px -10px);
     transform: translateY(6px) scale(0.97);
@@ -2253,12 +2252,19 @@ html, body, #root {
 .loading-surface.boot:has(.film) .loading-licence { position: absolute; right: 28px; top: 30px; bottom: auto; left: auto; width: auto; max-width: 56%; margin: 0; text-align: right; }
 .loading-surface.boot:has(.film .loading-eyebrow) .loading-licence { top: 52px; }
 
-.film-caption { position: absolute; left: 28px; bottom: 116px; width: min(560px, calc(100% - 56px)); pointer-events: none; animation: film-caption var(--motion-page-ms, 600ms) var(--motion-page, ease-out) 0.7s both; }
-.film-chapter { display: block; margin-bottom: 8px; font-size: 11px; color: var(--accent); }
-.film-caption h3 { margin: 0 0 6px; font-family: var(--font-display, inherit); font-size: clamp(22px, 3vw, 34px); font-weight: 600; line-height: 1.12; letter-spacing: -0.01em; color: var(--text); text-wrap: balance; }
-.film-caption p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-dim); }
-@keyframes film-caption { from { opacity: 0; transform: translateY(14px); filter: blur(6px); } }
-.loading-surface.still .film-caption { animation: none; }
+.film-caption { position: absolute; left: 28px; bottom: 112px; width: min(640px, calc(100% - 56px)); pointer-events: none; }
+.film-caption > * { animation: film-caption var(--motion-page-ms, 600ms) var(--motion-page, ease-out) both; }
+.film-caption h3 { animation-delay: 0.62s; }
+.film-caption p { animation-delay: 0.7s; }
+.film-caption .film-chapter { animation-delay: 0.55s; }
+.film-chapter { display: block; margin-bottom: 10px; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.film-caption h3 { margin: 0 0 8px; font-family: var(--font-display, inherit); font-size: clamp(30px, 3.6vw, 46px); font-weight: 500; line-height: 1.08; letter-spacing: -0.02em; color: var(--text); text-wrap: balance; text-shadow: 0 1px 24px rgb(var(--surface-rgb) / 90%), 0 0 4px rgb(var(--surface-rgb) / 60%); }
+.film-caption p { margin: 0; max-width: 48ch; font-size: 15px; line-height: 1.5; color: var(--text-dim); text-shadow: 0 0 12px rgb(var(--surface-rgb) / 95%), 0 0 3px rgb(var(--surface-rgb) / 80%); }
+.film-ticks { display: flex; gap: 4px; margin-top: 16px; animation: none !important; }
+.film-ticks i { display: block; width: 18px; height: 2px; border-radius: 1px; background: rgb(var(--line-rgb) / 22%); transition: background var(--motion-fade-ms, 200ms) var(--motion-fade, ease-out); }
+.film-ticks i.on { background: var(--accent); }
+@keyframes film-caption { from { opacity: 0; transform: translateY(12px); filter: blur(6px); } }
+.loading-surface.still .film-caption > * { animation: none; }
 .loading-surface.boot.closing .film-caption, .loading-surface.boot.closing .loading-steps, .loading-surface.boot.closing .loading-surface.boot .loading-card.film h2, .loading-surface.boot.closing .loading-surface.boot .loading-card.film .loading-status { opacity: 0; transition: opacity var(--motion-fade-ms, 200ms) var(--motion-fade, ease-out); }
 
 /* ---- The rest of the curvature, and small corrections ------------------------------------------ */
@@ -2285,3 +2291,34 @@ html, body, #root {
 .viewport-card { flex: none; }
 /* Its place is held, so the bar does not shift as the state changes. */
 @container rail (min-width: 1181px) { .rail .runtime { min-width: 84px; justify-content: flex-start; } }
+
+/* The surface's own background sits on a layer of its own, so the map can show through
+   while the particles are still on their way to its roads. */
+.loading-surface.boot { background: none; }
+.loading-surface.boot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgb(var(--raised-rgb) / 92%), rgb(var(--surface-rgb) / 99%) 68%),
+    var(--surface);
+}
+.loading-surface.boot.closing.landing { opacity: 1; filter: none; transition: none; }
+.loading-surface.boot.landing::before { opacity: 0; transition: opacity 760ms var(--ease) 240ms; }
+.loading-surface.boot.landing::after { opacity: 0; transition: opacity 300ms var(--ease); }
+.loading-surface.boot.closing.landing .boot-scene { opacity: 1; transition: none; }
+.loading-surface.boot.landing .loading-licence { opacity: 0; transition: opacity 200ms var(--ease); }
+.loading-surface.boot.landing .film-caption { opacity: 0; transform: translateY(8px); transition: opacity 260ms var(--ease), transform 260ms var(--ease); }
+
+/* Start-up text: the stage and its detail on one line, the notice beneath the stages. */
+.loading-surface.boot .loading-card.film h2 { bottom: 66px; font-size: 13px; font-weight: 600; }
+.loading-surface.boot .loading-card.film .loading-status { bottom: 66px; font-size: 13px; }
+.loading-surface.boot .loading-card.film .loading-steps { bottom: 38px; }
+.loading-surface.boot .loading-card.film:not(:has(.loading-steps)) :is(h2, .loading-status) { bottom: 38px; }
+.loading-surface.boot:has(.film) .loading-licence { top: auto; bottom: 12px; left: 28px; right: 28px; width: auto; max-width: none; font-size: 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loading-surface.boot:has(.film .loading-eyebrow) .loading-licence { top: auto; }
+.loading-surface.boot .loading-card.film .loading-eyebrow { top: 30px; font-size: 11px; letter-spacing: 0.08em; }
+/* A failure is read from the card: nothing competes with it. */
+.loading-surface.boot .loading-error { background: rgb(var(--surface-rgb) / 88%); }
+.loading-surface.boot.closing.landing .boot-logo { opacity: 0; transition: transform 520ms var(--spring-expressiveSlow, ease-out), opacity 200ms var(--ease) 160ms; }

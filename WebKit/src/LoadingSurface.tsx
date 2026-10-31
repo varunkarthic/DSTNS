@@ -47,6 +47,7 @@ export function LoadingSurface({
   idle = false,
   eyebrow,
   aside,
+  landing,
 }: {
   /** "boot" covers the screen; "overlay" floats a card over the dimmed map. */
   mode: "boot" | "overlay";
@@ -73,6 +74,8 @@ export function LoadingSurface({
   eyebrow?: string;
   /** Something to read while waiting. */
   aside?: ReactNode;
+  /** Where the particles go when the map takes over. */
+  landing?: () => Float32Array | null;
 }) {
   // The wordmark hands over to the one in the header, so the screen resolves into
   // the interface instead of disappearing from in front of it.
@@ -174,7 +177,7 @@ export function LoadingSurface({
   return (
     <div
       ref={surface}
-      className={`loading-surface ${mode}${closing ? " closing" : ""}${reduceMotion ? " still" : ""}`}
+      className={`loading-surface ${mode}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
       role={role}
       aria-modal={role === "alertdialog" ? true : undefined}
       aria-labelledby={titleId}
@@ -182,7 +185,7 @@ export function LoadingSurface({
       aria-live={role === "status" ? "polite" : undefined}
     >
       {mode === "boot" && (
-        <BootScene playing={film} closing={closing} reduceMotion={reduceMotion} />
+        <BootScene playing={film} closing={closing} landing={landing} reduceMotion={reduceMotion} />
       )}
       {body}
       {footer}

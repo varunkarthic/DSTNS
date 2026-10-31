@@ -154,8 +154,10 @@ def cached_maps(paths: Paths = PATHS) -> list[str]:
     return out
 
 
-def map_recovery(paths: Paths = PATHS) -> str:
-    """What to do when a seed's city cannot be downloaded."""
+def map_recovery(paths: Paths = PATHS, message: str = "") -> str:
+    """What to do when a seed's city cannot be used. A map that arrived and is too small is not a network fault."""
+    if "large enough to simulate" in message:
+        return "The map downloaded correctly, so the network is not at fault. Start again with a different seed."
     lines = [
         "The seed could not be resolved to a district, and no other city is substituted for it.",
         "Check the network, VPN or proxy, or set DSTNS_OVERPASS_ENDPOINTS to a reachable Overpass instance.",
@@ -180,7 +182,7 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
     if response.code != 202:
         message = response.error_message() if response.code else "The server could not be reached."
         if response.error_code() == "MAP_FETCH_FAILED":
-            raise SimulationStartError(message, remedy=map_recovery(paths))
+            raise SimulationStartError(message, remedy=map_recovery(paths, message))
         if response.error_code() == "CLI_START_REQUIRED":
             raise SimulationStartError(message, remedy="The operator credential in logs/operator.token does not match this server.")
         raise SimulationStartError(f"Startup failed: {message}")
@@ -197,7 +199,7 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
                 break
             if current.lifecycle == "IDLE" and current.preparation_error:
                 raise SimulationStartError(current.preparation_error,
-                                           remedy=map_recovery(paths) if on_demand else "Check the map file.")
+                                           remedy=map_recovery(paths, current.preparation_error) if on_demand else "Check the map file.")
             if on_demand:
                 progress = map_status(port, paths)
                 if progress.get("active"):

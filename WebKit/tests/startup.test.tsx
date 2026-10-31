@@ -43,6 +43,14 @@ describe("start-up states", () => {
     }
   });
 
+  it("does not promise a world that cannot be prepared will clear by itself", () => {
+    render(<BootFailure message="No road network here." reachable reduceMotion />);
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("This world could not be prepared");
+    expect(screen.getByText(/different seed/)).toBeInTheDocument();
+    expect(screen.queryByText(/clears by itself/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reload" })).toBeNull();
+  });
+
   it("explains a failure, says what is safe, and offers a way forward", () => {
     render(<BootFailure message="World preparation failed." reduceMotion={false} />);
     expect(screen.getByRole("alertdialog")).toHaveTextContent("DSTNS could not start");

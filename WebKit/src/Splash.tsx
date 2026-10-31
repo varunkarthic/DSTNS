@@ -49,11 +49,13 @@ export function Splash({
   reduceMotion,
   closing = false,
   onDismiss,
+  landing,
 }: {
   stage: SplashStage;
   reduceMotion: boolean;
   closing?: boolean;
   onDismiss?: () => void;
+  landing?: () => Float32Array | null;
 }) {
   // Only offer a way past the start-up screen once waiting has become
   // notable, so the option does not flash up during a fast start.
@@ -80,6 +82,7 @@ export function Splash({
       progress={stage.progress}
       progressLabel={stage.label}
       idle={stage.waiting}
+      landing={landing}
       closing={closing}
       reduceMotion={reduceMotion}
       titleId="splash-title"
@@ -95,23 +98,29 @@ export function Splash({
   );
 }
 
-/** Nothing could be loaded. Says what happened and what is safe, and keeps trying behind it. */
-export function BootFailure({ message, reduceMotion, closing = false }: { message: string; reduceMotion: boolean; closing?: boolean }) {
+/**
+ * Nothing could be loaded. Says what happened and what is safe. Without a server it keeps
+ * trying behind this screen. With one, the server has answered that this world cannot be
+ * prepared, and only starting another will change that.
+ */
+export function BootFailure({ message, reduceMotion, closing = false, reachable = false }: { message: string; reduceMotion: boolean; closing?: boolean; reachable?: boolean }) {
   return (
     <LoadingSurface
       mode="boot"
       role="alertdialog"
       failed
-      title="DSTNS could not start"
+      title={reachable ? "This world could not be prepared" : "DSTNS could not start"}
       error={message}
-      note="Nothing has been lost. This screen clears by itself as soon as the simulator answers."
+      note={reachable ? "Nothing has been lost, and the simulator is still running. Start a run with a different seed from the DSTNS CLI." : "Nothing has been lost. This screen clears by itself as soon as the simulator answers."}
       closing={closing}
       reduceMotion={reduceMotion}
       titleId="boot-failure-title"
       actions={
-        <button type="button" className="btn" onClick={() => window.location.reload()}>
-          Reload
-        </button>
+        reachable ? undefined : (
+          <button type="button" className="btn" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        )
       }
       footer={<p className="loading-licence">{LICENCE}</p>}
     />

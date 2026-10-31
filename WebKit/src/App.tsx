@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import NetworkMap from "./NetworkMap";
-import type { MapControls } from "./NetworkMap";
+import type { MapControls, MapTransform } from "./NetworkMap";
 import { TelemetryDeck } from "./TelemetryDeck";
 import { CommandRail } from "./CommandRail";
 import { LayersPopover } from "./LayersPopover";
@@ -13,6 +13,7 @@ import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
 import { BootFailure, ShutdownSurface, Splash, splashStageFor } from "./Splash";
+import { LANDING_MS, landingPoints } from "./BootScene";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
 import { NotificationHistory } from "./notificationHistory";
@@ -475,7 +476,9 @@ export default function App() {
   }, [sim.snapshot]);
   const [sidebarInset, setSidebarInset] = useState(0);
   const overlay = useRef<FabricOverlayHandle>(null);
+  const mapView = useRef<MapTransform | null>(null);
   const onMapTransform = useCallback<NonNullable<ComponentProps<typeof NetworkMap>["onTransform"]>>((view) => {
+    mapView.current = view;
     mapScale.current = view.scale;
     overlay.current?.draw(view);
     readout.current?.camera(view.scale);
@@ -868,7 +871,13 @@ export default function App() {
   // The start-up screen dissolves over the rendered map rather than vanishing.
   const lastSplash = useRef(splashStage);
   if (splashStage) lastSplash.current = splashStage;
-  const splash = usePresence(showSplash, MOTION_MS.boot);
+  const splash = usePresence(showSplash, reduceMotion ? MOTION_MS.boot : LANDING_MS);
+  const landOnRoads = useCallback(() => {
+    const view = mapView.current;
+    const box = document.querySelector(".static-map")?.getBoundingClientRect();
+    if (!view || !box || !sim.topology) return null;
+    return landingPoints(sim.topology.edges.map((edge) => edge.geometry), view, box, window.innerWidth, window.innerHeight);
+  }, [sim.topology]);
   // Nothing has ever loaded and the simulator is not answering, or refused the
   // world. Once a world is on screen a lost connection is shown over it instead.
   const bootFailure = sim.error && !sim.topology && !world.active && !shutDown ? sim.error : "";
@@ -1165,9 +1174,9 @@ export default function App() {
           </div>
 
           {splash.mounted && lastSplash.current && (
-            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} onDismiss={() => setSplashDismissed(true)} />
+            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} onDismiss={() => setSplashDismissed(true)} />
           )}
-          {failure.mounted && <BootFailure message={lastFailure.current} closing={failure.closing} reduceMotion={reduceMotion} />}
+          {failure.mounted && <BootFailure message={lastFailure.current} reachable={!!sim.status} closing={failure.closing} reduceMotion={reduceMotion} />}
           {shutDown && <ShutdownSurface reduceMotion={reduceMotion} />}
 
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} onResetPreferences={resetAllPreferences} narratorBadge={narratorBadge(narrator)} />}

@@ -147,8 +147,9 @@ One surface, `LoadingSurface` in `boot` mode, for every state before a map:
 
 The film is one WebGL2 draw of 24,000 particles that re-form into the wordmark, streets, a city, traffic,
 weather, a world of seeds and the WebFabric weave, each with a caption. It never reflects progress. The pointer
-parts the cloud and a click sends a ring through it. A failure or a shutdown is something to read, so
-it stays a card in the middle over the wordmark.
+parts the cloud and a click sends a ring through it. When the map is ready, the particles fly to the
+roads exactly where the map has drawn them and give way to it, so the film becomes the map. A failure
+or a shutdown is something to read, so it stays a card in the middle, with the network resting dimly behind it.
 
 It dissolves into the map as soon as the map exists, and the interface arrives around it in
 a stagger. Nothing is held for effect, and

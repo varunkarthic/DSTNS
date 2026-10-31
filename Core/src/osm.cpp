@@ -331,9 +331,46 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
     };
 
     // Retry counter 'a' if component is too small
-    const std::uint32_t attempts = anchor.valid ? 1u : 16u;
+    const std::uint32_t attempts = anchor.valid ? 2u : 16u;
     for (std::uint32_t a = 0; a < attempts; ++a) {
         selected.clear();
+        // The nearest road can be an isolated pocket, such as the paths inside a park,
+        // however much city surrounds it. Then the district grows from the nearest
+        // road that belongs to a network large enough. Districts that are large enough
+        // from the first node never reach this, so their results do not change.
+        if (anchor.valid && a == 1) {
+            const double lon_scale = std::cos(anchor.lat * 3.141592653589793 / 180.0);
+            std::vector<std::pair<double, std::int64_t>> by_distance;
+            by_distance.reserve(anchors.size());
+            for (const auto id : anchors) {
+                const auto& n = raw_nodes.at(id);
+                const double dy = n.lat - anchor.lat;
+                const double dx = (n.lon - anchor.lon) * lon_scale;
+                by_distance.emplace_back(dx * dx + dy * dy, id);
+            }
+            std::sort(by_distance.begin(), by_distance.end());
+            std::set<std::int64_t> visited;
+            std::int64_t found = 0;
+            for (const auto& [distance, id] : by_distance) {
+                if (visited.contains(id)) continue;
+                std::vector<std::int64_t> stack{id};
+                visited.insert(id);
+                std::size_t size = 0;
+                while (!stack.empty()) {
+                    const auto at = stack.back();
+                    stack.pop_back();
+                    ++size;
+                    for (const auto next : adjacency[at])
+                        if (visited.insert(next).second) stack.push_back(next);
+                }
+                if (size >= kMinimumDistrictNodes) {
+                    found = id;
+                    break;
+                }
+            }
+            if (!found) break;
+            candidate_pool.assign(1, found);
+        }
         root_osm = candidate_pool[rng.bounded({RngDomain::MapSelection, a, 0, 0}, static_cast<std::uint32_t>(candidate_pool.size()))];
         const auto& r_root = raw_nodes.at(root_osm);
         const double root_lat = r_root.lat;
@@ -366,7 +403,7 @@ OsmRoadGraph OsmRoadLoader::load_xml(const std::filesystem::path& file, std::uin
         }
 
         if (selected.size() > best_selected.size()) { best_selected=selected; best_root=root_osm; }
-        if (selected.size() >= target_nodes) {
+        if (selected.size() >= target_nodes || (anchor.valid && selected.size() >= kMinimumDistrictNodes)) {
             break;
         }
     }

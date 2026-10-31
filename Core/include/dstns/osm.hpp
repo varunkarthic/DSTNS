@@ -11,6 +11,9 @@ struct OsmRoadGraph { NodeId root; std::vector<NodeStatic> nodes; std::vector<Ed
 // re-rolling within one downloaded city extract lands somewhere genuinely
 // different. Without an anchor the loader falls back to seeded sector
 // selection, which is what bare fixtures use.
+/// The fewest junctions a district may have and still be simulated.
+inline constexpr std::size_t kMinimumDistrictNodes = 400;
+
 struct DistrictAnchor {
     bool valid{false};
     double lat{}, lon{};

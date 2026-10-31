@@ -336,7 +336,20 @@ separate going-home phase.
 **Consequences.** Momentum fades into the return by itself. A finger held still past the edge is also
 released, because a browser cannot tell it from having stopped.
 
-## 24. Saying when something is on purpose
+## 24. A district does not depend on one road
+
+**Problem.** A seed's district grew from the road node nearest its coordinates. In Singapore that node was
+on an isolated pocket of 89 junctions inside a nature reserve, with a network of over 9,000 beside it, so
+the seed always failed and was reported as water.
+
+**Decision.** If what grows from the nearest node is below the minimum, the district grows from the nearest road
+belonging to a large enough network. Only when the tile has none does the seed fail.
+
+**Consequences.** Seeds that used to fail now run. A seed that already worked takes the same path and gives
+the same world, because the second attempt is never reached. The chosen district can be a little way from the
+coordinates, which are still those the seed selected.
+
+## 25. Saying when something is on purpose
 
 **Problem.** The interface suspending itself, a speed that will not change, or a window that refuses to draw
 all look like faults, though each one is protecting the run.
@@ -348,7 +361,7 @@ failures stay with the notification capsule.
 **Consequences.** Adding a case means adding one entry and one condition. Saying "intentional" about a
 real fault would cost trust, so only states the system chooses qualify.
 
-## 25. WebFabric places things on the network, and the observer animates them
+## 26. WebFabric places things on the network, and the observer animates them
 
 **Problem.** Sending coordinates every second keeps applications busy and leaves vehicles cutting corners
 between reports.
@@ -360,7 +373,7 @@ observer leaves out what a later world no longer has.
 **Consequences.** Applications send less, and their vehicles stay on the roads. The observer holds the
 topology for this anyway, so it adds no request. A path is visual: it does not place traffic in the simulation.
 
-## 26. Start-up is a film, and progress is reported beside it
+## 27. Start-up is a film, and progress is reported beside it
 
 **Problem.** A short start needs something to look at, and a long one needs to show that it is working, without
 the animation implying progress it cannot measure.
@@ -368,6 +381,9 @@ the animation implying progress it cannot measure.
 **Decision.** One WebGL2 draw of 24,000 particles re-forms into what DSTNS does, with its own captions. Stage
 progress runs along the bottom and comes only from what the core reports. There is no 3D library: the whole
 scene fits in one shader and one file.
+
+It ends by landing on the real roads where the map has drawn them, so the screen resolves into the map instead
+of fading away from it.
 
 **Consequences.** It costs one draw call, and draws fewer particles on a machine that cannot keep up. Without WebGL2 the
 captions still play over the plain background. With reduced motion it is one still picture.

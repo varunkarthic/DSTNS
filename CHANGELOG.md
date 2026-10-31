@@ -17,10 +17,19 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 20. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Fixed: seeds that could never start
+
+- A seed whose coordinates fell on an isolated pocket of road failed with "mostly water or unmapped", even inside
+  a dense city such as Singapore. The district now grows from the nearest road belonging to a network large
+  enough. Those seeds now run; **results for every seed that already worked are unchanged**.
+- The launcher no longer advises checking the network when a map downloaded correctly but cannot be used, and the
+  observer no longer says such a failure clears by itself.
+
 ### Added in the latest interface round
 
 - **Start-up film.** A WebGL2 particle scene re-forms into the wordmark, streets, a city, traffic, weather, a
-  world of seeds and the WebFabric weave, with captions. Stage progress runs along the bottom.
+  world of seeds and the WebFabric weave, with captions. Stage progress runs along the bottom. When the map is
+  ready, the particles fly to its real roads and give way to it.
 - **`ISDHandler`** (Intentional System Design Handler). A small note when the system does something on purpose
   that looks like a fault: Async, Restricted, a held or reduced speed, held reduced motion, a window that is too
   small, stepped movement above 5×, and an application that stopped checking in.

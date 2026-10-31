@@ -395,5 +395,15 @@ class Cancellation(unittest.TestCase):
             start_run.assert_not_called()
 
 
+
+class MapRecoveryTest(unittest.TestCase):
+    def test_a_map_too_small_is_not_blamed_on_the_network(self):
+        from dstns_launcher.core import simulation
+        advice = simulation.map_recovery(message="The map tile for X has no connected road network large enough to simulate")
+        self.assertIn("different seed", advice)
+        self.assertNotIn("VPN", advice)
+        self.assertIn("VPN", simulation.map_recovery(message="OSM download failed"))
+
+
 if __name__ == "__main__":
     unittest.main()

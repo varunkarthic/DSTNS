@@ -27,7 +27,6 @@ std::string canonical_graph(const Scenario&s){std::ostringstream o;for(const aut
 }
 
 // Below this a district is not a street network worth simulating.
-constexpr std::size_t kMinimumDistrictNodes = 400;
 
 // A signal controller belongs where at least three ways meet. Below that the
 // OSM tag denotes a crossing or a gate, not an intersection.
@@ -93,15 +92,15 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
             s.map_city=location.city;s.map_country=location.country;
             s.map_anchor_lat=location.anchor_lat;s.map_anchor_lon=location.anchor_lon;
             s.map_city_extent_m=location.extent_m;s.map_downloaded=downloaded;
-            // A tile that lands on water, parkland or an unmapped area yields a
-            // network too thin to simulate. Say so plainly instead of running a
-            // degenerate scenario that looks like a working one.
+            // No part of this tile has a road network large enough to simulate. Say
+            // so plainly instead of running a degenerate scenario that looks like a
+            // working one.
             if(s.nodes.size()<kMinimumDistrictNodes){
                 throw MapFetchError("The map tile for "+location.city+" ("+location.country+") at "
                     +std::to_string(location.anchor_lat)+", "+std::to_string(location.anchor_lon)
-                    +" contains only "+std::to_string(s.nodes.size())+" road junctions (at least "
-                    +std::to_string(kMinimumDistrictNodes)+" are needed). The area is mostly water or "
-                    "unmapped; re-roll the seed for a different district.");
+                    +" has no connected road network large enough to simulate: the largest near it has "
+                    +std::to_string(s.nodes.size())+" junctions, and at least "+std::to_string(kMinimumDistrictNodes)
+                    +" are needed. Choose a different seed.");
             }
         }
     }

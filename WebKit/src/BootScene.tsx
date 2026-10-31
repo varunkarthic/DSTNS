@@ -22,15 +22,21 @@ const STRIDE = 7; // x y z, vx vy vz, tint
 const HOLD_S = 4.6;
 const MORPH = { k: 11, c: 5.6 };
 const CAMERA = { k: 9, c: 6 };
+// Handing over to the map: quick enough not to keep anyone waiting, and no overshoot.
+const LAND = { k: 20, c: 9 };
+/** How long the handover takes. The surface stays mounted this long. */
+export const LANDING_MS = 1500;
+// With nothing to do, the network rests dimly, out of the way of what is on screen.
+const REST_DIM = 0.14;
 
-export const FILM_CHAPTERS: readonly { title: string; text: string }[] = [
-  { title: "Deterministic Spatiotemporal Transport Network Simulator", text: "A full day of a city's traffic, computed second by second." },
-  { title: "Real streets", text: "Every world is a real district, read from OpenStreetMap." },
-  { title: "Places that move people", text: "Schools, offices, malls and stores shape demand through the day." },
-  { title: "One-second physics", text: "Traffic advances in fixed one-second steps, whatever the playback speed." },
-  { title: "Weather and flooding", text: "Rain cells cross the district, and flooded roads change how traffic moves." },
-  { title: "One seed, one day", text: "The same seed gives the same day, second by second, on any machine." },
-  { title: "Built to be extended", text: "Applications connect through Fabric and appear in the interface through WebFabric." },
+export const FILM_CHAPTERS: readonly { label: string; title: string; text: string }[] = [
+  { label: "Deterministic Spatiotemporal Transport Network Simulator", title: "A city's day, second by second", text: "DSTNS computes a full day of traffic for a real district, one second at a time." },
+  { label: "Networks", title: "Real streets", text: "Every world is a real district, built from OpenStreetMap." },
+  { label: "Demand", title: "Places that move people", text: "Schools, offices, malls and stores shape demand through the day." },
+  { label: "Physics", title: "One-second steps", text: "Traffic advances in fixed one-second steps, whatever the playback speed." },
+  { label: "Environment", title: "Weather and flooding", text: "Rain cells cross the district, and flooded roads change how traffic moves." },
+  { label: "Reproducibility", title: "One seed, one day", text: "The same seed gives the same day, second by second, on any machine." },
+  { label: "WebFabric", title: "Built to be extended", text: "Applications connect through Fabric and appear in the interface through WebFabric." },
 ];
 
 interface Camera { yaw: number; pitch: number; distance: number; spin: number }
@@ -210,12 +216,52 @@ function wordmarkFormation(image: HTMLImageElement): Float32Array | null {
   }, 18);
 }
 
+/**
+ * Where the particles land: along the roads, exactly where the map has drawn them, in
+ * clip space. x, y and a tint for each. Longer roads get more particles.
+ */
+export function landingPoints(roads: readonly { x_m: number; y_m: number }[][], view: { x: number; y: number; scale: number }, box: { left: number; top: number }, width: number, height: number, count = COUNT): Float32Array | null {
+  const lengths: number[] = [];
+  let total = 0;
+  for (const road of roads) {
+    let length = 0;
+    for (let i = 1; i < road.length; i++) length += Math.hypot(road[i].x_m - road[i - 1].x_m, road[i].y_m - road[i - 1].y_m);
+    lengths.push(length);
+    total += length;
+  }
+  if (!(total > 0) || !(width > 0) || !(height > 0)) return null;
+  const random = sequence(5150);
+  const data = new Float32Array(count * 3);
+  let road = 0;
+  let passed = lengths[0];
+  for (let i = 0; i < count; i++) {
+    const at = ((i + 0.5) / count) * total;
+    while (at > passed && road < roads.length - 1) passed += lengths[++road];
+    const points = roads[road];
+    let left = at - (passed - lengths[road]);
+    let segment = 1;
+    for (; segment < points.length - 1; segment++) {
+      const piece = Math.hypot(points[segment].x_m - points[segment - 1].x_m, points[segment].y_m - points[segment - 1].y_m);
+      if (left <= piece) break;
+      left -= piece;
+    }
+    const p = points[segment - 1] ?? points[0];
+    const q = points[segment] ?? p;
+    const piece = Math.hypot(q.x_m - p.x_m, q.y_m - p.y_m) || 1;
+    const t = Math.min(1, left / piece);
+    const x = box.left + view.x + (p.x_m + (q.x_m - p.x_m) * t) * view.scale;
+    const y = box.top + view.y - (p.y_m + (q.y_m - p.y_m) * t) * view.scale;
+    data.set([(x / width) * 2 - 1, 1 - (y / height) * 2, 0.45 + random() * 0.55], i * 3);
+  }
+  return data;
+}
+
 const VERTEX = `#version 300 es
-in vec3 aFrom, aFromV, aTo, aToV;
+in vec3 aFrom, aFromV, aTo, aToV, aLand;
 in float aFromTint, aToTint;
 in float aSeed;
 uniform mat4 uView;
-uniform float uMix, uTime, uPixels;
+uniform float uMix, uTime, uPixels, uLand;
 uniform vec2 uPointer;
 uniform vec3 uRipple;
 out float vTint, vAlpha;
@@ -243,12 +289,16 @@ void main() {
     float reach = length(r) - uRipple.z * 1.5;
     ndc += normalize(r + 1e-4) * exp(-reach * reach * 60.0) * 0.07 * exp(-uRipple.z * 2.2);
   }
+  // Handing over to the map: from wherever each particle is, to its place on a road.
+  float l = clamp(uLand * 1.4 - aSeed * 0.4, 0.0, 1.0);
+  l = l * l * (3.0 - 2.0 * l);
+  ndc = mix(ndc, aLand.xy, l);
   gl_Position = vec4(ndc * clip.w, clip.z, clip.w);
   float depth = clip.w;
-  gl_PointSize = uPixels * (1.0 + aSeed * 0.9) * clamp(3.4 / depth, 0.35, 2.6);
-  vTint = mix(aFromTint, aToTint, m);
+  gl_PointSize = mix(uPixels * (1.0 + aSeed * 0.9) * clamp(3.4 / depth, 0.35, 2.6), uPixels * 0.8, l);
+  vTint = mix(mix(aFromTint, aToTint, m), aLand.z, l);
   // Nearer and further than the focal distance falls away, as with a lens.
-  vAlpha = (0.32 + vTint * 0.68) * clamp(1.5 - abs(depth - 3.1) * 0.5, 0.18, 1.0);
+  vAlpha = mix((0.32 + vTint * 0.68) * clamp(1.5 - abs(depth - 3.1) * 0.5, 0.18, 1.0), 0.9, l);
 }`;
 
 const FRAGMENT = `#version 300 es
@@ -297,10 +347,12 @@ function rgb(value: string, fallback: [number, number, number]): [number, number
   return parts.length >= 3 && parts.every(Number.isFinite) ? [parts[0] / 255, parts[1] / 255, parts[2] / 255] : fallback;
 }
 
-export function BootScene({ playing, closing = false, reduceMotion }: {
-  /** The film runs; otherwise the wordmark holds, for a screen that is not loading anything. */
+export function BootScene({ playing, closing = false, landing, reduceMotion }: {
+  /** The film runs; otherwise the network rests dimly behind whatever is on screen. */
   playing: boolean;
   closing?: boolean;
+  /** Where the map has drawn its roads, asked for once the surface starts to close. */
+  landing?: () => Float32Array | null;
   reduceMotion: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -309,6 +361,8 @@ export function BootScene({ playing, closing = false, reduceMotion }: {
   playingRef.current = playing;
   const closingRef = useRef(closing);
   closingRef.current = closing;
+  const landingRef = useRef(landing);
+  landingRef.current = landing;
 
   useEffect(() => {
     const element = canvas.current;
@@ -358,7 +412,13 @@ export function BootScene({ playing, closing = false, reduceMotion }: {
       attribute("aToTint", scenes[to], 1, 6);
     };
     const uniform = (name: string) => gl.getUniformLocation(program, name);
-    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), dim: uniform("uDim") };
+    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), dim: uniform("uDim"), land: uniform("uLand") };
+    const landAt = gl.getAttribLocation(program, "aLand");
+    const landBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(COUNT * 3), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(landAt);
+    gl.vertexAttribPointer(landAt, 3, gl.FLOAT, false, 0, 0);
 
     // Starts as the cloud, and the first thing it does is become the wordmark.
     let from = 0, to = 0;
@@ -375,7 +435,8 @@ export function BootScene({ playing, closing = false, reduceMotion }: {
       // The cloud stays what the film first gathers out of, and the wordmark takes its turn.
       scenes.push(buffer);
       wordmark = scenes.length - 1;
-      if (reduceMotion) return;
+      // Only a film that is playing, and has not moved on, opens on the wordmark.
+      if (reduceMotion || !playingRef.current || scene !== 0) return;
       to = wordmark;
       bind(from, to);
       blend = 0;
@@ -407,13 +468,17 @@ export function BootScene({ playing, closing = false, reduceMotion }: {
     themes.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-vision"] });
 
     let wordmark = -1;
+    let landing = 0;
+    let landingVelocity = 0;
+    let landed = false; // Whether the particles have somewhere to land.
+    let closingFor = -1;
     let blend = 1;
     let velocity = 0;
     let scene = 0; // Which chapter the cloud is showing.
     let held = 0;
     let time = 0;
     let frame = 0;
-    let dim = 1;
+    let dim = playingRef.current ? 1 : REST_DIM;
     let strength = 1;
     let count = COUNT;
     let slow = 0;
@@ -428,14 +493,15 @@ export function BootScene({ playing, closing = false, reduceMotion }: {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.uniformMatrix4fv(u.view, false, viewMatrix(element.width / element.height, camera.yaw + camera.orbit, camera.pitch, camera.distance));
       gl.uniform1f(u.mix, blend);
+      gl.uniform1f(u.land, landing);
       gl.uniform1f(u.time, time);
       gl.uniform2f(u.pointer, pointer.x, pointer.y);
       gl.uniform3f(u.ripple, ripple.x, ripple.y, ripple.age);
       gl.uniform1f(u.dim, dim * strength);
       gl.drawArrays(gl.POINTS, 0, count);
     }
-    const next = () => {
-      const after = playingRef.current ? (scene + 1) % FILM_CHAPTERS.length : 0;
+    const next = (restTo?: number) => {
+      const after = restTo ?? (scene + 1) % FILM_CHAPTERS.length;
       const buffer = (chapterIndex: number) => (chapterIndex === 0 ? (wordmark >= 0 ? wordmark : 0) : chapterIndex);
       from = to;
       to = buffer(after);
@@ -460,9 +526,25 @@ export function BootScene({ playing, closing = false, reduceMotion }: {
       // The wordmark faces the viewer; it sways, and does not turn away.
       if (scene === 0) camera.orbit += (Math.sin(time * 0.5) * 0.06 - camera.orbit) * Math.min(1, dt * 2);
       if (ripple.age >= 0) ripple = { ...ripple, age: ripple.age > 1.6 ? -1 : ripple.age + dt };
-      const dimTo = closingRef.current ? 0 : 1;
-      dim += (dimTo - dim) * Math.min(1, dt * 8);
-      if (playingRef.current && held > HOLD_S) next();
+      if (closingRef.current && closingFor < 0) {
+        closingFor = 0;
+        const points = landingRef.current?.();
+        if (points) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
+          landed = true;
+        }
+      }
+      if (closingFor >= 0) closingFor += dt;
+      if (landed) [landing, landingVelocity] = stepSpring(landing, landingVelocity, 1, LAND, dt);
+      // Having landed, they give way to the map's own roads.
+      const dimTo = landed ? (closingFor > 0.85 ? 0 : 1) : closingRef.current ? 0 : playingRef.current ? 1 : REST_DIM;
+      dim += (dimTo - dim) * Math.min(1, dt * (landed ? 7 : 8));
+      if (playingRef.current) {
+        if (held > HOLD_S && !closingRef.current) next();
+      } else if (scene !== 1) {
+        next(1);
+      }
       paint();
       // A machine that cannot keep up draws fewer, rather than stuttering.
       slow = dt > 0.03 ? slow + 1 : Math.max(0, slow - 0.25);
@@ -532,9 +614,14 @@ export function BootScene({ playing, closing = false, reduceMotion }: {
       <canvas ref={canvas} className="boot-scene" aria-hidden="true" />
       {playing && (
         <div className="film-caption" aria-hidden="true" key={chapter}>
-          <span className="film-chapter mono">{String(chapter + 1).padStart(2, "0")} / {String(FILM_CHAPTERS.length).padStart(2, "0")}</span>
+          <span className="film-chapter">{shown.label}</span>
           <h3>{shown.title}</h3>
           <p>{shown.text}</p>
+          <span className="film-ticks">
+            {FILM_CHAPTERS.map((c, i) => (
+              <i key={c.label} className={i === chapter ? "on" : ""} />
+            ))}
+          </span>
         </div>
       )}
     </>

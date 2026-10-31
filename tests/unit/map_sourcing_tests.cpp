@@ -235,6 +235,49 @@ int main() {
             std::filesystem::remove_all(sandbox);
         }
 
+        // ---- An isolated pocket of road does not decide the district --------
+        // The anchor is inside a few joined paths, with a whole street grid beside them
+        // that they do not connect to, as with the paths in a city's nature reserve.
+        {
+            const auto sandbox = std::filesystem::temp_directory_path() / "dstns-district-pocket.osm.xml";
+            std::ofstream xml(sandbox);
+            xml << "<osm version=\"0.6\">";
+            const auto node = [&](long id, double lat, double lon) { xml << "<node id=\"" << id << "\" lat=\"" << lat << "\" lon=\"" << lon << "\"/>"; };
+            const int side = 30;
+            for (long i = 0; i < 12; ++i) node(1 + i, 1.0 + i * 0.0002, 103.0);
+            for (long y = 0; y < side; ++y)
+                for (long x = 0; x < side; ++x) node(1000 + y * side + x, 1.01 + y * 0.0005, 103.01 + x * 0.0005);
+            long way = 1;
+            const auto road = [&](const std::vector<long>& refs) {
+                xml << "<way id=\"" << way++ << "\">";
+                for (const auto ref : refs) xml << "<nd ref=\"" << ref << "\"/>";
+                xml << "<tag k=\"highway\" v=\"residential\"/></way>";
+            };
+            std::vector<long> pocket;
+            for (long i = 0; i < 12; ++i) pocket.push_back(1 + i);
+            road(pocket);
+            for (long y = 0; y < side; ++y) {
+                std::vector<long> east, north;
+                for (long x = 0; x < side; ++x) {
+                    east.push_back(1000 + y * side + x);
+                    north.push_back(1000 + x * side + y);
+                }
+                road(east);
+                road(north);
+            }
+            xml << "</osm>";
+            xml.close();
+            DistrictAnchor anchor;
+            anchor.valid = true;
+            anchor.lat = 1.001;
+            anchor.lon = 103.0;
+            const auto grid = OsmRoadLoader{}.load_xml(sandbox, 50000, DeterministicRng(seed.derive("map")), anchor);
+            check(grid.nodes.size() >= kMinimumDistrictNodes, "a district is not stranded on an isolated pocket of road");
+            const auto repeat = OsmRoadLoader{}.load_xml(sandbox, 50000, DeterministicRng(seed.derive("map")), anchor);
+            check(repeat.source_hash == grid.source_hash && repeat.nodes.size() == grid.nodes.size(), "the choice is deterministic");
+            std::filesystem::remove(sandbox);
+        }
+
         // ---- The graph is stored at true scale ---------------------------
         // Every node position must be the real metre offset from the projection
         // origin, so a kilometre on the ground is 1000.0 in the model.
