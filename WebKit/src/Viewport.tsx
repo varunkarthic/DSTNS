@@ -2,14 +2,18 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useState } from "react";
+import { ISDHandler } from "./ISDHandler";
+import type { ISDCondition } from "./ISDHandler";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
+
+const VIEWPORT_NOTE: ISDCondition[] = ["viewport"];
 
 /**
  * Minimum supported viewport.
  *
  * DSTNS is an operator interface for laptop and desktop displays. The command
- * rail alone needs room for transport, the clock, seven speeds, the seed, the
+ * rail alone needs room for transport, the clock, eight speeds, the seed, the
  * runtime status and Terminate; below the size where those fit on one row, and
  * where the map still has usable height beneath the header and above the rail,
  * the interface would be squeezed into something unusable. It says so instead.
@@ -66,6 +70,7 @@ export function ViewportNotice({ width, height, reduceMotion }: { width: number;
         : `at least ${MIN_HEIGHT} pixels tall`;
   return (
     <div className={`viewport-notice${reduceMotion ? " still" : ""}`} role="alert" aria-live="polite">
+      <ISDHandler active={VIEWPORT_NOTE} />
       <div className="viewport-card">
         <Logo height={30} animated={!reduceMotion} />
         <h1>This interface is not optimized for this screen size.</h1>

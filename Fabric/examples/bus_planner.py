@@ -95,7 +95,8 @@ def plan_lines(network, stops):
         if len(unserved) < 2:
             break
         route = [unserved.pop(0)]
-        points = []
+        nodes = [route[0]["node"]]
+        depot = None
         while unserved and len(route) < max(3, len(stops) // LINES + 1):
             here = position[route[-1]["node"]]
             unserved.sort(key=lambda s: math.hypot(s["x_m"] - here["x_m"], s["y_m"] - here["y_m"]))
@@ -110,26 +111,20 @@ def plan_lines(network, stops):
             candidate, path = found
             unserved.remove(candidate)
             route.append(candidate)
-            for edge in path:
-                points.extend([p["x_m"], p["y_m"]] for p in edge["geometry"])
-        if len(points) >= 2:
-            lines.append({"number": number, "stops": route, "points": points, "demand": sum(s["multiplier"] for s in route)})
+            depot = depot if depot is not None else path[0]["id"]
+            nodes.extend(edge["to"] for edge in path)
+        if len(nodes) >= 2:
+            lines.append({"number": number, "stops": route, "nodes": nodes, "depot": depot, "demand": sum(s["multiplier"] for s in route)})
     return lines
 
 
-def along(points, distance):
-    """A point this far along a polyline, there and back."""
-    lengths = [math.dist(points[i], points[i + 1]) for i in range(len(points) - 1)]
-    total = sum(lengths) or 1
-    distance = distance % (2 * total)
-    if distance > total:
-        distance = 2 * total - distance
-    for i, length in enumerate(lengths):
-        if distance <= length and length:
-            t = distance / length
-            return points[i][0] + (points[i + 1][0] - points[i][0]) * t, points[i][1] + (points[i + 1][1] - points[i][1]) * t
-        distance -= length
-    return points[-1]
+def buses(lines, settings, moving):
+    """A path per bus: WebFabric animates them along the roads, so nothing is sent per second."""
+    return {"id": "buses", "slot": "overlay", "features": [
+        {"id": f"bus-{line['number']}-{i}", "type": "path", "nodes": line["nodes"], "series": line["number"], "shape": "bus",
+         "label": f"R{line['number']}" if i == 0 else None, "speed_mps": settings["speed"], "spring": "lively", "bounce": True, "loop": True,
+         "dwell_s": 1.2, "delay_s": i * 5, "reveal": False, "trail": False, "paused": not moving}
+        for line in lines for i in range(int(settings["buses"]))]}
 
 
 def sidebar(lines, covered, moving):
@@ -186,18 +181,20 @@ def main():
     if not lines:
         raise SystemExit("No lines could be planned on this network.")
 
-    routes = {"id": "routes", "slot": "overlay", "features": [{"type": "line", "series": line["number"], "width": 3, "points": line["points"]} for line in lines]}
+    routes = {"id": "routes", "slot": "overlay", "features": [{"type": "route", "series": line["number"], "width": 3, "nodes": line["nodes"]} for line in lines]}
     stop_marks = {"id": "stops", "slot": "overlay", "features": [
-        {"type": "point", "x_m": stop["x_m"], "y_m": stop["y_m"], "size": 3.5, "tone": "warn", "hollow": True} for line in lines for stop in line["stops"]]}
+        {"type": "marker", "node": stop["node"], "shape": "stop", "size": 4, "series": line["number"]} for line in lines for stop in line["stops"]]}
+    depots = {"id": "depots", "slot": "overlay", "features": [
+        {"type": "entity", "edge": line["depot"], "at": 0.5, "shape": "vehicle", "size": 4, "tone": "neutral"} for line in lines if line["depot"] is not None]}
     covered = sum(len(line["stops"]) for line in lines)
     moving = True
     settings = fabric.app("GET", "/settings")["values"]
-    fabric.app("PUT", "/ui", [routes, stop_marks, sidebar(lines, covered, moving)])
+    fabric.app("PUT", "/ui", [routes, stop_marks, depots, buses(lines, settings, moving), sidebar(lines, covered, moving)])
+    history = []
     fabric.app("POST", "/notifications", {"title": f"{len(lines)} lines planned", "body": f"{covered} stops are served along real roads."})
 
     cursor = 0
     tick = 0
-    started = time.monotonic()
     try:
         while not args.ticks or tick < args.ticks:
             tick += 1
@@ -208,9 +205,11 @@ def main():
                 data = event["data"]
                 if event["type"] == "settings.changed":
                     settings = data["values"]
+                    fabric.app("PUT", "/ui/buses", buses(lines, settings, moving))
                 elif event["type"] == "ui.action" and data["element"] == "moving":
                     moving = bool(data["value"])
                     fabric.app("PUT", "/ui/planner", sidebar(lines, covered, moving))
+                    fabric.app("PUT", "/ui/buses", buses(lines, settings, moving))
                 elif event["type"] == "ui.action" and data.get("action") == "pick":
                     place = data["value"]
                     nearest = min((s for line in lines for s in line["stops"]), key=lambda s: math.hypot(s["x_m"] - place["x_m"], s["y_m"] - place["y_m"]))
@@ -218,23 +217,20 @@ def main():
                     fabric.app("POST", "/notifications", {"title": "Nearest stop", "body": f"{metres:.0f} m away, at junction {nearest['node']}."})
 
             # The core's demand now, for the section on the right.
-            live = sorted(fabric.app("GET", "/stops")["items"], key=lambda s: -s["multiplier"])[:6]
+            everywhere = fabric.app("GET", "/stops")["items"]
+            live = sorted(everywhere, key=lambda s: -s["multiplier"])[:6]
+            history = (history + [sum(s["multiplier"] for s in everywhere) / (len(everywhere) or 1)])[-60:]
             fabric.app("PUT", "/ui/demand", {
                 "slot": "deck", "title": "Busiest stops now", "motion": "rise",
-                "widgets": [{"type": "list", "rows": [
+                "widgets": [{"type": "sparkline", "label": "Mean demand multiplier", "value": f"{history[-1]:.2f}×", "values": history, "series": 0},
+                            {"type": "route", "label": f"Line R{lines[0]['number']}", "series": lines[0]["number"], "stops": [
+                                {"label": f"Junction {stop['node']}", "caption": f"{stop['multiplier']:.2f}×", "state": "current" if i == 0 else "next"}
+                                for i, stop in enumerate(lines[0]["stops"][:6])]},
+                            {"type": "list", "rows": [
                     {"badge": f"J{stop['node']}"[:6], "subtitle": f"{stop['generators']} trip generators nearby", "share": min(1, stop["multiplier"] / 2), "value": f"{stop['multiplier']:.2f}×", "series": 1}
                     for stop in live]}],
             })
 
-            # Only the buses change each second; the network is not sent again.
-            if moving:
-                elapsed = time.monotonic() - started
-                fabric.app("PUT", "/ui/buses", {"slot": "overlay", "motion": {"stiffness": 60, "damping": 15}, "features": [
-                    {"id": f"bus-{line['number']}-{i}", "type": "point", "size": 5, "series": line["number"],
-                     **dict(zip(("x_m", "y_m"), along(line["points"], elapsed * settings["speed"] + i * 700)))}
-                    for line in lines for i in range(int(settings["buses"]))]})
-            else:
-                fabric.app("PUT", "/ui/buses", {"slot": "overlay", "features": []})
             if not args.ticks or tick < args.ticks:
                 time.sleep(1)
     except KeyboardInterrupt:

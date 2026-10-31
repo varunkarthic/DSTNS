@@ -42,7 +42,8 @@ the core, opens the browser, waits for the page to be served
 (`GET /system/observer`), and only then requests the run, so the wait is spent
 watching the interface report what is happening rather than a blank tab.
 
-The start-up screen shows the stages the core actually reports, in order:
+The start-up screen plays a particle film of what DSTNS does while it loads, and shows along
+the bottom the stages the core actually reports, in order:
 
 | Stage | Entered when |
 |---|---|
@@ -126,16 +127,13 @@ glyph swaps with a short rotation.
 
 ## Time and progress
 
-The time control is a stadium-shaped button showing the current simulation
-time. Its outline is the completion indicator: the illuminated share of the
-perimeter equals the share of the virtual day completed, starting at the top
-centre and running clockwise. The outline is drawn with `pathLength=100`, so
-42% complete is a dash of exactly 42 units.
+The clock shows the current simulation time, with the share of the day completed beneath it, or
+Paused. Beside it, the day timeline marks the hours of the day, fills as the day passes and stands a
+playhead at the current time. It takes whatever width the bar has left. The timeline reports time and does not
+set it: Back, Forward and Step move through the day.
 
-- **Hover or keyboard focus** reveals "42% complete" above the control.
-- **Click** switches between 12 and 24 hour time everywhere.
-- **Paused**: the outline and time breathe slowly (2.6 s cycle, opacity only).
-  With reduced motion the animation stops and the time is shown dimmed.
+- **Click** the clock to switch between 12 and 24 hour time everywhere.
+- Between snapshots the playhead keeps advancing at the running rate, and a skip travels on a spring.
 
 The accessible name carries the time, percentage and paused state, for example
 "Simulation time 08:42:17, 36 percent complete, paused".
@@ -501,7 +499,7 @@ Map inspection cards use the same placement around the pointer.
 `src/Tutorial.tsx`, `src/useTutorial.ts`, `src/tutorialSteps.ts`.
 
 One card and one spotlight persist for the whole tour and glide between
-targets (380 ms), so the tour reads as one guide rather than separate pop-ups.
+targets on a spring that does not overshoot, so the tour reads as one guide rather than separate pop-ups.
 The spotlight is a single element whose large shadow dims the rest of the
 screen. Card placement is edge-aware (below, above, right, left, clamped) and
 is re-measured every frame, so it follows layout changes.
@@ -512,10 +510,10 @@ rendering and animating. The tour covers the map, map tools, Auto Focus, Do
 Not Disturb, Settings, telemetry, Layers, time and progress, speed, seed and
 new worlds, and runtime status, and ends on the playback controls:
 
-> **You're ready.** Start the simulation when you are ready to begin.
+> **Playback.** Start Simulation closes this tutorial and plays the current world.
 > [Start Simulation]
 
-**Start Simulation** closes the tour and plays the run. **Skip tour** closes it
+**Start Simulation** closes the tour and plays the run. The close button (**Skip tour**) closes it
 and resumes only if the tour paused the run and nothing changed since.
 
 Conditional elements (backpressure indicators, notifications) are never tour
@@ -627,7 +625,7 @@ same design, saying so, reporting the current and required sizes, and leaving
 on its own as soon as the window is large enough. The simulation is unaffected.
 
 Those figures come from the laid-out interface rather than a round number. At
-1024 px the command rail still carries transport, the clock, all seven speeds,
+1024 px the command rail still carries transport, the clock, all eight speeds,
 the seed, the re-roll, runtime status and Terminate on one row (it drops the
 seed's label and the word Terminate below 1180 px); at 640 px the map keeps
 about 400 px between the header and the rail. The browser suite asserts both,

@@ -91,6 +91,8 @@ public:
     /// What a bus stop at each node would see now, by the model real stops use: the
     /// hour's profile, pulled up by trip generators nearby. Read-only.
     [[nodiscard]] nlohmann::json stop_demand(const std::vector<std::uint32_t>& nodes) const;
+    /// Why these overlay features cannot be placed on the loaded network; empty if they can.
+    [[nodiscard]] std::string network_problem(const nlohmann::json& features) const;
 
     /// The place taxonomy: every kind the classifier can produce, whether it is
     /// modelled, and how many of each this world holds.

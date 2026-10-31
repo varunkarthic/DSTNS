@@ -324,3 +324,50 @@ region, so no menu has to ask. See the [interface system](interface-system.md).
 
 **Consequences.** The same gesture feels the same everywhere. It costs a little: content moves
 through a custom property while being stretched, only at the limit.
+
+## 23. A stretch never waits for the input to stop
+
+**Problem.** A wheel has no release, and a trackpad goes on sending events long after the fingers
+lift. Waiting for a quiet moment before going home read as a pause at the end of every scroll.
+
+**Decision.** The pull drains all the time, and input only has to outrun it. There is no timer and no
+separate going-home phase.
+
+**Consequences.** Momentum fades into the return by itself. A finger held still past the edge is also
+released, because a browser cannot tell it from having stopped.
+
+## 24. Saying when something is on purpose
+
+**Problem.** The interface suspending itself, a speed that will not change, or a window that refuses to draw
+all look like faults, though each one is protecting the run.
+
+**Decision.** `ISDHandler`, the Intentional System Design Handler, shows a small note when one of these
+begins: that it is intended, why, and what to do next. Each appears once per page load, one at a time. Real
+failures stay with the notification capsule.
+
+**Consequences.** Adding a case means adding one entry and one condition. Saying "intentional" about a
+real fault would cost trust, so only states the system chooses qualify.
+
+## 25. WebFabric places things on the network, and the observer animates them
+
+**Problem.** Sending coordinates every second keeps applications busy and leaves vehicles cutting corners
+between reports.
+
+**Decision.** Overlay features can name nodes and edges. A `path` is declared once, with its loop, speed and
+spring, and played by the observer. Fabric checks references against the loaded world when it can, and the
+observer leaves out what a later world no longer has.
+
+**Consequences.** Applications send less, and their vehicles stay on the roads. The observer holds the
+topology for this anyway, so it adds no request. A path is visual: it does not place traffic in the simulation.
+
+## 26. Start-up is a film, and progress is reported beside it
+
+**Problem.** A short start needs something to look at, and a long one needs to show that it is working, without
+the animation implying progress it cannot measure.
+
+**Decision.** One WebGL2 draw of 24,000 particles re-forms into what DSTNS does, with its own captions. Stage
+progress runs along the bottom and comes only from what the core reports. There is no 3D library: the whole
+scene fits in one shader and one file.
+
+**Consequences.** It costs one draw call, and draws fewer particles on a machine that cannot keep up. Without WebGL2 the
+captions still play over the plain background. With reduced motion it is one still picture.

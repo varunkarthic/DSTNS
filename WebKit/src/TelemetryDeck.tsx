@@ -4,6 +4,7 @@
 import { useScrollFade } from "./scrollFade";
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
+import { BrandLogo } from "./BrandLogo";
 import { Icon, categoryIcon } from "./Icons";
 import type { IconName } from "./Icons";
 import { FabricDeck } from "./webfabric/Slots";
@@ -195,7 +196,7 @@ function Overview({ snapshot, topology, congestion }: Pick<Props, "snapshot" | "
           <Icon name="road" size={14} /> Road edges
         </span>
         <span className="metric-value">{f.edges.toLocaleString()}</span>
-        <span className="metric-sub">{f.flowingEdges.toLocaleString()} carrying flow</span>
+        <span className="metric-sub">{f.flowingEdges.toLocaleString()} flowing</span>
       </div>
       <div className="metric" data-tutorial="telemetry-vehicles">
         <span className="metric-label">
@@ -216,7 +217,7 @@ function Overview({ snapshot, topology, congestion }: Pick<Props, "snapshot" | "
           <WeatherGlyph weather={weather} size={14} /> Weather
         </span>
         <span className="metric-value small">{weather.label}</span>
-        <span className="metric-sub">{weather.cells ? `${weather.cells} cell${weather.cells === 1 ? "" : "s"} · ${weather.rate}` : weather.rate}</span>
+        <span className="metric-sub">{weather.cells} {weather.cells === 1 ? "cell" : "cells"}</span>
       </div>
       <div className="metric wide" data-tutorial="telemetry-congestion">
         <div className="metric-row">
@@ -755,9 +756,18 @@ function TelemetryDeckImpl(props: Props) {
             <Icon name="panelExpand" size={16} />
           </button>
         </Tooltip>
-        <span className={`strip-status runtime-${runtime}`} role="status" aria-label={`Runtime ${STATUS_TEXT[runtime]}`}>
-          <i aria-hidden="true" />
-        </span>
+        <Tooltip label="WebFabric" detail={deckApps ? "What your applications are showing." : "Applications you connect appear here."} side={["left", "bottom"]}>
+          <button
+            type="button"
+            className={`strip-fabric${panel === "apps" ? " active" : ""}`}
+            aria-label="WebFabric applications"
+            aria-expanded={panel === "apps"}
+            onClick={(e) => openPanel("apps", e.currentTarget)}
+          >
+            <span aria-hidden="true"><BrandLogo name="webfabric-mark" height={12} /></span>
+            {deckApps && <i className="strip-fabric-live" aria-hidden="true" />}
+          </button>
+        </Tooltip>
         <span className="strip-rule" aria-hidden="true" />
         <Tooltip label="Network overview" detail="Roads, vehicles, congestion and weather." side={["left", "bottom"]}>
           <button type="button" className={`strip-overview${panel === "overview" ? " active" : ""}`}
@@ -769,7 +779,7 @@ function TelemetryDeckImpl(props: Props) {
           </button>
         </Tooltip>
         <span className="strip-rule" aria-hidden="true" />
-        {tabs.map((t) => (
+        {TABS.map((t) => (
           <Tooltip key={t.id} label={t.label} side={["left", "bottom", "top"]}>
             <button
               type="button"
@@ -788,7 +798,7 @@ function TelemetryDeckImpl(props: Props) {
       {compact && panel && (
         <section ref={panelRef} className="deck-panel" role="dialog" aria-labelledby={`${idPrefix}-panel-title`} data-tip-avoid>
           <header>
-            <Icon name={panel === "overview" ? "network" : TABS.find((t) => t.id === panel)!.icon} size={16} />
+            {panel === "apps" ? <span aria-hidden="true"><BrandLogo name="webfabric-mark" height={12} /></span> : <Icon name={panel === "overview" ? "network" : TABS.find((t) => t.id === panel)!.icon} size={16} />}
             <h3 id={`${idPrefix}-panel-title`} ref={panelHeading} tabIndex={-1}>
               {VIEW_TITLE[panel]}
             </h3>

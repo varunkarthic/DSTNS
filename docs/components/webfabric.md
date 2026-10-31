@@ -56,6 +56,50 @@ or `drop`, or a custom `{"stiffness": k, "damping": c}`. Custom springs must kee
 and Fabric refuses others: stiffness in [40, 1200], overshoot under 12%, and settled within 1.5 s, so
 nothing feels out of place. On an overlay, a custom spring is also how its named points glide.
 
+## On the road network
+
+Overlay features can name parts of the road network instead of coordinates, so they stay on
+the roads. They use the node and edge IDs from `GET /api/v1/view/topology`.
+
+| Feature | Required | Options |
+|---|---|---|
+| `marker` | `node` | `shape`: `pin`, `stop`, `ring` or `diamond`; `size`, `label` |
+| `entity` | `edge` | `at` (0 to 1 along the edge), `shape`: `bus`, `vehicle` or `dot`; `size`, `label`. With an `id` it glides between reports, facing along the road |
+| `route` | `nodes` | Adjacent junctions in order, drawn along the real road shape; `width`, `dash` |
+| `path` | `id`, `nodes` | The same route, animated. See below |
+
+A `path` is played by the observer, so an application declares it once and sends nothing per
+frame.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `speed_mps` | 40 | Metres of map per second of real time, 1 to 1000 |
+| `loop` | false | Play again from the start |
+| `bounce` | false | Turn round at each end. With `loop` it continues; without, it finishes back at the start |
+| `dwell_s` | 0 | Time held at each junction on the way, and at the ends, up to 60 |
+| `delay_s` | 0 | Time before it sets off, up to 600 |
+| `spring` | `standard` | `smooth`, `standard`, `lively` or `snappy`, or a custom spring within the motion guidelines |
+| `shape` | `bus` | `bus`, `vehicle`, `dot` or `none` |
+| `reveal` | true | Draw the line as it travels |
+| `trail` | true | Keep the whole line faintly visible beneath it |
+| `paused` | false | Hold where it is |
+| `run` | 0 | Change this number to play it again |
+
+The entity follows a guide that travels at the path's speed and holds at junctions. The spring
+is what shapes how it pulls away and settles. With reduced motion on, the route is shown whole and nothing
+travels.
+
+Fabric checks what it can when the UI is declared. A shape or range it does not offer is refused with
+`400 INVALID_ELEMENT`. A node or edge the loaded world does not have, or a `nodes` sequence with no road
+from one junction to the next, is refused with `422 NOT_ON_NETWORK`. If the world is replaced afterwards, the
+observer leaves out whatever no longer exists. Roads are directed, so a two-way street is two edges.
+
+## Widgets of its own
+
+Besides the general widgets, two exist for this kind of application. `route` lists `stops` in order, each
+with a `label`, optional `caption` and a `state` of `passed`, `current` or `next`. `sparkline` shows a
+`label`, a `value` and recent `values`, in a `series` or `tone`.
+
 ## Where it lives
 
 The server side is in `Fabric/src/webfabric/` (`routes.cpp`, `registry.cpp`) and

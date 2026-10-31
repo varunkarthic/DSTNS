@@ -1948,6 +1948,34 @@ nlohmann::json SimulationEngine::places(const std::string& kind,std::size_t offs
                      {"kind",kind.empty()?"all":kind}});
 }
 
+std::string SimulationEngine::network_problem(const nlohmann::json& features) const {
+    std::lock_guard lock(mutex_);
+    // No world yet, or one being replaced: the observer leaves out what it cannot place.
+    if (!graph_ || !features.is_array()) return {};
+    const auto& sc = graph_->scenario();
+    std::unordered_set<std::uint64_t> roads;
+    for (const auto& feature : features) {
+        if (!feature.is_object()) continue;
+        if (feature.contains("node") && feature.at("node").is_number_unsigned() && feature.at("node").get<std::size_t>() >= sc.nodes.size())
+            return "unknown node " + feature.at("node").dump();
+        if (feature.contains("edge") && feature.at("edge").is_number_unsigned() && feature.at("edge").get<std::size_t>() >= sc.edges.size())
+            return "unknown edge " + feature.at("edge").dump();
+        if (!feature.contains("nodes") || !feature.at("nodes").is_array()) continue;
+        const auto& nodes = feature.at("nodes");
+        for (std::size_t i = 0; i < nodes.size(); ++i) {
+            if (!nodes[i].is_number_unsigned()) continue;
+            const auto node = nodes[i].get<std::uint64_t>();
+            if (node >= sc.nodes.size()) return "unknown node " + std::to_string(node);
+            if (i == 0 || !nodes[i - 1].is_number_unsigned()) continue;
+            const auto previous = nodes[i - 1].get<std::uint64_t>();
+            if (roads.empty())
+                for (const auto& edge : sc.edges) roads.insert((std::uint64_t{edge.from.value} << 32) | edge.to.value);
+            if (!roads.count((std::uint64_t{previous} << 32) | node)) return "no road runs from node " + std::to_string(previous) + " to node " + std::to_string(node);
+        }
+    }
+    return {};
+}
+
 nlohmann::json SimulationEngine::stop_demand(const std::vector<std::uint32_t>& nodes) const {
     std::lock_guard lock(mutex_);
     auto items = nlohmann::json::array();

@@ -17,6 +17,41 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 20. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Added in the latest interface round
+
+- **Start-up film.** A WebGL2 particle scene re-forms into the wordmark, streets, a city, traffic, weather, a
+  world of seeds and the WebFabric weave, with captions. Stage progress runs along the bottom.
+- **`ISDHandler`** (Intentional System Design Handler). A small note when the system does something on purpose
+  that looks like a fault: Async, Restricted, a held or reduced speed, held reduced motion, a window that is too
+  small, stepped movement above 5×, and an application that stopped checking in.
+- **WebFabric on the road network.** Overlay features `marker` (on a node), `entity` (on an edge) and `route`, and
+  an animated `path` over adjacent nodes with loop, bounce, speed, dwell, delay, spring and reveal options. New
+  refusal: `422 NOT_ON_NETWORK`. New widgets: `route` and `sparkline`.
+- **WebFabric on the collapsed telemetry strip**, opening the panel where applications show their content.
+
+### Changed in the latest interface round
+
+- **Bottom bar:** a flexible 24-hour timeline with a playhead replaces the top progress line, and the bar is 56 px tall.
+- **Live Telemetry:** figures are one compact row, leaving more room for the detail below.
+- **Places** is now the same panel as **Layers**, opening above the bar. Both have labelled icon actions.
+- **WebFabric settings** are redesigned, with waiting applications first and permissions grouped by what they need.
+- **The tutorial** matches the interface, is grouped by chapter, and its text is rewritten.
+- **Settings:** colour vision options explain what each means and preview their colours. Data units read
+  `kB, MB, GB` or `KiB, MiB, GiB`.
+- **Curvature** is one scale across the interface, enforced by a test.
+- **The reduced motion icon** moves continuously between its wave and flat states.
+
+### Fixed in the latest interface round
+
+- A closed notification was pushed out of its box by its body's padding.
+- Technical details in a notification now open as the card does, and hovering them no longer looks wrong.
+- Edge resistance paused after scrolling, since it waited for trackpad momentum to end. It now returns at once.
+- The clock's second line left its box on hover.
+- The location in the header was not centred on the header's line.
+- Opening the WebFabric panel from the collapsed strip would have thrown, because its heading looked up an icon that
+  was not there.
+- `browser-webfabric.mjs` failed on a second run, because it inherited the registrations of the first.
+
 **Results change for some seeds.** A signal whose compiled offset rounded up to a
 whole cycle made the engine read past the end of that signal's phase table (found
 with AddressSanitizer). The offset now wraps to the start of the cycle. Seeds

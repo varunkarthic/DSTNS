@@ -90,8 +90,11 @@ export function LoadingSurface({
   const done = !!steps && stepIndex >= steps.length - 1 && !failed;
   const known = typeof progress === "number" && Number.isFinite(progress);
   const percent = known ? Math.round(Math.min(1, Math.max(0, progress!)) * 100) : 0;
+  // Loading plays the film, with progress along the bottom. A failure or a shutdown is
+  // something to read, so it stays a card in the middle.
+  const film = mode === "boot" && !failed && (!!steps?.length || !!eyebrow);
   const body = (
-    <div className="loading-card" data-tip-avoid>
+    <div className={`loading-card${film ? " film" : ""}`} data-tip-avoid>
       {mode === "boot" && (
         <div className={`loading-mark${reduceMotion || idle || failed ? "" : " animated"}`}>
           <Logo height={46} className="boot-logo" />
@@ -139,6 +142,7 @@ export function LoadingSurface({
               <span className="loading-steps-rail" aria-hidden="true"><i style={{ transform: `scaleX(${steps.length > 1 ? Math.min(1, stepIndex / (steps.length - 1)) : 0})` }} /></span>
               {steps.map((s, i) => (
                 <li key={s.id} className={i < stepIndex ? "done" : i === stepIndex ? "active" : ""} aria-current={i === stepIndex ? "step" : undefined}>
+                  {film && <span className="film-segment" aria-hidden="true"><i style={i === stepIndex && known ? { transform: `scaleX(${percent / 100})`, animation: "none" } : undefined} /></span>}
                   <span className="loading-step-dot" aria-hidden="true">
                     {i < stepIndex || (done && i === stepIndex) ? <Icon name="check" size={14} strokeWidth={2.4} /> : null}
                   </span>
@@ -158,7 +162,7 @@ export function LoadingSurface({
             </div>
           ) : (
             // The bar's place is held, so the layout does not move when a total arrives.
-            mode === "boot" && <div className={`loading-progress${idle ? " idle" : " working"}`} aria-hidden="true" />
+            mode === "boot" && !film && <div className={`loading-progress${idle ? " idle" : " working"}`} aria-hidden="true" />
           )}
           {note && <p className="loading-note">{note}</p>}
         </>
@@ -178,7 +182,7 @@ export function LoadingSurface({
       aria-live={role === "status" ? "polite" : undefined}
     >
       {mode === "boot" && (
-        <BootScene progress={steps?.length ? (Math.min(stepIndex, steps.length - 1) + (known ? percent / 100 : 0.5)) / steps.length : 0} step={stepIndex} idle={idle || failed} closing={closing} reduceMotion={reduceMotion} />
+        <BootScene playing={film} closing={closing} reduceMotion={reduceMotion} />
       )}
       {body}
       {footer}

@@ -309,6 +309,32 @@ def main():
             while call("GET", "/api/v1/playback/status")[1]["data"]["lifecycle"] != "RUNNING":
                 assert time.monotonic() < end
                 time.sleep(0.1)
+            # Overlay features tied to the road network are checked against the loaded world.
+            net = call("POST", BASE, manifest("org.test.network", capabilities=["ui.overlays"]))[1]["data"]["token"]
+            topology = call("GET", "/api/v1/view/topology")[1]
+            topology = topology.get("data", topology)
+            edge = topology["edges"][0]
+            joined = [edge["from"], edge["to"]]
+            place = lambda feature: call("PUT", f"{BASE}/org.test.network/ui/over", {"slot": "overlay", "features": [feature]}, token=net)
+            assert place({"type": "marker", "node": edge["from"], "shape": "stop"})[0] == 200
+            assert place({"type": "entity", "edge": edge["id"], "at": 0.5, "shape": "bus"})[0] == 200
+            assert place({"type": "route", "nodes": joined})[0] == 200
+            assert place({"type": "path", "id": "p", "nodes": joined, "loop": True, "speed_mps": 40, "spring": "lively"})[0] == 200
+            assert place({"type": "path", "id": "p", "nodes": joined, "spring": {"stiffness": 300, "damping": 30}})[0] == 200
+            assert place({"type": "marker", "node": 99999999})[0] == 422
+            assert place({"type": "entity", "edge": 99999999})[0] == 422
+            connected = {e["to"] for e in topology["edges"] if e["from"] == edge["from"]} | {edge["from"]}
+            stranger = next(n["id"] for n in topology["nodes"] if n["id"] not in connected)
+            refused = place({"type": "route", "nodes": [edge["from"], stranger]})
+            assert refused[0] == 422 and code(refused) == "NOT_ON_NETWORK", refused
+            assert place({"type": "path", "id": "p", "nodes": [edge["from"]]})[0] == 400
+            assert place({"type": "path", "nodes": joined})[0] == 400
+            assert place({"type": "path", "id": "p", "nodes": joined, "speed_mps": 0})[0] == 400
+            assert place({"type": "path", "id": "p", "nodes": joined, "spring": "wobbly"})[0] == 400
+            assert place({"type": "path", "id": "p", "nodes": joined, "spring": {"stiffness": 300, "damping": 2}})[0] == 400
+            assert place({"type": "entity", "edge": edge["id"], "at": 2})[0] == 400
+            assert place({"type": "marker", "node": edge["from"], "shape": "logo"})[0] == 400
+
             demo = subprocess.run(["python3", str(ROOT / "Fabric/examples/bus_planner.py"), "--url", f"http://127.0.0.1:{server.port}", "--ticks", "3"], capture_output=True, text=True, timeout=60)
             assert demo.returncode == 0 and demo.stdout.startswith("ok:"), demo.stdout + demo.stderr
 

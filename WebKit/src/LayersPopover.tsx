@@ -54,6 +54,8 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
     [topology],
   );
   const noData = !topology;
+  const allOn = Object.values(layers).every(Boolean);
+  const atDefaults = (Object.keys(layers) as (keyof Layers)[]).every((key) => layers[key] === defaults[key]);
 
   const groups: { title: string; items: Item[] }[] = [
     {
@@ -100,11 +102,13 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
     <div ref={panel} className="layers-panel" role="dialog" aria-label="Layers" onKeyDown={navigate} data-tip-avoid>
       <header>
         <span className="layers-title"><Icon name="layers" size={16} />Layers</span>
-        <div className="layers-actions">
-          <button type="button" className="text-button" onClick={() => onChange(Object.fromEntries(Object.keys(layers).map((k) => [k, true])) as unknown as Layers)}>
+        <div className="panel-actions">
+          <button type="button" disabled={allOn} onClick={() => onChange(Object.fromEntries(Object.keys(layers).map((k) => [k, true])) as unknown as Layers)}>
+            <Icon name="eye" size={14} />
             All on
           </button>
-          <button type="button" className="text-button muted" onClick={() => onChange({ ...defaults })}>
+          <button type="button" disabled={atDefaults} onClick={() => onChange({ ...defaults })}>
+            <Icon name="reset" size={14} />
             Reset
           </button>
         </div>

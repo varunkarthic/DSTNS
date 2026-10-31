@@ -94,6 +94,22 @@ describe("in scrolling regions", () => {
     expect(third - second).toBeLessThan(second - first + 1);
   });
 
+  it("starts back at once, even while a trackpad's fading momentum still arrives", () => {
+    region.scrollTop = 0;
+    wheel(-200);
+    settle();
+    // Events that small cannot hold a stretch out: there is no waiting for them to end.
+    let peak = 0;
+    for (let i = 0; i < 36; i++) {
+      wheel(-1);
+      vi.advanceTimersByTime(16);
+      peak = Math.max(peak, offset());
+    }
+    expect(offset()).toBeLessThan(peak * 0.5);
+    vi.advanceTimersByTime(2000);
+    expect(region.hasAttribute("data-edge")).toBe(false);
+  });
+
   it("goes home when the wheel stops", () => {
     region.scrollTop = 0;
     wheel(-200);

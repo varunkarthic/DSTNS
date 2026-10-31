@@ -128,6 +128,7 @@ export function PlaceLegend({
   onShowOther,
   places,
   onTogglePlace,
+  onShowAll,
   onResetPlaces,
 }: {
   features: readonly MapFeature[];
@@ -139,23 +140,55 @@ export function PlaceLegend({
   /** Which kinds are drawn; a kind absent from this is drawn. */
   places: PlaceVisibility;
   onTogglePlace: (kind: string, on: boolean) => void;
+  onShowAll: (kinds: string[]) => void;
   onResetPlaces: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), [trigger, panel]);
-  const rowScroll = useScrollFade<HTMLUListElement>();
+  const rowScroll = useScrollFade<HTMLDivElement>();
   const census = useMemo(() => placeCensus(features), [features]);
   // Demand is only read while the legend is open, so ticks cost nothing when closed.
   const entries = useMemo(() => placeLegend(census, open ? demand : undefined, showOther), [census, demand, open, showOther]);
   const hiddenOther = census.entries.filter((e) => e.group === "other").reduce((n, e) => n + e.count, 0);
+  const typed = entries.filter((e) => e.group !== "other");
+  const untyped = entries.filter((e) => e.group === "other");
+  const row = (e: PlaceLegendEntry) => {
+    // A kind not named in the record is shown: new kinds appear the
+    // day they are added rather than waiting for saved settings.
+    const shown = places[e.id] !== false;
+    return (
+      <div key={e.id} className={`layer-row place-row${shown ? " on" : ""}`}>
+        <PlaceGlyph kind={e.id} icon={e.icon} />
+        <span className="layer-name">
+          {e.label}
+          <small className="place-demand" title={demandDetail(e)}>
+            <DemandBar entry={e} />
+            <span className="mono">{demandSummary(e)}</span>
+          </small>
+        </span>
+        <span className="layer-count mono">{e.count.toLocaleString()}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={shown}
+          aria-label={`${e.label}, ${e.count.toLocaleString()} on the map`}
+          className={`switch${shown ? " on" : ""}`}
+          onClick={() => onTogglePlace(e.id, !shown)}
+        >
+          <i aria-hidden="true" />
+        </button>
+      </div>
+    );
+  };
+  const allShown = entries.every((e) => places[e.id] !== false);
 
   return (
     <div className="legend-place">
-      {/* The tooltip explains the control; once the legend is open it would
+      {/* The tooltip explains the control; once the panel is open it would
           only repeat what is already on screen. */}
-      <Tooltip label="Place legend" detail={visible ? "What each marker stands for, with live demand." : "Buildings are hidden in Layers."} disabled={open}>
+      <Tooltip label="Places" detail={visible ? "What each marker stands for, with live demand." : "Buildings are hidden in Layers."} disabled={open}>
         <button
           ref={trigger}
           type="button"
@@ -168,66 +201,55 @@ export function PlaceLegend({
         >
           <Icon name="pin" size={16} />
           <span>Places</span>
-          <span className="legend-button-hint">Legend</span>
-          <Icon name="chevronUp" size={12} />
         </button>
       </Tooltip>
-      <Floating anchor={trigger} open={open} className="legend-popover places" panelRef={panel} label="Place legend">
-        <div className="floating-head">
-          <span className="floating-title"><Icon name="pin" size={16} />Places</span>
-          <span className="floating-sub">Demand is the multiplier on base demand the core applies.</span>
-        </div>
-        {!visible && <p className="floating-note">Buildings are hidden in Layers. Markers return when the layer is on.</p>}
-        <ul {...rowScroll} className={`place-rows ${rowScroll.className}`}>
-          {entries.map((e) => {
-            // A kind not named in the record is shown: new kinds appear the
-            // day they are added rather than waiting for saved settings.
-            const shown = places[e.id] !== false;
-            return (
-              <li key={e.id} className={`${e.group === "other" ? "other" : ""}${shown ? "" : " hidden-kind"}`.trim() || undefined}>
-                <button
-                  type="button"
-                  className="place-toggle"
-                  role="switch"
-                  aria-checked={shown}
-                  aria-label={`${e.label}, ${e.count.toLocaleString()} on the map`}
-                  onClick={() => onTogglePlace(e.id, !shown)}
-                >
-                  <PlaceGlyph kind={e.id} icon={e.icon} />
-                  <span className="place-name">{e.label}</span>
-                  <span className="place-count mono">{e.count.toLocaleString()}</span>
-                </button>
-                <span className="place-demand" aria-label={demandDetail(e)} title={demandDetail(e)}>
-                  <DemandBar entry={e} />
-                  <span className="mono">{demandSummary(e)}</span>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-        {hiddenOther > 0 && (
-          <div className="floating-foot">
-            <span>
-              Unclassified places <span className="mono">{hiddenOther.toLocaleString()}</span>
-              <small>Benches, stops, rail lines and other untyped points.</small>
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={showOther}
-              aria-label="Show unclassified places"
-              className={`switch${showOther ? " on" : ""}`}
-              onClick={() => onShowOther(!showOther)}
-            >
-              <i aria-hidden="true" />
-            </button>
+      <Floating anchor={trigger} open={open} preferred={["top"]} className="layers-menu" panelRef={panel}>
+        <div className="layers-panel places-panel" role="dialog" aria-label="Place legend" data-tip-avoid>
+          <header>
+            <span className="layers-title"><Icon name="pin" size={16} />Places</span>
+            <div className="panel-actions">
+              <button type="button" disabled={allShown} onClick={() => onShowAll(entries.map((e) => e.id))}>
+                <Icon name="eye" size={14} />
+                All on
+              </button>
+              <button type="button" onClick={onResetPlaces}>
+                <Icon name="reset" size={14} />
+                Reset
+              </button>
+            </div>
+          </header>
+          {!visible && <p className="layers-empty">Buildings are hidden in Layers. Markers return when that layer is on.</p>}
+          <div {...rowScroll} className={`layers-scroll ${rowScroll.className}`} tabIndex={0} aria-label="Kinds of place">
+            <div className="layer-group" role="group" aria-label="On the map">
+              <span className="layer-group-title">On the map</span>
+              {typed.map(row)}
+            </div>
+            {hiddenOther > 0 && (
+              <div className="layer-group" role="group" aria-label="Unclassified">
+                <span className="layer-group-title">Unclassified</span>
+                <div className={`layer-row${showOther ? " on" : ""}`}>
+                  <Icon name="pin" size={16} />
+                  <span className="layer-name">
+                    Unclassified places
+                    <small>Benches, stops, rail lines and other untyped points.</small>
+                  </span>
+                  <span className="layer-count mono">{hiddenOther.toLocaleString()}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={showOther}
+                    aria-label="Show unclassified places"
+                    className={`switch${showOther ? " on" : ""}`}
+                    onClick={() => onShowOther(!showOther)}
+                  >
+                    <i aria-hidden="true" />
+                  </button>
+                </div>
+                {untyped.map(row)}
+              </div>
+            )}
           </div>
-        )}
-        <div className="floating-actions">
-          <button type="button" className="btn ghost small" onClick={onResetPlaces}>
-            <Icon name="reset" size={14} />
-            Use Defaults
-          </button>
+          <p className="layers-note">Demand is the multiplier on base demand that the core applies.</p>
         </div>
       </Floating>
     </div>

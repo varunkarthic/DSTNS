@@ -243,7 +243,7 @@ describe("settings", () => {
 
   it("lists applications, searches when there are many, and shows one at a time", async () => {
     render(<WebFabricSettings onBack={() => undefined} />);
-    expect(screen.getByText(/No applications have registered/)).toBeInTheDocument();
+    expect(screen.getByText(/No applications connected/)).toBeInTheDocument();
     load(Array.from({ length: 30 }, (_, i) => mockApp(`org.x.app${i}`, i)));
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "app17" } });
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
@@ -283,8 +283,10 @@ describe("settings", () => {
     render(<WebFabricSettings onBack={() => undefined} />);
     replies = (url) => (url.includes("/state") ? { revision: 2, notification_sequence: 0, notifications: [], unchanged: true } : { version: 1, values: {} });
     load([mockApp("org.x.a", 0, { capabilities: { requested: ["ui.status", "control.events"], granted: ["ui.status"], pending: ["control.events"] } })]);
-    fireEvent.click(screen.getByRole("radio", { name: "Permissions (1)" }));
-    fireEvent.click(screen.getByRole("button", { name: /Change the simulation/ }));
+    expect(screen.getByText("Waiting for permission")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for 1 permission")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "a" }));
+    expect(screen.getByText("Needs your permission")).toBeInTheDocument();
     const control = await screen.findByRole("switch", { name: "Change the simulation" });
     expect(control).not.toBeChecked();
     fireEvent.click(control);
@@ -301,7 +303,7 @@ describe("settings", () => {
     expect(await screen.findByText(/Its frame did not respond/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Forget application" }));
     await waitFor(() => expect(requests.some((r) => r.method === "DELETE" && r.url === "/api/v1/fabric/apps/org.x.a")).toBe(true));
-    await waitFor(() => expect(screen.getByText(/No applications have registered/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/No applications connected/)).toBeInTheDocument());
   });
 });
 

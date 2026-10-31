@@ -161,7 +161,7 @@ export function NotificationCapsule(
                       Technical details
                       <Icon name="chevronDown" size={14} />
                     </button>
-                    {technical && (
+                    <div className="capsule-tech-body" inert={!technical || undefined}>
                       <dl className="mono">
                         {current.technical.map((t) => (
                           <div key={t.label}>
@@ -170,7 +170,7 @@ export function NotificationCapsule(
                           </div>
                         ))}
                       </dl>
-                    )}
+                    </div>
                   </div>
                 )}
                 {waiting > 0 && (

@@ -153,29 +153,36 @@ function AppPermissions({ app }: { app: FabricApp }) {
   if (!requested.length) return <p className="settings-note">This application asked for no permissions.</p>;
   return (
     <>
-      {requested.map((capability) => {
-        const info = CAPABILITY_LABEL[capability] ?? { label: capability, hint: "" };
-        return (
-          <Row
-            key={capability}
-            title={info.label}
-            hint={info.hint}
-            htmlFor={`wf-cap-${capability}`}
-            control={
-              <Switch
-                id={`wf-cap-${capability}`}
-                label={info.label}
-                checked={granted.includes(capability)}
-                onChange={(on) => {
-                  setError("");
-                  const next = on ? [...granted, capability] : granted.filter((item) => item !== capability);
-                  fabric.grants(app.id, next).catch((e: Error) => setError(e.message));
-                }}
+      {[
+        { title: "Needs your permission", items: requested.filter((c) => CAPABILITY_LABEL[c]?.sensitive) },
+        { title: "Allowed by default", items: requested.filter((c) => !CAPABILITY_LABEL[c]?.sensitive) },
+      ].filter((group) => group.items.length).map((group) => (
+        <Section key={group.title} title={group.title}>
+          {group.items.map((capability) => {
+            const info = CAPABILITY_LABEL[capability] ?? { label: capability, hint: "" };
+            return (
+              <Row
+                key={capability}
+                title={info.label}
+                hint={info.hint}
+                htmlFor={`wf-cap-${capability}`}
+                control={
+                  <Switch
+                    id={`wf-cap-${capability}`}
+                    label={info.label}
+                    checked={granted.includes(capability)}
+                    onChange={(on) => {
+                      setError("");
+                      const next = on ? [...granted, capability] : granted.filter((item) => item !== capability);
+                      fabric.grants(app.id, next).catch((e: Error) => setError(e.message));
+                    }}
+                  />
+                }
               />
-            }
-          />
-        );
-      })}
+            );
+          })}
+        </Section>
+      ))}
       {error && <p className="fabric-error" role="alert">{error}</p>}
       <p className="settings-note">Applications that act on the simulation through Fabric are recorded under Details.</p>
     </>
@@ -230,16 +237,52 @@ function AppDetails({ app, onForgotten }: { app: FabricApp; onForgotten: () => v
   );
 }
 
+/** The application's initial, in a tile tinted by its order, as DSTNS draws no one's logo. */
+function AppTile({ app, large = false }: { app: FabricApp; large?: boolean }) {
+  const initial = app.name.trim().charAt(0).toUpperCase() || "?";
+  let hash = 0;
+  for (const c of app.id) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
+  return <span className={`fabric-tile${large ? " large" : ""}`} style={{ ["--tone" as string]: `var(--series-${hash % 8})` }} aria-hidden="true">{initial}</span>;
+}
+
+function StateChip({ state }: { state: AppState }) {
+  return (
+    <small className={`fabric-state state-${state}`}>
+      <i aria-hidden="true" />
+      {STATE_LABEL[state]}
+    </small>
+  );
+}
+
+function AppCard({ app, onOpen }: { app: FabricApp; onOpen: () => void }) {
+  const waiting = app.capabilities.pending.length;
+  return (
+    <li>
+      <button type="button" aria-label={app.name} onClick={onOpen}>
+        <AppTile app={app} />
+        <span className="fabric-app-text">
+          <strong>{app.name}<small className="mono">{app.version}</small></strong>
+          <small>{waiting > 0 && app.state !== "unloaded" ? `Waiting for ${waiting === 1 ? "1 permission" : `${waiting} permissions`}` : app.description || `Uses ${app.capabilities.granted.length} permissions`}</small>
+        </span>
+        <StateChip state={app.state} />
+        <Icon name="chevronRight" size={14} />
+      </button>
+    </li>
+  );
+}
+
 export function WebFabricSettings({ onBack }: { onBack: () => void }) {
   const apps = useFabricApps();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<"settings" | "permissions" | "details">("settings");
-  const [view, setView] = useState<"installed" | "permissions">("installed");
   const app = apps.find((item) => item.id === selected);
   const needle = query.trim().toLowerCase();
   const shown = useMemo(() => apps.filter((item) => !needle || item.name.toLowerCase().includes(needle) || item.id.includes(needle)), [apps, needle]);
-  const waiting = apps.filter((item) => item.capabilities.pending.length > 0 && item.state !== "unloaded");
+  const isWaiting = (item: FabricApp) => item.capabilities.pending.length > 0 && item.state !== "unloaded";
+  const waiting = shown.filter(isWaiting);
+  const others = shown.filter((item) => !isWaiting(item));
+  const active = apps.filter((item) => item.state === "active").length;
 
   if (app) {
     return (
@@ -248,7 +291,14 @@ export function WebFabricSettings({ onBack }: { onBack: () => void }) {
           <Icon name="chevronRight" size={14} className="flip" />
           WebFabric
         </button>
-        <h3 className="fabric-app-title">{app.name} <small className={`fabric-state state-${app.state}`}>{STATE_LABEL[app.state]}</small></h3>
+        <header className="fabric-app-head">
+          <AppTile app={app} large />
+          <div>
+            <h3 className="fabric-app-title">{app.name}</h3>
+            <small className="mono">{app.version}{app.author ? ` · ${app.author}` : ""}</small>
+          </div>
+          <StateChip state={app.state} />
+        </header>
         <Segmented
           label={`${app.name} section`}
           value={tab}
@@ -264,59 +314,53 @@ export function WebFabricSettings({ onBack }: { onBack: () => void }) {
     );
   }
 
+  const open = (item: FabricApp, next: typeof tab) => {
+    setSelected(item.id);
+    setTab(next);
+  };
   return (
     <div className="settings-page">
       <button type="button" className="settings-back" onClick={onBack}>
         <Icon name="chevronRight" size={14} className="flip" />
         Settings
       </button>
-      <BrandLogo name="webfabric" height={22} />
-      <p className="settings-note">Applications that have registered themselves with this DSTNS server. They are independent programs; DSTNS shows what they declare.</p>
-      <Segmented
-        label="WebFabric section"
-        value={view}
-        onChange={setView}
-        options={[{ value: "installed", label: `Applications (${apps.length})` }, { value: "permissions", label: `Permissions (${waiting.length})` }]}
-      />
-      {view === "installed" ? (
-        <>
-          {apps.length > 5 && (
-            <input type="search" className="fabric-input fabric-search" placeholder="Search applications" aria-label="Search applications" value={query} onChange={(e) => setQuery(e.target.value)} />
-          )}
-          {apps.length === 0 && <p className="settings-note">No applications have registered. An application registers itself by calling the Fabric API.</p>}
-          {apps.length > 0 && shown.length === 0 && <p className="settings-note">No application matches “{query.trim()}”.</p>}
+      <header className="fabric-hero">
+        <BrandLogo name="webfabric" height={22} />
+        <p>Independent applications that have connected to this server through the Fabric API. Each one can add only what you allow.</p>
+        <dl>
+          <div><dt>Connected</dt><dd className="mono">{apps.length}</dd></div>
+          <div><dt>Active</dt><dd className="mono">{active}</dd></div>
+          <div className={apps.some(isWaiting) ? "tone-warn" : undefined}><dt>Waiting</dt><dd className="mono">{apps.filter(isWaiting).length}</dd></div>
+        </dl>
+      </header>
+      {apps.length > 3 && (
+        <label className="fabric-search">
+          <Icon name="search" size={14} />
+          <input type="search" placeholder="Search applications" aria-label="Search applications" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </label>
+      )}
+      {apps.length === 0 && (
+        <div className="fabric-empty">
+          <strong>No applications connected</strong>
+          <p>An application registers itself by calling the Fabric API. It appears here as soon as it does.</p>
+        </div>
+      )}
+      {apps.length > 0 && shown.length === 0 && <p className="settings-note">No application matches “{query.trim()}”.</p>}
+      {waiting.length > 0 && (
+        <section className="fabric-group">
+          <h4>Waiting for permission</h4>
           <ul className="fabric-apps">
-            {shown.map((item) => (
-              <li key={item.id}>
-                <button type="button" onClick={() => { setSelected(item.id); setTab("settings"); }}>
-                  <span>
-                    <strong>{item.name}</strong>
-                    <small className="mono">{item.version}</small>
-                  </span>
-                  <small className={`fabric-state state-${item.state}`}>{STATE_LABEL[item.state]}</small>
-                  <Icon name="chevronRight" size={14} />
-                </button>
-              </li>
-            ))}
+            {waiting.map((item) => <AppCard key={item.id} app={item} onOpen={() => open(item, "permissions")} />)}
           </ul>
-        </>
-      ) : (
-        <>
-          {waiting.length === 0 && <p className="settings-note">No application is waiting for permission.</p>}
+        </section>
+      )}
+      {others.length > 0 && (
+        <section className="fabric-group">
+          {waiting.length > 0 && <h4>Applications</h4>}
           <ul className="fabric-apps">
-            {waiting.map((item) => (
-              <li key={item.id}>
-                <button type="button" onClick={() => { setSelected(item.id); setTab("permissions"); }}>
-                  <span>
-                    <strong>{item.name}</strong>
-                    <small>{item.capabilities.pending.map((c) => CAPABILITY_LABEL[c]?.label ?? c).join(", ")}</small>
-                  </span>
-                  <Icon name="chevronRight" size={14} />
-                </button>
-              </li>
-            ))}
+            {others.map((item) => <AppCard key={item.id} app={item} onOpen={() => open(item, "settings")} />)}
           </ul>
-        </>
+        </section>
       )}
     </div>
   );

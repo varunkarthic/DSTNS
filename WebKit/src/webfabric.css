@@ -114,7 +114,7 @@
   width: min(340px, calc(100% - 96px));
   display: flex;
   flex-direction: column;
-  border-radius: var(--r-xl);
+  border-radius: var(--r-lg);
   background: var(--surface-solid);
   border: 1px solid var(--glass-line);
   box-shadow: var(--glass-shadow);

@@ -14,8 +14,6 @@
   --cyan: #37d7ff;
   --mint: #93ffde;
   --border: rgba(178, 235, 255, 0.16);
-  --radius: 16px;
-  --radius-sm: 8px;
   --blur: 24px;
   --shadow: 0 12px 36px #0005;
   --space: 16px;
@@ -39,7 +37,7 @@ select,
 input {
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   background: #14212dcc;
 }
 button {
@@ -98,7 +96,7 @@ small {
 .glass {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-sm);
   box-shadow: var(--shadow);
   backdrop-filter: blur(var(--blur));
   -webkit-backdrop-filter: blur(var(--blur));
@@ -207,7 +205,7 @@ small {
   left: 24px;
   top: 20px;
   z-index: 5;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   max-width: calc(100% - 48px);
 }
 .module-row {
@@ -525,7 +523,7 @@ dd {
   display: flex;
   padding: 9px 12px;
   gap: 12px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
 }
 .legend span {
   display: flex;
@@ -602,16 +600,16 @@ progress {
   border: 0;
   display: block;
   margin: 7px 0 8px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   background: var(--border);
 }
 progress::-webkit-progress-bar {
   background: var(--border);
-  border-radius: 4px;
+  border-radius: var(--r-xs);
 }
 progress::-webkit-progress-value {
   background: var(--accent);
-  border-radius: 4px;
+  border-radius: var(--r-xs);
 }
 .speed {
   display: flex;
@@ -639,7 +637,7 @@ progress::-webkit-progress-value {
   right: 24px;
   top: 20px;
   display: flex;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   z-index: 4;
   padding: 4px;
 }
@@ -655,7 +653,7 @@ progress::-webkit-progress-value {
   transform: translateX(-50%);
   top: 20px;
   z-index: 4;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   width: 218px;
 }
 .place-search input {
@@ -728,7 +726,7 @@ progress::-webkit-progress-value {
   display: block;
   border: 1px solid var(--border);
   padding: 12px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   font: 11px var(--mono);
   color: var(--cyan);
 }
@@ -794,7 +792,7 @@ progress::-webkit-progress-value {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
 }
 .reduce-motion *,
 .reduce-motion *:before,

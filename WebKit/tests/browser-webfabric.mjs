@@ -8,7 +8,7 @@
 import { chromium } from "@playwright/test";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
 
@@ -45,6 +45,8 @@ const pages = createServer((_, res) => {
 });
 await new Promise((r) => pages.listen(18195, "127.0.0.1", r));
 
+// Registrations persist beside the logs; a fresh server must not inherit the last run's.
+rmSync(path.join(out, "fabric-apps.json"), { force: true });
 const server = spawn(path.join(root, "build/dstns_server"), ["--host", "127.0.0.1", "--port", String(port), "--logs", out, "--map-cache", "keep"], { cwd: root, stdio: "ignore" });
 const call = async (method, route, data, token, extra = {}) => {
   const res = await fetch(base + route, { method, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extra }, body: data === undefined ? undefined : JSON.stringify(data) });

@@ -2,13 +2,13 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useScrollFade } from "./scrollFade";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { FluidPanel } from "./FluidPanel";
 import { QuantizedSlider } from "./QuantizedSlider";
 import { Select } from "./Popover";
 import { Icon } from "./Icons";
 import { Badge, Row, Section, Segmented, Switch } from "./settingsControls";
-import { COLOR_VISION_OPTIONS } from "./appearance";
+import { COLOR_VISION_OPTIONS, paletteFor } from "./appearance";
 import type { ColorVision, ThemeSetting } from "./appearance";
 import type { ByteUnits } from "./units";
 import { useFabricApps } from "./webfabric/store";
@@ -95,6 +95,25 @@ export function SettingsDrawer({
   actions: SettingsActions;
 }) {
   const reduceMotion = values.reduceMotion;
+  // Each choice shows the road colours it gives, so it can be judged by eye.
+  const theme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+  const visionOptions = useMemo(
+    () =>
+      COLOR_VISION_OPTIONS.map((option) => {
+        const palette = paletteFor(theme, option.value);
+        return {
+          ...option,
+          preview: (
+            <span className="vision-swatches" aria-hidden="true">
+              {[palette.clear, palette.moderate, palette.severe, palette.flooded].map((colour, i) => (
+                <i key={i} style={{ background: colour }} />
+              ))}
+            </span>
+          ),
+        };
+      }),
+    [theme],
+  );
   const [page, setPage] = useState<"main" | "webfabric">("main");
   const apps = useFabricApps();
   const waitingApps = apps.filter((app) => app.capabilities.pending.length > 0 && app.state !== "unloaded").length;
@@ -158,7 +177,7 @@ export function SettingsDrawer({
             stacked
             title="Colour vision"
             hint={COLOR_VISION_OPTIONS.find((o) => o.value === values.colorVision)?.hint}
-            control={<Select label="Colour vision" className="wide" value={values.colorVision} onChange={actions.onColorVision} options={COLOR_VISION_OPTIONS} />}
+            control={<Select label="Colour vision" className="wide" value={values.colorVision} onChange={actions.onColorVision} options={visionOptions} />}
           />
           <Row
             title="Reduce motion"
@@ -347,15 +366,15 @@ export function SettingsDrawer({
           <Row
             stacked
             title="Data sizes"
-            hint={values.byteUnits === "decimal" ? "Base 10: 1 MB is 1,000,000 bytes." : "Base 2: 1 MiB is 1,048,576 bytes."}
+            hint={values.byteUnits === "decimal" ? "Powers of 1,000: 1 GB is 1,000 MB, and 1 MB is 1,000 kB." : "Powers of 1,024: 1 GiB is 1,024 MiB, and 1 MiB is 1,024 KiB."}
             control={
               <Segmented
                 label="Data sizes"
                 value={values.byteUnits}
                 onChange={actions.onByteUnits}
                 options={[
-                  { value: "decimal", label: "MB" },
-                  { value: "binary", label: "MiB" },
+                  { value: "decimal", label: "kB, MB, GB" },
+                  { value: "binary", label: "KiB, MiB, GiB" },
                 ]}
               />
             }
@@ -364,12 +383,13 @@ export function SettingsDrawer({
 
         <Section title="Applications" icon="stack">
           <button type="button" className="settings-nav" onClick={() => setPage("webfabric")}>
-            <BrandLogo name="webfabric" height={16} />
-            <small>
-              {waitingApps > 0 && <Badge tone="warn">{waitingApps} waiting</Badge>}
-              {apps.length === 1 ? "1 application" : `${apps.length} applications`}
-              <Icon name="chevronRight" size={14} />
-            </small>
+            <span className="settings-nav-mark" aria-hidden="true"><BrandLogo name="webfabric-mark" height={15} /></span>
+            <span className="settings-nav-text">
+              <strong>WebFabric</strong>
+              <small>{apps.length === 0 ? "No applications connected" : `${apps.length} ${apps.length === 1 ? "application" : "applications"}, ${apps.filter((app) => app.state === "active").length} active`}</small>
+            </span>
+            {waitingApps > 0 && <Badge tone="warn">{waitingApps} waiting</Badge>}
+            <Icon name="chevronRight" size={14} />
           </button>
         </Section>
         </>

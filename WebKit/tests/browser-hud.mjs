@@ -279,7 +279,7 @@ try {
         await page.screenshot({ path: path.join(out, `tutorial-${target}.png`) });
       if (target === "focus") {
         const shape = await page.locator(".tour-spotlight").evaluate(el => ({ r: parseFloat(getComputedStyle(el).borderRadius), w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height }));
-        assert.ok(Math.abs(shape.w - shape.h) < 1 && shape.r >= shape.w / 2 - 1, "circular control has circular spotlight");
+        assert.ok(shape.r >= 10 && shape.r < shape.w / 2, "the spotlight follows the control's own curvature");
         const spot = await box(page.locator(".tour-spotlight"));
         assert.ok(!overlap(spot, await box(page.locator('.map-dock [data-tutorial="dnd"]'))), "focus spotlight clears next sidebar button");
       }
@@ -375,7 +375,7 @@ try {
     const legend = page.getByRole("dialog", { name: "Place legend" });
     await legend.waitFor();
     await page.waitForTimeout(350);
-    const rows = await legend.getByRole("listitem").allInnerTexts();
+    const rows = await legend.locator(".place-row").allInnerTexts();
     assert.ok(rows.length >= 3, `the legend lists the kinds on the map (${rows.length})`);
     // Every glyph the legend shows is one the map actually draws.
     const glyphs = await legend.locator(".place-glyph").allInnerTexts();

@@ -953,21 +953,21 @@ describe("place legend", () => {
     await ready();
     fireEvent.click(screen.getByRole("button", { name: "Place legend" }));
     const legend = await screen.findByRole("dialog", { name: "Place legend" });
-    const rows = within(legend).getAllByRole("listitem");
+    const rows = Array.from(legend.querySelectorAll(".place-row"));
     // Kinds are drawn, not lettered: the row carries its name and figures,
     // and the glyph beside it is the shape the map draws.
     expect(rows.map((r) => r.textContent)).toEqual([
-      "Hospital1Peak 1.15×",
-      "School2Peak 1.62×",
-      "Pharmacy1Not modelled",
+      "HospitalPeak 1.15×1",
+      "SchoolPeak 1.62×2",
+      "PharmacyNot modelled1",
     ]);
     for (const row of rows) expect(row.querySelector(".place-glyph svg path")).toBeTruthy();
     // Unclassified dots are off by default and can be turned on here or in Layers.
     const toggle = within(legend).getByRole("switch", { name: "Show unclassified places" });
     expect(toggle).toHaveAttribute("aria-checked", "false");
     fireEvent.click(toggle);
-    await waitFor(() => expect(within(legend).getAllByRole("listitem")).toHaveLength(4));
-    expect(within(legend).getAllByRole("listitem")[3]).toHaveTextContent(/Unclassified2Not modelled/);
+    await waitFor(() => expect(legend.querySelectorAll(".place-row")).toHaveLength(4));
+    expect(legend.querySelectorAll(".place-row")[3]).toHaveTextContent(/UnclassifiedNot modelled2/);
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Layers" }));
     expect(screen.getByRole("switch", { name: "Unclassified places" })).toHaveAttribute("aria-checked", "true");
@@ -991,7 +991,7 @@ describe("place legend", () => {
       expect(saved && JSON.parse(saved).places).toMatchObject({ school: false });
     });
     // It is hidden, not removed: the count is still there to turn back on.
-    expect(school).toHaveTextContent("School");
+    expect(school).toHaveAccessibleName(/^School, 2/);
     expect(JSON.parse(screen.getByTestId("map").getAttribute("data-places")!)).toMatchObject({school: false});
   });
 
@@ -1005,7 +1005,7 @@ describe("place legend", () => {
     const hospital = within(legend).getByRole("switch", { name: /^Hospital,/ });
     fireEvent.click(hospital);
     await waitFor(() => expect(hospital).toHaveAttribute("aria-checked", "false"));
-    fireEvent.click(within(legend).getByRole("button", { name: /Use Defaults/ }));
+    fireEvent.click(within(legend).getByRole("button", { name: "Reset" }));
     await waitFor(() => expect(hospital).toHaveAttribute("aria-checked", "true"));
   });
 });

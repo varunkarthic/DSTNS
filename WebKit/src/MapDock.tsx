@@ -6,7 +6,7 @@ import { FluidPanel } from "./FluidPanel";
 import { PlaceGlyph } from "./Legends";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
-import { Icon, ActionIcon } from "./Icons";
+import { Icon, ActionIcon, MotionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 import type { AutoFocusStrategy } from "./uiConfig";
 import type { MapFeature } from "./types";
@@ -254,7 +254,7 @@ export function MapDock(props: MapDockProps) {
           onClick={props.onToggleMotion}
           disabled={props.disabled || props.motionLocked}
         >
-          <ActionIcon name={props.reduceMotion ? "motionOff" : "motion"} size={18} signal={props.reduceMotion} reduceMotion={props.reduceMotion} />
+          <MotionIcon reduced={props.reduceMotion} />
         </button>
       </Tooltip>
 

@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { Spring, SPRINGS } from "./motion";
 
 /**
  * The interface's icon set.
@@ -47,17 +48,17 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M3 3l18 18" />
     </>
   ),
-  // Motion is a wave; reduced motion is the same wave laid flat.
+  // Motion is a wave; reduced motion is the same wave laid flat. MotionIcon moves between them.
   motion: (
     <>
-      <path d="M3 9c2.5-3 4.5-3 6.5 0s4 3 6 0 3.5-3 5.5-.5" />
-      <path d="M3 15.5c2.5-3 4.5-3 6.5 0s4 3 6 0 3.5-3 5.5-.5" />
+      <path d={waveLine(9, 1)} />
+      <path d={waveLine(15.5, 1)} />
     </>
   ),
   motionOff: (
     <>
-      <path d="M3.5 9h17" />
-      <path d="M3.5 15h17" />
+      <path d={waveLine(9, 0)} />
+      <path d={waveLine(15, 0)} />
     </>
   ),
   eye: (
@@ -451,6 +452,39 @@ export function ActionIcon({
   return (
     <span className={`icon-action${playing ? ` playing act-${motion}` : ""}`} aria-hidden="true">
       <Icon name={name} size={size} strokeWidth={strokeWidth} />
+    </span>
+  );
+}
+
+/** One line of the motion glyph: `wave` is 1 for the full wave and 0 for a straight line. */
+export function waveLine(y: number, wave: number): string {
+  const a = (n: number) => +(n * wave).toFixed(3);
+  return `M3 ${+y.toFixed(3)}c2.5 ${a(-3)} 4.5 ${a(-3)} 6.5 0s4 ${a(3)} 6 0 3.5 ${a(-3)} 5.5 ${a(-0.5)}`;
+}
+
+/**
+ * The reduced motion control. Its two states are one drawing, so turning the setting
+ * on or off flattens the wave or raises it. This is the control's only feedback that
+ * it worked, so it plays either way.
+ */
+export function MotionIcon({ reduced, size = 18 }: { reduced: boolean; size?: number }) {
+  const upper = useRef<SVGPathElement>(null);
+  const lower = useRef<SVGPathElement>(null);
+  const spring = useRef<Spring | null>(null);
+  useEffect(() => {
+    spring.current ??= new Spring(reduced ? 0 : 1, SPRINGS.spatialDefault, (wave) => {
+      upper.current?.setAttribute("d", waveLine(9, wave));
+      lower.current?.setAttribute("d", waveLine(15 + 0.5 * wave, wave));
+    }, 0.002);
+    spring.current.set(reduced ? 0 : 1);
+  }, [reduced]);
+  useEffect(() => () => spring.current?.stop(), []);
+  return (
+    <span className="icon-action" aria-hidden="true">
+      <svg className="icon" data-icon="motion" viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+        <path ref={upper} d={waveLine(9, reduced ? 0 : 1)} />
+        <path ref={lower} d={waveLine(reduced ? 15 : 15.5, reduced ? 0 : 1)} />
+      </svg>
     </span>
   );
 }

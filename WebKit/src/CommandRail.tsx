@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { animate, SPRINGS, stepSpring } from "./motion";
 import { QuantizedSlider } from "./QuantizedSlider";
 import { Floating, useDismiss } from "./Popover";
@@ -16,9 +17,8 @@ import type { Clock, Lifecycle } from "./types";
 /**
  * The simulation command rail.
  *
- * One compact floating bar: transport, the time and progress control, speed,
- * the seed, runtime status and Terminate. Transport, time and speed read as a
- * single playback subsystem; seed, status and Terminate describe the session.
+ * One compact floating bar: transport, the time, the day, speed, the seed, runtime
+ * status and Terminate. The day takes whatever room is left, so no width is wasted.
  */
 
 /** Speeds offered, as multiples of the configured playback pace. */
@@ -130,7 +130,6 @@ export function CommandRail(props: CommandRailProps) {
 
   return (
     <section className="rail" aria-label="Simulation controls">
-      <span className="rail-progress" aria-hidden="true"><i ref={progress} /></span>
       <div className="rail-group transport" data-tutorial="transport" role="group" aria-label="Playback">
         <Tooltip label="Start over" detail="Returns to the beginning of the day and replays the same scenario. You will be asked first.">
           <button type="button" className="rail-btn" aria-label="Reset simulation to the start of the day" disabled={!live || lifecycle === "IDLE"} onClick={props.onReset}>
@@ -170,6 +169,8 @@ export function CommandRail(props: CommandRailProps) {
         onToggle={time.toggle}
       />
 
+      <DayTimeline track={progress} hour12={time.hour12} paused={paused} />
+
       <SpeedControl
         rate={clock?.tick_rate ?? 1}
         requested={props.requestedRate}
@@ -178,8 +179,6 @@ export function CommandRail(props: CommandRailProps) {
         reduceMotion={props.reduceMotion}
         onRate={props.onRate}
       />
-
-      <span className="rail-divider rail-spring" aria-hidden="true" />
 
       <SeedControl seed={props.seed} canRegenerate={props.canRegenerate && !pending} onRegenerate={props.onRegenerate} />
 
@@ -210,7 +209,7 @@ export function useSmoothProgress(percent: number, ratePerSecond: number, reduce
   const goal = useRef({ percent, at: 0, rate: ratePerSecond });
   const state = useRef({ x: percent, v: 0, cancel: null as (() => void) | null });
   const paint = (value: number) => {
-    if (bar.current) bar.current.style.transform = `scaleX(${(Math.max(0, Math.min(100, value)) / 100).toFixed(5)})`;
+    bar.current?.style.setProperty("--day", (Math.max(0, Math.min(100, value)) / 100).toFixed(5));
   };
   useLayoutEffect(() => {
     goal.current = { percent, at: performance.now(), rate: ratePerSecond };
@@ -243,6 +242,28 @@ export function useSmoothProgress(percent: number, ratePerSecond: number, reduce
     };
   }, []);
   return bar;
+}
+
+/**
+ * The day, as a place. Hours are marked along it, what has passed is filled, and a
+ * playhead stands at now. It reports time and does not set it: moving through the day
+ * is what Back, Forward and Step are for, because moving replays the model.
+ */
+function DayTimeline({ track, hour12, paused }: { track: RefObject<HTMLElement | null>; hour12: boolean; paused: boolean }) {
+  const hours = hour12 ? ["12a", "6a", "12p", "6p", "12a"] : ["00", "06", "12", "18", "24"];
+  return (
+    <div className={`day-timeline${paused ? " paused" : ""}`} aria-hidden="true">
+      <span className="day-track" ref={track}>
+        <i className="day-fill" />
+        <i className="day-head" />
+      </span>
+      <span className="day-hours">
+        {hours.map((hour, i) => (
+          <span key={i}>{hour}</span>
+        ))}
+      </span>
+    </div>
+  );
 }
 
 function TimeControl({

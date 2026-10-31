@@ -132,6 +132,10 @@ export function Floating({
 export interface SelectOption<T extends string> {
   value: T;
   label: string;
+  /** A second line, for options whose name alone does not explain them. */
+  description?: string;
+  /** Something to look at beside the name, such as colour samples. */
+  preview?: ReactNode;
 }
 
 /**
@@ -213,7 +217,8 @@ export function Select<T extends string>({
           }
         }}
       >
-        <span>{options[selected]?.label}</span>
+        {options[selected]?.preview}
+        <span className="select-trigger-text">{options[selected]?.label}</span>
         <Icon name="chevronDown" size={14} />
       </button>
       <Floating anchor={trigger} open={open} preferred={["bottom", "top"]} className="menu" panelRef={menu} role="presentation">
@@ -235,7 +240,11 @@ export function Select<T extends string>({
               onPointerEnter={() => setActive(i)}
               onClick={() => choose(i)}
             >
-              <span>{o.label}</span>
+              {o.preview}
+              <span className="menu-item-text">
+                {o.label}
+                {o.description && <small>{o.description}</small>}
+              </span>
               {i === selected && <Icon name="check" size={14} strokeWidth={2.2} />}
             </div>
           ))}

@@ -42,16 +42,6 @@ export interface SplashStage {
   waiting?: boolean;
 }
 
-/** True of every run, to read during a wait. The last one is an invitation. */
-export const BOOT_FACTS = [
-  "The same seed gives the same day, second by second, on any machine.",
-  "Physics runs in fixed one-second steps, whatever the playback speed.",
-  "Each seed picks a real district from one of 181 cities, mapped by OpenStreetMap.",
-  "A downloaded city is kept, so its next district starts without waiting.",
-  "Light mode, colour vision palettes and reduced motion are in Settings.",
-  "Move the pointer across the network, or click it: the streets are on springs.",
-];
-
 const LICENCE = "Deterministic Spatiotemporal Transport Network Simulator · © 2026 Varun Karthic · AGPL-3.0-or-later · Map data © OpenStreetMap contributors (ODbL)";
 
 export function Splash({
@@ -69,16 +59,13 @@ export function Splash({
   // notable, so the option does not flash up during a fast start.
   const [stalled, setStalled] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [fact, setFact] = useState(0);
   useEffect(() => {
     const timer = setTimeout(() => setStalled(true), 12000);
     const started = performance.now();
     const clock = setInterval(() => setElapsed(Math.floor((performance.now() - started) / 1000)), 1000);
-    const facts = setInterval(() => setFact((n) => (n + 1) % BOOT_FACTS.length), 6500);
     return () => {
       clearTimeout(timer);
       clearInterval(clock);
-      clearInterval(facts);
     };
   }, []);
 
@@ -88,11 +75,6 @@ export function Splash({
       eyebrow={stage.waiting ? "Welcome to DSTNS" : undefined}
       title={stage.label}
       status={stage.waiting || elapsed < 3 ? stage.detail : `${stage.detail ?? "Working"} · ${elapsed} s`}
-      aside={
-        <p className="boot-fact" key={fact}>
-          {BOOT_FACTS[fact]}
-        </p>
-      }
       steps={stage.waiting ? undefined : BOOT_STEPS}
       stepIndex={stage.step}
       progress={stage.progress}

@@ -219,6 +219,26 @@ function FabricInput({ widget, onSubmit }: { widget: FabricWidget; onSubmit: (va
   );
 }
 
+/** A figure with its recent history. Drawn to the panel's width, in the application's series or tone. */
+function FabricSparkline({ widget }: { widget: FabricWidget }) {
+  const values = (Array.isArray(widget.values) ? widget.values : []).filter((v) => typeof v === "number" && Number.isFinite(v)).slice(-120);
+  const low = Math.min(...values);
+  const span = Math.max(...values) - low || 1;
+  const line = values.map((v, i) => `${(i / Math.max(1, values.length - 1)) * 100} ${28 - ((v - low) / span) * 26}`).join(" L");
+  return (
+    <div className={`fabric-spark${toneClass(widget.tone)}`} style={seriesStyle(widget.series)}>
+      <span>{text(widget.label)}</span>
+      <strong className="mono">{text(widget.value)}</strong>
+      {values.length > 1 && (
+        <svg viewBox="0 0 100 30" preserveAspectRatio="none" role="img" aria-label={`${text(widget.label) || "Figure"}: recent history`}>
+          <path className="area" d={`M0 30 L${line} L100 30 Z`} />
+          <path className="line" d={`M${line}`} vectorEffect="non-scaling-stroke" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
 function Widget({ app, element, widget }: { app: FabricApp; element: FabricElement; widget: FabricWidget }) {
   const name = widget.id ?? element.id;
   const send = (action: string, value?: unknown) => void fabric.action(app.id, name, action, value).catch(() => undefined);
@@ -277,6 +297,20 @@ function Widget({ app, element, widget }: { app: FabricApp; element: FabricEleme
           ))}
         </ul>
       );
+    case "route":
+      return (
+        <ol className="fabric-route" aria-label={label || undefined} style={seriesStyle(widget.series)}>
+          {(Array.isArray(widget.stops) ? widget.stops : []).slice(0, 64).map((stop, index) => (
+            <li key={stop.id ?? index} className={stop.state ? `is-${stop.state}` : undefined} aria-current={stop.state === "current" ? "step" : undefined}>
+              <i aria-hidden="true" />
+              <span>{text(stop.label)}</span>
+              {stop.caption && <small className="mono">{text(stop.caption)}</small>}
+            </li>
+          ))}
+        </ol>
+      );
+    case "sparkline":
+      return <FabricSparkline widget={widget} />;
     case "tabs":
       return <FabricTabs app={app} element={element} widget={widget} />;
     case "input":
@@ -382,7 +416,14 @@ export function FabricDeck() {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const key = ({ app, element }: { app: FabricApp; element: FabricElement }) => `${app.id}/${element.id}`;
   const current = items.find((item) => key(item) === activeKey) ?? items[0];
-  if (!current) return <p className="fabric-note">No application has anything to show here.</p>;
+  if (!current)
+    return (
+      <div className="fabric-empty">
+        <BrandLogo name="webfabric" height={18} />
+        <strong>Nothing to show yet</strong>
+        <p>Applications connected through the Fabric API show their panels, figures and controls here.</p>
+      </div>
+    );
   const { app, element } = current;
   return (
     <div className="fabric-deck" {...motionProps(element)}>

@@ -1019,7 +1019,7 @@ function NetworkMap({
         const layout = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
         glideTo({ scale: rest, x: layout.centerX - (layout.centerX - fitted.x) * ZOOM_REST, y: layout.centerY - (layout.centerY - fitted.y) * ZOOM_REST }, SPRINGS.spatialSlow);
       }
-    }, 160);
+    }, 70);
   };
   useImperativeHandle(
     controls,

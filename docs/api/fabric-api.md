@@ -72,7 +72,7 @@ as an action `pick`, with `x_m`, `y_m`, `lat` and `lon`.
 
 **Overlay features**, in the core's metres (see the [View API](view-api.md)):
 `{"type": "point" | "circle", "x_m", "y_m", "radius_m", "label", "tone"}` and
-`{"type": "line" | "polygon", "points": [[x_m, y_m], ...], "tone"}`. Any feature may use
+`{"type": "line" | "polygon", "points": [[x_m, y_m], ...], "tone"}`, and on the road network `marker` (`node`), `entity` (`edge`, `at`), `route` (`nodes`) and the animated `path` (`id`, `nodes`), described in [WebFabric](../components/webfabric.md#on-the-road-network). A reference the loaded world does not have is refused with `422 NOT_ON_NETWORK`. Any feature may use
 `series` instead of `tone`; lines take `width` and `dash`, points take `size` and `hollow`, and
 a point with an `id` glides to each new position.
 

@@ -51,10 +51,17 @@ Adaptive Simulation Backpressure can hold it on. Under `.reduce-motion`, travel,
 and blur collapse to a short fade or nothing, the map camera jumps, and the map does not
 coast. Test the three modes, not only the full one.
 
+## Curvature
+
+One scale, in `system.css`, and a test that fails on anything else. Floating surfaces (bars, panels, menus, cards)
+take `--r-lg` (18 px). What sits on them takes `--r-md` (14 px) or `--r-sm` (10 px), which is also every button and
+control. Small marks take `--r-xs` (6 px). Only badges, chips, switches and slider tracks are fully round, because
+that shape says what they are.
+
 ## Dynamic Edge Resistance
 
 Whatever has a limit answers being pushed past it the same way: it follows at first, gives
-ever less the further it goes, up to a bound, and settles home when let go. That says "this
+ever less the further it goes, up to a bound, and returns as soon as the push stops growing. That says "this
 is the end" without a hard stop. `resistance.ts` holds it, using the curve Apple's scroll
 views use:
 
@@ -133,14 +140,15 @@ One surface, `LoadingSurface` in `boot` mode, for every state before a map:
 
 | State | Shows |
 |---|---|
-| Waiting | The mark and what to do. No motion, because nothing is happening |
-| Loading | The mark, the real stage, and the five stages on one line. A bar only where a real total is known; otherwise a band that claims no amount. After a few seconds, how long it has been |
+| Waiting | The film, and what to do. No progress, because nothing is loading |
+| Loading | The film, the current stage, and the five stages along the bottom. A segment fills only where a real total is known; otherwise it moves without claiming how far along it is |
 | Failed | What happened, that nothing was lost, and Reload. Clears by itself when the simulator answers |
 | Shut down | That the server has stopped, and how to start again |
 
-Behind it is a street network on springs: junctions give way to the pointer and ring when
-clicked, and it lights up with the real stages, never with a timer. Facts true of every run
-pass beneath the stages, so a slow map download has something in it.
+The film is one WebGL2 draw of 24,000 particles that re-form into the wordmark, streets, a city, traffic,
+weather, a world of seeds and the WebFabric weave, each with a caption. It never reflects progress. The pointer
+parts the cloud and a click sends a ring through it. A failure or a shutdown is something to read, so
+it stays a card in the middle over the wordmark.
 
 It dissolves into the map as soon as the map exists, and the interface arrives around it in
 a stagger. Nothing is held for effect, and
@@ -153,3 +161,9 @@ overlap, with later files winning. Merging them into cascade layers would change
 wherever specificity and load order disagree, so it needs a visual regression suite
 first. Tokens and shared rules are the path in the meantime: do not add a fifth way to
 do something. A few small bars still animate `width`.
+
+## Intentional System Design
+
+`ISDHandler.tsx` explains what is on purpose but looks like a fault. A note states that it is intended, why, and
+what to do next, and appears once per page load, one at a time. To add a case, add an entry to `ISD_NOTES` and its
+condition where the handler is used. Real failures do not belong here: they go to the notification capsule.

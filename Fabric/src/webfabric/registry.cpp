@@ -168,6 +168,61 @@ void check_motion(const json& motion) {
     if (settle > 1.5) throw Refusal(400, "INVALID_ELEMENT", "motion takes longer than 1.5 s to settle: raise stiffness or lower damping");
 }
 
+// What a feature tied to the road network may ask for. Whether its nodes and edges
+// exist depends on the loaded world, which the routes check against the engine.
+void check_feature(const json& feature) {
+    const auto refuse = [](const std::string& message) { throw Refusal(400, "INVALID_ELEMENT", message); };
+    if (!feature.is_object()) refuse("an overlay feature must be an object");
+    const auto type = feature.value("type", std::string{});
+    if (type != "marker" && type != "entity" && type != "route" && type != "path") return;
+    const auto number_in = [&](const char* key, double low, double high) {
+        if (!feature.contains(key)) return;
+        const auto& value = feature.at(key);
+        if (!value.is_number() || !(value.get<double>() >= low && value.get<double>() <= high))
+            refuse(std::string(key) + " must be a number in [" + std::to_string(low) + ", " + std::to_string(high) + "]");
+    };
+    const auto one_of = [&](const char* key, const std::set<std::string>& allowed) {
+        if (feature.contains(key) && (!feature.at(key).is_string() || !allowed.count(feature.at(key).get<std::string>())))
+            refuse(std::string(key) + " is not one of the shapes offered");
+    };
+    if (feature.contains("node") && !feature.at("node").is_number_unsigned()) refuse("node must be a node ID");
+    if (feature.contains("edge") && !feature.at("edge").is_number_unsigned()) refuse("edge must be an edge ID");
+    if (type == "marker") {
+        if (!feature.contains("node")) refuse("a marker needs a node");
+        one_of("shape", {"pin", "stop", "ring", "diamond"});
+    }
+    if (type == "entity") {
+        if (!feature.contains("edge")) refuse("an entity needs an edge");
+        number_in("at", 0, 1);
+        one_of("shape", {"bus", "vehicle", "dot"});
+    }
+    if (type == "route" || type == "path") {
+        if (!feature.contains("nodes") || !feature.at("nodes").is_array() || feature.at("nodes").size() < 2 || feature.at("nodes").size() > 4096)
+            refuse("a " + type + " needs 2 to 4096 nodes");
+        for (const auto& node : feature.at("nodes"))
+            if (!node.is_number_unsigned()) refuse("nodes must be node IDs");
+    }
+    if (type == "path") {
+        if (!feature.contains("id") || !feature.at("id").is_string()) refuse("a path needs an id");
+        number_in("speed_mps", 1, 1000);
+        number_in("dwell_s", 0, 60);
+        number_in("delay_s", 0, 600);
+        number_in("run", 0, 9007199254740991.0);
+        for (const char* key : {"loop", "bounce", "reveal", "trail", "paused"})
+            if (feature.contains(key) && !feature.at(key).is_boolean()) refuse(std::string(key) + " must be true or false");
+        one_of("shape", {"bus", "vehicle", "dot", "none"});
+        if (feature.contains("spring")) {
+            static const std::set<std::string> kSprings = {"smooth", "standard", "lively", "snappy"};
+            const auto& spring = feature.at("spring");
+            if (spring.is_string()) {
+                if (!kSprings.count(spring.get<std::string>())) refuse("spring must be smooth, standard, lively or snappy, or a custom spring");
+            } else {
+                check_motion(spring);
+            }
+        }
+    }
+}
+
 json schema_fields(const json& manifest) {
     auto fields = json::array();
     if (manifest.contains("settings"))
@@ -353,6 +408,10 @@ void AppRegistry::check_element(const App& app, const json& element) const {
     if (!id.is_string() || !std::regex_match(id.get<std::string>(), kKey)) throw Refusal(400, "INVALID_ELEMENT", "a UI element needs an id matching [a-z0-9][a-z0-9_-]*");
     const auto slot = element.value("slot", std::string{});
     if (element.contains("motion")) check_motion(element.at("motion"));
+    if (element.contains("features")) {
+        if (!element.at("features").is_array()) throw Refusal(400, "INVALID_ELEMENT", "features must be an array");
+        for (const auto& feature : element.at("features")) check_feature(feature);
+    }
     const auto capability = kSlotCapability.find(slot);
     if (capability == kSlotCapability.end()) throw Refusal(400, "INVALID_ELEMENT", "unknown UI slot: " + slot);
     if (element.contains("tone") && (!element.at("tone").is_string() || !kTones.count(element.at("tone").get<std::string>())))

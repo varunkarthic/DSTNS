@@ -13,12 +13,12 @@
 export type ThemeSetting = "system" | "dark" | "light";
 export type ColorVision = "standard" | "protanopia" | "deuteranopia" | "tritanopia" | "monochrome";
 
-export const COLOR_VISION_OPTIONS: { value: ColorVision; label: string; hint: string }[] = [
-  { value: "standard", label: "Standard", hint: "The default colours." },
-  { value: "protanopia", label: "Protanopia", hint: "Red-weak or red-blind." },
-  { value: "deuteranopia", label: "Deuteranopia", hint: "Green-weak or green-blind." },
-  { value: "tritanopia", label: "Tritanopia", hint: "Blue-weak or blue-blind." },
-  { value: "monochrome", label: "Monochrome", hint: "No colour; states differ in brightness." },
+export const COLOR_VISION_OPTIONS: { value: ColorVision; label: string; description: string; hint: string }[] = [
+  { value: "standard", label: "Standard", description: "Full colour vision", hint: "The default palette, with red, amber and green road states." },
+  { value: "protanopia", label: "Protanopia", description: "Red-blind: red looks dark and close to green", hint: "Road and severity colours are chosen so that nothing depends on seeing red." },
+  { value: "deuteranopia", label: "Deuteranopia", description: "Green-blind: red and green look alike", hint: "Road and severity colours are chosen so that nothing depends on telling red from green. The most common form of colour blindness." },
+  { value: "tritanopia", label: "Tritanopia", description: "Blue-blind: blue and green, yellow and pink look alike", hint: "Road and severity colours are chosen so that nothing depends on telling blue from green." },
+  { value: "monochrome", label: "Monochrome", description: "No colour: everything is a shade of grey", hint: "States are told apart by brightness alone." },
 ];
 
 export interface MeaningPalette {

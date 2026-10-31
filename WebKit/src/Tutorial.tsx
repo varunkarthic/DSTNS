@@ -3,6 +3,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Icon } from "./Icons";
 import { tutorialSteps } from "./tutorialSteps";
 
 type Rect = { left: number; top: number; width: number; height: number; radius?: string };
@@ -164,31 +165,28 @@ export function Tutorial({
         data-tip-avoid
         style={{ transform: position ? `translate(${position.left}px, ${position.top}px)` : undefined }}
       >
-        <div className="tour-progress" aria-hidden="true">
-          {tutorialSteps.map((s, i) => (
-            <i key={`${s.target}-${i}`} className={i < index ? "done" : i === index ? "on" : ""} />
-          ))}
-        </div>
-        <span className="tour-count">
-          Step {index + 1} of {tutorialSteps.length} · Simulation time paused
-        </span>
+        <header className="tour-head">
+          <span className="tour-chapter">{step.chapter}</span>
+          <span className="tour-count mono" aria-label={`Step ${index + 1} of ${tutorialSteps.length}`}>{index + 1} / {tutorialSteps.length}</span>
+          <button type="button" className="icon-btn" aria-label="Skip tour" onClick={() => actions.current.onSkip()}>
+            <Icon name="close" size={14} />
+          </button>
+        </header>
         <div className="tour-copy" key={index} aria-live="polite" aria-atomic="true">
           <h2 id="tour-title">{step.title}</h2>
           <p id="tour-body">{step.body}</p>
-          {!rect && <p className="tour-missing">This control is not visible at the current window size. The tour can continue.</p>}
+          {!rect && <p className="tour-missing">This control is not visible at the current window size. The tutorial can continue.</p>}
         </div>
-        <div className="tour-actions">
-          <button className="btn ghost" onClick={() => actions.current.onSkip()}>
-            Skip tour
-          </button>
-          <span className="tour-spacer" />
+        <span className="tour-progress" aria-hidden="true"><i style={{ transform: `scaleX(${(index + 1) / tutorialSteps.length})` }} /></span>
+        <footer className="tour-actions">
+          <span className="tour-note">Simulation time is paused.</span>
           <button className="btn" disabled={index === 0} onClick={() => move(-1)}>
             Back
           </button>
           <button ref={primary} className="btn primary" onClick={() => (last ? actions.current.onStart() : move(1))}>
             {last ? "Start Simulation" : "Next"}
           </button>
-        </div>
+        </footer>
       </div>
     </div>,
     document.body,

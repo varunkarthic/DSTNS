@@ -27,6 +27,8 @@ import {
 } from "./Dialogs";
 import type { CompletionSummary } from "./Dialogs";
 import { Tooltip } from "./Tooltip";
+import { ISDHandler } from "./ISDHandler";
+import type { ISDCondition } from "./ISDHandler";
 import { Tutorial } from "./Tutorial";
 import { useTutorial } from "./useTutorial";
 import { NotificationCapsule } from "./NotificationCapsule";
@@ -44,6 +46,7 @@ import type { MapReadoutHandle } from "./MapReadout";
 import { fabric, useFabricNotifications } from "./webfabric/store";
 import { FabricDialog, FabricDockItems, FabricHeader, FabricIndicators, FabricPanel, FabricSidebar, FabricStatus } from "./webfabric/Slots";
 import { FabricOverlay } from "./webfabric/Overlay";
+import { useFabricApps } from "./webfabric/store";
 import type { FabricOverlayHandle } from "./webfabric/Overlay";
 import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
 import type { UiConfig, AutoFocusStrategy } from "./uiConfig";
@@ -315,6 +318,21 @@ export default function App() {
     blocked: !!dialog || layersOpen || settingsOpen || pending || world.active,
     onError: setActionError,
   });
+
+  const fabricApps = useFabricApps();
+  const appliedRate = clock?.tick_rate ?? 1;
+  // What looks like a fault but is not. The tour has the screen to itself.
+  const intentional: ISDCondition[] = tutorial.active
+    ? []
+    : [
+        suspended && ("async" as const),
+        asb?.state === "RESTRICTED" && ("restricted" as const),
+        rateLocked && ("rate-locked" as const),
+        !rateLocked && !!asb && Math.abs(asb.requested_tick_rate - appliedRate) > 1e-6 && ("rate-governed" as const),
+        motionLocked && !motionChoice && ("motion-locked" as const),
+        lifecycle === "RUNNING" && appliedRate > 5 && ("large-steps" as const),
+        fabricApps.some((app) => app.state === "suspended" && !app.user_suspended) && ("app-lapsed" as const),
+      ].filter((condition): condition is Exclude<typeof condition, false> => !!condition);
 
   // ASB's default state strips the presentation back to a minimum and soft
   // restarts it, as a reload would, without reloading the page.
@@ -955,7 +973,7 @@ export default function App() {
               leftInset={sidebarInset}
               onMapPick={fabric.deliverPick}
             />
-            <FabricOverlay ref={overlay} />
+            <FabricOverlay ref={overlay} topology={sim.topology} />
           </div>
 
           {interactive && (
@@ -1075,6 +1093,7 @@ export default function App() {
                   onShowOther={(on) => changeLayers({ ...layers, other_places: on })}
                   places={places}
                   onTogglePlace={togglePlace}
+                  onShowAll={(kinds) => changePlaces({ ...places, ...Object.fromEntries(kinds.map((kind) => [kind, true])) })}
                   onResetPlaces={resetPlaces}
                 />
               </div>
@@ -1237,6 +1256,7 @@ export default function App() {
             />
           )}
 
+          <ISDHandler active={intentional} />
           <FabricDialog blocked={!interactive || !!dialog || tutorial.active || settingsOpen} />
 
           {world.active && (

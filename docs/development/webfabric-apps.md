@@ -124,6 +124,22 @@ an `overlay` using `series` colours. Keep the network and the vehicles in separa
 elements: the vehicles can then update every second, as named points that glide, without
 resending the network. A button with `pick: true` asks a person for a place on the map.
 
+To follow the roads, name them rather than coordinates. A `route` draws adjacent junctions, a `marker`
+stands on a junction, an `entity` sits on an edge, and a `path` animates along adjacent junctions with no
+further requests:
+
+```python
+fabric.app("PUT", "/ui/buses", {"slot": "overlay", "features": [
+    {"type": "route", "nodes": line, "series": 0, "width": 3},
+    {"type": "marker", "node": line[0], "shape": "stop", "series": 0},
+    {"type": "entity", "edge": depot_edge, "at": 0.5, "shape": "vehicle", "tone": "neutral"},
+    {"type": "path", "id": "bus-1", "nodes": line, "series": 0, "shape": "bus", "label": "R1",
+     "speed_mps": 60, "spring": "lively", "loop": True, "bounce": True, "dwell_s": 1.2},
+]})
+```
+
+Every option is listed under [On the road network](../components/webfabric.md#on-the-road-network).
+
 `Fabric/examples/bus_planner.py` does all of this and can be run against any world. It uses DSTNS's own
 stops where a district has enough, otherwise naming well-connected junctions as stops, and shows the
 demand at them in a section on the right.

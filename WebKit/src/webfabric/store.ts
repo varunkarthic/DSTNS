@@ -40,8 +40,13 @@ export interface FabricLegendItem {
 }
 
 export interface FabricWidget {
-  type: "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input";
+  type: "route" | "sparkline" | "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input";
   id?: string;
+  /** For a route: its stops in order. */
+  stops?: { id?: string; label: string; caption?: string; state?: "passed" | "current" | "next" }[];
+  /** For a sparkline: the figures, oldest first. */
+  values?: number[];
+  series?: number;
   /** For a button: the next click on the map is reported as a place. */
   pick?: boolean;
   items?: FabricStatItem[];
@@ -78,7 +83,34 @@ export interface OverlayFeature {
   hollow?: boolean;
   /** Metres for lines; pixels for a point's size. */
   size?: number;
-  type: "point" | "circle" | "line" | "polygon";
+  type: "point" | "circle" | "line" | "polygon" | "marker" | "entity" | "route" | "path";
+  /** A marker: the junction it stands on. */
+  node?: number;
+  /** An entity: the directed road it is on, and how far along that road, 0 to 1. */
+  edge?: number;
+  at?: number;
+  /** A route or path: adjacent junctions, in order. */
+  nodes?: number[];
+  shape?: "pin" | "stop" | "ring" | "diamond" | "bus" | "vehicle" | "dot" | "none";
+  /** A path: metres of map per second of real time. */
+  speed_mps?: number;
+  /** A path: play again from the start, or go back and forth. */
+  loop?: boolean;
+  bounce?: boolean;
+  /** A path: how long to hold at each junction, and before starting. */
+  dwell_s?: number;
+  delay_s?: number;
+  /** A path: how it takes up speed and arrives. */
+  spring?: "smooth" | "standard" | "lively" | "snappy" | { stiffness: number; damping: number };
+  /** A path: draw the line as it goes, rather than all at once. */
+  reveal?: boolean;
+  /** A path: leave the whole line faintly visible beneath it. */
+  trail?: boolean;
+  paused?: boolean;
+  /** A path: change this number to play it again. */
+  run?: number;
+  /** Worked out by the observer from the network: which way an entity faces, in radians. */
+  heading?: number;
   x_m?: number;
   y_m?: number;
   radius_m?: number;

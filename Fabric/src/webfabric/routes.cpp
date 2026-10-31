@@ -51,7 +51,19 @@ void ApiServer::routes_apps() {
     };
 
     server_->Get("/api/v1/fabric/apps", [this, ok](const auto&, auto& r) { ok(r, {{"items", registry_->list()}}); });
-    server_->Post("/api/v1/fabric/apps", [this, ok](const auto& req, auto& r) { ok(r, registry_->register_app(body(req), bearer(req)), 201); });
+    // Features tied to the road network must fit the world that is loaded. A path that
+    // is not a real sequence of roads is the application's mistake, so it hears of it now.
+    const auto on_network = [this](const json& element) {
+        if (!element.is_object() || !element.contains("features")) return;
+        const auto problem = engine_.network_problem(element.at("features"));
+        if (!problem.empty()) throw Refusal(422, "NOT_ON_NETWORK", problem);
+    };
+    server_->Post("/api/v1/fabric/apps", [this, ok, on_network](const auto& req, auto& r) {
+        const auto manifest = body(req);
+        if (manifest.is_object() && manifest.contains("ui") && manifest.at("ui").is_array())
+            for (const auto& element : manifest.at("ui")) on_network(element);
+        ok(r, registry_->register_app(manifest, bearer(req)), 201);
+    });
     server_->Get(route(""), [this, ok](const auto& req, auto& r) { ok(r, registry_->describe(req.matches[1])); });
     server_->Delete(route(""), [this, ok, owner](const auto& req, auto& r) {
         // The application leaves and keeps its identity; a person may forget it.
@@ -70,13 +82,20 @@ void ApiServer::routes_apps() {
         ok(r, json::object());
     });
 
-    server_->Put(route("/ui"), [this, ok, owner](const auto& req, auto& r) {
-        registry_->set_ui(owner(req), body(req));
+    server_->Put(route("/ui"), [this, ok, owner, on_network](const auto& req, auto& r) {
+        const auto id = owner(req);
+        const auto elements = body(req);
+        if (elements.is_array())
+            for (const auto& element : elements) on_network(element);
+        registry_->set_ui(id, elements);
         ok(r, json::object());
     });
     const auto element = route(R"(/ui/([a-z0-9_-]+))");
-    server_->Put(element, [this, ok, owner](const auto& req, auto& r) {
-        registry_->upsert_element(owner(req), req.matches[2], body(req));
+    server_->Put(element, [this, ok, owner, on_network](const auto& req, auto& r) {
+        const auto id = owner(req);
+        const auto declared = body(req);
+        on_network(declared);
+        registry_->upsert_element(id, req.matches[2], declared);
         ok(r, json::object());
     });
     server_->Delete(element, [this, ok, owner](const auto& req, auto& r) {

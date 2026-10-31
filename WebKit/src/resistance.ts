@@ -8,7 +8,7 @@ import { animate, stepSpring } from "./motion";
  *
  * Whatever has a limit (a list's end, the map's widest zoom, a slider) answers
  * being pushed past it the same way: it follows at first, then gives ever less, up
- * to a bound, and when let go settles home. That says "this is the end" without a
+ * to a bound, and returns the moment the push stops growing. That says "this is the end" without a
  * hard stop.
  *
  * The curve is the one Apple's scroll views use. Dynamic, because its bound follows
@@ -51,9 +51,11 @@ export function resistZoomOut(scale: number, fitScale: number): number {
 
 const SCROLLING = /(auto|scroll)/;
 // Follows the pull closely, but smooths the steps a mouse wheel arrives in.
-const FOLLOW = { k: 900, c: 56 };
-// Going home: firm at first, then easing in, with no bounce.
-const HOME = { k: 170, c: 26 };
+const FOLLOW = { k: 620, c: 50 };
+// How fast a stretch lets go, per second. A wheel has no release, and a trackpad goes
+// on sending events long after the fingers lift, so nothing waits for the input to
+// stop: the pull drains all the time, and the input only has to outrun it.
+const RELEASE = 7;
 
 function normalised(event: WheelEvent, page: number): [number, number] {
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? page : 1;
@@ -75,7 +77,7 @@ function regionFor(start: Element | null, axis: "x" | "y"): HTMLElement | null {
   return fallback;
 }
 
-interface Stretch { axis: "x" | "y"; pull: number; x: number; v: number; held: boolean; idle: ReturnType<typeof setTimeout> | undefined; cancel: (() => void) | null }
+interface Stretch { axis: "x" | "y"; pull: number; x: number; v: number; cancel: (() => void) | null }
 
 /**
  * Installs itself once, for every scrolling region now and later, so no menu has to
@@ -87,7 +89,7 @@ export function installEdgeResistance(root: Document = document): () => void {
   const reduced = () => root.documentElement.classList.contains("reduce-motion");
 
   const paint = (el: HTMLElement, s: Stretch) => {
-    if (Math.abs(s.x) < 0.05 && !s.held) {
+    if (Math.abs(s.x) < 0.05 && !s.pull) {
       el.removeAttribute("data-edge");
       el.style.removeProperty("--edge-x");
       el.style.removeProperty("--edge-y");
@@ -99,9 +101,11 @@ export function installEdgeResistance(root: Document = document): () => void {
 
   const run = (el: HTMLElement, s: Stretch) => {
     s.cancel ??= animate((dt) => {
-      const target = s.held ? -resist(s.pull, resistBound(s.axis === "y" ? el.clientHeight : el.clientWidth)) : 0;
-      [s.x, s.v] = stepSpring(s.x, s.v, target, s.held ? FOLLOW : HOME, dt);
-      const done = !s.held && Math.abs(s.x) < 0.05 && Math.abs(s.v) < 1;
+      s.pull *= Math.exp(-RELEASE * dt);
+      if (Math.abs(s.pull) < 0.5) s.pull = 0;
+      const target = -resist(s.pull, resistBound(s.axis === "y" ? el.clientHeight : el.clientWidth));
+      [s.x, s.v] = stepSpring(s.x, s.v, target, FOLLOW, dt);
+      const done = !s.pull && Math.abs(s.x) < 0.05 && Math.abs(s.v) < 1;
       if (done) s.x = 0;
       paint(el, s);
       if (done) s.cancel = null;
@@ -112,21 +116,14 @@ export function installEdgeResistance(root: Document = document): () => void {
   const push = (el: HTMLElement, axis: "x" | "y", delta: number) => {
     let s = stretches.get(el);
     if (!s) {
-      s = { axis, pull: 0, x: 0, v: 0, held: false, idle: undefined, cancel: null };
+      s = { axis, pull: 0, x: 0, v: 0, cancel: null };
       stretches.set(el, s);
     }
     s.axis = axis;
-    // Turning back inside a stretch takes it back first, as a real edge does.
-    s.pull = Math.sign(s.pull) === Math.sign(delta) || !s.pull ? s.pull + delta : s.pull + delta;
-    s.held = true;
+    // Turning back takes the stretch back first, and stops at the edge.
+    const next = s.pull + delta;
+    s.pull = s.pull && Math.sign(next) !== Math.sign(s.pull) ? 0 : next;
     run(el, s);
-    const stretch = s;
-    clearTimeout(s.idle);
-    // A wheel has no release; its stopping is the release.
-    s.idle = setTimeout(() => {
-      stretch.held = false;
-      stretch.pull = 0;
-    }, 70);
   };
 
   const onWheel = (event: WheelEvent) => {
@@ -150,7 +147,7 @@ export function installEdgeResistance(root: Document = document): () => void {
     const atEnd = delta < 0 ? position <= 0 : position >= size - 1;
     const active = stretches.get(el);
     // Reversing while stretched unwinds the stretch before the content scrolls.
-    const unwinding = !!active?.held && active.pull !== 0 && Math.sign(active.pull) !== Math.sign(delta);
+    const unwinding = !!active?.pull && Math.sign(active.pull) !== Math.sign(delta);
     if ((atEnd || unwinding) && !reduced()) {
       event.preventDefault();
       push(el, axis, delta);
