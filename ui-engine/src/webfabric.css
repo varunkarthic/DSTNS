@@ -1,0 +1,471 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+   Copyright (C) 2026 Varun Karthic */
+
+/* Everything applications can appear in. Tones map to the DSTNS palette, and these
+ * rules are the only place application content gets its appearance. */
+
+.tone-accent { --tone: var(--accent); }
+.tone-ok { --tone: var(--ok); }
+.tone-warn { --tone: var(--warn); }
+.tone-danger { --tone: var(--danger); }
+
+/* ---- Status ------------------------------------------------------------- */
+
+.fabric-status {
+  position: absolute;
+  top: 18px;
+  left: 84px;
+  z-index: var(--z-dock);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+.fabric-status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  transition:
+    transform var(--spring-lively-ms, 200ms) var(--spring-lively, ease-out),
+    opacity var(--t-fast) var(--ease);
+  @starting-style {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+.fabric-status-item i {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--tone, var(--text-faint));
+}
+.fabric-status-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fabric-status-item strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ---- Edge indicators ---------------------------------------------------- */
+
+.fabric-indicator {
+  position: absolute;
+  z-index: var(--z-dock);
+  border-radius: var(--r-pill);
+  background: var(--tone, var(--accent));
+  box-shadow: 0 0 12px var(--tone, var(--accent));
+  transition: opacity var(--t-fast) var(--ease);
+  @starting-style {
+    opacity: 0;
+  }
+}
+.fabric-indicator.edge-top,
+.fabric-indicator.edge-bottom {
+  left: var(--place);
+  width: 56px;
+  height: 3px;
+  margin-left: -28px;
+}
+.fabric-indicator.edge-left,
+.fabric-indicator.edge-right {
+  top: var(--place);
+  width: 3px;
+  height: 56px;
+  margin-top: -28px;
+}
+.fabric-indicator.edge-top { top: 0; }
+.fabric-indicator.edge-bottom { bottom: 0; }
+.fabric-indicator.edge-left { left: 0; }
+.fabric-indicator.edge-right { right: 0; }
+
+/* ---- Overlay ------------------------------------------------------------ */
+
+.fabric-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ---- Panel -------------------------------------------------------------- */
+
+.fabric-panel {
+  position: absolute;
+  top: 12px;
+  bottom: calc(16px + var(--rail-h) + 12px);
+  left: 84px;
+  z-index: var(--z-popover);
+  width: min(340px, calc(100% - 96px));
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-shadow);
+  transition:
+    transform var(--spring-spatialDefault-ms, 220ms) var(--spring-spatialDefault, ease-out),
+    opacity var(--t-fast) var(--ease);
+  @starting-style {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+.fabric-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 8px 20px;
+}
+.fabric-panel h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.fabric-panel small {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.fabric-panel-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 20px 20px;
+}
+.fabric-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+.fabric-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.fabric-stat strong {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--tone, var(--text));
+}
+.fabric-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.fabric-progress > div {
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--well);
+}
+.fabric-progress i {
+  display: block;
+  height: 100%;
+  background: var(--tone, var(--accent));
+  transform-origin: left;
+  transition: transform var(--spring-spatialSlow-ms, 300ms) var(--spring-spatialSlow, ease-out);
+}
+.fabric-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.fabric-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 12px 12px;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--well);
+}
+.fabric-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.fabric-frame-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: var(--surface-solid);
+}
+.fabric-dialog-from {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ---- Settings pages ------------------------------------------------------ */
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition:
+    transform var(--spring-spatialDefault-ms, 220ms) var(--spring-spatialDefault, ease-out),
+    opacity var(--t-fast) var(--ease);
+  @starting-style {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+.settings-page-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: opacity var(--t-select) var(--ease);
+  @starting-style {
+    opacity: 0;
+  }
+}
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  min-height: 28px;
+  margin-left: -4px;
+  padding-right: 8px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--text-dim);
+  transition: color var(--t-fast) var(--ease);
+}
+.settings-back:hover {
+  color: var(--text);
+}
+.icon.flip {
+  transform: scaleX(-1);
+}
+.fabric-logo {
+  display: block;
+  align-self: flex-start;
+  height: 22px;
+  width: auto;
+}
+.settings-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  border-radius: var(--r-sm);
+  text-align: left;
+}
+.settings-nav img {
+  height: 16px;
+  width: auto;
+}
+.settings-nav small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.fabric-apps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fabric-apps button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  text-align: left;
+  color: var(--text-dim);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+  transition:
+    background var(--t-fast) var(--ease),
+    transform var(--spring-lively-ms, 200ms) var(--spring-lively, ease-out);
+}
+.fabric-apps button:hover {
+  background: var(--hover);
+}
+.fabric-apps button:active {
+  transform: scale(0.985);
+}
+.fabric-apps button > span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fabric-apps strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.fabric-apps small {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.fabric-state {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+.fabric-state.state-active { color: var(--ok); }
+.fabric-state.state-failed { color: var(--danger); }
+.fabric-state.state-suspended { color: var(--warn); }
+.fabric-app-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.fabric-input {
+  width: 128px;
+  height: 32px;
+  flex: none;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+}
+.fabric-search {
+  width: 100%;
+}
+.fabric-slider-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+.fabric-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fabric-slider input,
+.fabric-field input[type="range"] {
+  flex: 1;
+  min-height: 24px;
+  accent-color: var(--accent);
+}
+.fabric-slider output {
+  min-width: 3ch;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text);
+}
+.fabric-field select {
+  height: 32px;
+  border-radius: var(--r-sm);
+  color: var(--text);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+}
+.fabric-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+.fabric-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 12px;
+}
+.fabric-facts dt {
+  color: var(--text-faint);
+}
+.fabric-facts dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.fabric-audit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--text);
+}
+.fabric-audit small {
+  color: var(--text-faint);
+}
+.fabric-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.about-subsystems {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.about-subsystems img {
+  height: 16px;
+  width: auto;
+  opacity: 0.85;
+}
+
+.reduce-motion :is(.fabric-status-item, .fabric-indicator, .fabric-panel, .settings-page, .settings-page-body, .fabric-progress i, .fabric-apps button) {
+  transition: none;
+}

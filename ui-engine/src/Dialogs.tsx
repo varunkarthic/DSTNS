@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import fabricLogo from "./assets/brand/fabric-white.png";
+import webfabricLogo from "./assets/brand/webfabric-white.png";
 import { api } from "./api";
 import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef, useState } from "react";
@@ -207,6 +209,14 @@ export function AboutCard({
           </div>
         </div>
       </div>
+
+      <div className="about-subsystems">
+        <img src={fabricLogo} alt="Fabric" height={16} />
+        <img src={webfabricLogo} alt="WebFabric" height={16} />
+      </div>
+      <p className="settings-note">
+        Fabric and WebFabric are DSTNS subsystems, © 2026 Varun Karthic, under the same licence.
+      </p>
 
       <div className="about-links">
         <a className="link-row" href="/api/v1/system/source">

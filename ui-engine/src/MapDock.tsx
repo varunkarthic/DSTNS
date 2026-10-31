@@ -3,6 +3,7 @@
 
 import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Icon, ActionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 import type { AutoFocusStrategy } from "./uiConfig";
@@ -43,6 +44,8 @@ export interface MapDockProps {
   onPickPlace: (feature: MapFeature) => void;
 
   disabled?: boolean;
+  /** Controls contributed by applications. */
+  extra?: ReactNode;
 }
 
 export function MapDock(props: MapDockProps) {
@@ -184,6 +187,8 @@ export function MapDock(props: MapDockProps) {
           <ActionIcon name={props.reduceMotion ? "motionOff" : "motion"} size={18} signal={props.reduceMotion} reduceMotion={props.reduceMotion} />
         </button>
       </Tooltip>
+
+      {props.extra}
 
       <div className="divider" aria-hidden="true" />
 

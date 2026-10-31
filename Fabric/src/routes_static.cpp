@@ -43,6 +43,11 @@ void ApiServer::routes_static() {
             std::ifstream f(dist / "index.html");
             if (f) {
                 std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+                // Applications' pages run in sandboxed frames from wherever they are
+                // served; everything of the observer's own comes from here.
+                r.set_header("Content-Security-Policy",
+                             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+                             "font-src 'self' data:; connect-src 'self'; frame-src http: https:; object-src 'none'; base-uri 'none'");
                 r.set_content(content, "text/html; charset=utf-8");
                 return;
             }

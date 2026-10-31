@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentProps } from "react";
 import NetworkMap from "./NetworkMap";
 import type { MapControls, MapView } from "./NetworkMap";
 import { TelemetryDeck } from "./TelemetryDeck";
@@ -34,6 +35,10 @@ import { useBackpressure, describeAsb, formatRate } from "./useBackpressure";
 import { api } from "./api";
 import { formatCoordinate, scaleBarFor } from "./mapProjection";
 import { MOTION_MS } from "./motion";
+import { fabric, useFabricNotifications } from "./webfabric/store";
+import { FabricDialog, FabricDockItems, FabricHeader, FabricIndicators, FabricPanel, FabricStatus } from "./webfabric/Slots";
+import { FabricOverlay } from "./webfabric/Overlay";
+import type { FabricOverlayHandle } from "./webfabric/Overlay";
 import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
 import type { UiConfig, AutoFocusStrategy } from "./uiConfig";
 import { TimeFormatProvider } from "./preferences";
@@ -66,6 +71,7 @@ import "./theme.css";
 import "./hud.css";
 import "./system.css";
 import "./motion.css";
+import "./webfabric.css";
 
 export const VERSION = "3.0.0";
 
@@ -404,10 +410,26 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [framing]);
 
+  // ---- WebFabric ----------------------------------------------------------
+  useEffect(() => {
+    fabric.start();
+    return () => fabric.stop();
+  }, []);
+  // Frames follow the simulation at the observer's own pace.
+  useEffect(() => {
+    if (!sim.snapshot) return;
+    fabric.publishSim({ lifecycle, virtual_s: virtual, tick_rate: clock?.tick_rate ?? 1, congestion: congestion?.current ?? 0, run_id: runId });
+    // Once per delivered snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sim.snapshot]);
+  const overlay = useRef<FabricOverlayHandle>(null);
+  const onMapTransform = useCallback<NonNullable<ComponentProps<typeof NetworkMap>["onTransform"]>>((view) => overlay.current?.draw(view), []);
+  const fabricNotes = useFabricNotifications(config.notifications.dwell_ms, virtual);
+
   // ---- Notifications ------------------------------------------------------
   const [dismissedFocus, setDismissedFocus] = useState<Set<string>>(new Set());
   useEffect(() => setDismissedFocus(new Set()), [runId]);
-  const notifications = useMemo(() => buildNotifications(sim.toasts, sim.topology), [sim.toasts, sim.topology]);
+  const notifications = useMemo(() => [...buildNotifications(sim.toasts, sim.topology), ...fabricNotes.notes], [sim.toasts, sim.topology, fabricNotes.notes]);
   const policy = useMemo(
     () => ({
       enabled: config.notifications.enabled,
@@ -463,9 +485,10 @@ export default function App() {
   const dismissNotification = useCallback(
     (n: UiNotification) => {
       if (n.newsIds.length) sim.dismissToasts(n.newsIds);
+      if (n.type === "APPLICATION") fabricNotes.dismiss(n.id);
       if (n.focusKey && !n.newsIds.length) setDismissedFocus((s) => new Set(s).add(n.focusKey!));
     },
-    [sim],
+    [sim, fabricNotes],
   );
 
   // ---- Congestion history ------------------------------------------------
@@ -832,6 +855,7 @@ export default function App() {
             <p>Deterministic Spatiotemporal Transport Network Simulator</p>
           </div>
           <div className="header-actions" data-tutorial="help">
+            {interactive && <FabricHeader />}
             {location?.city && (
               <Tooltip label="Seed-selected district" detail={`${formatCoordinate(location.anchor_lat, location.anchor_lon)}, from OpenStreetMap.`} side={["bottom"]}>
                 <span className="chip city-chip" tabIndex={0}>
@@ -877,10 +901,20 @@ export default function App() {
               focus={tutorial.busy ? null : manualFocus ?? autoFocusRequest}
               controls={mapControls}
               onView={setView}
+              onTransform={onMapTransform}
               onCursor={setCursor}
               deckCompact={deckCompact}
             />
+            <FabricOverlay ref={overlay} />
           </div>
+
+          {interactive && (
+            <>
+              <FabricStatus />
+              <FabricIndicators />
+              <FabricPanel />
+            </>
+          )}
 
           <MapDock
             onZoomIn={() => mapControls.current?.zoomIn()}
@@ -901,6 +935,7 @@ export default function App() {
             features={sim.topology?.features ?? []}
             onPickPlace={focusOnPlace}
             disabled={suspended}
+            extra={interactive ? <FabricDockItems /> : undefined}
           />
 
           <SettingsDrawer
@@ -1145,6 +1180,8 @@ export default function App() {
               }}
             />
           )}
+
+          <FabricDialog blocked={!interactive || !!dialog || tutorial.active || settingsOpen} />
 
           {world.active && (
             <WorldGenerationOverlay
