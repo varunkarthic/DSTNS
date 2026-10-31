@@ -1051,7 +1051,8 @@ describe("dialogs and suspension", () => {
     const dialog = await screen.findByRole("dialog", { name: "The day is complete" }, { timeout: 5000 });
     expect(dialog).toHaveTextContent("24:00:00");
     await waitFor(() => expect(dialog).toHaveTextContent(/Incidents\s*1/));
-    expect(dialog).toHaveTextContent(/Rain events\s*1/);
+    // The figures count up, so give them a moment to arrive.
+    await waitFor(() => expect(dialog).toHaveTextContent(/Rain events\s*1/));
     expect(dialog).toHaveTextContent("17310766248549826767");
     // A finished run offers all three next moves, not just a way out.
     expect(within(dialog).getByRole("button", { name: /Save Report/ })).toBeEnabled();
