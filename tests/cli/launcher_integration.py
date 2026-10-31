@@ -16,7 +16,7 @@ class LauncherIntegration(unittest.TestCase):
    legacy=http.server.ThreadingHTTPServer(('127.0.0.1',0),OldServer);threading.Thread(target=legacy.serve_forever,daemon=True).start()
    env={**os.environ,'DSTNS_API_PORT':str(legacy.server_port),'DSTNS_LOGS_DIR':tmp,'DSTNS_SEED_DB':str(pathlib.Path(tmp)/'seeds.db')}
    # Simulate stale UI output without modifying any source or user configuration.
-   stamp=ROOT/'ui-engine/dist/.launcher-source';previous=stamp.read_bytes() if stamp.exists() else None;stamp.write_text('stale-before-test')
+   stamp=ROOT/'WebKit/dist/.launcher-source';previous=stamp.read_bytes() if stamp.exists() else None;stamp.write_text('stale-before-test')
    child=None
    with open(pathlib.Path(tmp)/'launcher.log','w+') as log:
     try:

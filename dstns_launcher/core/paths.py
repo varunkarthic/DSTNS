@@ -16,7 +16,7 @@ on local disk, and only the sources stay in the synced folder:
 the launcher's log              ``~/Library/Logs/DSTNS/launcher.log``
 the server's logs and database  ``~/Library/Logs/DSTNS/logs-<id>/``
 the C++ build                   ``~/Library/Caches/DSTNS/checkout-<id>/build/``
-the observer's build            ``~/Library/Caches/DSTNS/checkout-<id>/source/ui-engine/``
+the observer's build            ``~/Library/Caches/DSTNS/checkout-<id>/source/WebKit/``
 downloaded city extracts        ``~/Library/Caches/DSTNS/checkout-<id>/maps/``
 the launcher's environment      ``~/Library/Caches/DSTNS/venv-launcher-<id>/``
 ==============================  =====================================================
@@ -145,14 +145,14 @@ class Paths:
     @property
     def ui_engine(self) -> Path:
         """The observer's sources."""
-        return self.root / "ui-engine"
+        return self.root / "WebKit"
 
     @property
     def observer_build(self) -> Path:
         """Where npm installs and builds the observer: the sources themselves, or a
         local mirror of them in a synced checkout (node_modules alone is tens of
         thousands of files a sync client would upload and then evict)."""
-        return self.local_workspace / "source" / "ui-engine" if self.synced else self.ui_engine
+        return self.local_workspace / "source" / "WebKit" if self.synced else self.ui_engine
 
     @property
     def ui_dist(self) -> Path:

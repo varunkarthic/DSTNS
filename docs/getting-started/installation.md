@@ -115,8 +115,8 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=ON
 cmake --build build -j
 
 # The observer
-npm ci --prefix ui-engine
-npm run build --prefix ui-engine
+npm ci --prefix WebKit
+npm run build --prefix WebKit
 
 ```
 
@@ -130,7 +130,7 @@ npm run build --prefix ui-engine
 | `build/dstns_road_index` | Inspect a map's road graph |
 | `build/dstns_benchmark` | Routing and snapshot benchmarks |
 | `build/dstns_*_tests` | The native test suites |
-| `ui-engine/dist/` | The observer bundle the server serves |
+| `WebKit/dist/` | The observer bundle the server serves |
 
 Run the server on its own and start a run from another terminal:
 
@@ -170,7 +170,7 @@ curl -s localhost:8090/api/v1/system/info | python3 -m json.tool | grep -A3 '"su
 
 ```bash
 ctest --test-dir build --output-on-failure      # 14 native and HTTP suites
-npm test --prefix ui-engine                     # observer suites
+npm test --prefix WebKit                     # observer suites
 ```
 
 Both should pass in under a minute. See [Testing](../development/testing.md)
@@ -197,7 +197,7 @@ Everything DSTNS creates lives inside the repository:
 | Path | Contents | Safe to delete |
 |---|---|---|
 | `build/` | Native build | Yes; rebuilt on next start |
-| `ui-engine/dist/`, `ui-engine/node_modules/` | JavaScript build and dependencies | Yes |
+| `WebKit/dist/`, `WebKit/node_modules/` | JavaScript build and dependencies | Yes |
 | `.venv-launcher/` | The launcher's terminal interface | Yes; reinstalled on next use |
 | `logs/` | Logs, journal, operator token | Yes; `./launcher reset` clears it |
 | `data/maps/` | Downloaded city maps | Yes; downloaded again when needed |

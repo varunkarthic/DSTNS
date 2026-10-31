@@ -14,7 +14,7 @@ Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed,
 | POST | `/api/v1/world/regenerate` | Replace the world with one from a fresh secure seed; HTTP 202, progress via `/world/status` |
 | GET | `/api/v1/world/status` | State of the current or last world generation job |
 | GET | `/api/v1/system/observer` | Whether the observer page has been served yet, and how many times |
-| PUT | `/api/v1/control/tick-rate` | Rate in (0, 5]; the interface offers 0.25, 0.5, 1, 2, 3 and 5 |
+| PUT | `/api/v1/control/tick-rate` | Rate in (0, 20]; the interface offers 0.25, 0.5, 1, 2, 3, 5, 10 and 20 |
 | GET | `/api/v1` , `/api/v1/system/endpoints` | Machine-readable index of every group and route |
 | GET | `/api/v1/view/topology` | Immutable geographic graph, road names/tags, features, bounds, projection |
 | GET | `/api/v1/view/places`, `/api/v1/places` | Classified places with live demand and the couplings acting on them |

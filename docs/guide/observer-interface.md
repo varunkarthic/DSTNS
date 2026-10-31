@@ -1,6 +1,6 @@
 # Observer interface
 
-This guide describes the DSTNS observer interface in `ui-engine/`: what each
+This guide describes the DSTNS observer interface in `WebKit/`: what each
 control does, how it connects to the simulation core, and how the parts are
 built. It is written for operators using the interface and for engineers
 changing it.
@@ -96,7 +96,7 @@ Focus frames an event, so a focused event is never hidden under a panel.
 |---|---|
 | Playback | Reset, Back, Step, Play/Pause, Forward |
 | Time | Time and progress control |
-| Speed | 0.25×, 0.5×, 1×, 2×, 3×, 5× |
+| Speed | 0.25×, 0.5×, 1×, 2×, 3×, 5×, 10×, 20× |
 | Session | Seed with copy and Generate New World, runtime status, Terminate |
 
 Every control is a real engine operation:
@@ -157,7 +157,7 @@ such text, so they follow the preference too. Midnight at the end of the day is
 
 A segmented control with a sliding highlight, offering exactly 0.25×, 0.5×,
 1×, 2×, 3× and 5×. It is a `radiogroup`: arrow keys, Home and End move the
-selection and send the new rate. The core accepts any rate in (0, 5].
+selection and send the new rate. The core accepts any rate in (0, 20].
 
 Every label sits on one baseline in a segment of the same width, and the weight
 does not change with selection, so nothing shifts when the choice moves. The
@@ -751,9 +751,9 @@ icon, with no geometry duplicated anywhere.
 
 | Suite | Command | Covers |
 |---|---|---|
-| UI unit and integration | `npm test --prefix ui-engine` | Formatting, notification model and DND, Auto Focus geometry, tooltip placement, telemetry, configuration, report model and PDF layout, the full shell with mocked core |
-| HUD in a real browser | `node ui-engine/tests/browser-hud.mjs` | Live core: layout at 2560, 1920, 1440, 1280 and 1024x640 with no overlaps, the notice below the minimum, tooltip collisions, speed and step reaching the engine, paused state, the numeric seed copied, settings and layers, notification capsule, telemetry collapse and side panel, place legend, tutorial start to finish, world regeneration, PDF download |
-| End to end | `node ui-engine/tests/browser.mjs` | CLI-only start, pause and resume, speed, persisted motion, queue, real signal and place inspection, demand notification, responsive layouts, report, malformed data, completion, termination |
+| UI unit and integration | `npm test --prefix WebKit` | Formatting, notification model and DND, Auto Focus geometry, tooltip placement, telemetry, configuration, report model and PDF layout, the full shell with mocked core |
+| HUD in a real browser | `node WebKit/tests/browser-hud.mjs` | Live core: layout at 2560, 1920, 1440, 1280 and 1024x640 with no overlaps, the notice below the minimum, tooltip collisions, speed and step reaching the engine, paused state, the numeric seed copied, settings and layers, notification capsule, telemetry collapse and side panel, place legend, tutorial start to finish, world regeneration, PDF download |
+| End to end | `node WebKit/tests/browser.mjs` | CLI-only start, pause and resume, speed, persisted motion, queue, real signal and place inspection, demand notification, responsive layouts, report, malformed data, completion, termination |
 | Core | `ctest --test-dir build` | Includes `dstns_world_and_stepping` for step and regeneration, including failure preserving the previous world |
 | HTTP | `python3 tests/api/api_smoke.py` | Step and world endpoints among the full API |
 

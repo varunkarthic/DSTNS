@@ -18,11 +18,11 @@ void ApiServer::routes_static() {
         if (const char* chosen = std::getenv("DSTNS_UI_DIST"); chosen && *chosen && std::filesystem::exists(chosen))
             return std::filesystem::absolute(chosen);
         for (const auto& dir : {
-            "ui-engine/dist",
-            "../ui-engine/dist",
-            "../../ui-engine/dist",
+            "WebKit/dist",
+            "../WebKit/dist",
+            "../../WebKit/dist",
             "dist",
-            "/app/ui-engine/dist"
+            "/app/WebKit/dist"
         }) {
             if (std::filesystem::exists(dir)) return std::filesystem::absolute(dir);
         }

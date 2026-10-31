@@ -304,7 +304,7 @@ class SyncedCheckout(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="dstns-sync-"))
         self.root = self.tmp / "OneDrive-Personal" / "dstns"
-        (self.root / "ui-engine" / "src").mkdir(parents=True)
+        (self.root / "WebKit" / "src").mkdir(parents=True)
         (self.root / "config").mkdir()
         self.env = mock.patch.dict(os.environ, {})
         self.env.start()
@@ -339,16 +339,16 @@ class SyncedCheckout(unittest.TestCase):
         self.assertFalse(paths.synced)
         self.assertEqual(paths.build, root / "build")
         self.assertEqual(paths.logs, root / "logs")
-        self.assertEqual(paths.ui_dist, root / "ui-engine" / "dist")
+        self.assertEqual(paths.ui_dist, root / "WebKit" / "dist")
         self.assertEqual(paths.server_environment(), {})
 
     def test_observer_sources_are_mirrored(self):
         from dstns_launcher.core import build
 
         paths = Paths(self.root)
-        (self.root / "ui-engine" / "src" / "App.tsx").write_text("app")
-        (self.root / "ui-engine" / "package.json").write_text("{}")
-        (self.root / "ui-engine" / "node_modules").mkdir()
+        (self.root / "WebKit" / "src" / "App.tsx").write_text("app")
+        (self.root / "WebKit" / "package.json").write_text("{}")
+        (self.root / "WebKit" / "node_modules").mkdir()
         (self.root / "config" / "ui-config.json").write_text("{}")
         target = paths.observer_build
         (target / "node_modules" / "kept").mkdir(parents=True)

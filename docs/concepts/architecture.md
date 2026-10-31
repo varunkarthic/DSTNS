@@ -65,7 +65,7 @@ holds simulation state of its own; both read what the core publishes.
 | `Core/src/sumo_bridge.cpp` | SUMO detection, export, `netconvert` and `sumo` invocation |
 | `Core/src/logging.cpp` | `RuntimeLogger`: text system log and SQLite runtime journal |
 | `Core/src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
-| `ui-engine/` | The observer: React 19, Vite, Vitest, jsPDF |
+| `WebKit/` | The observer: React 19, Vite, Vitest, jsPDF |
 | `dstns_launcher/` | Python launcher: shared service core, Textual screens and compatibility interface |
 | `launcher`, `launcher.py` | Thin wrappers that start the CLI |
 | `scripts/` | Build, test, fetch and reset helpers |
@@ -247,7 +247,7 @@ the old world is left exactly as it was.
 ## The HTTP layer
 
 `ApiServer` registers every route in one function, `routes()`, and serves the
-built observer from `ui-engine/dist`. Three cross-cutting pieces sit in front
+built observer from `WebKit/dist`. Three cross-cutting pieces sit in front
 of every handler:
 
 1. **The pre-routing guard** refuses cross-site state changes
@@ -292,7 +292,7 @@ seeds. See [Operator CLI](../guide/operator-cli.md).
 | Shape | How | Notes |
 |---|---|---|
 | Local, recommended | `./launcher` | Builds as needed, binds `127.0.0.1:8090` by default, serves the observer itself |
-| UI development | `npm run dev --prefix ui-engine` against a running core | Vite proxies `/api`, `/health` and `/media` to `DSTNS_API_PORT` (default 8090), so requests stay same-origin |
+| UI development | `npm run dev --prefix WebKit` against a running core | Vite proxies `/api`, `/health` and `/media` to `DSTNS_API_PORT` (default 8090), so requests stay same-origin |
 | Containers | `docker compose up` | One container serves the engine, the API and the observer on 8090; an optional nginx TLS gateway on 8443 (`--profile tls`). See [Docker](../deployment/docker.md) |
 
 ## Determinism boundaries

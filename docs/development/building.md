@@ -75,10 +75,10 @@ cmake --fresh -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=ON
 ## The observer
 
 ```bash
-npm ci --prefix ui-engine          # exact dependencies from package-lock.json
-npm run build --prefix ui-engine   # type check (tsc -b) and bundle into ui-engine/dist
-npm test --prefix ui-engine        # Vitest
-npm run dev --prefix ui-engine     # Vite dev server on 5173 with hot reload
+npm ci --prefix WebKit          # exact dependencies from package-lock.json
+npm run build --prefix WebKit   # type check (tsc -b) and bundle into WebKit/dist
+npm test --prefix WebKit        # Vitest
+npm run dev --prefix WebKit     # Vite dev server on 5173 with hot reload
 ```
 
 The dev server proxies `/api`, `/health` and `/media` to
@@ -101,7 +101,7 @@ python3 tests/launcher/test_interfaces.py    # command line, fallback and termin
 The launcher is the Python package `dstns_launcher/`: `core/` holds every operation,
 `tui/` the Textual interface and `fallback/` compatibility mode. Its build step
 fingerprints the core's and the observer's sources
-(stored in `build/.launcher-source` and `ui-engine/dist/.launcher-source`)
+(stored in `build/.launcher-source` and `WebKit/dist/.launcher-source`)
 and rebuilds only what changed.
 
 ## The container
@@ -124,7 +124,7 @@ to the root once:
 ln -s build/compile_commands.json .
 ```
 
-For the observer, open `ui-engine/` as the TypeScript project root.
+For the observer, open `WebKit/` as the TypeScript project root.
 
 ### Terminal wordmark
 

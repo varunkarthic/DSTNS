@@ -131,7 +131,7 @@ API from one port. The gateway is optional and only terminates TLS.
 /app
 ├── build/dstns_server              the server
 ├── build/dstns_scenario_export     SUMO export tool
-├── ui-engine/dist/                 the observer bundle
+├── WebKit/dist/                 the observer bundle
 ├── config/                         defaults.json, ui-config.json
 ├── build-info.json                 version, revision, platform and component metadata
 ├── LICENSE, COPYRIGHT              licence and developer attribution

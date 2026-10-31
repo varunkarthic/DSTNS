@@ -1,8 +1,8 @@
 build/
 build-asan/
-ui-engine/node_modules/
+WebKit/node_modules/
 node_modules/
-ui-engine/dist/
+WebKit/dist/
 logs/*.log
 logs/*.db*
 data/scenarios/*
@@ -56,8 +56,8 @@ venv/
 *.token
 
 # Test and tooling output
-ui-engine/test-results/
-ui-engine/playwright-report/
+WebKit/test-results/
+WebKit/playwright-report/
 coverage/
 artifacts/
 

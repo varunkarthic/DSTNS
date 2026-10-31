@@ -21,9 +21,9 @@ ARG RELEASE_CHANNEL=local
 # ---- Stage 1: the observer bundle ----------------------------------------
 FROM --platform=$BUILDPLATFORM node:22-${DEBIAN_RELEASE}-slim AS ui
 WORKDIR /ui
-COPY ui-engine/package.json ui-engine/package-lock.json ./
+COPY WebKit/package.json WebKit/package-lock.json ./
 RUN --mount=type=cache,id=dstns-npm,target=/root/.npm npm ci --prefer-offline --no-audit --no-fund
-COPY ui-engine/ ./
+COPY WebKit/ ./
 RUN npm run build
 # Node ships a trusted CA bundle. Bootstrap HTTPS apt even in the slim base,
 # before Debian's ca-certificates package is installed.
@@ -84,10 +84,10 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
 
 WORKDIR /app
 COPY --from=engine /src/build/dstns_server /src/build/dstns_scenario_export /app/build/
-COPY --from=ui /ui/dist /app/ui-engine/dist
+COPY --from=ui /ui/dist /app/WebKit/dist
 COPY config /app/config
 COPY LICENSE COPYRIGHT /app/
-COPY ui-engine/package.json /tmp/observer-package.json
+COPY WebKit/package.json /tmp/observer-package.json
 RUN python3 -c 'import json,sys; from pathlib import Path; keys=("version","revision","created","channel","platform","with_sumo"); data=dict(zip(keys,sys.argv[1:])); data.update(observer_version=json.loads(Path("/tmp/observer-package.json").read_text())["version"], author="Varun Karthic", source="https://github.com/varunkarthic/DSTNS", license="AGPL-3.0-or-later"); Path("/app/build-info.json").write_text(json.dumps(data,indent=2)+"\n")' \
       "$VERSION" "$REVISION" "$BUILD_DATE" "$RELEASE_CHANNEL" "$TARGETPLATFORM" "$WITH_SUMO" \
  && rm /tmp/observer-package.json

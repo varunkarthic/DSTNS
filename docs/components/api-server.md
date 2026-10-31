@@ -6,7 +6,7 @@ Source: `Fabric/include/dstns/api.hpp`, `Fabric/src/`, on
 ## Responsibilities
 
 - Register every route (`ApiServer::routes`) and serve the observer bundle from
-  `ui-engine/dist`.
+  `WebKit/dist`.
 - Parse and validate requests: JSON bodies, path IDs (32-bit, never wrapped),
   query numbers, times, seeds, configuration.
 - Refuse cross-site state changes and unauthenticated starts (pre-routing

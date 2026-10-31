@@ -17,8 +17,8 @@ from .reporting import Level, Reporter, duration
 
 NATIVE_INPUTS = ["CMakeLists.txt", "Core", "Fabric"]
 UI_INPUTS = [
-    "ui-engine/src", "ui-engine/public", "ui-engine/package.json", "ui-engine/package-lock.json",
-    "ui-engine/index.html", "ui-engine/vite.config.ts", "ui-engine/tsconfig.json",
+    "WebKit/src", "WebKit/public", "WebKit/package.json", "WebKit/package-lock.json",
+    "WebKit/index.html", "WebKit/vite.config.ts", "WebKit/tsconfig.json",
 ]
 
 

@@ -266,7 +266,7 @@ Notes on the contract:
 
 ## Observer side
 
-`ui-engine/src/useBackpressure.ts`:
+`WebKit/src/useBackpressure.ts`:
 
 - Frame cost is sampled from animation frames the browser is producing anyway —
   measurement never drives rendering.
@@ -303,7 +303,7 @@ good spell; alternating marginal samples never escalating; the action log being
 bounded and always explained; throughput reporting; and `reset()` fully clearing
 state so one run cannot colour the next.
 
-The observer side is covered in `ui-engine/tests/appShell.test.tsx`, which
+The observer side is covered in `WebKit/tests/appShell.test.tsx`, which
 asserts the Async overlay's exact promise (suspended interface, running
 simulation, four controls) and that Restricted genuinely locks the rate slider
 and the motion toggle.

@@ -123,7 +123,7 @@ volumes and survive a rebuild. Read the [changelog](../changelog.md) first.
 ```bash
 ./launcher reset            # logs, journal, checkpoints, temporary files
 docker compose down -v      # container and its volumes
-rm -rf build ui-engine/dist ui-engine/node_modules data/maps
+rm -rf build WebKit/dist WebKit/node_modules data/maps
 ```
 
 ## Check an installation

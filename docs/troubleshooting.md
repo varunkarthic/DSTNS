@@ -154,10 +154,10 @@ See [ASB](concepts/backpressure.md).
 The observer needs at least 1024 × 640 CSS pixels and says so rather than
 squeezing. Enlarge the window or zoom out.
 
-## playback.tick_rate must be in (0, 5]
+## playback.tick_rate must be in (0, 20]
 
 `config/defaults.json` or `--speed` asks for more than the engine allows.
-Speeds offered in the interface are 0.25, 0.5, 1, 2, 3 and 5.
+Speeds offered in the interface are 0.25, 0.5, 1, 2, 3, 5, 10 and 20.
 
 ## Self-signed certificate warnings
 
@@ -172,7 +172,7 @@ cpp-httplib, and a stale cache can mix versions.
 
 ```bash
 rm -rf build && cmake -S . -B build -DDSTNS_BUILD_TESTS=ON && cmake --build build -j
-npm ci --prefix ui-engine
+npm ci --prefix WebKit
 ```
 
 If only `api_smoke.py` fails at its SUMO step, see [SUMO reported

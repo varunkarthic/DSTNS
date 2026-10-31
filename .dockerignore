@@ -1,7 +1,7 @@
 build
 build-asan
-ui-engine/node_modules
-ui-engine/dist
+WebKit/node_modules
+WebKit/dist
 .git
 logs/*
 data/scenarios/*
@@ -20,5 +20,5 @@ site
 **/__pycache__
 **/*.pyc
 docker/certificates
-ui-engine/test-results
-ui-engine/playwright-report
+WebKit/test-results
+WebKit/playwright-report

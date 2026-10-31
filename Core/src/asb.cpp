@@ -37,7 +37,7 @@ double poll_component(const AsbSample& s) {
 // The multipliers the operator can select. A governed ceiling lands on one of
 // these, so the rate it produces is a value they recognise rather than an
 // arbitrary fraction.
-constexpr double kOfferedRates[] = {1.0, 2.0, 3.0, 5.0};
+constexpr double kOfferedRates[] = {1.0, 2.0, 3.0, 5.0, 10.0, 20.0};
 
 // Largest offered multiplier at or below `wanted`, never below real time.
 double quantise_rate(double wanted) {

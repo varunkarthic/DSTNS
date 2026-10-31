@@ -23,7 +23,7 @@ from .errors import ConfigurationError
 from .paths import PATHS, Paths
 
 # The engine refuses anything faster (kMaxTickRate in include/dstns/model.hpp).
-MAX_TICK_RATE = 5.0
+MAX_TICK_RATE = 20.0
 MAP_SELECTION_VERSION = "urban-crfg-v3"
 _SEED = re.compile(r"^(?:0x[0-9a-fA-F]{1,32}|[0-9]{1,39})$")
 

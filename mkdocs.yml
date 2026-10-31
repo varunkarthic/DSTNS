@@ -254,7 +254,7 @@ nav:
           - Spatial queries: components/spatial-index.md
           - Logging system: components/logging-system.md
           - SUMO adapter: components/sumo-adapter.md
-          - Observer (UI engine): components/ui-engine.md
+          - Observer (WebKit): components/webkit.md
           - Fabric: components/fabric.md
           - WebFabric: components/webfabric.md
       - Design:

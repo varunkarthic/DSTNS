@@ -2,7 +2,7 @@
 
 | What | Version | Where reported |
 |---|---|---|
-| The API contract | `1.1`, under the `/api/v1` prefix | `api_version` in responses |
+| The API contract | `1.2`, under the `/api/v1` prefix | `api_version` in responses |
 | The engine | `2.1.0` | `version` in `/health` and `/system/info` |
 | The observer | `3.0.0` | About |
 | Map selection | `urban-crfg-v3` | `map_selection_version` |
@@ -22,7 +22,8 @@ Within `/api/v1`:
 A breaking change would introduce `/api/v2` alongside `/api/v1`.
 
 Additions raise the minor version of the contract. `1.1` added the
-[Fabric API](fabric-api.md); nothing that existed in `1.0` changed.
+[Fabric API](fabric-api.md); nothing that existed in `1.0` changed. `1.2` raises the
+highest accepted `tick_rate` from 5 to 20.
 
 ## Security exceptions
 

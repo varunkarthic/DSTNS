@@ -115,7 +115,7 @@ it.
 | `data/checkpoints/`, `data/scenarios/`, `data/sumo_live_run/` | `./launcher reset` |
 | `data/sumo_export/`, `data/sumo_run/` | Delete by hand when no longer needed |
 | `data/seed-store/maps/` | Delete copies that no saved seed refers to |
-| Build outputs | `rm -rf build ui-engine/dist` |
+| Build outputs | `rm -rf build WebKit/dist` |
 
 `./launcher reset` asks for confirmation (or takes `--yes`) and never deletes the map
 cache, saved seeds or configuration.

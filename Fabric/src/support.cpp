@@ -175,7 +175,7 @@ ScenarioConfig config_from(const json& j) {
     if (j.contains("simulation_time")) c.playback_duration_s = j.at("simulation_time");
     if (j.contains("tick_rate")) c.tick_rate = j.at("tick_rate");
     if (!(c.tick_rate > 0 && c.tick_rate <= kMaxTickRate))
-        throw std::invalid_argument("tick_rate must be in (0,5]");
+        throw std::invalid_argument("tick_rate must be in (0,20]");
     if (j.contains("day")) {
         if (j.at("day").is_string() && j.at("day") == "auto") c.day = -1;
         else c.day = j.at("day");

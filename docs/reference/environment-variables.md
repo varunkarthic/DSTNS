@@ -35,7 +35,7 @@ scripts they run.
 | `DSTNS_OPERATOR_TOKEN` | contents of `logs/operator.token` | Credential sent in the `X-DSTNS-Operator` header |
 | `DSTNS_SEED_DB` | `data/seed-store/seeds.sqlite3` | SQLite file holding saved seeds |
 | `DSTNS_BUILD_DIR` | `build/`, or the local cache in a cloud-synced checkout | Where the launcher configures and compiles the core |
-| `DSTNS_UI_DIST` | unset | Read by the server: the observer bundle to serve, before the usual `ui-engine/dist` search. The launcher sets it for a synced checkout |
+| `DSTNS_UI_DIST` | unset | Read by the server: the observer bundle to serve, before the usual `WebKit/dist` search. The launcher sets it for a synced checkout |
 | `DSTNS_LAUNCHER_VENV` | `.venv-launcher/`, or the local cache in a cloud-synced checkout | Where the launcher's private terminal-interface environment lives |
 | `DSTNS_LAUNCHER_NO_INSTALL` | unset | `1` prevents automatic installation of the optional terminal interface; compatibility mode remains available |
 | `NO_COLOR` | unset | Any nonempty value disables colour |
@@ -60,7 +60,7 @@ and [Docker deployment](../deployment/docker.md).
 | `DSTNS_AUTOSTART` | `1` | `0` starts the server without starting a run |
 | `DSTNS_SEED` | `auto` | Decimal or `0x` seed; `auto` draws a fresh one |
 | `DSTNS_DAY_TYPE` | `weekday` | `weekday` or `weekend` |
-| `DSTNS_SPEED` | `1` | Initial speed multiplier, in (0, 5] |
+| `DSTNS_SPEED` | `1` | Initial speed multiplier, in (0, 20] |
 | `DSTNS_DURATION` | `3600` | Wall-clock seconds per virtual day at 1x, 60 to 3600 |
 | `DSTNS_OSM_FILE` | `auto` | `auto` lets the seed choose the map; a path inside the container pins one |
 | `DSTNS_MAP_CACHE` | `prune` | `keep`, `prune` or `clear`; passed to `--map-cache` |

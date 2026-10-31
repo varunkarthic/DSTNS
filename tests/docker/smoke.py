@@ -24,7 +24,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     version = re.search(r'project\(dstns VERSION (\d+\.\d+\.\d+)', (root / 'CMakeLists.txt').read_text())[1]
-    observer = json.loads((root / 'ui-engine/package.json').read_text())['version']
+    observer = json.loads((root / 'WebKit/package.json').read_text())['version']
     info = json.loads(docker('image', 'inspect', args.image))[0]
     assert info['Architecture'] == args.arch, info['Architecture']
     labels = info['Config']['Labels']

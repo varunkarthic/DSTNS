@@ -185,7 +185,7 @@ is guaranteed.
 |---|---|---|
 | **Core** (`dstns_server`) | C++20 engine and HTTP server. Compiles a scenario from a seed, runs the virtual day, serves the API and the observer on one port | [Architecture](concepts/architecture.md), [Simulation engine](concepts/simulation-engine.md) |
 | **Operator CLI** (`./launcher`) | Builds what changed, starts and supervises the server, starts runs, saved seeds, logs, tests | [Operator CLI](guide/operator-cli.md) |
-| **Observer** (`ui-engine/`) | React application: map, telemetry, playback, notifications, PDF report | [Observer interface](guide/observer-interface.md) |
+| **Observer** (`WebKit/`) | React application: map, telemetry, playback, notifications, PDF report | [Observer interface](guide/observer-interface.md) |
 | **Container image** | One 234 MB multi-architecture image with a TLS gateway profile | [Docker deployment](deployment/docker.md) |
 | **SUMO adapter** | Exports a world to Eclipse SUMO as a microscopic cross-check | [SUMO adapter](components/sumo-adapter.md) |
 

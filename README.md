@@ -17,8 +17,8 @@ map bytes and compatible build; see [Reproducible experiments](#reproducible-exp
 [![CMake 3.22+](https://img.shields.io/badge/CMake-3.22%2B-064F8C?logo=cmake&logoColor=white)](https://dstns.readthedocs.io/getting-started/installation/)
 [![Docker: amd64 | arm64](https://img.shields.io/badge/Docker-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)](https://dstns.readthedocs.io/getting-started/docker/)
 [![Platforms: Linux | macOS](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-555555?logo=linux&logoColor=white)](https://dstns.readthedocs.io/getting-started/requirements/)
-[![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://dstns.readthedocs.io/components/ui-engine/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://dstns.readthedocs.io/components/ui-engine/)
+[![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://dstns.readthedocs.io/components/WebKit/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://dstns.readthedocs.io/components/WebKit/)
 [![OpenStreetMap](https://img.shields.io/badge/maps-OpenStreetMap-7EBC6F?logo=openstreetmap&logoColor=white)](https://dstns.readthedocs.io/concepts/osm-map-generation/)
 [![Eclipse SUMO: optional](https://img.shields.io/badge/Eclipse%20SUMO-optional-1E3A5F?logo=eclipseide&logoColor=white)](https://dstns.readthedocs.io/components/sumo-adapter/)
 
@@ -171,7 +171,7 @@ flowchart LR
 |---|---|
 | **Core** (`dstns_server`) | C++20. Compiles a scenario from a seed, runs the virtual day, serves the API and the observer on one port. |
 | **Operator CLI** (`./launcher`) | Python 3, with a Textual terminal interface and compatibility mode. Builds what changed, starts and supervises the server, starts runs, saved seeds, logs, tests. |
-| **Observer** (`ui-engine/`) | React 19. Watches a run in the browser: map, telemetry, playback, reports. |
+| **Observer** (`WebKit/`) | React 19. Watches a run in the browser: map, telemetry, playback, reports. |
 
 Read [Architecture](https://dstns.readthedocs.io/concepts/architecture/) for the full picture.
 
@@ -338,7 +338,7 @@ the opening wordmark, or `--no-tui` for plain output. See the
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=ON
 cmake --build build -j
-npm ci --prefix ui-engine && npm run build --prefix ui-engine
+npm ci --prefix WebKit && npm run build --prefix WebKit
 ./build/dstns_server --port 8090          # then: ./launcher start --seed 382923
 ```
 
@@ -473,7 +473,7 @@ to trusted operators who are permitted to change the run.
 ```bash
 ./scripts/test.sh                                   # core, observer, API and selected CLI suites
 ctest --test-dir build --output-on-failure          # native and registered HTTP suites
-npm test --prefix ui-engine                         # observer unit and component tests
+npm test --prefix WebKit                         # observer unit and component tests
 python3 tests/api/api_smoke.py --server build/dstns_server
 ./build/dstns_replay_verify 382923                  # reproducibility check
 ./build/dstns_benchmark --quick                     # performance under load (see docs/deployment/performance.md)
@@ -502,7 +502,7 @@ permission. See [WebFabric](docs/components/webfabric.md) and
 ```text
 Core/                 the C++ core: engine, scenario, OSM, events, backpressure, server entry point
 Fabric/               the HTTP API over the core, and the application registry
-ui-engine/            the observer (React, Vite, Vitest)
+WebKit/            the observer (React, Vite, Vitest)
 dstns_launcher/       the Python launcher, terminal interface and shared service core
 tests/                native, HTTP and CLI suites, fixtures
 tools/                scenario export, replay verification, road index, benchmark

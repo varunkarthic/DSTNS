@@ -8,8 +8,8 @@ never be committed.
 | Path | Created by | Contents | Safe to delete |
 |---|---|---|---|
 | `build/` | CMake | Compiled binaries and test executables | Yes; rebuilt on demand |
-| `ui-engine/dist/` | `./launcher ui build` | The compiled observer the server serves | Yes; rebuilt on demand |
-| `ui-engine/node_modules/` | `npm ci` | Observer build dependencies | Yes; reinstalled |
+| `WebKit/dist/` | `./launcher ui build` | The compiled observer the server serves | Yes; rebuilt on demand |
+| `WebKit/node_modules/` | `npm ci` | Observer build dependencies | Yes; reinstalled |
 | `.venv-launcher/` | First interactive launcher use | Pinned Textual and Rich dependencies | Yes, with the launcher stopped; reinstalled on next interactive use |
 | `logs/` | launcher and server | Logs, journal and credential (below) | Yes, with the server stopped; `./launcher reset` does it for you |
 | `data/maps/` | the server | Cached city extracts and manifests | Yes; they are downloaded again when needed |

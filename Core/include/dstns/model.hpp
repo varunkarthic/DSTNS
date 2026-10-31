@@ -31,9 +31,9 @@ enum class BuildingType { School, Office, Mall, Store };
 // The fastest the operator may drive the clock. Above this the physics step
 // outruns what the observer can draw and what ASB can measure, so the extra
 // speed buys a less trustworthy picture rather than a faster one.
-inline constexpr double kMaxTickRate = 5.0;
+inline constexpr double kMaxTickRate = 20.0;
 // The HTTP API contract; additions raise the minor version, within /api/v1.
-inline constexpr const char* kApiVersion = "1.1";
+inline constexpr const char* kApiVersion = "1.2";
 enum class IncidentType { RoadClosure, Accident, Congestion, VehicleBreakdown, HazardSpill };
 enum class IncidentLifecycle { Scheduled, Active, Resolved };
 

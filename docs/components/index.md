@@ -36,4 +36,4 @@ Several documents split behavior owned by one class into smaller conceptual topi
 | [Spatial queries](spatial-index.md) | free functions | Distances, kernels, scans |
 | [Logging system](logging-system.md) | `RuntimeLogger` | Text log and SQLite journal |
 | [SUMO adapter](sumo-adapter.md) | `SumoBridge` | Export and batch SUMO runs |
-| [Observer](ui-engine.md) | `ui-engine/` | The browser application |
+| [Observer](webkit.md) | `WebKit/` | The browser application |

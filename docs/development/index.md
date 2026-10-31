@@ -29,7 +29,7 @@ DSTNS/
 │   ├── launcher/             Python service and terminal interface suites
 │   ├── integration/          SUMO smoke test
 │   └── fixtures/             small OSM files
-├── ui-engine/                the observer (React, Vite, Vitest)
+├── WebKit/                the observer (React, Vite, Vitest)
 ├── dstns_launcher/           Python launcher: core, Textual interface, compatibility mode
 ├── scripts/                  build, test, dev, reset, fetch_osm.py
 ├── docker/                   entrypoint, dstns-run, TLS gateway
@@ -47,7 +47,7 @@ DSTNS/
 flowchart LR
     Edit["Edit"] --> Build["cmake --build build -j"]
     Build --> Unit["ctest --test-dir build"]
-    Edit --> UI["npm test --prefix ui-engine"]
+    Edit --> UI["npm test --prefix WebKit"]
     Unit --> Run["./launcher start --seed N"]
     UI --> Run
     Run --> Look["Watch it in the observer"]

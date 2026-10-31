@@ -452,7 +452,7 @@ the sources in the synced folder:
 | What | Where (macOS; XDG state and cache directories elsewhere) |
 |---|---|
 | C++ build | `~/Library/Caches/DSTNS/checkout-<id>/build/` |
-| Observer build (a local mirror of `ui-engine/` and `config/`) | `~/Library/Caches/DSTNS/checkout-<id>/source/` |
+| Observer build (a local mirror of `WebKit/` and `config/`) | `~/Library/Caches/DSTNS/checkout-<id>/source/` |
 | Downloaded city extracts (when `map.cache_dir` is the default) | `~/Library/Caches/DSTNS/checkout-<id>/maps/` |
 | Server logs, journal and credential | `~/Library/Logs/DSTNS/logs-<id>/` |
 | Launcher log | `~/Library/Logs/DSTNS/launcher.log` |
@@ -487,7 +487,7 @@ status, the terminal's size and capabilities, and the paths in use.
 
 | Message | Meaning and remedy |
 |---|---|
-| `playback.tick_rate must be in (0, 5]` | `config/defaults.json` asks for a speed the engine refuses |
+| `playback.tick_rate must be in (0, 20]` | `config/defaults.json` asks for a speed the engine refuses |
 | `Seed must be a decimal integer or 0x hexadecimal, within 128 bits` | Malformed `--seed` |
 | `--seed and --saved-seed are mutually exclusive` | Pick one |
 | `OSM data unavailable; provide --osm-file PATH` | A pinned map path does not exist |

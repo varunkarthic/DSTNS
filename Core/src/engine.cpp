@@ -955,7 +955,7 @@ nlohmann::json SimulationEngine::backpressure_json() const {
 
 nlohmann::json SimulationEngine::set_tick_rate(double v) {
     std::lock_guard lock(mutex_);
-    if (!std::isfinite(v) || v <= 0 || v > kMaxTickRate) throw std::invalid_argument("tick_rate must be finite and in (0,5]");
+    if (!std::isfinite(v) || v <= 0 || v > kMaxTickRate) throw std::invalid_argument("tick_rate must be finite and in (0,20]");
     catch_up_to_wall_clock();
     const auto old = tick_rate_;
     const auto old_request = requested_tick_rate_;

@@ -6,7 +6,7 @@
 WebFabric is how independent applications appear in the observer. An application is
 any program that calls the [Fabric API](../api/fabric-api.md). It registers itself,
 declares what it wants on screen as data, and the observer draws it. Source:
-`ui-engine/src/webfabric/`. To write one, see
+`WebKit/src/webfabric/`. To write one, see
 [Building applications](../development/webfabric-apps.md).
 
 ## How it works
@@ -89,7 +89,7 @@ Each is reachable only with that application's token or from the observer.
 
 Measured in Chrome with twelve applications, each updating as fast as the server would
 answer: over 20,000 updates in six seconds held 60 fps, with a 95th-percentile frame of
-16.8 ms and no long tasks (`ui-engine/tests/browser-webfabric.mjs`). That is a headless
+16.8 ms and no long tasks (`WebKit/tests/browser-webfabric.mjs`). That is a headless
 run on an Apple silicon laptop, so treat it as a comparison rather than a promise.
 
 ## Licence

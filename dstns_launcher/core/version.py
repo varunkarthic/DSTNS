@@ -4,7 +4,7 @@
 """Version and licence metadata, read from the project rather than repeated.
 
 The engine version is defined once, in ``project(dstns VERSION …)`` in
-``CMakeLists.txt``; the observer's in ``ui-engine/package.json``.
+``CMakeLists.txt``; the observer's in ``WebKit/package.json``.
 """
 from __future__ import annotations
 
@@ -42,6 +42,6 @@ def engine_version(root: Path = ROOT) -> str:
 @lru_cache(maxsize=None)
 def observer_version(root: Path = ROOT) -> str:
     try:
-        return str(json.loads((root / "ui-engine" / "package.json").read_text(encoding="utf-8"))["version"])
+        return str(json.loads((root / "WebKit" / "package.json").read_text(encoding="utf-8"))["version"])
     except (OSError, ValueError, KeyError):
         return "unknown"

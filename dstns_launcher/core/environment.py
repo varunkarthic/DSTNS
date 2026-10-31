@@ -334,7 +334,7 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
             return Outcome(State.PASS, f"{count}/{count} tests passed in {seconds:.1f}s")
         failed = re.search(r"(\d+)\s+failed", out)
         return Outcome(State.FAIL, f"{failed.group(1) if failed else 'some'} test(s) failed", out[-1500:],
-                       remedy="Run npm test --prefix ui-engine for details.")
+                       remedy="Run npm test --prefix WebKit for details.")
 
     result = [
         Check("host", "Host platform", host),

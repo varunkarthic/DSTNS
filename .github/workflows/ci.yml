@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ui-engine/package-lock.json
+          cache-dependency-path: WebKit/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -71,18 +71,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ui-engine/package-lock.json
+          cache-dependency-path: WebKit/package-lock.json
       - run: npm ci
-        working-directory: ui-engine
+        working-directory: WebKit
       - name: Type check
         run: npx tsc -b
-        working-directory: ui-engine
+        working-directory: WebKit
       - name: Tests
         run: npm test
-        working-directory: ui-engine
+        working-directory: WebKit
       - name: Production build
         run: npm run build
-        working-directory: ui-engine
+        working-directory: WebKit
 
   docs:
     name: Documentation

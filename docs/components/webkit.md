@@ -1,6 +1,6 @@
-# Observer (UI engine)
+# Observer (WebKit)
 
-Source: `ui-engine/` — React 19, TypeScript, Vite, Vitest, jsPDF. The full
+Source: `WebKit/` — React 19, TypeScript, Vite, Vitest, jsPDF. The full
 user-facing guide is [Observer interface](../guide/observer-interface.md); this
 page is the developer's map.
 
@@ -64,10 +64,10 @@ flowchart LR
 ## Working on it
 
 ```bash
-npm ci --prefix ui-engine
+npm ci --prefix WebKit
 ./scripts/dev.sh                          # server on 8090 + Vite on 5173
-npm test --prefix ui-engine               # 24 files, 286 tests
-npx --prefix ui-engine tsc -b             # type check
+npm test --prefix WebKit               # 24 files, 286 tests
+npx --prefix WebKit tsc -b             # type check
 ```
 
 See [Testing: observer suites](../development/testing.md#observer-suites).

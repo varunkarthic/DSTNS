@@ -28,7 +28,7 @@ python3 tests/launcher/test_core.py
 python3 tests/launcher/test_interfaces.py
 python3 tests/launcher/test_narration.py
 python3 tests/cli/launcher_integration.py            # live wrappers and a real OSM map
-npm ci --prefix ui-engine && npm test --prefix ui-engine
+npm ci --prefix WebKit && npm test --prefix WebKit
 ```
 
 The launcher runs environment checks during interactive startup, including
@@ -116,8 +116,8 @@ The three CTest-registered HTTP suites above take the server path from
 ## Observer suites
 
 ```bash
-npm test --prefix ui-engine          # Vitest, jsdom
-npx --prefix ui-engine tsc -b        # type check
+npm test --prefix WebKit          # Vitest, jsdom
+npx --prefix WebKit tsc -b        # type check
 ```
 
 25 files, 297 tests. The main ones:
@@ -139,10 +139,10 @@ live core on a private port, and write screenshots and PDFs as evidence.
 
 | Command | What it proves | Evidence |
 |---|---|---|
-| `node ui-engine/tests/browser.mjs` | CLI start-up, observer controls, motion preferences, event pages, inspection, responsive layouts, PDF download, failure recovery | `artifacts/modernization/browser/` |
-| `node ui-engine/tests/browser-hud.mjs` | The HUD at 2560 down to 1024×640 with no overlaps, tooltips, speed and step reaching the engine, seed copy, settings, layers, notifications, telemetry, legend, tutorial, regeneration, PDF | `artifacts/hud/` |
-| `node ui-engine/tests/large-browser.mjs` | Render cadence and inspection on a large paused run (`DSTNS_LARGE_URL`, default port 18194) | |
-| `node ui-engine/tests/container-browser.mjs` | The Compose deployment (`DSTNS_CONTAINER_URL`, default port 18195) | |
+| `node WebKit/tests/browser.mjs` | CLI start-up, observer controls, motion preferences, event pages, inspection, responsive layouts, PDF download, failure recovery | `artifacts/modernization/browser/` |
+| `node WebKit/tests/browser-hud.mjs` | The HUD at 2560 down to 1024×640 with no overlaps, tooltips, speed and step reaching the engine, seed copy, settings, layers, notifications, telemetry, legend, tutorial, regeneration, PDF | `artifacts/hud/` |
+| `node WebKit/tests/large-browser.mjs` | Render cadence and inspection on a large paused run (`DSTNS_LARGE_URL`, default port 18194) | |
+| `node WebKit/tests/container-browser.mjs` | The Compose deployment (`DSTNS_CONTAINER_URL`, default port 18195) | |
 
 The last two attach to runs you start yourself and are not part of unattended
 runs.
@@ -169,7 +169,7 @@ reports `sumo.available` only if `sumo` and `netconvert` both start. See
   in `test_main.cpp`. Keep fixtures to a handful of nodes.
 - **An HTTP contract** goes in `tests/api/hardening_smoke.py` (validation,
   security) or `api_smoke.py` (behaviour).
-- **Observer behaviour** goes in `ui-engine/tests/appShell.test.tsx` with
+- **Observer behaviour** goes in `WebKit/tests/appShell.test.tsx` with
   `mockApi({...})`. When asserting that something persists, wait past any
   transition first: `findBy*` polls and will pass on an element that existed
   for only a moment.
@@ -207,9 +207,9 @@ every test.
 |---|---|---|
 | `tests/api/fabric_contract_smoke.py` | The recorded HTTP contract: 155 calls, including refusals | `ctest` |
 | `tests/api/fabric_apps_smoke.py` | Registration, conflicts, capabilities, settings isolation and migration, persistence, leases, lossless delivery | `ctest` |
-| `ui-engine/tests/webfabric.test.tsx` | State merging, slots, rendering as text, settings forms, the frame bridge | `npm test` |
-| `ui-engine/tests/motion.test.ts`, `startup.test.tsx` | Spring behaviour; each start-up state | `npm test` |
-| `ui-engine/tests/browser-webfabric.mjs` | In Chrome, with mock applications: every slot, a hostile frame, control and audit, settings, failure isolation, and rendering under load | By hand, after `npm run build` |
+| `WebKit/tests/webfabric.test.tsx` | State merging, slots, rendering as text, settings forms, the frame bridge | `npm test` |
+| `WebKit/tests/motion.test.ts`, `startup.test.tsx` | Spring behaviour; each start-up state | `npm test` |
+| `WebKit/tests/browser-webfabric.mjs` | In Chrome, with mock applications: every slot, a hostile frame, control and audit, settings, failure isolation, and rendering under load | By hand, after `npm run build` |
 
 `fabric_contract_smoke.py --record` rewrites the baseline. Use it only for a deliberate,
 documented change to the contract.
