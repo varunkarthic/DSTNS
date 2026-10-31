@@ -104,6 +104,8 @@ export interface UiNotification {
   /** Auto-focus target this notification describes, as a key prefix. */
   focusKey?: string;
   count: number;
+  /** The WebFabric application it came from, if not from the simulation. */
+  app?: string;
 }
 
 // ---------------------------------------------------------------------------

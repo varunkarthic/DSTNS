@@ -42,12 +42,19 @@ function build(width: number, height: number): { nodes: Junction[]; edges: [numb
   return { nodes, edges };
 }
 
-export function BootScene({ progress, idle, reduceMotion }: { progress: number; idle: boolean; reduceMotion: boolean }) {
+export function BootScene({ progress, step = 0, idle, closing = false, reduceMotion }: { progress: number; step?: number; idle: boolean; closing?: boolean; reduceMotion: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const target = useRef(progress);
   target.current = progress;
   const idleRef = useRef(idle);
   idleRef.current = idle;
+  // Each stage reached sends a ring out from the centre, through the network.
+  const pulse = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (step > 0) pulse.current?.();
+  }, [step]);
+  const closingRef = useRef(closing);
+  closingRef.current = closing;
 
   useEffect(() => {
     const element = canvas.current;
@@ -58,6 +65,22 @@ export function BootScene({ progress, idle, reduceMotion }: { progress: number; 
     let last = performance.now();
     let lit = 0;
     let litVelocity = 0;
+    let rings: { x: number; y: number; r: number; alpha: number }[] = [];
+    let drift = { x: 0, y: 0 };
+    const ring = (x: number, y: number) => rings.push({ x, y, r: 0, alpha: 0.55 });
+    pulse.current = () => {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      ring(cx, cy);
+      for (const node of nodes) {
+        const dx = node.x - cx;
+        const dy = node.y - cy;
+        const distance = Math.hypot(dx, dy) || 1;
+        const strength = Math.max(0, 1 - distance / 700) * 240;
+        node.vx += (dx / distance) * strength;
+        node.vy += (dy / distance) * strength;
+      }
+    };
     const pointer = { x: -9999, y: -9999 };
     const size = () => {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -71,6 +94,15 @@ export function BootScene({ progress, idle, reduceMotion }: { progress: number; 
       const accent = style.getPropertyValue("--accent-rgb").trim() || "55 215 255";
       const line = style.getPropertyValue("--line-rgb").trim() || "178 235 255";
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      ctx.save();
+      ctx.translate(drift.x, drift.y);
+      for (const r of rings) {
+        ctx.strokeStyle = `rgb(${accent} / ${(r.alpha * 100).toFixed(1)}%)`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.lineWidth = 1;
       for (const [a, b] of edges) {
         const p = nodes[a];
@@ -98,6 +130,7 @@ export function BootScene({ progress, idle, reduceMotion }: { progress: number; 
         ctx.arc(node.x, node.y, 1.6 + near * 2, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.restore();
     };
     const tick = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -116,6 +149,15 @@ export function BootScene({ progress, idle, reduceMotion }: { progress: number; 
         [node.x, node.vx] = stepSpring(node.x, node.vx, node.hx, SPRING, dt);
         [node.y, node.vy] = stepSpring(node.y, node.vy, node.hy, SPRING, dt);
       }
+      rings = rings.filter((r) => r.alpha > 0.01);
+      for (const r of rings) {
+        r.r += 520 * dt;
+        r.alpha *= Math.exp(-1.9 * dt);
+      }
+      // The whole network leans a little towards the pointer, for depth.
+      const wantX = pointer.x < -999 ? 0 : (pointer.x - window.innerWidth / 2) * -0.018;
+      const wantY = pointer.y < -999 ? 0 : (pointer.y - window.innerHeight / 2) * -0.018;
+      drift = { x: drift.x + (wantX - drift.x) * Math.min(1, dt * 4), y: drift.y + (wantY - drift.y) * Math.min(1, dt * 4) };
       paint(now);
       frame = requestAnimationFrame(tick);
     };
@@ -127,6 +169,7 @@ export function BootScene({ progress, idle, reduceMotion }: { progress: number; 
       pointer.x = pointer.y = -9999;
     };
     const onRipple = (event: PointerEvent) => {
+      ring(event.clientX, event.clientY);
       for (const node of nodes) {
         const dx = node.x - event.clientX;
         const dy = node.y - event.clientY;
@@ -150,6 +193,7 @@ export function BootScene({ progress, idle, reduceMotion }: { progress: number; 
       frame = requestAnimationFrame(tick);
     }
     return () => {
+      pulse.current = null;
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", size);
       window.removeEventListener("pointermove", onMove);

@@ -371,16 +371,18 @@ Do Not Disturb, reduced motion and Settings. Icons are 18 px (Settings 20 px).
 Search opens a field beside the sidebar; results centre the map on the place
 and open its inspection card.
 
-**Settings** slides in from the left on a spring, over the map, stopping above the
-command rail. It closes with Escape, the close button, a click outside, or by dragging
-its header away. Sections:
+**Settings** grows out of its icon beside the sidebar, at the sidebar's height. It stays open
+while you use the map, and closes with Escape, the close button or its icon. Search opens the same
+way, offering popular places in the district and ranking results as you type; one is open at a time.
+Sections:
 
 | Section | Settings |
 |---|---|
 | Accessibility | Light or dark; colour vision; reduce motion; reduce transparency; advanced mode |
 | Auto Focus | Auto Focus Events switch; Round-Robin or Latest |
 | Do Not Disturb | Switch; muted categories with descriptions; muted severities; a note on the Auto Focus override |
-| Time and playback | 12 or 24 hour time; Back and Forward interval; Step interval |
+| Time and playback | 12 or 24 hour time; Back and Forward interval; fine control, which asks how far on each press; Step interval |
+| Units | Data sizes in MB (base 10) or MiB (base 2) |
 | Applications | [WebFabric](../components/webfabric.md): registered applications, their settings and permissions |
 
 Each section is a self-contained block in `src/SettingsDrawer.tsx`, so new

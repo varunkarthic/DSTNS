@@ -26,7 +26,7 @@ function RoadRows() {
       {ROAD_STATES.map((s) => (
         <span key={s.id} className="legend-item" title={s.hint}>
           <i className="legend-swatch" style={{ background: s.color }} aria-hidden="true" />
-          {s.label}
+          <span>{s.label}<small>{s.hint}</small></span>
         </span>
       ))}
     </>
@@ -72,7 +72,7 @@ export function RoadLegend() {
         Roads
       </button>
       <Floating anchor={trigger} open={open} className="legend-popover" panelRef={panel} label="Road state legend">
-        <span className="floating-title">Road state</span>
+        <span className="floating-title"><Icon name="road" size={16} />Road state</span>
         <div className="legend-list">
           <RoadRows />
         </div>
@@ -174,7 +174,7 @@ export function PlaceLegend({
       </Tooltip>
       <Floating anchor={trigger} open={open} className="legend-popover places" panelRef={panel} label="Place legend">
         <div className="floating-head">
-          <span className="floating-title">Places</span>
+          <span className="floating-title"><Icon name="pin" size={16} />Places</span>
           <span className="floating-sub">Demand is the multiplier on base demand the core applies.</span>
         </div>
         {!visible && <p className="floating-note">Buildings are hidden in Layers. Markers return when the layer is on.</p>}

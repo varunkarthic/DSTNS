@@ -30,8 +30,17 @@ undefined before and differ now.
 - **Accessibility settings**: light mode; colour-vision palettes for protanopia, deuteranopia,
   tritanopia and monochrome; reduce transparency; and an advanced mode which, off, removes
   demand multipliers, radii, identifiers and technical details.
-- **Dynamic Logarithmic Resistance**: past any limit, content gives ever less then springs home,
-  in every scrolling region, the settings drawer, the speed slider and map panning.
+- **Dynamic Edge Resistance**: past any limit, content gives ever less then settles home, on the
+  curve Apple's scroll views use, in every scrolling region, the sliders and map panning. The page
+  itself never scrolls.
+- Settings and search grow from the dock like a drop, and stay open while the map is used. Search
+  offers popular places in the district and ranks live results.
+- A section of the telemetry deck for WebFabric applications, and notifications marked as theirs.
+  Elements choose how they arrive from provided motions, or a spring within the guidelines.
+- Applications can name their own bus stops and read the demand a stop there would see, by the model
+  real stops use. `Fabric/examples/bus_planner.py` is a whole product built on Fabric: it plans lines along
+  real roads, draws them and runs buses along them.
+- Fine control for Back and Forward, asking how far on each press. Data sizes in MB by default, or MiB.
 - Zooming out is limited to 5% past fit, with resistance to a hard 10%.
 - A speed slider with stops from 0.25× to 20×, including new 10× and 20× rates, that settles with
   the momentum of the gesture.
@@ -105,6 +114,11 @@ undefined before and differ now.
 
 - The engine and core features moved to `Core/`, and the server entry point to
   `Core/server/`. Build targets and flags are unchanged.
+- The command rail and the bar above it share their edges. The rail shows all speeds on a labelled
+  slider, with a full-width progress line. The top bar, the Layers, Places and Roads menus, dropdowns and
+  the hover card are redrawn; the hover card now describes the place you point at. Surfaces are solid
+  rather than frosted, and per-frame updates no longer re-render the interface, which removes most of
+  the lag. Light mode is designed in its own right, and the boot screen uses the full logo.
 - The lower HUD is one quiet row, with coordinates and scale as a caption on the map. Settings are
   grouped, with more room. About explains Fabric and WebFabric. The end-of-day dialog is redrawn, with
   figures that count up. Icons move on hover and selection, and their centres match their hover areas.

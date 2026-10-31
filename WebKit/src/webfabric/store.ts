@@ -15,7 +15,7 @@ import type { UiNotification } from "../notificationModel";
  */
 
 export type Tone = "neutral" | "accent" | "ok" | "warn" | "danger";
-export type Slot = "header" | "status" | "panel" | "sidebar" | "overlay" | "map_control" | "indicator" | "dialog";
+export type Slot = "header" | "status" | "panel" | "sidebar" | "deck" | "overlay" | "map_control" | "indicator" | "dialog";
 
 export interface FabricRow {
   id?: string;
@@ -104,6 +104,8 @@ export interface FabricElement {
   frame?: string;
   widgets?: FabricWidget[];
   features?: OverlayFeature[];
+  /** How it arrives: a provided motion, or a spring within the guidelines. */
+  motion?: "none" | "fade" | "rise" | "slide" | "scale" | "pop" | "drop" | { stiffness: number; damping: number };
   actions?: { id: string; label: string; tone?: Tone }[];
 }
 
@@ -166,7 +168,7 @@ interface StatePayload {
 }
 
 /** How many of each kind fit on screen, in registration order, shared by all applications. */
-export const SLOT_LIMITS: Record<Slot, number> = { sidebar: 8, header: 3, status: 4, map_control: 4, indicator: 8, panel: 32, overlay: 16, dialog: 1 };
+export const SLOT_LIMITS: Record<Slot, number> = { sidebar: 8, deck: 8, header: 3, status: 4, map_control: 4, indicator: 8, panel: 32, overlay: 16, dialog: 1 };
 
 const NO_APPS: FabricApp[] = [];
 
@@ -432,7 +434,8 @@ export function toUiNotification(note: FabricNotification, virtual: number): UiN
     severity: note.severity,
     timestamp: virtual,
     startedAt: virtual,
-    title: `${note.app_name}: ${note.title}`,
+    title: note.title,
+    app: note.app_name,
     summary: note.body,
     details: [],
     technical: [{ label: "Application", value: note.app_id }],

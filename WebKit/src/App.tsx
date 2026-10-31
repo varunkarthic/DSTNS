@@ -4,10 +4,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import NetworkMap from "./NetworkMap";
-import type { MapControls, MapView } from "./NetworkMap";
+import type { MapControls } from "./NetworkMap";
 import { TelemetryDeck } from "./TelemetryDeck";
 import { CommandRail } from "./CommandRail";
 import { LayersPopover } from "./LayersPopover";
+import { Floating } from "./Popover";
 import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
@@ -33,10 +34,13 @@ import { SettingsDrawer } from "./SettingsDrawer";
 import { useSimulation } from "./useSimulation";
 import { useBackpressure, describeAsb, formatRate } from "./useBackpressure";
 import { api } from "./api";
-import { formatCoordinate, scaleBarFor } from "./mapProjection";
+import { formatCoordinate } from "./mapProjection";
 import { MOTION_MS } from "./motion";
 import { applyAppearance, resolveTheme } from "./appearance";
-import { installDLR } from "./dlr";
+import { installEdgeResistance } from "./resistance";
+import { setByteUnits } from "./units";
+import { MapReadout } from "./MapReadout";
+import type { MapReadoutHandle } from "./MapReadout";
 import { fabric, useFabricNotifications } from "./webfabric/store";
 import { FabricDialog, FabricDockItems, FabricHeader, FabricIndicators, FabricPanel, FabricSidebar, FabricStatus } from "./webfabric/Slots";
 import { FabricOverlay } from "./webfabric/Overlay";
@@ -209,10 +213,12 @@ export default function App() {
     applyAppearance({ theme, vision: access.color_vision, reduceTransparency: access.reduce_transparency, advanced: access.advanced });
     setAppearanceKey((n) => n + 1);
   }, [theme, access.color_vision, access.reduce_transparency, access.advanced]);
-  useEffect(() => installDLR(), []);
+  useEffect(() => installEdgeResistance(), []);
+  useEffect(() => setByteUnits(config.display.byte_units), [config.display.byte_units]);
 
   // ---- Shell state ------------------------------------------------------
   const [layersOpen, setLayersOpen] = useState(false);
+  const layersTrigger = useRef<HTMLButtonElement>(null);
   const [preferencesEpoch, setPreferencesEpoch] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -220,8 +226,10 @@ export default function App() {
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState("");
   const [history, setHistory] = useState<Congestion | null>(null);
-  const [cursor, setCursor] = useState<{ lat: number; lon: number } | null>(null);
-  const [view, setView] = useState<MapView>({ scale: 1, metresPerPixel: 1 });
+  // Pointer position and camera update every frame, so they go straight to the
+  // readout and never through this component's state.
+  const readout = useRef<MapReadoutHandle>(null);
+  const mapScale = useRef(1);
   const [mapStatus, setMapStatus] = useState<Record<string, unknown> | null>(null);
   const [splashDismissed, setSplashDismissed] = useState(false);
   const [shutDown, setShutDown] = useState(false);
@@ -264,6 +272,9 @@ export default function App() {
   const rateLocked = asb?.rate_locked === true;
   const motionLocked = asb?.motion_locked === true;
   const reduceMotion = motionChoice || motionLocked;
+  useEffect(() => {
+    document.documentElement.classList.toggle("reduce-motion", reduceMotion);
+  }, [reduceMotion]);
   const runtime = runtimeStatus({ connected: !!sim.snapshot, stale: sim.stale, error: !!sim.error, asb });
 
   const [tutorialTarget, setTutorialTarget] = useState("");
@@ -446,7 +457,12 @@ export default function App() {
   }, [sim.snapshot]);
   const [sidebarInset, setSidebarInset] = useState(0);
   const overlay = useRef<FabricOverlayHandle>(null);
-  const onMapTransform = useCallback<NonNullable<ComponentProps<typeof NetworkMap>["onTransform"]>>((view) => overlay.current?.draw(view), []);
+  const onMapTransform = useCallback<NonNullable<ComponentProps<typeof NetworkMap>["onTransform"]>>((view) => {
+    mapScale.current = view.scale;
+    overlay.current?.draw(view);
+    readout.current?.camera(view.scale);
+  }, []);
+  const onMapCursor = useCallback((point: { lat: number; lon: number } | null) => readout.current?.cursor(point), []);
   const fabricNotes = useFabricNotifications(config.notifications.dwell_ms, virtual);
 
   // ---- Notifications ------------------------------------------------------
@@ -717,7 +733,7 @@ export default function App() {
     setManualFocus({
       x_m: feature.position.x_m,
       y_m: feature.position.y_m,
-      scale: Math.max(view.scale, 1.6),
+      scale: Math.max(mapScale.current, 1.6),
       token: focusToken.current,
     });
     // The card is raised once the camera has arrived.
@@ -827,7 +843,6 @@ export default function App() {
   }, [world.active, worldLoaded]);
 
   // ---- Derived presentation ---------------------------------------------------
-  const scaleBar = scaleBarFor(view.metresPerPixel);
   const systemError = sim.error || (sim.stale ? "Simulation data is stale. Reconnecting." : "") || actionError;
   const asbInfo = describeAsb(asb);
   const splashStage = splashStageFor(mapStatus as never, lifecycle, sim.stage, !!sim.topology, !!sim.status);
@@ -879,39 +894,43 @@ export default function App() {
         )}
         <header className="app-header" data-tutorial="header">
           <div className="brand">
-            <Logo height={22} title="DSTNS" />
-            <p>Deterministic Spatiotemporal Transport Network Simulator</p>
+            <Logo height={18} title="DSTNS" />
+            {location?.city && (
+              <>
+                <span className="brand-rule" aria-hidden="true" />
+                <Tooltip label="Seed-selected district" detail={`${formatCoordinate(location.anchor_lat, location.anchor_lon)}, from OpenStreetMap.`} side={["bottom"]}>
+                  <span className="brand-place" tabIndex={0}>
+                    <Icon name="pin" size={14} />
+                    <strong>{location.city}</strong>
+                    <span>{location.country}</span>
+                  </span>
+                </Tooltip>
+              </>
+            )}
           </div>
           <div className="header-actions" data-tutorial="help">
             {interactive && <FabricHeader />}
-            {location?.city && (
-              <Tooltip label="Seed-selected district" detail={`${formatCoordinate(location.anchor_lat, location.anchor_lon)}, from OpenStreetMap.`} side={["bottom"]}>
-                <span className="chip city-chip" tabIndex={0}>
-                  <Icon name="pin" size={14} />
-                  {location.city}, {location.country}
-                </span>
+            {configLoaded && config.tutorial.enabled && (
+              <Tooltip label="Tutorial" side={["bottom"]}>
+                <button
+                  className="btn icon"
+                  onClick={() => void tutorial.start()}
+                  disabled={!valid || tutorial.busy || suspended || rateLocked || pending || !!dialog || world.active || !["RUNNING", "PAUSED"].includes(lifecycle)}
+                  aria-label="Start tutorial"
+                >
+                  <Icon name="help" size={16} />
+                </button>
               </Tooltip>
             )}
-            {configLoaded && config.tutorial.enabled && (
-              <button
-                className="btn"
-                onClick={() => void tutorial.start()}
-                disabled={!valid || tutorial.busy || suspended || rateLocked || pending || !!dialog || world.active || !["RUNNING", "PAUSED"].includes(lifecycle)}
-                aria-label="Start tutorial"
-              >
-                <Icon name="help" size={16} />
-                <span>Tutorial</span>
-              </button>
-            )}
-            <button className="btn" onClick={() => void report()} disabled={!valid || pending || suspended || world.active}>
-              <Icon name="download" size={16} />
-              <span>Export Report</span>
-            </button>
             <Tooltip label="About DSTNS" side={["bottom", "left"]}>
               <button className="btn icon" aria-label="About DSTNS, licence and source" onClick={() => openDialog("about")}>
                 <Icon name="info" size={16} />
               </button>
             </Tooltip>
+            <button className="btn primary-soft" onClick={() => void report()} disabled={!valid || pending || suspended || world.active}>
+              <Icon name="download" size={16} />
+              <span>Export Report</span>
+            </button>
           </div>
         </header>
 
@@ -928,9 +947,8 @@ export default function App() {
               tickRate={clock?.tick_rate ?? 1}
               focus={tutorial.busy ? null : manualFocus ?? autoFocusRequest}
               controls={mapControls}
-              onView={setView}
               onTransform={onMapTransform}
-              onCursor={setCursor}
+              onCursor={onMapCursor}
               deckCompact={deckCompact}
               advanced={access.advanced}
               appearanceKey={appearanceKey}
@@ -966,6 +984,7 @@ export default function App() {
             settingsOpen={settingsOpen}
             onToggleSettings={() => setSettingsOpen((v) => !v)}
             features={sim.topology?.features ?? []}
+            city={location?.city}
             onPickPlace={focusOnPlace}
             disabled={suspended}
             extra={interactive ? <FabricDockItems /> : undefined}
@@ -994,6 +1013,8 @@ export default function App() {
               colorVision: access.color_vision,
               reduceTransparency: access.reduce_transparency,
               advanced: access.advanced,
+              byteUnits: config.display.byte_units,
+              fineControl: config.playback.fine_control,
             }}
             actions={{
               onReset: resetSettings,
@@ -1011,6 +1032,8 @@ export default function App() {
               onColorVision: (value) => persist({ accessibility: { ...access, color_vision: value } }),
               onReduceTransparency: (value) => persist({ accessibility: { ...access, reduce_transparency: value } }),
               onAdvanced: (value) => persist({ accessibility: { ...access, advanced: value } }),
+              onByteUnits: (value) => persist({ display: { byte_units: value } }),
+              onFineControl: (value) => persist({ playback: { ...config.playback, fine_control: value } }),
             }}
           />
 
@@ -1032,21 +1055,10 @@ export default function App() {
             onExpand={() => setCollapsed(false)}
           />
 
-          <div className="map-readout" data-tip-avoid>
-            <span className="mono" aria-label="Pointer coordinates">
-              {cursor
-                ? formatCoordinate(cursor.lat, cursor.lon)
-                : location
-                  ? formatCoordinate(location.anchor_lat, location.anchor_lon)
-                  : origin
-                    ? formatCoordinate(origin.origin_lat, origin.origin_lon)
-                    : "No coordinates"}
-            </span>
-            <span className="map-scale-mark mono" aria-label={`Map scale ${scaleBar.label}`}>
-              <i style={{ width: Math.round(scaleBar.pixels) }} />
-              {scaleBar.label}
-            </span>
-          </div>
+          <MapReadout
+            ref={readout}
+            fallback={location ? { lat: location.anchor_lat, lon: location.anchor_lon } : origin ? { lat: origin.origin_lat, lon: origin.origin_lon } : null}
+          />
 
           <div className="bottom-stack">
             <div className="lower-hud">
@@ -1067,29 +1079,28 @@ export default function App() {
                 />
               </div>
               <div className="hud-zone hud-right map-hud" data-tutorial="hud">
-                <div className="layers-anchor">
-                  {layersOpen && (
-                    <LayersPopover
-                      layers={layers}
-                      defaults={operatorConfig.layers}
-                      onChange={changeLayers}
-                      onClose={() => setLayersOpen(false)}
-                      topology={sim.topology}
-                      snapshot={sim.snapshot?.data ?? null}
-                    />
-                  )}
-                  <button
-                    className={`hud-pill hud-button${layersOpen ? " active" : ""}`}
-                    data-tutorial="layers"
-                    data-layers-trigger
-                    aria-expanded={layersOpen}
-                    onClick={() => setLayersOpen((v) => !v)}
-                    disabled={suspended}
-                  >
-                    <Icon name="layers" size={16} />
-                    <span>Layers</span>
-                  </button>
-                </div>
+                <button
+                  ref={layersTrigger}
+                  className={`hud-pill hud-button${layersOpen ? " active" : ""}`}
+                  data-tutorial="layers"
+                  data-layers-trigger
+                  aria-expanded={layersOpen}
+                  onClick={() => setLayersOpen((v) => !v)}
+                  disabled={suspended}
+                >
+                  <Icon name="layers" size={16} />
+                  <span>Layers</span>
+                </button>
+                <Floating anchor={layersTrigger} open={layersOpen} preferred={["top"]} className="layers-menu">
+                  <LayersPopover
+                    layers={layers}
+                    defaults={operatorConfig.layers}
+                    onChange={changeLayers}
+                    onClose={() => setLayersOpen(false)}
+                    topology={sim.topology}
+                    snapshot={sim.snapshot?.data ?? null}
+                  />
+                </Floating>
               </div>
             </div>
 
@@ -1111,13 +1122,14 @@ export default function App() {
                 logControl(lifecycle === "PAUSED" ? "play" : "pause");
                 void action(lifecycle === "PAUSED" ? api.play : api.pause);
               }}
-              onBack={() => {
-                logControl("back", formatDuration(config.playback.skip_seconds));
-                void action(() => api.seek(Math.max(0, virtual - config.playback.skip_seconds)));
+              fineControl={config.playback.fine_control}
+              onBack={(seconds = config.playback.skip_seconds) => {
+                logControl("back", formatDuration(seconds));
+                void action(() => api.seek(Math.max(0, virtual - seconds)));
               }}
-              onForward={() => {
-                logControl("forward", formatDuration(config.playback.skip_seconds));
-                void action(() => api.seek(Math.min(DAY_SECONDS, virtual + config.playback.skip_seconds)));
+              onForward={(seconds = config.playback.skip_seconds) => {
+                logControl("forward", formatDuration(seconds));
+                void action(() => api.seek(Math.min(DAY_SECONDS, virtual + seconds)));
               }}
               onStep={() => {
                 logControl("step", formatDuration(config.playback.step_seconds));

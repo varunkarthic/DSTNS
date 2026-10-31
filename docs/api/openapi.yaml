@@ -1532,6 +1532,49 @@ paths:
             application/json:
               schema:
                 type: object
+  /api/v1/fabric/apps/{id}/stops:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricStops
+      summary: Live demand at the application's bus stops
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    put:
+      tags:
+      - Fabric
+      operationId: fabricStopsSet
+      summary: Set the application's bus stops
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
   /api/v1/fabric/audit:
     get:
       tags:

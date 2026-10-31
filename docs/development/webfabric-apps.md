@@ -51,7 +51,7 @@ and anything that depends on them stays hidden until then (`blocked_ui`).
 
 | Capability | Allows | Granted |
 |---|---|---|
-| `ui.header`, `ui.status`, `ui.panels`, `ui.sidebar`, `ui.overlays`, `ui.map-controls`, `ui.indicators` | Those [slots](../components/webfabric.md#slots) | Automatically |
+| `ui.header`, `ui.status`, `ui.panels`, `ui.sidebar`, `ui.deck`, `ui.overlays`, `ui.map-controls`, `ui.indicators` | Those [slots](../components/webfabric.md#slots) | Automatically |
 | `ui.notifications` | Sending notifications; Do Not Disturb still applies | Automatically |
 | `settings` | Changing your own settings | Automatically |
 | `sim.read` | The simulation summary in your frames | Automatically |
@@ -123,6 +123,10 @@ tabs for its algorithms, lines as a `list`, a `legend` with switches, and its ne
 an `overlay` using `series` colours. Keep the network and the vehicles in separate overlay
 elements: the vehicles can then update every second, as named points that glide, without
 resending the network. A button with `pick: true` asks a person for a place on the map.
+
+`Fabric/examples/bus_planner.py` does all of this and can be run against any world. It uses DSTNS's own
+stops where a district has enough, otherwise naming well-connected junctions as stops, and shows the
+demand at them in a section on the right.
 
 ## Be a good neighbour
 

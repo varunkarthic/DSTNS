@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import { formatBytes } from "./units";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { Backpressure } from "./types";
@@ -182,9 +183,7 @@ export function describeAsb(asb: Backpressure | null): {
 /** Format a byte rate for the throughput readout. */
 export function formatRate(bytesPerSecond: number): string {
   if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return "No data";
-  const mb = bytesPerSecond / (1024 * 1024);
-  if (mb >= 1) return `${mb.toFixed(1)} MiB/s`;
-  return `${(bytesPerSecond / 1024).toFixed(0)} KiB/s`;
+  return `${formatBytes(bytesPerSecond)}/s`;
 }
 
 /** Stable helper so the shell and its tests agree on what "suspended" means. */

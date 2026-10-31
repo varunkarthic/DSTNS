@@ -2,6 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useScrollFade } from "./scrollFade";
+import { BrandLogo } from "./BrandLogo";
+import { MOTION_MS } from "./motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, categoryIcon } from "./Icons";
 import { focusMatches, SEVERITY_LABEL, REALISTIC_NEWS } from "./notificationModel";
@@ -62,10 +64,17 @@ export function NotificationCapsule(
   const current = urgent ?? list.find((n) => n.id === selected) ?? list[0];
   const others = list.filter((n) => n !== current);
 
+  // What it shows stays put until it has finished closing, so closing is opening
+  // played backward rather than something else entirely.
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(resetTimer.current), []);
   const collapse = () => {
     setOpen(false);
-    setHeld(null);
-    setTechnical(false);
+    clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => {
+      setHeld(null);
+      setTechnical(false);
+    }, reduceMotion ? 0 : MOTION_MS.overlay + 160);
   };
 
   useEffect(() => {
@@ -96,7 +105,7 @@ export function NotificationCapsule(
   return (
     <div className="capsule-slot" data-tutorial="notifications" ref={root} data-tip-avoid>
       <article
-        className={`capsule sev-${current.severity}${open ? " open" : ""}${reduceMotion ? " still" : ""}`}
+        className={`capsule sev-${current.severity}${open ? " open" : ""}${reduceMotion ? " still" : ""}${current.app ? " from-webfabric" : ""}`}
         aria-label="Notifications"
         role={urgent ? "alert" : undefined}
         aria-live={urgent ? "assertive" : "polite"}
@@ -106,7 +115,7 @@ export function NotificationCapsule(
               <>
                 <div className="capsule-detail-head">
                   <span className="capsule-kind">
-                    {current.category === "incident" ? "Incident" : current.category.charAt(0).toUpperCase() + current.category.slice(1)}
+                    {current.app ? <><BrandLogo name="webfabric" height={13} /><span className="capsule-app">{current.app}</span></> : current.category === "incident" ? "Incident" : current.category.charAt(0).toUpperCase() + current.category.slice(1)}
                     {focused && <em className="capsule-following">Following</em>}
                     {current.source === "realistic" && <em className="capsule-realistic" title="Written on this device by Apple's Foundation Model">{REALISTIC_NEWS}</em>}
                   </span>
@@ -197,6 +206,7 @@ export function NotificationCapsule(
           onClick={() => {
             if (open) collapse();
             else {
+              clearTimeout(resetTimer.current);
               setHeld(list);
               setSelected(current.id);
               setOpen(true);
@@ -204,11 +214,12 @@ export function NotificationCapsule(
           }}
         >
           <span className={`capsule-icon sev-${current.severity}`} aria-hidden="true">
-            <Icon name={categoryIcon(current.category)} size={14} />
+            <Icon name={current.app ? "fabric" : categoryIcon(current.category)} size={14} />
           </span>
           <span className="capsule-text">
+            {current.app && <small className="capsule-from">WebFabric · {current.app}</small>}
             <strong>{current.title}</strong>
-            <span className="capsule-line">{current.location ?? time.text(current.summary)}</span>
+            {!current.app && <span className="capsule-line">{current.location ?? time.text(current.summary)}</span>}
           </span>
           {!urgent && <span className="capsule-time mono">{time.time(current.timestamp, { seconds: false })}</span>}
           {others.length > 0 && (

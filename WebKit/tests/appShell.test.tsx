@@ -221,7 +221,8 @@ describe("observer shell", () => {
   it("shows the seed-selected city and its coordinates", async () => {
     mockApi();
     render(<App />);
-    expect(await screen.findByText("Berlin, Germany")).toBeInTheDocument();
+    expect(await screen.findByText("Berlin")).toBeInTheDocument();
+    expect(screen.getByText("Germany")).toBeInTheDocument();
     expect(await screen.findByText(/52\.5050° N, 13\.4235° E/)).toBeInTheDocument();
   });
 
@@ -320,7 +321,7 @@ describe("command rail", () => {
     render(<App />);
     await ready();
     const time = screen.getByRole("button", { name: /Simulation time 06:00:00, 25 percent complete/ });
-    expect(time).toHaveTextContent("25% complete");
+    expect(time).toHaveTextContent("25% of day");
     // The News tab lists the event in 24 hour time.
     fireEvent.click(screen.getByRole("tab", { name: /News/ }));
     expect(await screen.findByText("Forecast issued at 14:30:00")).toBeInTheDocument();
@@ -405,7 +406,7 @@ describe("world regeneration", () => {
     await waitFor(() => expect(calls.some((c) => c.path.includes("/world/regenerate") && JSON.parse(c.body).expected_run_id === "run_1")).toBe(true));
     expect(await within(overlay).findByText("4210818")).toBeInTheDocument();
     // Real download progress is shown when the core knows the size.
-    expect(await within(overlay).findByText(/Downloading Oslo, Norway: 2\.0 of 8\.0 MiB/, {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(await within(overlay).findByText(/Downloading Oslo, Norway: 2\.1 MB of 8\.4 MB/, {}, { timeout: 3000 })).toBeInTheDocument();
     expect(within(overlay).getByRole("progressbar", { name: "Download progress" })).toHaveAttribute("aria-valuenow", "25");
     expect(await within(overlay).findByText("Constructing the graph, signals and schedules", {}, { timeout: 3000 })).toBeInTheDocument();
 
@@ -721,8 +722,8 @@ describe("settings", () => {
     await ready();
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     const drawer = screen.getByRole("dialog", { name: "Settings" });
-    fireEvent.click(within(within(drawer).getByRole("radiogroup", { name: "Skip interval" })).getByRole("radio", { name: "1h" }));
-    fireEvent.click(within(within(drawer).getByRole("radiogroup", { name: "Step interval" })).getByRole("radio", { name: "10s" }));
+    fireEvent.keyDown(within(drawer).getByRole("slider", { name: "Skip interval" }), { key: "End" });
+    fireEvent.keyDown(within(drawer).getByRole("slider", { name: "Step interval" }), { key: "ArrowLeft" });
     expect(screen.getByLabelText("Back 1 h 00 min")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Step 10 s"));
     await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/step") && JSON.parse(c.body).seconds === 10)).toBe(true));
@@ -901,7 +902,7 @@ describe("telemetry collapse", () => {
     fireEvent.keyDown(list, { key: "ArrowDown" });
     fireEvent.keyDown(list, { key: "Enter" });
     await waitFor(() => expect(screen.getByRole("button", { name: "Event category: Signals" })).toBeInTheDocument());
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("listbox")).not.toBeInTheDocument());
   });
 });
 
@@ -1072,9 +1073,23 @@ describe("dialogs and suspension", () => {
     mockApi();
     render(<App />);
     await ready();
-    expect(screen.queryByLabelText("Search places")).toBeInstanceOf(HTMLButtonElement);
-    fireEvent.click(screen.getByLabelText("Search places"));
-    expect(await screen.findByPlaceholderText("Search places")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Search places" })).toBeInstanceOf(HTMLButtonElement);
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Search places" }));
+    expect(await screen.findByRole("searchbox", { name: "Search places" })).toBeInTheDocument();
+  });
+
+  it("offers settings and search one at a time, and neither closes when the map is used", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("dialog", { name: "Settings" })).toHaveClass("open");
+    fireEvent.pointerDown(document.body);
+    expect(screen.getByRole("dialog", { name: "Settings" })).toHaveClass("open");
+    fireEvent.click(screen.getByRole("button", { name: "Search places" }));
+    await waitFor(() => expect(document.querySelector(".settings-drawer")).not.toHaveClass("open"));
+    expect(await screen.findByRole("searchbox")).toBeInTheDocument();
   });
 });
 
@@ -1131,7 +1146,7 @@ describe("preference resets", () => {
     render(<App/>); await ready();
     fireEvent.click(screen.getByRole("button", {name: "Settings"}));
     fireEvent.click(screen.getByRole("button", {name: "Reset settings"}));
-    expect(screen.getByRole("radio", {name: "12 h"})).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", {name: "12 hour"})).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("switch", {name: "Do Not Disturb"})).toHaveAttribute("aria-checked", "true");
     expect(JSON.parse(localStorage.getItem("dstns.ui-config.v1")!)).toEqual({layers: {roads: false}, places: {school: false}});
     expect(calls).toEqual([]);

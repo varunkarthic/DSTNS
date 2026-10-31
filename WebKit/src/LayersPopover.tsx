@@ -40,7 +40,7 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
     };
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
-    panel.current?.querySelector<HTMLElement>("[role='switch']")?.focus();
+    panel.current?.querySelector<HTMLElement>("[role='switch']")?.focus({ preventScroll: true });
     return () => {
       document.removeEventListener("pointerdown", onPointer);
       document.removeEventListener("keydown", onKey);
@@ -92,14 +92,14 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
     const next = switches[(i + (e.key === "ArrowDown" ? 1 : -1) + switches.length) % switches.length];
     if (next) {
       e.preventDefault();
-      next.focus();
+      next.focus({ preventScroll: true });
     }
   };
 
   return (
     <div ref={panel} className="layers-panel" role="dialog" aria-label="Layers" onKeyDown={navigate} data-tip-avoid>
       <header>
-        <span className="layers-title">Layers</span>
+        <span className="layers-title"><Icon name="layers" size={16} />Layers</span>
         <div className="layers-actions">
           <button type="button" className="text-button" onClick={() => onChange(Object.fromEntries(Object.keys(layers).map((k) => [k, true])) as unknown as Layers)}>
             All on

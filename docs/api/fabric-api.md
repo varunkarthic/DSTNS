@@ -51,6 +51,7 @@ Every element has an `id` and a `slot`. The other fields depend on the slot:
 | `indicator` | `edge` (`top`, `right`, `bottom`, `left`), `position` (0 to 1), `label`, `tone` |
 | `panel` | `title`, and `widgets` or `frame` |
 | `sidebar` | `title`, `label`, and `widgets` or `frame` |
+| `deck` | `title`, and `widgets` or `frame` |
 | `dialog` | `title`, `body`, `actions` (`id`, `label`, `tone`; up to 3) |
 | `overlay` | `features` |
 
@@ -74,6 +75,19 @@ as an action `pick`, with `x_m`, `y_m`, `lat` and `lon`.
 `{"type": "line" | "polygon", "points": [[x_m, y_m], ...], "tone"}`. Any feature may use
 `series` instead of `tone`; lines take `width` and `dash`, points take `size` and `hollow`, and
 a point with an `id` glides to each new position.
+
+Any element may also set `motion`; see [Motion](../components/webfabric.md#motion).
+
+## Bus stops
+
+| Route | Who | |
+|---|---|---|
+| `PUT /fabric/apps/{id}/stops` | Token, `sim.read` | `{"nodes": [...]}`: the application's own stops, up to 4096. Answers as `GET` does |
+| `GET /fabric/apps/{id}/stops` | Token | Each stop's `node`, `x_m`, `y_m`, `multiplier`, `baseline`, and `generators` nearby |
+
+DSTNS has bus stops of its own, as places, at `GET /view/stops`. An application may add others. A stop's
+demand follows the model real stops use: the hour's profile, pulled up by trip generators within 400 m
+that are busy now. This is read-only: the simulation never reads these stops, so results do not change.
 
 ## Notifications and events
 

@@ -235,6 +235,11 @@ export class Spring {
     this.onChange(value);
   }
 
+  /** Change how it moves from here on, keeping where it is and how fast. */
+  setPreset(preset: SpringPreset): void {
+    this.preset = preset;
+  }
+
   stop(): void {
     this.cancel?.();
     this.cancel = null;

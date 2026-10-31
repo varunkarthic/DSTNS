@@ -258,7 +258,8 @@ try {
 
   await test("notifications are attributed in the capsule", async () => {
     assert.equal((await call("POST", "/api/v1/fabric/apps/org.mock.traffic/notifications", { title: "Sweep finished", severity: "warning" }, traffic)).code, 202);
-    await page.getByText("Traffic Lab: Sweep finished").first().waitFor({ timeout: 6000 });
+    await page.locator(".capsule.from-webfabric .capsule-from", { hasText: "WebFabric · Traffic Lab" }).waitFor({ timeout: 6000 });
+    await page.locator(".capsule-head", { hasText: "Sweep finished" }).waitFor();
   });
 
   await test("a granted app controls the simulation, and it is recorded", async () => {
@@ -353,7 +354,7 @@ try {
     await page.getByRole("button", { name: /About DSTNS/ }).click();
     const about = page.locator(".about-dialog");
     await about.getByRole("img", { name: "WebFabric" }).waitFor();
-    const size = await about.getByRole("img", { name: "WebFabric" }).evaluate((img) => [img.naturalWidth / img.naturalHeight, img.clientWidth / img.clientHeight]);
+    const size = await about.getByRole("img", { name: "WebFabric" }).locator("img.for-dark").evaluate((img) => [img.naturalWidth / img.naturalHeight, img.clientWidth / img.clientHeight]);
     assert.ok(Math.abs(size[0] - size[1]) < 0.05, `the logo keeps its proportions: ${size}`);
     assert.match(await about.innerText(), /AGPL-3.0-or-later/);
     await page.screenshot({ path: path.join(out, "about.png") });

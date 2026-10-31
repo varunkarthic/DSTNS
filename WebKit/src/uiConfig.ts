@@ -5,6 +5,7 @@ import { defaultLayers, defaultPlaceVisibility } from "./types";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from "./notificationModel";
 import type { Layers, PlaceVisibility } from "./types";
 import type { ColorVision, ThemeSetting } from "./appearance";
+import type { ByteUnits } from "./units";
 
 // ---------------------------------------------------------------------------
 // Observer configuration
@@ -23,7 +24,7 @@ import type { ColorVision, ThemeSetting } from "./appearance";
 const NOTIFICATION_CATEGORY_IDS = NOTIFICATION_CATEGORIES.map((c) => c.id as string);
 const NOTIFICATION_SEVERITY_IDS = NOTIFICATION_SEVERITIES.map((c) => c.id as string);
 /** Intervals offered for Back, Forward and Step, in virtual seconds. */
-export const SKIP_OPTIONS = [60, 300, 900, 3600] as const;
+export const SKIP_OPTIONS = [60, 300, 900, 1800, 3600] as const;
 export const STEP_OPTIONS = [1, 10, 60, 300] as const;
 
 export type ReduceMotionSetting = "auto" | "on" | "off";
@@ -58,7 +59,10 @@ export interface UiConfig {
     skip_seconds: number;
     /** Step advances by this many virtual seconds and holds. */
     step_seconds: number;
+    /** Back and Forward ask how far, each time. */
+    fine_control: boolean;
   };
+  display: { byte_units: ByteUnits };
   tutorial: { enabled: boolean; show_on_startup: boolean };
   clock: { hour12: boolean };
   asb: { enabled: boolean; report_interval_ms: number };
@@ -91,7 +95,8 @@ export const BUILT_IN: UiConfig = {
     max_visible: 3,
     dwell_ms: 7000,
   },
-  playback: { skip_seconds: 900, step_seconds: 60 },
+  playback: { skip_seconds: 900, step_seconds: 60, fine_control: false },
+  display: { byte_units: "decimal" },
   tutorial: { enabled: true, show_on_startup: false },
   clock: { hour12: false },
   asb: { enabled: true, report_interval_ms: 1000 },
@@ -187,6 +192,7 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
     playback: {
       skip_seconds: choice(playback.skip_seconds, SKIP_OPTIONS, base.playback.skip_seconds),
       step_seconds: choice(playback.step_seconds, STEP_OPTIONS, base.playback.step_seconds),
+      fine_control: bool(playback.fine_control, base.playback.fine_control),
     },
     clock: { hour12: bool(clock.hour12, base.clock.hour12) },
     asb: {
@@ -194,6 +200,7 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
       report_interval_ms: num(asb.report_interval_ms, base.asb.report_interval_ms, 250, 10000),
     },
     news: { style: oneOf(news.style, NEWS_STYLES, base.news.style) },
+    display: { byte_units: oneOf((p.display as Record<string, unknown> | undefined)?.byte_units, ["decimal", "binary"] as ByteUnits[], base.display.byte_units) },
     accessibility: {
       theme: oneOf(accessibility.theme, ["system", "dark", "light"] as ThemeSetting[], base.accessibility.theme),
       color_vision: oneOf(accessibility.color_vision, ["standard", "protanopia", "deuteranopia", "tritanopia", "monochrome"] as ColorVision[], base.accessibility.color_vision),
@@ -247,7 +254,7 @@ export function diffConfig(base: UiConfig, next: UiConfig): Record<string, unkno
     }
     return out;
   };
-  for (const key of ["auto_focus", "notifications", "playback", "clock", "asb", "tutorial", "news", "accessibility"] as const) {
+  for (const key of ["auto_focus", "notifications", "playback", "clock", "asb", "tutorial", "news", "accessibility", "display"] as const) {
     const changed = section(base[key], next[key]);
     if (Object.keys(changed).length) patch[key] = changed;
   }

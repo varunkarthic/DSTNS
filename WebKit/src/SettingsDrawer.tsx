@@ -3,17 +3,17 @@
 
 import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef, useState } from "react";
-import { Spring, SPRINGS } from "./motion";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { FluidPanel } from "./FluidPanel";
+import { QuantizedSlider } from "./QuantizedSlider";
+import { Select } from "./Popover";
 import { Icon } from "./Icons";
 import { Badge, Row, Section, Segmented, Switch } from "./settingsControls";
 import { COLOR_VISION_OPTIONS } from "./appearance";
 import type { ColorVision, ThemeSetting } from "./appearance";
-import { createVelocityTracker } from "./motion";
-import { dlr } from "./dlr";
+import type { ByteUnits } from "./units";
 import { useFabricApps } from "./webfabric/store";
 import { WebFabricSettings } from "./webfabric/Settings";
-import webfabricLogo from "./assets/brand/webfabric-white.png";
+import { BrandLogo } from "./BrandLogo";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from "./notificationModel";
 import { SKIP_OPTIONS, STEP_OPTIONS } from "./uiConfig";
 import type { AutoFocusStrategy, NewsStyle } from "./uiConfig";
@@ -50,6 +50,8 @@ export interface SettingsValues {
   colorVision: ColorVision;
   reduceTransparency: boolean;
   advanced: boolean;
+  byteUnits: ByteUnits;
+  fineControl: boolean;
 }
 
 export interface SettingsActions {
@@ -68,7 +70,11 @@ export interface SettingsActions {
   onColorVision: (vision: ColorVision) => void;
   onReduceTransparency: (on: boolean) => void;
   onAdvanced: (on: boolean) => void;
+  onByteUnits: (units: ByteUnits) => void;
+  onFineControl: (on: boolean) => void;
 }
+
+const shortDuration = (seconds: number) => (seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${seconds / 60}m` : `${seconds / 3600}h`);
 
 function toggle(list: string[], id: string, on: boolean, order: string[]) {
   const next = new Set(list);
@@ -95,69 +101,20 @@ export function SettingsDrawer({
   const scroll = useScrollFade<HTMLDivElement>();
   const panel = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const spring = useRef<Spring | null>(null);
-  const drag = useRef<{ x: number } | null>(null);
-  const tracker = useRef(createVelocityTracker());
-  const hidden = () => -((panel.current?.offsetWidth ?? 360) + 24);
-
-  // The drawer's position is a spring, so opening and closing, in any order and
-  // at any moment, and letting go of a drag, all carry their velocity.
-  useEffect(() => {
-    const element = panel.current;
-    if (!element) return;
-    spring.current ??= new Spring(hidden(), SPRINGS.spatialDefault, (x) => {
-      element.style.transform = `translateX(${x.toFixed(2)}px)`;
-    }, 0.2);
-    if (reduceMotion) spring.current.jump(open ? 0 : hidden());
-    else spring.current.set(open ? 0 : hidden());
-  }, [open, reduceMotion]);
-  useEffect(() => () => spring.current?.stop(), []);
-
-  const onDragStart = (e: ReactPointerEvent) => {
-    if (reduceMotion || (e.target as Element).closest("button")) return;
-    drag.current = { x: e.clientX };
-    tracker.current.reset();
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onDragMove = (e: ReactPointerEvent) => {
-    const d = drag.current;
-    if (!d) return;
-    tracker.current.add(e.clientX, e.timeStamp);
-    // Pulling further open meets resistance; pushing it shut follows the pointer.
-    const dx = e.clientX - d.x;
-    spring.current?.jump(dx > 0 ? dlr(dx, 28) : dx);
-  };
-  const onDragEnd = () => {
-    const d = drag.current;
-    if (!d || !spring.current) return;
-    drag.current = null;
-    const velocity = tracker.current.velocity();
-    spring.current.velocity = velocity;
-    if (spring.current.value < hidden() * 0.35 || velocity < -500) onClose();
-    else spring.current.set(0, velocity);
-  };
-
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
+    closeRef.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
         onClose();
       }
     };
-    const onPointer = (e: PointerEvent) => {
-      const target = e.target as Element | null;
-      if (target?.closest?.("[data-settings-trigger]")) return;
-      if (panel.current && !panel.current.contains(target as Node)) onClose();
-    };
     document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointer);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointer);
-      if (previous?.isConnected) previous.focus();
+      if (previous?.isConnected) previous.focus({ preventScroll: true });
     };
   }, [open, onClose]);
 
@@ -165,15 +122,8 @@ export function SettingsDrawer({
   const severityOrder = NOTIFICATION_SEVERITIES.map((c) => c.id as string);
 
   return (
-    <aside
-      ref={panel}
-      className={`settings-drawer${open ? " open" : ""}`}
-      aria-label="Settings"
-      aria-hidden={!open}
-      inert={!open || undefined}
-      role="dialog"
-    >
-      <header className="settings-head" onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}>
+    <FluidPanel ref={panel} open={open} anchor="[data-settings-trigger]" label="Settings" className="settings-drawer" width={392} reduceMotion={reduceMotion}>
+      <header className="settings-head">
         <h2>Settings</h2>
         <button ref={closeRef} type="button" className="icon-btn" aria-label="Close settings" onClick={onClose}>
           <Icon name="close" size={16} />
@@ -186,8 +136,9 @@ export function SettingsDrawer({
         ) : (
         <>
         <button type="button" className="btn" onClick={actions.onReset}><Icon name="reset" size={16} />Reset settings</button>
-        <Section title="Accessibility">
+        <Section title="Accessibility" icon="eye">
           <Row
+            stacked
             title="Appearance"
             hint={values.theme === "system" ? "Follows this device." : undefined}
             control={
@@ -196,27 +147,22 @@ export function SettingsDrawer({
                 value={values.theme}
                 onChange={actions.onTheme}
                 options={[
-                  { value: "dark", label: "Dark" },
-                  { value: "light", label: "Light" },
-                  { value: "system", label: "Auto" },
+                  { value: "dark", label: "Dark", icon: "moon" },
+                  { value: "light", label: "Light", icon: "sun" },
+                  { value: "system", label: "Auto", icon: "system" },
                 ]}
               />
             }
           />
           <Row
+            stacked
             title="Colour vision"
             hint={COLOR_VISION_OPTIONS.find((o) => o.value === values.colorVision)?.hint}
-            htmlFor="set-vision"
-            control={
-              <select id="set-vision" className="fabric-input" value={values.colorVision} onChange={(e) => actions.onColorVision(e.target.value as ColorVision)}>
-                {COLOR_VISION_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            }
+            control={<Select label="Colour vision" className="wide" value={values.colorVision} onChange={actions.onColorVision} options={COLOR_VISION_OPTIONS} />}
           />
           <Row
             title="Reduce motion"
+            icon="motionOff"
             hint={values.motionLocked ? undefined : "Replaces movement with short fades, and stills flow markers."}
             badge={values.motionLocked ? <Badge tone="warn">Held by backpressure</Badge> : undefined}
             htmlFor="set-motion"
@@ -224,19 +170,21 @@ export function SettingsDrawer({
           />
           <Row
             title="Reduce transparency"
-            hint="Replaces glass with solid surfaces, for stronger contrast."
+            icon="layers"
+            hint="Solid surfaces, for stronger contrast."
             htmlFor="set-transparency"
             control={<Switch id="set-transparency" label="Reduce transparency" checked={values.reduceTransparency} onChange={actions.onReduceTransparency} />}
           />
           <Row
             title="Advanced mode"
-            hint="Shows demand multipliers, radii, identifiers and technical details. Off keeps things in plain language."
+            icon="sliders"
+            hint="Shows demand multipliers, radii, identifiers and technical details."
             htmlFor="set-advanced"
             control={<Switch id="set-advanced" label="Advanced mode" checked={values.advanced} onChange={actions.onAdvanced} />}
           />
         </Section>
 
-        <Section title="Auto Focus">
+        <Section title="Auto Focus" icon="focus">
           <Row
             title="Auto Focus Events"
             badge={values.autoFocusAvailable ? undefined : <Badge>Off for this deployment</Badge>}
@@ -247,6 +195,7 @@ export function SettingsDrawer({
             }
           />
           <Row
+            stacked
             title="Order"
             hint={values.strategy === "round-robin" ? "Visit every live event in turn." : "Stay on the most recent event."}
             control={
@@ -256,15 +205,15 @@ export function SettingsDrawer({
                 disabled={!values.autoFocusAvailable}
                 onChange={actions.onStrategy}
                 options={[
-                  { value: "round-robin", label: "Round-Robin" },
-                  { value: "latest", label: "Latest" },
+                  { value: "round-robin", label: "Round-Robin", icon: "reroll" },
+                  { value: "latest", label: "Latest", icon: "clock" },
                 ]}
               />
             }
           />
         </Section>
 
-        <Section title="Do Not Disturb">
+        <Section title="Do Not Disturb" icon="bellOff">
           <Row
             title="Do Not Disturb"
             hint="Suppress selected notification categories. Events are still recorded and reported."
@@ -311,8 +260,9 @@ export function SettingsDrawer({
           </p>
         </Section>
 
-        <Section title="News">
+        <Section title="News" icon="news">
           <Row
+            stacked
             title="News style"
             badge={values.narratorBadge ? <Badge tone="warn">{values.narratorBadge}</Badge> : undefined}
             hint={
@@ -337,8 +287,9 @@ export function SettingsDrawer({
           />
         </Section>
 
-        <Section title="Time and playback">
+        <Section title="Time and playback" icon="clock">
           <Row
+            stacked
             title="Time format"
             hint="Applies to every simulation timestamp."
             control={
@@ -347,41 +298,73 @@ export function SettingsDrawer({
                 value={values.hour12 ? "12" : "24"}
                 onChange={(v) => actions.onHour12(v === "12")}
                 options={[
-                  { value: "24", label: "24 h" },
-                  { value: "12", label: "12 h" },
+                  { value: "24", label: "24 hour" },
+                  { value: "12", label: "12 hour" },
                 ]}
               />
             }
           />
           <Row
+            stacked
             title="Back and Forward"
             hint="Virtual time skipped per press."
             control={
-              <Segmented
+              <QuantizedSlider
                 label="Skip interval"
-                value={values.skipSeconds}
-                onChange={actions.onSkipSeconds}
-                options={SKIP_OPTIONS.map((s) => ({ value: s as number, label: formatDuration(s).replace(" 00 min", "").replace(" min", "m").replace(" h", "h") }))}
+                reduceMotion={reduceMotion}
+                labels={SKIP_OPTIONS.map(shortDuration)}
+                index={Math.max(0, SKIP_OPTIONS.indexOf(values.skipSeconds as never))}
+                valueText={(i) => formatDuration(SKIP_OPTIONS[i])}
+                onSelect={(i) => actions.onSkipSeconds(SKIP_OPTIONS[i])}
               />
             }
           />
           <Row
+            title="Fine control"
+            icon="sliders"
+            hint="Back and Forward ask how far each time, so you need not come here."
+            htmlFor="set-fine"
+            control={<Switch id="set-fine" label="Fine control" checked={values.fineControl} onChange={actions.onFineControl} />}
+          />
+          <Row
+            stacked
             title="Step"
             hint="Virtual time advanced per step. The run holds after each step."
             control={
-              <Segmented
+              <QuantizedSlider
                 label="Step interval"
-                value={values.stepSeconds}
-                onChange={actions.onStepSeconds}
-                options={STEP_OPTIONS.map((s) => ({ value: s as number, label: formatDuration(s).replace(" s", "s").replace(" min", "m") }))}
+                reduceMotion={reduceMotion}
+                labels={STEP_OPTIONS.map(shortDuration)}
+                index={Math.max(0, STEP_OPTIONS.indexOf(values.stepSeconds as never))}
+                valueText={(i) => formatDuration(STEP_OPTIONS[i])}
+                onSelect={(i) => actions.onStepSeconds(STEP_OPTIONS[i])}
               />
             }
           />
         </Section>
 
-        <Section title="Applications">
+        <Section title="Units" icon="gauge">
+          <Row
+            stacked
+            title="Data sizes"
+            hint={values.byteUnits === "decimal" ? "Base 10: 1 MB is 1,000,000 bytes." : "Base 2: 1 MiB is 1,048,576 bytes."}
+            control={
+              <Segmented
+                label="Data sizes"
+                value={values.byteUnits}
+                onChange={actions.onByteUnits}
+                options={[
+                  { value: "decimal", label: "MB" },
+                  { value: "binary", label: "MiB" },
+                ]}
+              />
+            }
+          />
+        </Section>
+
+        <Section title="Applications" icon="stack">
           <button type="button" className="settings-nav" onClick={() => setPage("webfabric")}>
-            <img src={webfabricLogo} alt="WebFabric" height={16} />
+            <BrandLogo name="webfabric" height={16} />
             <small>
               {waitingApps > 0 && <Badge tone="warn">{waitingApps} waiting</Badge>}
               {apps.length === 1 ? "1 application" : `${apps.length} applications`}
@@ -392,6 +375,6 @@ export function SettingsDrawer({
         </>
         )}
       </div>
-    </aside>
+    </FluidPanel>
   );
 }

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
-#include "dstns/fabric/registry.hpp"
+#include "dstns/webfabric/registry.hpp"
 #include "dstns/osm_fetch.hpp"
 #include "support.hpp"
 

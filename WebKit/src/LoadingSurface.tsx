@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "./Icons";
-import { Mark } from "./Logo";
+import { Logo } from "./Logo";
 import { BootScene } from "./BootScene";
 
 /**
@@ -74,6 +74,19 @@ export function LoadingSurface({
   /** Something to read while waiting. */
   aside?: ReactNode;
 }) {
+  // The wordmark hands over to the one in the header, so the screen resolves into
+  // the interface instead of disappearing from in front of it.
+  const surface = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!closing || mode !== "boot" || reduceMotion) return;
+    const logo = surface.current?.querySelector<HTMLElement>(".boot-logo");
+    const home = document.querySelector<HTMLElement>(".app-header .dstns-logo");
+    if (!logo || !home) return;
+    const a = logo.getBoundingClientRect();
+    const b = home.getBoundingClientRect();
+    const scale = b.height / a.height;
+    surface.current?.style.setProperty("--fly", `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(${scale})`);
+  }, [closing, mode, reduceMotion]);
   const done = !!steps && stepIndex >= steps.length - 1 && !failed;
   const known = typeof progress === "number" && Number.isFinite(progress);
   const percent = known ? Math.round(Math.min(1, Math.max(0, progress!)) * 100) : 0;
@@ -81,7 +94,8 @@ export function LoadingSurface({
     <div className="loading-card" data-tip-avoid>
       {mode === "boot" && (
         <div className={`loading-mark${reduceMotion || idle || failed ? "" : " animated"}`}>
-          <Mark size={72} />
+          <Logo height={46} className="boot-logo" />
+          <span className="boot-shine" aria-hidden="true" />
         </div>
       )}
       {/* Boot leads with the mark and reports progress on one line beneath it;
@@ -155,6 +169,7 @@ export function LoadingSurface({
   );
   return (
     <div
+      ref={surface}
       className={`loading-surface ${mode}${closing ? " closing" : ""}${reduceMotion ? " still" : ""}`}
       role={role}
       aria-modal={role === "alertdialog" ? true : undefined}
@@ -163,7 +178,7 @@ export function LoadingSurface({
       aria-live={role === "status" ? "polite" : undefined}
     >
       {mode === "boot" && (
-        <BootScene progress={steps?.length ? (Math.min(stepIndex, steps.length - 1) + (known ? percent / 100 : 0.5)) / steps.length : 0} idle={idle || failed} reduceMotion={reduceMotion} />
+        <BootScene progress={steps?.length ? (Math.min(stepIndex, steps.length - 1) + (known ? percent / 100 : 0.5)) / steps.length : 0} step={stepIndex} idle={idle || failed} closing={closing} reduceMotion={reduceMotion} />
       )}
       {body}
       {footer}

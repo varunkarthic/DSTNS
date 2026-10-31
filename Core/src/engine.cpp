@@ -1948,6 +1948,37 @@ nlohmann::json SimulationEngine::places(const std::string& kind,std::size_t offs
                      {"kind",kind.empty()?"all":kind}});
 }
 
+nlohmann::json SimulationEngine::stop_demand(const std::vector<std::uint32_t>& nodes) const {
+    std::lock_guard lock(mutex_);
+    auto items = nlohmann::json::array();
+    if (!graph_) return {{"items", std::move(items)}, {"virtual_s", 0}};
+    const auto& sc = graph_->scenario();
+    const auto& kinds = events_.place_kinds();
+    const double baseline = diurnal_demand(PlaceKind::BusStop, virtual_s_, sc.config.day);
+    for (const auto id : nodes) {
+        if (id >= sc.nodes.size()) throw std::out_of_range("unknown node " + std::to_string(id));
+        const auto& position = sc.nodes[id].position;
+        // The strongest nearby generators, as a real stop reads its peers.
+        std::vector<std::pair<double, std::size_t>> nearby;
+        for (std::size_t i = 0; i < sc.features.size() && i < kinds.size(); ++i) {
+            if (!is_generator(kinds[i])) continue;
+            const double distance = std::hypot(sc.features[i].center.x_m - position.x_m, sc.features[i].center.y_m - position.y_m);
+            if (distance <= kCouplingRadiusM) nearby.emplace_back(distance, i);
+        }
+        std::sort(nearby.begin(), nearby.end());
+        if (nearby.size() > kCouplingFanout) nearby.resize(kCouplingFanout);
+        double total = 0;
+        for (const auto& [distance, i] : nearby)
+            total += std::max(0.0, (sc.config.buildings && i < events_.demand.size() ? events_.demand[i] : 1.0) - 1.0);
+        DemandContext context;
+        if (!nearby.empty()) context.generator_pull = total / double(nearby.size());
+        const double multiplier = sc.config.buildings ? couple_demand(PlaceKind::BusStop, baseline, context, nullptr) : 1.0;
+        items.push_back({{"node", id}, {"x_m", position.x_m}, {"y_m", position.y_m}, {"multiplier", multiplier},
+                         {"baseline", baseline}, {"generators", nearby.size()}});
+    }
+    return {{"items", std::move(items)}, {"virtual_s", virtual_s_}};
+}
+
 nlohmann::json SimulationEngine::place_kinds() const {
     std::lock_guard lock(mutex_);
     // Counts come from this world; the taxonomy itself does not, so a caller

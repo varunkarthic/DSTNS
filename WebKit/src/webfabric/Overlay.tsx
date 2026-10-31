@@ -4,6 +4,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 import type { MapTransform } from "../NetworkMap";
 import { animate, SPRINGS, stepSpring } from "../motion";
+import type { SpringPreset } from "../motion";
 import { useSlot } from "./store";
 import type { OverlayFeature, Tone } from "./store";
 
@@ -67,6 +68,10 @@ export const FabricOverlay = forwardRef<FabricOverlayHandle>(function FabricOver
   // Named points glide between the positions an application reports.
   const gliders = useRef(new Map<string, { x: number; y: number; vx: number; vy: number }>());
   const motion = useRef<(() => void) | null>(null);
+  // An application may choose how its markers move, within the guidelines.
+  const glide = useRef<SpringPreset>(SPRINGS.camera);
+  const chosen = items.map((item) => item.element.motion).find((m): m is { stiffness: number; damping: number } => !!m && typeof m === "object");
+  glide.current = chosen ? { k: chosen.stiffness, c: chosen.damping } : SPRINGS.camera;
 
   const draw = useCallback(() => {
     const element = canvas.current;
@@ -109,8 +114,8 @@ export const FabricOverlay = forwardRef<FabricOverlayHandle>(function FabricOver
       for (const f of features.current) {
         const g = f.id ? gliders.current.get(f.id) : undefined;
         if (!g || typeof f.x_m !== "number" || typeof f.y_m !== "number") continue;
-        [g.x, g.vx] = stepSpring(g.x, g.vx, f.x_m, SPRINGS.camera, dt);
-        [g.y, g.vy] = stepSpring(g.y, g.vy, f.y_m, SPRINGS.camera, dt);
+        [g.x, g.vx] = stepSpring(g.x, g.vx, f.x_m, glide.current, dt);
+        [g.y, g.vy] = stepSpring(g.y, g.vy, f.y_m, glide.current, dt);
         if (Math.hypot(g.x - f.x_m, g.y - f.y_m) > 0.05 || Math.hypot(g.vx, g.vy) > 0.05) moving = true;
       }
       draw();

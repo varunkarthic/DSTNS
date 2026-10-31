@@ -70,6 +70,11 @@ public:
 
     nlohmann::json set_grants(const std::string& id, const nlohmann::json& capabilities);
 
+    /// Nodes an application treats as its own bus stops. Presentation only: the
+    /// core reports their demand and the simulation never reads them.
+    void set_stops(const std::string& id, const nlohmann::json& nodes);
+    [[nodiscard]] std::vector<std::uint32_t> stops(const std::string& id);
+
     void audit(const std::string& id, const std::string& action, const nlohmann::json& params,
                const std::string& run_id, double virtual_s, const std::string& outcome);
     [[nodiscard]] nlohmann::json audit_log(std::size_t limit);
@@ -95,6 +100,7 @@ private:
         std::uint64_t changed_at{};
         std::uint64_t ui_all_at{};
         std::map<std::string, std::uint64_t> element_rev;
+        std::vector<std::uint32_t> stops;
     };
 
     App& find(const std::string& id);

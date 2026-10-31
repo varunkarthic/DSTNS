@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import { formatBytes as shownBytes, rateUnit } from "./units";
 import type { Congestion, News, Topology } from "./types";
 import type { TelemetrySample } from "./telemetryRecorder";
 import { stripPrefix } from "./notificationModel";
@@ -273,17 +274,13 @@ export function networkStats(topology: Topology) {
   };
 }
 
-/** Byte counts in binary units. */
+/** Byte counts, in the units chosen in Settings. */
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return "Not recorded";
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
-  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KiB`;
-  return `${Math.round(bytes)} B`;
+  return shownBytes(bytes);
 }
 
 /** Pick a throughput unit that keeps chart values readable. */
 export function throughputUnit(maxBytesPerSecond: number): { unit: string; divisor: number } {
-  if (maxBytesPerSecond >= 1024 ** 2) return { unit: "MiB/s", divisor: 1024 ** 2 };
-  return { unit: "KiB/s", divisor: 1024 };
+  return rateUnit(maxBytesPerSecond);
 }

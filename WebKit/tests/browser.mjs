@@ -232,7 +232,7 @@ try {
   assert.ok(place);
   await page.getByRole("button", { name: "Search places" }).click();
   await page.getByPlaceholder("Search places").fill(place.name);
-  await page.locator(".dock-search li button").first().click();
+  await page.locator(".place-search-results li button").first().click();
   await page.getByRole("tooltip").waitFor();
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Fit network to viewport" }).click();

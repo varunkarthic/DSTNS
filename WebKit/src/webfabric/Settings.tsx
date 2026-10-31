@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../Icons";
 import { Row, Section, Segmented, Switch } from "../settingsControls";
-import webfabricLogo from "../assets/brand/webfabric-white.png";
+import { BrandLogo } from "../BrandLogo";
+import { Select } from "../Popover";
 import { fabric, useFabricApps } from "./store";
 import type { AppState, FabricApp, SettingsField } from "./store";
 
@@ -28,6 +29,7 @@ export const CAPABILITY_LABEL: Record<string, { label: string; hint: string; sen
   "ui.status": { label: "Status", hint: "Show status lines over the map." },
   "ui.panels": { label: "Panels", hint: "Open its own side panels." },
   "ui.sidebar": { label: "Sidebar", hint: "Lay out its work beside the map." },
+  "ui.deck": { label: "Telemetry section", hint: "Show its own section on the right." },
   "ui.notifications": { label: "Notifications", hint: "Send notifications. Do Not Disturb still applies." },
   "ui.overlays": { label: "Map overlays", hint: "Draw on the map." },
   "ui.map-controls": { label: "Map controls", hint: "Add buttons to the map dock." },
@@ -59,11 +61,9 @@ function Field({ field, value, onChange }: { field: SettingsField; value: unknow
         <Row
           title={field.label}
           hint={field.hint}
-          htmlFor={id}
+          stacked
           control={
-            <select id={id} className="fabric-input" value={String(value)} onChange={(e) => onChange(field.options?.find((o) => String(o.value) === e.target.value)?.value)}>
-              {(field.options ?? []).map((o) => <option key={String(o.value)} value={String(o.value)}>{o.label}</option>)}
-            </select>
+            <Select label={field.label} className="wide" value={String(value)} onChange={(next) => onChange(field.options?.find((o) => String(o.value) === next)?.value)} options={(field.options ?? []).map((o) => ({ value: String(o.value), label: o.label }))} />
           }
         />
       );
@@ -270,7 +270,7 @@ export function WebFabricSettings({ onBack }: { onBack: () => void }) {
         <Icon name="chevronRight" size={14} className="flip" />
         Settings
       </button>
-      <img className="fabric-logo" src={webfabricLogo} alt="WebFabric" height={22} />
+      <BrandLogo name="webfabric" height={22} />
       <p className="settings-note">Applications that have registered themselves with this DSTNS server. They are independent programs; DSTNS shows what they declare.</p>
       <Segmented
         label="WebFabric section"

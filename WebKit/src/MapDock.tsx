@@ -2,13 +2,15 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useScrollFade } from "./scrollFade";
-import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { FluidPanel } from "./FluidPanel";
+import { PlaceGlyph } from "./Legends";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { Icon, ActionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 import type { AutoFocusStrategy } from "./uiConfig";
 import type { MapFeature } from "./types";
-import { placeTitle } from "./mapModel";
+import { placeKind, placeTitle, popularPlaces, searchPlaces } from "./mapModel";
 
 /**
  * The left sidebar: zoom, fit, place search, Auto Focus, Do Not Disturb,
@@ -41,6 +43,7 @@ export interface MapDockProps {
   onToggleSettings: () => void;
 
   features: MapFeature[];
+  city?: string;
   onPickPlace: (feature: MapFeature) => void;
 
   disabled?: boolean;
@@ -48,33 +51,104 @@ export interface MapDockProps {
   extra?: ReactNode;
 }
 
-export function MapDock(props: MapDockProps) {
-  const searchScroll = useScrollFade<HTMLUListElement>();
-  const [searchOpen, setSearchOpen] = useState(false);
+/** The match within a name, marked. */
+function Highlight({ text, query }: { text: string; query: string }) {
+  const at = query ? text.toLowerCase().indexOf(query.toLowerCase()) : -1;
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark>{text.slice(at, at + query.length)}</mark>
+      {text.slice(at + query.length)}
+    </>
+  );
+}
+
+function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean; features: MapFeature[]; city?: string; onClose: () => void; onPick: (feature: MapFeature) => void }) {
+  const scroll = useScrollFade<HTMLUListElement>();
+  const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const needle = query.trim();
+  const popular = useMemo(() => popularPlaces(features), [features]);
+  const results = useMemo(() => (needle ? searchPlaces(features, needle) : popular), [features, needle, popular]);
+  useEffect(() => setActive(0), [needle]);
+  useEffect(() => {
+    if (open) input.current?.focus({ preventScroll: true });
+    else setQuery("");
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+  const onKeys = (e: ReactKeyboardEvent) => {
+    if (e.key === "ArrowDown") setActive((i) => Math.min(results.length - 1, i + 1));
+    else if (e.key === "ArrowUp") setActive((i) => Math.max(0, i - 1));
+    else if (e.key === "Enter" && results[active]) onPick(results[active]);
+    else return;
+    e.preventDefault();
+  };
+  return (
+    <div className="place-finder">
+      <label className="place-search-field">
+        <Icon name="search" size={16} />
+        <input ref={input} type="search" aria-label="Search places" placeholder={city ? `Search ${city}` : "Search places"} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKeys} />
+        {query && (
+          <button type="button" className="icon-btn small" aria-label="Clear search" onClick={() => { setQuery(""); input.current?.focus({ preventScroll: true }); }}>
+            <Icon name="close" size={14} />
+          </button>
+        )}
+      </label>
+      <p className="place-search-heading">{needle ? (results.length ? `${results.length === 24 ? "24+" : results.length} ${results.length === 1 ? "place" : "places"}` : "") : popular.length ? `Popular${city ? ` in ${city}` : " in this district"}` : ""}</p>
+      {results.length > 0 && (
+        <ul {...scroll} className={`place-search-results ${scroll.className}`} aria-label={needle ? "Matching places" : "Popular places"}>
+          {results.map((feature, index) => (
+            <li key={feature.id}>
+              <button type="button" className={index === active ? "active" : ""} onPointerEnter={() => setActive(index)} onClick={() => onPick(feature)}>
+                <PlaceGlyph kind={placeKind(feature).id} />
+                <span className="place-search-text">
+                  <strong><Highlight text={placeTitle(feature)} query={needle} /></strong>
+                  <small>{placeKind(feature).label}</small>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {needle && results.length === 0 && (
+        <p className="place-search-empty">
+          <Icon name="pin" size={18} />
+          No place here matches “{needle}”.
+        </p>
+      )}
+      {!needle && features.length === 0 && <p className="place-search-empty">No named places in this district.</p>}
+    </div>
+  );
+}
+
+export function MapDock(props: MapDockProps) {
+  const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   // Tell a double click from two singles without delaying the toggle much.
   const clickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
+  // One secondary panel at a time.
   useEffect(() => {
-    if (searchOpen) searchRef.current?.focus();
-  }, [searchOpen]);
+    if (props.settingsOpen) setSearchOpen(false);
+  }, [props.settingsOpen]);
 
   useEffect(() => {
-    if (!searchOpen && !menuOpen) return;
+    if (!menuOpen) return;
     const onPointer = (e: PointerEvent) => {
-      if (!dockRef.current?.contains(e.target as Node)) {
-        setSearchOpen(false);
-        setMenuOpen(false);
-      }
+      if (!dockRef.current?.contains(e.target as Node)) setMenuOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setSearchOpen(false);
-        setMenuOpen(false);
-      }
+      if (e.key === "Escape") setMenuOpen(false);
     };
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
@@ -82,18 +156,12 @@ export function MapDock(props: MapDockProps) {
       document.removeEventListener("pointerdown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
-  }, [searchOpen, menuOpen]);
+  }, [menuOpen]);
 
   useEffect(() => () => clearTimeout(clickTimer.current), []);
 
-  const needle = query.trim().toLowerCase();
-  const results = needle
-    ? props.features
-        .filter((f) => f.name?.toLowerCase().includes(needle) || placeTitle(f).toLowerCase().includes(needle))
-        .slice(0, 8)
-    : [];
-
   return (
+    <>
     <nav className="map-dock" ref={dockRef} aria-label="Map tools" data-tutorial="zoom">
       <Tooltip label="Zoom in" side={["right"]}>
         <button aria-label="Zoom in" onClick={props.onZoomIn} disabled={props.disabled}>
@@ -116,12 +184,14 @@ export function MapDock(props: MapDockProps) {
       <Tooltip label="Search places" side={["right"]}>
         <button
           data-tutorial="search"
+          data-search-trigger
           aria-label="Search places"
           aria-expanded={searchOpen}
           className={searchOpen ? "active" : ""}
           onClick={() => {
             setSearchOpen((v) => !v);
             setMenuOpen(false);
+            if (props.settingsOpen) props.onToggleSettings();
           }}
           disabled={props.disabled}
         >
@@ -231,39 +301,19 @@ export function MapDock(props: MapDockProps) {
         </div>
       )}
 
-      {searchOpen && (
-        <div className="dock-search">
-          <input
-            ref={searchRef}
-            type="search"
-            aria-label="Search places"
-            placeholder="Search places"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          {results.length > 0 && (
-            <ul {...searchScroll} tabIndex={0} aria-label="Matching places">
-              {results.map((f) => (
-                <li key={f.id}>
-                  <button
-                    onClick={() => {
-                      props.onPickPlace(f);
-                      setSearchOpen(false);
-                      setQuery("");
-                    }}
-                  >
-                    <Icon name="pin" size={14} />
-                    <span>{placeTitle(f)}</span>
-                    <small>{f.name ? f.category : f.id}</small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {needle && results.length === 0 && <p className="dock-empty">No place matches “{query.trim()}”.</p>}
-          {!needle && props.features.length === 0 && <p className="dock-empty">No named places in this district.</p>}
-        </div>
-      )}
     </nav>
+    <FluidPanel open={searchOpen} anchor="[data-search-trigger]" label="Search places" className="search-panel" width={372} reduceMotion={props.reduceMotion}>
+      <PlaceSearch
+        open={searchOpen}
+        features={props.features}
+        city={props.city}
+        onClose={() => setSearchOpen(false)}
+        onPick={(feature) => {
+          props.onPickPlace(feature);
+          setSearchOpen(false);
+        }}
+      />
+    </FluidPanel>
+    </>
   );
 }

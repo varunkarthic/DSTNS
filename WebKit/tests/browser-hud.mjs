@@ -102,8 +102,8 @@ try {
     const aligned = page.locator(".lower-hud .hud-pill:visible, .lower-hud .capsule:visible");
     const baseline = [];
     for (const el of await aligned.all()) baseline.push(await el.boundingBox());
-    assert.ok(baseline.every(b => Math.abs(b.height - 42) < 1), "all lower HUD surfaces share 42px height");
-    assert.ok(Math.max(...baseline.map(b => b.y)) - Math.min(...baseline.map(b => b.y)) < 1, "all lower HUD surfaces share the baseline");
+    assert.ok(baseline.every(b => Math.abs(b.height - 40) < 1), "all lower HUD surfaces share 40px height");
+    assert.ok(Math.max(...baseline.map(b => b.y)) - Math.min(...baseline.map(b => b.y)) < 1, `all lower HUD surfaces share the baseline: ${baseline.map(b => b.y).join(",")}`);
     const pieces = [];
     for (let i = 0; i < (await cluster.count()); i++) pieces.push(await cluster.nth(i).boundingBox());
     // The painted surface, not the panel's full box: collapsed, only the
@@ -205,7 +205,7 @@ try {
   check("time control, speed and step drive the engine", async () => {
     const time = page.getByRole("button", { name: /Simulation time/ });
     await time.hover();
-    await page.locator(".time-hint").filter({ hasText: /% complete/ }).waitFor();
+    await page.locator(".time-hint").filter({ hasText: /% of day/ }).waitFor();
     const speed = page.getByRole("slider", { name: "Simulation speed" });
     await speed.focus();
     await page.keyboard.press("ArrowRight");

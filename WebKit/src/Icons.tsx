@@ -47,17 +47,39 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M3 3l18 18" />
     </>
   ),
+  // Motion is a wave; reduced motion is the same wave laid flat.
   motion: (
     <>
-      <path d="M3 8h12M3 12h8M3 16h12" />
-      <circle cx="19" cy="12" r="2.2" />
+      <path d="M3 9c2.5-3 4.5-3 6.5 0s4 3 6 0 3.5-3 5.5-.5" />
+      <path d="M3 15.5c2.5-3 4.5-3 6.5 0s4 3 6 0 3.5-3 5.5-.5" />
     </>
   ),
   motionOff: (
     <>
-      <path d="M3 8h6M3 12h4M3 16h6" />
-      <circle cx="16" cy="12" r="2.2" />
-      <path d="M3 3l18 18" />
+      <path d="M3.5 9h17" />
+      <path d="M3.5 15h17" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.6" />
+    </>
+  ),
+  moon: <path d="M20 14.2A8 8 0 019.8 4a8 8 0 1010.2 10.2z" />,
+  sliders: (
+    <>
+      <path d="M4 8h9M17 8h3M4 16h3M11 16h9" />
+      <circle cx="15" cy="8" r="2" />
+      <circle cx="9" cy="16" r="2" />
+    </>
+  ),
+  // The weave of Fabric and WebFabric, simplified to read at icon size.
+  fabric: (
+    <>
+      <path d="M3 10l4.5-4.5L12 10l4.5-4.5L21 10" />
+      <path d="M3 14l4.5 4.5L12 14l4.5 4.5L21 14" />
+      <path d="M7.5 5.5L16.5 18.5M16.5 5.5L7.5 18.5" opacity=".55" />
     </>
   ),
   settings: (

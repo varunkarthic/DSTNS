@@ -88,6 +88,9 @@ public:
      * and an empty string returns all of them.
      */
     [[nodiscard]] nlohmann::json places(const std::string& kind,std::size_t offset,std::size_t limit) const;
+    /// What a bus stop at each node would see now, by the model real stops use: the
+    /// hour's profile, pulled up by trip generators nearby. Read-only.
+    [[nodiscard]] nlohmann::json stop_demand(const std::vector<std::uint32_t>& nodes) const;
 
     /// The place taxonomy: every kind the classifier can produce, whether it is
     /// modelled, and how many of each this world holds.

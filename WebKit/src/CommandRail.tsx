@@ -2,9 +2,10 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { KeyboardEvent, PointerEvent } from "react";
-import { animate, createVelocityTracker, projectSnap, Spring, SPRINGS, stepSpring } from "./motion";
-import { dlrClamp } from "./dlr";
+import { animate, SPRINGS, stepSpring } from "./motion";
+import { QuantizedSlider } from "./QuantizedSlider";
+import { Floating, useDismiss } from "./Popover";
+import { SKIP_OPTIONS } from "./uiConfig";
 import { Icon, ActionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 import { useTimeFormat } from "./preferences";
@@ -42,13 +43,6 @@ export function rateIndexOf(rate: number): number {
 
 export function rateLabel(rate: number): string {
   return `${Number.isInteger(rate) ? rate : rate.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}×`;
-}
-
-/** Stadium outline starting at top centre and running clockwise. */
-export function stadiumPath(width: number, height: number, inset = 1.5): string {
-  const x0 = inset, y0 = inset, x1 = width - inset, y1 = height - inset;
-  const r = (y1 - y0) / 2;
-  return `M ${width / 2} ${y0} H ${x1 - r} A ${r} ${r} 0 0 1 ${x1 - r} ${y1} H ${x0 + r} A ${r} ${r} 0 0 1 ${x0 + r} ${y0} Z`;
 }
 
 /**
@@ -110,8 +104,9 @@ export interface CommandRailProps {
   stepSeconds: number;
   canRegenerate: boolean;
   onPlayPause: () => void;
-  onBack: () => void;
-  onForward: () => void;
+  fineControl: boolean;
+  onBack: (seconds?: number) => void;
+  onForward: (seconds?: number) => void;
   onStep: () => void;
   onRate: (rate: number) => void;
   onReset: () => void;
@@ -130,15 +125,12 @@ export function CommandRail(props: CommandRailProps) {
   const live = enabled && !pending;
   const playable = live && (lifecycle === "RUNNING" || lifecycle === "PAUSED");
   const skip = formatDuration(props.skipSeconds);
-  // Back and forward do not latch, so there is no state to watch: count the
-  // presses instead. The clock will not do - it moves on its own while the
-  // simulation runs, which would leave both arrows twitching all the way
-  // through a playback.
-  const [pressed, setPressed] = useState({ back: 0, forward: 0 });
   const step = formatDuration(props.stepSeconds);
+  const progress = useSmoothProgress(percent, lifecycle === "RUNNING" ? clock?.tick_rate ?? 1 : 0, props.reduceMotion);
 
   return (
     <section className="rail" aria-label="Simulation controls">
+      <span className="rail-progress" aria-hidden="true"><i ref={progress} /></span>
       <div className="rail-group transport" data-tutorial="transport" role="group" aria-label="Playback">
         <Tooltip label="Start over" detail="Returns to the beginning of the day and replays the same scenario. You will be asked first.">
           <button type="button" className="rail-btn" aria-label="Reset simulation to the start of the day" disabled={!live || lifecycle === "IDLE"} onClick={props.onReset}>
@@ -146,11 +138,7 @@ export function CommandRail(props: CommandRailProps) {
           </button>
         </Tooltip>
         <span className="rail-sep" aria-hidden="true" />
-        <Tooltip label={`Back ${skip}`} detail="Restores the nearest checkpoint and replays deterministically.">
-          <button type="button" className="rail-btn" aria-label={`Back ${skip}`} disabled={!live || virtual <= 0} onClick={() => { setPressed((p) => ({ ...p, back: p.back + 1 })); props.onBack(); }}>
-            <ActionIcon name="back" size={18} signal={pressed.back} motion="back" reduceMotion={props.reduceMotion} />
-          </button>
-        </Tooltip>
+        <SkipButton direction="back" label={skip} fine={props.fineControl} disabled={!live || virtual <= 0} reduceMotion={props.reduceMotion} onSkip={props.onBack} />
         <Tooltip label={`Step ${step}`} detail="Advances by one step and holds, so each change can be inspected.">
           <button type="button" className="rail-btn" aria-label={`Step ${step}`} disabled={!live || virtual >= DAY_SECONDS || completed} onClick={props.onStep}>
             <Icon name="step" size={16} />
@@ -169,11 +157,7 @@ export function CommandRail(props: CommandRailProps) {
             </span>
           </button>
         </Tooltip>
-        <Tooltip label={`Forward ${skip}`} detail="Advances the model by the skip interval.">
-          <button type="button" className="rail-btn" aria-label={`Forward ${skip}`} disabled={!live || virtual >= DAY_SECONDS} onClick={() => { setPressed((p) => ({ ...p, forward: p.forward + 1 })); props.onForward(); }}>
-            <ActionIcon name="forward" size={18} signal={pressed.forward} motion="forward" reduceMotion={props.reduceMotion} />
-          </button>
-        </Tooltip>
+        <SkipButton direction="forward" label={skip} fine={props.fineControl} disabled={!live || virtual >= DAY_SECONDS} reduceMotion={props.reduceMotion} onSkip={props.onForward} />
       </div>
 
       <TimeControl
@@ -181,12 +165,9 @@ export function CommandRail(props: CommandRailProps) {
         hasClock={!!clock}
         percent={percent}
         paused={paused}
-        reduceMotion={props.reduceMotion}
         label={time.time(virtual)}
         hour12={time.hour12}
         onToggle={time.toggle}
-        running={lifecycle === "RUNNING"}
-        tickRate={clock?.tick_rate ?? 1}
       />
 
       <SpeedControl
@@ -198,7 +179,7 @@ export function CommandRail(props: CommandRailProps) {
         onRate={props.onRate}
       />
 
-      <span className="rail-divider" aria-hidden="true" />
+      <span className="rail-divider rail-spring" aria-hidden="true" />
 
       <SeedControl seed={props.seed} canRegenerate={props.canRegenerate && !pending} onRegenerate={props.onRegenerate} />
 
@@ -220,15 +201,17 @@ export function CommandRail(props: CommandRailProps) {
 }
 
 /**
- * Drives the progress ring every frame. Between polls it advances at the running
+ * Drives the progress line every frame. Between polls it advances at the running
  * rate, so even at 20x it moves rather than jumps; a seek or skip arrives as a new
  * target for a spring, so it travels there rather than teleporting.
  */
 export function useSmoothProgress(percent: number, ratePerSecond: number, reduceMotion: boolean) {
-  const path = useRef<SVGPathElement>(null);
+  const bar = useRef<HTMLElement>(null);
   const goal = useRef({ percent, at: 0, rate: ratePerSecond });
   const state = useRef({ x: percent, v: 0, cancel: null as (() => void) | null });
-  const paint = (value: number) => path.current?.style.setProperty("stroke-dasharray", `${Math.max(0, Math.min(100, value)).toFixed(3)} 100`);
+  const paint = (value: number) => {
+    if (bar.current) bar.current.style.transform = `scaleX(${(Math.max(0, Math.min(100, value)) / 100).toFixed(5)})`;
+  };
   useLayoutEffect(() => {
     goal.current = { percent, at: performance.now(), rate: ratePerSecond };
     const s = state.current;
@@ -259,7 +242,7 @@ export function useSmoothProgress(percent: number, ratePerSecond: number, reduce
       s.cancel = null;
     };
   }, []);
-  return path;
+  return bar;
 }
 
 function TimeControl({
@@ -267,48 +250,35 @@ function TimeControl({
   hasClock,
   percent,
   paused,
-  reduceMotion,
   label,
   hour12,
   onToggle,
-  running,
-  tickRate,
 }: {
-  running: boolean;
-  tickRate: number;
   seconds: number;
   hasClock: boolean;
   percent: number;
   paused: boolean;
-  reduceMotion: boolean;
   label: string;
   hour12: boolean;
   onToggle: () => void;
 }) {
-  const W = 132, H = 40;
-  const d = stadiumPath(W, H);
-  const fill = useSmoothProgress(percent, running ? tickRate : 0, reduceMotion);
   return (
     <button
       type="button"
-      className={`time-control${paused ? " paused" : ""}${reduceMotion ? " still" : ""}`}
+      className={`time-control${paused ? " paused" : ""}`}
       data-tutorial="clock"
       data-tip-avoid
       onClick={onToggle}
       aria-label={`Simulation time ${hasClock ? label : "unavailable"}, ${percent.toFixed(0)} percent complete${paused ? ", paused" : ""}. Activate to switch to ${hour12 ? "24" : "12"} hour time.`}
       data-seconds={Math.round(seconds)}
     >
-      <svg className="time-ring" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
-        <path className="ring-track" d={d} pathLength={100} />
-        <path ref={fill} className="ring-fill" d={d} pathLength={100} />
-      </svg>
       <span className="time-value mono">{hasClock ? label : "--:--:--"}</span>
-      <span className="time-hint" aria-hidden="true">
-        {percent.toFixed(0)}% complete
-      </span>
+      <span className="time-hint">{paused ? "Paused" : `${percent.toFixed(0)}% of day`}</span>
     </button>
   );
 }
+
+const SPEED_LABELS = RATES.map((rate) => String(rate));
 
 function SpeedControl({
   rate,
@@ -325,135 +295,95 @@ function SpeedControl({
   reduceMotion: boolean;
   onRate: (rate: number) => void;
 }) {
-  const track = useRef<HTMLDivElement>(null);
-  const thumb = useRef<HTMLDivElement>(null);
-  const spring = useRef<Spring | null>(null);
-  const tracker = useRef(createVelocityTracker());
-  const dragging = useRef(false);
-  const [width, setWidth] = useState(0);
   const [choice, setChoice] = useState<number | null>(null);
-  const [held, setHeld] = useState(false);
   // The chosen stop shows at once; the core's answer follows on the next poll.
   const index = choice ?? rateIndexOf(rate);
   const governed = requested !== undefined && Math.abs(requested - rate) > 1e-6;
-  const stops = RATES.map((_, i) => (i / (RATES.length - 1)) * width);
-
   useEffect(() => {
-    if (choice !== null && rateIndexOf(rate) === choice) setChoice(null);
     if (choice === null) return;
+    if (rateIndexOf(rate) === choice) {
+      setChoice(null);
+      return;
+    }
     const timer = setTimeout(() => setChoice(null), 2500);
     return () => clearTimeout(timer);
   }, [choice, rate]);
-
-  useLayoutEffect(() => {
-    const el = track.current;
-    if (!el) return;
-    const measure = () => setWidth(el.clientWidth);
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  // The thumb is a spring, so a stop is reached with the momentum of the gesture.
-  useEffect(() => {
-    if (!thumb.current || !width) return;
-    const target = stops[index];
-    spring.current ??= new Spring(target, SPRINGS.expressiveFast, (x) => thumb.current?.parentElement?.style.setProperty("--speed-x", `${x.toFixed(2)}px`), 0.1);
-    if (dragging.current) return;
-    if (reduceMotion) spring.current.jump(target);
-    else spring.current.set(target);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, width, reduceMotion]);
-  useEffect(() => () => spring.current?.stop(), []);
-
-  const choose = (next: number) => {
-    if (next === rateIndexOf(rate) && choice === null) return;
-    setChoice(next);
-    onRate(RATES[next]);
-  };
-  const place = (clientX: number) => {
-    const rect = track.current!.getBoundingClientRect();
-    return clientX - rect.left - track.current!.clientLeft;
-  };
-  const onDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (disabled || !width) return;
-    dragging.current = true;
-    setHeld(true);
-    tracker.current.reset();
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    const x = place(e.clientX);
-    tracker.current.add(x, e.timeStamp);
-    spring.current?.set(Math.max(0, Math.min(width, x)));
-  };
-  const onMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (!dragging.current) return;
-    const x = place(e.clientX);
-    tracker.current.add(x, e.timeStamp);
-    // Past either end it gives a little and no further.
-    spring.current?.jump(dlrClamp(x, 0, width, 12));
-  };
-  const onUp = () => {
-    if (!dragging.current) return;
-    dragging.current = false;
-    setHeld(false);
-    const value = spring.current?.value ?? stops[index];
-    const velocity = tracker.current.velocity();
-    const landed = projectSnap(Math.max(0, Math.min(width, value)), velocity, stops);
-    const next = stops.indexOf(landed);
-    if (reduceMotion) spring.current?.jump(landed);
-    else spring.current?.set(landed, velocity);
-    choose(next);
-  };
-  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const delta = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : 0;
-    const target = e.key === "Home" ? 0 : e.key === "End" ? RATES.length - 1 : delta ? index + delta : -1;
-    if (target < 0 || target >= RATES.length || disabled) return;
-    e.preventDefault();
-    choose(target);
-  };
-
   const detail = locked
     ? "Held at 1× by Adaptive Simulation Backpressure until the interface is back in sync."
     : governed
       ? `Requested ${rateLabel(requested!)}. Applied ${rateLabel(rate)} while the interface catches up.`
-      : "Drag, or use the arrow keys. It settles on the nearest stop.";
-
+      : "How fast simulated time passes. Drag, click a speed, or use the arrow keys.";
   return (
-    <Tooltip label="Simulation speed" detail={detail} disabled={held}>
-      <div className={`speed${locked ? " locked" : ""}${governed ? " governed" : ""}${held ? " held" : ""}${disabled ? " disabled" : ""}`} data-tutorial="rate" data-tip-avoid>
-        <div
-          ref={track}
-          className="speed-track"
-          role="slider"
-          tabIndex={disabled ? -1 : 0}
-          aria-label="Simulation speed"
-          aria-valuemin={0}
-          aria-valuemax={RATES.length - 1}
-          aria-valuenow={index}
-          aria-valuetext={`${RATES[index]} times speed`}
-          aria-disabled={disabled}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
-          onKeyDown={onKey}
-        >
-          <span className="speed-line" aria-hidden="true" />
-          <span className="speed-fill" aria-hidden="true" />
-          {RATES.map((value, i) => (
-            <i key={value} className={`speed-stop${i <= index ? " passed" : ""}`} style={{ left: `${(i / (RATES.length - 1)) * 100}%` }} aria-hidden="true" />
-          ))}
-          <div ref={thumb} className="speed-thumb" aria-hidden="true">
-            {held && <span className="speed-bubble mono">{rateLabel(RATES[index])}</span>}
-          </div>
-        </div>
-        <span className="speed-value mono" key={index} aria-hidden="true">
-          {locked ? <Icon name="lock" size={14} /> : rateLabel(RATES[index])}
+    <Tooltip label="Simulation speed" detail={detail}>
+      <div className={`speed${locked ? " locked" : ""}${governed ? " governed" : ""}`}>
+        <span className="rail-label">
+          {locked ? <Icon name="lock" size={12} /> : <span className="rail-label-mark">×</span>}
+          Speed
         </span>
+        <QuantizedSlider
+          tutorial="rate"
+          label="Simulation speed"
+          labels={SPEED_LABELS}
+          index={index}
+          disabled={disabled}
+          reduceMotion={reduceMotion}
+          valueText={(i) => `${RATES[i]} times speed`}
+          onSelect={(i) => {
+            setChoice(i);
+            onRate(RATES[i]);
+          }}
+        />
       </div>
     </Tooltip>
+  );
+}
+
+/** Back or Forward. With fine control on, a press asks how far. */
+function SkipButton({ direction, label, fine, disabled, reduceMotion, onSkip }: { direction: "back" | "forward"; label: string; fine: boolean; disabled: boolean; reduceMotion: boolean; onSkip: (seconds?: number) => void }) {
+  const [pressed, setPressed] = useState(0);
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  useDismiss(open, () => setOpen(false), [trigger, menu]);
+  return (
+    <>
+      <Tooltip label={fine ? (direction === "back" ? "Back by…" : "Forward by…") : `${direction === "back" ? "Back" : "Forward"} ${label}`} detail={direction === "back" ? "Restores the nearest checkpoint and replays deterministically." : "Advances the model by this interval."} disabled={open}>
+        <button
+          ref={trigger}
+          type="button"
+          className={`rail-btn${open ? " active" : ""}`}
+          aria-label={fine ? (direction === "back" ? "Back by" : "Forward by") : `${direction === "back" ? "Back" : "Forward"} ${label}`}
+          aria-haspopup={fine ? "menu" : undefined}
+          aria-expanded={fine ? open : undefined}
+          disabled={disabled}
+          onClick={() => {
+            if (fine) setOpen((v) => !v);
+            else {
+              setPressed((p) => p + 1);
+              onSkip();
+            }
+          }}
+        >
+          <ActionIcon name={direction} size={18} signal={pressed} motion={direction} reduceMotion={reduceMotion} />
+        </button>
+      </Tooltip>
+      <Floating anchor={trigger} open={open} preferred={["top"]} className="skip-menu" panelRef={menu} role="menu" label={direction === "back" ? "Go back by" : "Go forward by"}>
+        {SKIP_OPTIONS.map((seconds) => (
+          <button
+            key={seconds}
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setPressed((p) => p + 1);
+              onSkip(seconds);
+            }}
+          >
+            {seconds < 3600 ? `${seconds / 60}m` : `${seconds / 3600}h`}
+          </button>
+        ))}
+      </Floating>
+    </>
   );
 }
 

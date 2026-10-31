@@ -7,6 +7,8 @@ import { createPortal } from "react-dom";
 import { Icon } from "./Icons";
 import { avoidRegions } from "./Tooltip";
 import { computePlacement } from "./tooltipPlacement";
+import { usePresence } from "./LoadingSurface";
+import { MOTION_MS } from "./motion";
 import type { Placement, Side } from "./tooltipPlacement";
 
 /**
@@ -70,6 +72,7 @@ export function Floating({
   const own = useRef<HTMLDivElement>(null);
   const ref = panelRef ?? own;
   const [place, setPlace] = useState<Placement | null>(null);
+  const lastAnchorMeasured = useRef(false);
   const measure = useCallback(() => {
     const el = ref.current;
     const a = anchor.current?.getBoundingClientRect();
@@ -93,6 +96,7 @@ export function Floating({
       setPlace(null);
       return;
     }
+    lastAnchorMeasured.current = true;
     measure();
     if (typeof ResizeObserver === "undefined" || !ref.current) return;
     const observer = new ResizeObserver(measure);
@@ -103,16 +107,21 @@ export function Floating({
       window.removeEventListener("resize", measure);
     };
   }, [open, measure, ref]);
-  if (!open) return null;
+  // Stays long enough to leave the way it came, unless motion is reduced.
+  const lastPlace = useRef<Placement | null>(null);
+  if (place) lastPlace.current = place;
+  const shown = place ?? (open ? null : lastPlace.current);
+  const leaving = usePresence(open, document.documentElement.classList.contains("reduce-motion") ? 0 : MOTION_MS.overlay);
+  if (!open && !leaving.mounted) return null;
   return createPortal(
     <div
       ref={ref}
       id={id}
       role={role}
       aria-label={label}
-      className={`floating ${className}${place ? ` placed side-${place.side}` : ""}`}
+      className={`floating ${className}${shown ? ` placed side-${shown.side}` : ""}${!open ? " leaving" : ""}`}
       data-tip-avoid
-      style={place ? { left: place.left, top: place.top } : { left: -9999, top: -9999 }}
+      style={shown ? { left: shown.left, top: shown.top } : { left: -9999, top: -9999 }}
     >
       {children}
     </div>,
@@ -153,14 +162,14 @@ export function Select<T extends string>({
   const selected = Math.max(0, options.findIndex((o) => o.value === value));
   const close = useCallback((restore = true) => {
     setOpen(false);
-    if (restore) trigger.current?.focus();
+    if (restore) trigger.current?.focus({ preventScroll: true });
   }, []);
   useDismiss(open, () => close(false), [trigger, menu]);
 
   useEffect(() => {
     if (open) {
       setActive(selected);
-      requestAnimationFrame(() => menu.current?.querySelector<HTMLElement>("[role='listbox']")?.focus());
+      requestAnimationFrame(() => menu.current?.querySelector<HTMLElement>("[role='listbox']")?.focus({ preventScroll: true }));
     }
   }, [open, selected]);
 

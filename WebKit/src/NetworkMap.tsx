@@ -16,7 +16,7 @@ import { canvasGlyph } from "./placeGlyphs";
 import { animate, createVelocityTracker, SPRINGS, stepSpring } from "./motion";
 import { appearance } from "./appearance";
 import type { RainCells } from "./mapModel";
-import { dlrClamp, resistZoomOut, ZOOM_REST } from "./dlr";
+import { resistClamp, resistZoomOut, ZOOM_REST } from "./resistance";
 import type { SpringPreset } from "./motion";
 import { mapFitLayout, mapInsets, metresToGeographic } from "./mapProjection";
 import { viewportFor } from "./autoFocus";
@@ -422,6 +422,7 @@ function NetworkMap({
           ctx.fillText(e.name.slice(0, 30), x + 5, y - 5);
         });
       const poiCells = new Set<string>();
+      markerHits.current.length = 0;
       if (layers.buildings)
         topology.features.forEach((f, i) => {
           if (!visible(cached.features[i])) return;
@@ -444,6 +445,7 @@ function NetworkMap({
           const cell = `${Math.floor(p.x / 28)},${Math.floor(p.y / 28)}`;
           if (poiCells.has(cell)) return;
           poiCells.add(cell);
+          markerHits.current.push({ x: p.x, y: p.y, index: i });
           // Modelled places carry the demand ramp: white at rest, warming
           // through amber to red at peak, then cooling back the same way.
           const multiplier = demand?.multiplier ?? 1;
@@ -579,7 +581,7 @@ function NetworkMap({
               y: a.y + (b.y - a.y) * progress,
               edge: e.id,
             });
-            ctx.fillStyle = "#daf7f0";
+            ctx.fillStyle = appearance.land.flow;
             ctx.fillRect(
               a.x + (b.x - a.x) * progress - 1,
               a.y + (b.y - a.y) * progress - 1,
@@ -597,7 +599,12 @@ function NetworkMap({
         Math.max(0.12, quality.current * (cost > 11 ? 0.82 : cost < 5 ? 1.05 : 1)),
       );
       ctx.globalAlpha = 1;
-      if ((running && !reduceMotion) || rainNow.some((cell) => cell.moving)) frame = requestAnimationFrame(draw);
+      // Flow markers read just as well at half the frame rate, and that leaves the main
+      // thread free for everything being touched. A camera move redraws at once through
+      // this effect, and rain on a spring asks for every frame.
+      const moving = rainNow.some((cell) => cell.moving);
+      if (moving) frame = requestAnimationFrame(draw);
+      else if (running && !reduceMotion) frame = requestAnimationFrame(() => (frame = requestAnimationFrame(draw)));
     };
     draw();
     return () => cancelAnimationFrame(frame);
@@ -622,6 +629,9 @@ function NetworkMap({
   const coasting = useRef<(() => void) | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
+  // The markers actually drawn, in screen space, so pointing at an icon is pointing
+  // at that place and not at whatever footprint happens to lie beneath it.
+  const markerHits = useRef<{ x: number; y: number; index: number }[]>([]);
   const trackX = useRef(createVelocityTracker());
   const trackY = useRef(createVelocityTracker());
   const dragMoved = useRef(false);
@@ -775,7 +785,23 @@ function NetworkMap({
     let footprint: { key: string; info: Inspection } | undefined;
     let info: Inspection | undefined,
       key = "";
-    if (layers.signals && view.scale > 0.15)
+    if (layers.buildings) {
+      let nearest = 15;
+      let hit = -1;
+      for (const marker of markerHits.current) {
+        const distance = Math.hypot(marker.x + rect.left - clientX, marker.y + rect.top - clientY);
+        if (distance < nearest) {
+          nearest = distance;
+          hit = marker.index;
+        }
+      }
+      if (hit >= 0) {
+        const f = topology.features[hit];
+        key = f.id;
+        info = placeInspection(f, state.demand.get(f.id));
+      }
+    }
+    if (!info && layers.signals && view.scale > 0.15)
       for (const signal of snapshot?.signals ?? []) {
         const n = topology.nodes[signal.junction_id];
         if (
@@ -845,7 +871,7 @@ function NetworkMap({
         };
       }
     }
-    if (!info && view.scale > 1)
+    if (!info && advanced && view.scale > 1)
       for (const node of topology.nodes) {
         if (
           Math.hypot(node.position.x_m - x, -node.position.y_m - y) *
@@ -869,6 +895,9 @@ function NetworkMap({
         const f = topology.features[i],
           g = cached.features[i];
         if (kinds[i]?.group === "other" && !layers.other_places && !f.polygon) continue;
+        // A nameless outline with no demand has nothing to say: "Residential" is not
+        // what someone pointing at the map wants to read.
+        if (!f.name?.trim() && !f.demand_type) continue;
         if (
           Math.hypot(f.position.x_m - x, -f.position.y_m - y) * view.scale <
             12 ||
@@ -1142,8 +1171,8 @@ function NetworkMap({
             const limits = panLimits(drag.current.view.scale);
             setView({
               ...drag.current.view,
-              x: limits ? dlrClamp(rawX, limits.minX, limits.maxX, 90) : rawX,
-              y: limits ? dlrClamp(rawY, limits.minY, limits.maxY, 90) : rawY,
+              x: limits ? resistClamp(rawX, limits.minX, limits.maxX, 90) : rawX,
+              y: limits ? resistClamp(rawY, limits.minY, limits.maxY, 90) : rawY,
             });
           } else inspectAt(e.clientX, e.clientY);
           reportCursor(e.clientX, e.clientY);
@@ -1173,7 +1202,7 @@ function NetworkMap({
       <div className="map-attribution">
         © OpenStreetMap contributors · {topology?.source || "Awaiting network"}
       </div>
-      {hover && <InfoCard {...hover} info={advanced ? hoverInfo ?? hover.info : { ...(hoverInfo ?? hover.info), metrics: undefined }} />}
+      {hover && <InfoCard {...hover} info={advanced ? hoverInfo ?? hover.info : { ...(hoverInfo ?? hover.info), metrics: undefined, technical: undefined }} />}
       <div className="map-vignette" aria-hidden="true" />
     </div>
   );

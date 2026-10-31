@@ -127,10 +127,10 @@ describe("telemetry reductions", () => {
   });
   it("formats sizes and picks throughput units", () => {
     expect(formatBytes(512)).toBe("512 B");
-    expect(formatBytes(2048)).toBe("2 KiB");
-    expect(formatBytes(5 * 1024 * 1024)).toBe("5.0 MiB");
-    expect(throughputUnit(500 * 1024).unit).toBe("KiB/s");
-    expect(throughputUnit(3 * 1024 * 1024).unit).toBe("MiB/s");
+    expect(formatBytes(2000)).toBe("2 kB");
+    expect(formatBytes(5_000_000)).toBe("5.0 MB");
+    expect(throughputUnit(500_000).unit).toBe("kB/s");
+    expect(throughputUnit(3_000_000).unit).toBe("MB/s");
   });
 });
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-#include "dstns/fabric/registry.hpp"
+#include "dstns/webfabric/registry.hpp"
 
 #include "dstns/rng.hpp"
 #include "dstns/utf8.hpp"
@@ -25,11 +25,11 @@ constexpr int kManifestVersion = 1, kApiMajor = 1;
 // Requested and granted without asking: they only add to the application's own
 // surfaces. Everything else interrupts the viewer, runs the application's own
 // code in the page, or changes the simulation, so a person grants it.
-const std::set<std::string> kAutomatic = {"ui.header", "ui.status", "ui.panels", "ui.sidebar", "ui.notifications", "ui.overlays",
+const std::set<std::string> kAutomatic = {"ui.header", "ui.status", "ui.panels", "ui.sidebar", "ui.deck", "ui.notifications", "ui.overlays",
                                           "ui.map-controls", "ui.indicators", "settings", "sim.read"};
 const std::set<std::string> kExplicit = {"ui.dialogs", "ui.frames", "control.playback", "control.events", "control.world"};
 const std::map<std::string, std::string> kSlotCapability = {
-    {"header", "ui.header"}, {"status", "ui.status"}, {"panel", "ui.panels"}, {"sidebar", "ui.sidebar"}, {"overlay", "ui.overlays"},
+    {"header", "ui.header"}, {"status", "ui.status"}, {"panel", "ui.panels"}, {"sidebar", "ui.sidebar"}, {"deck", "ui.deck"}, {"overlay", "ui.overlays"},
     {"map_control", "ui.map-controls"}, {"indicator", "ui.indicators"}, {"dialog", "ui.dialogs"}};
 const std::set<std::string> kTones = {"neutral", "accent", "ok", "warn", "danger"};
 const std::set<std::string> kReportedStates = {"initialized", "active", "failed"};
@@ -145,6 +145,27 @@ json validate_manifest(const json& manifest) {
         bad("manifest.lease_s must be in [1, 3600]");
     if (manifest.contains("settings")) validate_settings(manifest.at("settings"));
     return manifest;
+}
+
+// How an element arrives: one of the provided motions, or a custom spring within
+// the guidelines. Lively is welcome; a spring that wobbles or dawdles is refused,
+// because it would feel unlike the rest of the interface.
+void check_motion(const json& motion) {
+    static const std::set<std::string> kMotions = {"none", "fade", "rise", "slide", "scale", "pop", "drop"};
+    if (motion.is_string()) {
+        if (!kMotions.count(motion.get<std::string>()))
+            throw Refusal(400, "INVALID_ELEMENT", "motion must be none, fade, rise, slide, scale, pop or drop, or a custom spring");
+        return;
+    }
+    if (!motion.is_object() || !motion.value("stiffness", json(nullptr)).is_number() || !motion.value("damping", json(nullptr)).is_number())
+        throw Refusal(400, "INVALID_ELEMENT", "a custom motion needs stiffness and damping");
+    const auto k = motion.at("stiffness").get<double>();
+    const auto c = motion.at("damping").get<double>();
+    if (!(k >= 40 && k <= 1200) || !(c > 0)) throw Refusal(400, "INVALID_ELEMENT", "motion stiffness must be in [40, 1200], with positive damping");
+    const double zeta = c / (2 * std::sqrt(k));
+    if (zeta < 0.56) throw Refusal(400, "INVALID_ELEMENT", "motion overshoots more than 12%: raise damping");
+    const double settle = zeta < 1 ? 4 / (zeta * std::sqrt(k)) : 4 / (std::sqrt(k) * (zeta - std::sqrt(zeta * zeta - 1)));
+    if (settle > 1.5) throw Refusal(400, "INVALID_ELEMENT", "motion takes longer than 1.5 s to settle: raise stiffness or lower damping");
 }
 
 json schema_fields(const json& manifest) {
@@ -331,6 +352,7 @@ void AppRegistry::check_element(const App& app, const json& element) const {
     const auto id = element.value("id", json(nullptr));
     if (!id.is_string() || !std::regex_match(id.get<std::string>(), kKey)) throw Refusal(400, "INVALID_ELEMENT", "a UI element needs an id matching [a-z0-9][a-z0-9_-]*");
     const auto slot = element.value("slot", std::string{});
+    if (element.contains("motion")) check_motion(element.at("motion"));
     const auto capability = kSlotCapability.find(slot);
     if (capability == kSlotCapability.end()) throw Refusal(400, "INVALID_ELEMENT", "unknown UI slot: " + slot);
     if (element.contains("tone") && (!element.at("tone").is_string() || !kTones.count(element.at("tone").get<std::string>())))
@@ -338,7 +360,7 @@ void AppRegistry::check_element(const App& app, const json& element) const {
     // A declared URL is only ever loaded into a sandboxed frame, and only over http(s).
     if (element.contains("frame")) {
         const auto url = element.at("frame").is_string() ? element.at("frame").get<std::string>() : std::string{};
-        if ((slot != "panel" && slot != "sidebar") || !(url.starts_with("http://") || url.starts_with("https://")) || url.size() > 2000)
+        if ((slot != "panel" && slot != "sidebar" && slot != "deck") || !(url.starts_with("http://") || url.starts_with("https://")) || url.size() > 2000)
             throw Refusal(400, "INVALID_ELEMENT", "frame must be an http or https URL on a panel or sidebar");
         if (app.manifest.contains("capabilities")) {
             const auto& requested = app.manifest.at("capabilities");
@@ -681,6 +703,22 @@ json AppRegistry::audit_log(std::size_t limit) {
     const auto count = std::min(limit, audit_.size());
     for (auto entry = audit_.end() - static_cast<std::ptrdiff_t>(count); entry != audit_.end(); ++entry) items.push_back(*entry);
     return items;
+}
+
+void AppRegistry::set_stops(const std::string& id, const json& nodes) {
+    if (!nodes.is_array() || nodes.size() > 4096) throw Refusal(400, "INVALID_STOPS", "stops must be an array of up to 4096 node IDs");
+    std::vector<std::uint32_t> stops;
+    for (const auto& node : nodes) {
+        if (!node.is_number_unsigned()) throw Refusal(400, "INVALID_STOPS", "a stop is a node ID");
+        stops.push_back(node.get<std::uint32_t>());
+    }
+    std::lock_guard lock(mutex_);
+    find(id).stops = std::move(stops);
+}
+
+std::vector<std::uint32_t> AppRegistry::stops(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    return find(id).stops;
 }
 
 } // namespace dstns::fabric

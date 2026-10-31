@@ -80,7 +80,7 @@ describe("state updates", () => {
     fabric.apply({ revision: 1, notification_sequence: 3, notifications: [note(3)], unchanged: true });
     stop();
     expect(seen).toEqual([1, 2, 3]);
-    expect(toUiNotification(note(9), 60).title).toBe("A: t");
+    expect(toUiNotification(note(9), 60)).toMatchObject({ title: "t", app: "A" });
   });
 });
 
@@ -259,7 +259,7 @@ describe("settings", () => {
     open("a");
     expect(await screen.findByRole("switch", { name: "Enabled" })).toBeChecked();
     expect(screen.getByRole("radiogroup", { name: "Mode" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Many").tagName).toBe("SELECT");
+    expect(screen.getByRole("button", { name: /^Many/ })).toHaveAttribute("aria-haspopup", "listbox");
     expect(screen.getByLabelText("Level")).toHaveAttribute("type", "range");
     expect(screen.getByLabelText("Count")).toHaveAttribute("type", "number");
     expect(screen.getByLabelText("Name")).toHaveAttribute("type", "text");

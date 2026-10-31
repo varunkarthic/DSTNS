@@ -70,8 +70,9 @@ endif()
 add_library(dstns_fabric
   Fabric/src/api.cpp Fabric/src/support.cpp Fabric/src/guards.cpp Fabric/src/routes_static.cpp Fabric/src/routes_system.cpp
   Fabric/src/routes_playback.cpp Fabric/src/routes_world.cpp Fabric/src/routes_control.cpp Fabric/src/routes_view.cpp
-  Fabric/src/routes_observation.cpp Fabric/src/routes_apps.cpp Fabric/src/registry.cpp Fabric/src/operations.cpp)
-target_include_directories(dstns_fabric PUBLIC Fabric/include)
+  Fabric/src/routes_observation.cpp Fabric/src/operations.cpp
+  Fabric/src/webfabric/routes.cpp Fabric/src/webfabric/registry.cpp)
+target_include_directories(dstns_fabric PUBLIC Fabric/include PRIVATE Fabric/src)
 target_link_libraries(dstns_fabric PUBLIC dstns_core)
 target_compile_options(dstns_fabric PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 

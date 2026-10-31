@@ -152,6 +152,28 @@ def main():
             assert [e["action"] for e in audit] == ["pause", "seek"] and audit[0]["app_id"] == controller and audit[0]["run_id"]
             assert audit[1]["outcome"].startswith("refused")
 
+            # Bus stops of an application's own carry the core's demand model, read-only.
+            network = call("GET", "/api/v1/view/topology")[1]
+            network = network.get("data", network)
+            node = network["nodes"][0]["id"]
+            before_status = call("GET", "/api/v1/playback/status")[1]["data"]["lifecycle"]
+            placed = call("PUT", f"{BASE}/{a}/stops", {"nodes": [node]}, ta)
+            assert placed[0] == 200 and placed[1]["data"]["items"][0]["node"] == node, placed
+            assert placed[1]["data"]["items"][0]["multiplier"] > 0
+            assert call("GET", f"{BASE}/{a}/stops", token=ta)[1]["data"]["items"][0]["node"] == node
+            assert code(call("GET", f"{BASE}/{a}/stops", token=tb)) == "APP_TOKEN_INVALID"
+            assert code(call("PUT", f"{BASE}/{a}/stops", {"nodes": ["x"]}, ta)) == "INVALID_STOPS"
+            assert call("PUT", f"{BASE}/{a}/stops", {"nodes": [10 ** 8]}, ta)[0] == 404
+            assert call("GET", "/api/v1/playback/status")[1]["data"]["lifecycle"] == before_status
+            assert call("PUT", f"{BASE}/{a}/stops", {"nodes": []}, ta)[0] == 200
+
+            # How an element arrives: a provided motion, or a spring within the guidelines.
+            for good in ("rise", "pop", {"stiffness": 300, "damping": 28}):
+                assert call("PUT", f"{BASE}/{a}/ui/m", {"slot": "status", "label": "M", "motion": good}, ta)[0] == 200, good
+            for bad in ("wobble", {"stiffness": 300, "damping": 5}, {"stiffness": 40, "damping": 80}, {"stiffness": 5000, "damping": 200}, {"damping": 20}):
+                assert code(call("PUT", f"{BASE}/{a}/ui/m", {"slot": "status", "label": "M", "motion": bad}, ta)) == "INVALID_ELEMENT", bad
+            assert call("DELETE", f"{BASE}/{a}/ui/m", token=ta)[0] == 200
+
             # Declared UI: slots, tones and frames are checked; a frame needs its grant.
             assert code(call("PUT", f"{BASE}/{a}/ui", [{"id": "s", "slot": "status", "tone": "#ff0000"}], ta)) == "INVALID_ELEMENT", "no colours"
             assert code(call("PUT", f"{BASE}/{a}/ui", [{"id": "s", "slot": "nowhere"}], ta)) == "INVALID_ELEMENT"
@@ -279,6 +301,16 @@ def main():
             values = call("GET", f"{BASE}/{a}/settings", token=ta)[1]["data"]
             assert values["version"] == 2 and values["values"]["intensity"] == 8 and values["values"]["extra"] == 2 and "level" not in values["values"]
             assert any(e["type"] == "settings.migrated" for e in call("GET", f"{BASE}/{a}/events", token=ta)[1]["data"]["items"])
+
+            # A whole product on Fabric: the bus planner, against a fresh world.
+            token_run = (Path(tmp) / "operator.token").read_text().strip()
+            assert call("POST", "/api/v1/playback/start", {"seed": "12345", "playback_duration_seconds": 3600, "map": {"osm_file": "data/fixtures/real_network.osm.xml"}}, headers={"X-DSTNS-Operator": token_run})[0] == 202
+            end = time.monotonic() + 30
+            while call("GET", "/api/v1/playback/status")[1]["data"]["lifecycle"] != "RUNNING":
+                assert time.monotonic() < end
+                time.sleep(0.1)
+            demo = subprocess.run(["python3", str(ROOT / "Fabric/examples/bus_planner.py"), "--url", f"http://127.0.0.1:{server.port}", "--ticks", "3"], capture_output=True, text=True, timeout=60)
+            assert demo.returncode == 0 and demo.stdout.startswith("ok:"), demo.stdout + demo.stderr
 
             # Credentials stay private on disk, and the existing API is untouched.
             mode = os.stat(Path(tmp) / "fabric-apps.json").st_mode & 0o777

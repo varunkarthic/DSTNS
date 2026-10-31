@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import type { ReactNode } from "react";
+import { Icon } from "./Icons";
 
 /** The controls every settings page is built from, including applications' own. */
 
@@ -34,10 +35,10 @@ export function Switch({
   );
 }
 
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({ title, icon, children }: { title: string; icon?: string; children: ReactNode }) {
   return (
     <section className="settings-section">
-      <h3>{title}</h3>
+      <h3>{icon && <Icon name={icon} size={14} />}{title}</h3>
       {children}
     </section>
   );
@@ -48,14 +49,19 @@ export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "acce
   return <span className={`status-badge tone-${tone}`}>{children}</span>;
 }
 
-export function Row({ title, hint, control, htmlFor, badge }: { title: string; hint?: string; control: ReactNode; htmlFor?: string; badge?: ReactNode }) {
+/**
+ * A setting. A switch sits at the end of its row; anything larger goes on its own
+ * line under the title and description, so nothing is cramped.
+ */
+export function Row({ title, hint, control, htmlFor, badge, icon, stacked = false }: { title: string; hint?: string; control: ReactNode; htmlFor?: string; badge?: ReactNode; icon?: string; stacked?: boolean }) {
   return (
-    <div className="settings-row">
+    <div className={`settings-row${stacked ? " stacked" : ""}`}>
+      {icon && <span className="settings-row-icon" aria-hidden="true"><Icon name={icon} size={16} /></span>}
       <label className="settings-row-text" htmlFor={htmlFor}>
         <strong>{title}{badge}</strong>
         {hint && <span>{hint}</span>}
       </label>
-      {control}
+      <div className="settings-row-control">{control}</div>
     </div>
   );
 }
@@ -68,7 +74,7 @@ export function Segmented<T extends string | number>({
   disabled,
 }: {
   value: T;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; icon?: string }[];
   onChange: (v: T) => void;
   label: string;
   disabled?: boolean;
@@ -79,6 +85,7 @@ export function Segmented<T extends string | number>({
       <span className="segmented-pill" aria-hidden="true" />
       {options.map((o) => (
         <button key={String(o.value)} type="button" role="radio" aria-checked={o.value === value} disabled={disabled} onClick={() => onChange(o.value)}>
+          {o.icon && <Icon name={o.icon} size={14} />}
           {o.label}
         </button>
       ))}

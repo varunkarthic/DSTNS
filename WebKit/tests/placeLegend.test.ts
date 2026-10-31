@@ -104,7 +104,7 @@ describe("place legend", () => {
     expect(card.status).toBe("Demand raised");
     expect(card.metrics).toContainEqual(["Demand model", "School"]);
     const bench = placeInspection(features[5], undefined);
-    expect(bench.status).toBe("No modelled demand");
+    expect(bench.status).toBeUndefined();
     expect(bench.category).toBe("Unclassified");
   });
 });

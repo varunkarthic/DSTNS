@@ -142,6 +142,8 @@ void ApiServer::routes_system() {
                 {{"PUT","/api/v1/fabric/apps/{id}/settings","Change settings"}},
                 {{"PUT","/api/v1/fabric/apps/{id}/grants","Grant or revoke capabilities"}},
                 {{"POST","/api/v1/fabric/apps/{id}/control","Act on the simulation, by capability"}},
+                {{"PUT","/api/v1/fabric/apps/{id}/stops","Set the application's bus stops, and read their demand"}},
+                {{"GET","/api/v1/fabric/apps/{id}/stops","Live demand at the application's bus stops"}},
                 {{"GET","/api/v1/fabric/audit","Control actions taken by applications"}},
                 {{"GET","/api/v1/fabric/state","Everything applications declare, for the observer"}}}),
         });

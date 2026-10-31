@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
-#include "dstns/fabric/registry.hpp"
+#include "dstns/webfabric/registry.hpp"
 #include "operations.hpp"
 #include "support.hpp"
 
@@ -117,6 +117,17 @@ void ApiServer::routes_apps() {
     server_->Delete(route("/settings"), [this, ok](const auto& req, auto& r) {
         require_host(req);
         ok(r, registry_->reset_settings(req.matches[1]));
+    });
+
+    // Stops of the application's own, with the demand a stop there would see.
+    server_->Put(route("/stops"), [this, ok, owner](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->require_capability(id, "sim.read");
+        registry_->set_stops(id, body(req).at("nodes"));
+        ok(r, engine_.stop_demand(registry_->stops(id)));
+    });
+    server_->Get(route("/stops"), [this, ok, owner](const auto& req, auto& r) {
+        ok(r, engine_.stop_demand(registry_->stops(owner(req))));
     });
 
     // Permissions and lifecycle belong to the person watching, not the application.

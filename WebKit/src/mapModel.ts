@@ -255,22 +255,79 @@ export function placeInspection(
 ): Inspection {
   const kind = placeKind(feature);
   const modelled = feature.demand_type ? DEMAND_TYPE_LABEL[feature.demand_type] ?? feature.demand_type : null;
+  const multiplier = demand?.multiplier ?? 1;
+  const busy = multiplier >= 1.6 ? "Very busy right now" : multiplier >= 1.25 ? "Busier than usual right now" : multiplier > 1.03 ? "A little busy right now" : "Quiet right now";
   return {
     title: placeTitle(feature),
     category: kind.label,
-    status: !modelled ? "No modelled demand" : demand?.active ? "Demand raised" : "Baseline demand",
-    description: feature.id,
+    kind: kind.id,
+    status: modelled ? (demand?.active ? "Demand raised" : "Normal") : undefined,
+    description: modelled ? busy : undefined,
+    level: modelled ? Math.max(0, Math.min(1, multiplier - 1)) : undefined,
     metrics: modelled
       ? [
           ["Demand model", modelled],
-          ["Demand multiplier", `${(demand?.multiplier ?? 1).toFixed(2)}×`],
+          ["Demand multiplier", `${multiplier.toFixed(2)}×`],
           ["Influence radius", demand ? `${demand.radius_m} m` : "Unavailable"],
         ]
-      : [
-          ["OSM tag", feature.category.replace(/_/g, " ")],
-          ["Geometry", feature.polygon ? "OSM footprint" : "OSM point"],
-        ],
+      : undefined,
+    technical: [
+      ["Identifier", feature.id],
+      ["OSM tag", feature.category.replace(/_/g, " ")],
+      ["Geometry", feature.polygon ? "OSM footprint" : "OSM point"],
+    ],
   };
+}
+
+/** Well-known kinds first: what someone is likeliest to be looking for in a district. */
+const POPULAR_ORDER = ["station", "transport", "hospital", "university", "mall", "museum", "culture", "park", "hotel", "school", "worship", "food"];
+const popularity = (id: string) => {
+  const rank = POPULAR_ORDER.findIndex((name) => id.includes(name));
+  return rank < 0 ? POPULAR_ORDER.length : rank;
+};
+
+type Searchable = { id: string; name: string; category: string; tags?: Record<string, string> };
+
+/** Places worth offering before anyone has typed: named ones, a few of each kind. */
+export function popularPlaces<T extends Searchable>(features: readonly T[], limit = 8): T[] {
+  const named = features.filter((f) => f.name?.trim() && placeKind(f).group === "place");
+  const perKind = new Map<string, number>();
+  const seen = new Set<string>();
+  return [...named]
+    .sort((a, b) => popularity(placeKind(a).id) - popularity(placeKind(b).id) || a.name.localeCompare(b.name))
+    .filter((f) => {
+      const key = f.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      const kind = placeKind(f).id;
+      const taken = perKind.get(kind) ?? 0;
+      if (taken >= 2) return false;
+      seen.add(key);
+      perKind.set(kind, taken + 1);
+      return true;
+    })
+    .slice(0, limit);
+}
+
+/** Live results: names that begin with the query, then words that do, then the rest. */
+export function searchPlaces<T extends Searchable>(features: readonly T[], query: string, limit = 24): T[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  const scored: { feature: T; score: number; name: string }[] = [];
+  const seen = new Set<string>();
+  for (const feature of features) {
+    const name = feature.name?.trim().toLowerCase() ?? "";
+    const kind = placeKind(feature).label.toLowerCase();
+    let score = -1;
+    if (name.startsWith(needle)) score = 0;
+    else if (name.split(/[\s-]+/).some((word) => word.startsWith(needle))) score = 1;
+    else if (name.includes(needle)) score = 2;
+    else if (name && kind.includes(needle)) score = 3;
+    if (score < 0 || seen.has(name)) continue;
+    seen.add(name);
+    scored.push({ feature, score, name });
+  }
+  scored.sort((a, b) => a.score - b.score || a.name.localeCompare(b.name));
+  return scored.slice(0, limit).map((entry) => entry.feature);
 }
 
 /** A place's display title: its real name, else what kind of place it is. */

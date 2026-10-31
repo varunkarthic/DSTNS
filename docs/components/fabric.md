@@ -21,7 +21,7 @@ library, which depends on `dstns_core`. The core never depends on Fabric.
 | `routes_control.cpp` | Acting on the running simulation |
 | `routes_view.cpp` | Reading the world and its state |
 | `routes_observation.cpp` | News, logs and event streams |
-| `routes_apps.cpp`, `registry.cpp` | Applications; see the [Fabric API](../api/fabric-api.md) |
+| `webfabric/routes.cpp`, `webfabric/registry.cpp` | WebFabric applications; see the [Fabric API](../api/fabric-api.md) |
 
 To add a route, add it to the module for its group and to the index in
 `routes_system.cpp`, which is served at `/api/v1/system/endpoints`.

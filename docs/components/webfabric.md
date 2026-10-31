@@ -36,6 +36,7 @@ ignored.
 | `overlay` | Shapes on the map | 16 | `ui.overlays` |
 | `panel` | A side panel, one open at a time | 32 | `ui.panels` |
 | `sidebar` | Room beside the map for an application's work. The map refits around it; several share it by tabs, and a person can put it away | 8 | `ui.sidebar` |
+| `deck` | A section of the telemetry deck on the right, under its own tab | 8 | `ui.deck` |
 | `dialog` | A dialog, one at a time, when nothing else is | 1 | `ui.dialogs` |
 
 Limits are shared, in registration order, so a conflict resolves the same way every
@@ -45,8 +46,21 @@ Applications name **tones** (`neutral`, `accent`, `ok`, `warn`, `danger`) and nu
 **series** (0 to 7, for things like bus lines), never colours. Fabric refuses anything
 else, so light mode and colour-vision palettes reach application content by themselves. Branding, tokens and legal text are not
 reachable from any declaration, and the reserved names `dstns`, `fabric` and
-`webfabric` cannot be registered. Every notification is prefixed with the name of the
-application that sent it, and every dialog says who it is from.
+`webfabric` cannot be registered. Every notification is marked as coming from WebFabric, with the name of the
+application that sent it and a design of its own, and every dialog says who it is from.
+
+## Motion
+
+An element's `motion` chooses how it arrives: `none`, `fade`, `rise`, `slide`, `scale`, `pop`
+or `drop`, or a custom `{"stiffness": k, "damping": c}`. Custom springs must keep to the guidelines,
+and Fabric refuses others: stiffness in [40, 1200], overshoot under 12%, and settled within 1.5 s, so
+nothing feels out of place. On an overlay, a custom spring is also how its named points glide.
+
+## Where it lives
+
+The server side is in `Fabric/src/webfabric/` (`routes.cpp`, `registry.cpp`) and
+`Fabric/include/dstns/webfabric/`. The observer's side, which draws what is declared, is in
+`WebKit/src/webfabric/`. A worked example is `Fabric/examples/bus_planner.py`.
 
 ## Isolation
 

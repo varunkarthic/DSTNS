@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import { formatBytes } from "./units";
 import { useEffect, useState } from "react";
 import { LoadingSurface } from "./LoadingSurface";
 import { Mark } from "./Logo";
@@ -178,15 +179,14 @@ export function splashStageFor(
   // A map is being fetched: the one stage that can report real progress.
   if (mapStatus?.active) {
     const city = mapStatus.city || "the district";
-    const mib = (n: number) => (n / (1024 * 1024)).toFixed(1);
     if (mapStatus.phase === "download") {
       const known = (mapStatus.total ?? 0) > 0;
       return {
         step: 2,
         label: `Downloading ${city}`,
         detail: known
-          ? `${mib(mapStatus.bytes ?? 0)} of ${mib(mapStatus.total!)} MiB from OpenStreetMap`
-          : `${mib(mapStatus.bytes ?? 0)} MiB from OpenStreetMap`,
+          ? `${formatBytes(mapStatus.bytes ?? 0)} of ${formatBytes(mapStatus.total!)} from OpenStreetMap`
+          : `${formatBytes(mapStatus.bytes ?? 0)} from OpenStreetMap`,
         progress: known ? (mapStatus.bytes ?? 0) / mapStatus.total! : undefined,
       };
     }

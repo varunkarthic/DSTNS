@@ -318,8 +318,8 @@ effect, so it finishes when the work does.
 **Problem.** A list that simply stops, or a map that refuses to zoom further, feels broken: nothing
 says that this is the end rather than a fault.
 
-**Decision.** Dynamic Logarithmic Resistance: past any limit, things give ever less, up to a
-bound that follows their size, then spring home. It is installed once for every scrolling
+**Decision.** Dynamic Edge Resistance: past any limit, things give ever less, up to a bound
+that follows their size, then spring home. It is installed once for every scrolling
 region, so no menu has to ask. See the [interface system](interface-system.md).
 
 **Consequences.** The same gesture feels the same everywhere. It costs a little: content moves

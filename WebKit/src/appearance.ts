@@ -46,7 +46,7 @@ const PALETTES: Record<"dark" | "light", Record<ColorVision, MeaningPalette>> = 
     monochrome: { clear: "#7d7d7d", moderate: "#b4b4b4", severe: "#f4f4f4", flooded: "#555555", ok: "#c8c8c8", warn: "#e0e0e0", danger: "#ffffff", accent: "#e8e8e8", series: ["#ffffff", "#cccccc", "#aaaaaa", "#888888", "#e6e6e6", "#b8b8b8", "#979797", "#767676"] },
   },
   light: {
-    standard: { clear: "#0d9a74", moderate: "#c98500", severe: "#d62839", flooded: "#1870d5", ok: "#0b8a68", warn: "#a86c00", danger: "#c81e30", accent: "#007ea3", series: ["#3a5bd9", "#b86e12", "#2c8a3e", "#b5487a", "#6c4cd6", "#0e8a85", "#8c7a00", "#5b6b76"] },
+    standard: { clear: "#2fb391", moderate: "#e8a020", severe: "#dc3b4b", flooded: "#2f86e6", ok: "#0e8c6c", warn: "#a86c00", danger: "#c9293a", accent: "#0a78c2", series: ["#3a5bd9", "#b86e12", "#2c8a3e", "#b5487a", "#6c4cd6", "#0e8a85", "#8c7a00", "#5b6b76"] },
     protanopia: { clear: "#0072b2", moderate: "#a89b00", severe: "#7a2e00", flooded: "#6b6b8a", ok: "#0072b2", warn: "#8a7f00", danger: "#a84600", accent: "#0072b2", series: OKABE_ITO_SERIES_LIGHT },
     deuteranopia: { clear: "#0072b2", moderate: "#a89b00", severe: "#7a2e00", flooded: "#6b6b8a", ok: "#0072b2", warn: "#8a7f00", danger: "#a84600", accent: "#0072b2", series: OKABE_ITO_SERIES_LIGHT },
     tritanopia: { clear: "#007d73", moderate: "#d6688a", severe: "#8f0015", flooded: "#555555", ok: "#007d73", warn: "#b84a6e", danger: "#b0001c", accent: "#007d73", series: ["#007d73", "#d6688a", "#333333", "#8f0015", "#00525a", "#b84a6e", "#808080", "#3f9d94"] },
@@ -67,11 +67,12 @@ export interface MapPalette {
   markerLine: string;
   markerInk: string;
   signal: string;
+  flow: string;
 }
 
 const MAP_LAND: Record<"dark" | "light", MapPalette> = {
-  dark: { land: "#122430", park: "#102c2d", buildingLine: "#29424e", roadBed: "#071420", neutralRoad: "#4a626c", label: "#c1d7df", labelHalo: "#071420", marker: "#162e3b", markerLine: "#638591", markerInk: "#d7e4f5", signal: "#06131e" },
-  light: { land: "#e3e9ed", park: "#d6e7dc", buildingLine: "#c5d0d7", roadBed: "#f7f9fa", neutralRoad: "#93a3ad", label: "#2c3e4a", labelHalo: "#f7f9fa", marker: "#ffffff", markerLine: "#7f929d", markerInk: "#26404f", signal: "#ffffff" },
+  dark: { land: "#122430", park: "#102c2d", buildingLine: "#29424e", roadBed: "#071420", neutralRoad: "#4a626c", label: "#c1d7df", labelHalo: "#071420", marker: "#162e3b", markerLine: "#638591", markerInk: "#d7e4f5", signal: "#06131e", flow: "#daf7f0" },
+  light: { land: "#e7ebee", park: "#d5e8d4", buildingLine: "#d3dade", roadBed: "#ffffff", neutralRoad: "#b4bfc6", label: "#3c4d58", labelHalo: "#ffffff", marker: "#ffffff", markerLine: "#b7c2c9", markerInk: "#33454f", signal: "#ffffff", flow: "#0b5f4c" },
 };
 
 export function resolveTheme(setting: ThemeSetting, prefersDark: boolean): "dark" | "light" {

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import { formatBytes } from "./units";
+import { BrandLogo } from "./BrandLogo";
 import { Spring, SPRINGS } from "./motion";
 import { Badge } from "./settingsControls";
-import fabricLogo from "./assets/brand/fabric-white.png";
-import webfabricLogo from "./assets/brand/webfabric-white.png";
 import { api } from "./api";
 import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef, useState } from "react";
@@ -212,14 +212,14 @@ export function AboutCard({
         <h3>Built to be built on</h3>
         <div className="subsystem-cards">
           <article className="subsystem-card">
-            <img className="brand-logo" src={fabricLogo} alt="Fabric" height={18} />
+            <BrandLogo name="fabric" height={18} />
             <p>
               The layer through which everything reaches the simulator. Every program talks to DSTNS through one documented API, which
               keeps working as the engine beneath it changes.
             </p>
           </article>
           <article className="subsystem-card">
-            <img className="brand-logo" src={webfabricLogo} alt="WebFabric" height={18} />
+            <BrandLogo name="webfabric" height={18} />
             <p>
               Lets independent applications, such as a bus network planner, appear here beside the simulation. They register themselves,
               ask for what they need, and you decide what they may do in Settings.
@@ -564,7 +564,6 @@ export const WORLD_STEPS = [
  */
 export function worldStep(status: WorldStatus | null, loaded: boolean): { index: number; detail: string; progress?: number } {
   if (!status || status.state === "idle") return { index: 0, detail: "Requesting a new seed" };
-  const mib = (n: number) => (n / (1024 * 1024)).toFixed(1);
   const city = status.map?.city ? `${status.map.city}${status.map.country ? `, ${status.map.country}` : ""}` : "";
   switch (status.stage) {
     case "compiling":
@@ -576,7 +575,7 @@ export function worldStep(status: WorldStatus | null, loaded: boolean): { index:
       const bytes = status.map?.bytes ?? 0;
       return {
         index: 1,
-        detail: total > 0 ? `Downloading ${city || "map data"}: ${mib(bytes)} of ${mib(total)} MiB` : `Downloading ${city || "map data"}: ${mib(bytes)} MiB`,
+        detail: total > 0 ? `Downloading ${city || "map data"}: ${formatBytes(bytes)} of ${formatBytes(total)}` : `Downloading ${city || "map data"}: ${formatBytes(bytes)}`,
         progress: total > 0 ? Math.min(1, bytes / total) : undefined,
       };
     }

@@ -6,6 +6,8 @@ import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, 
 import type { KeyboardEvent, ReactNode } from "react";
 import { Icon, categoryIcon } from "./Icons";
 import type { IconName } from "./Icons";
+import { FabricDeck } from "./webfabric/Slots";
+import { useSlot } from "./webfabric/store";
 import { Select } from "./Popover";
 import { Tooltip } from "./Tooltip";
 import { api } from "./api";
@@ -28,7 +30,7 @@ import type { Backpressure, Congestion, EventPage, News, Snapshot, Status, Topol
  * beside the strip, so looking at one list never reopens the whole panel.
  */
 
-export type TelemetryTab = "stack" | "events" | "queue" | "incidents" | "notifications";
+export type TelemetryTab = "stack" | "events" | "queue" | "incidents" | "notifications" | "apps";
 export type PanelView = TelemetryTab | "overview";
 
 export interface HistoryFeed {
@@ -70,7 +72,11 @@ export const TABS: { id: TelemetryTab; label: string; icon: IconName }[] = [
   { id: "incidents", label: "Incidents", icon: "incident" },
   { id: "notifications", label: "Notifications", icon: "notificationHistory" },
 ];
+/** Only there when an application has something to show. */
+const APPS_TAB: { id: TelemetryTab; label: string; icon: IconName } = { id: "apps", label: "Apps", icon: "fabric" };
+
 const VIEW_TITLE: Record<PanelView, string> = {
+  apps: "WebFabric",
   overview: "Network",
   stack: "Stack",
   events: "News",
@@ -565,13 +571,15 @@ function DetailView({ view, props, state }: { view: PanelView; props: Props; sta
       return <IncidentsView news={props.news} topology={props.topology} />;
     case "queue":
       return <QueueView runId={props.runId} filter={state.queue} onFilter={state.setQueue} />;
+    case "apps":
+      return <FabricDeck />;
     case "notifications":
       return <HistoryView history={props.history} filter={state.historyFilter} onFilter={state.setHistoryFilter} />;
   }
 }
 
 /** Tabs with a highlight that slides to the measured position of the selected tab. */
-function Tabs({ tab, onTab, counts, idPrefix }: { tab: TelemetryTab; onTab: (t: TelemetryTab) => void; counts: Record<TelemetryTab, number>; idPrefix: string }) {
+function Tabs({ tab, tabs, onTab, counts, idPrefix }: { tab: TelemetryTab; tabs: typeof TABS; onTab: (t: TelemetryTab) => void; counts: Record<TelemetryTab, number>; idPrefix: string }) {
   const row = useRef<HTMLDivElement>(null);
   const [pill, setPill] = useState<{ x: number; w: number } | null>(null);
   useLayoutEffect(() => {
@@ -586,18 +594,18 @@ function Tabs({ tab, onTab, counts, idPrefix }: { tab: TelemetryTab; onTab: (t: 
     return () => observer.disconnect();
   }, [tab, counts.events > 0, counts.queue > 0, counts.incidents > 0, counts.notifications > 0]);
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const i = TABS.findIndex((t) => t.id === tab);
+    const i = tabs.findIndex((t) => t.id === tab);
     const next = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? TABS.length - 1 : -2;
     if (next === -2) return;
     e.preventDefault();
-    const t = TABS[(next + TABS.length) % TABS.length];
+    const t = tabs[(next + tabs.length) % tabs.length];
     onTab(t.id);
     row.current?.querySelector<HTMLElement>(`#${idPrefix}-${t.id}`)?.focus();
   };
   return (
     <div ref={row} data-tutorial="events" className="tab-row" role="tablist" aria-label="Telemetry detail" onKeyDown={onKey}>
       {pill && <span className="tab-pill" aria-hidden="true" style={{ transform: `translateX(${pill.x}px)`, width: pill.w }} />}
-      {TABS.map((t) => (
+      {tabs.map((t) => (
         <button
           key={t.id}
           id={`${idPrefix}-${t.id}`}
@@ -627,6 +635,8 @@ function Tabs({ tab, onTab, counts, idPrefix }: { tab: TelemetryTab; onTab: (t: 
 
 function TelemetryDeckImpl(props: Props) {
   const { snapshot, topology, runtime, compact, history } = props;
+  const deckApps = useSlot("deck").items.length > 0;
+  const tabs = deckApps ? [...TABS, APPS_TAB] : TABS;
   const [chosenTab, setTab] = useState<TelemetryTab>(() => {
     try {
       const saved = localStorage.getItem("dstns.telemetry-tab.v1") as TelemetryTab | null;
@@ -636,7 +646,7 @@ function TelemetryDeckImpl(props: Props) {
     }
   });
   const tourTab = TABS.find(t => props.tutorialTarget === `telemetry-${t.id}`)?.id;
-  const tab = tourTab ?? chosenTab;
+  const tab = tourTab ?? (chosenTab === "apps" && !deckApps ? "stack" : chosenTab);
   const chooseTab = (t: TelemetryTab) => {
     setTab(t);
     try {
@@ -662,6 +672,7 @@ function TelemetryDeckImpl(props: Props) {
     queue: 0,
     incidents: figures.incidents,
     notifications: history.counts.silenced,
+    apps: 0,
   };
 
   // The side panel belongs to the collapsed strip.
@@ -732,7 +743,7 @@ function TelemetryDeckImpl(props: Props) {
           </Tooltip>
         </div>
         <Overview snapshot={snapshot} topology={topology} congestion={props.congestion} />
-        <Tabs tab={tab} onTab={chooseTab} counts={counts} idPrefix={idPrefix} />
+        <Tabs tab={tab} tabs={tabs} onTab={chooseTab} counts={counts} idPrefix={idPrefix} />
         <FadeScroll resetKey={tab} labelledBy={`${idPrefix}-${tab}`}>
           <DetailView view={tab} props={props} state={views} />
         </FadeScroll>
@@ -758,7 +769,7 @@ function TelemetryDeckImpl(props: Props) {
           </button>
         </Tooltip>
         <span className="strip-rule" aria-hidden="true" />
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <Tooltip key={t.id} label={t.label} side={["left", "bottom", "top"]}>
             <button
               type="button"

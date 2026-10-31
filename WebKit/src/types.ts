@@ -311,6 +311,12 @@ export interface Inspection {
   status?: string;
   description?: string;
   metrics?: [string, string][];
+  /** The place kind, so the card can show the map's own glyph. */
+  kind?: string;
+  /** Live demand from 0 to 1, for a bar anyone can read. */
+  level?: number;
+  /** Only in advanced mode: identifiers and tags. */
+  technical?: [string, string][];
 }
 
 // ---------------------------------------------------------------------------

@@ -229,7 +229,7 @@ describe("notification and playback preferences", () => {
       "weather", "flooding", "incident", "traffic", "demand", "signals", "system",
     ]);
     expect(BUILT_IN.notifications.dnd_severities).toEqual([]);
-    expect(BUILT_IN.playback).toEqual({ skip_seconds: 900, step_seconds: 60 });
+    expect(BUILT_IN.playback).toEqual({ skip_seconds: 900, step_seconds: 60, fine_control: false });
   });
 
   it("keeps only known categories and severities, in canonical order", () => {
@@ -251,7 +251,7 @@ describe("notification and playback preferences", () => {
   });
 
   it("accepts only the offered skip and step intervals", () => {
-    expect(mergeConfig(BUILT_IN, { playback: { skip_seconds: 3600, step_seconds: 1 } }).playback).toEqual({ skip_seconds: 3600, step_seconds: 1 });
+    expect(mergeConfig(BUILT_IN, { playback: { skip_seconds: 3600, step_seconds: 1 } }).playback).toEqual({ skip_seconds: 3600, step_seconds: 1, fine_control: false });
     expect(mergeConfig(BUILT_IN, { playback: { skip_seconds: 7, step_seconds: "60" } }).playback).toEqual(BUILT_IN.playback);
   });
 

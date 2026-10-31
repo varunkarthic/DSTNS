@@ -4,11 +4,13 @@
 import { Component, memo, useEffect, useRef, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { Icon } from "../Icons";
+import { BrandLogo } from "../BrandLogo";
 import { Tooltip } from "../Tooltip";
 import { Scrim } from "../Dialogs";
 import { Switch } from "../settingsControls";
+import { Select } from "../Popover";
 import { useScrollFade } from "../scrollFade";
-import { Spring, SPRINGS } from "../motion";
+import { settleTime, Spring, springEasing, SPRINGS } from "../motion";
 import { AppFrame } from "./AppFrame";
 import { fabric, useFabricApps, useOpenPanel, usePicking, useSlot } from "./store";
 import type { FabricApp, FabricElement, FabricRow, FabricWidget, Tone } from "./store";
@@ -18,6 +20,16 @@ import type { FabricApp, FabricElement, FabricRow, FabricWidget, Tone } from "./
  * decides placement, limits and appearance, and renders only the fields it knows,
  * as text. An application can say what to show, never how to draw it.
  */
+
+/** An element's chosen motion, as attributes for webfabric.css. A custom spring becomes an easing. */
+export function motionProps(element: FabricElement): { "data-motion"?: string; style?: Record<string, string> } {
+  const motion = element.motion;
+  if (!motion) return {};
+  if (typeof motion === "string") return { "data-motion": motion };
+  if (typeof motion.stiffness !== "number" || typeof motion.damping !== "number") return {};
+  const preset = { k: motion.stiffness, c: motion.damping };
+  return { "data-motion": "custom", style: { "--fabric-ease": springEasing(preset), "--fabric-ms": `${Math.round(settleTime(preset) * 1000)}ms` } };
+}
 
 const toneClass = (tone?: Tone) => (tone && ["accent", "ok", "warn", "danger"].includes(tone) ? ` tone-${tone}` : "");
 
@@ -94,7 +106,7 @@ export function FabricDockItems() {
 
 const StatusItem = memo(function StatusItem({ app, element }: { app: FabricApp; element: FabricElement }) {
   return (
-    <div className={`fabric-status-item${toneClass(element.tone)}`} title={app.name}>
+    <div className={`fabric-status-item${toneClass(element.tone)}`} title={app.name} {...motionProps(element)}>
       <i aria-hidden="true" />
       <span>{text(element.label) || element.id}</span>
       {text(element.value) && <strong className="mono">{text(element.value)}</strong>}
@@ -304,11 +316,7 @@ function Widget({ app, element, widget }: { app: FabricApp; element: FabricEleme
       return (
         <label className="fabric-field">
           <span>{label}</span>
-          <select value={text(widget.value)} onChange={(e) => send("change", e.target.value)}>
-            {(Array.isArray(widget.options) ? widget.options : []).map((option) => (
-              <option key={String(option.value)} value={String(option.value)}>{text(option.label)}</option>
-            ))}
-          </select>
+          <Select label={label || name} value={text(widget.value)} onChange={(value) => send("change", value)} options={(Array.isArray(widget.options) ? widget.options : []).map((option) => ({ value: String(option.value), label: text(option.label) }))} />
         </label>
       );
     case "slider":
@@ -344,7 +352,7 @@ export function FabricPanel() {
   if (!app || !element) return null;
   return (
     <AppBoundary key={open} app={app}>
-      <aside className="fabric-panel" role="dialog" aria-label={`${text(element.title) || element.id}, ${app.name}`}>
+      <aside className="fabric-panel" {...motionProps(element)} role="dialog" aria-label={`${text(element.title) || element.id}, ${app.name}`}>
         <header>
           <div>
             <h2>{text(element.title) || element.id}</h2>
@@ -365,6 +373,37 @@ export function FabricPanel() {
         )}
       </aside>
     </AppBoundary>
+  );
+}
+
+/** An application's content on the right, as a tab of the telemetry deck. */
+export function FabricDeck() {
+  const { items } = useSlot("deck");
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const key = ({ app, element }: { app: FabricApp; element: FabricElement }) => `${app.id}/${element.id}`;
+  const current = items.find((item) => key(item) === activeKey) ?? items[0];
+  if (!current) return <p className="fabric-note">No application has anything to show here.</p>;
+  const { app, element } = current;
+  return (
+    <div className="fabric-deck" {...motionProps(element)}>
+      <header className="fabric-deck-head">
+        <BrandLogo name="webfabric" height={14} />
+        <small>{app.name}</small>
+      </header>
+      {items.length > 1 && (
+        <div className="fabric-sidebar-apps" role="tablist" aria-label="Applications">
+          {items.map((item) => (
+            <button key={key(item)} type="button" role="tab" aria-selected={item === current} onClick={() => setActiveKey(key(item))}>
+              {text(item.element.title) || item.app.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <AppBoundary key={key(current)} app={app}>
+        {element.title && <h3 className="fabric-heading">{text(element.title)}</h3>}
+        {element.frame ? <AppFrame app={app} element={element} /> : (Array.isArray(element.widgets) ? element.widgets : []).map((widget, index) => <Widget key={widget.id ?? index} app={app} element={element} widget={widget} />)}
+      </AppBoundary>
+    </div>
   );
 }
 

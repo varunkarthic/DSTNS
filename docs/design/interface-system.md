@@ -51,24 +51,44 @@ Adaptive Simulation Backpressure can hold it on. Under `.reduce-motion`, travel,
 and blur collapse to a short fade or nothing, the map camera jumps, and the map does not
 coast. Test the three modes, not only the full one.
 
-## Dynamic Logarithmic Resistance
+## Dynamic Edge Resistance
 
-Whatever has a limit answers being pushed past it the same way: it gives, ever less the
-further it goes, up to a bound, then springs home. That says "this is the end" without a
-hard stop. `dlr.ts` holds it:
+Whatever has a limit answers being pushed past it the same way: it follows at first, gives
+ever less the further it goes, up to a bound, and settles home when let go. That says "this
+is the end" without a hard stop. `resistance.ts` holds it, using the curve Apple's scroll
+views use:
 
-\[ d(p) = b\left(1 - \frac{1}{1 + \ln(1 + 0.35\,p / b)}\right) \]
+\[ d(p) = b\left(1 - \frac{1}{0.55\,p / b + 1}\right) \]
 
 for a pull \(p\) past the limit and a bound \(b\) that follows the size of what is being
-stretched, so a small menu gives less than a long panel.
+stretched, so a small menu gives less than a long panel. A stiff spring follows the pull, which
+smooths the steps a mouse wheel arrives in; a softer one with no bounce takes it home.
 
 | Where | Limit |
 |---|---|
-| Every scrolling region | Its top and bottom. `installDLR` covers them all, so a new menu needs nothing |
+| Every scrolling region | Its top and bottom. `installEdgeResistance` covers them all, so a new menu needs nothing |
 | Map zoom | 5% past fit is free, resistance to a hard 10%, and it settles back to 5% |
 | Map pan | Part of the network stays on screen |
-| Settings drawer | Pulling further open |
-| Speed slider | Either end |
+| Speed and interval sliders | Either end |
+
+**The page never scrolls.** Only a region under the pointer does. `html`, `body`, the shell and
+the workspace use `overflow: clip`, wheel events over anything else are cancelled, and a focus
+or `scrollIntoView` that moves one of those containers anyway is put straight back. Focus with
+`{ preventScroll: true }`.
+
+## Secondary panels
+
+Settings and search grow from the dock like a drop: a bead at the icon bulges out on a neck, the
+neck thins and lets go, and the drop swells upward and outward into a panel the height of the
+dock. Closing runs the same path backward. `FluidPanel.tsx` drives it all from one spring value,
+so it can reverse at any point, and neither panel closes when the map is used. There is one
+open at a time.
+
+Slider-like choices use `QuantizedSlider`: it follows the pointer and settles on the labelled
+stop its momentum reaches. Use a switch at the end of a row; put anything larger under the title
+with `<Row stacked>`. Use `Select`, never a native `<select>`.
+
+Keep icon motion rare and meaningful: most icons do not move at all on hover.
 
 ## Accessibility settings
 
@@ -77,10 +97,19 @@ stretched, so a small menu gives less than a long panel.
 | Appearance | Dark, light, or following the device. Colours are tokens (`--ink-rgb`, `--surface-rgb`, `--line-rgb`), and the map's canvas reads the same palette from `appearance.ts` |
 | Colour vision | Palettes for protanopia, deuteranopia, tritanopia and monochrome, for road states, severity and application series. `tests/appearance.test.ts` simulates each with the Machado 2009 matrices and requires the road states to stay apart |
 | Reduce motion | As above |
-| Reduce transparency | Solid surfaces, no blur |
+| Reduce transparency | Fully opaque surfaces and overlays |
 | Advanced mode | Off, demand multipliers, radii, identifiers and technical details step aside. Mark such things `.advanced-only` |
 
-Never write a raw colour. Add it to the palette, or use a token.
+Never write a raw colour. Add it to the palette, or use a token. Light mode is designed in its
+own right: white surfaces lifted by soft shadow rather than outlines, and a pale map. Logos use
+the official drawing for each theme through `BrandLogo`, never a filter.
+
+## Performance
+
+Surfaces over the map are solid: a blurred surface re-blurs the moving canvas beneath it on every
+frame. Anything that changes per frame or per pointer move goes straight to the page rather than
+through React state; `MapReadout` is the pattern. Under a 4× CPU throttle in Chrome, these took
+pointer movement from 42 to 54 fps and zooming from 34 to 49 fps.
 
 ## Tokens
 

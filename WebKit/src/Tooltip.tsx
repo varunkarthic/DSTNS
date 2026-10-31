@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import { PlaceGlyph } from "./Legends";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
@@ -215,17 +216,35 @@ export function InfoCard({
       style={{ left: place?.left ?? -9999, top: place?.top ?? -9999 }}
     >
       <div className="inspect-head">
-        <span className="inspect-kind">{info.category}</span>
+        {info.kind && <PlaceGlyph kind={info.kind} />}
+        <div className="inspect-names">
+          <strong className="inspect-title">{info.title}</strong>
+          {info.category !== info.title && <span className="inspect-kind">{info.category}</span>}
+        </div>
         {info.status && <span className={`inspect-status s-${info.status.toLowerCase().replace(/\s+/g, "-")}`}>{info.status}</span>}
       </div>
-      <strong className="inspect-title">{info.title}</strong>
       {info.description && <p>{info.description}</p>}
+      {info.level !== undefined && (
+        <div className="inspect-level" aria-hidden="true">
+          <i style={{ transform: `scaleX(${Math.max(0.02, info.level)})` }} />
+        </div>
+      )}
       {info.metrics && (
         <dl>
           {info.metrics.map(([k, v]) => (
             <div key={k}>
               <dt>{k}</dt>
               <dd>{v}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {info.technical && (
+        <dl className="inspect-technical">
+          {info.technical.map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd className="mono">{v}</dd>
             </div>
           ))}
         </dl>
