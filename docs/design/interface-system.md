@@ -108,8 +108,9 @@ the official drawing for each theme through `BrandLogo`, never a filter.
 
 Surfaces over the map are solid: a blurred surface re-blurs the moving canvas beneath it on every
 frame. Anything that changes per frame or per pointer move goes straight to the page rather than
-through React state; `MapReadout` is the pattern. Under a 4× CPU throttle in Chrome, these took
-pointer movement from 42 to 54 fps and zooming from 34 to 49 fps.
+through React state; `MapReadout` is the pattern. Flow markers draw at half the frame rate, leaving
+the main thread free. Under a 4× CPU throttle in headless Chrome, these took pointer movement from 42
+to 60 fps and zooming from 34 to 58 fps. Headless Chrome cannot show what the GPU saves.
 
 ## Tokens
 

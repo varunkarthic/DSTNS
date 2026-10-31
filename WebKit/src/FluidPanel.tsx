@@ -15,8 +15,8 @@ import { Spring } from "./motion";
  * value, so opening and closing can interrupt each other at any point.
  */
 
-const OPEN = { k: 130, c: 17.5 };
-const CLOSE = { k: 210, c: 27 };
+const OPEN = { k: 46, c: 10.5 };
+const CLOSE = { k: 74, c: 15 };
 const BEAD = 21;
 const GAP = 12;
 
@@ -138,7 +138,7 @@ export const FluidPanel = forwardRef<HTMLElement, {
     s.setPreset(open ? OPEN : CLOSE);
     s.set(open ? 1 : 0);
     // When the spring has rested, nothing here should cost anything.
-    const timer = setTimeout(() => setResting(open ? "open" : "closed"), open ? 900 : 700);
+    const timer = setTimeout(() => setResting(open ? "open" : "closed"), open ? 1500 : 1200);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, reduceMotion]);

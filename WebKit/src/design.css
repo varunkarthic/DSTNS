@@ -1939,3 +1939,7 @@ html, body, #root {
 .lower-hud .hud-zone > *, .legend-road, .legend-place { display: flex; align-items: stretch; height: 40px; }
 .lower-hud .hud-zone .tooltip-anchor { display: flex; }
 .capsule-slot.empty { display: flex; }
+.lower-hud .hud-zone > button.hud-pill,
+.lower-hud .hud-pill { display: inline-flex; align-items: center; }
+.lower-hud .legend-road > .hud-button,
+.lower-hud .legend-place .hud-button { align-self: stretch; }

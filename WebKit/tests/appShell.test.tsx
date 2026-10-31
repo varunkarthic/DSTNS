@@ -730,6 +730,22 @@ describe("settings", () => {
   });
 });
 
+describe("fine control", () => {
+  it("asks how far on each press when enabled, and skips by that much", async () => {
+    mockApi({ uiConfig: { playback: { fine_control: true } } });
+    render(<App />);
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Forward by" }));
+    const menu = await screen.findByRole("menu", { name: "Go forward by" });
+    expect(within(menu).getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["1m", "5m", "15m", "30m", "1h"]);
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "30m" }));
+    await waitFor(() => {
+      const seek = calls.find((c) => c.path.includes("/playback/seek"));
+      expect(seek && JSON.parse(seek.body).target_time).toBe(21600 + 1800);
+    });
+  });
+});
+
 describe("layers and legend", () => {
   it("keeps layers entirely in the frontend", async () => {
     mockApi();
