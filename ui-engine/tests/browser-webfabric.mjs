@@ -213,6 +213,8 @@ try {
     await page.locator(".settings-nav").click();
     await page.getByRole("searchbox", { name: "Search applications" }).fill("crowd 7");
     assert.equal(await page.locator(".fabric-apps li").count(), 1);
+    await wait(500);
+    assert.equal(await page.locator(".settings-page").evaluate((el) => getComputedStyle(el).opacity), "1", "the page has settled, and is readable");
     await page.screenshot({ path: path.join(out, "settings-list.png") });
     await page.locator(".fabric-apps button").click();
     const toggle = page.getByRole("switch", { name: "Enabled" });
