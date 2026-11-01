@@ -33,7 +33,12 @@ responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `We
 - **The speed slider tells the truth when ASB holds it back.** The thumb travels to the speed being applied, and a line stays on your target.
 - **What only reports moves like what can be moved.** Every read-only bar slides smoothly, and keeps its rounded end as it does.
 - **Fixed: a button kept its outline after a keyboard shortcut.** Focus rings now appear only for people moving with Tab.
-- **The report** has a full cover carrying the district's own roads, About and Contents on one page, and new tables: traffic by road class, the places drawing extra traffic, and a Signal Control section.
+- **The report no longer stops the interface.** It is put together on a worker, and particles leave the map and the panels and assemble into the page as the work goes on, with the map shrinking onto the sheet in its own shape. The sheet then flies to the button and the file saves.
+- **Fixed: a report could silently never arrive.** A button that did nothing for a minute looked frozen. Waiting for an off-page image could hang, and anything that takes too long now says so.
+- **The report's cover** is the district itself, running off the page and coloured by each road's state at the moment of the report, fading into the name of the place, its particulars, and the author's name, copyright and licence at the foot.
+- **The report's pages** keep a heading with what it introduces, and a block that would mostly land on the next page goes there whole. Tables do not leave one row alone on a page. About and Contents share a page.
+- **The report says more:** traffic by road class, the places drawing extra traffic, a Signal Control section, and the map on white in print colours rather than a screenshot of the dark one.
+- **The report's file** carries proper metadata: author, title, subject, keywords, language, creation date, bookmarks for every section, and an XMP record of the seed, run, state and versions.
 
 ### No words in the particles, a map in the middle, rounder corners
 

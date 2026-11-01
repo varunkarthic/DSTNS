@@ -159,6 +159,8 @@ try {
     const baseline = [];
     for (const el of await aligned.all()) baseline.push(await el.boundingBox());
     assert.ok(baseline.every(b => Math.abs(b.height - 40) < 1), "all lower HUD surfaces share 40px height");
+    const segments = await page.locator(".lower-hud .hud-group .hud-pill:visible").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top));
+    assert.ok(segments.every((top) => Math.abs(top - segments[0]) < 0.6), `the bar's segments are on one line: ${segments}`);
     assert.ok(Math.max(...baseline.map(b => b.y)) - Math.min(...baseline.map(b => b.y)) < 1, `all lower HUD surfaces share the baseline: ${baseline.map(b => b.y).join(",")}`);
     const pieces = [];
     for (let i = 0; i < (await cluster.count()); i++) pieces.push(await cluster.nth(i).boundingBox());

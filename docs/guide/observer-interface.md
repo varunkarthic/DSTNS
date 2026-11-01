@@ -565,8 +565,20 @@ dialog follows when it closes.
 ## Report
 
 `src/report.ts` (composition), `src/reportModel.ts` (derivation, pure),
-`src/pdfLayout.ts` (layout engine), `src/telemetryRecorder.ts` (session
-telemetry).
+`src/pdfLayout.ts` (layout engine), `src/reportMap.ts` (the map in print colours),
+`src/reportWorker.ts` (runs it off the page), `src/ReportFilm.tsx` (what is seen
+meanwhile), `src/telemetryRecorder.ts` (session telemetry).
+
+The report is built on a worker, so the interface keeps moving. Particles leave the
+map's roads and the panels and land on a sheet of paper where the report keeps those
+things, following the worker's real progress, with the roads keeping their shape as
+they shrink onto the page. The sheet then flies to the button and the file saves. A
+run that takes over 90 seconds says so rather than leaving the button doing nothing.
+
+A heading waits to see whether what it introduces fits beneath it, and a block that
+would mostly land on the next page goes there whole. The file carries its author,
+title, subject, keywords, language and creation date, a bookmark for each section,
+and an XMP record of the seed, run, state and versions.
 
 ### Data
 

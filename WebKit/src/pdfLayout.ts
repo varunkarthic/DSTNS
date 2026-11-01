@@ -117,6 +117,8 @@ export class ReportDocument {
   y = 26;
   private section = 0;
   private sub = 0;
+  /** Headings waiting to see whether what they introduce fits under them. */
+  private held: { height: number; draw: () => void }[] = [];
 
   constructor(readonly pdf: jsPDF, readonly font = "Inter") {}
 
@@ -143,6 +145,34 @@ export class ReportDocument {
 
   get remaining() {
     return this.bottom - this.y;
+  }
+
+  /**
+   * Places any headings still waiting, together with the first `need` mm of what they
+   * introduce. If they will not fit, they all go to the next page, so that a title is never
+   * left at the foot of a page with its content on the next.
+   */
+  private start(need: number) {
+    const headings = this.held.reduce((sum, h) => sum + h.height, 0);
+    if (this.y + headings + need > this.bottom && this.y > this.top + 0.5) this.newPage();
+    const waiting = this.held;
+    this.held = [];
+    for (const heading of waiting) heading.draw();
+  }
+
+  /**
+   * What must share a page with its heading, for a block `total` mm long that can break after
+   * `least` mm. A block that would mostly land on the next page goes there whole, if it fits.
+   */
+  private keep(total: number, least: number) {
+    const headings = this.held.reduce((sum, h) => sum + h.height, 0);
+    const room = this.bottom - this.y - headings;
+    return total <= this.bottom - this.top - headings && room < total * 0.6 ? total : Math.min(total, least);
+  }
+
+  /** Whatever is still waiting, at the end of a document. */
+  flush() {
+    this.start(0);
   }
 
   // ---- Primitives ------------------------------------------------------------
@@ -196,33 +226,45 @@ export class ReportDocument {
    * short sections do not leave pages mostly empty.
    */
   sectionHeading(title: string, intro?: string, forceNewPage = false) {
-    if (forceNewPage || this.page === 0 || this.remaining < 90) this.newPage();
-    else {
-      this.y += 6;
-      this.rule(this.y, this.M, this.W - this.M, PRINT.rule, 0.3);
-      this.y += 8;
-    }
+    this.flush();
+    if (forceNewPage || this.page === 0) this.newPage();
     this.section += 1;
     this.sub = 0;
     const number = String(this.section);
-    this.outline.push({ title, page: this.page, number });
-    this.line(`SECTION ${number}`, this.M, this.y, 7.5, PRINT.accent);
-    this.y += 5;
-    this.line(title, this.M, this.y, 18, PRINT.ink);
-    this.y += 10;
-    this.rect(this.M, this.y, 18, 0.9, PRINT.accent, 0);
-    this.y += 5;
-    if (intro) this.paragraph(intro, { size: 9.5, color: PRINT.dim });
-    this.y += 2;
+    const introLines = intro ? this.wrap(intro, this.width, 9.5).length : 0;
+    this.held.push({
+      height: 14 + 20 + introLines * lineHeight(9.5) + 4.5,
+      draw: () => {
+        if (this.y > this.top + 0.5) {
+          this.y += 6;
+          this.rule(this.y, this.M, this.W - this.M, PRINT.rule, 0.3);
+          this.y += 8;
+        }
+        this.outline.push({ title, page: this.page, number });
+        this.line(`SECTION ${number}`, this.M, this.y, 7.5, PRINT.accent);
+        this.y += 5;
+        this.line(title, this.M, this.y, 18, PRINT.ink);
+        this.y += 10;
+        this.rect(this.M, this.y, 18, 0.9, PRINT.accent, 0);
+        this.y += 5;
+        if (intro) this.paragraph(intro, { size: 9.5, color: PRINT.dim });
+        this.y += 2;
+      },
+    });
   }
 
-  /** Subsection heading, kept on the same page as at least `keep` mm of content. */
-  heading(title: string, keep = 26) {
+  /** Subsection heading, which waits to go on the same page as what it introduces. */
+  heading(title: string) {
     this.sub += 1;
-    this.ensure(lineHeight(12) + keep);
-    this.y += 3;
-    this.line(`${this.section}.${this.sub}  ${title}`, this.M, this.y, 12, PRINT.ink);
-    this.y += lineHeight(12) + 1.5;
+    const label = `${this.section}.${this.sub}  ${title}`;
+    this.held.push({
+      height: 3 + lineHeight(12) + 1.5,
+      draw: () => {
+        this.y += 3;
+        this.line(label, this.M, this.y, 12, PRINT.ink);
+        this.y += lineHeight(12) + 1.5;
+      },
+    });
   }
 
   paragraph(text: string, options: { size?: number; color?: string; indent?: number; after?: number } = {}) {
@@ -230,6 +272,7 @@ export class ReportDocument {
     const indent = options.indent ?? 0;
     const lines = this.wrap(text, this.width - indent, size);
     const lh = lineHeight(size);
+    this.start(this.keep(lines.length * lh, lh * 2));
     for (const l of lines) {
       this.ensure(lh);
       this.line(l, this.M + indent, this.y, size, options.color ?? PRINT.ink);
@@ -246,7 +289,8 @@ export class ReportDocument {
     const tagW = this.textWidth(tag, 6.5) + 4;
     const lines = this.wrap(text, this.width - tagW - 3, size);
     const lh = lineHeight(size);
-    this.ensure(Math.min(lines.length, 3) * lh + 1);
+    this.start(lines.length * lh + 1);
+    this.ensure(lines.length * lh + 1);
     this.rect(this.M, this.y + 0.3, tagW, 4.2, color === PRINT.accent ? PRINT.accentSoft : PRINT.panel, 1);
     this.line(tag, this.M + 2, this.y + 0.8, 6.5, color);
     lines.forEach((l, i) => {
@@ -259,6 +303,8 @@ export class ReportDocument {
 
   bullets(items: string[], size = 9.5) {
     const lh = lineHeight(size);
+    const heights = items.map((item) => this.wrap(item, this.width - 6, size).length * lh + 0.8);
+    this.start(this.keep(heights.reduce((sum, h) => sum + h, 0), heights.slice(0, 2).reduce((sum, h) => sum + h, 0)));
     for (const item of items) {
       const lines = this.wrap(item, this.width - 6, size);
       lines.forEach((l, i) => {
@@ -276,6 +322,8 @@ export class ReportDocument {
   keyValues(rows: [string, string][], labelWidth = 54) {
     const size = 9;
     const lh = lineHeight(size);
+    const heights = rows.map(([, value]) => this.wrap(value || "Not recorded", this.width - labelWidth - 2, size).length * lh + 1.6);
+    this.start(this.keep(heights.reduce((sum, h) => sum + h, 0), heights.slice(0, 3).reduce((sum, h) => sum + h, 0)));
     for (const [label, value] of rows) {
       const lines = this.wrap(value || "Not recorded", this.width - labelWidth - 2, size);
       this.ensure(lines.length * lh + 1.6);
@@ -293,6 +341,7 @@ export class ReportDocument {
     const gap = 4;
     const w = (this.width - gap * (perRow - 1)) / perRow;
     const h = 21;
+    this.start(Math.ceil(items.length / perRow) * (h + 3));
     for (let i = 0; i < items.length; i += perRow) {
       this.ensure(h + 3);
       items.slice(i, i + perRow).forEach((t, j) => {
@@ -341,26 +390,30 @@ export class ReportDocument {
       });
       this.y += h;
     };
+    const headerH = Math.max(...columns.map((c, i) => this.wrap(c.title, widths[i] - pad * 2, 7).length)) * lineHeight(7) + pad * 2;
+    const captionH = options.caption ? lineHeight(8.5) + 1 : 0;
+    const laid = rows.map((row) => {
+      const cells = columns.map((_, i) => this.wrap(row[i] ?? "", widths[i] - pad * 2, size));
+      return { cells, h: Math.max(1, ...cells.map((c) => c.length)) * lh + pad * 2 };
+    });
+    const sum = (list: { h: number }[]) => list.reduce((total, row) => total + row.h, 0);
+    const body = rows.length ? sum(laid) : lh + pad * 2;
+    this.start(this.keep(captionH + headerH + body + 4, captionH + headerH + sum(laid.slice(0, 3)) + (rows.length ? 0 : body)));
     if (options.caption) {
-      this.ensure(lineHeight(8.5) + 16);
       this.line(options.caption, this.M, this.y, 8.5, PRINT.dim);
       this.y += lineHeight(8.5) + 1;
     }
     if (!rows.length) {
-      this.ensure(12);
       header();
       this.line(options.empty ?? "No records.", this.M + pad, this.y + pad, size, PRINT.dim);
       this.y += lh + pad * 2 + 3;
       return;
     }
-    // Header plus at least one row must fit together.
-    const firstLines = columns.map((_, i) => this.wrap(rows[0][i] ?? "", widths[i] - pad * 2, size).length);
-    this.ensure(14 + Math.max(...firstLines) * lh + pad * 2);
     header();
-    rows.forEach((row, r) => {
-      const cells = columns.map((_, i) => this.wrap(row[i] ?? "", widths[i] - pad * 2, size));
-      const h = Math.max(1, ...cells.map((c) => c.length)) * lh + pad * 2;
-      if (this.y + h > this.bottom) {
+    laid.forEach(({ cells, h }, r) => {
+      // The last rows go over together, rather than one alone on a page of its own.
+      const orphaned = laid.length - r === 3 && this.y + sum(laid.slice(r)) > this.bottom;
+      if (this.y + h > this.bottom || orphaned) {
         this.newPage();
         header();
       }
@@ -387,6 +440,7 @@ export class ReportDocument {
     const titleH = lineHeight(10) + (spec.question ? lineHeight(8) : 0) + 2;
     const legendH = spec.series.length > 1 ? 6 : 0;
     const total = titleH + height + 12 + legendH + 4;
+    this.start(total);
     this.ensure(total);
     const top = this.y;
     this.line(spec.title, this.M, this.y, 10, PRINT.ink);
@@ -494,6 +548,7 @@ export class ReportDocument {
     const gap = 1.8;
     const titleH = lineHeight(10) + (question ? lineHeight(8) : 0) + 2;
     const h = titleH + rows.length * (bar + gap) + 4;
+    this.start(Math.min(h, this.bottom - this.top));
     this.ensure(Math.min(h, this.bottom - this.top));
     this.line(title, this.M, this.y, 10, PRINT.ink);
     this.y += lineHeight(10);
@@ -526,6 +581,7 @@ export class ReportDocument {
     const w = this.width;
     const h = Math.min(maxH, w / aspect);
     const iw = h * aspect;
+    this.start(h + (caption ? 10 : 4));
     this.ensure(h + (caption ? 10 : 4));
     const x = this.M + (w - iw) / 2;
     this.pdf.addImage(dataUrl, "PNG", x, this.y, iw, h);

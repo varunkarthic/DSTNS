@@ -28,6 +28,7 @@ import {
 } from "./Dialogs";
 import type { CompletionSummary } from "./Dialogs";
 import { Tooltip } from "./Tooltip";
+import { ReportFilm } from "./ReportFilm";
 import { useISDNotifications } from "./ISDHandler";
 import { resolveBindings, useShortcuts } from "./shortcuts";
 import { useSteadyStatus } from "./useSteadyStatus";
@@ -718,32 +719,56 @@ export default function App() {
   );
   useEffect(() => cancelDialogClose, [cancelDialogClose]);
 
+  const [reportFilm, setReportFilm] = useState<{ label: string; share: number; ready: boolean } | null>(null);
+  const reportFile = useRef<{ blob: Blob; name: string } | null>(null);
+  const saveReport = useCallback(() => {
+    const file = reportFile.current;
+    reportFile.current = null;
+    setReportFilm(null);
+    if (!file) return;
+    const url = URL.createObjectURL(file.blob);
+    const link = Object.assign(document.createElement("a"), { href: url, download: file.name });
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }, []);
+  const reportRoads = useCallback(() => {
+    const view = mapView.current;
+    const box = document.querySelector(".static-map")?.getBoundingClientRect();
+    return view && box && sim.topology ? landingPoints(sim.topology.edges.map((edge) => edge.geometry), view, box, window.innerWidth, window.innerHeight, 3000) : null;
+  }, [sim.topology]);
+  const reportButton = useCallback(() => document.querySelector("[data-report-button]")?.getBoundingClientRect() ?? null, []);
   const report = useCallback(
     () =>
       action(async () => {
         setReportError("");
         if (!sim.status || !sim.snapshot || !sim.topology) throw new Error("The report needs a loaded simulation.");
         try {
+          setReportFilm({ label: "Gathering the run", share: 0, ready: false });
           const [{ exportReport }, fullNews] = await Promise.all([
             import("./report"),
             api.allNews(sim.status.run_id).catch(() => sim.news),
           ]);
-          await exportReport({
-            status: sim.status,
-            snapshot: sim.snapshot,
-            topology: sim.topology,
-            congestion: history ?? sim.snapshot.data.congestion,
-            news: fullNews,
-            asb,
-            telemetry: recorder.current.export(),
-            hour12,
-            uiVersion: VERSION,
-            layers,
-          });
+          reportFile.current = await exportReport(
+            {
+              status: sim.status,
+              snapshot: sim.snapshot,
+              topology: sim.topology,
+              congestion: history ?? sim.snapshot.data.congestion,
+              news: fullNews,
+              asb,
+              telemetry: recorder.current.export(),
+              hour12,
+              uiVersion: VERSION,
+              layers,
+            },
+            (label, share) => setReportFilm((film) => film && { ...film, label, share }),
+          );
+          setReportFilm((film) => film && { ...film, label: "Done", share: 1, ready: true });
           logControl("report", "downloaded");
         } catch (e) {
           const message = e instanceof Error ? e.message : "The report could not be generated.";
           setReportError(message);
+          setReportFilm(null);
           throw new Error(`Report generation failed. ${message}`);
         }
       }),
@@ -1070,7 +1095,7 @@ export default function App() {
                 <Icon name="info" size={16} />
               </button>
             </Tooltip>
-            <button className="btn primary-soft" onClick={() => void report()} disabled={!valid || pending || suspended || world.active}>
+            <button className="btn primary-soft" data-report-button onClick={() => void report()} disabled={!!reportFilm || !valid || pending || suspended || world.active}>
               <Icon name="download" size={16} />
               <span>Export Report</span>
             </button>
@@ -1308,6 +1333,7 @@ export default function App() {
               reduceMotion={reduceMotion}
             />
           )}
+          {reportFilm && <ReportFilm {...reportFilm} roads={reportRoads} target={reportButton} reduceMotion={reduceMotion} onDone={saveReport} />}
           {(shutDown || serverGone) && <ShutdownSurface reduceMotion={reduceMotion} landing={landOnRoads} lost={serverGone && !shutDown} />}
 
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} narratorBadge={narratorBadge(narrator)} />}

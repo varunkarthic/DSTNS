@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { LOGO, logoPng } from "./logoAsset";
+import { printMap } from "./reportMap";
 import reportFontUrl from "./assets/report-inter.ttf?url";
 import { DEMAND_TYPE_LABEL, placeKind, roadState, roadTitle } from "./mapModel";
 import { DAY_TICKS, PRINT, ReportDocument, lineHeight, wallTicks } from "./pdfLayout";
@@ -88,8 +89,13 @@ const pct = (v: number, digits = 0) => `${(v * 100).toFixed(digits)}%`;
 const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`);
 const title = (s: string) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
-/** The district's own roads, faintly on the cover: the larger ones brighter. */
-function coverRoads(pdf: { setDrawColor: (c: string) => unknown; setLineWidth: (w: number) => unknown; lines: (lines: number[][], x: number, y: number, scale: [number, number], style: string, closed: boolean) => unknown }, topology: Topology, x: number, y: number, width: number, height: number) {
+/**
+ * The district as the run left it, as the whole of the cover: land and water underneath, every
+ * building as a fleck, and each road in the colour of its state at the moment of the report. It is
+ * sized to cover its area, as a photograph would, so that it runs off the page rather than sitting
+ * on it as a small drawing.
+ */
+function coverMap(pdf: InstanceType<typeof import("jspdf").jsPDF>, topology: Topology, states: Map<number, Snapshot["edges"][number]>, height: number) {
   const edges = topology.edges.filter((e) => !e.synthetic_reverse && e.geometry.length > 1);
   let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
   for (const edge of edges) {
@@ -101,30 +107,52 @@ function coverRoads(pdf: { setDrawColor: (c: string) => unknown; setLineWidth: (
     }
   }
   if (!edges.length || maxX <= minX || maxY <= minY) return;
-  const scale = Math.min(width / (maxX - minX), height / (maxY - minY));
-  const [left, top] = [x + (width - (maxX - minX) * scale) / 2, y + (height - (maxY - minY) * scale) / 2];
-  const draw = (wanted: (name: string) => boolean, colour: string, weight: number) => {
-    pdf.setDrawColor(colour);
-    pdf.setLineWidth(weight);
-    for (const edge of edges) {
-      if (!wanted(edge.road_class)) continue;
-      const [first, ...rest] = edge.geometry;
-      let previous = first;
-      const steps = rest.map((p) => {
-        const step = [(p.x_m - previous.x_m) * scale, -(p.y_m - previous.y_m) * scale];
-        previous = p;
-        return step;
-      });
-      pdf.lines(steps, left + (first.x_m - minX) * scale, top + (maxY - first.y_m) * scale, [1, 1], "S", false);
-    }
+  const W = 210;
+  const scale = Math.max(W / (maxX - minX), height / (maxY - minY)) * 1.02;
+  const left = (W - (maxX - minX) * scale) / 2;
+  const top = (height - (maxY - minY) * scale) / 2;
+  const X = (x: number) => left + (x - minX) * scale;
+  const Y = (y: number) => top + (maxY - y) * scale;
+  const steps = (points: { x_m: number; y_m: number }[]) => {
+    let previous = points[0];
+    return points.slice(1).map((p) => {
+      const step = [(p.x_m - previous.x_m) * scale, -(p.y_m - previous.y_m) * scale];
+      previous = p;
+      return step;
+    });
   };
-  const major = (name: string) => ["motorway", "trunk", "primary", "secondary"].includes(name);
-  draw((name) => !major(name), "#1a3b48", 0.14);
-  draw(major, "#2a8f7a", 0.42);
+  // Water and green first, then buildings as flecks, because at this size a footprint is a fleck.
+  for (const feature of topology.features) {
+    if (!feature.polygon || feature.geometry.length < 3) continue;
+    const green = ["park", "grass", "forest", "recreation_ground"].includes(feature.category);
+    const water = ["water", "river", "lake", "riverbank", "wetland"].includes(feature.category);
+    if (!green && !water) continue;
+    pdf.setFillColor(green ? "#0f2d2a" : "#0e2c3e");
+    pdf.lines(steps(feature.geometry), X(feature.geometry[0].x_m), Y(feature.geometry[0].y_m), [1, 1], "F", true);
+  }
+  pdf.setFillColor("#1a3644");
+  let flecks = 0;
+  for (const feature of topology.features) {
+    if (!feature.polygon || feature.category !== "building") continue;
+    if (++flecks > 16000) break;
+    pdf.rect(X(feature.position.x_m) - 0.11, Y(feature.position.y_m) - 0.11, 0.22, 0.22, "F");
+  }
+  // Minor roads under major ones, so that the arteries read as lines through the city.
+  const widths: Record<string, number> = { motorway: 0.72, trunk: 0.66, primary: 0.56, secondary: 0.42, tertiary: 0.3, residential: 0.15, service: 0.1 };
+  const colours: Record<string, string> = { clear: "#35c8a0", moderate: "#f0aa2e", severe: "#ef5a64", blocked: "#ef5a64", flooded: "#4f93e6" };
+  const ordered = [...edges].sort((a, b) => (widths[a.road_class] ?? 0.14) - (widths[b.road_class] ?? 0.14));
+  for (const edge of ordered) {
+    const weight = widths[edge.road_class] ?? 0.14;
+    const state = roadState(states.get(edge.id));
+    // A quiet side street stays quiet: only a road in trouble speaks up at that size.
+    pdf.setDrawColor(state === "clear" && weight < 0.25 ? "#1f5a5c" : colours[state] ?? colours.clear);
+    pdf.setLineWidth(weight);
+    pdf.lines(steps(edge.geometry), X(edge.geometry[0].x_m), Y(edge.geometry[0].y_m), [1, 1], "S", false);
+  }
 }
 
-export async function buildReport(input: ReportInput, resources: ReportResources = {}) {
-  const { jsPDF } = await import("jspdf");
+export async function buildReport(input: ReportInput, resources: ReportResources = {}, onProgress?: (label: string, share: number) => void) {
+  const { jsPDF, GState } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
   let font = "helvetica";
   if (resources.font) {
@@ -187,26 +215,56 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // Cover
   // =========================================================================
+  // The district fills the top two thirds and fades into the dark, and everything said about
+  // it stands on that dark, in one column of facts, under the name of the place: the cover
+  // reads from the picture to the place to the particulars, and the licence closes it.
+  onProgress?.("Drawing the cover", 0.04);
   doc.newPage();
   doc.rect(0, 0, doc.W, doc.H, PRINT.dark, 0);
-  coverRoads(pdf, topology, doc.M, 122, doc.W - doc.M * 2, doc.H - 122 - 26);
-  if (resources.logoLight) pdf.addImage(resources.logoLight, "PNG", doc.M, 24, 12 * LOGO.aspect, 12);
-  else doc.line("DSTNS", doc.M, 24, 22, PRINT.darkInk);
-  doc.line("SIMULATION REPORT", doc.M, 50, 8, "#6fd7f2");
-  doc.line(place, doc.M, 57, 24, "#ffffff");
-  doc.line("Deterministic Spatiotemporal Transport Network Simulator", doc.M, 69, 9.5, "#9fb4c3");
-  const cover: [string, string][] = [
-    ["Seed", seed],
-    ["Run", status.run_id],
-    ["Simulation time", `${t(virtual)} (${pct(virtual / DAY_SECONDS, 1)} of the day)`],
+  const mapH = 214;
+  coverMap(pdf, topology, new Map(snapshot.data.edges.map((e) => [e.id, e])), mapH);
+  const fade = (from: number, to: number, strength: number) => {
+    const strips = 28;
+    pdf.setFillColor(PRINT.dark);
+    for (let n = 0; n < strips; n++) {
+      const t = (n + 0.5) / strips;
+      pdf.setGState(new GState({ opacity: Math.pow(t, 1.6) * strength }));
+      pdf.rect(0, from + (to - from) * (n / strips) - (to < from ? (from - to) / strips : 0), doc.W, Math.abs(to - from) / strips + 0.3, "F");
+    }
+    pdf.setGState(new GState({ opacity: 1 }));
+  };
+  fade(160, mapH, 1);
+  fade(46, 0, 0.92);
+  pdf.setFillColor(PRINT.dark);
+  pdf.rect(0, mapH - 0.2, doc.W, doc.H - mapH + 0.2, "F");
+  if (resources.logoLight) pdf.addImage(resources.logoLight, "PNG", doc.M, 15, 8 * LOGO.aspect, 8);
+  else doc.line("DSTNS", doc.M, 15, 16, PRINT.darkInk);
+  doc.line("SIMULATION REPORT", doc.W - doc.M, 17, 7.5, "#6fd7f2", "right");
+  const city = location?.city ?? "Explicit map file";
+  doc.line(city, doc.M, 204, doc.textWidth(city, 38) > doc.width ? 26 : 38, "#ffffff");
+  doc.line(location?.country ? `${location.country} · Deterministic Spatiotemporal Transport Network Simulator` : "Deterministic Spatiotemporal Transport Network Simulator", doc.M, 222, 9.5, "#9fb4c3");
+  doc.rule(233, doc.M, doc.W - doc.M, "#22394a", 0.3);
+  const cell = doc.width / 4;
+  const facts: [string, string][] = [
+    ["Simulated to", `${tShort(virtual)}, ${pct(virtual / DAY_SECONDS, 0)} of the day`],
     ["State", title(lifecycle.toLowerCase())],
-    ["Generated", now.toLocaleString()],
+    ["Network", `${net.nodes.toLocaleString()} junctions`],
+    ["Length", `${net.km.toFixed(1)} km of road`],
+    ["Seed", shortSeed],
+    ["Run", status.run_id],
+    ["Day", status.data.day === 1 ? "Weekend" : "Weekday"],
+    ["Generated", now.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })],
   ];
-  cover.forEach(([k, v], i) => {
-    doc.line(k.toUpperCase(), doc.M, 82 + i * 6.4, 6.5, "#7f96a6");
-    doc.line(v, doc.M + 34, 81.4 + i * 6.4, 8.5, "#e6f0f7");
+  facts.forEach(([k, v], i) => {
+    const x = doc.M + (i % 4) * cell;
+    const y = 238 + Math.floor(i / 4) * 14;
+    doc.line(k.toUpperCase(), x, y, 6.3, "#7f96a6");
+    doc.line(doc.fit(v, cell - 4, 8.6), x, y + 3.6, 8.6, "#e6f0f7");
   });
-  doc.line("Map data © OpenStreetMap contributors (ODbL)", doc.M, doc.H - 16, 7, "#7f96a6");
+  doc.rule(270, doc.M, doc.W - doc.M, "#22394a", 0.3);
+  doc.line("© 2026 Varun Karthic. Designed and built by Varun Karthic.", doc.M, 274, 7.4, "#c9d6df");
+  doc.line("AGPL-3.0-or-later", doc.W - doc.M, 274, 7.4, "#9fb4c3", "right");
+  doc.line("Map data © OpenStreetMap contributors, available under the Open Database License (ODbL).", doc.M, 278.4, 6.8, "#7f96a6");
 
   // About and contents, on one page. The contents are filled once page numbers are known.
   doc.newPage();
@@ -232,6 +290,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // 1 Executive summary
   // =========================================================================
+  onProgress?.("Summarising the run", 0.1);
   doc.sectionHeading("Executive Summary", "The run at a glance. Figures cover the whole run where the core keeps a complete record, and the observed session where only the interface measured them.", true);
   doc.tiles([
     { label: "Simulation time", value: t(virtual), note: `${pct(virtual / DAY_SECONDS, 1)} of the virtual day` },
@@ -260,6 +319,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 2 Configuration
   // =========================================================================
   const base = DAY_SECONDS / snapshot.clock.playback_duration_seconds;
+  onProgress?.("Reading the configuration", 0.16);
   doc.sectionHeading("Simulation Configuration", "The parameters the run was started with, as reported by the core.");
   doc.heading("Scenario");
   doc.keyValues([
@@ -300,6 +360,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // 3 Environment
   // =========================================================================
+  onProgress?.("Noting the environment", 0.2);
   doc.sectionHeading("Environment and Runtime", "Software versions and the environment the report was produced in. Filesystem paths are deliberately omitted.");
   doc.keyValues([
     ["DSTNS core", resources.coreVersion ?? "Not reported"],
@@ -321,6 +382,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // 4 Road network
   // =========================================================================
+  onProgress?.("Measuring the road network", 0.28);
   doc.sectionHeading("Road Network Analysis", "The static network the model runs on, and its state at report time.");
   doc.tiles([
     { label: "Junctions", value: net.nodes.toLocaleString(), note: `${net.intersections.toLocaleString()} intersections` },
@@ -394,6 +456,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // 5 Traffic
   // =========================================================================
+  onProgress?.("Charting the traffic", 0.42);
   doc.sectionHeading("Traffic Analysis", "Traffic measures across the virtual day. The congestion history is kept by the core for the whole run; vehicle and speed series are the interface's samples.");
   chartOrNote(
     history.length,
@@ -542,6 +605,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // Signals
   // =========================================================================
   const signals = snapshot.data.signals;
+  onProgress?.("Listing the signals", 0.52);
   doc.sectionHeading("Signal Control", "Signalled junctions run their own fixed schedules, derived from the seed. These are the controllers as they stood at report time.");
   const cycles = signals.map((c) => c.cycle_length).filter((c) => c > 0);
   doc.tiles([
@@ -571,6 +635,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // 6 Weather
   // =========================================================================
+  onProgress?.("Reading the weather", 0.58);
   doc.sectionHeading("Weather Analysis", "Rain cells from the deterministic weather model. Start, peak and end times come from the core's event record for the whole run.");
   doc.table(
     [
@@ -635,6 +700,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // 7 Flooding
   // =========================================================================
+  onProgress?.("Reading the flooding", 0.63);
   doc.sectionHeading("Flooding Analysis", "Flooding accumulates from rainfall at each junction according to its susceptibility, and drains over time, so it can persist after rain has cleared.");
   doc.tiles(
     [
@@ -686,6 +752,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // 8 Incidents
   // =========================================================================
+  onProgress?.("Registering the incidents", 0.68);
   doc.sectionHeading("Incident Analysis", "Incidents are scheduled deterministically from the seed and restrict speed and capacity or close roads while active.");
   const severityCount = (s: string) => incidents.filter((i) => i.severity === s).length;
   doc.barChart(
@@ -745,6 +812,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // 9 Timeline
   // =========================================================================
+  onProgress?.("Laying out the timeline", 0.74);
   doc.sectionHeading("Simulation Event Timeline", `Significant events in simulation-time order: ${events.length} entries. Consecutive flood onsets within one minute are combined; demand changes are listed at their peaks.`);
   doc.table(
     [
@@ -765,6 +833,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // 10 Performance
   // =========================================================================
+  onProgress?.("Plotting the performance", 0.82);
   doc.sectionHeading("Performance and Telemetry", "How the simulation and the interface kept pace with each other during observation. These measures are the interface's own; times are wall-clock minutes and seconds since observation began.");
   const rated = samples.filter((s) => s.bytes_per_s !== null);
   const { unit, divisor } = throughputUnit(Math.max(0, ...rated.map((s) => s.bytes_per_s!)));
@@ -907,6 +976,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // 11 Determinism and integrity
   // =========================================================================
+  onProgress?.("Sealing the identifiers", 0.88);
   doc.sectionHeading("Determinism and Integrity", "Identifiers that tie this report to a reproducible run.");
   doc.keyValues([
     ["Seed", seed],
@@ -935,13 +1005,15 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 12 Map
   // =========================================================================
   if (resources.map) {
-    doc.sectionHeading("Map at Export", "The map as it was drawn at the moment of export, including the current viewport and layers.");
+    onProgress?.("Printing the map", 0.92);
+  doc.sectionHeading("Map at Export", "The whole network at the moment of export, drawn afresh in print colours for reading on paper.");
     doc.image(resources.map.dataUrl, resources.map.aspect, 150, "Road colour shows state: clear, moderate, severe and flooded. Map data © OpenStreetMap contributors, ODbL 1.0.");
   }
 
   // =========================================================================
   // Appendix
   // =========================================================================
+  onProgress?.("Adding the definitions", 0.96);
   doc.sectionHeading("Methodology and Definitions", "How the figures in this report are defined.");
   const defs: [string, string][] = [
     ["Congestion index", "For each traversable road: 60% speed loss plus 25% halted share plus 15% occupancy, clamped to 0 to 1. Speed loss is one minus mean speed over free-flow speed. Closed roads score 1. The network index weights each road by length times lanes and is expressed in percent."],
@@ -957,6 +1029,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   doc.keyValues(defs, 40);
   doc.paragraph("© 2026 Varun Karthic. DSTNS is released under the GNU Affero General Public License v3 or later. Map data © OpenStreetMap contributors, ODbL 1.0.", { size: 8, color: PRINT.dim });
 
+  doc.flush();
   // =========================================================================
   // Contents, headers and footers
   // =========================================================================
@@ -992,18 +1065,50 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     doc.line(`Page ${p} of ${pages}`, doc.W - doc.M, doc.H - 11.5, 7.5, PRINT.dim, "right", "chrome");
   }
 
+  // Bookmarks, so that a reader can move about it, and everything a catalogue needs to know.
+  for (const entry of doc.outline) pdf.outline.add(null, `${entry.number}  ${entry.title}`, { pageNumber: entry.page });
+  const ident = `Seed ${seed}, run ${status.run_id}`;
   pdf.setProperties({
-    title: `DSTNS Simulation Report, ${place}`,
-    subject: `Seed ${seed}`,
-    author: "DSTNS",
-    creator: `DSTNS interface ${input.uiVersion}`,
-    keywords: "DSTNS, traffic simulation, OpenStreetMap, AGPL-3.0",
+    title: `DSTNS Simulation Report: ${place}`,
+    subject: `Simulation of ${place} to ${t(virtual)} (${pct(virtual / DAY_SECONDS, 1)} of the day). ${ident}.`,
+    author: "Varun Karthic",
+    creator: `DSTNS Interface ${input.uiVersion}, engine ${resources.coreVersion ?? "not reported"}, API ${status.api_version}`,
+    keywords: ["DSTNS", "traffic simulation", "transport network", "deterministic", "OpenStreetMap", place, `seed ${seed}`, status.run_id, "AGPL-3.0-or-later"].join(", "),
   });
+  pdf.setCreationDate(now);
+  pdf.setLanguage("en-GB");
+  pdf.setDisplayMode("fullwidth", "continuous", "UseOutlines");
+  pdf.viewerPreferences({ DisplayDocTitle: true });
+  const xml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  pdf.addMetadata(
+    [
+      `<dc:title><rdf:Alt><rdf:li xml:lang="x-default">DSTNS Simulation Report: ${xml(place)}</rdf:li></rdf:Alt></dc:title>`,
+      `<dc:creator><rdf:Seq><rdf:li>Varun Karthic</rdf:li></rdf:Seq></dc:creator>`,
+      `<dc:rights><rdf:Alt><rdf:li xml:lang="x-default">Copyright (C) 2026 Varun Karthic. AGPL-3.0-or-later. Map data (C) OpenStreetMap contributors, ODbL.</rdf:li></rdf:Alt></dc:rights>`,
+      `<dc:source>${xml(topology.source)}</dc:source>`,
+      `<dc:coverage>${xml(place)}</dc:coverage>`,
+      `<dstns:seed>${xml(seed)}</dstns:seed>`,
+      `<dstns:run>${xml(status.run_id)}</dstns:run>`,
+      `<dstns:state>${xml(lifecycle)}</dstns:state>`,
+      `<dstns:virtualSeconds>${Math.round(virtual)}</dstns:virtualSeconds>`,
+      `<dstns:engine>${xml(resources.coreVersion ?? "not reported")}</dstns:engine>`,
+      `<dstns:interface>${xml(input.uiVersion)}</dstns:interface>`,
+      `<dstns:api>${xml(status.api_version)}</dstns:api>`,
+      `<dstns:mapSelection>${xml(topology.map_selection_version)}</dstns:mapSelection>`,
+      `<dstns:junctions>${net.nodes}</dstns:junctions>`,
+      `<dstns:roadKilometres>${net.km.toFixed(2)}</dstns:roadKilometres>`,
+    ].join(""),
+    "http://purl.org/dc/elements/1.1/",
+  );
+  onProgress?.("Finishing", 1);
   return { pdf, doc, pages };
 }
 
-/** Collect browser-side resources, build the report and save it. */
-export async function exportReport(input: ReportInput) {
+/**
+ * Collect what only the page can reach, then build the report on a worker, so that the interface
+ * goes on moving while it is put together. Hands back the finished file for the page to save.
+ */
+export async function exportReport(input: ReportInput, onProgress: (label: string, share: number) => void = () => {}): Promise<{ blob: Blob; name: string }> {
   const fontResponse = await fetch(reportFontUrl);
   if (!fontResponse.ok) throw new Error("The report font could not be loaded. Reload and retry.");
   const bytes = new Uint8Array(await fontResponse.arrayBuffer());
@@ -1018,30 +1123,42 @@ export async function exportReport(input: ReportInput) {
   } catch {
     /* Reported as not available. */
   }
-
-  let map: ReportResources["map"] = null;
-  const canvases = Array.from(document.querySelectorAll<HTMLCanvasElement>(".map-canvas"));
-  if (canvases.length && canvases[0].width > 0) {
-    const merged = document.createElement("canvas");
-    merged.width = canvases[0].width;
-    merged.height = canvases[0].height;
-    const ctx = merged.getContext("2d");
-    if (ctx) {
-      ctx.fillStyle = "#030f1b";
-      ctx.fillRect(0, 0, merged.width, merged.height);
-      for (const c of canvases) ctx.drawImage(c, 0, 0);
-      map = { dataUrl: merged.toDataURL("image/png"), aspect: merged.width / merged.height };
-    }
-  }
-
   const platform = [
     `Platform: ${navigator.platform || "Not reported"}`,
     `Language: ${navigator.language}`,
     `Viewport: ${window.innerWidth} × ${window.innerHeight} at ${window.devicePixelRatio}× pixel ratio`,
     `Logical processors: ${navigator.hardwareConcurrency || "Not reported"}`,
   ];
-  const { pdf } = await buildReport(input, { font: btoa(binary), logoLight, logoDark, map, coreVersion, platform });
-  pdf.save(`DSTNS-report-${input.status.run_id}-${input.snapshot.clock.virtual_day_seconds}.pdf`);
+  const resources: ReportResources = { font: btoa(binary), logoLight, logoDark, coreVersion, platform };
+  const name = `DSTNS-report-${input.status.run_id}-${input.snapshot.clock.virtual_day_seconds}.pdf`;
+  const offThread = () =>
+    new Promise<Blob>((resolve, reject) => {
+      const worker = new Worker(new URL("./reportWorker.ts", import.meta.url), { type: "module" });
+      worker.onmessage = ({ data }) => {
+        if (data.type === "progress") onProgress(data.label, data.share);
+        else {
+          worker.terminate();
+          if (data.type === "done") resolve(new Blob([data.bytes], { type: "application/pdf" }));
+          else reject(new Error(data.message));
+        }
+      };
+      worker.onerror = (event) => {
+        worker.terminate();
+        reject(new Error(event.message));
+      };
+      worker.postMessage({ input, resources });
+    });
+  // Whatever happens, it says so: a report that silently never arrives looks like a frozen button.
+  const watchdog = <T,>(work: Promise<T>) =>
+    Promise.race([work, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("The report took too long to put together.")), 90000))]);
+  try {
+    return { blob: await watchdog(offThread()), name };
+  } catch {
+    // Without a worker it can still be done here, at the cost of a pause.
+    const map = await printMap(input.topology, input.snapshot.data, input.layers).catch(() => null);
+    const { pdf } = await buildReport(input, { ...resources, map }, onProgress);
+    return { blob: pdf.output("blob"), name };
+  }
 }
 
 export type { Column, Series };
