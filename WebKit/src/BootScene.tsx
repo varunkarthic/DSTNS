@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { LOGO_SVG } from "./logoAsset";
 import { appearance } from "./appearance";
 import { stepSpring } from "./motion";
-import { buildFormations, COUNT, FOCUS_A, FOCUS_B, formation, IN_WORLD, KIND, sequence, STRIDE } from "./bootScenes";
+import { BLOOM_HALF, BLOOM_POINTS, BLOOM_REACH, buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B, formation, IN_WORLD, KIND, sequence, STRIDE, WRECK_AT } from "./bootScenes";
 
 /**
  * The start-up film.
@@ -21,7 +21,7 @@ import { buildFormations, COUNT, FOCUS_A, FOCUS_B, formation, IN_WORLD, KIND, se
 
 const HOLD_S = 4;
 // How long each scene holds: a junction needs time for its lights to go round.
-const HOLDS = [4, 4.4, 6.2, 4.6, 4.4, 4.6, 4, 4, 4.6, 4.6, 4];
+const HOLDS = [4, 4.4, 6.2, 4.6, 4.4, 5.4, 4, 4, 5, 4.6, 4];
 const MORPH = { k: 11, c: 5.6 };
 // Going to and from the logo and the map are timed, not sprung: an ease in and out has no
 // sudden start, which is what makes particles leaving a shape feel soft.
@@ -58,11 +58,14 @@ const SWEEP_DELAY_S = 0.18;
 const SWEEP_S = 1.2;
 const DISSOLVE_HOLD_S = SWEEP_DELAY_S + SWEEP_S + 0.15;
 // The end: the panels leave, the map goes from under its own roads, those roads fly into
-// the name, and the name is blown away. About as long as it always was.
+// the name, and the name is blown into a mint mist that thins into the light behind it.
+// Then nothing moves, and nothing is drawn. About as long as it always was.
 const END_ROADS_AT_S = 0.3;
 const END_GATHER_AT_S = 1.15;
 const END_GATHER_S = 2.3;
 const END_SCATTER_AT_S = 4.3;
+const END_THIN_AT_S = 4.9;
+const END_STILL_S = 10.5;
 
 // One or two words and one short line, with no commas. Nothing here may suggest it is
 // happening now or for real: it is a simulation, and these are its features.
@@ -72,7 +75,7 @@ export const FILM_CHAPTERS: readonly { label: string; title: string; text: strin
   { label: "Signals", title: "Signal timing", text: "Signalled junctions each run their own schedule." },
   { label: "Demand", title: "Travel demand", text: "Every school and office draws trips." },
   { label: "Rhythm", title: "Rush hour", text: "Modelled demand rises and falls through the day." },
-  { label: "Reports", title: "Run reports", text: "Export the whole day as a PDF with its figures and sources." },
+  { label: "Incidents", title: "Road incidents", text: "A collision closes lanes and the queue spreads back." },
   { label: "Environment", title: "Simulated weather", text: "Rain cells cross the district and roads flood." },
   { label: "Places", title: "Cities worldwide", text: "A seed chooses the district." },
   { label: "Reproducibility", title: "Repeatable worlds", text: "Any seed grows the same day on any machine." },
@@ -87,10 +90,10 @@ const CAMERAS: Camera[] = [
   { yaw: -0.28, pitch: 1.02, distance: 3.3, spin: 0.02, push: 0.07 },
   { yaw: 0, pitch: 0.06, distance: 3.35, spin: 0.006, push: 0.04 },
   { yaw: 0, pitch: 0.03, distance: 3.25, spin: 0.006, push: 0.04 },
-  { yaw: -0.26, pitch: 0.06, distance: 3.25, spin: 0.012, push: 0.06 },
+  { yaw: CAMERA_YAW_INCIDENT, pitch: 0.46, distance: 3.05, spin: 0.006, push: 0.05 },
   { yaw: 0.26, pitch: 0.13, distance: 3.75, spin: -0.04, push: 0.07 },
   { yaw: 0.2, pitch: 0.3, distance: 3.3, spin: 0.26, push: 0.05 },
-  { yaw: 0, pitch: 0.04, distance: 3.45, spin: 0.012, push: 0.05 },
+  { yaw: 0, pitch: 0.03, distance: 3.5, spin: 0.004, push: 0.04 },
   { yaw: 0.14, pitch: 1.12, distance: 3.2, spin: 0.012, push: 0.03 },
   { yaw: 0.55, pitch: 0.78, distance: 3.2, spin: -0.05, push: 0.08 },
 ];
@@ -222,7 +225,7 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
     float f = fract(t * 0.3 + phase * 37.0);
     float s = f * f * (3.0 - 2.0 * f);
     p += v * s;
-    p.y += 4.0 * f * (1.0 - f) * 0.3 * length(v.xz + vec2(v.y * 0.5));
+    p.y += 4.0 * f * (1.0 - f) * 0.3 * length(v);
     alpha = smoothstep(0.0, 0.1, f) * smoothstep(1.0, 0.86, f);
   } else if (kind == ${KIND.route}) {
     float f = fract(t * 0.2 + phase * 37.0);
@@ -315,7 +318,7 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
     float r = rhythm(f * 24.0);
     float x = -1.75 + 3.5 * f;
     float grow = smoothstep(0.0, 0.1, age / 2.4 - f);
-    p = vec3(x, -0.12 + v.x * r * 0.88 * mix(0.35, 1.0, grow), v.z * r * 0.4);
+    p = vec3(x, 0.06 + v.x * r * 0.88 * mix(0.35, 1.0, grow), v.z * r * 0.4);
     alpha = 0.35 + 0.65 * grow;
     tint = 0.28 + r * 0.8;
     float noise = fract(phase * 91.0) * 0.12;
@@ -326,6 +329,69 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
     float front = exp(-pow((phase - filled) * 34.0, 2.0));
     size = 1.0 + front * 2.0;
     p.z += 0.0;
+  } else if (kind == ${KIND.queue}) {
+    // Those reaching the queue slow to a crawl, and those in the outer lanes squeeze into
+    // the inner one to get past. The tail works back up the road.
+    float u = -2.6 + fract(t * 0.128 + phase) * 11.6;
+    float x = u;
+    float z = v.x;
+    float wreck = ${WRECK_AT.toFixed(2)};
+    float dir = v.y;
+    if (dir > 0.0) {
+      float tail = wreck - min(age * 0.6 - 0.5, 3.3) * step(0.84, age);
+      float crawl = 0.3;
+      float cleared = tail + (wreck - tail) / crawl;
+      if (age > 0.84 && u > tail) {
+        if (u < cleared) {
+          x = tail + (u - tail) * crawl;
+          float depth = (x - tail) / (wreck - tail + 1e-3);
+          x += 0.012 * sin(x * 9.0 + t * 2.2);
+          hue = depth > 0.3 ? 2.0 : 1.0;
+        } else {
+          x = wreck + u - cleared;
+        }
+      }
+      float squeeze = smoothstep(0.5, 1.0, age) * smoothstep(wreck - 0.6, wreck - 0.14, x) * (1.0 - smoothstep(wreck + 0.25, wreck + 0.7, x));
+      z = mix(z, 0.13, squeeze);
+    } else {
+      x = -u;
+    }
+    p = vec3(x + p.x * dir, p.y, z + p.z);
+    alpha = smoothstep(-2.6, -2.25, p.x) * smoothstep(2.6, 2.25, p.x);
+  } else if (kind == ${KIND.crash}) {
+    float flash = exp(-pow((age - 0.9) * 5.0, 2.0));
+    alpha = smoothstep(0.78, 0.92, age);
+    size = 1.0 + flash * 3.0;
+    tint = max(tint, flash);
+    if (dot(v, v) > 0.0) {
+      float f = fract(t * 0.42 + phase);
+      p += v * f;
+      alpha *= (1.0 - f) * smoothstep(0.0, 0.06, f);
+    } else if (p.y > 0.1) {
+      float blink = 0.5 + 0.5 * sin(t * 4.2);
+      alpha *= 0.45 + 0.55 * blink;
+      size += blink * 0.4;
+    }
+  } else if (kind == ${KIND.bloom}) {
+    // The same point of the same pattern on both screens, on the same clock: a small
+    // change of angle turns the whole bloom through one form after another. It fills its
+    // screen, and the screen's edge cuts it off.
+    float k = v.x;
+    float n = sqrt(k / ${BLOOM_POINTS}.0);
+    float grown = ease(age / 1.8);
+    float angle = k * (2.39996 + 0.0011 * pow(sin(age * 0.46), 2.0));
+    float r = n * ${BLOOM_REACH.toFixed(2)} * (0.3 + 0.7 * grown);
+    vec2 off = vec2(cos(angle), sin(angle)) * r;
+    p = vec3(v.y + off.x, v.z + off.y, p.z);
+    vec2 past = abs(off) - vec2(${BLOOM_HALF[0].toFixed(2)} - 0.17, ${BLOOM_HALF[1].toFixed(2)} - 0.17);
+    float inside = length(max(past, 0.0)) - 0.13;
+    alpha = smoothstep(0.012, -0.012, inside) * smoothstep(n - 0.08, n + 0.02, grown * 1.1);
+    // Its spirals, lit, so that its form can be seen to change.
+    float arm = fract(k / 34.0);
+    tint = 0.16 + 0.84 * smoothstep(0.62, 0.98, arm);
+    float wave = exp(-pow((n - fract(t * 0.3) * 1.4) * 5.0, 2.0));
+    tint = max(tint, wave * 0.8);
+    size = 0.85 + wave * 0.5;
   } else if (kind == ${KIND.wave}) {
     p.y += 0.075 * sin(p.x * 2.6 + p.z * 1.8 - t * 1.9) + 0.03 * sin(p.z * 5.0 + t * 1.2);
   } else if (kind == ${KIND.bracket}) {
@@ -552,6 +618,13 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       attribute("aToV", scenes[to], 3, 3);
       attribute("aToM", scenes[to], 4, 6);
     };
+    // Only the end of a session comes to rest in it.
+    const mist = ending && !rejoin ? scenes.push((() => {
+      const buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, endMist(), gl.STATIC_DRAW);
+      return buffer;
+    })()) - 1 : 0;
     const uniform = (name: string) => gl.getUniformLocation(program, name);
     const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), sweep: uniform("uSweep"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand") };
     const landAt = gl.getAttribLocation(program, "aLand");
@@ -734,20 +807,21 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         if (t > END_SCATTER_AT_S && !endScattered) {
           endScattered = true;
           from = to;
-          to = 0;
+          to = rejoin ? 0 : mist;
           bind(from, to);
           blend = 0;
           velocity = 0;
         }
-        if (t > 9 && !rejoin) {
+        if (t > END_STILL_S && !rejoin) {
+          dim = 0;
           paint();
           return; // Nothing else will happen here, so nothing else is spent.
         }
       }
       // Having landed, they give way to the map's own roads.
-      const endingDim = quietRef.current ? REST_DIM : ending && !rejoined ? (!rejoin && now / 1000 - endStart > END_SCATTER_AT_S + 0.8 ? REST_DIM : now / 1000 - endStart > END_ROADS_AT_S ? 1 : 0) : null;
+      const endingDim = quietRef.current ? REST_DIM : ending && !rejoined ? (!rejoin && now / 1000 - endStart > END_THIN_AT_S ? 0 : now / 1000 - endStart > END_ROADS_AT_S ? 1 : 0) : null;
       const dimTo = endingDim ?? (landed ? (closingFor > ((quick ? QUICK_ARRIVAL.mapAt : MAP_AT_MS) + (quick ? 220 : 500)) / 1000 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM);
-      dim += (dimTo - dim) * Math.min(1, dt * (quietRef.current ? 1.6 : ending && !rejoined ? (now / 1000 - endStart > END_SCATTER_AT_S ? 1.1 : 5) : landed ? (quick ? 5 : 2.6) : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
+      dim += (dimTo - dim) * Math.min(1, dt * (quietRef.current ? 1.6 : ending && !rejoined ? (now / 1000 - endStart > END_SCATTER_AT_S ? 0.72 : 5) : landed ? (quick ? 5 : 2.6) : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
       // The old world's particles, blown apart, come back together as the name, and the
       // film carries on from there as it does at start-up.
       if (rejoin && started && !rejoined && playingRef.current) {

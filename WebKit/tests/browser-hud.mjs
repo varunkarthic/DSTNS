@@ -91,12 +91,52 @@ try {
   assert.equal(waiting.data.lifecycle, "PAUSED", "the world waits while the film plays");
   assert.equal(waiting.data.observer_hold, true);
   assert.equal(waiting.clock?.simulated_seconds ?? waiting.simulated_seconds ?? 0, 0, "and has not moved");
+  // What is actually drawn, on the page: the roads and the land around them.
+  const drawn = () => page.evaluate(() => {
+    const canvas = document.querySelector(".static-map");
+    const rect = canvas.getBoundingClientRect();
+    const f = canvas.width / rect.width;
+    const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    let [l, r, t, b] = [1e9, -1, 1e9, -1];
+    for (let y = 0; y < canvas.height; y += 2) for (let x = 0; x < canvas.width; x += 2) {
+      if (data[(y * canvas.width + x) * 4 + 3] <= 40) continue;
+      l = Math.min(l, x); r = Math.max(r, x); t = Math.min(t, y); b = Math.max(b, y);
+    }
+    return { x: (l + r) / 2 / f + rect.left, y: (t + b) / 2 / f + rect.top, width: (r - l) / f };
+  });
+  await page.locator(".loading-surface.closing").waitFor({ timeout: 90000 });
+  const alone = await drawn();
+  const size = page.viewportSize();
+  assert.ok(Math.abs(alone.x - size.width / 2) < 24 && Math.abs(alone.y - size.height / 2) < 24, `alone, the map lands in the middle of the window, not at ${alone.x},${alone.y}`);
   await page.locator(".loading-surface").waitFor({state: "detached", timeout: 90000});
   await page.waitForTimeout(500);
   const going = (await call("/api/v1/playback/status")).body;
   assert.equal(going.data.lifecycle, "RUNNING", "it starts once the interface has arrived");
   assert.equal(going.data.observer_hold, false);
   assert.equal(await page.locator(".loading-surface").count(), 0, "the start-up screen leaves once the film has played and the map is up");
+
+  check("the map sits in the middle of the free space, and a person's zoom takes the camera", async () => {
+    await page.waitForTimeout(1500);
+    const dock = await page.locator(".map-dock").boundingBox();
+    const deck = await page.locator(".telemetry-deck").boundingBox();
+    const seated = await drawn();
+    const middle = (dock.x + dock.width + deck.x) / 2;
+    assert.ok(Math.abs(seated.x - middle) < 24, `the map is at ${seated.x}, the free space's middle at ${middle}`);
+    const focus = page.getByRole("button", { name: "Auto Focus on live events" });
+    assert.equal(await focus.getAttribute("aria-pressed"), "true");
+    await page.mouse.move(deck.x - 40, dock.y + 60);
+    for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 8);
+    await page.waitForFunction(() => document.querySelector('[aria-label="Auto Focus on live events"]').getAttribute("aria-pressed") === "false");
+    await page.waitForTimeout(1200);
+    const held = await drawn();
+    assert.ok(held.width < seated.width && held.width > seated.width * 0.7, `a small scroll is a small zoom: ${seated.width} to ${held.width}`);
+    assert.ok(Math.abs(held.x - middle) < 24, `zoomed out, the map comes back to the middle, not ${held.x}`);
+    await page.waitForTimeout(1500);
+    const later = await drawn();
+    assert.ok(Math.abs(later.width - held.width) < 3 && Math.abs(later.x - held.x) < 3, "and nothing moves once the gesture has stopped");
+    await focus.click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Auto Focus on live events"]').getAttribute("aria-pressed") === "true");
+  });
 
   check("the browser icon is the mark", async () => {
     const icon = await page.evaluate(() => document.querySelector("link[rel='icon']")?.getAttribute("href"));
@@ -505,7 +545,9 @@ try {
     await page.waitForTimeout(3000);
     const download = page.waitForEvent("download", { timeout: 60000 });
     await page.getByRole("button", { name: "Export Report" }).click();
-    const file = await download;
+    const file = await download.catch(async (e) => {
+      throw new Error(`${e.message}; on screen: ${await page.locator(".rail-error, [role=alert]").allInnerTexts()}`);
+    });
     const target = path.join(out, "report.pdf");
     await file.saveAs(target);
     const bytes = readFileSync(target);

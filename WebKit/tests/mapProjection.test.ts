@@ -98,26 +98,26 @@ describe('fit layout', () => {
   it('centres the network on the visible map area, not the viewport', () => {
     // With the deck showing, the centre must sit left of the viewport centre.
     const wide = mapFitLayout(1440, 900);
-    expect(wide.centerX).toBeCloseTo((1440 - 480) / 2);
+    expect(wide.centerX).toBeCloseTo((76 + 1440 - 504) / 2);
     expect(wide.centerX).toBeLessThan(720);
     expect(wide.available).toBe(1440 - 480 - 110);
   });
 
   it('keeps only the collapsed strip docked below 1024px', () => {
     const narrow = mapFitLayout(900, 700);
-    expect(narrow.centerX).toBeCloseTo((900 - STRIP_SPACE) / 2);
+    expect(narrow.centerX).toBeCloseTo((76 + 900 - STRIP_SPACE - 24) / 2);
     expect(narrow.available).toBe(900 - STRIP_SPACE - 110);
   });
 
   it('matches the deck width at each breakpoint', () => {
-    expect(mapFitLayout(1280, 800).centerX).toBeCloseTo((1280 - 450) / 2);
-    expect(mapFitLayout(1281, 800).centerX).toBeCloseTo((1281 - 480) / 2);
-    expect(mapFitLayout(1024, 800).centerX).toBeCloseTo((1024 - STRIP_SPACE) / 2);
+    expect(mapFitLayout(1280, 800).centerX).toBeCloseTo((76 + 1280 - 474) / 2);
+    expect(mapFitLayout(1281, 800).centerX).toBeCloseTo((76 + 1281 - 504) / 2);
+    expect(mapFitLayout(1024, 800).centerX).toBeCloseTo((76 + 1024 - STRIP_SPACE - 24) / 2);
   });
 
   it('frees the right side when the deck is collapsed to its strip', () => {
     expect(deckSpace(1440, true)).toBe(STRIP_SPACE);
-    expect(mapFitLayout(1440, 900, true).centerX).toBeCloseTo((1440 - STRIP_SPACE) / 2);
+    expect(mapFitLayout(1440, 900, true).centerX).toBeCloseTo((76 + 1440 - STRIP_SPACE - 24) / 2);
     expect(mapFitLayout(1440, 900, true).available).toBeGreaterThan(mapFitLayout(1440, 900).available);
   });
 
@@ -130,10 +130,10 @@ describe('fit layout', () => {
 describe('map insets', () => {
   it('reserves the dock, deck and rail at each breakpoint', async () => {
     const { mapInsets } = await import('../src/mapProjection');
-    expect(mapInsets(1440, 900)).toEqual({ top: 24, left: 76, right: 504, bottom: 150 });
-    expect(mapInsets(1200, 800)).toEqual({ top: 24, left: 76, right: 474, bottom: 150 });
-    expect(mapInsets(1000, 800)).toEqual({ top: 24, left: 76, right: STRIP_SPACE + 24, bottom: 150 });
-    expect(mapInsets(600, 800)).toEqual({ top: 24, left: 16, right: STRIP_SPACE + 24, bottom: 196 });
-    expect(mapInsets(1440, 900, true)).toEqual({ top: 24, left: 76, right: STRIP_SPACE + 24, bottom: 150 });
+    expect(mapInsets(1440, 900)).toEqual({ top: 10, left: 76, right: 504, bottom: 130 });
+    expect(mapInsets(1200, 800)).toEqual({ top: 10, left: 76, right: 474, bottom: 130 });
+    expect(mapInsets(1000, 800)).toEqual({ top: 10, left: 76, right: STRIP_SPACE + 24, bottom: 130 });
+    expect(mapInsets(600, 800)).toEqual({ top: 10, left: 16, right: STRIP_SPACE + 24, bottom: 196 });
+    expect(mapInsets(1440, 900, true)).toEqual({ top: 10, left: 76, right: STRIP_SPACE + 24, bottom: 130 });
   });
 });

@@ -38,6 +38,8 @@ describe("Intentional System Design Handler", () => {
     const other = { ...note, id: "other", isd: false, timestamp: note.timestamp + 9 } as UiNotification;
     expect(orderForDisplay([other, note], null)[0].id).toBe(note.id);
     expect(orderForDisplay([{ ...other, severity: "alert" }, { ...note, severity: "warning" }], null)[0].id).toBe("other");
+    // It is up for only a few seconds, so a warning does not bury it.
+    expect(orderForDisplay([{ ...other, severity: "warning" }, { ...note, severity: "info" }], null)[0].id).toBe(note.id);
   });
 
   it("announces a condition once a page load", () => {

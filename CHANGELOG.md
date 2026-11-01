@@ -17,18 +17,32 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### No words in the particles, a map in the middle, rounder corners
+
+- **The particles only ever spell the name.** Travel demand shows its icons larger, with nothing beneath them. Rush hour marks its two peaks with a small caret, and its axis has ticks but no times.
+- **Road incidents replaces Run reports** in the film: a collision on a dual carriageway, and the queue growing back up the road from it, while the other side keeps moving. A report is a useful feature, but not what the film is for.
+- **Repeatable worlds is new.** Two different machines, one seed: the seed feeds a pattern that fills both screens, and the two stay identical, point for point, as the pattern turns through one form after another.
+- **The map lands in the middle.** It was centred on the room beside the panels before they had arrived, which left it about 220 px off to the left. Alone on screen it now sits in the middle of the window, within a pixel on a real city, and it moves over as the panels come in. Fit also ignored the header and centred on road junctions alone, so it now takes the free space and the land around the roads into account.
+- **Zooming belongs to the person doing it.** Every wheel event zoomed by a fixed 10%, so a little trackpad scroll hit the limit at once, and the map then jumped back to the middle when it stopped. Zoom now follows the size of the gesture. Zooming out draws the map back to the middle as it comes into view, and nothing moves once the gesture has stopped.
+- **Fixed: moving the map did not hand back the camera.** Auto Focus's prompt has always said any manual pan or zoom returns control, but it only cancelled the glide then under way, and the next event took the camera again. Panning, zooming or pressing Fit now turns Auto Focus off.
+- **Rounder corners.** The radius scale rises from 6, 10, 14, 18 to 10, 14, 18, 22. It rises evenly, so an inner corner still follows the one outside it, and paddings stay as they were.
+- **A calmer tour.** No more motes circling the spotlight or streaming across the screen. A few drift out and fade as the tour opens a new part of the interface, on 7 of its 32 steps, and the other steps simply glide.
+- **A new last screen.** The name blows into a mint mist that thins into a still radial light, with the words in the middle once the name has gone. Then nothing moves, and nothing is drawn. It keeps its licence line, and the same screen says so if the server was lost rather than stopped.
+- **Fixed: a note explaining reduced speed could go unseen.** It ranked below any warning, and only lasts a few seconds, so with a warning on screen it came and went without being shown. Only something critical now goes ahead of it. It could also fire falsely for a moment after a change of speed, and then not again on that page when it was true.
+- **Fixed:** the last screen could fall back to another typeface, because a font first needed after the server has gone can no longer be fetched.
+
 ### Applications on the road, and plain words
 
 - **WebFabric can draw and drive.** A `route` or `path` with `draw_s` draws itself along the road. A `path` with `drive` gets the map's own driving: pulling away, braking, keeping its distance in a convoy of up to 12, brake lights, and waiting at red signals. Sequences of junctions must still be adjacent, or the element is refused.
 - **Words, not identifiers.** News and the Queue showed the core's own text, such as `way/137004057`, `Node 524`, `Edge 12`, `entity 4` and `Signal 292 → A amber`. They now name the place or road, and which way the signal serves. Reports do the same.
-- **The tour** has a hint of the film's particles, a soft ring as each thing is reached, and the arrow keys now work on its last step: right starts the simulation.
+- **The tour's** arrow keys now work on its last step: right starts the simulation.
 
 ### The film's scenes, the title and the end
 
-- **Redesigned scenes.** Mapped streets is now a real-looking district: quarters on their own grids, arteries, a river with bridges, parks and buildings, drawn in order. Signal timing has lanes, stop lines, zebra crossings, three-lamp signals on a proper cycle, queues that release from the front, vehicles turning, tail lights and people crossing. Travel demand uses the map's own icons, with homes sending trips to them and their demand filling up. Rush hour is a stream of traffic through the day that swells at each peak, with no sun. Fixed steps is replaced by Run reports, a page writing itself. Repeatable worlds shows two identical trees from one seed and a different one from another, with the seeds beneath, so it no longer implies there is only one seed. Auto Focus flies over the map to one event and then the next inside a steady viewfinder.
+- **Redesigned scenes.** Mapped streets is now a real-looking district: quarters on their own grids, arteries, a river with bridges, parks and buildings, drawn in order. Signal timing has lanes, stop lines, zebra crossings, three-lamp signals on a proper cycle, queues that release from the front, vehicles turning, tail lights and people crossing. Travel demand uses the map's own icons, with homes sending trips to them and their demand filling up. Rush hour is a stream of traffic through the day that swells at each peak, with no sun. Auto Focus flies over the map to one event and then the next inside a steady viewfinder.
 - **The title comes apart** in a sweep, each letter turning to particles as it is reached, then grows into the film.
 - **Reloading during a run** now shows the name, then the roads, map and panels in about a second and a half. It used to show nothing and then the dashboard, because the scene restarted on a dead canvas.
-- **The end** plays as the arrival backwards in about the same time: panels first, then the map goes from under its roads, the roads fly into the name, and the name is blown away.
+- **The end** plays as the arrival backwards: panels first, then the map goes from under its roads and the roads fly into the name.
 - **Fixed:** the runtime status flashed Degraded just after a page loaded, and then took ten seconds to clear.
 
 ### A world waits for its start-up

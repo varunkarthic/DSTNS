@@ -29,8 +29,6 @@ export const KIND = {
   fall: 4,
   /** Spreads out along its vector and fades. */
   ring: 5,
-  /** Turns about the z axis in fixed steps, vx steps a second. */
-  tick: 6,
   /** Swells and fades in place. */
   pulse: 7,
   /** Appears as a front passes outward. */
@@ -55,12 +53,26 @@ export const KIND = {
   stream: 17,
   /** Part of a ring that fills to vx as demand builds. Phase is how far round it is. */
   gauge: 18,
+  /** A car on a road blocked ahead, caught by the queue as it grows back. vx is its lane, vy its direction. */
+  queue: 19,
+  /** Part of the wreck, from the moment it happens. With a vector, it spreads out along it. */
+  crash: 20,
+  /** One point of a bloom turning on the same clock as its twin. vx is which point, vy and vz the bloom's centre. */
+  bloom: 21,
 } as const;
 
 /** Added to a kind: it belongs to the world Auto Focus is flying over, and moves with it. */
-export const IN_WORLD = 20;
+export const IN_WORLD = 30;
 export const FOCUS_A: readonly [number, number] = [0.62, -0.44];
 export const FOCUS_B: readonly [number, number] = [-0.7, 0.5];
+/** Where the road is blocked, and the points in each bloom. Shared with the shader. */
+export const WRECK_AT = 0.4;
+/** How the road incident is seen, so that its warning sign can face the viewer. */
+export const CAMERA_YAW_INCIDENT = -0.62;
+export const BLOOM_POINTS = 11200;
+/** How far a bloom reaches, past the corners of its screen, and half of that screen, which clips it. */
+export const BLOOM_REACH = 0.92;
+export const BLOOM_HALF: readonly [number, number] = [0.74, 0.6];
 /** Tint runs from base to accent. These replace that ramp where meaning needs a colour. */
 export const HUE = { ramp: 0, warm: 1, danger: 2, ok: 3, signalNorth: 4, signalEast: 5 } as const;
 
@@ -129,28 +141,6 @@ function iconPoints(kind: string) {
     ctx.lineJoin = "round";
     for (const path of glyph) ctx.stroke(path);
   });
-}
-
-function textPoints(text: string, weight = 500) {
-  if (typeof Path2D === "undefined" || typeof document === "undefined") return null;
-  const measure = document.createElement("canvas").getContext("2d");
-  if (!measure) return null;
-  const font = `${weight} 64px "Space Grotesk", Inter, system-ui, sans-serif`;
-  measure.font = font;
-  const width = Math.ceil(measure.measureText(text).width) + 8;
-  return drawn(width, 84, (ctx) => {
-    ctx.font = font;
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, 4, 44);
-  });
-}
-
-/** Places text with its middle at (x, y), `height` tall, returning a particle's position. */
-function onText(glyphs: ReturnType<typeof textPoints>, random: () => number, x: number, y: number, height: number): [number, number] | null {
-  if (!glyphs) return null;
-  const [u, v] = glyphs.points[Math.floor(random() * glyphs.points.length)];
-  const width = height / glyphs.aspect;
-  return [x + (u - 0.5) * width, y + (0.5 - v) * height];
 }
 
 /** The cloud the film gathers out of. */
@@ -408,21 +398,21 @@ function junction(): Float32Array {
 function demand(): Float32Array {
   const random = sequence(4711);
   const hubs = [
-    { kind: "school", label: "Schools", x: -1.12, y: 0.16, fill: 0.92 },
-    { kind: "office", label: "Offices", x: 0, y: 0.5, fill: 0.74 },
-    { kind: "shops", label: "Shops", x: 1.12, y: 0.16, fill: 0.5 },
-  ].map((hub) => ({ ...hub, icon: iconPoints(hub.kind), text: textPoints(hub.label) }));
+    { kind: "school", x: -1.2, y: 0.28, fill: 0.92 },
+    { kind: "office", x: 0, y: 0.62, fill: 0.74 },
+    { kind: "shops", x: 1.2, y: 0.28, fill: 0.5 },
+  ].map((hub) => ({ ...hub, icon: iconPoints(hub.kind) }));
   const homes = Array.from({ length: 58 }, (_, n) => {
     const t = n / 57;
-    return { x: -1.72 + t * 3.44 + (random() - 0.5) * 0.1, y: -0.68 - random() * 0.42, order: random() };
+    return { x: -1.72 + t * 3.44 + (random() - 0.5) * 0.1, y: -0.48 - random() * 0.24, order: random() };
   });
-  const ring = 0.42;
-  const size = 0.56;
+  const ring = 0.5;
+  const size = 0.68;
   return formation((put, rnd) => {
     for (let i = 0; i < COUNT; i++) {
       const kind = i % 40;
       const hub = hubs[i % hubs.length];
-      if (kind < 16) {
+      if (kind < 19) {
         // The icon, large and steady.
         const spot = hub.icon?.points[Math.floor(rnd() * hub.icon.points.length)];
         if (spot) put(i, hub.x + (spot[0] - 0.5) * size, hub.y + (0.5 - spot[1]) * size, (rnd() - 0.5) * 0.015, { tint: 0.95, kind: KIND.shimmer });
@@ -430,22 +420,17 @@ function demand(): Float32Array {
           const a = rnd() * TAU;
           put(i, hub.x + Math.cos(a) * 0.2, hub.y + Math.sin(a) * 0.2, 0, { tint: 0.95 });
         }
-      } else if (kind < 19) {
+      } else if (kind < 22) {
         // A faint full ring, and the part demand has filled.
         const a = rnd();
         const angle = Math.PI / 2 - a * TAU;
         put(i, hub.x + Math.cos(angle) * ring, hub.y + Math.sin(angle) * ring, 0, { tint: 0.1 });
-      } else if (kind < 25) {
+      } else if (kind < 28) {
         const a = rnd();
         const angle = Math.PI / 2 - a * TAU;
         const r = ring + (rnd() - 0.5) * 0.022;
         put(i, hub.x + Math.cos(angle) * r, hub.y + Math.sin(angle) * r, 0.01, { v: [hub.fill, 0, 0], kind: KIND.gauge, phase: a, tint: 1, hue: HUE.warm });
-      } else if (kind < 29) {
-        // Their names.
-        const spot = onText(hub.text, rnd, hub.x, hub.y - ring - 0.14, 0.15);
-        if (spot) put(i, spot[0], spot[1], 0, { tint: 0.75 });
-        else put(i, hub.x, hub.y - ring - 0.13, 0, { tint: 0.02 });
-      } else if (kind < 33) {
+      } else if (kind < 32) {
         // Homes: a small roof over a small house.
         const home = homes[Math.floor(rnd() * homes.length)];
         const u = (rnd() - 0.5) * 0.06;
@@ -464,38 +449,30 @@ function demand(): Float32Array {
   }, 13);
 }
 
-/** The whole day as a stream of traffic, swelling at each rush hour, with the hours beneath it. */
+/** The whole day as a stream of traffic, swelling at each rush hour, with a mark over each peak and the hours beneath it. */
 function rushHour(): Float32Array {
-  const labels = [
-    { text: textPoints("06:00"), hour: 6 },
-    { text: textPoints("12:00"), hour: 12 },
-    { text: textPoints("18:00"), hour: 18 },
-  ];
-  const peaks = [
-    { text: textPoints("Morning peak"), hour: 8.3, y: 0.82 },
-    { text: textPoints("Evening peak"), hour: 17.6, y: 0.98 },
-  ];
   const atHour = (h: number) => -1.75 + (h / 24) * 3.5;
-  const axis = -0.98;
+  const axis = -0.84;
+  // The peaks, and how high the stream stands at each: see rhythm() in the shader.
+  const peaks = [
+    { hour: 8.3, top: 0.7 },
+    { hour: 17.6, top: 0.81 },
+  ];
   return formation((put, random) => {
     for (let i = 0; i < COUNT; i++) {
       const kind = i % 50;
       if (kind === 0) {
         put(i, -1.75 + random() * 3.5, axis, 0, { tint: 0.35 });
-      } else if (kind === 1) {
+      } else if (kind < 3) {
         const hour = Math.floor(random() * 25);
         const major = hour % 6 === 0;
-        put(i, atHour(hour) + (random() - 0.5) * 0.006, axis - random() * (major ? 0.05 : 0.025), 0, { tint: major ? 0.9 : 0.35 });
-      } else if (kind === 2) {
-        const label = labels[i % labels.length];
-        const spot = onText(label.text, random, atHour(label.hour), axis - 0.13, 0.1);
-        if (spot) put(i, spot[0], spot[1], 0, { tint: 0.7 });
-        else put(i, atHour(label.hour), axis - 0.1, 0, { tint: 0.02 });
+        put(i, atHour(hour) + (random() - 0.5) * 0.008, axis - random() * (major ? 0.09 : 0.035), 0, { tint: major ? 0.95 : 0.35 });
       } else if (kind < 5) {
-        const peak = peaks[i % peaks.length];
-        const spot = onText(peak.text, random, atHour(peak.hour), peak.y, 0.12);
-        if (spot) put(i, spot[0], spot[1], 0, { tint: 0.95, hue: HUE.warm, kind: KIND.rise, v: [0, peak.y, 0], phase: (peak.hour / 24) * 1.4 });
-        else put(i, atHour(peak.hour), peak.y, 0, { tint: 0.02 });
+        // A small caret over each peak, arriving as the stream reaches it.
+        const peak = peaks[random() < 0.5 ? 0 : 1];
+        const t = random() * 2 - 1;
+        const y = peak.top + 0.1 + Math.abs(t) * 0.05 + (random() - 0.5) * 0.01;
+        put(i, atHour(peak.hour) + t * 0.055, y, 0, { tint: 0.95, hue: HUE.warm, kind: KIND.rise, v: [0, peak.top, 0], phase: (peak.hour / 24) * 1.4 });
       } else {
         // Across the stream, evenly, so that its outline is sharp, with a little depth.
         const across = random() * 2 - 1;
@@ -505,68 +482,66 @@ function rushHour(): Float32Array {
   }, 22);
 }
 
-/** A report taking shape: a page of headings, figures, a chart and a map, with more pages behind it. */
-function report(): Float32Array {
-  const w = 0.78;
-  const h = 1.08;
-  const title = textPoints("Run report", 600);
-  const pdf = textPoints("PDF", 600);
-  // Where each part of the page sits, top down. Everything reveals as the page is written.
-  const order = (y: number) => 0.02 + ((h - y) / (h * 2)) * 0.82;
-  const lines = [0.5, 0.43, 0.36, 0.29, -0.62, -0.69, -0.76, -0.83];
-  const bars = [0.3, 0.45, 0.7, 0.95, 0.62, 0.5, 0.58, 0.8, 1, 0.72, 0.42, 0.28];
-  const route = (t: number): [number, number] => [0.1 + t * 0.56, -0.28 + Math.sin(t * 6.1) * 0.13 - t * 0.08];
+/** A collision on a dual carriageway, seen from above the verge: lanes close and the queue grows back up the road, while the other side runs on. */
+function incident(): Float32Array {
+  const edge = 0.58;
+  const lanes = [0.13, 0.31, 0.49];
+  const cars = 168;
+  const perLane = cars / 6;
+  // Where the wreck lies, in the two outer lanes.
+  const wreck = [
+    { x: WRECK_AT, z: 0.28, angle: 0.7 },
+    { x: WRECK_AT + 0.13, z: 0.46, angle: -0.5 },
+  ];
   return formation((put, random) => {
     for (let i = 0; i < COUNT; i++) {
       const kind = i % 50;
-      if (kind < 8) {
-        // The page's edge.
-        const side = i % 4;
-        const t = random() * 2 - 1;
-        const x = side < 2 ? t * w : side === 2 ? -w : w;
-        const y = side < 2 ? (side === 0 ? h : -h) : t * h;
-        put(i, x + (random() - 0.5) * 0.006, y + (random() - 0.5) * 0.006, 0, { tint: 0.75, kind: KIND.reveal, phase: 0.01 });
-      } else if (kind < 11) {
-        // More pages behind it.
-        const page = 1 + (i % 2);
-        const side = i % 2;
-        const t = random() * 2 - 1;
-        put(i, (side ? t * w : w) + page * 0.05, (side ? -h : t * h) - page * 0.05, -page * 0.05, { tint: 0.18 });
-      } else if (kind < 17) {
-        const spot = onText(title, random, -0.26, 0.8, 0.17);
-        if (spot) put(i, spot[0], spot[1], 0.005, { tint: 1, kind: KIND.reveal, phase: order(spot[1]) });
-        else put(i, -0.6 + random() * 0.7, 0.8, 0, { tint: 0.9, kind: KIND.reveal, phase: order(0.8) });
-      } else if (kind < 26) {
-        // Lines of text.
-        const y = lines[i % lines.length];
-        const length = 0.74 + ((i % lines.length) * 0.137) % 0.56;
-        const x = -0.66 + random() * length * 1.32 * 0.76;
-        put(i, x, y + (random() - 0.5) * 0.012, 0.004, { tint: 0.4, kind: KIND.reveal, phase: order(y) + ((x + 0.66) / 1.32) * 0.05 });
+      if (kind < 3) {
+        // The road's edges, and the barrier down its middle.
+        const side = Math.floor(random() * 4);
+        put(i, -2.6 + random() * 5.2, 0, [edge, -edge, 0.035, -0.035][side], { tint: side < 2 ? 0.42 : 0.26 });
+      } else if (kind < 5) {
+        // Broken lines between the lanes.
+        const z = [0.22, 0.4, -0.22, -0.4][Math.floor(random() * 4)];
+        const dash = Math.floor(random() * 26);
+        put(i, -2.6 + (dash + random() * 0.45) * 0.2, 0, z, { tint: 0.2 });
       } else if (kind < 38) {
-        // A chart of the day.
-        const n = Math.floor(random() * bars.length);
-        const top = bars[n] * 0.46;
-        const y = -0.52 + random() * top;
-        const x = -0.66 + (n + 0.15 + random() * 0.7) * (0.68 / bars.length);
-        put(i, x, y, 0.004, { tint: 0.6 + bars[n] * 0.4, hue: bars[n] > 0.85 ? HUE.warm : HUE.ramp, kind: KIND.reveal, phase: order(-0.52) - 0.3 + (n / bars.length) * 0.32 });
-      } else if (kind < 46) {
-        // A small map, with a route across it.
+        // The cars: bodies with a gap for the windscreen. Their colour comes from what they are caught in.
+        const car = Math.floor(random() * cars);
+        const lane = car % 6;
+        const place = Math.floor(car / 6);
+        let long = (random() - 0.5) * 0.105;
+        if (long > 0.012 && long < 0.024) long = 0.034;
+        const height = 0.012 + random() * 0.03;
+        put(i, long, height, (random() - 0.5) * 0.06, {
+          v: [lanes[lane % 3] * (lane < 3 ? 1 : -1), lane < 3 ? 1 : -1, 0],
+          kind: KIND.queue,
+          phase: (place + (lane * 0.37) % 1) / perLane,
+          tint: lane < 3 ? 0.9 : 0.42,
+          hue: HUE.ok,
+        });
+      } else if (kind < 40) {
+        // The wreck: two cars, skewed across their lanes.
+        const body = wreck[random() < 0.5 ? 0 : 1];
+        const [u, w] = [(random() - 0.5) * 0.13, (random() - 0.5) * 0.07];
+        put(i, body.x + u * Math.cos(body.angle) - w * Math.sin(body.angle), 0.012 + random() * 0.035, body.z + u * Math.sin(body.angle) + w * Math.cos(body.angle), { kind: KIND.crash, tint: 1, hue: HUE.danger });
+      } else if (kind < 45) {
+        // Rings going out from it across the road.
+        const a = random() * TAU;
+        put(i, WRECK_AT + 0.06, 0.012, 0.37, { v: [Math.cos(a) * 0.46, 0, Math.sin(a) * 0.46], kind: KIND.crash, tint: 0.9, hue: HUE.danger, phase: Math.floor(random() * 3) / 3 });
+      } else if (kind < 47) {
+        // A warning triangle standing over it, turned to face the viewer.
+        const side = Math.floor(random() * 3);
         const t = random();
-        const [x, y] = route(t);
-        if (i % 3 === 0) put(i, x + (random() - 0.5) * 0.008, y + (random() - 0.5) * 0.008, 0.004, { tint: 1, hue: HUE.warm, kind: KIND.reveal, phase: order(-0.3) - 0.28 + t * 0.3 });
-        else {
-          const across = i % 2 === 0;
-          const n = Math.floor(random() * 5);
-          const fixed = n * 0.14;
-          put(i, across ? 0.08 + t * 0.6 : 0.1 + fixed, across ? -0.5 + fixed * 0.95 : -0.5 + t * 0.56, 0.003, { tint: 0.22, kind: KIND.reveal, phase: order(-0.3) - 0.24 });
-        }
-      } else if (kind < 48) {
-        const spot = onText(pdf, random, 0.58, 0.8, 0.09);
-        if (spot) put(i, spot[0], spot[1], 0.006, { tint: 1, kind: KIND.pulse, hue: HUE.warm, phase: 0.1 });
-        else put(i, 0.58, 0.8, 0, { tint: 0.02 });
+        const corners: [number, number][] = [[0, 0.1], [0.09, -0.055], [-0.09, -0.055]];
+        const [a, b] = [corners[side], corners[(side + 1) % 3]];
+        const across = a[0] + (b[0] - a[0]) * t + (random() - 0.5) * 0.009;
+        const up = a[1] + (b[1] - a[1]) * t + (random() - 0.5) * 0.009;
+        put(i, WRECK_AT + 0.06 + across * Math.cos(CAMERA_YAW_INCIDENT), 0.26 + up, 0.37 + across * Math.sin(CAMERA_YAW_INCIDENT), { kind: KIND.crash, tint: 1, hue: HUE.warm });
       } else {
-        const x = -0.66 + random() * 1.32;
-        put(i, x, 0.62, 0.004, { tint: 0.62, kind: KIND.reveal, phase: order(0.62) });
+        // The verge: posts along both sides, so that the road has somewhere to be.
+        const post = Math.floor(random() * 28);
+        put(i, -2.6 + post * 0.2, random() * 0.04, (post % 2 ? 1 : -1) * (edge + 0.1), { tint: 0.14 });
       }
     }
   }, 23);
@@ -691,94 +666,63 @@ function globe(): Float32Array {
   }, 16);
 }
 
-/** A seed always grows the same tree: two of them alike from one seed, and another from another, with the numbers beneath. */
-function seedTrees(): Float32Array {
-  const ground = -0.5;
-  interface Limb { ax: number; ay: number; az: number; bx: number; by: number; bz: number; depth: number }
-  const tree = (seed: number) => {
-    const random = sequence(seed);
-    const limbs: Limb[] = [];
-    const grow = (x: number, y: number, z: number, turn: number, tilt: number, length: number, depth: number) => {
-      const bx = x + Math.sin(tilt) * Math.cos(turn) * length;
-      const by = y + Math.cos(tilt) * length;
-      const bz = z + Math.sin(tilt) * Math.sin(turn) * length;
-      limbs.push({ ax: x, ay: y, az: z, bx, by, bz, depth });
-      if (depth >= 6) return;
-      const branches = depth < 1 ? 2 : random() < 0.62 ? 2 : 3;
-      for (let k = 0; k < branches; k++) {
-        const spread = 0.2 + random() * 0.42;
-        const shrink = 0.62 + random() * 0.26;
-        grow(bx, by, bz, turn + (k / branches) * TAU + random() * 1.4, tilt * 0.45 + spread, length * shrink, depth + 1);
-      }
-    };
-    grow(0, ground, 0, random() * TAU, 0.03, 0.31, 0);
-    const weights = limbs.map((limb) => Math.hypot(limb.bx - limb.ax, limb.by - limb.ay, limb.bz - limb.az) * (7.5 - limb.depth));
-    const sums: number[] = [];
-    let total = 0;
-    for (const weight of weights) sums.push((total += weight));
-    const pick = (value: number) => {
-      const target = value * total;
-      let low = 0;
-      let high = limbs.length - 1;
-      while (low < high) {
-        const middle = (low + high) >> 1;
-        if (sums[middle] < target) low = middle + 1;
-        else high = middle;
-      }
-      return limbs[low];
-    };
-    const tips = limbs.filter((limb) => limb.depth >= 5);
-    return { pick, tips };
+/** Two machines, one seed: a seed between them feeds a bloom on each screen, and the two are the same point for point, at every moment. */
+function twinBlooms(): Float32Array {
+  const centres = [-0.94, 0.94];
+  const middle = 0.2;
+  const [hw, hh, corner] = [BLOOM_HALF[0], BLOOM_HALF[1], 0.14];
+  // A line drawing, kept to straight runs and the corners between them.
+  const outline: [number, number, number, number][] = [];
+  const arc = (cx: number, cy: number, from: number) => {
+    for (let n = 0; n < 8; n++) {
+      const [a, b] = [from + (n / 8) * (Math.PI / 2), from + ((n + 1) / 8) * (Math.PI / 2)];
+      outline.push([cx + Math.cos(a) * corner, cy + Math.sin(a) * corner, cx + Math.cos(b) * corner, cy + Math.sin(b) * corner]);
+    }
   };
-  const same = tree(2718);
-  const other = tree(31337);
-  const plots = [
-    { x: -1.1, tree: same, seed: textPoints("4242", 600), hue: HUE.warm },
-    { x: 0.05, tree: same, seed: textPoints("4242", 600), hue: HUE.warm },
-    { x: 1.2, tree: other, seed: textPoints("1075", 600), hue: HUE.ramp },
-  ];
-  const signs = [
-    { x: -0.53, text: textPoints("=", 600), hue: HUE.warm },
-    { x: 0.62, text: textPoints("≠", 600), hue: HUE.ramp },
-  ];
+  for (const cx of centres) {
+    const [l, r, t, b] = [cx - hw, cx + hw, middle + hh, middle - hh];
+    outline.push([l + corner, t, r - corner, t], [r, t - corner, r, b + corner], [r - corner, b, l + corner, b], [l, b + corner, l, t - corner]);
+    arc(r - corner, t - corner, 0);
+    arc(l + corner, t - corner, Math.PI / 2);
+    arc(l + corner, b + corner, Math.PI);
+    arc(r - corner, b + corner, Math.PI * 1.5);
+  }
+  // One stands on a foot; the other is a laptop, with a keyboard below its screen.
+  const low = middle - hh;
+  const seedAt = low - 0.1;
+  const [a, b] = centres;
+  outline.push([a - 0.05, low, a - 0.05, low - 0.16], [a + 0.05, low, a + 0.05, low - 0.16], [a - 0.26, low - 0.16, a + 0.26, low - 0.16]);
+  outline.push([b - 0.8, low - 0.05, b + 0.8, low - 0.05], [b - 0.84, low - 0.1, b + 0.84, low - 0.1], [b - 0.8, low - 0.05, b - 0.84, low - 0.1], [b + 0.8, low - 0.05, b + 0.84, low - 0.1]);
+  const lengths = outline.map(([ax, ay, bx, by]) => Math.hypot(bx - ax, by - ay));
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  const counted = [0, 0];
   return formation((put, random) => {
     for (let i = 0; i < COUNT; i++) {
       const kind = i % 40;
-      const plot = plots[i % 3];
-      if (kind === 0) {
-        put(i, (random() - 0.5) * 3.5, ground, (random() - 0.5) * 0.03, { tint: 0.26 });
-      } else if (kind < 3) {
-        // The seed in the ground.
+      if (kind < 28) {
+        // Each bloom, one point at a time, so that the two hold exactly the same points.
+        const side = i % 2;
+        const k = counted[side]++ % BLOOM_POINTS;
+        const r = Math.sqrt(k / BLOOM_POINTS) * BLOOM_REACH;
+        const angle = k * 2.39996;
+        put(i, centres[side] + Math.cos(angle) * r, middle + Math.sin(angle) * r, 0, { v: [k, centres[side], middle], kind: KIND.bloom, phase: 0.5, tint: 0.5 });
+      } else if (kind < 34) {
+        // The two machines.
+        let at = random() * total;
+        let line = 0;
+        while (at > lengths[line] && line < outline.length - 1) at -= lengths[line++];
+        const [ax, ay, bx, by] = outline[line];
+        const t = at / (lengths[line] || 1);
+        put(i, ax + (bx - ax) * t + (random() - 0.5) * 0.007, ay + (by - ay) * t + (random() - 0.5) * 0.007, 0, { kind: KIND.shimmer, tint: 0.5 });
+      } else if (kind < 36) {
+        // The seed, on the ground between them.
         const a = random() * TAU;
-        const r = Math.pow(random(), 0.6) * 0.05;
-        put(i, plot.x + Math.cos(a) * r, ground - 0.02 + Math.sin(a) * r * 0.7, 0, { kind: KIND.pulse, tint: 1, hue: plot.hue === HUE.warm ? HUE.warm : HUE.ramp, phase: 0.1 });
-      } else if (kind < 6) {
-        // Its number.
-        const spot = onText(plot.seed, random, plot.x, ground - 0.2, 0.16);
-        if (spot) put(i, spot[0], spot[1], 0, { tint: 1, hue: plot.hue });
-        else put(i, plot.x, ground - 0.2, 0, { tint: 0.02 });
-      } else if (kind === 6) {
-        const sign = signs[Math.floor(random() * 2)];
-        const spot = onText(sign.text, random, sign.x, ground - 0.2, 0.16);
-        if (spot) put(i, spot[0], spot[1], 0, { tint: 0.9, hue: sign.hue });
-        else put(i, sign.x, ground - 0.2, 0, { tint: 0.02 });
-      } else if (kind < 26) {
-        // Branches, growing out from the seed.
-        const limb = plot.tree.pick(random());
-        const t = random();
-        const spread = 0.0052 * (7.5 - limb.depth);
-        const x = limb.ax + (limb.bx - limb.ax) * t + (random() - 0.5) * spread;
-        const y = limb.ay + (limb.by - limb.ay) * t + (random() - 0.5) * spread;
-        const z = limb.az + (limb.bz - limb.az) * t + (random() - 0.5) * spread;
-        put(i, x + plot.x, y, z, { kind: KIND.reveal, phase: ((limb.depth + t) / 7) * 0.8, tint: 0.34 + limb.depth * 0.06 });
+        const r = Math.pow(random(), 0.7) * 0.06;
+        put(i, Math.cos(a) * r, seedAt + Math.sin(a) * r, 0.02, { kind: KIND.pulse, tint: 1, hue: HUE.warm, phase: 0.1 });
       } else {
-        // Leaves, which come last, in a cloud at each tip.
-        const limb = plot.tree.tips[Math.floor(random() * plot.tree.tips.length)];
-        const a = random() * TAU;
-        const u = random() * 2 - 1;
-        const r = Math.pow(random(), 0.7) * 0.085;
-        const s = Math.sqrt(1 - u * u);
-        put(i, limb.bx + plot.x + s * Math.cos(a) * r, limb.by + u * r * 0.8, limb.bz + s * Math.sin(a) * r, { kind: KIND.reveal, phase: 0.72 + random() * 0.22, tint: 0.55 + random() * 0.45, hue: plot.hue === HUE.warm && random() < 0.12 ? HUE.warm : HUE.ramp });
+        // What it sends up to each, to the heart of the bloom.
+        const to = centres[i % 2];
+        put(i, (random() - 0.5) * 0.04, seedAt + (random() - 0.5) * 0.04, 0.02, { v: [to, middle - seedAt, 0], kind: KIND.arc, tint: 1, hue: HUE.warm });
       }
     }
   }, 26);
@@ -891,7 +835,18 @@ function weave(): Float32Array {
   }, 17);
 }
 
+/** What the end of a session blows the name into: a mist, thickest in the middle, in the colour the screen comes to rest in. */
+export function endMist(): Float32Array {
+  return formation((put, random) => {
+    for (let i = 0; i < COUNT; i++) {
+      const a = random() * TAU;
+      const r = Math.sqrt(-2 * Math.log(1 - random() * 0.98)) * 0.62;
+      put(i, Math.cos(a) * r, Math.sin(a) * r, (random() - 0.5) * 0.5, { kind: KIND.boil, tint: 0.1 + random() * 0.2, hue: HUE.ok });
+    }
+  }, 31);
+}
+
 /** In chapter order. The first is the cloud, and the wordmark takes its place once drawn. */
 export function buildFormations(): Float32Array[] {
-  return [cloud(), cityMap(), junction(), demand(), rushHour(), report(), storm(), globe(), seedTrees(), viewfinder(), weave()];
+  return [cloud(), cityMap(), junction(), demand(), rushHour(), incident(), storm(), globe(), twinBlooms(), viewfinder(), weave()];
 }

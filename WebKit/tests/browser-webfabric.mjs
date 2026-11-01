@@ -179,8 +179,7 @@ try {
     await wait(500);
     assert.ok((await sidebar.boundingBox().catch(() => null))?.x < 0 || !(await sidebar.isVisible()), "it has gone");
     await page.getByRole("button", { name: "Open Route planner" }).click();
-    await wait(500);
-    assert.ok((await sidebar.boundingBox()).x > 70, "it comes back");
+    await until(async () => (await sidebar.boundingBox())?.x > 70, "it comes back");
     await call("DELETE", "/api/v1/fabric/apps/org.mock.planner", undefined, planner);
     await sidebar.waitFor({ state: "detached", timeout: 6000 });
   });
@@ -232,9 +231,8 @@ try {
       return { n, hash };
     });
     const first = await until(frame, "the overlay");
-    await page.waitForTimeout(700);
-    const later = await frame();
-    assert.notEqual(first.hash, later.hash, "it moves by itself, with nothing more sent");
+    // A convoy may be waiting at a red signal, so it gets long enough for the lights to change.
+    await until(async () => (await frame()).hash !== first.hash, "it moves by itself, with nothing more sent");
     assert.equal((await call("DELETE", "/api/v1/fabric/apps/org.mock.planner/ui/drawn", undefined, planner)).code, 200);
   });
 

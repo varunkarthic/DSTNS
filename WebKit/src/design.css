@@ -2481,10 +2481,19 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 /* ---- The end ------------------------------------------------------------------------------------- */
 .loading-surface.boot.ending::before { animation: end-cover 900ms var(--ease) both; }
 @keyframes end-cover { from { opacity: 0; } }
-.loading-surface.ending .loading-card { position: absolute; left: 50%; bottom: 72px; top: auto; transform: translateX(-50%); width: min(520px, calc(100% - 48px)); margin: 0; padding: 0; background: none; border: 0; box-shadow: none; text-align: center; animation: end-text 800ms var(--ease) 2.4s both; }
-.loading-surface.ending .loading-mark { display: none; }
-@keyframes end-text { from { opacity: 0; transform: translate(-50%, 8px); } }
-.loading-surface.still.ending .loading-card, .loading-surface.still.ending::before { animation: none; }
+/* The name is blown into a mist, the mist thins into this light, and the words come up in the middle of it. Then nothing moves. */
+.loading-surface.boot.ending::after { content: ""; position: absolute; inset: 0; height: auto; pointer-events: none; background: radial-gradient(62vmin 62vmin at 50% 50%, rgb(var(--end-rgb) / 13%), rgb(var(--end-rgb) / 6%) 42%, rgb(var(--end-rgb) / 1.5%) 76%, transparent); animation: end-light 4400ms ease-in-out 4700ms both; }
+.loading-surface.boot.ending { --end-rgb: var(--ok-rgb); }
+[data-theme="light"] .loading-surface.boot.ending { --end-rgb: 47 190 150; }
+@keyframes end-light { from { opacity: 0; } }
+.loading-surface.ending .loading-card { position: absolute; z-index: 1; inset: 0; width: min(720px, calc(100% - 48px)); height: fit-content; margin: auto; padding: 0; gap: 0; align-items: center; text-align: center; background: none; border: 0; box-shadow: none; animation: end-text 1500ms var(--ease) 5700ms both; }
+.loading-surface.ending :is(.loading-mark, .loading-progress) { display: none; }
+.loading-surface.ending .loading-card h2 { margin: 0; font-family: var(--font-display, inherit); font-size: clamp(36px, 4.6vw, 62px); font-weight: 500; letter-spacing: -0.02em; line-height: 1.06; color: var(--text); }
+.loading-surface.ending .loading-card h2::after { content: ""; display: block; width: 52px; height: 2px; margin: 24px auto 0; border-radius: var(--r-pill); background: rgb(var(--ok-rgb)); animation: end-rule 1200ms var(--ease) 6300ms both; }
+.loading-surface.ending .loading-status { max-width: 46ch; margin: 20px auto 0; font-size: 15px; line-height: 1.55; text-align: center; color: var(--text-dim); }
+@keyframes end-text { from { opacity: 0; transform: translateY(12px); filter: blur(6px); letter-spacing: 0.012em; } }
+@keyframes end-rule { from { opacity: 0; transform: scaleX(0); } }
+.loading-surface.still.ending .loading-card, .loading-surface.still.ending .loading-card h2::after, .loading-surface.still.ending::after, .loading-surface.still.ending::before { animation: none; }
 .capsule-body, .capsule.open .capsule-body, .capsule:not(.open) .capsule-body { opacity: 1; }
 /* The text is gone before the card moves much, so it closes empty and nothing drifts. */
 .capsule-body-inner { min-height: 0; }
@@ -2575,7 +2584,7 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .reduce-motion .seed-check path { animation: none; stroke-dashoffset: 0; }
 
 /* ---- Corners within corners: an inner radius is the outer one less the gap between them. ------------
-   On this scale, a gap of 4 steps down once (18, 14, 10, 6) and a gap of 8 steps down twice. */
+   On this scale, a gap of 4 steps down once (22, 18, 14, 10) and a gap of 8 steps down twice. */
 .stream-card { padding: 7px 12px 7px 7px; }
 .row-icon { border-radius: var(--r-xs); }
 .history-head { padding: 7px 10px 7px 7px; }
@@ -2596,7 +2605,7 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .rail :is(.rail-terminate, .seed-value, .rail-btn) { border-radius: var(--r-xs); }
 .place-search-results .place-glyph { width: 36px; height: 36px; }
 /* Scrolled to its end, the last section sits a full radius in, clear of the panel's corners. */
-.settings-scroll { padding-bottom: 18px; }
+.settings-scroll { padding-bottom: 22px; }
 
 /* ---- Polish, from going through every surface in both themes ------------------------------------- */
 /* A pale red meant for dark surfaces could not be read on white. */
@@ -2669,5 +2678,5 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 /* ---- The tour: a hint of the film's particles, and a soft ring as each thing is reached ------------- */
 .tour-motes { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .tour-card { z-index: 1; }
-.tour-ping { position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 0 1.5px rgb(var(--accent-rgb) / 70%); animation: tour-ping 900ms var(--ease) 240ms both; pointer-events: none; }
+.tour-ping { position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 0 1px rgb(var(--accent-rgb) / 45%); animation: tour-ping 900ms var(--ease) 240ms both; pointer-events: none; }
 @keyframes tour-ping { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(1.08); } }

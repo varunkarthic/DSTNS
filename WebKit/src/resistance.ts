@@ -43,8 +43,8 @@ export function resistClamp(value: number, min: number, max: number, bound = res
 
 /**
  * The map's zoom-out limit. Fit is 1: zooming out to 5% past fit is free, then
- * resistance sets in, approaching but never passing 10%. Released, it settles back
- * to the 5% rest point. Works on log scale, as the camera does.
+ * resistance sets in, approaching but never passing 10%, and it stays where it is
+ * let go. Works on log scale, as the camera does.
  */
 export const ZOOM_REST = 0.95;
 export const ZOOM_FLOOR = 0.9;

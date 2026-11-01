@@ -100,7 +100,11 @@ type Props = {
    * `bounds` (metres, y north) frames an event's footprint; a point with a
    * scale centres on it.
    */
-  focus?: { bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number } | null;
+  focus?: { whole?: boolean; bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number } | null;
+  /** True until the panels arrive: the network waits in the middle of the window. */
+  arriving?: boolean;
+  /** A person moved the camera, so nothing else should. */
+  onCameraTaken?: () => void;
   controls?: RefObject<MapControls | null>;
   onView?: (view: MapView) => void;
   onTransform?: (view: MapTransform) => void;
@@ -125,6 +129,36 @@ type Geo = {
 };
 /** Kinds kept on screen when zoomed out, because they orient the viewer. */
 const LANDMARKS = new Set(["school", "university", "hospital", "mall", "transport"]);
+
+/**
+ * The extent of what is drawn, which is what looks centred or not: the roads, and the
+ * buildings and land around them. A lake or a park may run on for kilometres past the
+ * last road, so the land counts for a little beyond the roads and no further.
+ */
+function drawnBounds(roads: Geo[], land: Geo[]) {
+  // A loop, because a large city's buildings are too many to spread into Math.min.
+  const extent = (list: Geo[]) => {
+    const box = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+    for (const g of list) {
+      box.minX = Math.min(box.minX, g.minX);
+      box.maxX = Math.max(box.maxX, g.maxX);
+      box.minY = Math.min(box.minY, g.minY);
+      box.maxY = Math.max(box.maxY, g.maxY);
+    }
+    return box;
+  };
+  const r = extent(roads);
+  if (!land.length) return r;
+  const l = extent(land);
+  const padX = (r.maxX - r.minX) * 0.08;
+  const padY = (r.maxY - r.minY) * 0.08;
+  return {
+    minX: Math.min(r.minX, Math.max(l.minX, r.minX - padX)),
+    maxX: Math.max(r.maxX, Math.min(l.maxX, r.maxX + padX)),
+    minY: Math.min(r.minY, Math.max(l.minY, r.minY - padY)),
+    maxY: Math.max(r.maxY, Math.min(l.maxY, r.maxY + padY)),
+  };
+}
 
 function geometry(points: Point[], closed = false): Geo {
   const path = new Path2D();
@@ -160,6 +194,8 @@ function NetworkMap({
   appearanceKey = 0,
   leftInset = 0,
   onMapPick,
+  arriving = false,
+  onCameraTaken,
   onCursor,
   deckCompact = false,
 }: Props) {
@@ -180,19 +216,12 @@ function NetworkMap({
     hoverKey = useRef(""),
     drag = useRef<{ x: number; y: number; view: View } | null>(null);
   const vehicleMarkers = useRef<{ x: number; y: number; edge: number }[]>([]);
-  const cached = useMemo(
-    () =>
-      topology
-        ? {
-            roads: topology.edges.map((e) => geometry(e.geometry)),
-            features: topology.features.map((f) =>
-              geometry(f.geometry, f.polygon),
-            ),
-            bounds: geometry(topology.nodes.map((n) => n.position)),
-          }
-        : null,
-    [topology],
-  );
+  const cached = useMemo(() => {
+    if (!topology) return null;
+    const roads = topology.edges.map((e) => geometry(e.geometry));
+    const features = topology.features.map((f) => geometry(f.geometry, f.polygon));
+    return { roads, features, bounds: drawnBounds(roads, features) };
+  }, [topology]);
   const state = useMemo(
     () => ({
       edges: new Map(snapshot?.edges.map((e) => [e.id, e])),
@@ -244,13 +273,25 @@ function NetworkMap({
     return viewForBounds({ minX: b.minX, maxX: b.maxX, minY: -b.maxY, maxY: -b.minY }, 0.03, 0);
   }, [cached, viewForBounds]);
   const fitScale = useRef(0);
+  const arrivingRef = useRef(arriving);
+  const centred = useRef(false);
   const fit = useCallback(() => {
     const next = networkView();
     if (next) {
       fitScale.current = next.scale;
-      setView(next);
+      if (!arrivingRef.current || !cached) return setView(next);
+      // Alone on screen, the network belongs in the middle of the window. It moves
+      // over as the panels arrive.
+      centred.current = true;
+      const b = cached.bounds;
+      const box = host.current?.getBoundingClientRect();
+      setView({
+        scale: next.scale,
+        x: window.innerWidth / 2 - (box?.left ?? 0) - ((b.minX + b.maxX) / 2) * next.scale,
+        y: window.innerHeight / 2 - (box?.top ?? 0) - ((b.minY + b.maxY) / 2) * next.scale,
+      });
     }
-  }, [networkView]);
+  }, [networkView, cached, size]);
   useEffect(() => {
     const el = host.current;
     if (!el) return;
@@ -447,7 +488,7 @@ function NetworkMap({
         ctx.strokeStyle = warm ? tint : appearance.land.markerLine;
         ctx.lineWidth = warm ? 1.6 : 1.2;
         ctx.beginPath();
-        ctx.roundRect(p.x - 8, p.y - 8, 16, 16, 5);
+        ctx.roundRect(p.x - 8, p.y - 8, 16, 16, 6);
         ctx.fill();
         ctx.stroke();
         // Keep the glyph readable against whatever the ramp produced.
@@ -916,7 +957,19 @@ function NetworkMap({
     }
   }, [leftInset, networkView, glideTo]);
   useEffect(() => {
+    arrivingRef.current = arriving;
+    if (arriving || !centred.current) return;
+    centred.current = false;
+    const next = networkView();
+    if (next) glideTo(next, SPRINGS.spatialSlow);
+  }, [arriving, networkView, glideTo]);
+  useEffect(() => {
     if (!focus || !size.w) return;
+    if (focus.whole) {
+      const next = networkView();
+      if (next) glideTo(next, SPRINGS.spatialSlow);
+      return;
+    }
     if (focus.bounds) {
       glideTo(viewForBounds(focus.bounds, focus.padding ?? 0.18));
       return;
@@ -1146,30 +1199,29 @@ function NetworkMap({
   // events is one smooth move about the pointer, not a series of steps.
   const zoomTarget = useRef<View | null>(null);
   const rawScale = useRef<number | null>(null);
-  const zoomRest = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(zoomRest.current), []);
   const zoom = (factor: number, cx = size.w / 2, cy = size.h / 2) => {
     clearHover();
+    onCameraTaken?.();
     const from = camera.current && zoomTarget.current ? zoomTarget.current : viewRef.current;
+    const fitted = fitScale.current ? networkView() : null;
+    const rest = fitScale.current * ZOOM_REST;
     // Asked-for zoom is kept apart from what is shown: past fit, the map resists
     // however hard it is pushed, and turning back answers immediately.
-    const asked = Math.min(8, Math.max(0.005, (rawScale.current ?? from.scale) * factor));
+    const asked = Math.min(8, Math.max(Math.max(0.005, rest * 0.75), (from.scale < rest && rawScale.current) || from.scale) * factor);
     rawScale.current = asked;
     const scale = fitScale.current ? resistZoomOut(asked, fitScale.current) : Math.max(0.025, asked);
     const ratio = scale / from.scale;
     const target = { scale, x: cx - (cx - from.x) * ratio, y: cy - (cy - from.y) * ratio };
+    // Zooming out brings the whole network back to the middle as it comes into view,
+    // so nothing has to move once the gesture stops.
+    if (factor < 1 && fitted) {
+      const near = Math.min(1, Math.max(0, 3 - (2 * scale) / fitted.scale));
+      const layout = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
+      target.x += (layout.centerX - (layout.centerX - fitted.x) * (scale / fitted.scale) - target.x) * near;
+      target.y += (layout.centerY - (layout.centerY - fitted.y) * (scale / fitted.scale) - target.y) * near;
+    }
     zoomTarget.current = target;
     glideTo(target, SPRINGS.cameraZoom);
-    clearTimeout(zoomRest.current);
-    zoomRest.current = setTimeout(() => {
-      rawScale.current = null;
-      const rest = fitScale.current * ZOOM_REST;
-      const fitted = networkView();
-      if (fitScale.current && fitted && target.scale < rest - 1e-6) {
-        const layout = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
-        glideTo({ scale: rest, x: layout.centerX - (layout.centerX - fitted.x) * ZOOM_REST, y: layout.centerY - (layout.centerY - fitted.y) * ZOOM_REST }, SPRINGS.spatialSlow);
-      }
-    }, 70);
   };
   useImperativeHandle(
     controls,
@@ -1177,6 +1229,7 @@ function NetworkMap({
       zoomIn: () => zoom(1.3),
       zoomOut: () => zoom(1 / 1.3),
       fit: () => {
+        onCameraTaken?.();
         const next = networkView();
         if (next) glideTo(next);
       },
@@ -1290,7 +1343,9 @@ function NetworkMap({
         aria-label="Simulation map. Drag to pan, scroll or press plus and minus to zoom, arrow keys to move. Hover entities to inspect. Place search is in the map dock."
         onWheel={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
-          zoom(e.deltaY > 0 ? 0.9 : 1.1, e.clientX - r.left, e.clientY - r.top);
+          // In proportion to the gesture: a trackpad sends dozens of small events, a pinch
+          // smaller ones still, and a wheel a few large ones.
+          zoom(2 ** (-e.deltaY * (e.deltaMode ? 120 : 1) * (e.ctrlKey ? 0.02 : 0.002)), e.clientX - r.left, e.clientY - r.top);
         }}
         onPointerDown={(e) => {
           cancelGlide();
@@ -1320,7 +1375,10 @@ function NetworkMap({
         }}
         onPointerMove={(e) => {
           if (drag.current) {
-            if (Math.hypot(e.clientX - drag.current.x, e.clientY - drag.current.y) > 3) dragMoved.current = true;
+            if (!dragMoved.current && Math.hypot(e.clientX - drag.current.x, e.clientY - drag.current.y) > 3) {
+              dragMoved.current = true;
+              onCameraTaken?.();
+            }
             trackX.current.add(e.clientX, e.timeStamp);
             trackY.current.add(e.clientY, e.timeStamp);
             const rawX = drag.current.view.x + e.clientX - drag.current.x;
@@ -1343,6 +1401,7 @@ function NetworkMap({
           else if (e.key === "+" || e.key === "=") zoom(1.2);
           else if (e.key === "-") zoom(0.8);
           else if (e.key.startsWith("Arrow")) {
+            onCameraTaken?.();
             e.preventDefault();
             setView((v) => ({
               ...v,

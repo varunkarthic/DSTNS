@@ -173,15 +173,24 @@ try {
   const topo = (await call("/api/v1/view/topology")).body.data;
   // Real pointer inspection against the projected map, with no DOM entity mocks.
   const bounds = await page.locator(".map-layer").boundingBox();
-  const xs = topo.nodes.map((n) => n.position.x_m),
-    ys = topo.nodes.map((n) => -n.position.y_m);
+  const extent = (points) => ({ xs: points.map((p) => p.x_m), ys: points.map((p) => -p.y_m) });
+  const roads = extent(topo.edges.flatMap((e) => e.geometry)),
+    land = extent(topo.features.flatMap((f) => f.geometry));
+  const reach = (road, ground) => {
+    const least = (list) => list.reduce((a, b) => Math.min(a, b), Infinity);
+    const most = (list) => list.reduce((a, b) => Math.max(a, b), -Infinity);
+    const pad = (most(road) - least(road)) * 0.08;
+    return [Math.min(least(road), Math.max(least(ground), least(road) - pad)), Math.max(most(road), Math.min(most(ground), most(road) + pad))];
+  };
+  const xs = reach(roads.xs, land.xs),
+    ys = reach(roads.ys, land.ys);
   // Mirrors the network fit in NetworkMap (mapInsets() and viewportFor(),
   // both unit tested), so this suite can aim real pointer events at real
   // entities. The fit pads the network by 3% on each side.
   await page.getByRole("button", { name: "Fit network to viewport" }).click();
   await wait(1600);
   const deckPx = bounds.width <= 1024 ? 0 : bounds.width <= 1280 ? 450 : 480;
-  const insets = { top: 24, left: bounds.width <= 720 ? 16 : 76, right: deckPx + 24, bottom: bounds.width <= 720 ? 196 : 150 };
+  const insets = { top: 10, left: bounds.width <= 720 ? 16 : 76, right: deckPx + 24, bottom: bounds.width <= 720 ? 196 : 130 };
   const usableW = bounds.width - insets.left - insets.right;
   const usableH = bounds.height - insets.top - insets.bottom;
   const scale = Math.min(

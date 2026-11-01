@@ -118,13 +118,11 @@ export function deckSpace(width: number, compact = false): number {
 }
 
 export function mapFitLayout(width: number, height: number, compact = false, left = 0): MapFitLayout {
-  const deck = deckSpace(width, compact);
-  const margin = 110;
+  const insets = mapInsets(width, height, compact, left);
   return {
-    available: Math.max(280, width - deck - left - margin),
-    centerX: left + (width - deck - left) / 2,
-    // The command rail occupies the bottom; bias the network above it.
-    centerY: (height - 60) / 2,
+    available: Math.max(280, width - deckSpace(width, compact) - left - 110),
+    centerX: insets.left + (width - insets.left - insets.right) / 2,
+    centerY: insets.top + (height - insets.top - insets.bottom) / 2,
   };
 }
 
@@ -136,9 +134,9 @@ export function mapFitLayout(width: number, height: number, compact = false, lef
  */
 export function mapInsets(width: number, _height: number, compact = false, sidebar = 0) {
   return {
-    top: 24,
+    top: 10,
     left: sidebar || (width <= 720 ? 16 : 76),
     right: deckSpace(width, compact) + 24,
-    bottom: width <= 720 ? 196 : 150,
+    bottom: width <= 720 ? 196 : 130,
   };
 }

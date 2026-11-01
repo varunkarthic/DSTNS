@@ -69,7 +69,7 @@ the interface catches up; the control then shows as held rather than changed.
 | --- | --- | --- |
 | `mode` | `disable` | Off, and the control is unavailable |
 | | `enable` | Offered once per run in a dialog: Enable or Disable |
-| | `enable-force` *(default)* | On from the start, without asking |
+| | `enable-force` *(default)* | On from the start, without asking. Moving the map still turns it off |
 | `strategy` | `round-robin` *(default)* | Visit every live event in turn |
 | | `latest` | Stay on the most recently appeared event |
 | `dwell_seconds` | 2 to 120, default 9 | How long Round-Robin holds each event |

@@ -74,7 +74,7 @@ smooths the steps a mouse wheel arrives in; a softer one with no bounce takes it
 | Where | Limit |
 |---|---|
 | Every scrolling region | Its top and bottom. `installEdgeResistance` covers them all, so a new menu needs nothing |
-| Map zoom | 5% past fit is free, resistance to a hard 10%, and it settles back to 5% |
+| Map zoom | 5% past fit is free, then resistance to a hard 10%, and it stays where it is let go |
 | Map pan | Part of the network stays on screen |
 | Speed and interval sliders | Either end |
 
@@ -125,7 +125,7 @@ Defined in `system.css`. Use these rather than literal values.
 
 | Kind | Tokens |
 |---|---|
-| Radius | `--r-xs` 6, `--r-sm` 10, `--r-md` 14, `--r-lg` 18, `--r-pill`. An inner corner is the outer radius less the gap between them, so a gap of 4 steps down once and a gap of 8 steps down twice |
+| Radius | `--r-xs` 10, `--r-sm` 14, `--r-md` 18, `--r-lg` 22, `--r-pill`. An inner corner is the outer radius less the gap between them, so a gap of 4 steps down once and a gap of 8 steps down twice |
 | Control height | `--ctl-sm` 26, `--ctl` 32, `--ctl-lg` 36 |
 | Surface | `--glass` translucent, `--surface-solid` where text is read at length |
 | Palette | `--accent`, `--ok`, `--warn`, `--danger`, `--text`, `--text-dim`, `--text-faint` |
@@ -140,7 +140,7 @@ One surface, `LoadingSurface` in `boot` mode, for every state before a map:
 
 | State | Shows |
 |---|---|
-| Arriving | Gather into the name, build the roads outward, map under them at `MAP_AT_MS`, panels from their own edges at `PANELS_AT_MS`. Particles land exactly on the drawn roads, so the map is only faded, never scaled or blurred |
+| Arriving | Gather into the name, build the roads outward, map under them at `MAP_AT_MS` in the middle of the window, panels from their own edges at `PANELS_AT_MS` as the map moves over. Particles land exactly on the drawn roads, so the map is only faded, never scaled or blurred |
 | Opening | Nothing for two seconds, then a still title: the name, its designer and its licence. It then moves to the corner and the film begins |
 | Waiting | The film, and what to do. No progress, because nothing is loading |
 | Loading | The film, the current stage, and the five stages along the bottom. A segment fills only where a real total is known; otherwise it moves without claiming how far along it is |

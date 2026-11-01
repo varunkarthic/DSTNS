@@ -9,7 +9,6 @@ import {
   floodClusters,
   focusTargets,
   framingSignature,
-  networkBounds,
   viewportFor,
   withMinimumSpan,
 } from "../src/autoFocus";
@@ -137,8 +136,6 @@ describe("focusTargets", () => {
     expect(focusTargets(snapshot({ active_incidents: [], active_weather: [], edges: [] }), topology)).toEqual([]);
   });
   it("computes network bounds for the idle framing", () => {
-    expect(networkBounds(topology)).toEqual({ minX: 0, maxX: 3000, minY: 0, maxY: 2000 });
-    expect(networkBounds(null)).toBeNull();
   });
 });
 

@@ -609,7 +609,7 @@ export function shouldDisplayNotification(
 
 /**
  * Order for the capsule, which shows the first and counts the rest. Important first: severity,
- * then incidents, then what explains the system's own behaviour or the camera, then recency.
+ * then incidents, then the camera, then recency.
  * Otherwise simply the newest.
  */
 export function orderForDisplay(list: UiNotification[], focusedKey: string | null | undefined, importantFirst = true): UiNotification[] {
@@ -617,10 +617,12 @@ export function orderForDisplay(list: UiNotification[], focusedKey: string | nul
     if (!importantFirst) return b.timestamp - a.timestamp;
     const fa = focusMatches(a.focusKey, focusedKey) ? 1 : 0;
     const fb = focusMatches(b.focusKey, focusedKey) ? 1 : 0;
+    // What explains the system's own behaviour is only up for a few seconds, and is there
+    // because something looks wrong, so only what is critical goes ahead of it.
+    const level = (n: UiNotification) => (n.isd ? Math.max(1.5, rank(n.severity)) : rank(n.severity));
     return (
-      rank(b.severity) - rank(a.severity) ||
+      level(b) - level(a) ||
       Number(b.category === "incident") - Number(a.category === "incident") ||
-      Number(!!b.isd) - Number(!!a.isd) ||
       fb - fa ||
       b.timestamp - a.timestamp
     );

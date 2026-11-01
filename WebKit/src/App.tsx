@@ -55,7 +55,7 @@ import type { FabricOverlayHandle } from "./webfabric/Overlay";
 import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
 import type { UiConfig, AutoFocusStrategy } from "./uiConfig";
 import { AdvancedContext, TimeFormatProvider } from "./preferences";
-import { boundsOf, chooseTarget, focusTargets, framingSignature, networkBounds } from "./autoFocus";
+import { boundsOf, chooseTarget, focusTargets, framingSignature } from "./autoFocus";
 import type { Bounds } from "./autoFocus";
 import {
   buildNotifications,
@@ -355,7 +355,9 @@ export default function App() {
   const fabricApps = useFabricApps();
   const [reducedDetail, setReducedDetail] = useState(false);
   const appliedRate = clock?.tick_rate ?? 1;
-  const requestedRate = asb?.requested_tick_rate ?? appliedRate;
+  // Only what the core says is capped. The two figures are polled apart, so right after a
+  // change of speed they differ for a moment with nothing holding it back.
+  const requestedRate = asb?.rate_capped ? (asb.requested_tick_rate ?? appliedRate) : appliedRate;
   // What looks like a fault but is not. The tour has the screen to itself.
   const intentional: ISDCondition[] = tutorial.active
     ? []
@@ -492,8 +494,7 @@ export default function App() {
     if (!framing) return null;
     focusToken.current += 1;
     if (active) return { bounds: boundsOf(active.geometry), token: focusToken.current };
-    const all = networkBounds(sim.topology);
-    return all ? { bounds: all, padding: 0.03, token: focusToken.current } : null;
+    return { whole: true, token: focusToken.current };
     // A new token is minted only when the framing changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [framing]);
@@ -776,6 +777,10 @@ export default function App() {
     } catch { /* Session preferences still reset when storage is unavailable. */ }
     setPreferencesEpoch((n) => n + 1);
   };
+  const takeCamera = useCallback(() => {
+    setAutoFocus(false);
+    setManualFocus(null);
+  }, []);
   const toggleAutoFocus = (on: boolean) => {
     setAutoFocus(on);
     setManualFocus(null);
@@ -1075,7 +1080,9 @@ export default function App() {
               running={valid && lifecycle === "RUNNING" && !suspended}
               virtualTime={virtual}
               tickRate={clock?.tick_rate ?? 1}
-              focus={tutorial.busy ? null : manualFocus ?? autoFocusRequest}
+              focus={tutorial.busy || arrival !== "all" ? null : manualFocus ?? autoFocusRequest}
+              arriving={arrival !== "all"}
+              onCameraTaken={takeCamera}
               controls={mapControls}
               onTransform={onMapTransform}
               onCursor={onMapCursor}
@@ -1245,7 +1252,7 @@ export default function App() {
               enabled={interactive}
               pending={pending}
               rateLocked={rateLocked}
-              requestedRate={asb?.requested_tick_rate}
+              requestedRate={requestedRate}
               reduceMotion={reduceMotion}
               seed={seed}
               status={runtime}

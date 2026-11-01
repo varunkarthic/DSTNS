@@ -37,7 +37,7 @@ export function fluidFrame(t: number, height: number, width: number, anchorY: nu
     top: Math.max(0, lerp(anchorY - BEAD, 0, lift)),
     bottom: Math.max(0, lerp(height - anchorY - BEAD, 0, swell)),
     right: Math.max(0, lerp(width - BEAD * 2, 0, swell)),
-    radius: lerp(BEAD, 24, swell),
+    radius: lerp(BEAD, 22, swell),
     /** Half-thickness of the neck at its waist; gone by the time the drop lets go. */
     neck: t < 0.6 ? lerp(BEAD * 0.86, 0, smooth(t / 0.6)) : 0,
     content: smooth((t - 0.46) / 0.42),

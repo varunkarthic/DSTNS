@@ -61,10 +61,11 @@ core knows. Nothing is invented: when no run has been started the screen says
 so and shows no progress at all.
 
 The heading names the current stage. The film has eleven scenes, each its own subject and each
-moving for as long as it holds. When the first network arrives the particles gather into the name,
+moving for as long as it holds, and its particles form no words or numbers except the name. When the first network arrives the particles gather into the name,
 then fly out and build the map's roads from the middle of the network outward, which is how a
-session ends played backwards. The map then fades in under those roads, and last of all the header,
-the sidebar, the telemetry panel and the bottom row slide in from their own edges. Generating a new
+session ends played backwards. The map then fades in under those roads, in the middle of the window,
+and last of all the header, the sidebar, the telemetry panel and the bottom row slide in from their
+own edges as the map moves over to make room. Generating a new
 world arrives the same way. With reduced motion everything simply appears.
 
 The title comes apart in a sweep from left to right as the film begins. Reloading a page during a run
@@ -356,7 +357,8 @@ Auto Focus, each with its count.
 the part of the map not covered by panels, with 18% padding and a minimum span
 so a point is not magnified absurdly. The camera glides with an ease-in-out
 curve whose duration grows with distance and zoom change (650 ms to 1.4 s),
-interpolating zoom geometrically. Any manual pan, zoom or drag cancels a glide.
+interpolating zoom geometrically. Any manual pan or zoom, or pressing Fit, cancels a glide and turns
+Auto Focus off, until it is turned on again.
 
 **Rain follows its growth.** Rain cells expand during the first quarter of
 their life and drift with the wind. `framingSignature()` buckets a footprint's

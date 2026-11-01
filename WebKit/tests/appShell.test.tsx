@@ -9,7 +9,7 @@ import App, { worldErrorMessage } from "../src/App";
 // The canvas is exercised by the browser suites; here it only needs to mount,
 // and to expose what it was asked to draw and where the camera was sent.
 vi.mock("../src/NetworkMap", () => ({
-  default: ({ layers, places, focus }: { places: Record<string, boolean>; layers: Record<string, boolean>; focus?: { bounds?: unknown; token: number } | null }) => (
+  default: ({ layers, places, focus }: { places: Record<string, boolean>; layers: Record<string, boolean>; focus?: { bounds?: unknown; whole?: boolean; token: number } | null }) => (
     <div
       data-testid="map"
       data-places={JSON.stringify(places)}
@@ -18,7 +18,7 @@ vi.mock("../src/NetworkMap", () => ({
         .map(([k]) => k)
         .sort()
         .join(",")}
-      data-focus={focus?.bounds ? JSON.stringify(focus.bounds) : ""}
+      data-focus={focus?.whole ? '"whole"' : focus?.bounds ? JSON.stringify(focus.bounds) : ""}
     />
   ),
 }));
@@ -607,7 +607,7 @@ describe("auto focus", () => {
     mockApi();
     render(<App />);
     await ready();
-    await waitFor(() => expect(JSON.parse(screen.getByTestId("map").getAttribute("data-focus") || "null")).toEqual({ minX: 0, maxX: 2000, minY: 0, maxY: 2000 }));
+    await waitFor(() => expect(JSON.parse(screen.getByTestId("map").getAttribute("data-focus") || "null")).toBe("whole"));
   });
 
   it("offers Auto Focus once per run and remembers the answer", async () => {

@@ -10,6 +10,9 @@ import { applyLaunchDefaults } from "./uiConfig";
 
 applyLaunchDefaults();
 installMotionTokens();
+// The last screen is drawn after the server has gone, when nothing more can be fetched.
+void document.fonts?.load('500 48px "Space Grotesk"');
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

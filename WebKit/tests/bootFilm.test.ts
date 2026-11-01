@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import source from "../src/bootScenes.ts?raw";
 import { describe, expect, it } from "vitest";
 import { FILM_CHAPTERS, landingPoints, LANDING_MS, MAP_AT_MS, PANELS_AT_MS } from "../src/BootScene";
 import { buildFormations, COUNT, KIND, onLand, STRIDE } from "../src/bootScenes";
@@ -57,7 +58,7 @@ describe("the film's scenes", () => {
     for (let i = 0; i < COUNT; i++) {
       const at = i * STRIDE;
       // These are placed by the shader, so where they start says nothing about the scene.
-      if (scene[at + 7] === KIND.lane || scene[at + 7] === KIND.stream) continue;
+      if (scene[at + 7] === KIND.lane || scene[at + 7] === KIND.stream || scene[at + 7] === KIND.queue) continue;
       const key = `${Math.round(scene[at] * 6)},${Math.round(scene[at + 1] * 6)},${Math.round(scene[at + 2] * 6)}`;
       cells.set(key, (cells.get(key) ?? 0) + 1);
     }
@@ -93,6 +94,9 @@ describe("the film's scenes", () => {
       kinds.delete(KIND.rest);
       expect(kinds.size).toBeGreaterThan(0);
     }
+  });
+  it("draws no words or numbers: the name is the only text the particles ever form", () => {
+    expect(source).not.toMatch(/fillText|strokeText|measureText/);
   });
   it("knows land from sea", () => {
     expect(onLand(10, 50)).toBe(true);

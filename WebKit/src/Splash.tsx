@@ -4,6 +4,7 @@
 import { formatBytes } from "./units";
 import { useEffect, useState } from "react";
 import { Icon } from "./Icons";
+import { filmAvailable } from "./BootScene";
 import { LoadingSurface } from "./LoadingSurface";
 import type { BootPhase } from "./LoadingSurface";
 import { Mark } from "./Logo";
@@ -211,7 +212,8 @@ export function ShutdownSurface({ reduceMotion, landing, lost = false }: { reduc
       landing={landing}
       title={lost ? "The server has stopped" : "DSTNS has shut down"}
       status={lost ? "It is no longer answering. This screen clears if it returns; otherwise start a new run from the DSTNS CLI." : "The simulation and its server have stopped. Start a new run from the DSTNS CLI."}
-      reduceMotion={reduceMotion}
+      // Without the film there is nothing for the words to wait for.
+      reduceMotion={reduceMotion || !filmAvailable()}
       titleId="shutdown-title"
       footer={<p className="loading-licence">{LICENCE}</p>}
     />

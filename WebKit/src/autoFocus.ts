@@ -226,12 +226,6 @@ export function focusTargets(snapshot: Snapshot | null, topology: Topology | nul
   return out.sort((a, b) => a.rank - b.rank || a.key.localeCompare(b.key, undefined, { numeric: true }));
 }
 
-/** Full network bounds, for when nothing needs attention. */
-export function networkBounds(topology: Topology | null): Bounds | null {
-  if (!topology?.nodes.length) return null;
-  return boundsOf({ kind: "polygon", points: topology.nodes.map((n) => ({ x: n.position.x_m, y: n.position.y_m })) });
-}
-
 /**
  * Choose the target to show.
  *

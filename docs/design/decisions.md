@@ -523,8 +523,9 @@ finger is noisy and holds up.
 said little.
 
 **Decision.** Each scene has its own subject and its own motion while it holds: a city's streets drawn outward, one junction whose
-cars queue and release on red and green, a skyline rising, stacked bars under a moving sun, a dial that steps, a storm, a globe, two
-identical trees, a viewfinder locking on, and a rippling weave. All of it moves in the vertex shader, so a scene costs the page one
+cars queue and release on red and green, map icons drawing trips from homes, a stream through the day, a queue growing back from a
+collision, a storm, a globe, one pattern on two machines, a viewfinder locking on, and a rippling weave. Particles form no words or
+numbers except the name, and a test fails if a scene draws text. All of it moves in the vertex shader, so a scene costs the page one
 draw call. Colour blending is partly opaque, so crowded points keep their colour: additive light turned every signal white.
 
 **Consequences.** A test compares how particles are spread between scenes and fails if two grow alike. The film takes about 44
@@ -552,3 +553,20 @@ been lost for good. Had it worked, it would have been the film's arrival, over f
 about a second and a half: roads, map, panels, with no film, words or progress. A scene that restarts gets a new canvas.
 
 **Consequences.** A page opened ahead of its world still gets the whole film, and only such a page ever makes a world wait.
+
+## 42. The camera belongs to whoever moved it last
+
+**Problem.** After the particles built the roads, the map sat 220 px left of the window's middle, because it was framed for panels
+that had not arrived. Zooming out a little then appeared to snap it back on its own. Three things combined: every wheel event zoomed
+by a fixed 10%, so a small trackpad gesture reached the limit at once; 70 ms after the last event the camera sprang back and
+re-centred; and Auto Focus, despite its prompt, kept taking the camera after someone had moved it.
+
+**Decision.** Alone on screen the network sits in the middle of the window, and it moves over as the panels arrive. Fit and the framing
+of events share one measure of the free space, which excludes the header, and one measure of the network, which is what is drawn:
+the roads, and the land up to 8% beyond them. Zoom follows the size of the gesture. Zooming out draws the map back to the middle over
+the last stretch before fit, during the gesture, and after that the zoom holds where it is let go. Panning, zooming or pressing Fit
+turns Auto Focus off.
+
+**Consequences.** Nothing moves the camera after a gesture stops. Auto Focus stays off until it is turned on again, even with the
+`enable-force` mode, which sets only how a session starts. A lake or park running far past the last road does not shrink the fit, so
+in such a city the bounding box of everything drawn can sit a little off-centre.
