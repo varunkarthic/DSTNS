@@ -57,22 +57,26 @@ export const KIND = {
   queue: 19,
   /** Part of the wreck, from the moment it happens. With a vector, it spreads out along it. */
   crash: 20,
-  /** One point of a bloom turning on the same clock as its twin. vx is which point, vy and vz the bloom's centre. */
-  bloom: 21,
+  /** A trip from a home to the place that draws it, joining the queue at its door. vx is which road, vy how busy that place is. */
+  trip: 21,
+  /** Demand standing over a place, growing from the height in vy. */
+  beam: 22,
+  /** Something that happens at a set moment of the day, in the same place each time. */
+  ping: 23,
+  /** An application's window arriving from along its vector. The whole part of phase says which application. */
+  dock: 24,
+  /** What passes between an application and the map, once it has docked. The whole part of phase says which. */
+  link: 25,
 } as const;
 
 /** Added to a kind: it belongs to the world Auto Focus is flying over, and moves with it. */
 export const IN_WORLD = 30;
 export const FOCUS_A: readonly [number, number] = [0.62, -0.44];
 export const FOCUS_B: readonly [number, number] = [-0.7, 0.5];
-/** Where the road is blocked, and the points in each bloom. Shared with the shader. */
+/** Where the road is blocked. Shared with the shader. */
 export const WRECK_AT = 0.4;
 /** How the road incident is seen, so that its warning sign can face the viewer. */
 export const CAMERA_YAW_INCIDENT = -0.62;
-export const BLOOM_POINTS = 11200;
-/** How far a bloom reaches, past the corners of its screen, and half of that screen, which clips it. */
-export const BLOOM_REACH = 0.92;
-export const BLOOM_HALF: readonly [number, number] = [0.74, 0.6];
 /** Tint runs from base to accent. These replace that ramp where meaning needs a colour. */
 export const HUE = { ramp: 0, warm: 1, danger: 2, ok: 3, signalNorth: 4, signalEast: 5 } as const;
 
@@ -394,56 +398,101 @@ function junction(): Float32Array {
   }, 21);
 }
 
-/** The places that draw trips, in their own map icons, with homes sending trips to them and their demand filling up. */
+/**
+ * A point of a building: its edges sharp and its windows in rows, so that it reads as a
+ * building and not a haze. x and z are shares of its half-width and half-depth.
+ */
+function buildingPoint(draw: () => number, across: number, deep: number, height: number, edges = 0.3): [number, number, number, number] {
+  const part = draw();
+  if (part < edges) {
+    const corner = Math.floor(draw() * 4);
+    const [sx, sz] = [corner < 2 ? -1 : 1, corner % 2 ? -1 : 1];
+    if (draw() < 0.46) return [sx, draw() * height, sz, 0.9];
+    const t = draw() * 2 - 1;
+    return draw() < 0.5 ? [t, height, sz, 1] : [sx, height, t, 1];
+  }
+  if (part < edges + 0.1) return [draw() * 2 - 1, height, draw() * 2 - 1, 0.34];
+  const wide = draw() < 0.5;
+  const cols = Math.max(2, Math.round(((wide ? across : deep) * 2) / 0.042));
+  const rows = Math.max(2, Math.round(height / 0.05));
+  const col = Math.floor(draw() * cols);
+  const row = Math.floor(draw() * rows);
+  const side = draw() < 0.5 ? 1 : -1;
+  const at = -1 + ((col + 0.5 + (draw() - 0.5) * 0.42) * 2) / cols;
+  const y = ((row + 0.5 + (draw() - 0.5) * 0.42) * height) / rows;
+  const lit = (col * 7 + row * 13 + (wide ? 3 : 0)) % 4 !== 0;
+  return wide ? [at, y, side, lit ? 0.92 : 0.12] : [side, y, at, lit ? 0.92 : 0.12];
+}
+
+/** The places that draw trips, with the angles their roads leave at. A tower, a long low school and a shopping centre. */
+const DRAWS = [
+  { x: 0, z: -0.62, w: 0.15, d: 0.15, h: 0.66, busy: 1, level: 0.3, roads: [-158, -112, -68, -22, 42, 138] },
+  { x: -1.22, z: 0.12, w: 0.3, d: 0.13, h: 0.15, busy: 0.82, level: 0.24, roads: [176, -128, -48, 40, 88] },
+  { x: 1.22, z: 0.1, w: 0.22, d: 0.18, h: 0.24, busy: 0.62, level: 0.18, roads: [4, -48, -132, 62, 118] },
+];
+/** Every road, home to door: from x, from z, to x, to z. Shared with the shader. */
+export const TRIP_ROADS: readonly (readonly [number, number, number, number])[] = DRAWS.flatMap((draw) =>
+  draw.roads.map((degrees, n) => {
+    const [dx, dz] = [Math.cos((degrees * Math.PI) / 180), Math.sin((degrees * Math.PI) / 180)];
+    const door = Math.hypot(draw.w, draw.d) * 0.95;
+    const reach = 0.78 + ((n * 37) % 5) * 0.07;
+    return [draw.x + dx * reach, draw.z + dz * reach, draw.x + dx * door, draw.z + dz * door] as const;
+  }),
+);
+
+/** A neighbourhood seen from above: trips leave the homes, and queues grow back from the doors of what draws them. */
 function demand(): Float32Array {
-  const random = sequence(4711);
-  const hubs = [
-    { kind: "school", x: -1.2, y: 0.28, fill: 0.92 },
-    { kind: "office", x: 0, y: 0.62, fill: 0.74 },
-    { kind: "shops", x: 1.2, y: 0.28, fill: 0.5 },
-  ].map((hub) => ({ ...hub, icon: iconPoints(hub.kind) }));
-  const homes = Array.from({ length: 58 }, (_, n) => {
-    const t = n / 57;
-    return { x: -1.72 + t * 3.44 + (random() - 0.5) * 0.1, y: -0.48 - random() * 0.24, order: random() };
-  });
-  const ring = 0.5;
-  const size = 0.68;
-  return formation((put, rnd) => {
+  const roadsOf = DRAWS.flatMap((draw) => draw.roads.map(() => draw));
+  const carsPerRoad = 16;
+  const cars = TRIP_ROADS.length * carsPerRoad;
+  return formation((put, random) => {
     for (let i = 0; i < COUNT; i++) {
-      const kind = i % 40;
-      const hub = hubs[i % hubs.length];
-      if (kind < 19) {
-        // The icon, large and steady.
-        const spot = hub.icon?.points[Math.floor(rnd() * hub.icon.points.length)];
-        if (spot) put(i, hub.x + (spot[0] - 0.5) * size, hub.y + (0.5 - spot[1]) * size, (rnd() - 0.5) * 0.015, { tint: 0.95, kind: KIND.shimmer });
-        else {
-          const a = rnd() * TAU;
-          put(i, hub.x + Math.cos(a) * 0.2, hub.y + Math.sin(a) * 0.2, 0, { tint: 0.95 });
-        }
-      } else if (kind < 22) {
-        // A faint full ring, and the part demand has filled.
-        const a = rnd();
-        const angle = Math.PI / 2 - a * TAU;
-        put(i, hub.x + Math.cos(angle) * ring, hub.y + Math.sin(angle) * ring, 0, { tint: 0.1 });
-      } else if (kind < 28) {
-        const a = rnd();
-        const angle = Math.PI / 2 - a * TAU;
-        const r = ring + (rnd() - 0.5) * 0.022;
-        put(i, hub.x + Math.cos(angle) * r, hub.y + Math.sin(angle) * r, 0.01, { v: [hub.fill, 0, 0], kind: KIND.gauge, phase: a, tint: 1, hue: HUE.warm });
-      } else if (kind < 32) {
-        // Homes: a small roof over a small house.
-        const home = homes[Math.floor(rnd() * homes.length)];
-        const u = (rnd() - 0.5) * 0.06;
-        const roof = rnd() < 0.42;
-        const y = roof ? 0.024 + (0.03 - Math.abs(u)) * 0.8 * rnd() : rnd() * 0.024;
-        put(i, home.x + (roof ? u : u * 0.72), home.y + y, 0, { tint: 0.5, kind: KIND.rise, v: [0, home.y, 0], phase: home.order * 0.3 });
+      const kind = i % 50;
+      const road = Math.floor(random() * TRIP_ROADS.length);
+      const [fx, fz, tx, tz] = TRIP_ROADS[road];
+      const length = Math.hypot(tx - fx, tz - fz);
+      const [dx, dz] = [(tx - fx) / length, (tz - fz) / length];
+      if (kind < 4) {
+        // The road's two edges.
+        const along = random() * length;
+        const side = random() < 0.5 ? 1 : -1;
+        put(i, fx + dx * along - dz * side * 0.034, 0, fz + dz * along + dx * side * 0.034, { tint: 0.24 });
+      } else if (kind < 8) {
+        // Homes at the far end of each road: walls and a roof, in a small group.
+        const house = Math.floor(random() * 5);
+        const across = ((house * 0.37) % 1) * 0.22 + 0.08;
+        const back = ((house * 0.61) % 1) * 0.2 - 0.1;
+        const [hx, hz] = [fx + dx * back - dz * across * (house % 2 ? 1 : -1), fz + dz * back + dx * across * (house % 2 ? 1 : -1)];
+        const [u, w] = [(random() - 0.5) * 0.058, (random() - 0.5) * 0.058];
+        const roof = random() < 0.38;
+        const y = roof ? 0.036 + (0.029 - Math.max(Math.abs(u), 0)) * 0.72 : random() * 0.036;
+        put(i, hx + u, y, hz + w, { kind: KIND.rise, v: [0, 0, 0], phase: 0.02 + ((road * 0.13) % 0.25), tint: roof ? 0.62 : 0.4 });
+      } else if (kind < 20) {
+        // What draws them: a building with lit windows, standing up first of all.
+        const draw = DRAWS[random() < 0.5 ? 0 : random() < 0.6 ? 1 : 2];
+        const [ax, y, az, tint] = buildingPoint(random, draw.w, draw.d, draw.h);
+        put(i, draw.x + ax * draw.w, y, draw.z + az * draw.d, { kind: KIND.rise, v: [0, 0, 0], phase: 0.02, tint });
+      } else if (kind < 42) {
+        // The trips. Each car is a small body whose colour comes from what it is caught in.
+        const car = Math.floor(random() * cars);
+        const on = Math.floor(car / carsPerRoad);
+        const place = car % carsPerRoad;
+        let long = (random() - 0.5) * 0.062;
+        if (long > 0.008 && long < 0.015) long = 0.021;
+        put(i, long, 0.008 + random() * 0.02, (random() - 0.5) * 0.034, { v: [on, roadsOf[on].busy, 0], kind: KIND.trip, phase: (place + ((on * 0.37) % 1)) / carsPerRoad, tint: 0.92, hue: HUE.ok });
+      } else if (kind < 46) {
+        // Rings closing in on each place: it is pulling.
+        const draw = DRAWS[Math.floor(random() * DRAWS.length)];
+        const a = random() * TAU;
+        const reach = 0.34 + draw.busy * 0.16;
+        put(i, draw.x + Math.cos(a) * reach, 0.006, draw.z + Math.sin(a) * reach, { v: [-Math.cos(a) * (reach - 0.16), 0, -Math.sin(a) * (reach - 0.16)], kind: KIND.flow, phase: Math.floor(random() * 2) / 2, tint: 0.5, hue: HUE.warm });
       } else {
-        // Trips: from a home, up and over, to the place that draws them.
-        const home = homes[(i * 7) % homes.length];
-        const landAt = rnd() * TAU;
-        const tx = hub.x + Math.cos(landAt) * 0.1;
-        const ty = hub.y + Math.sin(landAt) * 0.1;
-        put(i, home.x, home.y + 0.05, (rnd() - 0.5) * 0.08, { v: [tx - home.x, ty - home.y - 0.05, 0], kind: KIND.arc, tint: 1, hue: HUE.warm });
+        // How much it is drawing, as a column over the roof that grows with the morning.
+        const draw = DRAWS[Math.floor(random() * DRAWS.length)];
+        const a = random() * TAU;
+        const r = Math.sqrt(random()) * 0.032;
+        const top = random() ** 0.8;
+        put(i, draw.x + Math.cos(a) * r, draw.h + 0.02 + top * draw.level, draw.z + Math.sin(a) * r, { v: [0, draw.h + 0.02, 0], kind: KIND.beam, tint: 0.6 + top * 0.4, hue: HUE.warm });
       }
     }
   }, 13);
@@ -666,63 +715,113 @@ function globe(): Float32Array {
   }, 16);
 }
 
-/** Two machines, one seed: a seed between them feeds a bloom on each screen, and the two are the same point for point, at every moment. */
-function twinBlooms(): Float32Array {
-  const centres = [-0.94, 0.94];
-  const middle = 0.2;
-  const [hw, hh, corner] = [BLOOM_HALF[0], BLOOM_HALF[1], 0.14];
-  // A line drawing, kept to straight runs and the corners between them.
-  const outline: [number, number, number, number][] = [];
-  const arc = (cx: number, cy: number, from: number) => {
-    for (let n = 0; n < 8; n++) {
-      const [a, b] = [from + (n / 8) * (Math.PI / 2), from + ((n + 1) / 8) * (Math.PI / 2)];
-      outline.push([cx + Math.cos(a) * corner, cy + Math.sin(a) * corner, cx + Math.cos(b) * corner, cy + Math.sin(b) * corner]);
+/** One seed grows two worlds the same, building for building, car for car and event for event, and another seed grows a different one. */
+function twinWorlds(): Float32Array {
+  const scale = 0.31;
+  interface Box { u: number; v: number; w: number; d: number; h: number; from: number }
+  // A seed decides everything: how the streets fall, and where the town is tallest.
+  const grow = (seed: number, cells: number, peak: readonly [number, number]) => {
+    const r = sequence(seed);
+    const lines = () => [-1, ...Array.from({ length: cells - 1 }, (_, n) => -1 + ((n + 1 + (r() - 0.5) * 0.5) * 2) / cells), 1];
+    const [us, vs] = [lines(), lines()];
+    const boxes: Box[] = [];
+    for (let a = 0; a < cells; a++) {
+      for (let b = 0; b < cells; b++) {
+        const [ua, ub, va, vb] = [us[a] + 0.07, us[a + 1] - 0.07, vs[b] + 0.07, vs[b + 1] - 0.07];
+        const tall = Math.max(0, 1 - Math.hypot((ua + ub) / 2 - peak[0], (va + vb) / 2 - peak[1]) / 1.15);
+        for (let n = 0; n < 2; n++) {
+          // Each block is split along its longer side, and each part holds one building.
+          const long = ub - ua > vb - va;
+          const [m0, m1] = n === 0 ? [0, 0.47] : [0.53, 1];
+          const [bu, eu, bv, ev] = long ? [ua + (ub - ua) * m0, ua + (ub - ua) * m1, va, vb] : [ua, ub, va + (vb - va) * m0, va + (vb - va) * m1];
+          const [u, v] = [(bu + eu) / 2, (bv + ev) / 2];
+          boxes.push({ u, v, w: (eu - bu) / 2 - 0.01, d: (ev - bv) / 2 - 0.01, h: 0.05 + r() * 0.08 + tall * tall * (0.2 + r() * 0.5), from: Math.hypot(u, v) / 1.42 });
+        }
+      }
     }
+    return { us: us.slice(1, cells), vs: vs.slice(1, cells), boxes };
   };
-  for (const cx of centres) {
-    const [l, r, t, b] = [cx - hw, cx + hw, middle + hh, middle - hh];
-    outline.push([l + corner, t, r - corner, t], [r, t - corner, r, b + corner], [r - corner, b, l + corner, b], [l, b + corner, l, t - corner]);
-    arc(r - corner, t - corner, 0);
-    arc(l + corner, t - corner, Math.PI / 2);
-    arc(l + corner, b + corner, Math.PI);
-    arc(r - corner, b + corner, Math.PI * 1.5);
-  }
-  // One stands on a foot; the other is a laptop, with a keyboard below its screen.
-  const low = middle - hh;
-  const seedAt = low - 0.1;
-  const [a, b] = centres;
-  outline.push([a - 0.05, low, a - 0.05, low - 0.16], [a + 0.05, low, a + 0.05, low - 0.16], [a - 0.26, low - 0.16, a + 0.26, low - 0.16]);
-  outline.push([b - 0.8, low - 0.05, b + 0.8, low - 0.05], [b - 0.84, low - 0.1, b + 0.84, low - 0.1], [b - 0.8, low - 0.05, b - 0.84, low - 0.1], [b + 0.8, low - 0.05, b + 0.84, low - 0.1]);
-  const lengths = outline.map(([ax, ay, bx, by]) => Math.hypot(bx - ax, by - ay));
-  const total = lengths.reduce((sum, length) => sum + length, 0);
-  const counted = [0, 0];
-  return formation((put, random) => {
+  const same = grow(2718, 3, [0.05, -0.05]);
+  const other = grow(31337, 2, [-0.55, 0.5]);
+  const tiles = [{ cx: -1.3, world: same }, { cx: 0, world: same }, { cx: 1.3, world: other }];
+  const place = (cx: number, u: number, v: number): [number, number] => [cx + (u - v) * scale, (u + v) * scale];
+  const middle = -0.66; // How far below the worlds their seeds lie.
+  const shared: [number, number] = [-0.65, middle];
+  const own: [number, number] = [1.3, middle];
+  // Each slot draws the same numbers in every world, so that the two made from one seed are alike point for point.
+  const slots = Math.ceil(COUNT / 3);
+  const numbers = new Float32Array(slots * 12);
+  const stream = sequence(26);
+  for (let n = 0; n < numbers.length; n++) numbers[n] = stream();
+  return formation((put) => {
     for (let i = 0; i < COUNT; i++) {
-      const kind = i % 40;
-      if (kind < 28) {
-        // Each bloom, one point at a time, so that the two hold exactly the same points.
-        const side = i % 2;
-        const k = counted[side]++ % BLOOM_POINTS;
-        const r = Math.sqrt(k / BLOOM_POINTS) * BLOOM_REACH;
-        const angle = k * 2.39996;
-        put(i, centres[side] + Math.cos(angle) * r, middle + Math.sin(angle) * r, 0, { v: [k, centres[side], middle], kind: KIND.bloom, phase: 0.5, tint: 0.5 });
+      const slot = Math.floor(i / 3);
+      const side = i % 3;
+      const tile = tiles[side];
+      let cursor = slot * 12;
+      const draw = () => numbers[cursor++];
+      const kind = slot % 40;
+      const { world, cx } = tile;
+      if (kind < 4) {
+        // The streets, drawn outward from the middle.
+        const line = Math.floor(draw() * world.us.length * 2);
+        const along = draw() * 2 - 1;
+        const n = world.us.length;
+        const [u, v] = line < n ? [world.us[line], along] : [along, world.vs[line - n]];
+        const [x, z] = place(cx, u, v);
+        put(i, x, 0.002, z, { kind: KIND.reveal, phase: 0.04 + Math.hypot(u, v) * 0.14, tint: 0.5 });
+      } else if (kind < 27) {
+        // Buildings, standing up from the middle outward.
+        const box = world.boxes[Math.floor(draw() * world.boxes.length)];
+        const [ax, y, az, tint] = buildingPoint(draw, box.w * scale, box.d * scale, box.h, 0.56);
+        const [x, z] = place(cx, box.u + ax * box.w, box.v + az * box.d);
+        put(i, x, y, z, { kind: KIND.rise, v: [0, 0, 0], phase: 0.08 + box.from * 0.5, tint });
+      } else if (kind < 30) {
+        // Traffic, the same cars at the same moment.
+        const car = Math.floor(draw() * 18);
+        const n = world.us.length;
+        const line = car % (n * 2);
+        const across = (car % 2 ? 1 : -1) * 0.022;
+        const [au, av, bu, bv] = line < n ? [world.us[line] + across, -1, world.us[line] + across, 1] : [-1, world.vs[line - n] + across, 1, world.vs[line - n] + across];
+        const [ax, az] = place(cx, au, av);
+        const [bx, bz] = place(cx, bu, bv);
+        const [ox, oz] = [(draw() - 0.5) * 0.016, (draw() - 0.5) * 0.016];
+        put(i, (car % 2 ? bx : ax) + ox, 0.01 + draw() * 0.008, (car % 2 ? bz : az) + oz, { v: car % 2 ? [ax - bx, 0, az - bz] : [bx - ax, 0, bz - az], kind: KIND.flow, phase: car / 18, tint: 0.7, hue: HUE.ok });
       } else if (kind < 34) {
-        // The two machines.
-        let at = random() * total;
-        let line = 0;
-        while (at > lengths[line] && line < outline.length - 1) at -= lengths[line++];
-        const [ax, ay, bx, by] = outline[line];
-        const t = at / (lengths[line] || 1);
-        put(i, ax + (bx - ax) * t + (random() - 0.5) * 0.007, ay + (by - ay) * t + (random() - 0.5) * 0.007, 0, { kind: KIND.shimmer, tint: 0.5 });
+        // The slab each stands on: its edges above and below, and the corners between them.
+        const edge = Math.floor(draw() * 4);
+        const t = draw() * 2 - 1;
+        const [u, v] = edge === 0 ? [t, -1] : edge === 1 ? [t, 1] : edge === 2 ? [-1, t] : [1, t];
+        const [x, z] = place(cx, u, v);
+        const below = draw();
+        put(i, x, below < 0.62 ? 0 : -0.075, z, { tint: below < 0.62 ? 0.55 : 0.2 });
       } else if (kind < 36) {
-        // The seed, on the ground between them.
-        const a = random() * TAU;
-        const r = Math.pow(random(), 0.7) * 0.06;
-        put(i, Math.cos(a) * r, seedAt + Math.sin(a) * r, 0.02, { kind: KIND.pulse, tint: 1, hue: HUE.warm, phase: 0.1 });
+        // Something happens: the same moment and the same place in the same world.
+        const [x, z] = place(cx, world.us[world.us.length - 1], world.vs[0]);
+        const a = draw() * TAU;
+        put(i, x, 0.016, z, { v: [Math.cos(a) * 0.2, 0, Math.sin(a) * 0.2], kind: KIND.ping, tint: 1, hue: HUE.danger, phase: 0.5 });
+      } else if (side === 2) {
+        // Its own seed, feeding this world from below.
+        if (kind < 38) {
+          const a = draw() * TAU;
+          const r = Math.pow(draw(), 0.7) * 0.04;
+          put(i, own[0] + Math.cos(a) * r, own[1] + Math.sin(a) * r, 0, { kind: KIND.pulse, tint: 1, phase: 0.6 });
+        } else {
+          put(i, own[0] + (draw() - 0.5) * 0.03, own[1], (draw() - 0.5) * 0.03, { v: [0, -own[1] - 0.08, 0], kind: KIND.flow, tint: 1, phase: draw() });
+        }
+      } else if (kind < 37) {
+        // The one seed that both of these grew from.
+        const a = draw() * TAU;
+        const r = Math.pow(draw(), 0.7) * 0.05;
+        put(i, shared[0] + Math.cos(a) * r, shared[1] + Math.sin(a) * r, 0, { kind: KIND.pulse, tint: 1, hue: HUE.warm, phase: 0.1 });
+      } else if (kind < 38) {
+        const to = tiles[side].cx;
+        put(i, shared[0] + (draw() - 0.5) * 0.03, shared[1], (draw() - 0.5) * 0.03, { v: [to - shared[0], -shared[1] - 0.08, 0], kind: KIND.flow, tint: 1, hue: HUE.warm, phase: draw() });
       } else {
-        // What it sends up to each, to the heart of the bloom.
-        const to = centres[i % 2];
-        put(i, (random() - 0.5) * 0.04, seedAt + (random() - 0.5) * 0.04, 0.02, { v: [to, middle - seedAt, 0], kind: KIND.arc, tint: 1, hue: HUE.warm });
+        // Threads between the same buildings in the two worlds: these two are alike.
+        const box = [...same.boxes].sort((a, b) => b.h - a.h)[Math.floor(draw() * 5)];
+        const [x, z] = place(tiles[0].cx, box.u, box.v);
+        put(i, x, box.h + 0.01, z, { v: [tiles[1].cx - tiles[0].cx, 0, 0], kind: KIND.arc, tint: 0.9, hue: HUE.ok, phase: draw() });
       }
     }
   }, 26);
@@ -797,56 +896,136 @@ function viewfinder(): Float32Array {
   }, 25);
 }
 
-/** A weave with a wave through it, shuttles running along it and sockets on its edges. */
-function weave(): Float32Array {
-  const strands = 15;
-  const width = 3.2;
-  return formation((put, random) => {
-    for (let i = 0; i < COUNT; i++) {
-      const kind = i % 20;
-      const across = i % 2 === 0;
-      const n = Math.floor(random() * strands);
-      const v = (n - (strands - 1) / 2) * (width / strands);
-      if (kind >= 18) {
-        // Sockets along the edge, where applications join.
-        const a = random() * TAU;
-        const r = Math.sqrt(random()) * 0.045;
-        const edge = Math.floor(random() * 4);
-        const u = edge < 2 ? (edge === 0 ? -1 : 1) * (width / 2 + 0.1) : (edge === 2 ? -1 : 1) * (width / 2 + 0.1);
-        const x = edge < 2 ? u : v;
-        const z = edge < 2 ? v : u;
-        put(i, x + Math.cos(a) * r, 0, z + Math.sin(a) * r, { kind: KIND.pulse, tint: 1, hue: n % 4 === 0 ? HUE.warm : HUE.ramp, phase: n / strands });
-        continue;
+/** Applications connecting to the simulator: each window docks, a line opens to the map, and what it sends appears on the map in its colour. */
+function fabric(): Float32Array {
+  const [hw, hd, cz] = [1.0, 0.66, 0.18];
+  const random = sequence(2024);
+  const streetsX = [-0.72, -0.44, -0.14, 0.2, 0.5, 0.78].map((x) => x + (random() - 0.5) * 0.05);
+  const streetsZ = [-0.42, -0.14, 0.14, 0.42].map((z) => z + (random() - 0.5) * 0.04);
+  const apps = [
+    { x: -1.48, y: 0.5, z: -0.2, from: [-1.1, 0.25, 0] as const, hue: HUE.warm, socket: [-hw, cz - 0.14] as const },
+    { x: 0, y: 0.62, z: -0.72, from: [0, 0.8, 0] as const, hue: HUE.ok, socket: [0, cz - hd] as const },
+    { x: 1.48, y: 0.5, z: -0.2, from: [1.1, 0.25, 0] as const, hue: HUE.ramp, socket: [hw, cz - 0.14] as const },
+  ];
+  const [cardW, cardH, corner] = [0.32, 0.22, 0.05];
+  // Up a window, square to the camera, so that it reads as a window seen head on.
+  const lean = [Math.cos(0.7), -Math.sin(0.7)] as const;
+  // The first application sends a route along the streets, the second places markers, the third a region.
+  const via: [number, number][] = [[-hw, cz - 0.14], [streetsX[1], cz - 0.14], [streetsX[1], cz + streetsZ[2]], [streetsX[3], cz + streetsZ[2]], [streetsX[3], cz + streetsZ[3]], [streetsX[5], cz + streetsZ[3]]];
+  const pieces = via.slice(1).map((end, n) => ({ a: via[n], b: end, length: Math.hypot(end[0] - via[n][0], end[1] - via[n][1]) }));
+  const routeLength = pieces.reduce((sum, piece) => sum + piece.length, 0);
+  const markers: [number, number][] = [[streetsX[2], cz + streetsZ[0]], [streetsX[4], cz + streetsZ[0]], [streetsX[0], cz + streetsZ[1]], [streetsX[3], cz + streetsZ[1]], [streetsX[1], cz + streetsZ[3]]];
+  const region = { x: streetsX[4], z: cz + streetsZ[1] + 0.06, r: 0.27 };
+  // When each arrives, then each thing it sends, on the scene's own clock.
+  const arrives = (app: number) => 0.15 + app * 0.85;
+  const sends = (app: number) => (arrives(app) + 0.78) / 2.3;
+  // A point on a rounded rectangle's edge.
+  const edge = (t: number): [number, number] => {
+    const [w, h] = [cardW - corner, cardH - corner];
+    const arc = (corner * Math.PI) / 2;
+    const perimeter = 4 * (w + h) + 4 * arc;
+    let d = t * perimeter;
+    const sides: [number, number, number, number, number][] = [[-w, cardH, 2 * w, 0, Math.PI / 2], [cardW, h, 0, -2 * h, 0], [w, -cardH, -2 * w, 0, -Math.PI / 2], [-cardW, -h, 0, 2 * h, Math.PI]];
+    const corners: [number, number, number][] = [[w, h, Math.PI / 2], [w, -h, 0], [-w, -h, -Math.PI / 2], [-w, h, Math.PI]];
+    for (let n = 0; n < 4; n++) {
+      const [sx, sy, dx, dy] = sides[n];
+      const length = Math.hypot(dx, dy);
+      if (d < length) return [sx + (dx / length) * d, sy + (dy / length) * d];
+      d -= length;
+      if (d < arc) {
+        const a = corners[n][2] - d / corner;
+        return [corners[n][0] + Math.cos(a) * corner, corners[n][1] + Math.sin(a) * corner];
       }
-      const u = (random() - 0.5) * width;
-      const phase = Math.sin(u * (strands / width) * Math.PI + n * Math.PI);
-      const y = (across ? 1 : -1) * phase * 0.075 + (random() - 0.5) * 0.008;
-      const thick = (random() - 0.5) * 0.095;
-      if (kind >= 15) {
-        // Shuttles, running the length of a strand.
-        const dir = n % 2 ? 1 : -1;
-        const start = -dir * width * 0.5;
-        const [x, z] = across ? [start, v + thick * 0.4] : [v + thick * 0.4, start];
-        const [vx, vz] = across ? [dir * width, 0] : [0, dir * width];
-        put(i, x, y + 0.03, z, { v: [vx, 0, vz], kind: KIND.flow, tint: 1 });
-      } else if (across) put(i, u, y, v + thick, { kind: KIND.wave, tint: 0.72 });
-      else put(i, v + thick, y, u, { kind: KIND.wave, tint: 0.28 });
+      d -= arc;
+    }
+    return [-cardW, 0];
+  };
+  return formation((put, rnd) => {
+    for (let i = 0; i < COUNT; i++) {
+      const kind = i % 50;
+      const app = Math.floor(rnd() * 3);
+      const a = apps[app];
+      if (kind < 3) {
+        // The map's edge.
+        const side = Math.floor(rnd() * 4);
+        const t = rnd() * 2 - 1;
+        put(i, side < 2 ? t * hw : side === 2 ? -hw : hw, 0, cz + (side < 2 ? (side === 0 ? -hd : hd) : t * hd), { tint: 0.5 });
+      } else if (kind < 13) {
+        // Its streets, all of it there from the start, because this is the simulator's own map.
+        const across = rnd() < 0.55;
+        const n = across ? streetsZ[Math.floor(rnd() * streetsZ.length)] : streetsX[Math.floor(rnd() * streetsX.length)];
+        const t = rnd() * 2 - 1;
+        put(i, across ? t * hw : n, 0, across ? cz + n : cz + t * hd, { tint: 0.26 });
+      } else if (kind < 17) {
+        // Blocks between them.
+        put(i, (rnd() * 2 - 1) * hw * 0.96, 0.002, cz + (rnd() * 2 - 1) * hd * 0.96, { tint: 0.05 });
+      } else if (kind < 23) {
+        // Each application's window: its outline.
+        const [x, y] = edge(rnd());
+        put(i, a.x + x, a.y + y * lean[0], a.z + y * lean[1], { v: [a.from[0], a.from[1], a.from[2]], kind: KIND.dock, phase: app + 0.5, tint: 0.9, hue: a.hue });
+      } else if (kind < 32) {
+        // And what is in it: a heading, and lines or bars of its own.
+        const heading = rnd() < 0.26;
+        let [x, y] = [-cardW * 0.7 + rnd() * cardW * (heading ? 0.8 : 1.4), 0];
+        if (heading) y = cardH * 0.58 + (rnd() - 0.5) * 0.018;
+        else if (app === 0) {
+          const bar = Math.floor(((x + cardW * 0.7) / (cardW * 1.4)) * 7);
+          const tall = [0.3, 0.5, 0.85, 0.62, 1, 0.74, 0.46][bar];
+          x = -cardW * 0.7 + (bar + 0.2 + rnd() * 0.6) * (cardW * 0.2);
+          y = -cardH * 0.7 + rnd() * tall * cardH * 1.05;
+        } else if (app === 1) y = cardH * (0.2 - Math.floor(rnd() * 4) * 0.28) + (rnd() - 0.5) * 0.012;
+        else y = -cardH * 0.2 + Math.sin((x / cardW) * 5 + 0.5) * cardH * 0.34 + (rnd() - 0.5) * 0.012;
+        put(i, a.x + x, a.y + y * lean[0], a.z + y * lean[1], { v: [a.from[0], a.from[1], a.from[2]], kind: KIND.dock, phase: app + 0.5, tint: heading ? 0.9 : 0.6, hue: heading ? a.hue : HUE.ramp });
+      } else if (kind < 38) {
+        // What passes along the line between the window and the map, both ways.
+        const [bx, bz] = a.socket;
+        const up = rnd() < 0.4;
+        const [wx, wy, wz] = [a.x, a.y - cardH * lean[0], a.z - cardH * lean[1]];
+        const from: [number, number, number] = up ? [bx, 0.01, bz] : [wx, wy, wz];
+        const to: [number, number, number] = up ? [wx, wy, wz] : [bx, 0.01, bz];
+        const off = (rnd() - 0.5) * 0.014;
+        put(i, from[0] + off, from[1] + off, from[2], { v: [to[0] - from[0], to[1] - from[1], to[2] - from[2]], kind: KIND.link, phase: app + rnd() * 0.999, tint: 1, hue: a.hue });
+      } else if (kind < 44) {
+        // The first draws its route along the streets.
+        let at = rnd() * routeLength;
+        const done = at / routeLength;
+        const piece = pieces.find((p) => {
+          if (at <= p.length) return true;
+          at -= p.length;
+          return false;
+        }) ?? pieces[pieces.length - 1];
+        const t = Math.min(1, at / piece.length);
+        put(i, piece.a[0] + (piece.b[0] - piece.a[0]) * t + (rnd() - 0.5) * 0.016, 0.012, piece.a[1] + (piece.b[1] - piece.a[1]) * t + (rnd() - 0.5) * 0.016, { kind: KIND.reveal, phase: sends(0) + done * 0.34, tint: 1, hue: HUE.warm });
+      } else if (kind < 47) {
+        // The second places markers, each standing up from the map.
+        const at = Math.floor(rnd() * markers.length);
+        const [mx, mz] = markers[at];
+        const angle = rnd() * TAU;
+        const r = Math.sqrt(rnd()) * 0.042;
+        put(i, mx + Math.cos(angle) * r, 0.016, mz + Math.sin(angle) * r, { kind: KIND.reveal, phase: sends(1) + at * 0.05, tint: 1, hue: HUE.ok });
+      } else {
+        // The third marks out a region: its edge, and a light fill.
+        const angle = rnd() * TAU;
+        const inside = rnd() < 0.6;
+        const r = region.r * (inside ? Math.sqrt(rnd()) : 1) * (1 + Math.sin(angle * 3 + 1) * 0.08);
+        put(i, region.x + Math.cos(angle) * r * 1.15, 0.008, region.z + Math.sin(angle) * r * 0.78, { kind: KIND.reveal, phase: sends(2) + (r / region.r) * 0.09, tint: inside ? 0.36 : 1 });
+      }
     }
   }, 17);
 }
 
-/** What the end of a session blows the name into: a mist, thickest in the middle, in the colour the screen comes to rest in. */
+/** What the end of a session blows the name into: a wide burst, thickest in the middle, in the colour the screen comes to rest in. */
 export function endMist(): Float32Array {
   return formation((put, random) => {
     for (let i = 0; i < COUNT; i++) {
       const a = random() * TAU;
-      const r = Math.sqrt(-2 * Math.log(1 - random() * 0.98)) * 0.62;
-      put(i, Math.cos(a) * r, Math.sin(a) * r, (random() - 0.5) * 0.5, { kind: KIND.boil, tint: 0.1 + random() * 0.2, hue: HUE.ok });
+      const r = 0.2 + Math.sqrt(-2 * Math.log(1 - random() * 0.985)) * 0.95;
+      put(i, Math.cos(a) * r, Math.sin(a) * r, (random() - 0.5) * 1.1, { kind: KIND.boil, tint: 0.14 + random() * 0.3, hue: HUE.ok });
     }
   }, 31);
 }
 
 /** In chapter order. The first is the cloud, and the wordmark takes its place once drawn. */
 export function buildFormations(): Float32Array[] {
-  return [cloud(), cityMap(), junction(), demand(), rushHour(), incident(), storm(), globe(), twinBlooms(), viewfinder(), weave()];
+  return [cloud(), cityMap(), junction(), demand(), rushHour(), incident(), storm(), globe(), twinWorlds(), viewfinder(), fabric()];
 }

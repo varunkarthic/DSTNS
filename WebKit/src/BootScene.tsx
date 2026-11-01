@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { LOGO_SVG } from "./logoAsset";
 import { appearance } from "./appearance";
 import { stepSpring } from "./motion";
-import { BLOOM_HALF, BLOOM_POINTS, BLOOM_REACH, buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B, formation, IN_WORLD, KIND, sequence, STRIDE, WRECK_AT } from "./bootScenes";
+import { buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B, formation, IN_WORLD, KIND, sequence, STRIDE, TRIP_ROADS, WRECK_AT } from "./bootScenes";
 
 /**
  * The start-up film.
@@ -21,7 +21,7 @@ import { BLOOM_HALF, BLOOM_POINTS, BLOOM_REACH, buildFormations, CAMERA_YAW_INCI
 
 const HOLD_S = 4;
 // How long each scene holds: a junction needs time for its lights to go round.
-const HOLDS = [4, 4.4, 6.2, 4.6, 4.4, 5.4, 4, 4, 5, 4.6, 4];
+const HOLDS = [4, 4.4, 6.2, 5.6, 4.4, 5.4, 4, 4, 5.6, 4.6, 5.4];
 const MORPH = { k: 11, c: 5.6 };
 // Going to and from the logo and the map are timed, not sprung: an ease in and out has no
 // sudden start, which is what makes particles leaving a shape feel soft.
@@ -35,6 +35,8 @@ const easeInOut = (t: number) => {
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 };
 const CAMERA = { k: 9, c: 6 };
+const POINTER = { k: 70, c: 15 };
+const BURST = { k: 16, c: 7.2 };
 /** When the map fades in under the roads the particles have just built. */
 export const MAP_AT_MS = Math.round((GATHER_S + LAND_S * 0.86) * 1000);
 /** When the panels come in around it. */
@@ -64,7 +66,7 @@ const END_ROADS_AT_S = 0.3;
 const END_GATHER_AT_S = 1.15;
 const END_GATHER_S = 2.3;
 const END_SCATTER_AT_S = 4.3;
-const END_THIN_AT_S = 4.9;
+const END_THIN_AT_S = 5.1;
 const END_STILL_S = 10.5;
 
 // One or two words and one short line, with no commas. Nothing here may suggest it is
@@ -80,7 +82,7 @@ export const FILM_CHAPTERS: readonly { label: string; title: string; text: strin
   { label: "Places", title: "Cities worldwide", text: "A seed chooses the district." },
   { label: "Reproducibility", title: "Repeatable worlds", text: "Any seed grows the same day on any machine." },
   { label: "Camera", title: "Auto Focus", text: "The camera follows what matters." },
-  { label: "Extensions", title: "WebFabric", text: "Connect your own applications." },
+  { label: "Extensions", title: "WebFabric", text: "Your own applications connect and draw on the map." },
 ];
 
 interface Camera { yaw: number; pitch: number; distance: number; spin: number; push: number }
@@ -88,15 +90,18 @@ const CAMERAS: Camera[] = [
   { yaw: 0, pitch: 0, distance: 3.1, spin: 0.012, push: 0.03 },
   { yaw: 0.2, pitch: 1.2, distance: 3.7, spin: 0.018, push: 0.07 },
   { yaw: -0.28, pitch: 1.02, distance: 3.3, spin: 0.02, push: 0.07 },
-  { yaw: 0, pitch: 0.06, distance: 3.35, spin: 0.006, push: 0.04 },
+  { yaw: 0.14, pitch: 0.74, distance: 3.55, spin: 0.006, push: 0.05 },
   { yaw: 0, pitch: 0.03, distance: 3.25, spin: 0.006, push: 0.04 },
   { yaw: CAMERA_YAW_INCIDENT, pitch: 0.46, distance: 3.05, spin: 0.006, push: 0.05 },
   { yaw: 0.26, pitch: 0.13, distance: 3.75, spin: -0.04, push: 0.07 },
   { yaw: 0.2, pitch: 0.3, distance: 3.3, spin: 0.26, push: 0.05 },
-  { yaw: 0, pitch: 0.03, distance: 3.5, spin: 0.004, push: 0.04 },
+  { yaw: 0, pitch: 0.56, distance: 3.45, spin: 0.004, push: 0.04 },
   { yaw: 0.14, pitch: 1.12, distance: 3.2, spin: 0.012, push: 0.03 },
-  { yaw: 0.55, pitch: 0.78, distance: 3.2, spin: -0.05, push: 0.08 },
+  { yaw: 0, pitch: 0.7, distance: 3.5, spin: 0.004, push: 0.04 },
 ];
+
+/** How far the map's camera has carried the roads since the particles were told where they are. */
+export const mapCarry = { x: 0, y: 0 };
 
 /** The wordmark as points, sampled from its own drawing, so it can never differ from the logo. */
 function wordmarkFormation(image: HTMLImageElement): { data: Float32Array; uv: Float32Array } | null {
@@ -193,12 +198,13 @@ in vec4 aFromM, aToM; // tint kind phase hue
 in vec4 aLand; // x y tint order
 in float aSeed;
 uniform mat4 uView;
-uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo, uSweep;
-uniform vec2 uPointer;
+uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo, uSweep, uAspect, uReach, uBurst;
+uniform vec2 uPointer, uPointerV, uLandShift;
 uniform vec3 uRipple, uBase, uAccent, uWarm, uDanger, uOk, uRoad;
 out vec3 vColour;
 out float vAlpha;
 const float PI = 3.14159265;
+const vec4 TRIP_ROADS[${TRIP_ROADS.length}] = vec4[${TRIP_ROADS.length}](${TRIP_ROADS.map((r) => `vec4(${r.map((n) => n.toFixed(3)).join(", ")})`).join(", ")});
 float ease(float x) { x = clamp(x, 0.0, 1.0); return x * x * (3.0 - 2.0 * x); }
 float overshoot(float x) { x = clamp(x, 0.0, 1.0) - 1.0; return 1.0 + 2.4 * x * x * x + 1.4 * x * x; }
 // The junction's cycle, 6 s. Each road has 2.4 s of green, 0.6 s of amber, then red.
@@ -372,26 +378,51 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
       alpha *= 0.45 + 0.55 * blink;
       size += blink * 0.4;
     }
-  } else if (kind == ${KIND.bloom}) {
-    // The same point of the same pattern on both screens, on the same clock: a small
-    // change of angle turns the whole bloom through one form after another. It fills its
-    // screen, and the screen's edge cuts it off.
-    float k = v.x;
-    float n = sqrt(k / ${BLOOM_POINTS}.0);
-    float grown = ease(age / 1.8);
-    float angle = k * (2.39996 + 0.0011 * pow(sin(age * 0.46), 2.0));
-    float r = n * ${BLOOM_REACH.toFixed(2)} * (0.3 + 0.7 * grown);
-    vec2 off = vec2(cos(angle), sin(angle)) * r;
-    p = vec3(v.y + off.x, v.z + off.y, p.z);
-    vec2 past = abs(off) - vec2(${BLOOM_HALF[0].toFixed(2)} - 0.17, ${BLOOM_HALF[1].toFixed(2)} - 0.17);
-    float inside = length(max(past, 0.0)) - 0.13;
-    alpha = smoothstep(0.012, -0.012, inside) * smoothstep(n - 0.08, n + 0.02, grown * 1.1);
-    // Its spirals, lit, so that its form can be seen to change.
-    float arm = fract(k / 34.0);
-    tint = 0.16 + 0.84 * smoothstep(0.62, 0.98, arm);
-    float wave = exp(-pow((n - fract(t * 0.3) * 1.4) * 5.0, 2.0));
-    tint = max(tint, wave * 0.8);
-    size = 0.85 + wave * 0.5;
+  } else if (kind == ${KIND.trip}) {
+    // A trip leaves a home once the scene has begun, so the roads fill as demand builds.
+    // Those reaching the queue slow to a crawl, and its tail grows back up the road.
+    vec4 road = TRIP_ROADS[int(v.x + 0.5)];
+    float len = length(road.zw - road.xy);
+    vec2 along = (road.zw - road.xy) / len;
+    float rate = 0.26;
+    float cycle = fract(t * rate + phase);
+    float s = cycle * len * 2.7;
+    float q = clamp((age - 1.4) * 0.2, 0.0, 0.62) * v.y * len;
+    float tail = len - q;
+    float crawl = 0.3;
+    float x = s;
+    alpha = step(0.0, age - cycle / rate) * smoothstep(0.0, 0.08, s / len);
+    if (s > tail) {
+      if (s < tail + q / crawl) {
+        x = tail + (s - tail) * crawl;
+        hue = (x - tail) / max(q, 1e-3) > 0.35 ? 2.0 : 1.0;
+      } else {
+        x = len;
+        alpha = 0.0; // In through the door.
+      }
+    }
+    vec2 at = road.xy + along * (x + p.x) + vec2(-along.y, along.x) * p.z;
+    p = vec3(at.x, p.y, at.y);
+  } else if (kind == ${KIND.beam}) {
+    float g = ease((age - 0.5) / 3.6);
+    p.y = v.y + (p.y - v.y) * g;
+    alpha = smoothstep(0.0, 0.08, g) * (0.7 + 0.3 * sin(t * 3.0 + p.y * 24.0));
+  } else if (kind == ${KIND.ping}) {
+    float x = mod(age - 2.1, 3.3);
+    float f = clamp(x / 1.1, 0.0, 1.0);
+    p += v * f;
+    alpha = step(2.1, age) * (1.0 - f) * smoothstep(0.0, 0.04, f);
+  } else if (kind == ${KIND.dock}) {
+    float g = ease((age - 0.15 - floor(phase) * 0.85) / 0.7);
+    float settle = 1.0 - g;
+    p += v * settle * settle;
+    alpha = g;
+    size = 1.0 + exp(-pow((age - 0.85 - floor(phase) * 0.85) * 5.0, 2.0)) * 0.9;
+  } else if (kind == ${KIND.link}) {
+    float f = fract(t * 0.55 + fract(phase) * 13.0);
+    float begins = 0.72 + floor(phase) * 0.85;
+    p += v * f;
+    alpha = smoothstep(begins, begins + 0.3, age) * smoothstep(0.0, 0.1, f) * smoothstep(1.0, 0.9, f);
   } else if (kind == ${KIND.wave}) {
     p.y += 0.075 * sin(p.x * 2.6 + p.z * 1.8 - t * 1.9) + 0.03 * sin(p.z * 5.0 + t * 1.2);
   } else if (kind == ${KIND.bracket}) {
@@ -439,6 +470,11 @@ void main() {
   float order = mix(aSeed, clamp((aTo.x + 1.9) / 3.8, 0.0, 1.0), 0.62);
   float m = clamp(uMix * 1.5 - order * 0.5, 0.0, 1.0);
   m = m * m * (3.0 - 2.0 * m);
+  // The end blows outward from the middle all at once, hard, and then slows.
+  if (uBurst > 0.5) {
+    m = clamp(uMix * 1.12 - aSeed * 0.12, 0.0, 1.0);
+    m = 1.0 - pow(1.0 - m, 3.4);
+  }
   Live a = live(aFrom, aFromV, aFromM, uAgeFrom);
   Live b = live(aTo, aToV, aToM, uAgeTo);
   vec3 p = mix(a.p, b.p, m);
@@ -446,14 +482,18 @@ void main() {
   float swing = sin(m * 3.14159);
   float angle = aSeed * 40.0 + uTime * 0.6;
   vec3 current = vec3(sin(p.y * 2.3 + uTime * 0.7), sin(p.z * 2.1 + uTime * 0.6 + 1.3), cos(p.x * 2.5 + uTime * 0.5));
-  p += swing * (current * 0.3 + vec3(cos(angle), sin(angle * 1.3) * 0.7, sin(angle)) * (0.06 + aSeed * 0.14));
-  float turn = swing * (0.35 + aSeed * 0.35);
+  p += swing * (1.0 - uBurst) * (current * 0.3 + vec3(cos(angle), sin(angle * 1.3) * 0.7, sin(angle)) * (0.06 + aSeed * 0.14));
+  float turn = swing * (0.35 + aSeed * 0.35) * (1.0 - uBurst);
   p.xz = mat2(cos(turn), -sin(turn), sin(turn), cos(turn)) * p.xz;
   vec4 clip = uView * vec4(p, 1.0);
-  // The pointer parts the cloud, and a click sends a ring through it.
+  // The pointer moves through them like a hand through water: those nearby ease aside and
+  // turn a little around it, are carried along with its movement, and catch the light.
   vec2 ndc = clip.xy / clip.w;
-  vec2 d = ndc - uPointer;
-  ndc += d * exp(-dot(d, d) * 26.0) * 0.5;
+  vec2 d = (ndc - uPointer) * vec2(uAspect, 1.0);
+  float near = exp(-dot(d, d) * 11.0) * uReach;
+  vec2 out_ = d / (length(d) + 0.05);
+  vec2 nudge = out_ * 0.05 + vec2(-out_.y, out_.x) * (0.018 + aSeed * 0.02) + uPointerV * (0.5 + aSeed * 0.6);
+  ndc += nudge * near / vec2(uAspect, 1.0);
   if (uRipple.z >= 0.0) {
     vec2 r = ndc - uRipple.xy;
     float reach = length(r) - uRipple.z * 1.5;
@@ -465,8 +505,10 @@ void main() {
   float landOrder = uSweep < 8.0 ? aSeed * 0.3 : aLand.w;
   float l = clamp(uLand * 1.5 - landOrder * 0.5, 0.0, 1.0);
   l = l * l * (3.0 - 2.0 * l);
-  vec2 way = aLand.xy - ndc;
-  ndc = mix(ndc, aLand.xy, l) + vec2(-way.y, way.x) * sin(l * 3.14159) * (0.1 + (aSeed - 0.5) * 0.14);
+  // On the roads as they are now, which the camera may be carrying as the panels arrive.
+  vec2 roads = aLand.xy + uLandShift;
+  vec2 way = roads - ndc;
+  ndc = mix(ndc, roads, l) + vec2(-way.y, way.x) * sin(l * 3.14159) * (0.1 + (aSeed - 0.5) * 0.14);
   float arriving = smoothstep(0.72, 1.0, l) * smoothstep(1.0, 0.0, (uLand * 1.5 - landOrder * 0.5 - 1.0) * 5.0);
   // The title coming apart: as the sweep passes, each particle appears, kicks out and settles.
   float swept = uSweep - aLand.w;
@@ -478,13 +520,14 @@ void main() {
   gl_Position = vec4(ndc * clip.w, clip.z, clip.w);
   float depth = clip.w;
   float size = mix(a.size, b.size, m);
-  gl_PointSize = mix(uPixels * size * (1.0 + aSeed * 0.9) * clamp(3.4 / depth, 0.35, 2.6), uPixels * (0.85 + arriving * 1.5 + seam * 1.1), l);
+  gl_PointSize = mix(uPixels * size * (1.0 + aSeed * 0.9 + near * 0.6) * clamp(3.4 / depth, 0.35, 2.6), uPixels * (0.85 + arriving * 1.5 + seam * 1.1), l);
   float tint = mix(a.tint, b.tint, m);
   vColour = mix(mix(colourOf(a.tint, a.hue), colourOf(b.tint, b.hue), m), uSweep < 8.0 ? uBase : mix(uRoad, uAccent, arriving * 0.7), l);
   // Nearer and further than the focal distance falls away, as with a lens.
   float shown = (0.32 + tint * 0.68) * clamp(1.5 - abs(depth - 3.1) * 0.5, 0.18, 1.0) * mix(a.alpha, b.alpha, m);
+  shown = min(1.0, shown * (1.0 + near * 0.9));
   vAlpha = mix(shown, 0.92, l) * hidden;
-  vColour = mix(vColour, uAccent, seam);
+  vColour = mix(vColour, uAccent, max(seam, near * 0.35 * (1.0 - l)));
 }`;
 
 const FRAGMENT = `#version 300 es
@@ -626,7 +669,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       return buffer;
     })()) - 1 : 0;
     const uniform = (name: string) => gl.getUniformLocation(program, name);
-    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), sweep: uniform("uSweep"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand") };
+    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), sweep: uniform("uSweep"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand"), aspect: uniform("uAspect"), reach: uniform("uReach"), pointerV: uniform("uPointerV"), burst: uniform("uBurst"), landShift: uniform("uLandShift") };
     const landAt = gl.getAttribLocation(program, "aLand");
     const landBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
@@ -715,7 +758,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     let count = COUNT;
     let slow = 0;
     const camera = { yaw: CAMERAS[0].yaw, pitch: CAMERAS[0].pitch, distance: CAMERAS[0].distance, vy: 0, vp: 0, vd: 0, orbit: 0 };
-    const pointer = { x: 9, y: 9 };
+    // Where the pointer is, and the softer place the particles feel it, which follows it.
+    const pointer = { x: 0, y: 0, vx: 0, vy: 0, toX: 0, toY: 0, dx: 0, dy: 0, reach: 0, inside: false, movedAt: 0 };
     let ripple = { x: 0, y: 0, age: -1 };
     let last = performance.now();
 
@@ -733,6 +777,11 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.uniform1f(u.land, landing);
       gl.uniform1f(u.time, time);
       gl.uniform2f(u.pointer, pointer.x, pointer.y);
+      gl.uniform2f(u.pointerV, pointer.dx, pointer.dy);
+      gl.uniform1f(u.reach, pointer.reach);
+      gl.uniform1f(u.aspect, element.width / element.height);
+      gl.uniform1f(u.burst, endScattered && !rejoin ? 1 : 0);
+      gl.uniform2f(u.landShift, (mapCarry.x / window.innerWidth) * 2, -(mapCarry.y / window.innerHeight) * 2);
       gl.uniform3f(u.ripple, ripple.x, ripple.y, ripple.age);
       gl.uniform1f(u.dim, dim * strength);
       gl.drawArrays(gl.POINTS, 0, count);
@@ -766,7 +815,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       ageFrom += dt;
       // A scene starts its own story as the particles arrive, not as they set off.
       ageTo += blend > 0.55 ? dt : 0;
-      [blend, velocity] = stepSpring(blend, velocity, 1, MORPH, dt);
+      [blend, velocity] = stepSpring(blend, velocity, 1, endScattered && !rejoin ? BURST : MORPH, dt);
       const want = CAMERAS[scene];
       [camera.yaw, camera.vy] = stepSpring(camera.yaw, camera.vy, want.yaw, CAMERA, dt);
       [camera.pitch, camera.vp] = stepSpring(camera.pitch, camera.vp, want.pitch, CAMERA, dt);
@@ -775,6 +824,13 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       // The wordmark faces the viewer; it sways, and does not turn away.
       if (scene === 0) camera.orbit += (Math.sin(time * 0.5) * 0.06 - camera.orbit) * Math.min(1, dt * 2);
       if (ripple.age >= 0) ripple = { ...ripple, age: ripple.age > 1.6 ? -1 : ripple.age + dt };
+      const [lastX, lastY] = [pointer.x, pointer.y];
+      [pointer.x, pointer.vx] = stepSpring(pointer.x, pointer.vx, pointer.toX, POINTER, dt);
+      [pointer.y, pointer.vy] = stepSpring(pointer.y, pointer.vy, pointer.toY, POINTER, dt);
+      pointer.dx += ((pointer.x - lastX) - pointer.dx) * Math.min(1, dt * 7);
+      pointer.dy += ((pointer.y - lastY) - pointer.dy) * Math.min(1, dt * 7);
+      const wanted = pointer.inside && now - pointer.movedAt < 2400 ? 1 : 0;
+      pointer.reach += (wanted - pointer.reach) * Math.min(1, dt * (wanted ? 5 : 1.4));
       if (closingRef.current && closingFor < 0) {
         closingFor = 0;
         const points = landingRef.current?.();
@@ -899,11 +955,15 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       frame = requestAnimationFrame(tick);
     };
     const onMove = (event: PointerEvent) => {
-      pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-      pointer.y = 1 - (event.clientY / window.innerHeight) * 2;
+      pointer.toX = (event.clientX / window.innerWidth) * 2 - 1;
+      pointer.toY = 1 - (event.clientY / window.innerHeight) * 2;
+      // Arriving from outside, it starts where it is rather than sweeping across.
+      if (!pointer.inside && pointer.reach < 0.02) [pointer.x, pointer.y, pointer.vx, pointer.vy] = [pointer.toX, pointer.toY, 0, 0];
+      pointer.inside = true;
+      pointer.movedAt = performance.now();
     };
     const onLeave = () => {
-      pointer.x = pointer.y = 9;
+      pointer.inside = false;
     };
     const onPress = (event: PointerEvent) => {
       ripple = { x: (event.clientX / window.innerWidth) * 2 - 1, y: 1 - (event.clientY / window.innerHeight) * 2, age: 0 };

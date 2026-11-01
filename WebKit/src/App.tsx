@@ -13,7 +13,7 @@ import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
 import { BootFailure, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
-import { filmAvailable, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS } from "./BootScene";
+import { filmAvailable, mapCarry, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS } from "./BootScene";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
 import { NotificationHistory } from "./notificationHistory";
@@ -514,8 +514,14 @@ export default function App() {
   const [sidebarInset, setSidebarInset] = useState(0);
   const overlay = useRef<FabricOverlayHandle>(null);
   const mapView = useRef<MapTransform | null>(null);
+  const landedAt = useRef<MapTransform | null>(null);
   const onMapTransform = useCallback<NonNullable<ComponentProps<typeof NetworkMap>["onTransform"]>>((view) => {
     mapView.current = view;
+    // Particles standing on the roads go with them as the camera moves.
+    if (landedAt.current) {
+      mapCarry.x = view.x - landedAt.current.x;
+      mapCarry.y = view.y - landedAt.current.y;
+    }
     mapScale.current = view.scale;
     overlay.current?.draw(view);
     readout.current?.camera(view.scale);
@@ -933,6 +939,8 @@ export default function App() {
     const view = mapView.current;
     const box = document.querySelector(".static-map")?.getBoundingClientRect();
     if (!view || !box || !sim.topology) return null;
+    landedAt.current = view;
+    mapCarry.x = mapCarry.y = 0;
     return landingPoints(sim.topology.edges.map((edge) => edge.geometry), view, box, window.innerWidth, window.innerHeight);
   }, [sim.topology]);
   // Nothing has ever loaded and the simulator is not answering, or refused the

@@ -61,8 +61,8 @@ describe("start-up states", () => {
 
   it("says plainly when the server has gone", () => {
     render(<ShutdownSurface reduceMotion={false} />);
-    expect(screen.getByRole("heading")).toHaveTextContent("DSTNS has shut down");
-    expect(screen.getByText(/Start a new run from the DSTNS CLI/)).toBeInTheDocument();
+    expect(screen.getByRole("heading")).toHaveTextContent("Server Terminated");
+    expect(screen.getByText("The simulation has ended.")).toBeInTheDocument();
     expect(document.querySelector(".loading-progress.working")).toBeNull();
   });
 

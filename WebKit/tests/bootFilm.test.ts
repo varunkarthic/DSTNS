@@ -58,7 +58,7 @@ describe("the film's scenes", () => {
     for (let i = 0; i < COUNT; i++) {
       const at = i * STRIDE;
       // These are placed by the shader, so where they start says nothing about the scene.
-      if (scene[at + 7] === KIND.lane || scene[at + 7] === KIND.stream || scene[at + 7] === KIND.queue) continue;
+      if (scene[at + 7] === KIND.lane || scene[at + 7] === KIND.stream || scene[at + 7] === KIND.queue || scene[at + 7] === KIND.trip) continue;
       const key = `${Math.round(scene[at] * 6)},${Math.round(scene[at + 1] * 6)},${Math.round(scene[at + 2] * 6)}`;
       cells.set(key, (cells.get(key) ?? 0) + 1);
     }

@@ -210,8 +210,8 @@ export function ShutdownSurface({ reduceMotion, landing, lost = false }: { reduc
       idle
       ending
       landing={landing}
-      title={lost ? "The server has stopped" : "DSTNS has shut down"}
-      status={lost ? "It is no longer answering. This screen clears if it returns; otherwise start a new run from the DSTNS CLI." : "The simulation and its server have stopped. Start a new run from the DSTNS CLI."}
+      title={lost ? "Server Unreachable" : "Server Terminated"}
+      status={lost ? "This page reconnects if it returns." : "The simulation has ended."}
       // Without the film there is nothing for the words to wait for.
       reduceMotion={reduceMotion || !filmAvailable()}
       titleId="shutdown-title"
