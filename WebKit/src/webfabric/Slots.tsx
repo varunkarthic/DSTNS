@@ -9,7 +9,6 @@ import { Tooltip } from "../Tooltip";
 import { Scrim } from "../Dialogs";
 import { Switch } from "../settingsControls";
 import { Select } from "../Popover";
-import { useScrollFade } from "../scrollFade";
 import { settleTime, Spring, springEasing, SPRINGS } from "../motion";
 import { AppFrame } from "./AppFrame";
 import { fabric, useFabricApps, useOpenPanel, usePicking, useSlot } from "./store";
@@ -369,7 +368,6 @@ function Widget({ app, element, widget }: { app: FabricApp; element: FabricEleme
 export function FabricPanel() {
   const open = useOpenPanel();
   const apps = useFabricApps();
-  const scroll = useScrollFade<HTMLDivElement>();
   const closeRef = useRef<HTMLButtonElement>(null);
   const [appId, elementId] = open?.split("/") ?? [];
   const app = apps.find((item) => item.id === appId);
@@ -399,7 +397,7 @@ export function FabricPanel() {
         {element.frame ? (
           <AppFrame app={app} element={element} />
         ) : (
-          <div {...scroll} className={`fabric-panel-body ${scroll.className}`} tabIndex={0}>
+          <div className="fabric-panel-body scroll-region" tabIndex={0}>
             {(Array.isArray(element.widgets) ? element.widgets : []).map((widget, index) => (
               <Widget key={widget.id ?? index} app={app} element={element} widget={widget} />
             ))}
@@ -461,10 +459,15 @@ export function FabricSidebar({ onInset, reduceMotion }: { onInset: (width: numb
   const [collapsed, setCollapsed] = useState(false);
   const panel = useRef<HTMLElement>(null);
   const picking = usePicking();
-  const scroll = useScrollFade<HTMLDivElement>();
   const key = ({ app, element }: { app: FabricApp; element: FabricElement }) => `${app.id}/${element.id}`;
   const current = items.find((item) => key(item) === activeKey) ?? items[0];
   const present = !!current;
+  // An attribute, because the shell's class belongs to React.
+  useEffect(() => {
+    const shell = document.querySelector(".app-shell");
+    shell?.toggleAttribute("data-sidebar-open", present && !collapsed);
+    return () => shell?.removeAttribute("data-sidebar-open");
+  }, [present, collapsed]);
   const hidden = -(SIDEBAR_WIDTH + 96);
   const spring = useRef<Spring | null>(null);
   useEffect(() => {
@@ -516,7 +519,7 @@ export function FabricSidebar({ onInset, reduceMotion }: { onInset: (width: numb
           {element.frame ? (
             <AppFrame app={app} element={element} />
           ) : (
-            <div {...scroll} className={`fabric-panel-body ${scroll.className}`} tabIndex={0}>
+            <div className="fabric-panel-body scroll-region" tabIndex={0}>
               {(Array.isArray(element.widgets) ? element.widgets : []).map((widget, index) => (
                 <Widget key={widget.id ?? index} app={app} element={element} widget={widget} />
               ))}

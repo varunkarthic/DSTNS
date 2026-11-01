@@ -966,7 +966,7 @@ export default function App() {
       <div
         inert={tutorial.active || undefined}
         data-tour-target={tutorial.active ? tutorialTarget : undefined}
-        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${showSplash || bootFailure || shutDown ? " booting" : ""}${world.active ? " world-busy" : ""}${lifecycle === "COMPLETED" ? " day-complete" : ""}`}
+        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${showSplash || bootFailure || shutDown ? " booting" : ""}${world.active ? " world-busy" : ""}${world.closing ? " world-closing" : ""}${lifecycle === "COMPLETED" ? " day-complete" : ""}`}
       >
         {asb && asb.state !== "NORMAL" && (
           <div className={`asb-banner ${asbInfo.tone}`} role="status">

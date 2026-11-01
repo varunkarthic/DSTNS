@@ -506,6 +506,65 @@ try {
     assert.ok(statSync(target).size > 50000);
   });
 
+  check("a list scrolls wherever the pointer is on it, cut-off text included", async () => {
+    await page.keyboard.press("Escape");
+    await page.locator("[data-settings-trigger]").first().click();
+    const list = page.locator(".settings-scroll");
+    await list.waitFor();
+    await page.waitForTimeout(700);
+    await list.evaluate((el) => {
+      const cut = document.createElement("div");
+      cut.id = "cut-off";
+      cut.textContent = "A title much too long to fit, as a telemetry row often is. ".repeat(4);
+      cut.style.cssText = "overflow:hidden;white-space:nowrap;text-overflow:ellipsis;height:24px";
+      el.prepend(cut);
+      el.scrollTop = 0;
+    });
+    const box = await page.locator("#cut-off").boundingBox();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.waitForTimeout(200);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.synthesizeScrollGesture", { x, y, yDistance: -200, speed: 1500, gestureSourceType: "mouse", preventFling: true });
+    await page.waitForTimeout(200);
+    const moved = await list.evaluate((el) => el.scrollTop);
+    await page.locator("#cut-off").evaluate((el) => el.remove());
+    assert.ok(moved > 150, `the list moved ${moved}px`);
+  });
+
+  check("a bounce runs off the main thread and leaves nothing behind", async () => {
+    const list = page.locator(".settings-scroll");
+    const box = await list.boundingBox();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await list.evaluate((el) => { el.scrollTop = el.scrollHeight - el.clientHeight - 300; });
+    await page.waitForTimeout(300);
+    const cdp = await page.context().newCDPSession(page);
+    const seen = page.evaluate(() => new Promise((resolve) => {
+      const el = document.querySelector(".settings-scroll");
+      const started = performance.now();
+      let most = 0;
+      let inline = false;
+      const step = () => {
+        most = Math.max(most, el.getAnimations().filter((a) => !a.animationName && !a.transitionProperty).length);
+        inline = inline || !!el.style.transform;
+        if (performance.now() - started < 800) requestAnimationFrame(step);
+        else resolve({ most, inline });
+      };
+      step();
+    }));
+    await cdp.send("Input.synthesizeScrollGesture", { x, y, yDistance: -500, speed: 2400, gestureSourceType: "mouse", preventFling: true });
+    const { most, inline } = await seen;
+    assert.equal(most, 1, "one bounce");
+    assert.equal(inline, false, "played by the compositor, not stepped by the page");
+    await page.waitForTimeout(900);
+    assert.equal(await list.evaluate((el) => el.getAnimations().filter((a) => !a.animationName && !a.transitionProperty).length + el.style.transform.length), 0);
+    await page.keyboard.press("Escape");
+    await list.waitFor({ state: "detached" });
+  });
+
   check("corners inside corners follow them", async () => {
     await page.keyboard.press("Escape");
     const stray = await page.evaluate(() => {
@@ -526,10 +585,13 @@ try {
         const R = radius(parent);
         if (pill(parent, R)) continue;
         const a = parent.getBoundingClientRect(), b = el.getBoundingClientRect();
-        const gaps = [Math.max(b.left - a.left, b.top - a.top), Math.max(a.right - b.right, b.top - a.top), Math.max(b.left - a.left, a.bottom - b.bottom), Math.max(a.right - b.right, a.bottom - b.bottom)];
+        // A corner scrolled out past the edge is not on screen to follow anything.
+        const corners = [[b.left - a.left, b.top - a.top], [a.right - b.right, b.top - a.top], [b.left - a.left, a.bottom - b.bottom], [a.right - b.right, a.bottom - b.bottom]];
+        const gaps = corners.filter(([x, y]) => x >= 0 && y >= 0).map(([x, y]) => Math.max(x, y));
+        if (!gaps.length) continue;
         const gap = Math.min(...gaps);
         // A corner further in than the outer radius no longer reads as following it.
-        if (gap < 0 || gap >= R) continue;
+        if (gap >= R) continue;
         if (Math.abs(r - (R - gap)) > 5) out.push(`${el.className} in ${parent.className}: ${r} for ${R} less ${gap}`);
       }
       return out;

@@ -261,9 +261,6 @@
     transform: translateY(var(--from, 6px)) scale(0.98);
   }
 }
-body:has(.reduce-motion) .floating {
-  animation: none;
-}
 .floating-title {
   display: block;
   padding: 2px 6px 6px;
@@ -2146,27 +2143,10 @@ body:has(.reduce-motion) .floating {
   font-size: 11px;
 }
 
-/* ---- Scrollable lists: a soft edge, not a cut ----------------------------
- *
- * A list that runs past its panel used to stop dead at the border, which
- * reads as the end of the list rather than as more to come. A progressive
- * blur over the last few rows fades the content out instead, so the edge
- * says "there is more" without a scrollbar having to say it.
- *
- * The mask is what actually fades the content; the blurred overlay sits
- * behind it so the rows dissolve into the panel rather than into whatever is
- * behind the window. Browsers without mask support simply show a hard edge,
- * which is what they show today.
- */
-.scroll-fade {
+.scroll-region {
   position: relative;
   overflow-y: auto;
   scrollbar-width: thin;
-  /* Only fade when there is something below: a list that fits is not clipped. */
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent 100%);
-}
-.scroll-fade.at-end {
-  mask-image: none;
 }
 .legend-popover.places .place-rows {
   max-height: min(42vh, 420px);
@@ -2178,9 +2158,7 @@ body:has(.reduce-motion) .floating {
   backdrop-filter: blur(22px) saturate(140%);
 }
 
-/* Keep headers/actions visible while the shared continuation mask follows the list. */
 .layers-scroll { max-height: min(52vh, 520px); }
-.stream.scroll-fade.at-end { mask-image: none;  }
 
 /* Two readable map groups on the shared HUD baseline. */
 .hud-center, .hud-right { gap: 0; border-radius: var(--r-pill); background: var(--glass-strong); border: 0; box-shadow: inset 0 0 0 1px var(--glass-line); }

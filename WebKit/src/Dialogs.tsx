@@ -6,7 +6,6 @@ import { BrandLogo } from "./BrandLogo";
 import { Spring, SPRINGS } from "./motion";
 import { Badge } from "./settingsControls";
 import { api } from "./api";
-import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "./Icons";
@@ -142,7 +141,6 @@ export function AboutCard({
   location?: { city: string; country: string } | null;
   seed?: string;
 }) {
-  const scroll = useScrollFade<HTMLDivElement>();
   const [system, setSystem] = useState<Awaited<ReturnType<typeof api.systemInfo>> | null>(null);
   useEffect(() => {
     let cancelled=false;
@@ -180,7 +178,7 @@ export function AboutCard({
         </nav>
       </header>
 
-      <div {...scroll} className={`about-scroll ${scroll.className}`} tabIndex={0} aria-label="System details">
+      <div className="about-scroll scroll-region" tabIndex={0} aria-label="System details">
       <section className="about-section">
         <h3>This run</h3>
         <dl className="about-facts">

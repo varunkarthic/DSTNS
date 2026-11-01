@@ -7,7 +7,6 @@ import { Icon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 import { demandColor } from "./mapModel";
 import { glyphFor } from "./placeGlyphs";
-import { useScrollFade } from "./scrollFade";
 import { demandDetail, demandSummary, placeCensus, placeLegend } from "./placeLegend";
 import type { PlaceLegendEntry } from "./placeLegend";
 import type { DemandState, MapFeature, PlaceVisibility } from "./types";
@@ -129,7 +128,6 @@ export function PlaceLegend({
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), [trigger, panel]);
-  const rowScroll = useScrollFade<HTMLDivElement>();
   const census = useMemo(() => placeCensus(features), [features]);
   // Demand is only read while the legend is open, so ticks cost nothing when closed.
   const entries = useMemo(() => placeLegend(census, open ? demand : undefined, showOther), [census, demand, open, showOther]);
@@ -204,7 +202,7 @@ export function PlaceLegend({
             </div>
           </header>
           {!visible && <p className="layers-empty">Buildings are hidden in Layers. Markers return when that layer is on.</p>}
-          <div {...rowScroll} className={`layers-scroll ${rowScroll.className}`} tabIndex={0} aria-label="Kinds of place">
+          <div className="layers-scroll scroll-region" tabIndex={0} aria-label="Kinds of place">
             {modelled.length > 0 && (
               <div className="layer-group" role="group" aria-label="Affect traffic">
                 <span className="layer-group-title">Affect traffic</span>

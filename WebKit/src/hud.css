@@ -207,7 +207,7 @@
   max-width: 100%;
   padding: 0 10px;
   border-radius: var(--r-lg);
-  animation: rail-in 420ms var(--ease) both;
+  animation: rail-in 420ms var(--ease);
 }
 @keyframes rail-in {
   from {
@@ -1670,12 +1670,6 @@
 }
 .stream {
   position: relative;
-  /* A soft lower edge while more content lies below. */
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
-  transition: mask-image var(--t-panel) var(--ease);
-}
-.stream.at-end {
-  mask-image: none;
 }
 .stream-card {
   display: flex;
@@ -1684,7 +1678,7 @@
   gap: 10px;
   padding: 10px 12px;
   border-radius: var(--r-md);
-  animation: row-in 280ms var(--ease) both;
+  animation: row-in 280ms var(--ease);
 }
 @keyframes row-in {
   from {

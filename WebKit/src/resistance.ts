@@ -49,14 +49,8 @@ export function resistZoomOut(scale: number, fitScale: number): number {
   return rest * Math.exp(resist(Math.log(scale / rest), room, 1.8));
 }
 
-let lastScroll = -Infinity;
-/** Something is being scrolled. Whatever can wait until it stops, should. */
-export function scrollingNow(): boolean {
-  return performance.now() - lastScroll < 180;
-}
-
 const SCROLLING = /(auto|scroll)/;
-// The bounce: a critically damped spring on the position seen, so it leaves at the speed it
+// The bounce: a critically damped spring on the position shown, so it leaves at the speed it
 // arrived, slows, and comes back as one curve. Apple does not publish its figures; this
 // peaks about 90 ms after arriving and is home about 0.6 s later.
 const BOUNCE = { k: 121, c: 22 };
@@ -69,6 +63,10 @@ const LET_GO_MS = 90;
 // And no lift either: this long with no wheel events at all is a new gesture. Momentum
 // arrives far more often than this, so it is always part of the gesture that began it.
 const GESTURE_GAP_MS = 180;
+// Between the page asking for a bounce and the compositor showing it, the content keeps
+// travelling. Starting this long before the limit means the two meet there, rather than
+// the content stopping dead and waiting. Measured in Chrome; see the design decisions.
+const LEAD_S = 0.034;
 
 function normalised(event: WheelEvent, page: number): [number, number] {
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? page : 1;
@@ -100,9 +98,29 @@ function regionFor(start: Element | null, axis: "x" | "y"): HTMLElement | null {
   return null;
 }
 
+type Axis = "x" | "y";
+
+/** How the spring moves from (x, v), `t` seconds later. */
+function spring(x: number, v: number, t: number): [number, number] {
+  const fall = Math.exp(-OMEGA * t);
+  const lift = v + OMEGA * x;
+  return [(x + lift * t) * fall, (v - OMEGA * lift * t) * fall];
+}
+
+/** Past the end the content moves up, and the clip holds its top edge where the frame is. */
+function shownAt(axis: Axis, x: number): { transform: string; clipPath: string } {
+  const px = (-x).toFixed(2);
+  const gap = Math.abs(x).toFixed(2);
+  return axis === "y"
+    ? { transform: `translate3d(0, ${px}px, 0)`, clipPath: x > 0 ? `inset(${gap}px 0 0 0)` : `inset(0 0 ${gap}px 0)` }
+    : { transform: `translate3d(${px}px, 0, 0)`, clipPath: x > 0 ? `inset(0 0 0 ${gap}px)` : `inset(0 ${gap}px 0 0)` };
+}
+
 interface Stretch {
-  axis: "x" | "y";
-  /** How far past the limit the content is shown, and how fast it is moving. */
+  axis: Axis;
+  /** Which way this gesture went past the limit. */
+  direction: number;
+  /** Where a push is holding the content, and how fast it is moving there. */
   x: number;
   v: number;
   /** A continuing push, before the rubber-band curve. Zero once let go. */
@@ -113,32 +131,37 @@ interface Stretch {
   /** This gesture has had its one motion, so the rest of its events do nothing. */
   spent: boolean;
   gesture: number;
-  cancel: (() => void) | null;
+  /** A push, followed on the main thread because that is where wheel events arrive. */
+  holding: (() => void) | null;
+  /** Everything else, which runs on the compositor and so never waits for the page. */
+  bounce: Animation | null;
+  bounceFrom: [number, number];
 }
 
 /**
  * Installs itself once, for every scrolling region now and later.
  *
  * Scrolling itself belongs to the browser and runs on the compositor, whatever the page
- * is doing. This only listens, and takes over at the moment the browser stops at a limit,
+ * is doing. This only listens, and takes over at the moment the browser reaches a limit,
  * as a scroll view does: the content carries on at the speed it arrived and a critically
  * damped spring turns it round and brings it home. A slow scroll barely shows at the edge
  * and a fast one travels further, because it is one motion, not a stop followed by a
- * separate effect, and one gesture only ever gets one. The region's frame stays where it
- * is and only what is inside it moves, using one transform and one clip, touched only
- * while it is moving.
+ * separate effect, and one gesture only ever gets one. The curve is worked out once and
+ * handed to the compositor, so it stays smooth while the page is busy. The region's frame
+ * stays where it is and only what is inside it moves.
  */
 export function installEdgeResistance(root: Document = document): () => void {
   const stretches = new WeakMap<HTMLElement, Stretch>();
   const positions = new WeakMap<Element, { at: number; top: number; speed: number }>();
   const reduced = () => root.documentElement.classList.contains("reduce-motion");
   let wheelAt = -Infinity;
+  let gestureAt = -Infinity;
   let gesture = 0;
 
-  const stretchFor = (el: HTMLElement, axis: "x" | "y") => {
+  const stretchFor = (el: HTMLElement, axis: Axis) => {
     let s = stretches.get(el);
     if (!s) {
-      s = { axis, x: 0, v: 0, pull: 0, pushedAt: -Infinity, lastDelta: 0, fading: 0, spent: false, gesture, cancel: null };
+      s = { axis, direction: 0, x: 0, v: 0, pull: 0, pushedAt: -Infinity, lastDelta: 0, fading: 0, spent: false, gesture, holding: null, bounce: null, bounceFrom: [0, 0] };
       stretches.set(el, s);
     }
     if (s.gesture !== gesture) {
@@ -151,50 +174,60 @@ export function installEdgeResistance(root: Document = document): () => void {
     return s;
   };
 
-  const boundOf = (el: HTMLElement, axis: "x" | "y") => Math.min(EDGE_LIMIT, (axis === "y" ? el.clientHeight : el.clientWidth) * EDGE_SHARE);
+  const boundOf = (el: HTMLElement, axis: Axis) => Math.min(EDGE_LIMIT, (axis === "y" ? el.clientHeight : el.clientWidth) * EDGE_SHARE);
 
-  const run = (el: HTMLElement, s: Stretch) => {
-    if (s.cancel) return;
-    s.cancel = animate((dt) => {
-      if (performance.now() - s.pushedAt > LET_GO_MS) s.pull = 0;
-      [s.x, s.v] = stepSpring(s.x, s.v, resist(s.pull, boundOf(el, s.axis)), BOUNCE, dt);
-      if (!s.pull && Math.abs(s.x) < 0.3 && Math.abs(s.v) < 6) {
-        s.x = s.v = 0;
-        s.cancel = null;
-        el.style.removeProperty("transform");
-        el.style.removeProperty("clip-path");
-        return false;
-      }
-      // Past the bottom the content moves up: its top edge is held in place by the clip.
-      const shown = -s.x;
-      const px = shown.toFixed(2);
-      const clipped = Math.abs(shown).toFixed(2);
-      if (s.axis === "y") {
-        el.style.transform = `translate3d(0, ${px}px, 0)`;
-        el.style.clipPath = shown < 0 ? `inset(${clipped}px 0 0 0)` : `inset(0 0 ${clipped}px 0)`;
-      } else {
-        el.style.transform = `translate3d(${px}px, 0, 0)`;
-        el.style.clipPath = shown < 0 ? `inset(0 0 0 ${clipped}px)` : `inset(0 ${clipped}px 0 0)`;
-      }
-      return true;
-    });
+  /** Where the content is shown now, whichever of the two is moving it. */
+  const where = (s: Stretch): [number, number] => {
+    if (!s.bounce) return [s.x, s.v];
+    return spring(s.bounceFrom[0], s.bounceFrom[1], Number(s.bounce.currentTime ?? 0) / 1000);
   };
 
-  /** The content reached a limit at this speed: it keeps going, and the spring turns it round. */
-  const arrive = (el: HTMLElement, axis: "x" | "y", speed: number) => {
+  /** From here, home: the whole curve at once, for the compositor to play. */
+  const bounce = (el: HTMLElement, s: Stretch, x: number, v: number) => {
+    s.bounce?.cancel();
+    s.bounce = null;
+    if (typeof el.animate !== "function") return;
+    const frames = [shownAt(s.axis, x)];
+    let t = 0;
+    for (;;) {
+      t += 1 / 60;
+      const [nextX, nextV] = spring(x, v, t);
+      if (t > 2 || (Math.abs(nextX) < 0.25 && Math.abs(nextV) < 6)) break;
+      frames.push(shownAt(s.axis, nextX));
+    }
+    frames.push(shownAt(s.axis, 0));
+    const played = el.animate(frames, { duration: t * 1000, easing: "linear" });
+    s.bounce = played;
+    s.bounceFrom = [x, v];
+    played.onfinish = () => {
+      if (s.bounce === played) s.bounce = null;
+    };
+  };
+
+  const stopHolding = (el: HTMLElement, s: Stretch) => {
+    s.holding?.();
+    s.holding = null;
+    el.style.removeProperty("transform");
+    el.style.removeProperty("clip-path");
+  };
+
+  /** The content is reaching a limit at this speed: it keeps going, and the spring turns it round. */
+  const arrive = (el: HTMLElement, axis: Axis, speed: number) => {
     const s = stretchFor(el, axis);
     if (s.spent) return;
     s.spent = true;
+    s.direction = Math.sign(speed);
     s.pull = 0;
-    // A critically damped spring leaving its rest position peaks at v / (omega * e). The curve is applied to
-    // that peak, so a harder fling still travels further, by less and less.
+    const [x] = where(s);
+    stopHolding(el, s);
+    // A critically damped spring leaving its rest position peaks at v / (omega * e). The curve
+    // is applied to that peak, so a harder fling still travels further, by less and less.
     const peak = resist(Math.abs(speed) / (OMEGA * Math.E), boundOf(el, axis), 1);
-    s.v = Math.sign(speed) * peak * OMEGA * Math.E;
-    run(el, s);
+    bounce(el, s, x, s.direction * peak * OMEGA * Math.E);
   };
 
   /** Pushing against a limit already reached. Once a push starts to fade, it is over. */
-  const press = (el: HTMLElement, axis: "x" | "y", delta: number) => {
+  const press = (el: HTMLElement, axis: Axis, delta: number) => {
     const s = stretchFor(el, axis);
     if (s.spent) return;
     const size = Math.abs(delta);
@@ -205,28 +238,51 @@ export function installEdgeResistance(root: Document = document): () => void {
       s.pull = 0;
       return;
     }
+    s.direction = Math.sign(delta);
     s.pushedAt = performance.now();
     s.pull = s.pull && Math.sign(s.pull) !== Math.sign(delta) ? 0 : s.pull + delta;
-    run(el, s);
+    if (s.holding) return;
+    [s.x, s.v] = where(s);
+    s.bounce?.cancel();
+    s.bounce = null;
+    const bound = boundOf(el, axis);
+    s.holding = animate((dt) => {
+      if (performance.now() - s.pushedAt > LET_GO_MS) s.pull = 0;
+      if (!s.pull) {
+        s.holding = null;
+        el.style.removeProperty("transform");
+        el.style.removeProperty("clip-path");
+        bounce(el, s, s.x, s.v);
+        return false;
+      }
+      [s.x, s.v] = stepSpring(s.x, s.v, resist(s.pull, bound), BOUNCE, dt);
+      const shown = shownAt(s.axis, s.x);
+      el.style.transform = shown.transform;
+      el.style.clipPath = shown.clipPath;
+      return true;
+    });
   };
 
-  // Wheel events are gathered and looked at once a frame, once layout is settled.
-  let waiting: { target: Element | null; axis: "x" | "y"; delta: number } | null = null;
+  // Wheel events are gathered and looked at once a frame. A gesture stays with the region
+  // it began in, as the browser's own scrolling does, so that is only worked out once.
+  let waiting: { target: Element | null; axis: Axis; delta: number } | null = null;
   let scheduled = false;
+  let latched: { gesture: number; axis: Axis; el: HTMLElement | null } | null = null;
   const settle = () => {
     scheduled = false;
     const now = waiting;
     waiting = null;
     if (!now || reduced()) return;
-    const el = regionFor(now.target, now.axis);
+    if (latched?.gesture !== gesture || latched.axis !== now.axis) latched = { gesture, axis: now.axis, el: regionFor(now.target, now.axis) };
+    const el = latched.el;
     if (!el) return;
     const position = now.axis === "y" ? el.scrollTop : el.scrollLeft;
     const size = now.axis === "y" ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth;
     if (now.delta < 0 ? position <= 0 : position >= size - 1) press(el, now.axis, now.delta);
     else {
-      // Scrolling away from the limit: whatever comes next is new.
+      // Scrolling back from the limit: whatever comes next is new. Still heading for it is not.
       const s = stretches.get(el);
-      if (s) {
+      if (s && s.direction !== Math.sign(now.delta)) {
         s.pull = 0;
         s.spent = false;
         s.lastDelta = 0;
@@ -236,8 +292,13 @@ export function installEdgeResistance(root: Document = document): () => void {
   };
   const onWheel = (event: WheelEvent) => {
     if (event.ctrlKey) return;
-    const at = performance.now();
-    if (at - wheelAt > GESTURE_GAP_MS) gesture += 1;
+    // When the input happened, not when the page got to it: events held up behind a busy
+    // page arrive together, and the wait must not read as a new gesture.
+    const at = event.timeStamp;
+    if (at - wheelAt > GESTURE_GAP_MS) {
+      gesture += 1;
+      gestureAt = at;
+    }
     wheelAt = at;
     const [dx, dy] = normalised(event, root.documentElement.clientHeight);
     const axis = Math.abs(dy) >= Math.abs(dx) ? "y" : "x";
@@ -249,7 +310,7 @@ export function installEdgeResistance(root: Document = document): () => void {
     }
   };
 
-  /** Scrolling reached a limit: how fast it was going is read from the scroll itself. */
+  /** How fast the content is heading for a limit is read from the scroll itself. */
   const watch = (el: Element) => {
     const now = performance.now();
     const top = el.scrollTop;
@@ -262,32 +323,21 @@ export function installEdgeResistance(root: Document = document): () => void {
     const speed = Math.abs(recent) > Math.abs(measured) ? recent : measured;
     positions.set(el, { at: now, top, speed: measured });
     // Only a person's scrolling: a list being reset by code has no speed to carry.
-    if (!last || now - wheelAt > 150 || reduced() || !(el instanceof HTMLElement)) return;
-    const atLimit = (speed < 0 && top <= 0) || (speed > 0 && top >= el.scrollHeight - el.clientHeight - 1);
-    if (atLimit && Math.abs(speed) > 60) arrive(el, "y", speed);
+    if (!last || now - wheelAt > 150 || Math.abs(speed) < 60 || reduced() || !(el instanceof HTMLElement)) return;
+    const left = speed < 0 ? top : el.scrollHeight - el.clientHeight - top;
+    if (left > Math.abs(speed) * LEAD_S) return;
+    // The page was busy as the content arrived, and it has already stopped. A bounce now
+    // would be a second movement, long after the first, so this gesture goes without.
+    if (now - last.at > 100 && gestureAt < last.at && left <= 0) stretchFor(el, "y").spent = true;
+    else arrive(el, "y", speed);
   };
-
-  let scrolling: HTMLElement | null = null;
-  let scrollEnd: ReturnType<typeof setTimeout> | undefined;
 
   // Focus and scrollIntoView can move an overflow-hidden ancestor even with no
   // scrollbar, which is what shifted the interface under open panels. Those
   // ancestors are never meant to have moved, so they are put straight back.
   const onScroll = (event: Event) => {
     const el = event.target;
-    lastScroll = performance.now();
     if (el instanceof Element) watch(el);
-    // Rows passing under the pointer would each restyle on hover, on the main thread.
-    if (el instanceof HTMLElement && el !== scrolling) {
-      scrolling?.classList.remove("is-scrolling");
-      scrolling = el;
-      el.classList.add("is-scrolling");
-    }
-    clearTimeout(scrollEnd);
-    scrollEnd = setTimeout(() => {
-      scrolling?.classList.remove("is-scrolling");
-      scrolling = null;
-    }, 120);
     if (el === root || (el instanceof Element && el.matches("html, body, #root, .app-shell, .workspace, .bottom-stack, .lower-hud, .hud-zone"))) {
       if (el === root) root.documentElement.scrollTop = root.documentElement.scrollLeft = 0;
       else {

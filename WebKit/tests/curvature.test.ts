@@ -25,6 +25,18 @@ it("draws the motion icon as one line that flattens, so its states can move betw
   expect(waveLine(9, 0)).toBe("M3 9c2.5 0 4.5 0 6.5 0s4 0 6 0 3.5 0 5.5 0");
 });
 
+it("lets a scroll pass through clipped text, which is a scroll container too", () => {
+  for (const [file, css] of Object.entries(sheets)) {
+    expect(css, file).not.toMatch(/(^|[\s,}])\*\s*\{[^}]*overscroll-behavior/);
+  }
+});
+
+it("keeps whole-page ancestors out of :has(), where any change in the page restyles all of it", () => {
+  for (const [file, css] of Object.entries(sheets)) {
+    expect(css, file).not.toMatch(/(^|[\s,}])(html|body|#root|\.app-shell)[^{},]*:has\(/);
+  }
+});
+
 it("declares filters once, because the minifier drops the standard one when both are written", () => {
   for (const [file, css] of Object.entries(sheets)) {
     expect(css, file).not.toMatch(/-webkit-(backdrop-filter|mask-image)\s*:/);

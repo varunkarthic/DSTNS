@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useScrollFade } from "./scrollFade";
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { BrandLogo } from "./BrandLogo";
@@ -89,18 +88,14 @@ const VIEW_TITLE: Record<PanelView, string> = {
 // Building blocks
 // ---------------------------------------------------------------------------
 
-/**
- * A scroll region whose lower edge fades out while more content lies below,
- * and stops fading once the real end is reached.
- */
-function FadeScroll({ children, resetKey, labelledBy }: { children: ReactNode; resetKey: string; labelledBy?: string }) {
+/** A list that scrolls, back at its top whenever it changes to something else. */
+function StreamScroll({ children, resetKey, labelledBy }: { children: ReactNode; resetKey: string; labelledBy?: string }) {
   const ref = useRef<HTMLDivElement>(null);
-  const scroll = useScrollFade<HTMLDivElement>();
   useEffect(() => {
     if (ref.current) ref.current.scrollTop = 0;
   }, [resetKey]);
   return (
-    <div {...scroll} ref={useCallback((el: HTMLDivElement | null) => { ref.current = el; scroll.ref(el); }, [scroll.ref])} className={`stream ${scroll.className}`} role="tabpanel" aria-labelledby={labelledBy} tabIndex={0}>
+    <div ref={ref} className="stream scroll-region" role="tabpanel" aria-labelledby={labelledBy} tabIndex={0}>
       {children}
     </div>
   );
@@ -762,9 +757,9 @@ function TelemetryDeckImpl(props: Props) {
         </div>
         <Overview snapshot={snapshot} topology={topology} congestion={props.congestion} />
         <Tabs tab={tab} tabs={tabs} onTab={chooseTab} counts={counts} idPrefix={idPrefix} />
-        <FadeScroll resetKey={tab} labelledBy={`${idPrefix}-${tab}`}>
+        <StreamScroll resetKey={tab} labelledBy={`${idPrefix}-${tab}`}>
           <DetailView view={tab} props={props} state={views} />
-        </FadeScroll>
+        </StreamScroll>
       </div>
 
       <nav ref={strip} className="deck-strip" aria-label="Telemetry summary" data-tutorial={compact ? "telemetry" : undefined} inert={!compact || undefined} aria-hidden={!compact || undefined}>
@@ -827,9 +822,9 @@ function TelemetryDeckImpl(props: Props) {
             {panel === "overview" ? (
               <Overview snapshot={snapshot} topology={topology} congestion={props.congestion} />
             ) : (
-              <FadeScroll resetKey={panel} labelledBy={`${idPrefix}-panel-title`}>
+              <StreamScroll resetKey={panel} labelledBy={`${idPrefix}-panel-title`}>
                 <DetailView view={panel} props={props} state={views} />
-              </FadeScroll>
+              </StreamScroll>
             )}
           </div>
         </section>

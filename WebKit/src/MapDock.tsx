@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useScrollFade } from "./scrollFade";
 import { FluidPanel } from "./FluidPanel";
 import { PlaceGlyph } from "./Legends";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -69,7 +68,6 @@ function Highlight({ text, query }: { text: string; query: string }) {
 const SEARCH_LIMIT = 60;
 
 function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean; features: MapFeature[]; city?: string; onClose: () => void; onPick: (feature: MapFeature) => void }) {
-  const scroll = useScrollFade<HTMLUListElement>();
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -131,7 +129,7 @@ function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean;
       </div>
       <p className="place-search-heading">{needle || filter !== "all" ? `${results.length >= SEARCH_LIMIT ? `${SEARCH_LIMIT}+` : results.length} ${results.length === 1 ? "place" : "places"}` : "Popular here"}</p>
       {results.length > 0 && (
-        <ul {...scroll} ref={(el) => { list.current = el; scroll.ref?.(el as never); }} className={`place-search-results ${scroll.className}`} aria-label={needle ? "Matching places" : "Popular places"}>
+        <ul ref={list} className="place-search-results scroll-region" aria-label={needle ? "Matching places" : "Popular places"}>
           {results.map((feature, index) => (
             <li key={feature.id}>
               <button type="button" className={index === active ? "active" : ""} onPointerEnter={() => setActive(index)} onClick={() => onPick(feature)}>

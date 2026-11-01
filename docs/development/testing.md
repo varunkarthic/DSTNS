@@ -140,7 +140,7 @@ live core on a private port, and write screenshots and PDFs as evidence.
 | Command | What it proves | Evidence |
 |---|---|---|
 | `node WebKit/tests/browser.mjs` | CLI start-up, observer controls, motion preferences, event pages, inspection, responsive layouts, PDF download, failure recovery | `artifacts/modernization/browser/` |
-| `node WebKit/tests/browser-hud.mjs` | The HUD at 2560 down to 1280×640 with no overlaps, tooltips, speed and step reaching the engine, seed copy, settings, layers, notifications, telemetry, legend, tutorial, regeneration, PDF | `artifacts/hud/` |
+| `node WebKit/tests/browser-hud.mjs` | The HUD at 2560 down to 1280×640 with no overlaps, scrolling with the pointer on cut-off text, a bounce played off the main thread, tooltips, speed and step reaching the engine, seed copy, settings, layers, notifications, telemetry, legend, tutorial, regeneration, PDF | `artifacts/hud/` |
 | `node WebKit/tests/large-browser.mjs` | Render cadence and inspection on a large paused run (`DSTNS_LARGE_URL`, default port 18194) | |
 | `node WebKit/tests/container-browser.mjs` | The Compose deployment (`DSTNS_CONTAINER_URL`, default port 18195) | |
 

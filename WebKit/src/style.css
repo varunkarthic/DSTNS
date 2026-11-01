@@ -1080,6 +1080,3 @@ progress::-webkit-progress-value {
 .map-scale > span {
   max-width: none;
 }
-.workspace:has(.loading-card) .map-scale {
-  display: none;
-}

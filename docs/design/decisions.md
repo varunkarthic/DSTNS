@@ -473,7 +473,7 @@ and slow looked the same, because the two had no connection.
 
 **Decision.** The speed at the limit is read from the scroll itself and handed to a critically damped spring acting on the
 position shown, so the return is one curve. The rubber-band curve limits how far a harder fling or a longer push travels. Apple
-does not publish its spring, so it is tuned to be home about 0.6 s after being let go. Chrome has no elastic scrolling on inner elements, so this is drawn with one transform and one clip on the region.
+does not publish its spring, so it is tuned to be home about 0.6 s after being let go. Chrome has no elastic scrolling on inner elements, so this is drawn with one transform and one clip on the region. The curve is worked out once and played as a Web Animation, which Chrome runs on the compositor, clip included. It starts about two frames before the limit, the time the compositor takes to pick it up, so the two meet there. A push held against the limit is the one part followed on the main thread, because that is where wheel events arrive.
 
 **Consequences.** Fast scrolling into a limit now travels visibly further than the 12 px it used to be allowed. A trackpad's
 momentum never starts a second motion: one gesture gets one, and a pause of 180 ms between wheel events begins the next. A finger
@@ -500,3 +500,19 @@ changing is not progress. **Try another city** uses a new seed, chosen so that i
 **Consequences.** Nothing is substituted without being asked, so a seed still names one map. A slow connection still passes, because
 any new data resets the limit. Each mirror gets 60 seconds before the first data, so a query that needs longer on a busy mirror is
 abandoned in favour of the next. With four mirrors the last gets only 20 seconds before the limit.
+
+## 38. Scrolling is judged on the frames displayed
+
+**Problem.** Rounds of fixes to how scrolling felt did not help, because the worst fault was never in the motion. Over text in a list,
+scrolling did nothing at all. A rule meant to stop the page rubber-banding applied to every element, and every clipped title is a
+scroll container that then refused to pass a scroll on. Frame rates and main-thread load looked fine throughout, because nothing was
+wrong with the frames.
+
+**Decision.** Check scrolling with real gestures from `Input.synthesizeScrollGesture`, on a real city at Retina scale, and judge it by
+whether the content moved and by the frames presented, with a marker tracked through them. `Input.dispatchMouseEvent` is not good
+enough: every wheel event it sends waits for the main thread, even on a plain page. `overscroll-behavior` goes only on regions that
+scroll. `:has()` stays off whole-page ancestors, and the map no longer pauses for scrolling.
+
+**Consequences.** The browser suite now scrolls with the pointer on cut-off text and checks that a bounce is played off the main
+thread. A wheel event cannot say whether it is a finger or momentum, so a finger that pushes on after a fast arrival still gets no
+further stretch.

@@ -699,7 +699,7 @@ dd .status-badge {
     transform: translateX(-14px);
   }
 }
-.app-shell:has(.fabric-sidebar:not([inert])) .fabric-status {
+.app-shell[data-sidebar-open] .fabric-status {
   left: calc(84px + 372px + 12px);
 }
 .fabric-picking {
@@ -1009,9 +1009,6 @@ html, body, #root {
 }
 .lower-hud, .hud-zone, .bottom-stack {
   overflow: visible;
-}
-* {
-  overscroll-behavior: contain;
 }
 
 /* ---- Icons: a little life, and no more -------------------------------------------- */
@@ -2454,7 +2451,6 @@ html, body, #root {
 
 /* ---- Scrolling belongs to the browser ------------------------------------------------------------ */
 html, body { overflow: hidden; overscroll-behavior: none; }
-* { overscroll-behavior: none; }
 
 /* ---- Notifications: closing has no bounce, and nothing leaves the card ---------------------------- */
 .capsule-body-inner, .capsule.open .capsule-body-inner { padding: 0; transition: opacity var(--motion-fade-ms, 200ms) var(--motion-fade, ease-out); }
@@ -2502,11 +2498,13 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 /* ---- Scrolling --------------------------------------------------------------------------------- */
 /* Every scrolling region has its own layer from the start, so the browser moves it without asking
    the page. Nothing inside one is masked, filtered or blurred, because each would mean repainting. */
-:is(.about-scroll, .settings-scroll, .layers-scroll, .place-search-results, .capsule-body-inner, .fabric-panel-body, .deck-panel-body, .scroll-fade, .stream) {
-  will-change: scroll-position, transform;
+:is(.about-scroll, .settings-scroll, .layers-scroll, .place-search-results, .capsule-body-inner, .fabric-panel-body, .deck-panel-body, .scroll-region, .stream) {
+  will-change: scroll-position;
   contain: paint;
+  /* Only here. Every clipped title is a scroll container too, and one that refuses to pass a
+     scroll on leaves the list under it dead wherever the pointer is on text. */
+  overscroll-behavior: contain;
 }
-.scroll-fade, .scroll-fade.at-end, .stream, .stream.scroll-fade.at-end { mask-image: none;  transition: none; }
 /* Nothing is blurred through to a map that is redrawing behind it. */
 .app-shell *, .scrim, .fluid-panel, .floating, .dialog { backdrop-filter: none;  }
 .scrim { background: rgb(var(--scrim-rgb) / 62%); }
@@ -2525,7 +2523,6 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .settings-section h3 { margin: 0; }
 .settings-action, .settings-nav.settings-action { min-height: 56px; padding: 10px; gap: 12px; border-radius: var(--r-md); }
 .settings-action .settings-action-mark, .settings-nav .settings-nav-mark { width: 36px; height: 36px; }
-.is-scrolling > * { pointer-events: none; }
 /* Halfway between the notifications and the map's controls, whatever their widths. */
 .lower-hud .hud-center { grid-column: 2; justify-self: stretch; width: 100%; margin: 0; justify-content: center; }
 .lower-hud > .hud-left { grid-column: 1; }
@@ -2542,8 +2539,8 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .loading-surface.boot.rejoin.exiting .loading-card.film, .loading-surface.boot.rejoin.exiting .loading-licence { opacity: 0; }
 .loading-surface.boot .loading-card.film .loading-steps { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 /* The film has the whole window, as it does at start-up, and the bar returns with the map. */
-.app-shell:has(.loading-surface.rejoin) .app-header { opacity: 0; pointer-events: none; transition: opacity 500ms var(--ease); }
-.app-shell:has(.loading-surface.rejoin.closing) .app-header { opacity: 1; transition: opacity 700ms var(--ease) 500ms; }
+.app-shell.world-busy .app-header { opacity: 0; pointer-events: none; transition: opacity 500ms var(--ease); }
+.app-shell.world-busy.world-closing .app-header { opacity: 1; transition: opacity 700ms var(--ease) 500ms; }
 /* Its fade-in has to let go, or the handover's slower fade never gets to run. */
 .loading-surface.boot.rejoin.landing::before { animation: none; }
 
@@ -2600,3 +2597,5 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .stream-card:focus-visible { outline: 2px solid var(--accent-line); outline-offset: -2px; }
 .rail :is(.rail-terminate, .seed-value, .rail-btn) { border-radius: var(--r-xs); }
 .place-search-results .place-glyph { width: 36px; height: 36px; }
+/* Scrolled to its end, the last section sits a full radius in, clear of the panel's corners. */
+.settings-scroll { padding-bottom: 18px; }

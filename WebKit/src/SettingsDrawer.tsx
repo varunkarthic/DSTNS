@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useScrollFade } from "./scrollFade";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { FluidPanel } from "./FluidPanel";
 import { QuantizedSlider } from "./QuantizedSlider";
@@ -129,7 +128,6 @@ export function SettingsDrawer({
   }, [resetDone]);
   const apps = useFabricApps();
   const waitingApps = apps.filter((app) => app.capabilities.pending.length > 0 && app.state !== "unloaded").length;
-  const scroll = useScrollFade<HTMLDivElement>();
   const panel = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -161,7 +159,7 @@ export function SettingsDrawer({
         </button>
       </header>
 
-      <div {...scroll} className={`settings-scroll ${scroll.className}`} tabIndex={0} aria-label="Settings preferences">
+      <div className="settings-scroll scroll-region" tabIndex={0} aria-label="Settings preferences">
         {page === "webfabric" ? (
           <WebFabricSettings onBack={() => setPage("main")} />
         ) : page === "shortcuts" ? (

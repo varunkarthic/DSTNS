@@ -17,7 +17,7 @@ import { buildTiles, MARKER_BUDGET, placeNameShows, PLACE_NAME_BUDGET, sizeTier,
 import { animate, createVelocityTracker, SPRINGS, stepSpring } from "./motion";
 import { appearance } from "./appearance";
 import type { RainCells } from "./mapModel";
-import { resistClamp, resistZoomOut, scrollingNow, ZOOM_REST } from "./resistance";
+import { resistClamp, resistZoomOut, ZOOM_REST } from "./resistance";
 import type { SpringPreset } from "./motion";
 import { mapFitLayout, mapInsets, metresToGeographic } from "./mapProjection";
 import { viewportFor } from "./autoFocus";
@@ -414,6 +414,9 @@ function NetworkMap({
     const cellSize = view.scale < 0.3 ? 44 : 28;
     let shownNames = 0;
     markerHits.current.length = 0;
+    // Setting the font makes the browser settle the page's styles, so it is done once, not per place.
+    ctx.font = "bold 10px Inter";
+    ctx.textAlign = "start";
     if (layers.buildings)
       topology.features.forEach((f, i) => {
         if (markerHits.current.length >= MARKER_BUDGET || !visible(cached.features[i])) return;
@@ -468,8 +471,6 @@ function NetworkMap({
           ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
           ctx.fill();
         }
-        ctx.font = "bold 10px Inter";
-        ctx.textAlign = "start";
         if (layers.place_names && !moving && f.name && shownNames < PLACE_NAME_BUDGET && placeNameShows(landmark, view.scale)) {
           const nameCell = `${Math.floor(p.x / 110)},${Math.floor(p.y / 18)}`;
           if (!nameCells.has(nameCell)) {
@@ -512,16 +513,9 @@ function NetworkMap({
   useEffect(() => {
     if (!topology || !cached || !dynamic.current) return;
     let frame = 0;
-    let idle: ReturnType<typeof setTimeout> | undefined;
     const received = performance.now();
     const draw = () => {
       if (!dynamic.current) return;
-      // While anything is being scrolled, or a dialog is open over the map, flow markers
-      // can wait: the frame goes to what is being touched.
-      if (running && !reduceMotion && (scrollingNow() || document.querySelector(".scrim"))) {
-        idle = setTimeout(draw, 160);
-        return;
-      }
       // One shared 0..1 clock so every animated overlay pulses in step.
       const pulse = reduceMotion
         ? 0
@@ -732,7 +726,6 @@ function NetworkMap({
     draw();
     return () => {
       cancelAnimationFrame(frame);
-      clearTimeout(idle);
     };
   }, [
     topology,

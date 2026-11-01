@@ -54,6 +54,8 @@ describe("in scrolling regions", () => {
   let region: HTMLElement;
   let remove: () => void;
   const frames: FrameRequestCallback[] = [];
+  type Played = { keyframes: { transform: string; clipPath: string }[]; duration: number; cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null; currentTime: number };
+  let played: Played[] = [];
   const flush = (ms = 16) => {
     vi.advanceTimersByTime(ms);
     const now = performance.now();
@@ -63,10 +65,16 @@ describe("in scrolling regions", () => {
     vi.useFakeTimers();
     vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) => frames.push(frame));
     vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    played = [];
     region = document.createElement("div");
     region.style.overflowY = "auto";
     Object.defineProperty(region, "scrollHeight", { value: 1000, configurable: true });
     Object.defineProperty(region, "clientHeight", { value: 200, configurable: true });
+    region.animate = ((keyframes: Played["keyframes"], options: { duration: number }) => {
+      const one: Played = { keyframes, duration: options.duration, cancel: vi.fn(), onfinish: null, currentTime: 0 };
+      played.push(one);
+      return one;
+    }) as never;
     document.body.appendChild(region);
     remove = installEdgeResistance();
   });
@@ -78,14 +86,34 @@ describe("in scrolling regions", () => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
+  // How long ago the input really happened, for events held up behind a busy page.
+  let late = 0;
   const wheel = (deltaY: number) => {
     const event = new WheelEvent("wheel", { deltaY, bubbles: true, cancelable: true });
+    Object.defineProperty(event, "timeStamp", { value: performance.now() - late });
     region.dispatchEvent(event);
     return event;
   };
-  const shift = () => Math.abs(parseFloat(region.style.transform.split(",")[1] ?? "0"));
+  const scrollTo = (top: number) => {
+    region.scrollTop = top;
+    region.dispatchEvent(new Event("scroll", { bubbles: true }));
+  };
+  const offset = (transform: string) => parseFloat(transform.split(",")[1] ?? "0");
+  const curve = (one: Played) => one.keyframes.map((frame) => offset(frame.transform));
+  const peak = (one: Played) => Math.max(...curve(one).map(Math.abs));
   const run = (count: number) => {
     for (let i = 0; i < count; i++) flush();
+  };
+  /** Reach the end of the list at `step` pixels a frame. */
+  const arriveAt = (step: number) => {
+    region.scrollTop = 800 - step * 3;
+    wheel(step);
+    scrollTo(800 - step * 2);
+    flush();
+    scrollTo(800 - step);
+    flush();
+    scrollTo(800);
+    flush();
   };
 
   it("never blocks a wheel event, so scrolling stays with the compositor", () => {
@@ -93,91 +121,155 @@ describe("in scrolling regions", () => {
     expect(wheel(-300).defaultPrevented).toBe(false);
     region.scrollTop = 800;
     expect(wheel(300).defaultPrevented).toBe(false);
+    run(8);
   });
 
-  it("does nothing until a limit is reached", () => {
+  it("does nothing while there is room to scroll", () => {
     region.scrollTop = 100;
     wheel(-50);
     run(3);
+    expect(played).toEqual([]);
     expect(region.style.transform).toBe("");
   });
 
   it("carries a fast arrival further than a slow one, within its bound", () => {
-    const peak = (from: number, step: number) => {
-      region.scrollTop = from;
-      wheel(step);
-      region.dispatchEvent(new Event("scroll", { bubbles: true }));
-      flush(16);
-      region.scrollTop = 800;
-      region.dispatchEvent(new Event("scroll", { bubbles: true }));
-      let most = 0;
-      for (let i = 0; i < 80; i++) {
-        flush();
-        most = Math.max(most, shift());
-      }
-      return most;
-    };
-    const slow = peak(796, 4);
-    const fast = peak(700, 100);
+    arriveAt(6);
+    const slow = peak(played[0]);
+    flush(400);
+    arriveAt(60);
+    const fast = peak(played[1]);
     expect(fast).toBeGreaterThan(slow);
     expect(fast).toBeLessThanOrEqual(60);
     expect(fast).toBeGreaterThan(12);
   });
 
-  it("does not take a list being reset by code for a person scrolling", () => {
-    region.scrollTop = 800;
-    region.dispatchEvent(new Event("scroll", { bubbles: true }));
-    flush(500);
-    region.scrollTop = 0;
-    region.dispatchEvent(new Event("scroll", { bubbles: true }));
-    run(3);
+  it("starts just before the limit, so the content never stops and waits", () => {
+    region.scrollTop = 500;
+    wheel(40);
+    scrollTo(540);
+    flush();
+    expect(played).toEqual([]);
+    scrollTo(779);
+    flush();
+    expect(played).toHaveLength(1);
+  });
+
+  it("does not fire again on the way to a limit it has already answered", () => {
+    region.scrollTop = 700;
+    wheel(40);
+    scrollTo(740);
+    flush();
+    scrollTo(780);
+    wheel(40);
+    flush();
+    expect(played).toHaveLength(1);
+    scrollTo(800);
+    wheel(40);
+    flush();
+    expect(played).toHaveLength(1);
+  });
+
+  it("plays one curve: out, then home, with nothing left behind", () => {
+    arriveAt(40);
+    const one = curve(played[0]);
+    expect(one[0]).toBeCloseTo(0);
+    expect(one.at(-1)).toBeCloseTo(0);
+    const furthest = one.findIndex((value) => value === Math.min(...one));
+    for (let i = 1; i < one.length; i++) {
+      if (i <= furthest) expect(one[i]).toBeLessThanOrEqual(one[i - 1]);
+      else expect(one[i]).toBeGreaterThanOrEqual(one[i - 1]);
+    }
+    expect(played[0].duration).toBeGreaterThan(400);
+    expect(played[0].duration).toBeLessThan(1000);
     expect(region.style.transform).toBe("");
   });
 
-  it("comes home with no hold, and leaves nothing behind", () => {
-    region.scrollTop = 0;
-    wheel(-400);
-    run(4);
-    expect(shift()).toBeGreaterThan(0.5);
-    run(45);
-    expect(region.style.transform).toBe("");
-    expect(region.style.clipPath ?? "").toBe("");
+  it("clips what moves, so the region's frame stays still", () => {
+    arriveAt(40);
+    const furthest = played[0].keyframes[6];
+    expect(offset(furthest.transform)).toBeLessThan(0);
+    expect(furthest.clipPath).toMatch(/^inset\(\d/);
+    expect(parseFloat(furthest.clipPath.slice(6))).toBeCloseTo(-offset(furthest.transform));
+  });
+
+  it("does not take a list being reset by code for a person scrolling", () => {
+    scrollTo(800);
+    flush(500);
+    scrollTo(0);
+    run(3);
+    expect(played).toEqual([]);
   });
 
   it("gives a gesture one motion, however unevenly its momentum fades", () => {
-    region.scrollTop = 780;
-    wheel(120);
-    region.dispatchEvent(new Event("scroll", { bubbles: true }));
-    flush();
-    region.scrollTop = 800;
-    region.dispatchEvent(new Event("scroll", { bubbles: true }));
+    arriveAt(40);
     let size = 100;
-    let rises = 0;
-    let last = 0;
     for (let i = 0; i < 60; i++) {
       // Plateaus and small rises, as a trackpad really sends them.
       wheel(Math.max(1, Math.round(size * (i % 5 === 0 ? 1.12 : 1))));
       size *= 0.93;
       flush();
-      const now = shift();
-      if (now > last + 0.05 && i > 8) rises += 1;
-      last = now;
     }
-    expect(rises).toBe(0);
-    run(40);
+    expect(played).toHaveLength(1);
     expect(region.style.transform).toBe("");
   });
 
-  it("answers a new gesture after a pause", () => {
+  it("does not take events held up by a busy page for a new gesture", () => {
+    arriveAt(40);
+    // The page stalls for 400 ms. Input carried on, and arrives all at once.
+    flush(400);
+    for (let at = 380; at >= 0; at -= 40) {
+      late = at;
+      wheel(40);
+    }
+    late = 0;
+    run(12);
+    expect(played).toHaveLength(1);
+    expect(region.style.transform).toBe("");
+  });
+
+  it("goes without a bounce if the page missed the arrival", () => {
+    region.scrollTop = 500;
+    wheel(40);
+    flush();
+    scrollTo(540);
+    flush();
+    // Still scrolling during a stall: the content has stopped by the time the page sees it.
+    flush(400);
+    for (let at = 360; at >= 0; at -= 40) {
+      late = at;
+      wheel(40);
+    }
+    late = 0;
+    scrollTo(800);
+    flush();
+    wheel(40);
+    run(12);
+    expect(played).toEqual([]);
+    expect(region.style.transform).toBe("");
+  });
+
+  it("follows a push at the limit, then hands over without moving", () => {
     region.scrollTop = 800;
     wheel(100);
-    run(60);
+    run(4);
+    const held = Math.abs(offset(region.style.transform));
+    expect(held).toBeGreaterThan(0.5);
+    expect(played).toEqual([]);
+    run(8);
+    expect(played).toHaveLength(1);
     expect(region.style.transform).toBe("");
+    expect(Math.abs(curve(played[0])[0])).toBeGreaterThan(held * 0.5);
+    expect(curve(played[0]).at(-1)).toBeCloseTo(0);
+  });
+
+  it("answers a new gesture after a pause", () => {
+    arriveAt(40);
     flush(300);
     wheel(100);
     run(4);
-    expect(shift()).toBeGreaterThan(0.5);
-    run(60);
+    expect(Math.abs(offset(region.style.transform))).toBeGreaterThan(0.5);
+    run(10);
+    expect(played).toHaveLength(2);
   });
 
   it("moves only the region itself", () => {
@@ -186,15 +278,17 @@ describe("in scrolling regions", () => {
     region.scrollTop = 800;
     wheel(400);
     run(3);
-    expect(shift()).toBeGreaterThan(0.5);
+    expect(Math.abs(offset(region.style.transform))).toBeGreaterThan(0.5);
     expect(child.style.transform).toBe("");
+    run(10);
   });
 
   it("does nothing under reduced motion", () => {
     document.documentElement.classList.add("reduce-motion");
-    region.scrollTop = 0;
-    wheel(-200);
+    arriveAt(40);
+    wheel(400);
     run(3);
+    expect(played).toEqual([]);
     expect(region.style.transform).toBe("");
   });
 

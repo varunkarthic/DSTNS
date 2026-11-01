@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useScrollFade } from "./scrollFade";
 import { useEffect, useMemo, useRef } from "react";
 import { hasMarker, placeKind } from "./mapModel";
 import type { KeyboardEvent } from "react";
@@ -26,7 +25,6 @@ type Props = {
 type Item = { key: keyof Layers; label: string; icon: IconName; count?: string };
 
 export function LayersPopover({ layers, defaults, onChange, onClose, topology, snapshot }: Props) {
-  const scroll = useScrollFade<HTMLDivElement>();
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -114,7 +112,7 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
         </div>
       </header>
       {noData && <p className="layers-empty">Layers apply once a map is loaded.</p>}
-      <div {...scroll} className={`layers-scroll ${scroll.className}`} tabIndex={0} aria-label="Display layers">
+      <div className="layers-scroll scroll-region" tabIndex={0} aria-label="Display layers">
       {groups.map((group) => (
         <div className="layer-group" key={group.title} role="group" aria-label={group.title}>
           <span className="layer-group-title">{group.title}</span>

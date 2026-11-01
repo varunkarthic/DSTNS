@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useScrollFade } from "./scrollFade";
 import { BrandLogo } from "./BrandLogo";
 import { MOTION_MS } from "./motion";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -43,7 +42,6 @@ export function NotificationCapsule(
   const [technical, setTechnical] = useState(false);
   const [held, setHeld] = useState<UiNotification[] | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const bodyScroll = useScrollFade<HTMLDivElement>();
 
   // While open, what the person is reading is theirs. Newer events wait behind a
   // count rather than moving the list or the scroll position under them.
@@ -112,7 +110,7 @@ export function NotificationCapsule(
         aria-live={urgent ? "assertive" : "polite"}
       >
         <div className="capsule-body" aria-hidden={!open} inert={!open || undefined}>
-          <div {...bodyScroll} className={`capsule-body-inner ${bodyScroll.className}`}>
+          <div className="capsule-body-inner scroll-region">
             <div className="capsule-pad">
               <>
                 <div className="capsule-detail-head">

@@ -17,6 +17,15 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Scrolling
+
+- **Fixed: lists did not scroll with the pointer on text.** A rule applied to every element told clipped text, which is a scroll container too, not to pass a scroll on. Over a row's title, tag or details the list did not move at all; only its icon and padding scrolled. The rule now applies only to regions that really scroll.
+- **The bounce runs off the main thread.** Its whole curve is worked out once and played by the compositor, frame and all, so it stays smooth while the page is busy. It starts just before the limit, so the content no longer stops and waits for it.
+- **Fixed: a second bounce after a stall.** Wheel events held up behind a busy page read as a new gesture. They are now timed by when the input happened.
+- **The map keeps moving** while something scrolls and while a dialog is open. It used to pause, which there was no longer any need for.
+- **Map zoom and pan drop far fewer frames.** The canvas font was set once per place, and each change to a page-wide `:has()` rule restyled the whole interface. Style work during a zoom falls from about 1,400 ms to about 30 ms.
+- Removed work nothing used: the scroll fade, whose masks had already gone, measured every list on every scroll and watched every row.
+
 ### Map downloads
 
 - **A silent download now fails.** With no new data for 200 seconds (`DSTNS_MAP_STALL_S`), the download stops and says so. It could previously wait about half an hour across mirrors and retries.
