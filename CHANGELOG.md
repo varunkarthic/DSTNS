@@ -17,6 +17,14 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### The film's scenes, the title and the end
+
+- **Redesigned scenes.** Mapped streets is now a real-looking district: quarters on their own grids, arteries, a river with bridges, parks and buildings, drawn in order. Signal timing has lanes, stop lines, zebra crossings, three-lamp signals on a proper cycle, queues that release from the front, vehicles turning, tail lights and people crossing. Travel demand uses the map's own icons, with homes sending trips to them and their demand filling up. Rush hour is a stream of traffic through the day that swells at each peak, with no sun. Fixed steps is replaced by Run reports, a page writing itself. Repeatable worlds shows two identical trees from one seed and a different one from another, with the seeds beneath, so it no longer implies there is only one seed. Auto Focus flies over the map to one event and then the next inside a steady viewfinder.
+- **The title comes apart** in a sweep, each letter turning to particles as it is reached, then grows into the film.
+- **Reloading during a run** now shows the name, then the roads, map and panels in about a second and a half. It used to show nothing and then the dashboard, because the scene restarted on a dead canvas.
+- **The end** plays as the arrival backwards in about the same time: panels first, then the map goes from under its roads, the roads fly into the name, and the name is blown away.
+- **Fixed:** the runtime status flashed Degraded just after a page loaded, and then took ten seconds to clear.
+
 ### A world waits for its start-up
 
 - **The simulation does not run on behind the film.** While an observer is showing its start-up, a world that finishes stays at its first second and starts when the panels have arrived. It carries on by itself within 4 seconds if the observer closes or disconnects or its tab is hidden. With no observer, nothing waits, and an observer connecting during a run changes nothing. `POST /api/v1/system/observer` and `observer_hold` in the playback status are new.

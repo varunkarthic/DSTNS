@@ -13,7 +13,7 @@ import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
 import { BootFailure, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
-import { filmAvailable, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, REJOIN_MIN_MS } from "./BootScene";
+import { filmAvailable, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS } from "./BootScene";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
 import { NotificationHistory } from "./notificationHistory";
@@ -123,7 +123,7 @@ interface WorldJob {
  * What may be on screen as a world arrives. While the film is building the roads nothing is;
  * then the map comes under them, and last of all the panels come in around it.
  */
-function useArrival(covered: boolean, instant: boolean): "covered" | "map" | "all" {
+function useArrival(covered: boolean, instant: boolean, quick: boolean): "covered" | "map" | "all" {
   const [stage, setStage] = useState<"covered" | "map" | "all">(covered ? "covered" : "all");
   useEffect(() => {
     if (covered) {
@@ -134,13 +134,13 @@ function useArrival(covered: boolean, instant: boolean): "covered" | "map" | "al
       setStage("all");
       return;
     }
-    const map = setTimeout(() => setStage((now) => (now === "covered" ? "map" : now)), MAP_AT_MS);
-    const panels = setTimeout(() => setStage("all"), PANELS_AT_MS);
+    const map = setTimeout(() => setStage((now) => (now === "covered" ? "map" : now)), quick ? QUICK_ARRIVAL.mapAt : MAP_AT_MS);
+    const panels = setTimeout(() => setStage("all"), quick ? QUICK_ARRIVAL.panelsAt : PANELS_AT_MS);
     return () => {
       clearTimeout(map);
       clearTimeout(panels);
     };
-  }, [covered, instant]);
+  }, [covered, instant, quick]);
   return stage;
 }
 
@@ -920,7 +920,9 @@ export default function App() {
   // The start-up screen dissolves over the rendered map rather than vanishing.
   const lastSplash = useRef(shownStage);
   if (shownStage) lastSplash.current = shownStage;
-  const splash = usePresence(showSplash, reduceMotion ? MOTION_MS.boot : LANDING_MS);
+  // Reloading a run comes straight back: the roads, the map and the panels, without the film.
+  const returning = opening === false;
+  const splash = usePresence(showSplash, reduceMotion ? MOTION_MS.boot : returning ? QUICK_ARRIVAL.landing : LANDING_MS);
   startupOnScreen.current = splash.mounted;
   const landOnRoads = useCallback(() => {
     const view = mapView.current;
@@ -945,7 +947,7 @@ export default function App() {
   const lastFailure = useRef(bootFailure);
   if (bootFailure) lastFailure.current = bootFailure;
   const failure = usePresence(!!bootFailure, MOTION_MS.boot);
-  const arrival = useArrival(!!(showSplash || bootFailure || shutDown || (world.active && !world.closing)), reduceMotion || !filmAvailable());
+  const arrival = useArrival(!!(showSplash || bootFailure || shutDown || (world.active && !world.closing)), reduceMotion || !filmAvailable(), returning);
   // While the start-up is on screen, a world that finishes waits for it. A hidden tab is not
   // watching, and a closed one stops saying so, and the engine then carries on by itself.
   const waitingForFilm = opening === true && arrival !== "all" && !bootFailure && !shutDown;
@@ -1279,7 +1281,7 @@ export default function App() {
           </div>
 
           {splash.mounted && lastSplash.current && (
-            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} onFilmCycle={onFilmCycle} />
+            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} quick={returning} onFilmCycle={onFilmCycle} />
           )}
           {failure.mounted && (
             <BootFailure

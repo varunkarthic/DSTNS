@@ -24,7 +24,8 @@ export function useSteadyStatus(reading: RuntimeStatus): RuntimeStatus {
     const wait = holdFor(shown, reading);
     if (reading === shown) return;
     if (!wait) {
-      setShown(reading);
+      // Just arrived: a first reading of trouble has to hold like any other before it is believed.
+      setShown(shown === "offline" && reading === "degraded" ? "online" : reading);
       return;
     }
     const timer = setTimeout(() => setShown(latest.current), wait);

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { LOGO_SVG } from "./logoAsset";
 import { appearance } from "./appearance";
 import { stepSpring } from "./motion";
-import { buildFormations, COUNT, formation, KIND, sequence, STRIDE } from "./bootScenes";
+import { buildFormations, COUNT, FOCUS_A, FOCUS_B, formation, IN_WORLD, KIND, sequence, STRIDE } from "./bootScenes";
 
 /**
  * The start-up film.
@@ -20,6 +20,8 @@ import { buildFormations, COUNT, formation, KIND, sequence, STRIDE } from "./boo
  */
 
 const HOLD_S = 4;
+// How long each scene holds: a junction needs time for its lights to go round.
+const HOLDS = [4, 4.4, 6.2, 4.6, 4.4, 4.6, 4, 4, 4.6, 4.6, 4];
 const MORPH = { k: 11, c: 5.6 };
 // Going to and from the logo and the map are timed, not sprung: an ease in and out has no
 // sudden start, which is what makes particles leaving a shape feel soft.
@@ -39,6 +41,9 @@ export const MAP_AT_MS = Math.round((GATHER_S + LAND_S * 0.86) * 1000);
 export const PANELS_AT_MS = MAP_AT_MS + 650;
 /** How long the handover takes. The surface stays mounted this long. */
 export const LANDING_MS = PANELS_AT_MS + 500;
+/** Coming back to a run already going, on reload: the same arrival, without the film or the wait. */
+const QUICK_LAND_S = 0.95;
+export const QUICK_ARRIVAL = { mapAt: 780, panelsAt: 1020, landing: 1500 } as const;
 /** A new world: how long the old one takes to leave, before the particles recollect. */
 export const REJOIN_AT_MS = 5800;
 /** Whether this browser can draw the film at all. */
@@ -47,8 +52,17 @@ export const filmAvailable = () => typeof WebGL2RenderingContext !== "undefined"
 export const REJOIN_MIN_MS = REJOIN_AT_MS + 2800;
 // With nothing to do, the network rests dimly, out of the way of what is on screen.
 const REST_DIM = 0.14;
-// How long the particles stand on the logo before letting go, while it fades.
-const DISSOLVE_HOLD_S = 0.6;
+// The title's logo comes apart in a sweep from left to right, each part of it turning to
+// particles as the sweep reaches it. They stand a moment, then let go.
+const SWEEP_DELAY_S = 0.18;
+const SWEEP_S = 1.2;
+const DISSOLVE_HOLD_S = SWEEP_DELAY_S + SWEEP_S + 0.15;
+// The end: the panels leave, the map goes from under its own roads, those roads fly into
+// the name, and the name is blown away. About as long as it always was.
+const END_ROADS_AT_S = 0.3;
+const END_GATHER_AT_S = 1.15;
+const END_GATHER_S = 2.3;
+const END_SCATTER_AT_S = 4.3;
 
 // One or two words and one short line, with no commas. Nothing here may suggest it is
 // happening now or for real: it is a simulation, and these are its features.
@@ -58,10 +72,10 @@ export const FILM_CHAPTERS: readonly { label: string; title: string; text: strin
   { label: "Signals", title: "Signal timing", text: "Every junction runs its own schedule." },
   { label: "Demand", title: "Travel demand", text: "Every school and office draws trips." },
   { label: "Rhythm", title: "Rush hour", text: "Modelled demand rises and falls through the day." },
-  { label: "Physics", title: "Fixed steps", text: "One-second steps at any playback speed." },
+  { label: "Reports", title: "Run reports", text: "Export the whole day as a PDF with its figures and sources." },
   { label: "Environment", title: "Simulated weather", text: "Rain cells cross the district and roads flood." },
   { label: "Places", title: "Cities worldwide", text: "A seed chooses the district." },
-  { label: "Reproducibility", title: "One seed", text: "The same day on any machine." },
+  { label: "Reproducibility", title: "Repeatable worlds", text: "Any seed grows the same day on any machine." },
   { label: "Camera", title: "Auto Focus", text: "The camera follows what matters." },
   { label: "Extensions", title: "WebFabric", text: "Connect your own applications." },
 ];
@@ -69,15 +83,15 @@ export const FILM_CHAPTERS: readonly { label: string; title: string; text: strin
 interface Camera { yaw: number; pitch: number; distance: number; spin: number; push: number }
 const CAMERAS: Camera[] = [
   { yaw: 0, pitch: 0, distance: 3.1, spin: 0.012, push: 0.03 },
-  { yaw: 0.35, pitch: 1.08, distance: 3.95, spin: 0.05, push: 0.1 },
-  { yaw: -0.5, pitch: 0.92, distance: 3.25, spin: 0.035, push: 0.09 },
-  { yaw: -0.6, pitch: 0.24, distance: 3.75, spin: 0.09, push: 0.08 },
-  { yaw: 0.14, pitch: 0.14, distance: 3.25, spin: -0.012, push: 0.05 },
-  { yaw: -0.22, pitch: 0.1, distance: 3.25, spin: 0.018, push: 0.05 },
+  { yaw: 0.2, pitch: 1.2, distance: 3.7, spin: 0.018, push: 0.07 },
+  { yaw: -0.28, pitch: 1.02, distance: 3.3, spin: 0.02, push: 0.07 },
+  { yaw: 0, pitch: 0.06, distance: 3.35, spin: 0.006, push: 0.04 },
+  { yaw: 0, pitch: 0.03, distance: 3.25, spin: 0.006, push: 0.04 },
+  { yaw: -0.26, pitch: 0.06, distance: 3.25, spin: 0.012, push: 0.06 },
   { yaw: 0.26, pitch: 0.13, distance: 3.75, spin: -0.04, push: 0.07 },
   { yaw: 0.2, pitch: 0.3, distance: 3.3, spin: 0.26, push: 0.05 },
-  { yaw: 0.12, pitch: 0.05, distance: 3.5, spin: 0.018, push: 0.06 },
-  { yaw: 0.2, pitch: 1.1, distance: 3.3, spin: 0.02, push: 0.16 },
+  { yaw: 0, pitch: 0.04, distance: 3.45, spin: 0.012, push: 0.05 },
+  { yaw: 0.14, pitch: 1.12, distance: 3.2, spin: 0.012, push: 0.03 },
   { yaw: 0.55, pitch: 0.78, distance: 3.2, spin: -0.05, push: 0.08 },
 ];
 
@@ -176,7 +190,7 @@ in vec4 aFromM, aToM; // tint kind phase hue
 in vec4 aLand; // x y tint order
 in float aSeed;
 uniform mat4 uView;
-uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo;
+uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo, uSweep;
 uniform vec2 uPointer;
 uniform vec3 uRipple, uBase, uAccent, uWarm, uDanger, uOk, uRoad;
 out vec3 vColour;
@@ -184,12 +198,22 @@ out float vAlpha;
 const float PI = 3.14159265;
 float ease(float x) { x = clamp(x, 0.0, 1.0); return x * x * (3.0 - 2.0 * x); }
 float overshoot(float x) { x = clamp(x, 0.0, 1.0) - 1.0; return 1.0 + 2.4 * x * x * x + 1.4 * x * x; }
-// One side of the junction has the green at a time.
-float northGreen() { return smoothstep(-0.14, 0.14, sin(uTime * PI / 2.3)); }
+// The junction's cycle, 6 s. Each road has 2.4 s of green, 0.6 s of amber, then red.
+float cycleOf(bool north, float age) { return mod(age + 0.5 + (north ? 0.0 : 3.0), 6.0); }
+// How much a road is held, for a vehicle this far behind the stop line: the queue goes from the front.
+float heldAt(float x, float behind) {
+  if (x < 2.4) return 1.0 - smoothstep(behind, behind + 0.5, x);
+  return smoothstep(2.4, 2.95, x);
+}
+float rhythm(float h) {
+  return 0.05 + 0.62 * exp(-pow(h - 8.3, 2.0) / 3.2) + 0.76 * exp(-pow(h - 17.6, 2.0) / 4.2) + 0.2 * exp(-pow(h - 12.8, 2.0) / 14.0);
+}
 struct Live { vec3 p; float alpha; float size; float tint; float hue; };
 Live live(vec3 p, vec3 v, vec4 m, float age) {
   float t = uTime, tint = m.x, phase = m.z, hue = m.w, alpha = 1.0, size = 1.0;
   int kind = int(m.y + 0.5);
+  bool inWorld = kind >= ${IN_WORLD};
+  if (inWorld) kind -= ${IN_WORLD};
   if (kind == ${KIND.flow}) {
     float f = fract(t * 0.22 + phase * 37.0);
     p += v * f;
@@ -218,12 +242,6 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
     float f = fract(t * 0.42 + phase);
     p += v * f;
     alpha = (1.0 - f) * smoothstep(0.0, 0.06, f);
-  } else if (kind == ${KIND.tick}) {
-    float beat = fract(t);
-    float steps = floor(t) + ease(beat / 0.18);
-    float a = -v.x * steps * PI / 30.0;
-    p.xy = mat2(cos(a), sin(a), -sin(a), cos(a)) * p.xy;
-    size = 1.0 + exp(-beat * 9.0) * 0.8;
   } else if (kind == ${KIND.pulse}) {
     float w = 0.5 + 0.5 * sin(t * 2.3 + phase * 6.283);
     w *= w;
@@ -238,29 +256,88 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
     tint = max(tint, front);
     p.y += (1.0 - g) * 0.16;
   } else if (kind == ${KIND.lane}) {
-    bool north = abs(v.z) > abs(v.x);
-    float red = north ? 1.0 - northGreen() : northGreen();
-    float s = fract(t * 0.1 + phase);
-    float stopAt = 0.395;
-    if (s < stopAt) s = stopAt - (stopAt - s) * mix(1.0, 0.36, red);
-    p += v * s;
-    alpha = smoothstep(0.0, 0.04, s) * smoothstep(1.0, 0.96, s);
-  } else if (kind == ${KIND.light}) {
-    size = 2.6;
-    alpha = 0.92;
+    vec2 start = v.xz;
+    bool north = abs(start.y) > abs(start.x);
+    vec2 dir = north ? vec2(0.0, -sign(start.y)) : vec2(-sign(start.x), 0.0);
+    vec2 right = vec2(-dir.y, dir.x);
+    float reach = dot(-start, dir);
+    float offset = dot(start, right);
+    float total = reach * 2.0;
+    float dist = fract(t * 0.082 + phase) * total;
+    float stopAt = reach - 0.68;
+    float behind = max(0.0, stopAt - dist);
+    float h = heldAt(cycleOf(north, age), behind * 0.9);
+    if (dist < stopAt) dist = stopAt - behind * mix(1.0, 0.44, h);
+    vec2 head = dir;
+    vec2 c = start + dir * dist;
+    if (v.y > 0.5) {
+      float r = 0.2;
+      float straight = reach - offset - r;
+      float arc = PI * r * 0.5;
+      if (dist > straight) {
+        vec2 centre = start + dir * straight + right * r;
+        if (dist < straight + arc) {
+          float a = (dist - straight) / r;
+          c = centre - right * r * cos(a) + dir * r * sin(a);
+          head = dir * cos(a) + right * sin(a);
+        } else {
+          c = centre + dir * r + right * (dist - straight - arc);
+          head = right;
+        }
+      }
+    }
+    vec2 across = vec2(-head.y, head.x);
+    vec2 q = c + head * p.x + across * p.z;
+    p = vec3(q.x, p.y, q.y);
+    alpha = smoothstep(0.0, 0.04, dist / total) * smoothstep(1.0, 0.96, dist / total);
+    // Tail lights come on when it is held.
+    if (hue > 1.5 && hue < 2.5) {
+      float braking = dist <= stopAt + 0.01 ? h : 0.0;
+      alpha *= 0.2 + 0.8 * braking;
+      size = 1.0 + braking * 0.5;
+    }
+  } else if (kind == ${KIND.lamp}) {
+    float x = cycleOf(hue < 4.5, age);
+    float now = x < 2.4 ? 2.0 : (x < 3.0 ? 1.0 : 0.0);
+    bool lit = abs(phase - now) < 0.5;
+    hue = phase < 0.5 ? 2.0 : (phase < 1.5 ? 1.0 : 3.0);
+    alpha = lit ? 1.0 : 0.13;
+    size = lit ? 2.5 : 1.3;
+  } else if (kind == ${KIND.walker}) {
+    bool crossesNorth = abs(v.x) > abs(v.z);
+    float x = mod(cycleOf(crossesNorth, age) - 3.15, 6.0);
+    float f = clamp(x / 2.3 - phase * 0.28, 0.0, 1.0);
+    p += v * f;
+    alpha = x < 2.7 ? 1.0 : smoothstep(6.0, 5.7, x) * 0.0 + 0.0;
+    size = 1.3;
+  } else if (kind == ${KIND.stream}) {
+    float f = fract(t * 0.07 + phase * 37.0);
+    float r = rhythm(f * 24.0);
+    float x = -1.75 + 3.5 * f;
+    float grow = smoothstep(0.0, 0.1, age / 2.4 - f);
+    p = vec3(x, -0.12 + v.x * r * 0.88 * mix(0.35, 1.0, grow), v.z * r * 0.4);
+    alpha = 0.35 + 0.65 * grow;
+    tint = 0.28 + r * 0.8;
+    float noise = fract(phase * 91.0) * 0.12;
+    hue = r > 0.6 + noise ? 2.0 : (r > 0.34 + noise ? 1.0 : 0.0);
+  } else if (kind == ${KIND.gauge}) {
+    float filled = v.x * ease((age - 0.2) / 2.6);
+    alpha = smoothstep(filled + 0.012, filled - 0.004, phase);
+    float front = exp(-pow((phase - filled) * 34.0, 2.0));
+    size = 1.0 + front * 2.0;
+    p.z += 0.0;
   } else if (kind == ${KIND.wave}) {
     p.y += 0.075 * sin(p.x * 2.6 + p.z * 1.8 - t * 1.9) + 0.03 * sin(p.z * 5.0 + t * 1.2);
-  } else if (kind == ${KIND.sun}) {
-    float a = PI * clamp((age - 0.2) / 3.5, 0.0, 1.0);
-    p.x += -cos(a) * 1.6;
-    p.y += sin(a) * 1.0 - 0.28;
-    size = 1.8;
   } else if (kind == ${KIND.bracket}) {
-    float g = ease((age - 0.15) / 1.5);
-    vec2 centre = v.xz;
-    p.xz = centre + (p.xz - centre) * mix(2.3, 1.0, g) + (1.0 - g) * vec2(-1.1, 0.75) * (1.0 + 0.2 * sin(age * 5.0));
-    float locked = exp(-pow((age - 1.75) * 5.0, 2.0));
-    size = 1.0 + locked * 2.0;
+    // Wider while the camera is moving, snapping tight each time it arrives.
+    float move1 = clamp((age - 0.75) / 0.65, 0.0, 1.0);
+    float move2 = clamp((age - 2.6) / 0.65, 0.0, 1.0);
+    float wide = sin(move1 * PI) + sin(move2 * PI);
+    float hunt = 1.0 - smoothstep(0.0, 0.75, age);
+    p.xz *= 1.0 + wide * 0.34 + hunt * 0.5;
+    float locked = exp(-pow((age - 1.42) * 6.0, 2.0)) + exp(-pow((age - 3.27) * 6.0, 2.0));
+    size = 1.0 + locked * 1.6;
+    tint = max(tint, locked);
   } else if (kind == ${KIND.boil}) {
     p += 0.035 * vec3(sin(t * 0.55 + p.y * 7.0 + phase * 6.0), sin(t * 0.65 + p.x * 6.0), cos(t * 0.5 + p.z * 7.0));
     p.x += sin(t * 0.22) * 0.09;
@@ -271,6 +348,16 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
     p.z += 0.016 * sin(p.x * 4.0 + t * 1.4);
     p.y += 0.004 * sin(p.x * 9.0 + t * 2.0 + phase * 6.0);
   }
+  if (inWorld) {
+    // The world flies under the viewfinder to one event, then the next, closing in.
+    float move1 = ease((age - 0.75) / 0.65);
+    float move2 = ease((age - 2.6) / 0.65);
+    vec2 aim = mix(mix(vec2(0.0), vec2(${FOCUS_A[0]}, ${FOCUS_A[1]}), move1), vec2(${FOCUS_B[0]}, ${FOCUS_B[1]}), move2);
+    float zoom = mix(1.0, 1.65, move1);
+    p.xz = (p.xz - aim) * zoom;
+    p.x = clamp(p.x, -2.6, 2.6);
+    p.z = clamp(p.z, -2.6, 2.6);
+  }
   if (kind == ${KIND.rest} || kind == ${KIND.reveal}) p += 0.009 * vec3(sin(t * 0.9 + phase * 40.0), sin(t * 1.1 + phase * 57.0), cos(t * 0.8 + phase * 31.0));
   return Live(p, alpha, size, tint, hue);
 }
@@ -279,8 +366,7 @@ vec3 colourOf(float tint, float hue) {
   if (hue < 1.5) return uWarm;
   if (hue < 2.5) return uDanger;
   if (hue < 3.5) return uOk;
-  float g = northGreen();
-  return mix(uDanger, uOk, hue < 4.5 ? g : 1.0 - g);
+  return uAccent;
 }
 void main() {
   // Particles set off as a front across the scene, not as a block and not as noise.
@@ -309,20 +395,30 @@ void main() {
   }
   // Building the map: each particle flies in on a curve to its place on a road, nearest
   // the middle first, and catches the light as it lands.
-  float l = clamp(uLand * 1.5 - aLand.w * 0.5, 0.0, 1.0);
+  // Letting go of the title they go nearly together, so that it grows rather than tears.
+  float landOrder = uSweep < 8.0 ? aSeed * 0.3 : aLand.w;
+  float l = clamp(uLand * 1.5 - landOrder * 0.5, 0.0, 1.0);
   l = l * l * (3.0 - 2.0 * l);
   vec2 way = aLand.xy - ndc;
   ndc = mix(ndc, aLand.xy, l) + vec2(-way.y, way.x) * sin(l * 3.14159) * (0.1 + (aSeed - 0.5) * 0.14);
-  float arriving = smoothstep(0.72, 1.0, l) * smoothstep(1.0, 0.0, (uLand * 1.5 - aLand.w * 0.5 - 1.0) * 5.0);
+  float arriving = smoothstep(0.72, 1.0, l) * smoothstep(1.0, 0.0, (uLand * 1.5 - landOrder * 0.5 - 1.0) * 5.0);
+  // The title coming apart: as the sweep passes, each particle appears, kicks out and settles.
+  float swept = uSweep - aLand.w;
+  float hidden = smoothstep(-0.012, 0.012, swept);
+  float kick = sin(clamp(swept / 0.42, 0.0, 1.0) * PI);
+  float kickAngle = aSeed * 6.283 * 7.0;
+  ndc += vec2(cos(kickAngle) * 0.6 + 0.5, sin(kickAngle)) * kick * kick * (0.004 + aSeed * 0.022) * step(uSweep, 8.0);
+  float seam = exp(-pow(swept * 26.0, 2.0)) * step(uSweep, 8.0);
   gl_Position = vec4(ndc * clip.w, clip.z, clip.w);
   float depth = clip.w;
   float size = mix(a.size, b.size, m);
-  gl_PointSize = mix(uPixels * size * (1.0 + aSeed * 0.9) * clamp(3.4 / depth, 0.35, 2.6), uPixels * (0.85 + arriving * 1.5), l);
+  gl_PointSize = mix(uPixels * size * (1.0 + aSeed * 0.9) * clamp(3.4 / depth, 0.35, 2.6), uPixels * (0.85 + arriving * 1.5 + seam * 1.1), l);
   float tint = mix(a.tint, b.tint, m);
-  vColour = mix(mix(colourOf(a.tint, a.hue), colourOf(b.tint, b.hue), m), mix(uRoad, uAccent, arriving * 0.7), l);
+  vColour = mix(mix(colourOf(a.tint, a.hue), colourOf(b.tint, b.hue), m), uSweep < 8.0 ? uBase : mix(uRoad, uAccent, arriving * 0.7), l);
   // Nearer and further than the focal distance falls away, as with a lens.
   float shown = (0.32 + tint * 0.68) * clamp(1.5 - abs(depth - 3.1) * 0.5, 0.18, 1.0) * mix(a.alpha, b.alpha, m);
-  vAlpha = mix(shown, 0.92, l);
+  vAlpha = mix(shown, 0.92, l) * hidden;
+  vColour = mix(vColour, uAccent, seam);
 }`;
 
 const FRAGMENT = `#version 300 es
@@ -373,7 +469,7 @@ function rgb(value: string, fallback: [number, number, number]): [number, number
   return parts.length >= 3 && parts.every(Number.isFinite) ? [parts[0] / 255, parts[1] / 255, parts[2] / 255] : fallback;
 }
 
-export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, onCycle, reduceMotion }: {
+export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, quick = false, onCycle, reduceMotion }: {
   /** The film runs; otherwise the network rests dimly behind whatever is on screen. */
   playing: boolean;
   /** Nothing is drawn yet, because the title has the screen. */
@@ -387,6 +483,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
   rejoin?: boolean;
   /** Something is to be read on screen: stay out of its way. */
   quiet?: boolean;
+  /** Back into a run already going: the name, then the roads, and no film. */
+  quick?: boolean;
   /** The film has shown every scene once. */
   onCycle?: () => void;
   reduceMotion: boolean;
@@ -455,7 +553,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       attribute("aToM", scenes[to], 4, 6);
     };
     const uniform = (name: string) => gl.getUniformLocation(program, name);
-    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand") };
+    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), sweep: uniform("uSweep"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand") };
     const landAt = gl.getAttribLocation(program, "aLand");
     const landBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
@@ -482,8 +580,9 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       // A film already under way, and still on its opening, gathers into the wordmark now.
       if (reduceMotion || !started || scene !== 0 || ending) return;
       to = wordmark;
+      if (quick) from = wordmark;
       bind(from, to);
-      blend = 0;
+      blend = quick ? 1 : 0;
       velocity = 0;
     };
     image.src = `data:image/svg+xml,${encodeURIComponent(LOGO_SVG)}`;
@@ -519,6 +618,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     let wordmark = -1;
     let started = false;
     let wordmarkUv: Float32Array | null = null;
+    let logoFrame: HTMLElement | null = null;
     let dissolving = false; // The title's logo is becoming the particles.
     let landing = 0;
     let landingVelocity = 0;
@@ -532,6 +632,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     let velocity = 0;
     let scene = 0; // Which chapter the cloud is showing.
     let held = 0;
+    let sweep = 9; // Where the title's sweep has got to, once it starts.
     let ageFrom = 99; // How long each of the two scenes being mixed has been on screen.
     let ageTo = 0;
     let time = 0;
@@ -550,10 +651,11 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       // Closing slowly on whatever is holding.
-      const push = 1 - CAMERAS[scene].push * easeInOut(held / (HOLD_S + 1));
+      const push = 1 - CAMERAS[scene].push * easeInOut(held / (HOLDS[scene] + 1));
       gl.uniformMatrix4fv(u.view, false, viewMatrix(element.width / element.height, camera.yaw + camera.orbit, camera.pitch + Math.sin(time * 0.31) * 0.012, camera.distance * push));
       gl.uniform1f(u.ageFrom, ageFrom);
       gl.uniform1f(u.ageTo, ageTo);
+      gl.uniform1f(u.sweep, sweep);
       gl.uniform1f(u.mix, blend);
       gl.uniform1f(u.land, landing);
       gl.uniform1f(u.time, time);
@@ -615,18 +717,21 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         }
       }
       if (closingFor >= 0) closingFor += dt;
-      if (landed) landing = Math.max(landedFrom, easeInOut((closingFor - GATHER_S) / LAND_S));
+      if (landed) landing = Math.max(landedFrom, quick ? easeInOut(closingFor / QUICK_LAND_S) : easeInOut((closingFor - GATHER_S) / LAND_S));
       else if (dissolving) {
+        sweep = (held - SWEEP_DELAY_S) / SWEEP_S;
+        logoFrame?.style.setProperty("--sweep", String(Math.max(-0.1, Math.min(1.1, sweep))));
         landing = 1 - easeInOut((held - DISSOLVE_HOLD_S) / DISSOLVE_S);
         if (landing <= 0.0001) {
           landing = 0;
           dissolving = false;
+          sweep = 9;
         }
       } else if (ending && started && !rejoined) {
-        // The end, simply: off the roads into the name, and then it drifts apart and rests.
+        // The end: off the roads and into the name, from the edges in, and then it is blown away.
         const t = now / 1000 - endStart;
-        landing = 1 - easeInOut((t - 0.5) / 2.2);
-        if (t > 4.2 && !endScattered) {
+        landing = 1 - easeInOut((t - END_GATHER_AT_S) / END_GATHER_S);
+        if (t > END_SCATTER_AT_S && !endScattered) {
           endScattered = true;
           from = to;
           to = 0;
@@ -640,9 +745,9 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         }
       }
       // Having landed, they give way to the map's own roads.
-      const endingDim = quietRef.current ? REST_DIM : ending && !rejoined ? (!rejoin && now / 1000 - endStart > 4.6 ? REST_DIM : 1) : null;
-      const dimTo = endingDim ?? (landed ? (closingFor > (MAP_AT_MS + 500) / 1000 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM);
-      dim += (dimTo - dim) * Math.min(1, dt * (quietRef.current || (ending && !rejoined) ? 1.6 : landed ? 2.6 : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
+      const endingDim = quietRef.current ? REST_DIM : ending && !rejoined ? (!rejoin && now / 1000 - endStart > END_SCATTER_AT_S + 0.8 ? REST_DIM : now / 1000 - endStart > END_ROADS_AT_S ? 1 : 0) : null;
+      const dimTo = endingDim ?? (landed ? (closingFor > ((quick ? QUICK_ARRIVAL.mapAt : MAP_AT_MS) + (quick ? 220 : 500)) / 1000 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM);
+      dim += (dimTo - dim) * Math.min(1, dt * (quietRef.current ? 1.6 : ending && !rejoined ? (now / 1000 - endStart > END_SCATTER_AT_S ? 1.1 : 5) : landed ? (quick ? 5 : 2.6) : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
       // The old world's particles, blown apart, come back together as the name, and the
       // film carries on from there as it does at start-up.
       if (rejoin && started && !rejoined && playingRef.current) {
@@ -695,15 +800,18 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
             blend = 1;
             landing = 1;
             dissolving = true;
-            dim = 0;
+            logoFrame = document.querySelector<HTMLElement>(".boot-title-logo");
+            sweep = -0.1;
+            dim = 1;
           } else if (wordmark >= 0) {
             to = wordmark;
+            if (quick) from = wordmark;
             bind(from, to);
-            blend = 0;
+            blend = quick ? 1 : 0;
             velocity = 0;
           }
         }
-        if (held > HOLD_S && !closingRef.current) next();
+        if (held > HOLDS[scene] && !closingRef.current && !quick) next();
       } else if (!asleepRef.current && !ending && !quietRef.current && scene !== 1) {
         next(1);
       }
@@ -768,13 +876,14 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       document.removeEventListener("visibilitychange", onVisibility);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
-  }, [reduceMotion, ending, rejoin]);
+  }, [reduceMotion, ending, rejoin, quick]);
 
   const shown = FILM_CHAPTERS[playing ? chapter : 0];
   return (
     <>
-      <canvas ref={canvas} className="boot-scene" aria-hidden="true" />
-      {playing && (
+      {/* A context is lost for good when the scene restarts, so each restart gets a new canvas. */}
+      <canvas key={`${reduceMotion}/${ending}/${rejoin}/${quick}`} ref={canvas} className="boot-scene" aria-hidden="true" />
+      {playing && !quick && (
         <div className="film-caption" aria-hidden="true" key={chapter}>
           <span className="film-chapter">{shown.label}</span>
           <h3>{shown.title}</h3>

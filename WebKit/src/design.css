@@ -2638,3 +2638,30 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .app-shell .map-readout { transition-delay: 320ms; }
 /* Everything opaque about the surface is on its ::before, which fades, or the map could not show through. */
 [data-theme="light"] .loading-surface.boot { background: none; }
+
+/* ---- The title comes apart in a sweep, each part turning to particles as it is reached ------------- */
+.boot-title.is-film .boot-title-logo {
+  opacity: 1;
+  transition: none;
+  mask-image: linear-gradient(90deg, transparent calc(var(--sweep, -0.1) * 100% - 3%), #000 calc(var(--sweep, -0.1) * 100% + 3%));
+}
+.boot-title p { transition: opacity 420ms var(--ease); }
+.loading-surface.still .boot-title.is-film .boot-title-logo { mask-image: none; opacity: 0; }
+
+/* ---- Back into a run already going: no film, no words, only the name and then the roads ------------ */
+.loading-surface.boot.quick .loading-card.film,
+.loading-surface.boot.quick .loading-licence,
+.loading-surface.boot.quick::after { opacity: 0; }
+
+/* ---- The end: the panels leave first, then the map goes from under its roads ------------------------ */
+.app-shell.booting .telemetry-deck { transition: transform 420ms var(--ease), opacity 320ms var(--ease) 80ms; transition-delay: 0ms; }
+.app-shell.booting .map-dock { transition: transform 420ms var(--ease), opacity 320ms var(--ease) 80ms; transition-delay: 60ms; }
+.app-shell.booting .bottom-stack { transition: transform 420ms var(--ease), opacity 320ms var(--ease) 80ms; transition-delay: 110ms; }
+.app-shell.booting .app-header { transition: transform 420ms var(--ease), opacity 320ms var(--ease) 80ms; transition-delay: 160ms; }
+.app-shell.booting .map-readout { transition: opacity 200ms var(--ease); }
+.app-shell.booting .map-layer { transition: opacity 700ms var(--ease) 520ms; }
+.app-shell.booting.map-showing .map-layer { transition: opacity 850ms var(--ease); }
+.loading-surface.boot.ending::before, .loading-surface.boot.rejoin::before { animation: end-cover 620ms var(--ease) 780ms both; }
+.loading-surface.boot.rejoin.landing::before { animation: none; }
+.reduce-motion.app-shell.booting .map-layer { transition: opacity 120ms linear; }
+.loading-surface.still.ending::before { animation: none; }

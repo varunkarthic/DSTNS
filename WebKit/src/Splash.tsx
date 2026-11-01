@@ -122,6 +122,7 @@ export function Splash({
   closing = false,
   landing,
   phase,
+  quick = false,
   onFilmCycle,
 }: {
   stage: SplashStage;
@@ -129,6 +130,7 @@ export function Splash({
   closing?: boolean;
   landing?: () => Float32Array | null;
   phase?: BootPhase;
+  quick?: boolean;
   onFilmCycle?: () => void;
 }) {
   const [elapsed, setElapsed] = useState(0);
@@ -153,6 +155,7 @@ export function Splash({
       idle={stage.waiting}
       landing={landing}
       phase={phase}
+      quick={quick}
       onFilmCycle={onFilmCycle}
       closing={closing}
       reduceMotion={reduceMotion}

@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "./Icons";
 import { Logo } from "./Logo";
-import { BootScene, MAP_AT_MS } from "./BootScene";
+import { BootScene, MAP_AT_MS, QUICK_ARRIVAL } from "./BootScene";
 import type { CSSProperties } from "react";
 
 /**
@@ -32,7 +32,8 @@ function BootTitle({ phase }: { phase: BootPhase }) {
   const [gone, setGone] = useState(phase === "film");
   useEffect(() => {
     if (phase !== "film" || gone) return;
-    const timer = setTimeout(() => setGone(true), 950);
+    // The particles take it apart from here, sweeping across it.
+    const timer = setTimeout(() => setGone(true), 1700);
     return () => clearTimeout(timer);
   }, [phase, gone]);
   if (gone) return null;
@@ -75,6 +76,7 @@ export function LoadingSurface({
   ending = false,
   rejoin = false,
   exiting = false,
+  quick = false,
   onFilmCycle,
 }: {
   /** "boot" covers the screen; "overlay" floats a card over the dimmed map. */
@@ -111,6 +113,8 @@ export function LoadingSurface({
   rejoin?: boolean;
   /** That ending is still under way, so nothing is shown over it yet. */
   exiting?: boolean;
+  /** Back into a run already going, on reload. */
+  quick?: boolean;
   onFilmCycle?: () => void;
 }) {
   // The wordmark hands over to the one in the header, so the screen resolves into
@@ -208,8 +212,8 @@ export function LoadingSurface({
   return (
     <div
       ref={surface}
-      style={{ "--map-at": `${MAP_AT_MS}ms` } as CSSProperties}
-      className={`loading-surface ${mode} phase-${film ? phase : "film"}${ending ? " ending" : ""}${rejoin ? " rejoin" : ""}${exiting ? " exiting" : ""}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
+      style={{ "--map-at": `${quick ? QUICK_ARRIVAL.mapAt : MAP_AT_MS}ms` } as CSSProperties}
+      className={`loading-surface ${mode} phase-${film ? phase : "film"}${ending ? " ending" : ""}${rejoin ? " rejoin" : ""}${exiting ? " exiting" : ""}${quick ? " quick" : ""}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
       role={role}
       aria-modal={role === "alertdialog" ? true : undefined}
       aria-labelledby={titleId}
@@ -217,9 +221,9 @@ export function LoadingSurface({
       aria-live={role === "status" ? "polite" : undefined}
     >
       {mode === "boot" && (
-        <BootScene playing={film && phase === "film" && !exiting} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending || rejoin} rejoin={rejoin} quiet={failed && rejoin} onCycle={onFilmCycle} reduceMotion={reduceMotion} />
+        <BootScene playing={film && phase === "film" && !exiting} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending || rejoin} rejoin={rejoin} quiet={failed && rejoin} quick={quick} onCycle={onFilmCycle} reduceMotion={reduceMotion} />
       )}
-      {film && !rejoin && <BootTitle phase={phase} />}
+      {film && !rejoin && !quick && <BootTitle phase={phase} />}
       {body}
       {footer}
     </div>

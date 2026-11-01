@@ -542,3 +542,13 @@ than pop when the core's numbers change. Near enough, they show a windscreen and
 **Consequences.** They are still representative: their number and speed come from the core, nothing feeds back into the simulation,
 and the hover card still says that individual vehicles are not tracked. They keep to the right on every map, which is wrong for
 left-driving countries and is left as it is, because the map does not know which side a country drives on.
+
+## 41. Coming back to a run is not an opening
+
+**Problem.** Reloading a page showed nothing at all and then the dashboard, because the scene restarted on a canvas whose context had
+been lost for good. Had it worked, it would have been the film's arrival, over four seconds, for someone who only pressed reload.
+
+**Decision.** A page opened on a run already going shows the name in particles until the world has loaded, then the same arrival in
+about a second and a half: roads, map, panels, with no film, words or progress. A scene that restarts gets a new canvas.
+
+**Consequences.** A page opened ahead of its world still gets the whole film, and only such a page ever makes a world wait.

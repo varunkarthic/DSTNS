@@ -65,7 +65,15 @@ moving for as long as it holds. When the first network arrives the particles gat
 then fly out and build the map's roads from the middle of the network outward, which is how a
 session ends played backwards. The map then fades in under those roads, and last of all the header,
 the sidebar, the telemetry panel and the bottom row slide in from their own edges. Generating a new
-world arrives the same way. With reduced motion everything simply appears. If nothing can load, the same surface says what happened and clears by itself
+world arrives the same way. With reduced motion everything simply appears.
+
+The title comes apart in a sweep from left to right as the film begins. Reloading a page during a run
+has no film: the name stands until the world has loaded, then the roads, map and panels arrive in about
+a second and a half. Ending a session is that arrival backwards: the panels leave, the map goes from under
+its roads, the roads fly into the name, and the name is blown away.
+
+While the start-up is on screen a finished world waits at its first second, and starts as the panels arrive.
+If the tab is closed or hidden, it starts by itself within a few seconds. If nothing can load, the same surface says what happened and clears by itself
 when the simulator answers, and after **Terminate** it says the server has shut down.
 In an overlay form, it is also used for world generation.
 
