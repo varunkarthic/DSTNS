@@ -72,7 +72,6 @@
 .loading-card {
   background: var(--glass);
   backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-line);
   box-shadow: var(--glass-shadow);
 }
@@ -665,7 +664,6 @@ body:has(.reduce-motion) .floating {
   border: 0;
   box-shadow: none;
   backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   pointer-events: none;
 }
 .deck-surface {
@@ -1604,7 +1602,6 @@ body:has(.reduce-motion) .floating {
   z-index: calc(var(--z-scrim) + 2);
   background: rgb(var(--scrim-rgb) / 48%);
   backdrop-filter: blur(6px) saturate(115%);
-  -webkit-backdrop-filter: blur(6px) saturate(115%);
 }
 .loading-surface.closing {
   opacity: 0;
@@ -1636,7 +1633,6 @@ body:has(.reduce-motion) .floating {
   border: none;
   box-shadow: none;
   backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 /* One line of stages: a dot on a shared rail, and what it means beneath it. */
 .loading-surface.boot .loading-steps {
@@ -2191,11 +2187,9 @@ body:has(.reduce-motion) .floating {
   scrollbar-width: thin;
   /* Only fade when there is something below: a list that fits is not clipped. */
   mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent 100%);
 }
 .scroll-fade.at-end {
   mask-image: none;
-  -webkit-mask-image: none;
 }
 .legend-popover.places .place-rows {
   max-height: min(42vh, 420px);
@@ -2205,12 +2199,11 @@ body:has(.reduce-motion) .floating {
 .legend-popover.places {
   background: var(--hud-bg-strong, rgb(9 20 30 / 96%));
   backdrop-filter: blur(22px) saturate(140%);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
 }
 
 /* Keep headers/actions visible while the shared continuation mask follows the list. */
 .layers-scroll { max-height: min(52vh, 520px); }
-.stream.scroll-fade.at-end { mask-image: none; -webkit-mask-image: none; }
+.stream.scroll-fade.at-end { mask-image: none;  }
 
 /* Two readable map groups on the shared HUD baseline. */
 .hud-center, .hud-right { gap: 0; border-radius: var(--r-pill); background: var(--glass-strong); border: 0; box-shadow: inset 0 0 0 1px var(--glass-line); }

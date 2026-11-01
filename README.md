@@ -29,7 +29,7 @@ map bytes and compatible build; see [Reproducible experiments](#reproducible-exp
 [API](https://dstns.readthedocs.io/api/) ·
 [Troubleshooting](https://dstns.readthedocs.io/troubleshooting/)
 
-<img src="docs/assets/screenshots/observer.png" alt="The DSTNS observer watching a district of Dar es Salaam" width="100%">
+<img src="docs/assets/screenshots/observer.png" alt="The DSTNS observer watching a district of Christchurch" width="100%">
 
 </div>
 
@@ -63,7 +63,7 @@ map bytes and compatible build; see [Reproducible experiments](#reproducible-exp
 | **Deterministic simulation** | SHA-256 sub-seeds per subsystem, counter-based random numbers, fixed one-second physics, checkpoint replay. Matching inputs and compatible builds produce matching scenario and runtime state. |
 | **Integrated traffic and environmental models** | Signals snapped to real junctions and coordinated in green waves; place-driven weekday and weekend demand; storms with Wendland C² rain fields; flooding that closes roads; at least four incidents a day. |
 | **Checkpoint replay** | Pause, step, seek backwards and forwards through the day; undo and redo operator controls. |
-| **Browser observer** | Live map, telemetry, notifications, Auto Focus, a guided tutorial and a PDF report, kept in step by adaptive backpressure. |
+| **Browser observer** | Live map, telemetry, notifications, Auto Focus, place search with filters, changeable keyboard shortcuts, light and dark themes, colour-vision palettes, a guided tutorial and a PDF report, kept in step by adaptive backpressure. |
 | **HTTP API** | Every view and control over JSON, a self-describing route index, and an [OpenAPI 3.1 description](https://dstns.readthedocs.io/api/openapi/). |
 | **Container deployment** | A multi-architecture image (about 234 MB) that starts a simulation with one command; optional TLS gateway and SUMO. |
 | **SUMO integration** | Export any world to Eclipse SUMO and run it microscopically as a batch job. |
@@ -355,16 +355,24 @@ Full details: [Installation](https://dstns.readthedocs.io/getting-started/instal
 
 | Do | Control |
 |---|---|
-| Play, pause | Play and Pause buttons in the command rail |
-| Faster or slower | 0.25× … 5× |
-| Jump 15 minutes back or forward | Back and Forward buttons (backward movement uses checkpoint replay) |
-| Step one minute | Step button |
+| Play, pause | Play and Pause buttons in the bottom bar, or `Space` |
+| Faster or slower | 0.25× to 10× on the speed slider, or `[` and `]` |
+| Jump 15 minutes back or forward | Back and Forward (`J`, `L`). Moving backward uses checkpoint replay |
+| Step one minute | Step (`K`) |
 | Start the day over | Restart button |
 | A different city | **Generate a new world**, next to the seed |
-| Follow events automatically | **Auto Focus** in the sidebar |
-| Layers, legends | **Layers** in the lower bar |
+| Follow events automatically | **Auto Focus** in the sidebar (`A`). Double-click it for the order |
+| Find a place | **Search** in the sidebar (`/`), with filters such as Modelled, Health and Transport |
+| Layers and legends | **Roads**, **Places** and **Layers** in the lower bar |
+| Change shortcuts, theme and more | **Settings** (`,`). Appearance follows your device by default |
 | A PDF of the day | **Export Report** |
 | Learn the interface | **Tutorial** |
+
+The observer needs a window of at least **1280 × 640**. Below that it says so rather than squeezing the interface.
+
+When the world is ready, the start-up film plays through once before handing over to the map, so a first start takes
+about 45 seconds. To open with this browser's settings forgotten, use `./launcher start --default-settings`, or turn on
+**Open with default settings** under Configuration.
 
 Walkthrough: [Your first simulation](https://dstns.readthedocs.io/getting-started/first-simulation/).
 Reference: [Observer interface](https://dstns.readthedocs.io/guide/observer-interface/).
@@ -492,9 +500,10 @@ push. Details: [Testing](https://dstns.readthedocs.io/development/testing/).
 Other programs can build on DSTNS. **Fabric** is the layer through which everything
 reaches the core, and **WebFabric** lets independent applications appear in the
 observer. There is nothing to install: an application calls the API, registers itself,
-and declares its status lines, panels, map overlays and settings as data. Applications
-run side by side, ask for what they need, and act on the simulation only with
-permission. See [WebFabric](docs/components/webfabric.md) and
+and declares its status lines, panels, map overlays and settings as data. It can place
+markers on junctions and vehicles on roads, and animate them along real routes, without
+sending anything per frame. Applications run side by side, ask for what they need, and
+act on the simulation only with permission. See [WebFabric](docs/components/webfabric.md) and
 [Building applications](docs/development/webfabric-apps.md).
 
 ## Project layout
@@ -502,7 +511,7 @@ permission. See [WebFabric](docs/components/webfabric.md) and
 ```text
 Core/                 the C++ core: engine, scenario, OSM, events, backpressure, server entry point
 Fabric/               the HTTP API over the core, and the application registry
-WebKit/            the observer (React, Vite, Vitest)
+WebKit/               the observer (React, Vite, Vitest)
 dstns_launcher/       the Python launcher, terminal interface and shared service core
 tests/                native, HTTP and CLI suites, fixtures
 tools/                scenario export, replay verification, road index, benchmark

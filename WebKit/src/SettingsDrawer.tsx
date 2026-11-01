@@ -415,21 +415,23 @@ export function SettingsDrawer({
           </button>
         </Section>
 
-        <button
-          type="button"
-          className="settings-action"
-          aria-label="Reset settings"
-          onClick={() => {
-            actions.onReset();
-            setResetDone(true);
-          }}
-        >
-          <span className="settings-action-mark" aria-hidden="true"><Icon name={resetDone ? "check" : "reset"} size={16} /></span>
-          <span className="settings-action-text" role="status">
-            <strong>{resetDone ? "Settings reset" : "Reset all settings"}</strong>
-            <small>{resetDone ? "Everything here is back to its default." : "Returns everything here to its default."}</small>
-          </span>
-        </button>
+        <Section title="Reset" icon="reset">
+          <button
+            type="button"
+            className="settings-action"
+            aria-label="Reset settings"
+            onClick={() => {
+              actions.onReset();
+              setResetDone(true);
+            }}
+          >
+            <span className="settings-action-mark" aria-hidden="true"><Icon name={resetDone ? "check" : "reset"} size={16} /></span>
+            <span className="settings-action-text" role="status">
+              <strong>{resetDone ? "Settings reset" : "Reset all settings"}</strong>
+              <small>{resetDone ? "Everything here is back to its default." : "Returns everything here to its default."}</small>
+            </span>
+          </button>
+        </Section>
         </>
         )}
       </div>

@@ -208,15 +208,20 @@ export function useSmoothProgress(percent: number, ratePerSecond: number, reduce
   const bar = useRef<HTMLElement>(null);
   const goal = useRef({ percent, at: 0, rate: ratePerSecond });
   const state = useRef({ x: percent, v: 0, cancel: null as (() => void) | null });
+  const painted = useRef(-1);
   const paint = (value: number) => {
     const el = bar.current;
     if (!el) return;
     const day = Math.max(0, Math.min(100, value)) / 100;
+    // Too small a change to see costs nothing.
+    if (Math.abs(day - painted.current) < 0.0002) return;
+    painted.current = day;
     const height = sunHeight(day);
     el.style.setProperty("--day", day.toFixed(5));
     el.style.setProperty("--sky", `${(ARC_HORIZON - ARC_RISE * height).toFixed(2)}px`);
     el.style.setProperty("--night", height < 0 ? "1" : "0");
   };
+  const wake = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useLayoutEffect(() => {
     goal.current = { percent, at: performance.now(), rate: ratePerSecond };
     const s = state.current;
@@ -227,17 +232,29 @@ export function useSmoothProgress(percent: number, ratePerSecond: number, reduce
       paint(percent);
       return;
     }
-    s.cancel ??= animate((dt) => {
-      const g = goal.current;
-      const target = g.percent + (g.rate * (performance.now() - g.at)) / 864000;
-      [s.x, s.v] = stepSpring(s.x, s.v, target, SPRINGS.spatialSlow, dt);
-      paint(s.x);
-      if (!g.rate && Math.abs(s.x - target) < 0.005 && Math.abs(s.v) < 0.01) {
-        s.cancel = null;
-        return false;
+    const target = () => goal.current.percent + (goal.current.rate * (performance.now() - goal.current.at)) / 864000;
+    // A jump, such as a seek, travels on a spring. Otherwise the day moves far less than a
+    // pixel a second, so nothing runs per frame: it is just brought up to date now and then.
+    const run = () => {
+      clearTimeout(wake.current);
+      if (Math.abs(s.x - target()) < 0.02 && Math.abs(s.v) < 0.01) {
+        s.x = target();
+        paint(s.x);
+        if (goal.current.rate) wake.current = setTimeout(run, 1000);
+        return;
       }
-      return true;
-    });
+      s.cancel ??= animate((dt) => {
+        [s.x, s.v] = stepSpring(s.x, s.v, target(), SPRINGS.spatialSlow, dt);
+        paint(s.x);
+        if (Math.abs(s.x - target()) < 0.02 && Math.abs(s.v) < 0.01) {
+          s.cancel = null;
+          if (goal.current.rate) wake.current = setTimeout(run, 1000);
+          return false;
+        }
+        return true;
+      });
+    };
+    run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [percent, ratePerSecond, reduceMotion]);
   useEffect(() => {
@@ -245,6 +262,7 @@ export function useSmoothProgress(percent: number, ratePerSecond: number, reduce
     return () => {
       s.cancel?.();
       s.cancel = null;
+      clearTimeout(wake.current);
     };
   }, []);
   return bar;

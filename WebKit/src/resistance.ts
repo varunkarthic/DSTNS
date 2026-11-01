@@ -49,6 +49,12 @@ export function resistZoomOut(scale: number, fitScale: number): number {
   return rest * Math.exp(resist(Math.log(scale / rest), room, 1.8));
 }
 
+let lastScroll = -Infinity;
+/** Something is being scrolled. Whatever can wait until it stops, should. */
+export function scrollingNow(): boolean {
+  return performance.now() - lastScroll < 180;
+}
+
 const SCROLLING = /(auto|scroll)/;
 // How far a region gives: subtle, and in proportion to it.
 const EDGE_LIMIT = 12;
@@ -102,7 +108,6 @@ export function installEdgeResistance(root: Document = document): () => void {
 
   const run = (el: HTMLElement, s: Stretch) => {
     if (s.cancel) return;
-    el.style.willChange = "transform";
     s.cancel = animate((dt) => {
       s.pull *= Math.exp(-RELEASE * dt);
       if (Math.abs(s.pull) < 0.5) s.pull = 0;
@@ -114,7 +119,6 @@ export function installEdgeResistance(root: Document = document): () => void {
         s.x = 0;
         s.cancel = null;
         el.style.removeProperty("transform");
-        el.style.willChange = "";
         return false;
       }
       el.style.transform = s.axis === "y" ? `translate3d(0, ${s.x.toFixed(2)}px, 0)` : `translate3d(${s.x.toFixed(2)}px, 0, 0)`;
@@ -160,11 +164,26 @@ export function installEdgeResistance(root: Document = document): () => void {
     }
   };
 
+  let scrolling: HTMLElement | null = null;
+  let scrollEnd: ReturnType<typeof setTimeout> | undefined;
+
   // Focus and scrollIntoView can move an overflow-hidden ancestor even with no
   // scrollbar, which is what shifted the interface under open panels. Those
   // ancestors are never meant to have moved, so they are put straight back.
   const onScroll = (event: Event) => {
     const el = event.target;
+    lastScroll = performance.now();
+    // Rows passing under the pointer would each restyle on hover, on the main thread.
+    if (el instanceof HTMLElement && el !== scrolling) {
+      scrolling?.classList.remove("is-scrolling");
+      scrolling = el;
+      el.classList.add("is-scrolling");
+    }
+    clearTimeout(scrollEnd);
+    scrollEnd = setTimeout(() => {
+      scrolling?.classList.remove("is-scrolling");
+      scrolling = null;
+    }, 120);
     if (el === root || (el instanceof Element && el.matches("html, body, #root, .app-shell, .workspace, .bottom-stack, .lower-hud, .hud-zone"))) {
       if (el === root) root.documentElement.scrollTop = root.documentElement.scrollLeft = 0;
       else {

@@ -169,6 +169,12 @@ try {
     assert.ok(await page.getByRole("slider", { name: "Simulation speed" }).isVisible(), "speed visible at 1280x640");
     const labelBox = await page.locator(".rail-terminate > span").evaluate((el) => ({ w: el.getBoundingClientRect().width, d: getComputedStyle(el).display, n: el.textContent, W: innerWidth }));
     assert.ok(labelBox.w > 0, `Terminate keeps its label at the minimum ${JSON.stringify(labelBox)}`);
+    // The coordinates and credit sit halfway between the notifications and the map's controls.
+    const readout = await box(page.locator(".map-readout"));
+    const left = await box(page.locator(".lower-hud .capsule-slot"));
+    const right = await box(page.locator(".hud-group"));
+    const middle = (left.x + left.width + right.x) / 2;
+    assert.ok(Math.abs(readout.x + readout.width / 2 - middle) < 3, `the readout is centred in its gap (${readout.x + readout.width / 2} of ${middle})`);
     // With every count at its widest, all the telemetry tabs still fit in their row.
     const tabsFit = await page.locator(".tab-row").evaluate((row) => {
       for (const tab of row.querySelectorAll("[role=tab]")) {

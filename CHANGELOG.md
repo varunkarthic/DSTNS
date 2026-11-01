@@ -17,6 +17,16 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Scrolling redesigned
+
+- **Scrolling is more responsive everywhere.** Under 4× CPU throttle at 10× speed on a Retina-scale window, on the About page, median input delay fell from 92 to 35 ms, the worst case from 203 to 68 ms, and main-thread paint from 766 to 23 ms.
+- The status pulse no longer repaints the page on every frame, and the day's progress and the backpressure monitor no longer run per-frame loops.
+- Fade masks, custom scrollbars and blur behind panels are gone. Panels are solid and scrims are a plain dim.
+- **Fixed: rules removing blur and masks did nothing in Chrome,** including Reduce Transparency. The minifier dropped the standard property when a `-webkit-` version was written beside it. Only the standard property is written now, the prefix is generated, and a test keeps it that way.
+- Flow markers wait while anything scrolls or a dialog is open, and rows do not restyle under the pointer during a scroll.
+- **The coordinates, scale and OpenStreetMap credit** now sit centred between the notifications and Roads, Places and Layers.
+- **Settings:** Keyboard, Applications and Reset are one design with even spacing.
+
 ### Scrolling, map performance and the start-up film
 
 - **Scrolling never waits for the page.** Edge resistance used to block every wheel event on the main thread and move every child of a list. It now only listens, and moves the region as a whole with one compositor transform, by at most 12 px. Under 4× CPU throttle at 10× speed, scrolling at a limit went from 42 to 54 fps and map zoom from 52 to 59 fps.

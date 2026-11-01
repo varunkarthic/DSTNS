@@ -17,7 +17,7 @@ import { buildTiles, MARKER_BUDGET, placeNameShows, PLACE_NAME_BUDGET, sizeTier,
 import { animate, createVelocityTracker, SPRINGS, stepSpring } from "./motion";
 import { appearance } from "./appearance";
 import type { RainCells } from "./mapModel";
-import { resistClamp, resistZoomOut, ZOOM_REST } from "./resistance";
+import { resistClamp, resistZoomOut, scrollingNow, ZOOM_REST } from "./resistance";
 import type { SpringPreset } from "./motion";
 import { mapFitLayout, mapInsets, metresToGeographic } from "./mapProjection";
 import { viewportFor } from "./autoFocus";
@@ -487,9 +487,16 @@ function NetworkMap({
   useEffect(() => {
     if (!topology || !cached || !dynamic.current) return;
     let frame = 0;
+    let idle: ReturnType<typeof setTimeout> | undefined;
     const received = performance.now();
     const draw = () => {
       if (!dynamic.current) return;
+      // While anything is being scrolled, or a dialog is open over the map, flow markers
+      // can wait: the frame goes to what is being touched.
+      if (running && !reduceMotion && (scrollingNow() || document.querySelector(".scrim"))) {
+        idle = setTimeout(draw, 160);
+        return;
+      }
       // One shared 0..1 clock so every animated overlay pulses in step.
       const pulse = reduceMotion
         ? 0
@@ -665,7 +672,10 @@ function NetworkMap({
       else if (running && !reduceMotion && (layers.vehicles || (snapshot?.active_incidents.length ?? 0) > 0)) frame = requestAnimationFrame(() => (frame = requestAnimationFrame(draw)));
     };
     draw();
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(idle);
+    };
   }, [
     topology,
     cached,

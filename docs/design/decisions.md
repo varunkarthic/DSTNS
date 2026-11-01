@@ -429,6 +429,15 @@ adds one transform to the scrolling region, at most 12 px, for as long as it is 
 **Consequences.** Scrolling stays smooth whatever the map is doing. A pinch outside the map can zoom the browser page,
 because stopping it would need the blocking listener back.
 
+That alone was not enough, because the delay had other causes, found by tracing input latency. The status pulse
+animated a `box-shadow`, repainting the page on every frame for as long as the status read Online. The day's progress
+and the backpressure monitor each ran a per-frame loop. Fade masks, custom scrollbars and blur behind panels each added
+repainting. All of these are gone, so main-thread paint during a scroll on the About page fell from 766 ms to 23 ms in a
+one-second trace. Panels are solid and scrims are a plain dim as a result.
+
+Write only the standard `backdrop-filter` and `mask-image`. The minifier generates the `-webkit-` prefix, and when both are
+written by hand it keeps only the prefixed one, which silently turns the rule off in Chrome.
+
 ## 32. Backpressure degrades the map, not the interface
 
 **Problem.** Falling behind also stopped interface animation, closed panels and refitted the camera, so a problem with

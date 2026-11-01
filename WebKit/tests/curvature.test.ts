@@ -24,3 +24,9 @@ it("draws the motion icon as one line that flattens, so its states can move betw
   expect(shape(waveLine(9, 1))).toBe(shape(waveLine(9, 0.4)));
   expect(waveLine(9, 0)).toBe("M3 9c2.5 0 4.5 0 6.5 0s4 0 6 0 3.5 0 5.5 0");
 });
+
+it("declares filters once, because the minifier drops the standard one when both are written", () => {
+  for (const [file, css] of Object.entries(sheets)) {
+    expect(css, file).not.toMatch(/-webkit-(backdrop-filter|mask-image)\s*:/);
+  }
+});

@@ -76,14 +76,9 @@ The map fills the window. Floating instrumentation sits over it:
 - **Telemetry** (right): live measures and the Stack, News, Queue, Incidents
   and Notifications lists. It stops above the command rail and collapses to a
   narrow strip.
-- **Lower HUD**: three zones above the rail. Notifications on the left, the
-  Layers button and the road and place legends in the centre, coordinates and
-  the scale bar on the right. The zones never overlap each other, the rail, the
-  map tools or telemetry; which elements become compact is decided by the
-  width of the HUD itself, not the window, so collapsing telemetry gives the
-  legends their full form back.
-- **Command rail** (bottom): the simulation controls, centred across the full
-  width.
+- **Lower HUD**: three zones above the rail. Notifications on the left, then the coordinates, scale and
+  OpenStreetMap credit centred in the space between, then Roads, Places and Layers as one connected control on the
+  right. The zones never overlap each other, the rail, the map tools or telemetry.
 
 The map frames the network inside the region these panels leave free, using
 `mapInsets()` in `src/mapProjection.ts`. The same insets are used when Auto
@@ -376,12 +371,14 @@ Sections:
 
 | Section | Settings |
 |---|---|
-| Accessibility | Light or dark; colour vision; reduce motion; reduce transparency; advanced mode |
+| Accessibility | Light, dark or Auto, which follows the device and is the default; colour vision; reduce motion; reduce transparency; advanced mode |
 | Auto Focus | Auto Focus Events switch; Round-Robin or Latest |
 | Do Not Disturb | Switch; muted categories with descriptions; muted severities; a note on the Auto Focus override |
 | Time and playback | 12 or 24 hour time; Back and Forward interval; fine control, which asks how far on each press; Step interval |
-| Units | Data sizes in MB (base 10) or MiB (base 2) |
+| Units | Data sizes as kB, MB and GB (powers of 1,000) or KiB, MiB and GiB (powers of 1,024) |
+| Keyboard | Every shortcut, shown and changeable. Select one and press a key; a key already in use swaps. Resets separately, and with Reset all settings |
 | Applications | [WebFabric](../components/webfabric.md): registered applications, their settings and permissions |
+| Reset | Returns settings, Layers, Places, shortcuts and the telemetry layout to their defaults |
 
 Each section is a self-contained block in `src/SettingsDrawer.tsx`, so new
 settings are added without reorganising the drawer.
@@ -743,8 +740,14 @@ icon, with no geometry duplicated anywhere.
   their inputs; only a bounded number of notifications is rendered.
 - The camera moves only when an event's framing signature changes.
 - The telemetry recorder is bounded and samples once per snapshot.
-- Backdrop blur is limited to floating panels; the full-screen scrims use a
-  light blur only while a dialog is open.
+- Scrolling belongs to the browser's compositor. Nothing listens in a way that can hold it up, each scrolling region has
+  its own layer, and nothing inside one is masked or blurred. Panels are solid and scrims are a plain dim, so nothing has
+  to be re-blurred while the map changes behind it.
+- While anything scrolls, or a dialog is open, flow markers wait. Rows under the pointer do not restyle during a scroll.
+- Nothing animates a painted property forever: the status pulse is `transform` and `opacity` only, and the day's
+  progress updates about once a second rather than every frame.
+- The map draws in tiles, grouped by style. Roads, names, markers and signals are drawn once per snapshot or camera
+  move, and only rain, incident pulses and flow markers per frame. Names and markers follow zoom and importance.
 - The report is generated on demand and loaded lazily.
 
 ## Verification

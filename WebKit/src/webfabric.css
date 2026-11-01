@@ -35,7 +35,6 @@
   background: var(--glass);
   border: 1px solid var(--glass-line);
   backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   transition:
     transform var(--spring-lively-ms, 200ms) var(--spring-lively, ease-out),
     opacity var(--t-fast) var(--ease);

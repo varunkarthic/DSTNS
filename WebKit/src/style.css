@@ -99,7 +99,6 @@ small {
   border-radius: var(--r-sm);
   box-shadow: var(--shadow);
   backdrop-filter: blur(var(--blur));
-  -webkit-backdrop-filter: blur(var(--blur));
 }
 .eyebrow {
   text-transform: uppercase;
@@ -787,12 +786,11 @@ progress::-webkit-progress-value {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
-::-webkit-scrollbar {
-  width: 4px;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: var(--r-sm);
+/* The standard properties, because a ::-webkit-scrollbar is repainted on the main thread
+   on every frame of a scroll. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line-rgb) / 22%) transparent;
 }
 .reduce-motion *,
 .reduce-motion *:before,

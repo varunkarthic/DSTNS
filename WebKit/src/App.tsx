@@ -1135,15 +1135,17 @@ export default function App() {
             onExpand={() => setCollapsed(false)}
           />
 
-          <MapReadout
-            ref={readout}
-            fallback={location ? { lat: location.anchor_lat, lon: location.anchor_lon } : origin ? { lat: origin.origin_lat, lon: origin.origin_lon } : null}
-          />
 
           <div className="bottom-stack">
             <div className="lower-hud">
               <div className="hud-zone hud-left">
                 <NotificationCapsule items={suspended || tutorial.active ? [] : shown} systemError={systemError} onDismissError={!sim.error && !sim.stale && actionError ? () => setActionError("") : undefined} focusedKey={autoFocus ? activeKey : null} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
+              </div>
+              <div className="hud-zone hud-center">
+              <MapReadout
+                ref={readout}
+                fallback={location ? { lat: location.anchor_lat, lon: location.anchor_lon } : origin ? { lat: origin.origin_lat, lon: origin.origin_lon } : null}
+              />
               </div>
               <div className="hud-zone hud-right map-hud hud-group" role="group" aria-label="Map key and layers">
                 <RoadLegend />

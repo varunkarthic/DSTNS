@@ -51,7 +51,6 @@
 .error-banner {
   background: var(--hud-bg);
   backdrop-filter: var(--hud-blur);
-  -webkit-backdrop-filter: var(--hud-blur);
   border: 1px solid var(--hud-border);
   box-shadow: var(--hud-shadow), var(--hud-highlight);
 }
@@ -530,8 +529,17 @@
 .runtime-online {
   color: var(--ok);
 }
+/* A ring on its own layer: only transform and opacity, so it never asks for a repaint. */
 .runtime-online i {
-  box-shadow: 0 0 0 0 rgb(var(--ok-rgb) / 50%);
+  position: relative;
+}
+.runtime-online i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: currentColor;
+  will-change: transform, opacity;
   animation: status-pulse 2.4s ease-out infinite;
 }
 .runtime-degraded {
@@ -547,11 +555,14 @@
   font-size: 9.5px;
 }
 @keyframes status-pulse {
-  70% {
-    box-shadow: 0 0 0 6px rgb(var(--ok-rgb) / 0%);
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
   }
+  70%,
   100% {
-    box-shadow: 0 0 0 0 rgb(var(--ok-rgb) / 0%);
+    transform: scale(2.8);
+    opacity: 0;
   }
 }
 .reduce-motion .runtime i {
@@ -1659,14 +1670,11 @@
 }
 .stream {
   position: relative;
-  scroll-behavior: smooth;
   /* A soft lower edge while more content lies below. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
-  transition: -webkit-mask-image var(--t-panel) var(--ease);
+  transition: mask-image var(--t-panel) var(--ease);
 }
 .stream.at-end {
-  -webkit-mask-image: none;
   mask-image: none;
 }
 .stream-card {
@@ -1843,7 +1851,6 @@
 .scrim {
   background: rgb(var(--scrim-rgb) / 42%);
   backdrop-filter: blur(6px) saturate(115%);
-  -webkit-backdrop-filter: blur(6px) saturate(115%);
 }
 .dialog {
   background: var(--hud-bg-strong);

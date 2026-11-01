@@ -86,17 +86,26 @@ export function useBackpressure(options: {
 
   useEffect(() => {
     let raf = 0;
-    let previous = performance.now();
-    const tick = (now: number) => {
-      const delta = (now - previous) / 1000;
-      previous = now;
-      // Exponential mean: responsive to a sustained stall, unmoved by one
-      // slow frame caused by something outside the app.
-      if (delta > 0) frameCost.current = frameCost.current * 0.85 + Math.min(delta, 30) * 0.15;
-      raf = requestAnimationFrame(tick);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // A frame is sampled four times a second. Asking for every frame would itself keep the
+    // main thread producing frames, which is the thing this is here to measure.
+    const sample = () => {
+      const asked = performance.now();
+      raf = requestAnimationFrame((first) => {
+        raf = requestAnimationFrame((second) => {
+          const delta = Math.max(second - first, first - asked) / 1000;
+          // Exponential mean: responsive to a sustained stall, unmoved by one
+          // slow frame caused by something outside the app.
+          if (delta > 0) frameCost.current = frameCost.current * 0.7 + Math.min(delta, 30) * 0.3;
+          timer = setTimeout(sample, 250);
+        });
+      });
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    sample();
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
   }, []);
 
   // A soft restart is requested once per default-state action, not on every

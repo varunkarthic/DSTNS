@@ -128,11 +128,9 @@ html[data-theme="light"],
 .reduce-transparency :is(.scrim, .loading-surface.overlay) {
   background: rgb(var(--scrim-rgb) / 92%);
   backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 .reduce-transparency * {
   backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
 }
 
 /* Plain language: specialist measures step aside. */
@@ -633,7 +631,6 @@ dd .status-badge {
   border-radius: var(--r-lg);
   background: var(--glass-strong);
   backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-line);
   box-shadow: var(--glass-shadow);
   transform: translateX(var(--sidebar-x, -468px));
@@ -993,7 +990,6 @@ dd .status-badge {
 }
 .app-shell :is(.hud-pill, .capsule, .rail, .map-dock, .deck-surface, .fabric-sidebar, .fabric-status-item) {
   backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 [data-theme="light"] {
   --glass: #ffffff;
@@ -2502,3 +2498,41 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .capsule.open .capsule-body { grid-template-rows: minmax(0, 1fr); }
 /* Within its 1px border, so a closed notification is the same 40px as the rest of the row. */
 .lower-hud .capsule-head { height: 38px; min-height: 38px; }
+
+/* ---- Scrolling --------------------------------------------------------------------------------- */
+/* Every scrolling region has its own layer from the start, so the browser moves it without asking
+   the page. Nothing inside one is masked, filtered or blurred, because each would mean repainting. */
+:is(.about-scroll, .settings-scroll, .layers-scroll, .place-search-results, .capsule-body-inner, .fabric-panel-body, .deck-panel-body, .scroll-fade, .stream) {
+  will-change: scroll-position, transform;
+  contain: paint;
+}
+.scroll-fade, .scroll-fade.at-end, .stream, .stream.scroll-fade.at-end { mask-image: none;  transition: none; }
+/* Nothing is blurred through to a map that is redrawing behind it. */
+.app-shell *, .scrim, .fluid-panel, .floating, .dialog { backdrop-filter: none;  }
+.scrim { background: rgb(var(--scrim-rgb) / 62%); }
+:is(.deck-surface, .fluid-panel, .floating, .deck-panel, .capsule.open, .fabric-panel, .fabric-sidebar) { background: var(--surface-solid); }
+
+/* ---- The lower row: notifications, then the small print, then the map's controls ------------------ */
+.lower-hud { display: grid; grid-template-columns: minmax(280px, 400px) minmax(0, 1fr) auto; align-items: end; gap: 12px; }
+.lower-hud .hud-center { display: flex; justify-content: center; align-items: center; min-width: 0; height: 40px; background: none; border: 0; box-shadow: none; border-radius: 0; }
+.app-shell .map-readout { position: static; right: auto; bottom: auto; transform: none; flex-direction: column; align-items: center; justify-content: center; gap: 3px; white-space: nowrap; }
+.map-readout .map-attribution { font-size: 10px; color: var(--text-faint); }
+
+/* ---- Settings: one rhythm ---------------------------------------------------------------------- */
+.settings-scroll { gap: 12px; }
+.settings-scroll > .settings-section, .settings-scroll > .settings-action { margin: 0; }
+.settings-section > .settings-action { margin-top: 8px; }
+.settings-section h3 { margin: 0; }
+.settings-action, .settings-nav.settings-action { min-height: 56px; padding: 10px; gap: 12px; border-radius: var(--r-md); }
+.settings-action .settings-action-mark, .settings-nav .settings-nav-mark { width: 36px; height: 36px; }
+.is-scrolling > * { pointer-events: none; }
+/* Halfway between the notifications and the map's controls, whatever their widths. */
+.lower-hud .hud-center { grid-column: 2; justify-self: stretch; width: 100%; margin: 0; justify-content: center; }
+.lower-hud > .hud-left { grid-column: 1; }
+.lower-hud > .hud-group { grid-column: 3; }
+/* Nothing blurs a page that keeps changing behind it, including while a dialog arrives. */
+.scrim, .scrim.closing, .loading-surface.overlay { backdrop-filter: none !important;  }
+.about-facts > div, .about-facts > div:nth-child(even) { border-left: 0; }
+.about-facts > div:nth-child(2) { border-top: 1px solid var(--well-line); }
+/* Blur stays off everywhere, in one rule that nothing else outranks. */
+html body *, html body *::before, html body *::after { backdrop-filter: none !important;  }
