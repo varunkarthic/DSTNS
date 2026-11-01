@@ -13,6 +13,8 @@ import {
 } from "react";
 import type { RefObject } from "react";
 import { canvasGlyph } from "./placeGlyphs";
+import { FlowTraffic } from "./flowTraffic";
+import type { RoadFlow } from "./flowTraffic";
 import { buildTiles, MARKER_BUDGET, placeNameShows, PLACE_NAME_BUDGET, sizeTier, STREET_NAME_BUDGET, streetNameShows, tierShows, tileOnScreen } from "./mapTiles";
 import { animate, createVelocityTracker, SPRINGS, stepSpring } from "./motion";
 import { appearance } from "./appearance";
@@ -202,17 +204,16 @@ function NetworkMap({
   // Flow markers only ever appear on edges that carry traffic. Deriving that
   // list once per snapshot keeps the per-frame loop proportional to what is
   // actually drawn rather than to the whole network.
-  const flowing = useMemo(() => {
-    if (!topology) return [];
-    const out: { edge: TopologyEdge; speed: number; count: number }[] = [];
-    for (const e of topology.edges) {
-      if (e.synthetic_reverse || e.geometry.length < 2) continue;
-      const s = state.edges.get(e.id);
-      if (!s?.vehicle_count) continue;
-      out.push({ edge: e, speed: s.mean_speed_mps, count: s.vehicle_count });
+  // The core's figures for each road, which the markers on the map stand for.
+  const flows = useMemo(() => {
+    const out = new Map<number, RoadFlow>();
+    for (const e of state.edges.values()) {
+      out.set(e.id, { count: e.vehicle_count, speed: e.mean_speed_mps, signal: e.signal_multiplier, closed: e.closed });
     }
     return out;
-  }, [topology, state]);
+  }, [state]);
+  const traffic = useMemo(() => (topology ? new FlowTraffic(topology.edges) : null), [topology]);
+  const trafficAt = useRef(0);
   // Adaptive detail. The draw cost of a frame is measured and fed back into how
   // many markers the next frame may place, so a dense district or a fast rate
   // degrades detail instead of dropping frames.
@@ -644,36 +645,68 @@ function NetworkMap({
       // and let the measured cost pull it down further on heavy scenes.
       const rateFactor = tickRate <= 4 ? 1 : tickRate <= 10 ? 0.6 : 0.3;
       const markerBudget = Math.round(1500 * quality.current * rateFactor);
-      if (layers.vehicles && !reduceMotion && view.scale > 0.25 && markerBudget > 0) {
-        let count = 0;
-        const time =
-          virtualTime +
-          (running ? Math.min(1, (performance.now() - received) / 1000) : 0);
-        for (const { edge: e, speed, count: vehicles } of flowing) {
-          if (count >= markerBudget) break;
-          if (!visible(cached.roads[e.id])) continue;
-          const a = screen(e.geometry[0]),
-            b = screen(e.geometry[e.geometry.length - 1]);
-          const n = Math.min(5, vehicles);
-          for (let i = 0; i < n && count < markerBudget; i++, count++) {
-            const progress =
-              ((i + 0.5) / n +
-                (time * speed) / Math.max(1, e.length_m)) %
-              1;
-            vehicleMarkers.current.push({
-              x: a.x + (b.x - a.x) * progress,
-              y: a.y + (b.y - a.y) * progress,
-              edge: e.id,
-            });
-            ctx.fillStyle = appearance.land.flow;
-            ctx.fillRect(
-              a.x + (b.x - a.x) * progress - 1,
-              a.y + (b.y - a.y) * progress - 1,
-              2.5,
-              2.5,
-            );
+      let settling = false;
+      if (traffic && layers.vehicles && !reduceMotion && view.scale > 0.25 && markerBudget > 0) {
+        const now = performance.now();
+        const real = Math.min(0.1, (now - trafficAt.current) / 1000);
+        trafficAt.current = now;
+        traffic.step(running ? real * tickRate : 0, real, flows, (edge) => visible(cached.roads[edge.id]), markerBudget);
+        // Sized to the road as it is drawn, which does not widen as the map zooms: never smaller
+        // than can be read, and never so large that a car dwarfs the street it is on.
+        const halfLength = Math.min(7, Math.max(2.1, 2.3 * view.scale));
+        const halfWidth = halfLength * 0.45;
+        // Each direction keeps to its own side of the line.
+        const lane = halfWidth + 0.8;
+        const body = (x: number, y: number, cx: number, cy: number, from: number, to: number, side: number) => {
+          // Along the vehicle from `from` to `to`, in halves of its length; across it by `side`.
+          ctx.moveTo(x + cx * from * halfLength - cy * side * halfWidth, y + cy * from * halfLength + cx * side * halfWidth);
+          ctx.lineTo(x + cx * to * halfLength - cy * side * halfWidth, y + cy * to * halfLength + cx * side * halfWidth);
+          ctx.lineTo(x + cx * to * halfLength + cy * side * halfWidth, y + cy * to * halfLength - cx * side * halfWidth);
+          ctx.lineTo(x + cx * from * halfLength + cy * side * halfWidth, y + cy * from * halfLength - cx * side * halfWidth);
+          ctx.closePath();
+        };
+        const sx = (m: { x: number; angle: number }) => m.x * view.scale + view.x + Math.sin(m.angle) * lane;
+        const sy = (m: { y: number; angle: number }) => -m.y * view.scale + view.y + Math.cos(m.angle) * lane;
+        // The solid ones at once, as one path. Only those fading need an alpha of their own.
+        ctx.fillStyle = appearance.land.flow;
+        ctx.beginPath();
+        for (const m of traffic.markers) {
+          if (m.alpha < 1) {
+            settling = true;
+            continue;
           }
+          const x = sx(m);
+          const y = sy(m);
+          vehicleMarkers.current.push({ x, y, edge: m.edge });
+          body(x, y, Math.cos(m.angle), -Math.sin(m.angle), -1, 1, 1);
         }
+        ctx.fill();
+        for (const m of traffic.markers) {
+          if (m.alpha >= 1) continue;
+          ctx.globalAlpha = m.alpha;
+          ctx.beginPath();
+          body(sx(m), sy(m), Math.cos(m.angle), -Math.sin(m.angle), -1, 1, 1);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        // Near enough to see one: a windscreen, and which way it faces.
+        if (halfLength > 4.4) {
+          ctx.fillStyle = appearance.land.roadBed;
+          ctx.globalAlpha = 0.55;
+          ctx.beginPath();
+          for (const m of traffic.markers) {
+            if (m.alpha >= 1) body(sx(m), sy(m), Math.cos(m.angle), -Math.sin(m.angle), 0.18, 0.56, 0.74);
+          }
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        // Brake lights, wherever one is slowing or waiting.
+        ctx.fillStyle = appearance.meaning.severe;
+        ctx.beginPath();
+        for (const m of traffic.markers) {
+          if (m.braking && m.alpha >= 1) body(sx(m), sy(m), Math.cos(m.angle), -Math.sin(m.angle), -1, -0.68, 1);
+        }
+        ctx.fill();
       }
       // Aim to spend under 8ms drawing, leaving the rest of a 60Hz frame for
       // compositing and the rest of the page. Recover slowly, shed fast.
@@ -716,12 +749,15 @@ function NetworkMap({
           ctx.stroke();
         }
       }
-      // Flow markers read just as well at half the frame rate, and that leaves the main
-      // thread free for everything being touched. A camera move redraws at once through
-      // this effect, and rain on a spring asks for every frame.
+      // A camera move redraws at once through this effect, and rain on a spring asks for
+      // every frame.
       const moving = rainNow.some((cell) => cell.moving);
       if (moving || flashing) frame = requestAnimationFrame(draw);
-      else if (running && !reduceMotion && (layers.vehicles || (snapshot?.active_incidents.length ?? 0) > 0)) frame = requestAnimationFrame(() => (frame = requestAnimationFrame(draw)));
+      else if (running && !reduceMotion && (layers.vehicles || (snapshot?.active_incidents.length ?? 0) > 0)) {
+        // Every frame while it can afford to; a heavy scene falls back to every other.
+        if (quality.current >= 0.7 || settling) frame = requestAnimationFrame(draw);
+        else frame = requestAnimationFrame(() => (frame = requestAnimationFrame(draw)));
+      } else if (settling) frame = requestAnimationFrame(draw);
     };
     draw();
     return () => {
@@ -739,8 +775,9 @@ function NetworkMap({
     reduceMotion,
     running,
     found,
+    flows,
+    traffic,
     virtualTime,
-    flowing,
     tickRate,
   ]);
   // Smooth camera glide. The operator is carried to an event rather than
