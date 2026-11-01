@@ -358,10 +358,10 @@ function SpeedControl({
 }) {
   const [choice, setChoice] = useState<number | null>(null);
   const governed = requested !== undefined && Math.abs(requested - rate) > 1e-6;
-  // The chosen stop shows at once. While ASB holds the speed lower, the thumb stays on
-  // what was asked for, and the slider marks what is being applied.
+  // The chosen stop shows at once. While ASB holds the speed lower, the thumb travels to
+  // what is being applied, and a line stays on what was asked for.
   const target = governed ? requested : rate;
-  const index = choice ?? rateIndexOf(target);
+  const index = choice ?? rateIndexOf(rate);
   useEffect(() => {
     if (choice === null) return;
     if (rateIndexOf(target) === choice) {
@@ -392,10 +392,10 @@ function SpeedControl({
           label="Simulation speed"
           labels={SPEED_LABELS}
           index={index}
-          applied={governed ? rateIndexOf(rate) : undefined}
+          target={governed && choice === null ? rateIndexOf(requested) : undefined}
           disabled={disabled}
           reduceMotion={reduceMotion}
-          valueText={(i) => `${RATES[i]} times speed${governed ? `, reduced to ${rate} by backpressure` : ""}`}
+          valueText={(i) => `${RATES[i]} times speed${governed ? `, target ${requested} times` : ""}`}
           onSelect={(i) => {
             setChoice(i);
             onRate(RATES[i]);

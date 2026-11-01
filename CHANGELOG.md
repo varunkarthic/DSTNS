@@ -17,17 +17,28 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Stadiums, a film that explains itself, and a fuller report
+
+- **Everything is a stadium now.** Anything up to 72 px tall has a true semicircle on each end, led by the bottom bar, and taller regions keep the same 36 px curve. Round things sit centred in those ends. Map markers are circles. Tooltips lost their pointer and come out of the control they describe.
+- **Travel demand** is a neighbourhood from above: trips leave the homes, queues grow back from the doors of what draws them, and a column over each roof shows how much it is drawing.
+- **Repeatable worlds** shows it happening: one seed grows two towns alike, building for building and car for car, with the same event at the same moment, and another seed grows a different town.
+- **WebFabric** shows what it is: application windows dock, a line opens to the map, and what each sends appears on the map in its colour.
+- **The pointer** moves through the particles like a hand through water, rather than punching a hole in them.
+- **The particles stay on the roads** as the map moves over for the panels. They stood still before, which looked like a misalignment.
+- **The last screen** says "Server Terminated". The name blows apart as it used to, and the mint light goes out with it, then settles.
+- **The speed slider tells the truth when ASB holds it back.** The thumb travels to the speed being applied, and a line stays on your target.
+- **What only reports moves like what can be moved.** Every read-only bar slides smoothly, and keeps its rounded end as it does.
+- **Fixed: a button kept its outline after a keyboard shortcut.** Focus rings now appear only for people moving with Tab.
+- **The report** has a full cover carrying the district's own roads, About and Contents on one page, and new tables: traffic by road class, the places drawing extra traffic, and a Signal Control section.
+
 ### No words in the particles, a map in the middle, rounder corners
 
-- **The particles only ever spell the name.** Travel demand shows its icons larger, with nothing beneath them. Rush hour marks its two peaks with a small caret, and its axis has ticks but no times.
+- **The particles only ever spell the name.** Rush hour marks its two peaks with a small caret, and its axis has ticks but no times.
 - **Road incidents replaces Run reports** in the film: a collision on a dual carriageway, and the queue growing back up the road from it, while the other side keeps moving. A report is a useful feature, but not what the film is for.
-- **Repeatable worlds is new.** Two different machines, one seed: the seed feeds a pattern that fills both screens, and the two stay identical, point for point, as the pattern turns through one form after another.
 - **The map lands in the middle.** It was centred on the room beside the panels before they had arrived, which left it about 220 px off to the left. Alone on screen it now sits in the middle of the window, within a pixel on a real city, and it moves over as the panels come in. Fit also ignored the header and centred on road junctions alone, so it now takes the free space and the land around the roads into account.
 - **Zooming belongs to the person doing it.** Every wheel event zoomed by a fixed 10%, so a little trackpad scroll hit the limit at once, and the map then jumped back to the middle when it stopped. Zoom now follows the size of the gesture. Zooming out draws the map back to the middle as it comes into view, and nothing moves once the gesture has stopped.
 - **Fixed: moving the map did not hand back the camera.** Auto Focus's prompt has always said any manual pan or zoom returns control, but it only cancelled the glide then under way, and the next event took the camera again. Panning, zooming or pressing Fit now turns Auto Focus off.
-- **Rounder corners.** The radius scale rises from 6, 10, 14, 18 to 10, 14, 18, 22. It rises evenly, so an inner corner still follows the one outside it, and paddings stay as they were.
 - **A calmer tour.** No more motes circling the spotlight or streaming across the screen. A few drift out and fade as the tour opens a new part of the interface, on 7 of its 32 steps, and the other steps simply glide.
-- **A new last screen.** The name blows into a mint mist that thins into a still radial light, with the words in the middle once the name has gone. Then nothing moves, and nothing is drawn. It keeps its licence line, and the same screen says so if the server was lost rather than stopped.
 - **Fixed: a note explaining reduced speed could go unseen.** It ranked below any warning, and only lasts a few seconds, so with a warning on screen it came and went without being shown. Only something critical now goes ahead of it. It could also fire falsely for a moment after a change of speed, and then not again on that page when it was true.
 - **Fixed:** the last screen could fall back to another typeface, because a font first needed after the server has gone can no longer be fetched.
 

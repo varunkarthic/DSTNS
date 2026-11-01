@@ -125,7 +125,7 @@ Defined in `system.css`. Use these rather than literal values.
 
 | Kind | Tokens |
 |---|---|
-| Radius | `--r-xs` 10, `--r-sm` 14, `--r-md` 18, `--r-lg` 22, `--r-pill`. An inner corner is the outer radius less the gap between them, so a gap of 4 steps down once and a gap of 8 steps down twice |
+| Radius | `--r-xs` 16, `--r-sm` 22, `--r-md` 28, `--r-lg` 36, `--r-pill`. Anything up to 72 px tall is a stadium, a rectangle with a semicircle on each end, and taller regions keep the same 36 px curve. What sits in a stadium's end is round, with its centre on the semicircle's |
 | Control height | `--ctl-sm` 26, `--ctl` 32, `--ctl-lg` 36 |
 | Surface | `--glass` translucent, `--surface-solid` where text is read at length |
 | Palette | `--accent`, `--ok`, `--warn`, `--danger`, `--text`, `--text-dim`, `--text-faint` |

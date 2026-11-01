@@ -53,7 +53,7 @@ function measureTarget(name: string): Rect | null {
   const pad = fit ? 8 : 4;
   const style = el ? getComputedStyle(el) : null;
   const rawRadius = style?.borderTopLeftRadius || style?.borderRadius || "0";
-  const round = fit ? 10 : rawRadius.includes("%") ? box.height * parseFloat(rawRadius) / 100 : parseFloat(rawRadius) || 0;
+  const round = fit ? 16 : rawRadius.includes("%") ? box.height * parseFloat(rawRadius) / 100 : parseFloat(rawRadius) || 0;
   const left = Math.max(4, box.left - pad);
   const top = Math.max(4, box.top - pad);
   return {
@@ -250,7 +250,7 @@ export function Tutorial({
           <p id="tour-body">{step.body}</p>
           {!rect && <p className="tour-missing">This control is not visible at the current window size. The tutorial can continue.</p>}
         </div>
-        <span className="tour-progress" aria-hidden="true"><i style={{ transform: `scaleX(${(index + 1) / tutorialSteps.length})` }} /></span>
+        <span className="tour-progress" aria-hidden="true"><i style={{ transform: `translateX(${((index + 1) / tutorialSteps.length) * 100 - 100}%)` }} /></span>
         <footer className="tour-actions">
           <span className="tour-note">Time is paused · ← → to move</span>
           <button className="btn" disabled={index === 0} onClick={() => move(-1)}>

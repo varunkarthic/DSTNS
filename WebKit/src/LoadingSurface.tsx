@@ -180,7 +180,7 @@ export function LoadingSurface({
               <span className="loading-steps-rail" aria-hidden="true"><i style={{ transform: `scaleX(${steps.length > 1 ? Math.min(1, stepIndex / (steps.length - 1)) : 0})` }} /></span>
               {steps.map((s, i) => (
                 <li key={s.id} className={i < stepIndex ? "done" : i === stepIndex ? "active" : ""} aria-current={i === stepIndex ? "step" : undefined}>
-                  {film && <span className="film-segment" aria-hidden="true"><i style={i === stepIndex && known ? { transform: `scaleX(${percent / 100})`, animation: "none" } : undefined} /></span>}
+                  {film && <span className="film-segment" aria-hidden="true"><i style={i === stepIndex && known ? { transform: `translateX(${percent - 100}%)`, animation: "none" } : undefined} /></span>}
                   <span className="loading-step-dot" aria-hidden="true">
                     {i < stepIndex || (done && i === stepIndex) ? <Icon name="check" size={14} strokeWidth={2.4} /> : null}
                   </span>
@@ -196,7 +196,7 @@ export function LoadingSurface({
           )}
           {known ? (
             <div className="loading-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={progressLabel}>
-              <i style={{ transform: `scaleX(${percent / 100})` }} />
+              <i style={{ transform: `translateX(${percent - 100}%)` }} />
             </div>
           ) : (
             // The bar's place is held, so the layout does not move when a total arrives.

@@ -136,6 +136,7 @@ describe("report generation", () => {
       "Environment and Runtime",
       "Road Network Analysis",
       "Traffic Analysis",
+      "Signal Control",
       "Weather Analysis",
       "Flooding Analysis",
       "Incident Analysis",

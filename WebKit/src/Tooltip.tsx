@@ -230,7 +230,7 @@ export function InfoCard({
       {info.description && <p>{info.description}</p>}
       {info.level !== undefined && (
         <div className="inspect-level" aria-hidden="true">
-          <i style={{ transform: `scaleX(${Math.max(0.02, info.level)})` }} />
+          <i style={{ transform: `translateX(${Math.max(0.02, info.level) * 100 - 100}%)` }} />
         </div>
       )}
       {info.metrics && (

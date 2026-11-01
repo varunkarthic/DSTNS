@@ -75,7 +75,7 @@ its roads, the roads fly into the name, and the name is blown away.
 
 While the start-up is on screen a finished world waits at its first second, and starts as the panels arrive.
 If the tab is closed or hidden, it starts by itself within a few seconds. If nothing can load, the same surface says what happened and clears by itself
-when the simulator answers, and after **Terminate** it says the server has shut down.
+when the simulator answers, and after **Terminate** it says the server has been terminated.
 In an overlay form, it is also used for world generation.
 
 ## Layout
@@ -662,7 +662,7 @@ confirmations (Terminate) use red; others use cyan.
 | Core unreachable | Error banner; runtime status Offline; controls disabled |
 | Stale data | "Simulation data is stale. Reconnecting."; Degraded |
 | Map download failed at startup | Failure screen with city, coordinates and cause, and Reload |
-| Server terminated | Shutdown screen saying how to start again |
+| Server terminated | A last screen saying so |
 | World generation failed | Overlay with reason, Try another city and Return |
 | Report failed | Error banner, and inside the completion dialog |
 | Clipboard refused | "Copy failed" in place |

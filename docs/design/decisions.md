@@ -523,8 +523,9 @@ finger is noisy and holds up.
 said little.
 
 **Decision.** Each scene has its own subject and its own motion while it holds: a city's streets drawn outward, one junction whose
-cars queue and release on red and green, map icons drawing trips from homes, a stream through the day, a queue growing back from a
-collision, a storm, a globe, one pattern on two machines, a viewfinder locking on, and a rippling weave. Particles form no words or
+cars queue and release on red and green, trips queueing at the doors of what draws them, a stream through the day, a queue growing
+back from a collision, a storm, a globe, two towns alike from one seed beside a different one, a viewfinder locking on, and
+application windows docking and drawing on a map. Particles form no words or
 numbers except the name, and a test fails if a scene draws text. All of it moves in the vertex shader, so a scene costs the page one
 draw call. Colour blending is partly opaque, so crowded points keep their colour: additive light turned every signal white.
 
@@ -570,3 +571,15 @@ turns Auto Focus off.
 **Consequences.** Nothing moves the camera after a gesture stops. Auto Focus stays off until it is turned on again, even with the
 `enable-force` mode, which sets only how a session starts. A lake or park running far past the last road does not shrink the fit, so
 in such a city the bounding box of everything drawn can sit a little off-centre.
+
+## 43. One radius, so that short things are stadiums
+
+**Problem.** Rounded corners on a scale of small radii made everything a slightly different squircle, and the bottom bar read as a
+box. The owner asked for a true semicircle on each end, throughout.
+
+**Decision.** The scale rises to 16, 22, 28 and 36, so a thing shorter than twice its radius is a stadium without anyone choosing
+that for it, and a tall region keeps the same curve as the bar. Controls and rows use the full pill or the 36 px radius. What sits in
+a stadium's end is round, with its centre on the semicircle's, and the end's padding is set by that.
+
+**Consequences.** Text must stay clear of the ends, so rows and bars carry more padding at the sides. A panel as tall as the telemetry
+deck cannot be a stadium, and is not: a semicircle on a 480 px wide panel would cut into its content.

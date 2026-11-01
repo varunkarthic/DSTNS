@@ -158,7 +158,7 @@ function StreamRow({
         )}
         {meter !== undefined && (
           <div className="meter thin" aria-hidden="true">
-            <i style={{ width: `${Math.min(100, Math.max(0, meter * 100))}%` }} />
+            <i style={{ transform: `translateX(${Math.min(100, Math.max(0, meter * 100)) - 100}%)` }} />
           </div>
         )}
       </div>
@@ -243,7 +243,7 @@ function Overview({ snapshot, topology, congestion }: Pick<Props, "snapshot" | "
           detail="Speed loss 60%, queue ratio 25% and occupancy 15%, weighted by road length and lanes. Shows the state computed for the current instant."
         >
           <div className="meter" role="img" aria-label={`Congestion index ${value.toFixed(0)} percent`}>
-            <i style={{ transform: `scaleX(${Math.min(100, value) / 100})` }} />
+            <i style={{ transform: `translateX(${Math.min(100, value) - 100}%)` }} />
           </div>
         </Tooltip>
       </div>

@@ -264,9 +264,9 @@ try {
     const label = page.locator(".rail-label.reduced");
     await label.waitFor({ timeout: 8000 });
     assert.match(await label.getAttribute("aria-label"), /target 10×, applied 5×/);
-    assert.equal(await page.locator(".qslider-applied").count(), 1, "the slider marks the speed applied");
-    assert.equal(await page.locator(".qslider-labels button.on").innerText(), "10", "the thumb stays on the target");
-    assert.equal(await page.locator(".qslider-labels button.applied").innerText(), "5");
+    assert.equal(await page.locator(".qslider-target").count(), 1, "a line marks the speed asked for");
+    assert.equal(await page.locator(".qslider-labels button.on").innerText(), "5", "the thumb travels to the speed applied");
+    assert.equal(await page.locator(".qslider-labels button.target").innerText(), "10");
     // ASB's reset keeps the map's roads and buildings, and says so.
     await page.locator(".capsule.from-isd").first().waitFor({ timeout: 8000 });
     await page.getByRole("button", { name: "Layers" }).click();
@@ -397,7 +397,7 @@ try {
         await page.screenshot({ path: path.join(out, `tutorial-${target}.png`) });
       if (target === "focus") {
         const shape = await page.locator(".tour-spotlight").evaluate(el => ({ r: parseFloat(getComputedStyle(el).borderRadius), w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height }));
-        assert.ok(shape.r >= 10 && shape.r < shape.w / 2, "the spotlight follows the control's own curvature");
+        assert.ok(shape.r >= 10 && shape.r <= shape.w / 2 + 0.5, "the spotlight follows the control's own curvature");
         const spot = await box(page.locator(".tour-spotlight"));
         assert.ok(!overlap(spot, await box(page.locator('.map-dock [data-tutorial="dnd"]'))), "focus spotlight clears next sidebar button");
       }

@@ -92,7 +92,7 @@ function DemandBar({ entry }: { entry: PlaceLegendEntry }) {
   const t = Math.max(0, Math.min(1, entry.peak - 1));
   return (
     <span className="demand-bar" aria-hidden="true">
-      <i style={{ transform: `scaleX(${t})`, background: demandColor(entry.peak) }} />
+      <i style={{ transform: `translateX(${t * 100 - 100}%)`, background: demandColor(entry.peak) }} />
     </span>
   );
 }

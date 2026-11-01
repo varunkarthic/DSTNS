@@ -15,10 +15,10 @@
  */
 
 :root {
-  --r-xs: 10px;
-  --r-sm: 14px;
-  --r-md: 18px;
-  --r-lg: 22px;
+  --r-xs: 16px;
+  --r-sm: 22px;
+  --r-md: 28px;
+  --r-lg: 36px;
   --r-pill: 999px;
 
   --ctl-sm: 26px;

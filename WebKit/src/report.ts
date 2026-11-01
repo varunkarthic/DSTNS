@@ -88,6 +88,41 @@ const pct = (v: number, digits = 0) => `${(v * 100).toFixed(digits)}%`;
 const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`);
 const title = (s: string) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
+/** The district's own roads, faintly on the cover: the larger ones brighter. */
+function coverRoads(pdf: { setDrawColor: (c: string) => unknown; setLineWidth: (w: number) => unknown; lines: (lines: number[][], x: number, y: number, scale: [number, number], style: string, closed: boolean) => unknown }, topology: Topology, x: number, y: number, width: number, height: number) {
+  const edges = topology.edges.filter((e) => !e.synthetic_reverse && e.geometry.length > 1);
+  let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
+  for (const edge of edges) {
+    for (const p of edge.geometry) {
+      minX = Math.min(minX, p.x_m);
+      maxX = Math.max(maxX, p.x_m);
+      minY = Math.min(minY, p.y_m);
+      maxY = Math.max(maxY, p.y_m);
+    }
+  }
+  if (!edges.length || maxX <= minX || maxY <= minY) return;
+  const scale = Math.min(width / (maxX - minX), height / (maxY - minY));
+  const [left, top] = [x + (width - (maxX - minX) * scale) / 2, y + (height - (maxY - minY) * scale) / 2];
+  const draw = (wanted: (name: string) => boolean, colour: string, weight: number) => {
+    pdf.setDrawColor(colour);
+    pdf.setLineWidth(weight);
+    for (const edge of edges) {
+      if (!wanted(edge.road_class)) continue;
+      const [first, ...rest] = edge.geometry;
+      let previous = first;
+      const steps = rest.map((p) => {
+        const step = [(p.x_m - previous.x_m) * scale, -(p.y_m - previous.y_m) * scale];
+        previous = p;
+        return step;
+      });
+      pdf.lines(steps, left + (first.x_m - minX) * scale, top + (maxY - first.y_m) * scale, [1, 1], "S", false);
+    }
+  };
+  const major = (name: string) => ["motorway", "trunk", "primary", "secondary"].includes(name);
+  draw((name) => !major(name), "#1a3b48", 0.14);
+  draw(major, "#2a8f7a", 0.42);
+}
+
 export async function buildReport(input: ReportInput, resources: ReportResources = {}) {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
@@ -153,7 +188,8 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // Cover
   // =========================================================================
   doc.newPage();
-  doc.rect(0, 0, doc.W, 122, PRINT.dark, 0);
+  doc.rect(0, 0, doc.W, doc.H, PRINT.dark, 0);
+  coverRoads(pdf, topology, doc.M, 122, doc.W - doc.M * 2, doc.H - 122 - 26);
   if (resources.logoLight) pdf.addImage(resources.logoLight, "PNG", doc.M, 24, 12 * LOGO.aspect, 12);
   else doc.line("DSTNS", doc.M, 24, 22, PRINT.darkInk);
   doc.line("SIMULATION REPORT", doc.M, 50, 8, "#6fd7f2");
@@ -167,14 +203,20 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     ["Generated", now.toLocaleString()],
   ];
   cover.forEach(([k, v], i) => {
-    doc.line(k.toUpperCase(), doc.M, 82 + i * 7, 6.5, "#7f96a6");
-    doc.line(v, doc.M + 34, 81.4 + i * 7, 8.5, "#e6f0f7");
+    doc.line(k.toUpperCase(), doc.M, 82 + i * 6.4, 6.5, "#7f96a6");
+    doc.line(v, doc.M + 34, 81.4 + i * 6.4, 8.5, "#e6f0f7");
   });
-  doc.y = 134;
-  doc.line("About this report", doc.M, doc.y, 12, PRINT.ink);
-  doc.y += lineHeight(12) + 2;
+  doc.line("Map data © OpenStreetMap contributors (ODbL)", doc.M, doc.H - 16, 7, "#7f96a6");
+
+  // About and contents, on one page. The contents are filled once page numbers are known.
+  doc.newPage();
+  const contentsPage = doc.page;
+  doc.line("ABOUT", doc.M, doc.y, 7.5, PRINT.accent);
+  doc.y += 5;
+  doc.line("About this report", doc.M, doc.y, 18, PRINT.ink);
+  doc.y += 11;
   doc.paragraph(
-    "This report records one DSTNS simulation run as observed from the operator interface. It covers the scenario configuration, the road network, traffic, weather, flooding, incidents, a timeline of significant events, and the performance of the connection between the simulation and the interface.",
+    "This report records one DSTNS simulation run as observed from the operator interface. It covers the scenario configuration, the road network, traffic, signals, weather, flooding, incidents, a timeline of significant events, and the performance of the connection between the simulation and the interface.",
   );
   doc.paragraph("Statements are labelled by where they come from:", { after: 1.5 });
   doc.note("Observed", "Read directly from simulation records or measured by the interface while observing.");
@@ -185,10 +227,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     `Simulation timestamps use the ${hour12 ? "12" : "24"} hour clock selected in the interface. Wall-clock durations refer to real time spent observing.`,
     { size: 8.5, color: PRINT.dim },
   );
-
-  // Contents page, filled once page numbers are known.
-  doc.newPage();
-  const contentsPage = doc.page;
+  const contentsTop = doc.y + 7;
 
   // =========================================================================
   // 1 Executive summary
@@ -445,6 +484,88 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     ],
     worst.map(({ edge, s }) => [roadTitle(edge), title(edge.road_class), pct(s!.congestion), `${(s!.mean_speed_mps * 3.6).toFixed(0)} km/h`, String(s!.vehicle_count), `${s!.demand_vph.toFixed(0)}/h`]),
     { caption: "Roads carrying traffic, ranked by congestion. Closed roads are listed under Road Network Analysis.", empty: "No road is carrying congested traffic at report time." },
+  );
+
+  // What each class of road is carrying, which says more than the network's total does.
+  const carrying = new Map<string, { roads: number; km: number; vehicles: number; speed: number; moving: number; congestion: number }>();
+  for (const edge of realEdges) {
+    const state = stateById.get(edge.id);
+    const row = carrying.get(edge.road_class) ?? { roads: 0, km: 0, vehicles: 0, speed: 0, moving: 0, congestion: 0 };
+    row.roads += 1;
+    row.km += edge.length_m / 1000;
+    if (state) {
+      row.vehicles += state.vehicle_count;
+      row.congestion += state.congestion;
+      if (state.vehicle_count > 0) {
+        row.speed += state.mean_speed_mps * 3.6 * state.vehicle_count;
+        row.moving += state.vehicle_count;
+      }
+    }
+    carrying.set(edge.road_class, row);
+  }
+  doc.heading("Traffic by road class at report time");
+  doc.table(
+    [
+      { title: "Class", width: 0.28 },
+      { title: "Roads", width: 0.12, align: "right" },
+      { title: "Length", width: 0.14, align: "right" },
+      { title: "Vehicles", width: 0.14, align: "right" },
+      { title: "Mean speed", width: 0.16, align: "right" },
+      { title: "Congestion", width: 0.16, align: "right" },
+    ],
+    [...carrying.entries()]
+      .sort((a, b) => b[1].vehicles - a[1].vehicles)
+      .map(([name, row]) => [title(name), row.roads.toLocaleString(), `${row.km.toFixed(1)} km`, row.vehicles.toLocaleString(), row.moving ? `${(row.speed / row.moving).toFixed(1)} km/h` : "No traffic", pct(row.congestion / Math.max(1, row.roads), 1)]),
+    { caption: "Mean speed is weighted by vehicles, and congestion is the mean across the class's roads.", empty: "No road state was available." },
+  );
+  const featureById = new Map(topology.features.map((f) => [f.id, f]));
+  const drawing = snapshot.data.demand
+    .filter((d) => d.active)
+    .sort((a, b) => b.multiplier - a.multiplier)
+    .slice(0, 12);
+  doc.heading("Places drawing extra traffic at report time");
+  doc.table(
+    [
+      { title: "Place", width: 0.46 },
+      { title: "Kind", width: 0.22 },
+      { title: "Demand", width: 0.16, align: "right" },
+      { title: "Radius", width: 0.16, align: "right" },
+    ],
+    drawing.map((d) => {
+      const feature = featureById.get(d.feature_id);
+      return [feature?.name || "Unnamed place", feature ? placeKind(feature).label : "Not recorded", `${d.multiplier.toFixed(2)}×`, `${Math.round(d.radius_m)} m`];
+    }),
+    { caption: `${snapshot.data.demand.filter((d) => d.active).length} of ${snapshot.data.demand.length} demand-modelled places are active, the highest listed here.`, empty: "No place was drawing extra traffic at this moment." },
+  );
+
+  // =========================================================================
+  // Signals
+  // =========================================================================
+  const signals = snapshot.data.signals;
+  doc.sectionHeading("Signal Control", "Signalled junctions run their own fixed schedules, derived from the seed. These are the controllers as they stood at report time.");
+  const cycles = signals.map((c) => c.cycle_length).filter((c) => c > 0);
+  doc.tiles([
+    { label: "Controllers", value: signals.length.toLocaleString(), note: `${signals.filter((c) => c.enabled).length} enabled` },
+    { label: "Shortest cycle", value: cycles.length ? `${Math.min(...cycles.slice(0, 5000)).toFixed(0)} s` : "Not recorded" },
+    { label: "Longest cycle", value: cycles.length ? `${Math.max(...cycles.slice(0, 5000)).toFixed(0)} s` : "Not recorded" },
+    { label: "Mean cycle", value: cycles.length ? `${(cycles.reduce((sum, c) => sum + c, 0) / cycles.length).toFixed(0)} s` : "Not recorded" },
+  ]);
+  doc.table(
+    [
+      { title: "Junction", width: 0.36 },
+      { title: "Phase", width: 0.2 },
+      { title: "In phase", width: 0.12, align: "right" },
+      { title: "Next change", width: 0.18, mono: true },
+      { title: "Cycle", width: 0.14, align: "right" },
+    ],
+    signals.slice(0, 24).map((c) => [
+      roadNearNode(topology, c.junction_id) ?? `Junction ${c.junction_id}`,
+      c.phase_name ? title(c.phase_name.toLowerCase().replace(/_/g, " ")) : `Phase ${c.phase}`,
+      c.time_in_phase !== null ? `${c.time_in_phase.toFixed(0)} s` : "",
+      c.next_transition_at !== null ? t(c.next_transition_at) : "",
+      `${c.cycle_length.toFixed(0)} s`,
+    ]),
+    { caption: signals.length > 24 ? `The first 24 of ${signals.length} controllers.` : undefined, empty: "This network has no signal controllers." },
   );
 
   // =========================================================================
@@ -842,11 +963,11 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   const pages = pdf.getNumberOfPages();
   pdf.setPage(contentsPage);
   doc.page = contentsPage;
-  doc.y = doc.top;
+  doc.y = contentsTop;
   doc.line("CONTENTS", doc.M, doc.y, 7.5, PRINT.accent);
   doc.y += 5;
   doc.line("Contents", doc.M, doc.y, 18, PRINT.ink);
-  doc.y += 14;
+  doc.y += 12;
   for (const entry of doc.outline) {
     doc.line(entry.number, doc.M, doc.y, 10.5, PRINT.accent);
     doc.line(entry.title, doc.M + 10, doc.y, 10.5, PRINT.ink);
@@ -857,7 +978,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     pdf.setLineDashPattern([0.4, 1.2], 0);
     pdf.line(doc.M + 12 + tw, doc.y + 3.2, doc.W - doc.M - pw - 2, doc.y + 3.2);
     pdf.setLineDashPattern([], 0);
-    doc.y += 9;
+    doc.y += 7.6;
   }
   for (let p = 2; p <= pages; p++) {
     pdf.setPage(p);

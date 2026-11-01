@@ -67,9 +67,9 @@ Speed changes are recorded in the control history and can be undone.
 
 !!! note "When the observer lowers the speed itself"
     If the browser cannot keep up, [Adaptive backpressure](../concepts/backpressure.md)
-    holds the applied speed below the one requested. The speed control shows the
-    applied rate in amber with the requested rate underlined, and restores the request
-    automatically once the browser has caught up.
+    holds the applied speed below the one requested. The speed control's thumb travels
+    to the applied rate, in amber, with a line marking the rate you asked for, and it
+    returns to that rate automatically once the browser has caught up.
 
 ## Step
 

@@ -488,7 +488,7 @@ function NetworkMap({
         ctx.strokeStyle = warm ? tint : appearance.land.markerLine;
         ctx.lineWidth = warm ? 1.6 : 1.2;
         ctx.beginPath();
-        ctx.roundRect(p.x - 8, p.y - 8, 16, 16, 6);
+        ctx.roundRect(p.x - 8, p.y - 8, 16, 16, 8);
         ctx.fill();
         ctx.stroke();
         // Keep the glyph readable against whatever the ramp produced.

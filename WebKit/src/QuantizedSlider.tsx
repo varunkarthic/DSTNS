@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { KeyboardEvent, PointerEvent } from "react";
+import type { CSSProperties, KeyboardEvent, PointerEvent } from "react";
 import { createVelocityTracker, projectSnap, Spring, SPRINGS } from "./motion";
 import { resistClamp } from "./resistance";
 
@@ -14,7 +14,7 @@ import { resistClamp } from "./resistance";
 export function QuantizedSlider({
   labels,
   index,
-  applied,
+  target,
   onSelect,
   label,
   valueText,
@@ -24,9 +24,10 @@ export function QuantizedSlider({
   tutorial,
 }: {
   labels: readonly string[];
+  /** The stop in force, where the thumb rests. */
   index: number;
-  /** A stop below `index` that is actually in force, when something is holding it back. */
-  applied?: number;
+  /** A stop above `index` that was asked for, marked with a line, when something is holding it back. */
+  target?: number;
   onSelect: (index: number) => void;
   label: string;
   valueText: (index: number) => string;
@@ -96,14 +97,14 @@ export function QuantizedSlider({
   };
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const delta = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : 0;
-    const target = e.key === "Home" ? 0 : e.key === "End" ? labels.length - 1 : delta ? index + delta : -1;
-    if (target < 0 || target >= labels.length || disabled) return;
+    const next = e.key === "Home" ? 0 : e.key === "End" ? labels.length - 1 : delta ? (target ?? index) + delta : -1;
+    if (next < 0 || next >= labels.length || disabled) return;
     e.preventDefault();
-    onSelect(target);
+    onSelect(next);
   };
 
   return (
-    <div ref={root} className={`qslider${held ? " held" : ""}${disabled ? " disabled" : ""}${applied !== undefined ? " capped" : ""} ${className}`.trim()} data-tutorial={tutorial} data-tip-avoid>
+    <div ref={root} className={`qslider${held ? " held" : ""}${disabled ? " disabled" : ""}${target !== undefined ? " capped" : ""} ${className}`.trim()} style={target !== undefined ? ({ "--target": `${(target / Math.max(1, labels.length - 1)) * 100}%` } as CSSProperties) : undefined} data-tutorial={tutorial} data-tip-avoid>
       <div
         ref={track}
         className="qslider-track"
@@ -126,14 +127,17 @@ export function QuantizedSlider({
         {labels.map((text, i) => (
           <i key={text} className={`qslider-stop${i <= index ? " passed" : ""}`} style={{ left: `${(i / Math.max(1, labels.length - 1)) * 100}%` }} aria-hidden="true" />
         ))}
-        {applied !== undefined && (
-          <span className="qslider-applied" aria-hidden="true" style={{ left: `${(applied / Math.max(1, labels.length - 1)) * 100}%` }} />
+        {target !== undefined && (
+          <>
+            <span className="qslider-gap" aria-hidden="true" />
+            <span className="qslider-target" aria-hidden="true" />
+          </>
         )}
         <span className="qslider-thumb" aria-hidden="true" />
       </div>
       <div className="qslider-labels" aria-hidden="true">
         {labels.map((text, i) => (
-          <button key={text} type="button" tabIndex={-1} disabled={disabled} className={i === applied ? "applied" : i === index ? "on" : ""} style={{ left: `${(i / Math.max(1, labels.length - 1)) * 100}%` }} onClick={() => i !== index && onSelect(i)}>
+          <button key={text} type="button" tabIndex={-1} disabled={disabled} className={i === target ? "target" : i === index ? "on" : ""} style={{ left: `${(i / Math.max(1, labels.length - 1)) * 100}%` }} onClick={() => i !== (target ?? index) && onSelect(i)}>
             {text}
           </button>
         ))}
