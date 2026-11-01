@@ -5,8 +5,9 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import type { MapTransform } from "../NetworkMap";
 import { animate, SPRINGS, stepSpring } from "../motion";
 import type { SpringPreset } from "../motion";
-import type { Topology } from "../types";
-import { along, networkOf, PathRun, placeFeature, trackOf } from "./spatial";
+import type { Snapshot, Topology } from "../types";
+import { along, DriveRun, networkOf, PathRun, placeFeature, trackOf } from "./spatial";
+import type { AnyRun } from "./spatial";
 import { useSlot } from "./store";
 import type { OverlayFeature, Tone } from "./store";
 
@@ -81,7 +82,7 @@ function drawMarker(ctx: CanvasRenderingContext2D, shape: OverlayFeature["shape"
 }
 
 /** Something on a road, facing along it. Canvas y runs down, the map's up. */
-function drawEntity(ctx: CanvasRenderingContext2D, shape: OverlayFeature["shape"], x: number, y: number, heading: number, colour: string, surface: string, size: number) {
+function drawEntity(ctx: CanvasRenderingContext2D, shape: OverlayFeature["shape"], x: number, y: number, heading: number, colour: string, surface: string, size: number, braking = false, brakeLight = "#ff5b65") {
   ctx.setLineDash([]);
   ctx.fillStyle = colour;
   ctx.strokeStyle = surface;
@@ -107,10 +108,15 @@ function drawEntity(ctx: CanvasRenderingContext2D, shape: OverlayFeature["shape"
   roundedBox(ctx, length / 2 - breadth * 0.62, -breadth * 0.3, breadth * 0.38, breadth * 0.6, 1);
   ctx.fill();
   ctx.globalAlpha = 1;
+  // Brake lights, as on the map's own vehicles.
+  if (braking) {
+    ctx.fillStyle = brakeLight;
+    ctx.fillRect(-length / 2, -breadth / 2, Math.max(1, length * 0.16), breadth);
+  }
   ctx.restore();
 }
 
-function drawPath(ctx: CanvasRenderingContext2D, feature: OverlayFeature, run: PathRun, X: (x: number) => number, Y: (y: number) => number, colour: string, surface: string, ink: string) {
+function drawPath(ctx: CanvasRenderingContext2D, feature: OverlayFeature, run: AnyRun, X: (x: number) => number, Y: (y: number) => number, colour: string, surface: string, ink: string, brakeLight?: string) {
   const { track } = run;
   const spot = along(track, run.distance);
   const line = (points: [number, number][], tail?: [number, number]) => {
@@ -129,12 +135,32 @@ function drawPath(ctx: CanvasRenderingContext2D, feature: OverlayFeature, run: P
   }
   if (feature.reveal !== false) line(track.points.slice(0, spot.index + 1), [spot.x, spot.y]);
   const shape = feature.shape ?? "bus";
-  if (shape !== "none") drawEntity(ctx, shape, X(spot.x), Y(spot.y), spot.heading, colour, surface, Math.min(14, feature.size ?? 5));
+  const size = Math.min(14, feature.size ?? 5);
+  if (run instanceof DriveRun) {
+    // Each direction keeps to its own side of the road.
+    const lane = size + 1;
+    for (const car of run.fleet) {
+      if (car.distance < 0 || car.alpha <= 0 || Number.isNaN(car.heading)) continue;
+      const at = along(track, car.backwards ? track.total - car.distance : car.distance);
+      ctx.globalAlpha = car.alpha;
+      if (shape !== "none") drawEntity(ctx, shape === "bus" || shape === "dot" ? shape : "vehicle", X(at.x) + Math.sin(car.heading) * lane, Y(at.y) + Math.cos(car.heading) * lane, car.heading, colour, surface, size, car.braking, brakeLight);
+      ctx.globalAlpha = 1;
+    }
+  } else if (shape !== "none") drawEntity(ctx, shape, X(spot.x), Y(spot.y), spot.heading, colour, surface, size);
+  else if (feature.reveal !== false && !run.finished) {
+    // The point of the pen, while a road is being drawn.
+    ctx.fillStyle = colour;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(X(spot.x), Y(spot.y), (ctx.lineWidth || 3) + 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
   if (feature.label) drawLabel(ctx, String(feature.label), X(spot.x) + 14, Y(spot.y), surface, ink);
 }
 
 /** Draws applications' overlays above the map. Applications name a tone or a series; the palette stays DSTNS's. */
-export function paintOverlay(ctx: CanvasRenderingContext2D, features: OverlayFeature[], view: MapTransform, colour: (feature: OverlayFeature) => string, glide?: (feature: OverlayFeature) => [number, number] | null, surface = "#0b1720", ink = "#e6eef2", runFor?: (feature: OverlayFeature) => PathRun | undefined) {
+export function paintOverlay(ctx: CanvasRenderingContext2D, features: OverlayFeature[], view: MapTransform, colour: (feature: OverlayFeature) => string, glide?: (feature: OverlayFeature) => [number, number] | null, surface = "#0b1720", ink = "#e6eef2", runFor?: (feature: OverlayFeature) => AnyRun | undefined, brakeLight?: string) {
   const X = (x: number) => view.x + x * view.scale;
   const Y = (y: number) => view.y - y * view.scale;
   ctx.font = "11px Inter, sans-serif";
@@ -148,7 +174,7 @@ export function paintOverlay(ctx: CanvasRenderingContext2D, features: OverlayFea
     ctx.setLineDash(feature.dash ? [5, 6] : []);
     if (feature.type === "path") {
       const run = runFor?.(feature);
-      if (run) drawPath(ctx, feature, run, X, Y, c, surface, ink);
+      if (run) drawPath(ctx, feature, run, X, Y, c, surface, ink, brakeLight);
     } else if ((feature.type === "marker" || feature.type === "entity") && typeof feature.x_m === "number" && typeof feature.y_m === "number") {
       const [mx, my] = glide?.(feature) ?? [feature.x_m, feature.y_m];
       const size = Math.min(14, feature.size ?? 5);
@@ -185,7 +211,7 @@ export function paintOverlay(ctx: CanvasRenderingContext2D, features: OverlayFea
   ctx.setLineDash([]);
 }
 
-export const FabricOverlay = forwardRef<FabricOverlayHandle, { topology: Topology | null }>(function FabricOverlay({ topology }, handle) {
+export const FabricOverlay = forwardRef<FabricOverlayHandle, { topology: Topology | null; snapshot?: Snapshot | null }>(function FabricOverlay({ topology, snapshot }, handle) {
   const { items } = useSlot("overlay");
   const canvas = useRef<HTMLCanvasElement>(null);
   const view = useRef<MapTransform | null>(null);
@@ -195,7 +221,11 @@ export const FabricOverlay = forwardRef<FabricOverlayHandle, { topology: Topolog
     () => items.flatMap((item) => (Array.isArray(item.element.features) ? item.element.features : [])).map((f) => placeFeature(f, network)).filter((f): f is OverlayFeature => !!f),
     [items, network],
   );
-  const runs = useRef(new Map<string, { key: string; run: PathRun }>());
+  const runs = useRef(new Map<string, { key: string; run: AnyRun }>());
+  // What the core says each road's signal is, for vehicles that obey it.
+  const signals = useRef(new Map<number, number>());
+  signals.current = useMemo(() => new Map((snapshot?.edges ?? []).map((edge) => [edge.id, edge.signal_multiplier])), [snapshot]);
+  const signalOf = useCallback((road: number) => signals.current.get(road) ?? 1, []);
 
   // Named points glide between the positions an application reports.
   const gliders = useRef(new Map<string, { x: number; y: number; vx: number; vy: number }>());
@@ -231,6 +261,7 @@ export const FabricOverlay = forwardRef<FabricOverlayHandle, { topology: Topolog
       token("--surface-solid") || undefined,
       token("--text") || undefined,
       (feature) => (feature.id ? runs.current.get(feature.id)?.run : undefined),
+      token("--danger") || undefined,
     );
   }, []);
 
@@ -241,15 +272,19 @@ export const FabricOverlay = forwardRef<FabricOverlayHandle, { topology: Topolog
     const wanted = new Set(paths.map((f) => f.id));
     for (const key of runs.current.keys()) if (!wanted.has(key)) runs.current.delete(key);
     for (const f of paths) {
-      const key = `${f.nodes.join()}/${f.run ?? 0}`;
+      const key = `${f.nodes.join()}/${f.run ?? 0}/${f.drive ? `drive${f.count ?? 1}` : "glide"}`;
       if (runs.current.get(f.id)?.key === key) continue;
       const track = network ? trackOf(f.nodes, network) : null;
       if (!track) {
         runs.current.delete(f.id);
         continue;
       }
-      const run = new PathRun(track, f.delay_s ?? 0);
       // With motion reduced, the route is shown whole and nothing travels it.
+      if (f.drive && !still) {
+        runs.current.set(f.id, { key, run: new DriveRun(track, f) });
+        continue;
+      }
+      const run = new PathRun(track, f.delay_s ?? 0);
       if (still) {
         run.distance = run.guide = track.total;
         run.finished = true;
@@ -270,7 +305,7 @@ export const FabricOverlay = forwardRef<FabricOverlayHandle, { topology: Topolog
       for (const f of features.current) {
         if (f.type !== "path" || !f.id) continue;
         const run = runs.current.get(f.id)?.run;
-        if (run?.step(f, dt)) moving = true;
+        if (run instanceof DriveRun ? run.step(f, dt, signalOf) : run?.step(f, dt)) moving = true;
       }
       for (const f of features.current) {
         const g = f.id ? gliders.current.get(f.id) : undefined;
@@ -283,7 +318,7 @@ export const FabricOverlay = forwardRef<FabricOverlayHandle, { topology: Topolog
       if (!moving) motion.current = null;
       return moving;
     });
-  }, [draw, network]);
+  }, [draw, network, signalOf]);
   useEffect(() => () => motion.current?.(), []);
 
   useImperativeHandle(handle, () => ({

@@ -201,6 +201,7 @@ void check_feature(const json& feature) {
             refuse("a " + type + " needs 2 to 4096 nodes");
         for (const auto& node : feature.at("nodes"))
             if (!node.is_number_unsigned()) refuse("nodes must be node IDs");
+        number_in("draw_s", 0.05, 600);
     }
     if (type == "path") {
         if (!feature.contains("id") || !feature.at("id").is_string()) refuse("a path needs an id");
@@ -208,7 +209,9 @@ void check_feature(const json& feature) {
         number_in("dwell_s", 0, 60);
         number_in("delay_s", 0, 600);
         number_in("run", 0, 9007199254740991.0);
-        for (const char* key : {"loop", "bounce", "reveal", "trail", "paused"})
+        number_in("count", 1, 12);
+        number_in("spacing_m", 2, 200);
+        for (const char* key : {"loop", "bounce", "reveal", "trail", "paused", "drive", "obey_signals"})
             if (feature.contains(key) && !feature.at(key).is_boolean()) refuse(std::string(key) + " must be true or false");
         one_of("shape", {"bus", "vehicle", "dot", "none"});
         if (feature.contains("spring")) {

@@ -208,6 +208,36 @@ try {
     await until(async () => (await painted()) !== before, "overlay redrawn for the new camera");
   });
 
+  await test("a road draws itself along adjacent junctions, and vehicles drive it", async () => {
+    // A real chain of roads from the loaded network.
+    const from = new Map();
+    for (const e of net.edges) if (!e.synthetic_reverse && !from.has(e.from)) from.set(e.from, e);
+    let at = net.edges.find((e) => !e.synthetic_reverse).from;
+    const chain = [at];
+    while (chain.length < 8 && from.has(at) && !chain.includes(from.get(at).to)) chain.push((at = from.get(at).to));
+    assert.ok(chain.length >= 3, "there is a chain to draw");
+    const stranger = net.nodes.find((n) => !net.edges.some((e) => e.from === chain[0] && e.to === n.id))?.id;
+    const refused = await call("PUT", "/api/v1/fabric/apps/org.mock.planner/ui/drawn", { slot: "overlay", features: [{ type: "route", nodes: [chain[0], stranger], draw_s: 2 }] }, planner);
+    assert.ok(refused.code >= 400 && refused.code < 500, "junctions that are not adjacent are refused");
+    const placed = await call("PUT", "/api/v1/fabric/apps/org.mock.planner/ui/drawn", { slot: "overlay", features: [
+      { type: "route", nodes: chain, draw_s: 1.2, width: 5, tone: "warn" },
+      { type: "path", id: "convoy", nodes: chain, drive: true, count: 3, shape: "vehicle", speed_mps: 25, loop: true, reveal: false, trail: false, tone: "danger", size: 6 },
+    ] }, planner);
+    assert.equal(placed.code, 200, JSON.stringify(placed.body));
+    const frame = () => page.evaluate(() => {
+      const c = document.querySelector(".fabric-overlay");
+      const data = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+      let hash = 0, n = 0;
+      for (let i = 0; i < data.length; i += 4) if (data[i + 3]) { n++; hash = (hash * 31 + i) | 0; }
+      return { n, hash };
+    });
+    const first = await until(frame, "the overlay");
+    await page.waitForTimeout(700);
+    const later = await frame();
+    assert.notEqual(first.hash, later.hash, "it moves by itself, with nothing more sent");
+    assert.equal((await call("DELETE", "/api/v1/fabric/apps/org.mock.planner/ui/drawn", undefined, planner)).code, 200);
+  });
+
   await test("a panel opens from the dock, and reports use to its own application", async () => {
     await page.getByRole("button", { name: "Lab tools, Traffic Lab" }).click();
     const panel = page.getByRole("dialog", { name: "Traffic Lab, Traffic Lab" });

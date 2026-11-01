@@ -17,6 +17,12 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Applications on the road, and plain words
+
+- **WebFabric can draw and drive.** A `route` or `path` with `draw_s` draws itself along the road. A `path` with `drive` gets the map's own driving: pulling away, braking, keeping its distance in a convoy of up to 12, brake lights, and waiting at red signals. Sequences of junctions must still be adjacent, or the element is refused.
+- **Words, not identifiers.** News and the Queue showed the core's own text, such as `way/137004057`, `Node 524`, `Edge 12`, `entity 4` and `Signal 292 → A amber`. They now name the place or road, and which way the signal serves. Reports do the same.
+- **The tour** has a hint of the film's particles, a soft ring as each thing is reached, and the arrow keys now work on its last step: right starts the simulation.
+
 ### The film's scenes, the title and the end
 
 - **Redesigned scenes.** Mapped streets is now a real-looking district: quarters on their own grids, arteries, a river with bridges, parks and buildings, drawn in order. Signal timing has lanes, stop lines, zebra crossings, three-lamp signals on a proper cycle, queues that release from the front, vehicles turning, tail lights and people crossing. Travel demand uses the map's own icons, with homes sending trips to them and their demand filling up. Rush hour is a stream of traffic through the day that swells at each peak, with no sun. Fixed steps is replaced by Run reports, a page writing itself. Repeatable worlds shows two identical trees from one seed and a different one from another, with the seeds beneath, so it no longer implies there is only one seed. Auto Focus flies over the map to one event and then the next inside a steady viewfinder.

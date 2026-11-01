@@ -44,11 +44,25 @@ const HEADWAY = 1.1; // Seconds it keeps behind the one ahead, moving.
 const ACCELERATE = 2.2;
 const BRAKE = 4.5;
 const STOP_BEFORE = 3; // Metres short of the junction at a red light.
-const RED = 0.3; // Below this signal multiplier a road is held.
 const FADE_S = 0.4;
 const STEP_S = 0.25; // The longest simulated step, so a fast rate cannot jump a queue.
 const MAX_PER_ROAD = 12;
 const SPAWNS_PER_FRAME = 40;
+
+/**
+ * How hard to accelerate or brake: go to cruising speed with room ahead, ease off as it runs
+ * out, and brake when there is too little. Smooth at both ends. Applications' vehicles drive
+ * by this rule too, scaled to their speed.
+ */
+export function drivingRule(v: number, cruise: number, room: number, headway = HEADWAY, gap = GAP, accelerate = ACCELERATE, brake = BRAKE): number {
+  const safe = gap + v * headway;
+  const free = 1 - (v / Math.max(0.01, cruise)) ** 4;
+  const crowd = room > 0 ? (safe / room) ** 2 : 100;
+  return Math.max(-brake, Math.min(accelerate, accelerate * (free - crowd)));
+}
+
+/** Below this signal multiplier a road is held. */
+export const SIGNAL_RED = 0.3;
 
 export class FlowTraffic {
   readonly markers: Marker[] = [];
@@ -223,7 +237,7 @@ export class FlowTraffic {
       const edge = this.edges[id];
       const flow = flows.get(id);
       const length = this.lengthOf(edge);
-      const held = !!flow && (flow.closed || flow.signal < RED);
+      const held = !!flow && (flow.closed || flow.signal < SIGNAL_RED);
       const cruise = Math.max(0.8, flow?.speed ?? edge.free_speed_mps * 0.7);
       for (let i = 0; i < list.length; i++) {
         const marker = list[i];
@@ -236,12 +250,8 @@ export class FlowTraffic {
           const last = ahead?.[ahead.length - 1];
           room = (last ? last.s - LENGTH : 60) + length - marker.s;
         }
-        // Enough room, go to cruising speed; less, ease off; too little, brake. Smooth at both ends.
-        const safe = GAP + marker.v * HEADWAY;
-        const free = 1 - (marker.v / cruise) ** 4;
-        const crowd = room > 0 ? (safe / room) ** 2 : 100;
-        const accel = Math.max(-BRAKE, Math.min(ACCELERATE, ACCELERATE * (free - crowd)));
-        marker.braking = accel < -0.9 || (marker.v < 0.4 && room < safe + 1);
+        const accel = drivingRule(marker.v, cruise, room);
+        marker.braking = accel < -0.9 || (marker.v < 0.4 && room < GAP + marker.v * HEADWAY + 1);
         marker.v = Math.max(0, marker.v + accel * dt);
         let moved = marker.v * dt;
         if (i > 0 || held) moved = Math.min(moved, Math.max(0, room - 0.2));

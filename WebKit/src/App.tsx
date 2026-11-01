@@ -1085,7 +1085,7 @@ export default function App() {
               leftInset={sidebarInset}
               onMapPick={fabric.deliverPick}
             />
-            <FabricOverlay ref={overlay} topology={sim.topology} />
+            <FabricOverlay ref={overlay} topology={sim.topology} snapshot={sim.snapshot?.data ?? null} />
           </div>
 
           {interactive && (

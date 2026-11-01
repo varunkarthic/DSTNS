@@ -330,6 +330,15 @@ def main():
             assert place({"type": "path", "id": "p", "nodes": [edge["from"]]})[0] == 400
             assert place({"type": "path", "nodes": joined})[0] == 400
             assert place({"type": "path", "id": "p", "nodes": joined, "speed_mps": 0})[0] == 400
+            # Drawing along the road, and driving it as the map's own traffic does.
+            assert place({"type": "route", "nodes": joined, "draw_s": 2.5})[0] == 200
+            assert place({"type": "path", "id": "p", "nodes": joined, "draw_s": 2, "shape": "none"})[0] == 200
+            assert place({"type": "path", "id": "p", "nodes": joined, "drive": True, "count": 4, "spacing_m": 20, "obey_signals": False})[0] == 200
+            assert place({"type": "route", "nodes": joined, "draw_s": 0})[0] == 400
+            assert place({"type": "path", "id": "p", "nodes": joined, "drive": "yes"})[0] == 400
+            assert place({"type": "path", "id": "p", "nodes": joined, "count": 13})[0] == 400
+            assert place({"type": "path", "id": "p", "nodes": joined, "spacing_m": 1})[0] == 400
+            assert place({"type": "route", "nodes": [edge["from"], stranger], "draw_s": 2})[0] == refused[0], "drawing does not get round adjacency"
             assert place({"type": "path", "id": "p", "nodes": joined, "spring": "wobbly"})[0] == 400
             assert place({"type": "path", "id": "p", "nodes": joined, "spring": {"stiffness": 300, "damping": 2}})[0] == 400
             assert place({"type": "entity", "edge": edge["id"], "at": 2})[0] == 400

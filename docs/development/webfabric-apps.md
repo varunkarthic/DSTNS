@@ -138,6 +138,19 @@ fabric.app("PUT", "/ui/buses", {"slot": "overlay", "features": [
 ]})
 ```
 
+Two more things come with no further requests. `"draw_s": 2` on a `route` or `path` draws it along the road over two
+seconds, which is what a planner uses to show a line being found. `"drive": True` on a `path` gives its vehicles the same
+driving as the map's own traffic: they pull away and brake, keep their distance in a convoy of `count`, show brake lights
+and wait at red signals:
+
+```python
+fabric.app("PUT", "/ui/found", {"slot": "overlay", "features": [
+    {"type": "route", "nodes": line, "series": 1, "width": 4, "draw_s": 2.5},
+    {"type": "path", "id": "convoy", "nodes": line, "drive": True, "shape": "vehicle", "count": 4,
+     "speed_mps": 30, "loop": True, "reveal": False, "trail": False, "tone": "accent"},
+]})
+```
+
 Every option is listed under [On the road network](../components/webfabric.md#on-the-road-network).
 
 `Fabric/examples/bus_planner.py` does all of this and can be run against any world. It uses DSTNS's own

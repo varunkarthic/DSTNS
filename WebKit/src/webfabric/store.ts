@@ -109,6 +109,15 @@ export interface OverlayFeature {
   paused?: boolean;
   /** A path: change this number to play it again. */
   run?: number;
+  /** A route or path: draw it along the road over this many seconds. */
+  draw_s?: number;
+  /** A path: drive it, as the traffic on the map does: pulling away, braking, stopping at red. */
+  drive?: boolean;
+  /** A driven path: wait at red signals. On by default. */
+  obey_signals?: boolean;
+  /** A driven path: how many vehicles, in a convoy, and how far apart they keep. */
+  count?: number;
+  spacing_m?: number;
   /** Worked out by the observer from the network: which way an entity faces, in radians. */
   heading?: number;
   x_m?: number;

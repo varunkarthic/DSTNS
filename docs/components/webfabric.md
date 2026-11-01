@@ -65,7 +65,7 @@ the roads. They use the node and edge IDs from `GET /api/v1/view/topology`.
 |---|---|---|
 | `marker` | `node` | `shape`: `pin`, `stop`, `ring` or `diamond`; `size`, `label` |
 | `entity` | `edge` | `at` (0 to 1 along the edge), `shape`: `bus`, `vehicle` or `dot`; `size`, `label`. With an `id` it glides between reports, facing along the road |
-| `route` | `nodes` | Adjacent junctions in order, drawn along the real road shape; `width`, `dash` |
+| `route` | `nodes` | Adjacent junctions in order, drawn along the real road shape; `width`, `dash`. With `draw_s` it draws itself along the road over that many seconds |
 | `path` | `id`, `nodes` | The same route, animated. See below |
 
 A `path` is played by the observer, so an application declares it once and sends nothing per
@@ -84,10 +84,18 @@ frame.
 | `trail` | true | Keep the whole line faintly visible beneath it |
 | `paused` | false | Hold where it is |
 | `run` | 0 | Change this number to play it again |
+| `draw_s` | | Draw the line along the road over this many seconds, up to 600, rather than at `speed_mps` |
+| `drive` | false | Drive it as the map's own traffic does: pull away, brake, keep to its side of the road, with brake lights. `spring` then has no effect |
+| `obey_signals` | true | With `drive`, wait at junctions where the core's signal is red |
+| `count` | 1 | With `drive`, how many vehicles run in a convoy, up to 12 |
+| `spacing_m` | 14 | With `drive`, how far apart a convoy keeps, 2 to 200 |
 
 The entity follows a guide that travels at the path's speed and holds at junctions. The spring
 is what shapes how it pulls away and settles. With reduced motion on, the route is shown whole and nothing
 travels.
+
+Every junction in `nodes` must have a road to the next. A sequence that is not adjacent is not drawn in part: the
+element is refused.
 
 Fabric checks what it can when the UI is declared. A shape or range it does not offer is refused with
 `400 INVALID_ELEMENT`. A node or edge the loaded world does not have, or a `nodes` sequence with no road
