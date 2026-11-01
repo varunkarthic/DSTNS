@@ -37,7 +37,7 @@ double poll_component(const AsbSample& s) {
 // The multipliers the operator can select. A governed ceiling lands on one of
 // these, so the rate it produces is a value they recognise rather than an
 // arbitrary fraction.
-constexpr double kOfferedRates[] = {1.0, 2.0, 3.0, 5.0, 10.0, 20.0};
+constexpr double kOfferedRates[] = {1.0, 2.0, 3.0, 5.0, 10.0};
 
 // Largest offered multiplier at or below `wanted`, never below real time.
 double quantise_rate(double wanted) {
@@ -133,8 +133,10 @@ void AdaptiveBackpressure::observe(const AsbSample& sample, double now_s) {
         case AsbState::Normal: {
             if (!stressed) {
                 // Proportional release back towards what the operator asked for.
-                if (healthy && std::isfinite(cap_) && now_s - cap_changed_at_ >= kAsbRateHoldS) {
+                if (healthy && healthy_for > 30.0) release_hold_ = kAsbRateHoldS;
+                if (healthy && std::isfinite(cap_) && now_s - cap_changed_at_ >= release_hold_) {
                     const double before = cap_;
+                    released_at_ = now_s;
                     // Step the ceiling up one offered multiplier at a time, and
                     // drop it entirely once it no longer binds the request.
                     cap_ = next_rate_above(cap_);
@@ -153,6 +155,7 @@ void AdaptiveBackpressure::observe(const AsbSample& sample, double now_s) {
             const double before = cap_;
             const double target = quantise_rate(std::max(1.0, sample.tick_rate * (1.0 - score_)));
             if (target < cap_ && now_s - cap_changed_at_ >= kAsbRateHoldS) {
+                if (now_s - released_at_ < 20.0) release_hold_ = std::min(release_hold_ * 2.0, 32.0);
                 cap_ = target;
                 cap_changed_at_ = now_s;
                 note("throttle", "observer behind; reducing the rate ceiling to close the gap",
@@ -251,6 +254,8 @@ void AdaptiveBackpressure::reset() {
     raw_score_ = 0;
     seeded_ = false;
     cap_changed_at_ = -1e9;
+    release_hold_ = kAsbRateHoldS;
+    released_at_ = -1e9;
     stressed_since_ = -1;
     healthy_since_ = -1;
     state_entered_ = 0;

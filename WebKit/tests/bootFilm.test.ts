@@ -42,6 +42,8 @@ it("keeps every headline to one or two words, and nothing has a comma", () => {
   for (const chapter of FILM_CHAPTERS) {
     expect(chapter.title.split(" ").length).toBeLessThanOrEqual(2);
     expect(`${chapter.label}${chapter.title}${chapter.text}`).not.toContain(",");
+    // It is a simulation: nothing may read as if it were happening now, or for real.
+    expect(`${chapter.title} ${chapter.text}`).not.toMatch(/\b(real|live|realtime|real-time)\b/i);
   }
 });
 

@@ -50,10 +50,12 @@ export const FluidPanel = forwardRef<HTMLElement, {
   anchor: string;
   label: string;
   width?: number;
+  /** A panel shorter than the dock, centred on its icon. By default it is the dock's height. */
+  fitHeight?: number;
   className?: string;
   reduceMotion?: boolean;
   children: ReactNode;
-}>(function FluidPanel({ open, anchor, label, width = 372, className = "", reduceMotion = false, children }, ref) {
+}>(function FluidPanel({ open, anchor, label, width = 372, fitHeight, className = "", reduceMotion = false, children }, ref) {
   const panel = useRef<HTMLElement>(null);
   const neck = useRef<SVGPathElement>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -67,12 +69,15 @@ export const FluidPanel = forwardRef<HTMLElement, {
     const dock = document.querySelector(".map-dock")?.getBoundingClientRect();
     const icon = document.querySelector(anchor)?.getBoundingClientRect();
     if (!dock || !icon) return;
-    geometry.current = { left: dock.right + GAP, top: dock.top, height: dock.height, anchorY: icon.top + icon.height / 2 - dock.top };
+    const iconY = icon.top + icon.height / 2;
+    const height = fitHeight ?? dock.height;
+    const top = fitHeight ? Math.max(dock.top, Math.min(iconY - fitHeight / 2, dock.bottom - fitHeight)) : dock.top;
+    geometry.current = { left: dock.right + GAP, top, height, anchorY: iconY - top };
     const el = panel.current;
     if (el) {
       el.style.left = `${dock.right + GAP}px`;
-      el.style.top = `${dock.top}px`;
-      el.style.height = `${dock.height}px`;
+      el.style.top = `${top}px`;
+      el.style.height = `${height}px`;
       el.style.width = `${width}px`;
     }
     if (svg.current) {

@@ -417,3 +417,32 @@ lead it. A page opened on a running world, or with reduced motion, skips the pac
 
 **Consequences.** A request above 10 is refused with the existing validation error, and a saved run asking for more must be changed.
 Results for a seed do not depend on the rate, so no run changes.
+
+## 31. Scrolling belongs to the compositor
+
+**Problem.** A document-level wheel listener that could cancel events made every scroll anywhere wait for the main
+thread, so a busy map made every list lag.
+
+**Decision.** That listener only observes, and the one place a wheel must be refused is the map's own canvas. A limit
+adds one transform to the scrolling region, at most 12 px, for as long as it is moving.
+
+**Consequences.** Scrolling stays smooth whatever the map is doing. A pinch outside the map can zoom the browser page,
+because stopping it would need the blocking listener back.
+
+## 32. Backpressure degrades the map, not the interface
+
+**Problem.** Falling behind also stopped interface animation, closed panels and refitted the camera, so a problem with
+map data felt like the whole application failing, and a run near a threshold flipped between Online and Degraded.
+
+**Decision.** ASB's reductions apply only to what the map draws. The status needs a reading to hold before showing it,
+longer for recovery than for trouble, and each release that has to be taken back waits longer before the next.
+
+**Consequences.** Status can lag reality by up to 10 seconds on the way back to Online. A lost server is still shown at once.
+
+## 33. The film plays through once
+
+**Decision.** At first start, the screen stays for one full cycle of the film even if the world is ready sooner, saying
+"Finishing setup". From then on it leaves as soon as the world is ready.
+
+**Consequences.** A first start takes about 45 seconds, and the run has already begun behind the film, so its clock is
+that far along when the map appears. A reload during a run, or reduced motion, skips this.

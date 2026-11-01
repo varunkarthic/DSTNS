@@ -30,6 +30,7 @@ import type { CompletionSummary } from "./Dialogs";
 import { Tooltip } from "./Tooltip";
 import { useISDNotifications } from "./ISDHandler";
 import { resolveBindings, useShortcuts } from "./shortcuts";
+import { useSteadyStatus } from "./useSteadyStatus";
 import { RATES, rateIndexOf } from "./CommandRail";
 import type { ISDCondition } from "./ISDHandler";
 import { Tutorial } from "./Tutorial";
@@ -276,11 +277,13 @@ export default function App() {
   const suspended = asb?.gui_suspended === true;
   const rateLocked = asb?.rate_locked === true;
   const motionLocked = asb?.motion_locked === true;
-  const reduceMotion = motionChoice || motionLocked;
+  // Falling behind costs the map its animation. The interface around it stays as it was.
+  const reduceMotion = motionChoice;
+  const mapStill = motionChoice || motionLocked;
   useEffect(() => {
     document.documentElement.classList.toggle("reduce-motion", reduceMotion);
   }, [reduceMotion]);
-  const runtime = runtimeStatus({ connected: !!sim.snapshot, stale: sim.stale, error: !!sim.error, asb });
+  const runtime = useSteadyStatus(runtimeStatus({ connected: !!sim.snapshot, stale: sim.stale, error: !!sim.error, asb }));
 
   const [tutorialTarget, setTutorialTarget] = useState("");
   // Below 1024px the full deck opens over the map on request; above it the
@@ -356,10 +359,6 @@ export default function App() {
       place_names: false,
       weather: false,
     }));
-    setLayersOpen(false);
-    setSettingsOpen(false);
-    setDialog(null);
-    mapControls.current?.fit();
   }, []);
   const beforeAsbLayers = useRef<Layers | null>(null);
   const seenReset = useRef(resetToken);
@@ -879,7 +878,9 @@ export default function App() {
   if (firstLifecycle.current === null && sim.status) firstLifecycle.current = lifecycle;
   const opening = firstLifecycle.current === null ? null : ["IDLE", "PREPARING", "BOOTING"].includes(firstLifecycle.current);
   const bootPhase = useBootPhase(opening === null ? null : !opening);
-  const paced = usePacedStages(splashStage, bootPhase, opening !== false && !reduceMotion);
+  const [filmSeen, setFilmSeen] = useState(false);
+  const onFilmCycle = useCallback(() => setFilmSeen(true), []);
+  const paced = usePacedStages(splashStage, bootPhase, opening !== false && !reduceMotion, filmSeen);
   const shownStage = paced.stage;
   const showSplash = (!!shownStage || paced.holding) && !sim.error && !world.active;
   // The start-up screen dissolves over the rendered map rather than vanishing.
@@ -895,6 +896,17 @@ export default function App() {
   }, [sim.topology]);
   // Nothing has ever loaded and the simulator is not answering, or refused the
   // world. Once a world is on screen a lost connection is shown over it instead.
+  // A server that stays away is treated as stopped, whoever stopped it. It clears if it returns.
+  const [serverGone, setServerGone] = useState(false);
+  const lostConnection = !!sim.error && !!sim.topology && !world.active && !shutDown;
+  useEffect(() => {
+    if (!lostConnection) {
+      setServerGone(false);
+      return;
+    }
+    const timer = setTimeout(() => setServerGone(true), 8000);
+    return () => clearTimeout(timer);
+  }, [lostConnection]);
   const bootFailure = sim.error && !sim.topology && !world.active && !shutDown ? sim.error : "";
   const lastFailure = useRef(bootFailure);
   if (bootFailure) lastFailure.current = bootFailure;
@@ -926,7 +938,7 @@ export default function App() {
     layers: () => !suspended && setLayersOpen((v) => !v),
     "auto-focus": () => mode !== "disable" && toggleAutoFocus(!autoFocus),
     dnd: () => setDnd(!dnd),
-    motion: () => !motionLocked && setMotion(!motionChoice),
+    motion: () => setMotion(!motionChoice),
     settings: () => setSettingsOpen((v) => !v),
     telemetry: () => setCollapsed(!deckCollapsed),
     clock: () => toggleHour12(),
@@ -1007,7 +1019,7 @@ export default function App() {
               snapshot={sim.snapshot?.data ?? null}
               layers={layers}
               places={places}
-              reduceMotion={reduceMotion}
+              reduceMotion={mapStill}
               running={valid && lifecycle === "RUNNING" && !suspended}
               virtualTime={virtual}
               tickRate={clock?.tick_rate ?? 1}
@@ -1045,7 +1057,7 @@ export default function App() {
             dnd={dnd}
             onToggleDnd={() => setDnd(!dnd)}
             reduceMotion={reduceMotion}
-            motionLocked={motionLocked}
+            motionLocked={false}
             onToggleMotion={() => setMotion(!motionChoice)}
             settingsOpen={settingsOpen}
             onToggleSettings={() => setSettingsOpen((v) => !v)}
@@ -1068,7 +1080,7 @@ export default function App() {
               mutedSeverities: config.notifications.dnd_severities,
               hour12,
               reduceMotion,
-              motionLocked,
+              motionLocked: false,
               skipSeconds: config.playback.skip_seconds,
               stepSeconds: config.playback.step_seconds,
               newsStyle: config.news.style,
@@ -1213,10 +1225,10 @@ export default function App() {
           </div>
 
           {splash.mounted && lastSplash.current && (
-            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} />
+            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} onFilmCycle={onFilmCycle} />
           )}
           {failure.mounted && <BootFailure message={lastFailure.current} reachable={!!sim.status} closing={failure.closing} reduceMotion={reduceMotion} />}
-          {shutDown && <ShutdownSurface reduceMotion={reduceMotion} />}
+          {(shutDown || serverGone) && <ShutdownSurface reduceMotion={reduceMotion} landing={landOnRoads} lost={serverGone && !shutDown} />}
 
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} narratorBadge={narratorBadge(narrator)} />}
           {dialog === "reset" && (

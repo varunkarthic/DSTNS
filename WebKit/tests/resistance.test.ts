@@ -51,106 +51,98 @@ describe("zooming out", () => {
 });
 
 describe("in scrolling regions", () => {
+  let region: HTMLElement;
   let remove: () => void;
-  let region: HTMLDivElement;
-  const wheel = (deltaY: number) => region.firstElementChild!.dispatchEvent(new WheelEvent("wheel", { deltaY, bubbles: true }));
+  const frames: FrameRequestCallback[] = [];
+  const flush = (ms = 16) => {
+    vi.advanceTimersByTime(ms);
+    const now = performance.now();
+    frames.splice(0).forEach((frame) => frame(now));
+  };
   beforeEach(() => {
     vi.useFakeTimers();
-    remove = installEdgeResistance();
+    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) => frames.push(frame));
+    vi.stubGlobal("cancelAnimationFrame", () => undefined);
     region = document.createElement("div");
     region.style.overflowY = "auto";
-    region.innerHTML = "<p>text</p>";
+    Object.defineProperty(region, "scrollHeight", { value: 1000, configurable: true });
+    Object.defineProperty(region, "clientHeight", { value: 200, configurable: true });
     document.body.appendChild(region);
-    Object.defineProperties(region, { clientHeight: { value: 200, configurable: true }, scrollHeight: { value: 600, configurable: true } });
+    remove = installEdgeResistance();
   });
   afterEach(() => {
-    vi.advanceTimersByTime(3000); // Lets every spring come to rest.
     remove();
     region.remove();
+    frames.length = 0;
+    document.documentElement.classList.remove("reduce-motion");
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
+  const wheel = (deltaY: number) => {
+    const event = new WheelEvent("wheel", { deltaY, bubbles: true, cancelable: true });
+    region.dispatchEvent(event);
+    return event;
+  };
+  const shift = () => Math.abs(parseFloat(region.style.transform.split(",")[1] ?? "0"));
+  const run = (count: number) => {
+    for (let i = 0; i < count; i++) flush();
+  };
 
-  const offset = () => parseFloat(region.style.getPropertyValue("--edge-y"));
-  const settle = () => vi.advanceTimersByTime(48);
+  it("never blocks a wheel event, so scrolling stays with the compositor", () => {
+    region.scrollTop = 0;
+    expect(wheel(-300).defaultPrevented).toBe(false);
+    region.scrollTop = 800;
+    expect(wheel(300).defaultPrevented).toBe(false);
+  });
 
-  it("stretches at the end, opposite to the push, smoothly, and not before", () => {
+  it("does nothing until a limit is reached", () => {
     region.scrollTop = 100;
     wheel(-50);
-    settle();
-    expect(region.hasAttribute("data-edge")).toBe(false);
+    run(3);
+    expect(region.style.transform).toBe("");
+  });
+
+  it("gives a little at a limit, and only a little", () => {
     region.scrollTop = 0;
-    wheel(-50);
-    settle();
-    expect(region.hasAttribute("data-edge")).toBe(true);
-    const first = offset();
-    expect(first).toBeGreaterThan(0);
-    wheel(-50);
-    settle();
-    const second = offset();
-    wheel(-50);
-    settle();
-    const third = offset();
-    expect(second).toBeGreaterThan(first);
-    expect(third - second).toBeLessThan(second - first + 1);
+    wheel(-2000);
+    run(3);
+    expect(shift()).toBeGreaterThan(0.5);
+    expect(shift()).toBeLessThanOrEqual(12);
   });
 
-  it("starts back at once, even while a trackpad's fading momentum still arrives", () => {
+  it("is back quickly, and leaves nothing behind", () => {
     region.scrollTop = 0;
-    wheel(-200);
-    settle();
-    // Events that small cannot hold a stretch out: there is no waiting for them to end.
-    let peak = 0;
-    for (let i = 0; i < 36; i++) {
-      wheel(-1);
-      vi.advanceTimersByTime(16);
-      peak = Math.max(peak, offset());
-    }
-    expect(offset()).toBeLessThan(peak * 0.5);
-    vi.advanceTimersByTime(2000);
-    expect(region.hasAttribute("data-edge")).toBe(false);
+    wheel(-400);
+    run(30);
+    expect(region.style.transform).toBe("");
+    expect(region.style.transform).toBe("");
   });
 
-  it("goes home when the wheel stops", () => {
+  it("moves only the region itself, one transform", () => {
+    const child = document.createElement("div");
+    region.appendChild(child);
     region.scrollTop = 0;
-    wheel(-200);
-    settle();
-    expect(offset()).toBeGreaterThan(0);
-    vi.advanceTimersByTime(2000);
-    expect(region.hasAttribute("data-edge")).toBe(false);
-  });
-
-  it("stretches the other way at the bottom", () => {
-    region.scrollTop = 400;
-    wheel(50);
-    settle();
-    expect(offset()).toBeLessThan(0);
-  });
-
-  it("never lets the page scroll over something that does not scroll", () => {
-    const plain = document.createElement("div");
-    document.body.appendChild(plain);
-    const event = new WheelEvent("wheel", { deltaY: 50, bubbles: true, cancelable: true });
-    plain.dispatchEvent(event);
-    expect(event.defaultPrevented).toBe(true);
-    plain.remove();
-  });
-
-  it("puts back a container that focus or scrollIntoView moved", () => {
-    const shell = document.createElement("div");
-    shell.className = "workspace";
-    document.body.appendChild(shell);
-    shell.scrollTop = 40;
-    shell.dispatchEvent(new Event("scroll"));
-    expect(shell.scrollTop).toBe(0);
-    shell.remove();
+    wheel(-400);
+    run(3);
+    expect(child.style.transform).toBe("");
+    expect(region.style.getPropertyValue("--edge-y")).toBe("");
   });
 
   it("does nothing under reduced motion", () => {
     document.documentElement.classList.add("reduce-motion");
     region.scrollTop = 0;
-    wheel(-50);
-    settle();
-    expect(region.hasAttribute("data-edge")).toBe(false);
-    document.documentElement.classList.remove("reduce-motion");
+    wheel(-200);
+    run(3);
+    expect(region.style.transform).toBe("");
+  });
+
+  it("puts back a container that focus or scrollIntoView moved", () => {
+    const shell = document.createElement("div");
+    shell.className = "app-shell";
+    document.body.appendChild(shell);
+    Object.defineProperty(shell, "scrollTop", { value: 40, writable: true, configurable: true });
+    shell.dispatchEvent(new Event("scroll"));
+    expect(shell.scrollTop).toBe(0);
+    shell.remove();
   });
 });

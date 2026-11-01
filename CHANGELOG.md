@@ -17,6 +17,16 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Scrolling, map performance and the start-up film
+
+- **Scrolling never waits for the page.** Edge resistance used to block every wheel event on the main thread and move every child of a list. It now only listens, and moves the region as a whole with one compositor transform, by at most 12 px. Under 4× CPU throttle at 10× speed, scrolling at a limit went from 42 to 54 fps and map zoom from 52 to 59 fps.
+- **The map draws in tiles and layers.** Roads and buildings are grouped by tile and style, what changes with a snapshot is drawn once per snapshot, and only rain, incident pulses and flow markers run per frame. Names and markers follow zoom and importance, within a budget, and names wait until the camera stops.
+- **Degraded no longer touches the interface.** It reduces only the map's data and animation. It no longer closes panels, moves the camera or turns off interface motion.
+- **Runtime status is steady.** Degraded must hold for 4 seconds and recovery for 10, and ASB waits longer each time a release has to be taken back.
+- **The film plays through once,** with "Finishing setup" if the world is ready sooner. After that the screen leaves as soon as the world is ready. Copy no longer implies anything is real or live.
+- **Smoother handovers,** from title to particles and from particles to map, and a short particle ending when the server stops.
+- **Notifications close without a snap,** and the Auto Focus menu opens as a fluid panel.
+
 ### Latest interface round
 
 - **Speed is capped at 10×.** The engine, API and launcher all refuse more.

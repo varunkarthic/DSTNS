@@ -370,8 +370,8 @@ describe("command rail", () => {
     cleanup();
     mockApi({ backpressure: { ...backpressure, rate_capped: true, applied_tick_rate: 1, requested_tick_rate: 3 } });
     render(<App />);
-    await waitFor(() => expect(screen.getByRole("status", { name: "Runtime status Degraded" })).toBeInTheDocument(), { timeout: 4000 });
-  });
+    await waitFor(() => expect(screen.getByRole("status", { name: "Runtime status Degraded" })).toBeInTheDocument(), { timeout: 8000 });
+  }, 15000);
 
   it("confirms before terminating", async () => {
     mockApi();
@@ -1018,7 +1018,7 @@ describe("dialogs and suspension", () => {
     expect(dialog).toHaveTextContent("Varun Karthic");
     expect(dialog).toHaveTextContent(/Affero General Public License/);
     expect(dialog).toHaveTextContent(/Version \d+\.\d+\.\d+/);
-    expect(screen.getByRole("link", { name: /Source offer/ })).toHaveAttribute("href", "/api/v1/system/source");
+    expect(screen.queryByRole("link", { name: /Source offer/ })).toBeNull();
     expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute("href", "https://github.com/varunkarthic/DSTNS");
     expect(screen.getByRole("link", { name: "Documentation" })).toHaveAttribute("href", "https://dstns.readthedocs.io/");
     expect(within(dialog).queryByRole("button", { name: /Reset/ })).toBeNull();
@@ -1076,16 +1076,17 @@ describe("dialogs and suspension", () => {
     expect(screen.getByRole("button", { name: /Layers/ })).toBeDisabled();
   });
 
-  it("locks speed and motion while ASB is Restricted", async () => {
+  it("locks speed while ASB is Restricted, and leaves the interface's motion setting alone", async () => {
     mockApi({ backpressure: { ...backpressure, state: "RESTRICTED", score: 0.9, synced: false, rate_locked: true, motion_locked: true, applied_tick_rate: 1, requested_tick_rate: 3 } });
     render(<App />);
     await screen.findByText("ASB · Restricted", {}, { timeout: 4000 });
     expect(screen.getByRole("slider", { name: "Simulation speed" })).toHaveAttribute("aria-disabled", "true");
     const motion = screen.getByRole("button", { name: "Reduce motion" });
-    expect(motion).toBeDisabled();
-    expect(motion).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("status", { name: "Runtime status Degraded" })).toBeInTheDocument();
-  });
+    expect(motion).toBeEnabled();
+    expect(motion).toHaveAttribute("aria-pressed", "false");
+    expect(document.documentElement).not.toHaveClass("reduce-motion");
+    await waitFor(() => expect(screen.getByRole("status", { name: "Runtime status Degraded" })).toBeInTheDocument(), { timeout: 8000 });
+  }, 15000);
 
   it("expands search from the dock rather than occupying the map", async () => {
     mockApi();

@@ -112,6 +112,7 @@ export function NotificationCapsule(
       >
         <div className="capsule-body" aria-hidden={!open} inert={!open || undefined}>
           <div {...bodyScroll} className={`capsule-body-inner ${bodyScroll.className}`}>
+            <div className="capsule-pad">
               <>
                 <div className="capsule-detail-head">
                   <span className="capsule-kind">
@@ -196,6 +197,7 @@ export function NotificationCapsule(
                   </div>
                 )}
               </>
+            </div>
           </div>
         </div>
         <button

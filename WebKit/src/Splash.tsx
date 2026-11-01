@@ -80,7 +80,7 @@ export function useBootPhase(live: boolean | null): BootPhase {
  * has reached, a little later than it reached them, and `holding` keeps the screen up
  * until the last has been seen.
  */
-export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabled: boolean): { stage: SplashStage | null; holding: boolean } {
+export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabled: boolean, filmSeen = true): { stage: SplashStage | null; holding: boolean } {
   const [shown, setShown] = useState(0);
   const [graceOver, setGraceOver] = useState(false);
   const running = enabled && phase === "film";
@@ -96,9 +96,15 @@ export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabl
     return () => clearTimeout(timer);
   }, [running, shown, goal]);
   if (!enabled) return { stage: real, holding: false };
-  if (!real && shown >= BOOT_STEPS.length) return { stage: null, holding: false };
+  // Ready, and the whole film has been seen: nothing keeps it here. Ready, but the film is
+  // not finished: it plays to its end, as it is part of arriving. Once it has been through
+  // once, this screen leaves the moment the world is ready, wherever the film has got to.
+  if (!real && shown >= BOOT_STEPS.length) {
+    if (filmSeen) return { stage: null, holding: false };
+    return { stage: { step: BOOT_STEPS.length - 1, label: "Finishing setup", detail: "Setting up the interface" }, holding: true };
+  }
   const step = Math.min(shown, BOOT_STEPS.length - 1);
-  const holding = phase !== "film" || shown < goal || (!real && shown < BOOT_STEPS.length);
+  const holding = phase !== "film" || shown < goal || (!real && shown < BOOT_STEPS.length) || !filmSeen;
   if (real?.waiting) {
     if (graceOver) return { stage: real, holding: false };
     return { stage: { step: 0, label: BOOT_STEPS[0].label, detail: STAGE_DETAIL[0] }, holding: true };
@@ -115,12 +121,14 @@ export function Splash({
   closing = false,
   landing,
   phase,
+  onFilmCycle,
 }: {
   stage: SplashStage;
   reduceMotion: boolean;
   closing?: boolean;
   landing?: () => Float32Array | null;
   phase?: BootPhase;
+  onFilmCycle?: () => void;
 }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -144,6 +152,7 @@ export function Splash({
       idle={stage.waiting}
       landing={landing}
       phase={phase}
+      onFilmCycle={onFilmCycle}
       closing={closing}
       reduceMotion={reduceMotion}
       titleId="splash-title"
@@ -181,14 +190,16 @@ export function BootFailure({ message, reduceMotion, closing = false, reachable 
   );
 }
 
-/** The session was terminated: the server has gone, and nothing here will come back. */
-export function ShutdownSurface({ reduceMotion }: { reduceMotion: boolean }) {
+/** The session has ended: the server has gone. If it was lost rather than stopped, this clears when it returns. */
+export function ShutdownSurface({ reduceMotion, landing, lost = false }: { reduceMotion: boolean; landing?: () => Float32Array | null; lost?: boolean }) {
   return (
     <LoadingSurface
       mode="boot"
       idle
-      title="DSTNS has shut down"
-      status="The simulation and its server have stopped. Start a new run from the DSTNS CLI."
+      ending
+      landing={landing}
+      title={lost ? "The server has stopped" : "DSTNS has shut down"}
+      status={lost ? "It is no longer answering. This screen clears if it returns; otherwise start a new run from the DSTNS CLI." : "The simulation and its server have stopped. Start a new run from the DSTNS CLI."}
       reduceMotion={reduceMotion}
       titleId="shutdown-title"
       footer={<p className="loading-licence">{LICENCE}</p>}

@@ -13,6 +13,7 @@ import {
 } from "react";
 import type { RefObject } from "react";
 import { canvasGlyph } from "./placeGlyphs";
+import { buildTiles, MARKER_BUDGET, placeNameShows, PLACE_NAME_BUDGET, sizeTier, STREET_NAME_BUDGET, streetNameShows, tierShows, tileOnScreen } from "./mapTiles";
 import { animate, createVelocityTracker, SPRINGS, stepSpring } from "./motion";
 import { appearance } from "./appearance";
 import type { RainCells } from "./mapModel";
@@ -139,6 +140,7 @@ function NetworkMap({
 }: Props) {
   const host = useRef<HTMLDivElement>(null),
     base = useRef<HTMLCanvasElement>(null),
+    slow = useRef<HTMLCanvasElement>(null),
     dynamic = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 1000, h: 700 }),
     [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
@@ -236,6 +238,15 @@ function NetworkMap({
     fit();
   }, [fit]);
   useEffect(() => () => clearTimeout(timer.current), []);
+  // A pinch over the map zooms the map, not the page. Only here does a wheel have to be
+  // able to refuse its default, so scrolling everywhere else stays with the compositor.
+  useEffect(() => {
+    const el = dynamic.current;
+    if (!el) return;
+    const refuse = (event: WheelEvent) => event.preventDefault();
+    el.addEventListener("wheel", refuse, { passive: false });
+    return () => el.removeEventListener("wheel", refuse);
+  }, []);
   const visible = (g: Geo, pad = 20) =>
     g.maxX * view.scale + view.x >= -pad &&
     g.minX * view.scale + view.x <= size.w + pad &&
@@ -256,38 +267,223 @@ function NetworkMap({
     ctx.clearRect(0, 0, size.w, size.h);
     return ctx;
   };
+  // ---- Geography, grouped once: see mapTiles.ts ------------------------------
+  const baseTiles = useMemo(() => {
+    if (!topology || !cached) return null;
+    return {
+      land: buildTiles(topology.features, (_, i) => cached.features[i], (f, i) => {
+        if (!f.polygon) return null;
+        const park = ["park", "grass", "forest", "recreation_ground"].includes(f.category);
+        return `${park ? "park" : "land"}|${sizeTier(cached.features[i])}`;
+      }),
+      beds: buildTiles(topology.edges, (_, i) => cached.roads[i], (e) => (e.synthetic_reverse ? null : e.road_class === "primary" ? "wide" : "narrow")),
+    };
+  }, [topology, cached]);
+  // What traffic has done to the roads, grouped once per snapshot rather than per frame.
+  const roadTiles = useMemo(() => {
+    if (!topology || !cached || !layers.roads) return [];
+    return buildTiles(topology.edges, (_, i) => cached.roads[i], (e) => {
+      if (e.synthetic_reverse) return null;
+      const s = state.edges.get(e.id);
+      let status = roadState(s);
+      if (status === "flooded" && !layers.flooding) status = s?.closed ? "blocked" : s && s.congestion > 0.7 ? "severe" : s && s.congestion > 0.35 ? "moderate" : "clear";
+      const weight = ["primary", "motorway"].includes(e.road_class) ? "major" : ["secondary", "tertiary"].includes(e.road_class) ? "mid" : e.road_class === "service" ? "service" : "minor";
+      return `${layers.traffic ? status : "neutral"}|${weight}`;
+    });
+  }, [topology, cached, state, layers.roads, layers.traffic, layers.flooding]);
+  // Which street names to try first: the important roads win the space.
+  const nameOrder = useMemo(() => {
+    if (!topology) return [];
+    const rank = (road: string) => (["motorway", "primary"].includes(road) ? 0 : road === "secondary" ? 1 : road === "tertiary" ? 2 : 3);
+    return topology.edges
+      .map((e, i) => ({ e, i }))
+      .filter(({ e }) => e.name && !e.synthetic_reverse && e.geometry.length >= 2)
+      .sort((a, b) => rank(a.e.road_class) - rank(b.e.road_class));
+  }, [topology]);
+
   useEffect(() => {
-    if (!topology || !cached || !base.current) return;
+    if (!topology || !cached || !base.current || !baseTiles) return;
     const ctx = setup(base.current);
     if (!ctx) return;
     ctx.save();
     ctx.translate(view.x, view.y);
     ctx.scale(view.scale, view.scale);
+    if (layers.buildings) {
+      ctx.lineWidth = 0.7 / view.scale;
+      ctx.strokeStyle = appearance.land.buildingLine;
+      for (const tile of baseTiles.land) {
+        if (!tileOnScreen(tile, view, size.w, size.h)) continue;
+        for (const [key, path] of tile.batches) {
+          const [kind, tier] = key.split("|") as ["park" | "land", "small" | "medium" | "large"];
+          // Too small to see at this zoom: not drawn, as a map leaves out small buildings.
+          if (!tierShows(tier, view.scale)) continue;
+          ctx.fillStyle = kind === "park" ? appearance.land.park : appearance.land.land;
+          ctx.fill(path);
+          if (view.scale > 0.15) ctx.stroke(path);
+        }
+      }
+    }
+    ctx.strokeStyle = appearance.land.roadBed;
+    for (const tile of baseTiles.beds) {
+      if (!tileOnScreen(tile, view, size.w, size.h)) continue;
+      for (const [key, path] of tile.batches) {
+        ctx.lineWidth = (key === "wide" ? 5 : 3) / view.scale;
+        ctx.stroke(path);
+      }
+    }
+    ctx.restore();
+  }, [topology, cached, baseTiles, view, size, layers.buildings, appearanceKey]); // Static geography never depends on a simulation tick.
+
+  // The camera is moving: names wait until it stops, as they do on any good map.
+  const lastView = useRef(view);
+  const [settled, setSettled] = useState(0);
+  // Roads, names, markers and signals. They change with a snapshot or the camera, so they
+  // are drawn once for each, not on every frame of the flow markers above them.
+  useEffect(() => {
+    if (!topology || !cached || !slow.current) return;
+    const ctx = setup(slow.current);
+    if (!ctx) return;
+    const moving = lastView.current !== view;
+    lastView.current = view;
+    const screen = (p: Point) => ({ x: p.x_m * view.scale + view.x, y: -p.y_m * view.scale + view.y });
+    ctx.save();
+    ctx.translate(view.x, view.y);
+    ctx.scale(view.scale, view.scale);
+    ctx.lineCap = "round";
+    for (const tile of roadTiles) {
+      if (!tileOnScreen(tile, view, size.w, size.h)) continue;
+      for (const [key, path] of tile.batches) {
+        const [status, weight] = key.split("|");
+        if (view.scale < 0.12 && (weight === "minor" || weight === "service")) continue;
+        if (view.scale < 0.2 && weight === "service") continue;
+        ctx.strokeStyle = status === "neutral" ? appearance.land.neutralRoad : stateColors[status as keyof typeof stateColors];
+        ctx.globalAlpha = weight === "service" ? 0.45 : 0.83;
+        ctx.lineWidth = (weight === "major" ? 2.5 : 1.3) / view.scale;
+        ctx.stroke(path);
+      }
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    ctx.font = "10px Inter";
+    if (layers.labels && !moving) {
+      const cells = new Set<string>();
+      let written = 0;
+      ctx.fillStyle = appearance.land.label;
+      for (const { e, i } of nameOrder) {
+        if (written >= STREET_NAME_BUDGET) break;
+        if (!streetNameShows(e.road_class, view.scale) || !visible(cached.roads[i])) continue;
+        const a = screen(e.geometry[0]),
+          b = screen(e.geometry[e.geometry.length - 1]);
+        if (Math.hypot(b.x - a.x, b.y - a.y) < 65) continue;
+        const x = (a.x + b.x) / 2,
+          y = (a.y + b.y) / 2,
+          cell = `${Math.floor(x / 120)},${Math.floor(y / 35)}`;
+        if (cells.has(cell)) continue;
+        cells.add(cell);
+        written++;
+        ctx.fillText(e.name.slice(0, 30), x + 5, y - 5);
+      }
+    }
+    const poiCells = new Set<string>();
+    const nameCells = new Set<string>();
+    const cellSize = view.scale < 0.3 ? 44 : 28;
+    let shownNames = 0;
+    markerHits.current.length = 0;
     if (layers.buildings)
       topology.features.forEach((f, i) => {
-        const g = cached.features[i];
-        if (!f.polygon || !visible(g)) return;
-        ctx.fillStyle = [
-          "park",
-          "grass",
-          "forest",
-          "recreation_ground",
-        ].includes(f.category)
-          ? appearance.land.park
-          : appearance.land.land;
-        ctx.strokeStyle = appearance.land.buildingLine;
-        ctx.lineWidth = 0.7 / view.scale;
-        ctx.fill(g.path);
-        if (view.scale > 0.15) ctx.stroke(g.path);
+        if (markerHits.current.length >= MARKER_BUDGET || !visible(cached.features[i])) return;
+        const demand = state.demand.get(f.id);
+        const kind = kinds[i];
+        if (kind.group === "other" && !layers.other_places) return;
+        // A kind absent from the record is drawn, so a kind added to the
+        // taxonomy shows up without anyone having to opt in to it.
+        if (places[kind.id] === false) return;
+        // Zoomed out, keep only the landmarks that orient the operator and
+        // anything currently drawing traffic.
+        const landmark = LANDMARKS.has(kind.id);
+        if (view.scale < 0.65 && !demand?.active && !landmark) return;
+        if (!hasMarker(f)) return;
+        const p = screen(f.position);
+        const cell = `${Math.floor(p.x / cellSize)},${Math.floor(p.y / cellSize)}`;
+        if (poiCells.has(cell)) return;
+        poiCells.add(cell);
+        markerHits.current.push({ x: p.x, y: p.y, index: i });
+        // Modelled places carry the demand ramp: white at rest, warming
+        // through amber to red at peak, then cooling back the same way.
+        const multiplier = demand?.multiplier ?? 1;
+        // Demand exists only where the core models it for this feature.
+        const warm = !!demand && multiplier > 1.01;
+        const tint = warm ? demandColor(multiplier) : appearance.land.marker;
+        ctx.fillStyle = tint;
+        ctx.strokeStyle = warm ? tint : appearance.land.markerLine;
+        ctx.lineWidth = warm ? 1.6 : 1.2;
+        ctx.beginPath();
+        ctx.roundRect(p.x - 8, p.y - 8, 16, 16, 5);
+        ctx.fill();
+        ctx.stroke();
+        // Keep the glyph readable against whatever the ramp produced.
+        const ink = warm && multiplier > 1.35 ? "#071420" : warm ? "#31210a" : appearance.land.markerInk;
+        const glyph = canvasGlyph(kind.id);
+        if (glyph) {
+          // The glyphs are drawn in the icon set's 24-unit box; scale that
+          // box onto the marker so the map and the legend show one shape.
+          ctx.save();
+          ctx.translate(p.x - 7, p.y - 7);
+          ctx.scale(14 / 24, 14 / 24);
+          ctx.strokeStyle = ink;
+          ctx.lineWidth = 2.6;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          for (const path of glyph) ctx.stroke(path);
+          ctx.restore();
+        } else {
+          // No Path2D here: a dot still says a place is present.
+          ctx.fillStyle = ink;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.font = "bold 10px Inter";
+        ctx.textAlign = "start";
+        if (layers.place_names && !moving && f.name && shownNames < PLACE_NAME_BUDGET && placeNameShows(landmark, view.scale)) {
+          const nameCell = `${Math.floor(p.x / 110)},${Math.floor(p.y / 18)}`;
+          if (!nameCells.has(nameCell)) {
+            nameCells.add(nameCell);
+            shownNames++;
+            ctx.fillStyle = appearance.land.label;
+            ctx.fillText(f.name.slice(0, 24), p.x + 12, p.y + 3);
+          }
+        }
       });
-    topology.edges.forEach((e, i) => {
-      if (e.synthetic_reverse || !visible(cached.roads[i])) return;
-      ctx.strokeStyle = appearance.land.roadBed;
-      ctx.lineWidth = (e.road_class === "primary" ? 5 : 3) / view.scale;
-      ctx.stroke(cached.roads[i].path);
-    });
-    ctx.restore();
-  }, [topology, cached, view, size, layers.buildings, appearanceKey]); // Static geography never depends on a simulation tick.
+      if (layers.signals && view.scale > 0.15)
+        for (const signal of snapshot?.signals ?? []) {
+          const node = topology.nodes[signal.junction_id];
+          if (!node) continue;
+          const p = screen(node.position);
+          if (p.x < 0 || p.x > size.w || p.y < 0 || p.y > size.h) continue;
+          ctx.fillStyle = appearance.land.signal;
+          ctx.fillRect(p.x - 5, p.y - 7, 17, 12);
+          [signal.group_a, signal.group_b].forEach((s, i) => {
+            ctx.fillStyle = signal.enabled
+              ? s === "green"
+                ? stateColors.clear
+                : s === "amber"
+                  ? stateColors.moderate
+                  : stateColors.severe
+              : "#647681";
+            ctx.beginPath();
+            ctx.arc(p.x + i * 7, p.y - 1, 2.7, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        }
+    if (moving) {
+      const timer = setTimeout(() => setSettled((n) => n + 1), 140);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topology, cached, roadTiles, nameOrder, state, snapshot, view, size, layers, places, appearanceKey, settled]);
+
+  // What actually moves between snapshots: rain, the pulse on incidents and flow markers.
   useEffect(() => {
     if (!topology || !cached || !dynamic.current) return;
     let frame = 0;
@@ -304,39 +500,6 @@ function NetworkMap({
         x: p.x_m * view.scale + view.x,
         y: -p.y_m * view.scale + view.y,
       });
-      ctx.save();
-      ctx.translate(view.x, view.y);
-      ctx.scale(view.scale, view.scale);
-      ctx.lineCap = "round";
-      if (layers.roads)
-      topology.edges.forEach((e, i) => {
-        if (e.synthetic_reverse || !visible(cached.roads[i])) return;
-        if (
-          view.scale < 0.12 &&
-          !["primary", "motorway", "secondary", "tertiary"].includes(
-            e.road_class,
-          )
-        )
-          return;
-        const s = state.edges.get(e.id);
-        let status = roadState(s);
-        if (status === "flooded" && !layers.flooding)
-          status = s?.closed
-            ? "blocked"
-            : s && s.congestion > 0.7
-              ? "severe"
-              : s && s.congestion > 0.35
-                ? "moderate"
-                : "clear";
-        ctx.strokeStyle = layers.traffic ? stateColors[status] : appearance.land.neutralRoad;
-        ctx.globalAlpha = e.road_class === "service" ? 0.45 : 0.83;
-        ctx.lineWidth =
-          (["primary", "motorway"].includes(e.road_class) ? 2.5 : 1.3) /
-          view.scale;
-        ctx.stroke(cached.roads[i].path);
-      });
-      ctx.restore();
-      ctx.globalAlpha = 1;
       // Rain cells move, grow and fade on springs, between the core's once-a-second states.
       const paintedAt = performance.now();
       const rainNow = stepRainCells(rain.current, snapshot?.active_weather ?? [], reduceMotion ? 1000 : Math.min(0.05, (paintedAt - lastPaint.current) / 1000));
@@ -404,111 +567,6 @@ function NetworkMap({
           ctx.font = "10px Inter";
           ctx.fillText(`Rain ${(w.intensity * 100).toFixed(0)}%`, x + 8, y - r - 6);
         }
-      const labels = new Set<string>();
-      ctx.font = "10px Inter";
-      if (layers.labels && view.scale > 0.3)
-        topology.edges.forEach((e, i) => {
-          if (!e.name || e.synthetic_reverse || !visible(cached.roads[i]))
-            return;
-          const a = screen(e.geometry[0]),
-            b = screen(e.geometry[e.geometry.length - 1]);
-          if (Math.hypot(b.x - a.x, b.y - a.y) < 65) return;
-          const x = (a.x + b.x) / 2,
-            y = (a.y + b.y) / 2,
-            cell = `${Math.floor(x / 120)},${Math.floor(y / 35)}`;
-          if (labels.has(cell)) return;
-          labels.add(cell);
-          ctx.fillStyle = appearance.land.label;
-          ctx.fillText(e.name.slice(0, 30), x + 5, y - 5);
-        });
-      const poiCells = new Set<string>();
-      markerHits.current.length = 0;
-      if (layers.buildings)
-        topology.features.forEach((f, i) => {
-          if (!visible(cached.features[i])) return;
-          const demand = state.demand.get(f.id);
-          const kind = kinds[i];
-          if (kind.group === "other" && !layers.other_places) return;
-          // A kind absent from the record is drawn, so a kind added to the
-          // taxonomy shows up without anyone having to opt in to it.
-          if (places[kind.id] === false) return;
-          // Zoomed out, keep only the landmarks that orient the operator and
-          // anything currently drawing traffic.
-          if (
-            view.scale < 0.65 &&
-            !demand?.active &&
-            !LANDMARKS.has(kind.id)
-          )
-            return;
-          if (!hasMarker(f)) return;
-          const p = screen(f.position);
-          const cell = `${Math.floor(p.x / 28)},${Math.floor(p.y / 28)}`;
-          if (poiCells.has(cell)) return;
-          poiCells.add(cell);
-          markerHits.current.push({ x: p.x, y: p.y, index: i });
-          // Modelled places carry the demand ramp: white at rest, warming
-          // through amber to red at peak, then cooling back the same way.
-          const multiplier = demand?.multiplier ?? 1;
-          // Demand exists only where the core models it for this feature.
-          const warm = !!demand && multiplier > 1.01;
-          const tint = warm ? demandColor(multiplier) : appearance.land.marker;
-          ctx.fillStyle = tint;
-          ctx.strokeStyle = warm ? tint : appearance.land.markerLine;
-          ctx.lineWidth = warm ? 1.6 : 1.2;
-          ctx.beginPath();
-          ctx.roundRect(p.x - 8, p.y - 8, 16, 16, 5);
-          ctx.fill();
-          ctx.stroke();
-          // Keep the glyph readable against whatever the ramp produced.
-          const ink = warm && multiplier > 1.35 ? "#071420" : warm ? "#31210a" : appearance.land.markerInk;
-          const glyph = canvasGlyph(kind.id);
-          if (glyph) {
-            // The glyphs are drawn in the icon set's 24-unit box; scale that
-            // box onto the marker so the map and the legend show one shape.
-            ctx.save();
-            ctx.translate(p.x - 7, p.y - 7);
-            ctx.scale(14 / 24, 14 / 24);
-            ctx.strokeStyle = ink;
-            ctx.lineWidth = 2.6;
-            ctx.lineCap = "round";
-            ctx.lineJoin = "round";
-            for (const path of glyph) ctx.stroke(path);
-            ctx.restore();
-          } else {
-            // No Path2D here: a dot still says a place is present.
-            ctx.fillStyle = ink;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          ctx.font = "bold 10px Inter";
-          ctx.textAlign = "start";
-          if (layers.place_names && view.scale > 1 && f.name) {
-            ctx.fillStyle = appearance.land.label;
-            ctx.fillText(f.name.slice(0, 24), p.x + 12, p.y + 3);
-          }
-        });
-      if (layers.signals && view.scale > 0.15)
-        for (const signal of snapshot?.signals ?? []) {
-          const node = topology.nodes[signal.junction_id];
-          if (!node) continue;
-          const p = screen(node.position);
-          if (p.x < 0 || p.x > size.w || p.y < 0 || p.y > size.h) continue;
-          ctx.fillStyle = appearance.land.signal;
-          ctx.fillRect(p.x - 5, p.y - 7, 17, 12);
-          [signal.group_a, signal.group_b].forEach((s, i) => {
-            ctx.fillStyle = signal.enabled
-              ? s === "green"
-                ? stateColors.clear
-                : s === "amber"
-                  ? stateColors.moderate
-                  : stateColors.severe
-              : "#647681";
-            ctx.beginPath();
-            ctx.arc(p.x + i * 7, p.y - 1, 2.7, 0, Math.PI * 2);
-            ctx.fill();
-          });
-        }
       if (layers.events || layers.incidents)
         for (const inc of snapshot?.active_incidents ?? []) {
           const e = topology.edges[inc.edge_id];
@@ -558,7 +616,7 @@ function NetworkMap({
       // Above roughly 10x real time individual markers move further than they
       // are wide each frame, so they read as noise. Spend the budget on fewer,
       // and let the measured cost pull it down further on heavy scenes.
-      const rateFactor = tickRate <= 4 ? 1 : tickRate <= 20 ? 0.6 : 0.3;
+      const rateFactor = tickRate <= 4 ? 1 : tickRate <= 10 ? 0.6 : 0.3;
       const markerBudget = Math.round(1500 * quality.current * rateFactor);
       if (layers.vehicles && !reduceMotion && view.scale > 0.25 && markerBudget > 0) {
         let count = 0;
@@ -604,7 +662,7 @@ function NetworkMap({
       // this effect, and rain on a spring asks for every frame.
       const moving = rainNow.some((cell) => cell.moving);
       if (moving) frame = requestAnimationFrame(draw);
-      else if (running && !reduceMotion) frame = requestAnimationFrame(() => (frame = requestAnimationFrame(draw)));
+      else if (running && !reduceMotion && (layers.vehicles || (snapshot?.active_incidents.length ?? 0) > 0)) frame = requestAnimationFrame(() => (frame = requestAnimationFrame(draw)));
     };
     draw();
     return () => cancelAnimationFrame(frame);
@@ -1127,6 +1185,7 @@ function NetworkMap({
   return (
     <div className="network-map" ref={host}>
       <canvas ref={base} className="map-canvas static-map" aria-hidden="true" />
+      <canvas ref={slow} className="map-canvas map-slow" aria-hidden="true" />
       <canvas
         ref={dynamic}
         className="map-canvas"

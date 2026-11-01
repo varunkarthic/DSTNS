@@ -19,27 +19,34 @@ import { stepSpring } from "./motion";
 
 const COUNT = 24000;
 const STRIDE = 7; // x y z, vx vy vz, tint
-const HOLD_S = 4.6;
+const HOLD_S = 3.6;
 const MORPH = { k: 11, c: 5.6 };
+// Going to and from the logo and the map are timed, not sprung: an ease in and out has no
+// sudden start, which is what makes particles leaving a shape feel soft.
+const DISSOLVE_S = 2.1;
+const LAND_S = 1.35;
+const easeInOut = (t: number) => {
+  const x = Math.max(0, Math.min(1, t));
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+};
 const CAMERA = { k: 9, c: 6 };
-// Handing over to the map: quick enough not to keep anyone waiting, and no overshoot.
-const LAND = { k: 20, c: 9 };
 /** How long the handover takes. The surface stays mounted this long. */
-export const LANDING_MS = 1500;
+export const LANDING_MS = 2300;
 // With nothing to do, the network rests dimly, out of the way of what is on screen.
 const REST_DIM = 0.14;
 // How long the particles stand on the logo before letting go, while it fades.
-const DISSOLVE_HOLD_S = 0.55;
+const DISSOLVE_HOLD_S = 0.6;
 
-// One or two words and one short line, with no commas: a viewer gets a few seconds with each.
+// One or two words and one short line, with no commas. Nothing here may suggest it is
+// happening now or for real: it is a simulation, and these are its features.
 export const FILM_CHAPTERS: readonly { label: string; title: string; text: string }[] = [
-  { label: "Deterministic Spatiotemporal Transport Network Simulator", title: "Real traffic", text: "A full day in a real city." },
-  { label: "Networks", title: "Real streets", text: "Every district comes from OpenStreetMap." },
-  { label: "Signals", title: "Live signals", text: "Every junction runs its own schedule." },
-  { label: "Demand", title: "City demand", text: "Every school and office draws trips." },
-  { label: "Rhythm", title: "Rush hour", text: "Demand rises and falls through the day." },
-  { label: "Physics", title: "Exact physics", text: "One-second steps at any playback speed." },
-  { label: "Environment", title: "Live weather", text: "Rain crosses the city and roads flood." },
+  { label: "Deterministic Spatiotemporal Transport Network Simulator", title: "Traffic simulation", text: "A full simulated day in one district." },
+  { label: "Networks", title: "Mapped streets", text: "Every district comes from OpenStreetMap." },
+  { label: "Signals", title: "Signal timing", text: "Every junction runs its own schedule." },
+  { label: "Demand", title: "Travel demand", text: "Every school and office draws trips." },
+  { label: "Rhythm", title: "Rush hour", text: "Modelled demand rises and falls through the day." },
+  { label: "Physics", title: "Fixed steps", text: "One-second steps at any playback speed." },
+  { label: "Environment", title: "Simulated weather", text: "Rain cells cross the district and roads flood." },
   { label: "Places", title: "Cities worldwide", text: "A seed chooses the district." },
   { label: "Reproducibility", title: "One seed", text: "The same day on any machine." },
   { label: "Camera", title: "Auto Focus", text: "The camera follows what matters." },
@@ -123,23 +130,32 @@ function buildFormations(): Float32Array[] {
         else put(i, road.x, (random() - 0.5) * 0.006, road.z, 0, 0, 0, 0.18);
       }
     }, 12),
-    // Signals: a light above each junction, with a pulse going out from it.
+    // Signals: traffic waiting at each junction, thinning away from the stop line, with
+    // the rest of the road moving and one small light over the junction.
     formation((put, random) => {
-      const junctions = [...new Map(roads.flatMap(([ax, az, bx, bz]) => [[`${ax},${az}`, [ax, az]], [`${bx},${bz}`, [bx, bz]]] as [string, number[]][])).values()];
       for (let i = 0; i < COUNT; i++) {
-        if (i % 3 === 0) {
-          const road = onRoad(random);
-          put(i, road.x, 0, road.z, 0, 0, 0, 0.1);
-          continue;
-        }
-        const [x, z] = junctions[i % junctions.length];
-        if (i % 3 === 1) {
-          const lamp = random();
-          if (lamp < 0.35) put(i, x, random() * 0.11, z, 0, 0, 0, 0.25);
-          else put(i, x + (random() - 0.5) * 0.018, 0.115 + (random() - 0.5) * 0.018, z + (random() - 0.5) * 0.018, 0, 0, 0, 1);
+        const [ax, az, bx, bz] = roads[Math.floor(random() * roads.length)];
+        const kind = i % 10;
+        if (kind < 2) {
+          const t = random();
+          put(i, ax + (bx - ax) * t, 0, az + (bz - az) * t, 0, 0, 0, 0.1);
+        } else if (kind < 7) {
+          // A queue: dense at the stop line, and thinning as it goes back along the road.
+          const back = Math.pow(random(), 2.4) * 0.42;
+          const towardsB = i % 2 === 0;
+          const t = towardsB ? 1 - 0.035 - back : 0.035 + back;
+          const side = (random() - 0.5) * 0.012;
+          put(i, ax + (bx - ax) * t + side, 0.012, az + (bz - az) * t - side, 0, 0, 0, 0.8 - back);
+        } else if (kind < 9) {
+          // Traffic that has the green, moving through.
+          if (i % 2) put(i, ax, 0.012, az, bx - ax, 0, bz - az, 0.55);
+          else put(i, bx, 0.012, bz, ax - bx, 0, az - bz, 0.55);
         } else {
+          // The light, small and steady, just above the junction.
+          const [x, z] = i % 20 < 10 ? [ax, az] : [bx, bz];
           const a = random() * Math.PI * 2;
-          put(i, x, 0.005, z, Math.cos(a) * 0.14, 0, Math.sin(a) * 0.14, 0.55);
+          const r = Math.pow(random(), 1.5) * 0.011;
+          put(i, x + Math.cos(a) * r, 0.05 + (random() - 0.5) * 0.012, z + Math.sin(a) * r, 0, 0, 0, 1);
         }
       }
     }, 21),
@@ -456,7 +472,7 @@ function rgb(value: string, fallback: [number, number, number]): [number, number
   return parts.length >= 3 && parts.every(Number.isFinite) ? [parts[0] / 255, parts[1] / 255, parts[2] / 255] : fallback;
 }
 
-export function BootScene({ playing, asleep = false, closing = false, landing, reduceMotion }: {
+export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, onCycle, reduceMotion }: {
   /** The film runs; otherwise the network rests dimly behind whatever is on screen. */
   playing: boolean;
   /** Nothing is drawn yet, because the title has the screen. */
@@ -464,6 +480,10 @@ export function BootScene({ playing, asleep = false, closing = false, landing, r
   closing?: boolean;
   /** Where the map has drawn its roads, asked for once the surface starts to close. */
   landing?: () => Float32Array | null;
+  /** The server has stopped: particles leave the roads, form the name once, and rest. */
+  ending?: boolean;
+  /** The film has shown every scene once. */
+  onCycle?: () => void;
   reduceMotion: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -472,6 +492,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, r
   playingRef.current = playing;
   const closingRef = useRef(closing);
   closingRef.current = closing;
+  const cycleRef = useRef(onCycle);
+  cycleRef.current = onCycle;
   const asleepRef = useRef(asleep);
   asleepRef.current = asleep;
   const landingRef = useRef(landing);
@@ -483,7 +505,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, r
     let timer: ReturnType<typeof setInterval> | undefined;
     const advanceCaption = () => setChapter((c) => (c + 1) % FILM_CHAPTERS.length);
     if (!element || !gl) {
-      // No particles, but the film's words still play.
+      // No film to sit through, then. Its words still play if there is a wait.
+      cycleRef.current?.();
       if (!reduceMotion) timer = setInterval(() => playingRef.current && advanceCaption(), HOLD_S * 1000);
       return () => clearInterval(timer);
     }
@@ -550,7 +573,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, r
       scenes.push(buffer);
       wordmark = scenes.length - 1;
       // A film already under way, and still on its opening, gathers into the wordmark now.
-      if (reduceMotion || !started || scene !== 0) return;
+      if (reduceMotion || !started || scene !== 0 || ending) return;
       to = wordmark;
       bind(from, to);
       blend = 0;
@@ -598,6 +621,9 @@ export function BootScene({ playing, asleep = false, closing = false, landing, r
     let landing = 0;
     let landingVelocity = 0;
     let landed = false; // Whether the particles have somewhere to land.
+    let landedFrom = 0;
+    let endScattered = false;
+    let endStart = 0;
     let closingFor = -1;
     let blend = 1;
     let velocity = 0;
@@ -605,7 +631,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, r
     let held = 0;
     let time = 0;
     let frame = 0;
-    let dim = asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM;
+    let dim = asleepRef.current || ending ? 0 : playingRef.current ? 1 : REST_DIM;
     let strength = 1;
     let count = COUNT;
     let slow = 0;
@@ -629,6 +655,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, r
     }
     const next = (restTo?: number) => {
       const after = restTo ?? (scene + 1) % FILM_CHAPTERS.length;
+      if (restTo === undefined && after === 0) cycleRef.current?.();
       const buffer = (chapterIndex: number) => (chapterIndex === 0 ? (wordmark >= 0 ? wordmark : 0) : chapterIndex);
       from = to;
       to = buffer(after);
@@ -666,17 +693,56 @@ export function BootScene({ playing, asleep = false, closing = false, landing, r
           gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
           gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
           landed = true;
+          dissolving = false;
+          landedFrom = 0;
+          landing = 0;
         }
       }
       if (closingFor >= 0) closingFor += dt;
-      if (landed) [landing, landingVelocity] = stepSpring(landing, landingVelocity, 1, LAND, dt);
-      else if (dissolving && held > DISSOLVE_HOLD_S) {
-        [landing, landingVelocity] = stepSpring(landing, landingVelocity, 0, MORPH, dt);
-        if (landing < 0.001) dissolving = false;
+      if (landed) landing = Math.max(landedFrom, easeInOut(closingFor / LAND_S));
+      else if (dissolving) {
+        landing = 1 - easeInOut((held - DISSOLVE_HOLD_S) / DISSOLVE_S);
+        if (landing <= 0.0001) {
+          landing = 0;
+          dissolving = false;
+        }
+      } else if (ending && started) {
+        // The end, simply: off the roads into the name, and then it drifts apart and rests.
+        const t = now / 1000 - endStart;
+        landing = 1 - easeInOut((t - 0.5) / 2.2);
+        if (t > 4.2 && !endScattered) {
+          endScattered = true;
+          from = to;
+          to = 0;
+          bind(from, to);
+          blend = 0;
+          velocity = 0;
+        }
+        if (t > 9) {
+          paint();
+          return; // Nothing else will happen here, so nothing else is spent.
+        }
       }
       // Having landed, they give way to the map's own roads.
-      const dimTo = landed ? (closingFor > 0.85 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM;
-      dim += (dimTo - dim) * Math.min(1, dt * (landed ? 7 : dissolving ? 6 : playingRef.current && !closingRef.current ? 2.4 : 8));
+      const endingDim = ending ? (now / 1000 - endStart > 4.6 ? REST_DIM : 1) : null;
+      const dimTo = endingDim ?? (landed ? (closingFor > LAND_S + 0.1 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM);
+      dim += (dimTo - dim) * Math.min(1, dt * (ending ? 1.6 : landed ? 4 : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
+      if (ending && !started && wordmark >= 0) {
+        // Starts standing on the map's roads, wherever they are, and gathers into the name.
+        started = true;
+        endStart = now / 1000;
+        const points = landingRef.current?.();
+        from = wordmark;
+        to = wordmark;
+        bind(from, to);
+        blend = 1;
+        if (points) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
+          landing = 1;
+        }
+        dim = 0;
+      }
       if (playingRef.current) {
         if (!started) {
           // The film opens by gathering the cloud into the wordmark.
@@ -708,7 +774,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, r
           }
         }
         if (held > HOLD_S && !closingRef.current) next();
-      } else if (!asleepRef.current && scene !== 1) {
+      } else if (!asleepRef.current && !ending && scene !== 1) {
         next(1);
       }
       paint();
@@ -772,7 +838,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, r
       document.removeEventListener("visibilitychange", onVisibility);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
-  }, [reduceMotion]);
+  }, [reduceMotion, ending]);
 
   const shown = FILM_CHAPTERS[playing ? chapter : 0];
   return (

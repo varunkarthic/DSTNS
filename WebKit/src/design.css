@@ -145,10 +145,6 @@ html[data-theme="light"],
   display: none;
 }
 
-/* Stretched past its end, a scrolling region's content gives; see resistance.ts. */
-[data-edge] > * {
-  transform: translate3d(var(--edge-x, 0), var(--edge-y, 0), 0);
-}
 
 /* ---- Badges -------------------------------------------------------------- */
 
@@ -1922,7 +1918,6 @@ html, body, #root {
 .lower-hud .capsule-slot { height: 40px; }
 .capsule-slot.empty .hud-pill { height: 40px; box-sizing: border-box; }
 .lower-hud .capsule-head { min-height: 40px; height: 40px; }
-.lower-hud .capsule:not(.open) { height: 40px; }
 .lower-hud .hud-pill { box-sizing: border-box; height: 40px; }
 /* Inline wrappers left a line-height gap under some pills; every pill sits on one line. */
 .lower-hud { align-items: stretch; height: 40px; }
@@ -1957,8 +1952,6 @@ html, body, #root {
 .brand .dstns-logo { display: block; }
 
 /* ---- Notifications: closed is the head and nothing else ---------------------------------------- */
-.capsule:not(.open) .capsule-body-inner { padding-block: 0; max-height: 0; }
-.capsule-body-inner { transition-property: filter, transform, padding, max-height; }
 .lower-hud .capsule:not(.open) { overflow: hidden; }
 
 /* Technical details open the way the card opens, and hovering them only changes the ink. */
@@ -2462,3 +2455,50 @@ html, body, #root {
 .tab-row { display: flex; gap: 0; padding-inline: 2px; }
 .tab-row button { flex: 1 1 auto; min-width: 0; padding-inline: 6px; white-space: nowrap; justify-content: center; }
 .tab-row .count { margin-left: 3px; min-width: 0; padding-inline: 4px; font-size: 9.5px; }
+
+/* ---- Scrolling belongs to the browser ------------------------------------------------------------ */
+html, body { overflow: hidden; overscroll-behavior: none; }
+* { overscroll-behavior: none; }
+
+/* ---- Notifications: closing has no bounce, and nothing leaves the card ---------------------------- */
+.capsule-body-inner, .capsule.open .capsule-body-inner { padding: 0; transition: opacity var(--motion-fade-ms, 200ms) var(--motion-fade, ease-out); }
+.capsule-pad { padding: 14px 16px 4px; }
+.capsule:not(.open) .capsule-body-inner { padding: 0; filter: none; transform: none; mask-image: none; opacity: 0; }
+.capsule-body { overflow: hidden; transition: grid-template-rows var(--motion-expand-ms, 300ms) var(--motion-expand, ease-out); }
+.capsule:not(.open) .capsule-body { transition: grid-template-rows 280ms cubic-bezier(0.3, 0, 0.2, 1); }
+.capsule:not(.open) .capsule-body-inner { transition: opacity 70ms ease-out; }
+
+/* ---- Collapsed telemetry: one size of hover, and room between ------------------------------------- */
+.deck-strip { --strip-item: 38px; gap: 6px; padding-block: 8px; }
+.strip-expand, .strip-fabric, .strip-view, .strip-metric { width: 38px; height: 38px; margin-inline: auto; border-radius: var(--r-sm); }
+.strip-overview { width: 38px; margin-inline: auto; padding: 0; gap: 6px; }
+.strip-metric { pointer-events: none; }
+.strip-overview .strip-metric:hover { background: none; }
+
+/* ---- Settings: the reset sits with what comes before it ------------------------------------------ */
+.settings-scroll > .settings-action { margin-top: 0; }
+
+/* ---- Auto Focus: the fluid panel's content -------------------------------------------------------- */
+.fluid-panel.focus-panel .fluid-content { padding: 10px; }
+.focus-menu { display: block; }
+
+/* ---- Handing over to the map: slower background, so it is seen happening -------------------------- */
+.loading-surface.boot.landing::before { transition: opacity 950ms var(--ease) 520ms; }
+.boot-title-logo { transition: opacity 1000ms ease-in-out 120ms; }
+
+/* ---- The end ------------------------------------------------------------------------------------- */
+.loading-surface.boot.ending::before { animation: end-cover 900ms var(--ease) both; }
+@keyframes end-cover { from { opacity: 0; } }
+.loading-surface.ending .loading-card { position: absolute; left: 50%; bottom: 72px; top: auto; transform: translateX(-50%); width: min(520px, calc(100% - 48px)); margin: 0; padding: 0; background: none; border: 0; box-shadow: none; text-align: center; animation: end-text 800ms var(--ease) 2.4s both; }
+.loading-surface.ending .loading-mark { display: none; }
+@keyframes end-text { from { opacity: 0; transform: translate(-50%, 8px); } }
+.loading-surface.still.ending .loading-card, .loading-surface.still.ending::before { animation: none; }
+.capsule-body, .capsule.open .capsule-body, .capsule:not(.open) .capsule-body { opacity: 1; }
+/* The text is gone before the card moves much, so it closes empty and nothing drifts. */
+.capsule-body-inner { min-height: 0; }
+.capsule.open .capsule-body-inner { transition: opacity 180ms ease-out 70ms; }
+.capsule-body-inner { max-height: min(58vh, 460px); }
+.capsule-body { grid-template-rows: minmax(0, 0fr); }
+.capsule.open .capsule-body { grid-template-rows: minmax(0, 1fr); }
+/* Within its 1px border, so a closed notification is the same 40px as the rest of the row. */
+.lower-hud .capsule-head { height: 38px; min-height: 38px; }

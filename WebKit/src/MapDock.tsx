@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { Icon, ActionIcon, MotionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
-import { Floating, useDismiss } from "./Popover";
+import { useDismiss } from "./Popover";
 import { Switch } from "./settingsControls";
 import type { AutoFocusStrategy } from "./uiConfig";
 import type { MapFeature } from "./types";
@@ -161,13 +161,16 @@ export function MapDock(props: MapDockProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const dockRef = useRef<HTMLDivElement>(null);
   const focusButton = useRef<HTMLButtonElement>(null);
-  const focusMenu = useRef<HTMLDivElement>(null);
+  const focusMenu = useRef<HTMLElement>(null);
   // Tell a double click from two singles without delaying the toggle much.
   const clickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // One secondary panel at a time.
   useEffect(() => {
-    if (props.settingsOpen) setSearchOpen(false);
+    if (props.settingsOpen) {
+      setSearchOpen(false);
+      setMenuOpen(false);
+    }
   }, [props.settingsOpen]);
 
   useDismiss(menuOpen, () => setMenuOpen(false), [focusButton, focusMenu]);
@@ -221,6 +224,7 @@ export function MapDock(props: MapDockProps) {
       >
         <button
           ref={focusButton}
+          data-focus-trigger
           data-tutorial="focus"
           aria-label="Auto Focus on live events"
           aria-pressed={props.autoFocus}
@@ -292,7 +296,8 @@ export function MapDock(props: MapDockProps) {
       </Tooltip>
 
     </nav>
-    <Floating anchor={focusButton} open={menuOpen} preferred={["right"]} className="focus-menu" panelRef={focusMenu} role="menu" label="Auto Focus order">
+    <FluidPanel ref={focusMenu} open={menuOpen} anchor="[data-focus-trigger]" label="Auto Focus order" className="focus-panel" width={272} fitHeight={232} reduceMotion={props.reduceMotion}>
+      <div className="focus-menu" role="menu" aria-label="Auto Focus order">
       <header className="focus-menu-head">
         <span>
           <Icon name="focus" size={16} />
@@ -325,7 +330,8 @@ export function MapDock(props: MapDockProps) {
           {props.strategy === value && <Icon name="check" size={14} strokeWidth={2.2} />}
         </button>
       ))}
-    </Floating>
+      </div>
+    </FluidPanel>
     <FluidPanel open={searchOpen} anchor="[data-search-trigger]" label="Search places" className="search-panel" width={372} reduceMotion={props.reduceMotion}>
       <PlaceSearch
         open={searchOpen}

@@ -72,6 +72,8 @@ export function LoadingSurface({
   aside,
   landing,
   phase = "film",
+  ending = false,
+  onFilmCycle,
 }: {
   /** "boot" covers the screen; "overlay" floats a card over the dimmed map. */
   mode: "boot" | "overlay";
@@ -102,6 +104,9 @@ export function LoadingSurface({
   landing?: () => Float32Array | null;
   /** How far the opening has got: nothing, then the title, then the film. */
   phase?: BootPhase;
+  /** The end of a session, with its own short version of the film. */
+  ending?: boolean;
+  onFilmCycle?: () => void;
 }) {
   // The wordmark hands over to the one in the header, so the screen resolves into
   // the interface instead of disappearing from in front of it.
@@ -203,7 +208,7 @@ export function LoadingSurface({
   return (
     <div
       ref={surface}
-      className={`loading-surface ${mode} phase-${film ? phase : "film"}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
+      className={`loading-surface ${mode} phase-${film ? phase : "film"}${ending ? " ending" : ""}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
       role={role}
       aria-modal={role === "alertdialog" ? true : undefined}
       aria-labelledby={titleId}
@@ -211,7 +216,7 @@ export function LoadingSurface({
       aria-live={role === "status" ? "polite" : undefined}
     >
       {mode === "boot" && (
-        <BootScene playing={film && phase === "film"} asleep={film && phase !== "film"} closing={closing} landing={landing} reduceMotion={reduceMotion} />
+        <BootScene playing={film && phase === "film"} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending} onCycle={onFilmCycle} reduceMotion={reduceMotion} />
       )}
       {film && <BootTitle phase={phase} />}
       {body}

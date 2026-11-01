@@ -191,8 +191,8 @@ Full operator control. Two responses, in order of cost:
 ### Restricted
 
 Entered when the default state did not restore synchronization. The rate is
-**locked at 1×** and **reduced motion is forced on**, both shown in the
-interface as locked rather than simply changed. Held for **at least 5 s**
+**locked at 1×** and **animation on the map stops**. The rest of the interface keeps its
+motion and stays usable: backpressure degrades what the map draws, not the controls around it. Held for **at least 5 s**
 regardless of how quickly things improve, so the system gets a genuine chance to
 settle before being judged again.
 

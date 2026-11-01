@@ -61,7 +61,7 @@ that shape says what they are.
 ## Dynamic Edge Resistance
 
 Whatever has a limit answers being pushed past it the same way: it follows at first, gives
-ever less the further it goes, up to a bound, and returns as soon as the push stops growing. That says "this
+ever less the further it goes, up to a bound of 12 px at most, and returns as soon as the push stops growing. It never blocks scrolling, which stays with the browser: a limit only adds one transform to the region as a whole. That says "this
 is the end" without a hard stop. `resistance.ts` holds it, using the curve Apple's scroll
 views use:
 

@@ -60,9 +60,9 @@ export function isdNote(condition: ISDCondition, figures: ISDFigures): ISDNote {
       };
     case "motion-locked":
       return {
-        title: "Reduced motion held on",
-        why: "Animation is the first thing given up when the interface falls behind.",
-        next: ["No action is needed. Your own setting returns once the interface recovers."],
+        title: "Map animation reduced",
+        why: "Animation on the map is the first thing given up when it falls behind. The rest of the interface is not affected.",
+        next: ["No action is needed. Map animation returns once it recovers."],
       };
     case "reduced-detail":
       return {

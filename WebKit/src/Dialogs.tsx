@@ -173,7 +173,6 @@ export function AboutCard({
         <nav className="about-links" aria-label="Links">
           <a href="https://github.com/varunkarthic/DSTNS" target="_blank" rel="noreferrer noopener"><Icon name="github" size={16} />GitHub</a>
           <a href="https://dstns.readthedocs.io/" target="_blank" rel="noreferrer noopener"><Icon name="book" size={16} />Documentation</a>
-          <a href="/api/v1/system/source"><Icon name="download" size={16} />Source offer</a>
           <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer noopener"><Icon name="external" size={16} />Map attribution</a>
         </nav>
       </header>

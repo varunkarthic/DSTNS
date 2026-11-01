@@ -153,6 +153,10 @@ private:
     double raw_score_{};
     bool seeded_{false};
     double cap_changed_at_{-1e9};
+    // Each release that has to be taken back waits longer before the next, so a machine
+    // that cannot sustain a speed settles rather than cycling in and out of it.
+    double release_hold_{kAsbRateHoldS};
+    double released_at_{-1e9};
     double stressed_since_{-1};
     double healthy_since_{-1};
     double state_entered_{};

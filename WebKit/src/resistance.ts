@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { animate, stepSpring } from "./motion";
+import { animate } from "./motion";
 
 /**
  * Dynamic Edge Resistance.
@@ -50,125 +50,114 @@ export function resistZoomOut(scale: number, fitScale: number): number {
 }
 
 const SCROLLING = /(auto|scroll)/;
-// Follows the pull closely, but smooths the steps a mouse wheel arrives in.
-const FOLLOW = { k: 5200, c: 144 };
-// How fast a stretch lets go, per second. A wheel has no release, and a trackpad goes
-// on sending events long after the fingers lift, so nothing waits for the input to
-// stop: the pull drains all the time, and the input only has to outrun it.
-const RELEASE = 42;
+// How far a region gives: subtle, and in proportion to it.
+const EDGE_LIMIT = 12;
+// How fast it lets go, per second, and how closely it follows the push.
+const RELEASE = 26;
+const FOLLOW = 42;
 
 function normalised(event: WheelEvent, page: number): [number, number] {
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? page : 1;
   return [event.deltaX * unit, event.deltaY * unit];
 }
 
-/** The region this wheel event should act on: the nearest one that scrolls that way. */
-function regionFor(start: Element | null, axis: "x" | "y"): HTMLElement | null {
-  let fallback: HTMLElement | null = null;
-  for (let el = start; el && el !== document.documentElement; el = el.parentElement) {
-    if (el.tagName === "IFRAME" || el.tagName === "TEXTAREA") return null;
+// A region's overflow does not change, so it is read once. Reading styles on every wheel
+// event would make scrolling wait for the page to finish whatever it is doing.
+const scrolls = new WeakMap<Element, { x: boolean; y: boolean }>();
+function overflowOf(el: Element) {
+  let known = scrolls.get(el);
+  if (!known) {
     const style = getComputedStyle(el);
-    if (!SCROLLING.test(axis === "y" ? style.overflowY : style.overflowX)) continue;
+    known = { x: SCROLLING.test(style.overflowX), y: SCROLLING.test(style.overflowY) };
+    scrolls.set(el, known);
+  }
+  return known;
+}
+
+/** The region this wheel event acts on: the nearest one that scrolls that way. */
+function regionFor(start: Element | null, axis: "x" | "y"): HTMLElement | null {
+  for (let el = start; el && el !== document.documentElement; el = el.parentElement) {
+    if (el.tagName === "IFRAME" || el.tagName === "TEXTAREA" || el.tagName === "CANVAS") return null;
+    if (!overflowOf(el)[axis]) continue;
     const html = el as HTMLElement;
     const room = axis === "y" ? html.scrollHeight - html.clientHeight : html.scrollWidth - html.clientWidth;
     if (room > 1) return html;
-    fallback ??= html;
   }
-  return fallback;
+  return null;
 }
 
-interface Stretch { axis: "x" | "y"; pull: number; x: number; v: number; cancel: (() => void) | null }
+interface Stretch { axis: "x" | "y"; pull: number; x: number; cancel: (() => void) | null }
 
 /**
- * Installs itself once, for every scrolling region now and later, so no menu has to
- * ask. It also holds the page itself still: nothing but a region under the pointer
- * ever scrolls.
+ * Installs itself once, for every scrolling region now and later.
+ *
+ * It only ever listens. Scrolling itself belongs to the browser and runs on the
+ * compositor, whatever the page is doing, so a busy map cannot make a list lag. All this
+ * adds, at a limit, is a small movement of the region as a whole: one compositor transform,
+ * touched only while it is moving.
  */
 export function installEdgeResistance(root: Document = document): () => void {
   const stretches = new WeakMap<HTMLElement, Stretch>();
   const reduced = () => root.documentElement.classList.contains("reduce-motion");
 
-  const paint = (el: HTMLElement, s: Stretch) => {
-    if (Math.abs(s.x) < 0.05 && !s.pull) {
-      el.removeAttribute("data-edge");
-      el.style.removeProperty("--edge-x");
-      el.style.removeProperty("--edge-y");
-      return;
-    }
-    el.setAttribute("data-edge", "");
-    el.style.setProperty(s.axis === "y" ? "--edge-y" : "--edge-x", `${s.x.toFixed(2)}px`);
-  };
-
   const run = (el: HTMLElement, s: Stretch) => {
-    s.cancel ??= animate((dt) => {
+    if (s.cancel) return;
+    el.style.willChange = "transform";
+    s.cancel = animate((dt) => {
       s.pull *= Math.exp(-RELEASE * dt);
       if (Math.abs(s.pull) < 0.5) s.pull = 0;
-      const target = -resist(s.pull, resistBound(s.axis === "y" ? el.clientHeight : el.clientWidth));
-      [s.x, s.v] = stepSpring(s.x, s.v, target, FOLLOW, dt);
-      const done = !s.pull && Math.abs(s.x) < 0.05 && Math.abs(s.v) < 1;
-      if (done) s.x = 0;
-      paint(el, s);
-      if (done) s.cancel = null;
-      return !done;
+      const dimension = s.axis === "y" ? el.clientHeight : el.clientWidth;
+      const target = -resist(s.pull, Math.min(EDGE_LIMIT, dimension * 0.05));
+      s.x += (target - s.x) * Math.min(1, FOLLOW * dt);
+      const done = !s.pull && Math.abs(s.x) < 0.05;
+      if (done) {
+        s.x = 0;
+        s.cancel = null;
+        el.style.removeProperty("transform");
+        el.style.willChange = "";
+        return false;
+      }
+      el.style.transform = s.axis === "y" ? `translate3d(0, ${s.x.toFixed(2)}px, 0)` : `translate3d(${s.x.toFixed(2)}px, 0, 0)`;
+      return true;
     });
   };
 
   const push = (el: HTMLElement, axis: "x" | "y", delta: number) => {
     let s = stretches.get(el);
     if (!s) {
-      s = { axis, pull: 0, x: 0, v: 0, cancel: null };
+      s = { axis, pull: 0, x: 0, cancel: null };
       stretches.set(el, s);
     }
     s.axis = axis;
-    // Turning back takes the stretch back first, and stops at the edge.
     const next = s.pull + delta;
     s.pull = s.pull && Math.sign(next) !== Math.sign(s.pull) ? 0 : next;
     run(el, s);
   };
 
+  // Wheel events are gathered and looked at once a frame, once layout is settled.
+  let waiting: { target: Element | null; axis: "x" | "y"; delta: number } | null = null;
+  let scheduled = false;
+  const settle = () => {
+    scheduled = false;
+    const now = waiting;
+    waiting = null;
+    if (!now || reduced()) return;
+    const el = regionFor(now.target, now.axis);
+    if (!el) return;
+    const position = now.axis === "y" ? el.scrollTop : el.scrollLeft;
+    const size = now.axis === "y" ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth;
+    if (now.delta < 0 ? position <= 0 : position >= size - 1) push(el, now.axis, now.delta);
+  };
   const onWheel = (event: WheelEvent) => {
-    const target = event.target as Element | null;
-    // Pinches and the map's own zoom must never zoom or scroll the page.
-    if (event.ctrlKey || target?.tagName === "CANVAS") {
-      event.preventDefault();
-      return;
-    }
+    if (event.ctrlKey) return;
     const [dx, dy] = normalised(event, root.documentElement.clientHeight);
     const axis = Math.abs(dy) >= Math.abs(dx) ? "y" : "x";
     const delta = axis === "y" ? dy : dx;
-    const el = regionFor(target, axis);
-    if (!el) {
-      // Over something that does not scroll: nothing moves, and certainly not the page.
-      if (target?.tagName !== "IFRAME") event.preventDefault();
-      return;
+    waiting = { target: event.target as Element | null, axis, delta: (waiting?.axis === axis ? waiting.delta : 0) + delta };
+    if (!scheduled) {
+      scheduled = true;
+      requestAnimationFrame(settle);
     }
-    const position = axis === "y" ? el.scrollTop : el.scrollLeft;
-    const size = axis === "y" ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth;
-    const atEnd = delta < 0 ? position <= 0 : position >= size - 1;
-    const active = stretches.get(el);
-    // Reversing while stretched unwinds the stretch before the content scrolls.
-    const unwinding = !!active?.pull && Math.sign(active.pull) !== Math.sign(delta);
-    if ((atEnd || unwinding) && !reduced()) {
-      event.preventDefault();
-      push(el, axis, delta);
-    } else if (atEnd) {
-      event.preventDefault();
-    }
-  };
-
-  let lastTouch: { x: number; y: number } | null = null;
-  const onTouchStart = (event: TouchEvent) => {
-    lastTouch = { x: event.touches[0].clientX, y: event.touches[0].clientY };
-  };
-  const onTouchMove = (event: TouchEvent) => {
-    if (!lastTouch) return;
-    const touch = event.touches[0];
-    const delta = lastTouch.y - touch.clientY;
-    lastTouch = { x: touch.clientX, y: touch.clientY };
-    const el = regionFor(event.target as Element, "y");
-    if (!el) return;
-    const atEnd = delta < 0 ? el.scrollTop <= 0 : el.scrollTop >= el.scrollHeight - el.clientHeight - 1;
-    if (delta && atEnd && !reduced()) push(el, "y", delta);
   };
 
   // Focus and scrollIntoView can move an overflow-hidden ancestor even with no
@@ -176,7 +165,7 @@ export function installEdgeResistance(root: Document = document): () => void {
   // ancestors are never meant to have moved, so they are put straight back.
   const onScroll = (event: Event) => {
     const el = event.target;
-    if (el === root || (el instanceof Element && el.matches("html, body, #root, .app-shell, .workspace, .bottom-stack, .lower-hud, .hud-zone, .map-layer"))) {
+    if (el === root || (el instanceof Element && el.matches("html, body, #root, .app-shell, .workspace, .bottom-stack, .lower-hud, .hud-zone"))) {
       if (el === root) root.documentElement.scrollTop = root.documentElement.scrollLeft = 0;
       else {
         (el as Element).scrollTop = 0;
@@ -185,14 +174,10 @@ export function installEdgeResistance(root: Document = document): () => void {
     }
   };
 
-  root.addEventListener("wheel", onWheel, { passive: false });
-  root.addEventListener("touchstart", onTouchStart, { passive: true });
-  root.addEventListener("touchmove", onTouchMove, { passive: true });
+  root.addEventListener("wheel", onWheel, { passive: true });
   root.addEventListener("scroll", onScroll, { capture: true, passive: true });
   return () => {
     root.removeEventListener("wheel", onWheel);
-    root.removeEventListener("touchstart", onTouchStart);
-    root.removeEventListener("touchmove", onTouchMove);
     root.removeEventListener("scroll", onScroll, { capture: true });
   };
 }

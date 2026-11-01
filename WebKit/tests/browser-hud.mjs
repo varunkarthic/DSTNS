@@ -84,8 +84,10 @@ try {
   const started = await call("/api/v1/playback/start", { seed: "10775", playback_duration_seconds: 600, map: { osm_file: "data/fixtures/real_network.osm.xml" } }, token);
   assert.equal(started.code, 202, JSON.stringify(started.body));
   await page.getByRole("button", { name: "Pause simulation" }).waitFor({ timeout: 30000 });
-  await page.locator(".loading-surface").waitFor({state: "detached", timeout: 10000});
-  assert.equal(await page.locator(".loading-surface").count(), 0, "the start-up screen leaves once the map is up");
+  // The film plays through once, and says it is finishing rather than appearing stuck.
+  await page.getByRole("heading", { name: "Finishing setup" }).waitFor({ timeout: 40000 });
+  await page.locator(".loading-surface").waitFor({state: "detached", timeout: 90000});
+  assert.equal(await page.locator(".loading-surface").count(), 0, "the start-up screen leaves once the film has played and the map is up");
 
   check("the browser icon is the mark", async () => {
     const icon = await page.evaluate(() => document.querySelector("link[rel='icon']")?.getAttribute("href"));
