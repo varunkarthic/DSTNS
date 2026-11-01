@@ -1295,7 +1295,7 @@ button:disabled {
 
 @media (max-width: 1280px) {
   :root {
-    --deck-width: 420px;
+    --deck-width: 450px;
   }
   /* The tiles are laid out for a 420px deck; scale their type down so the
    * figures and their tags still fit instead of being clipped. */

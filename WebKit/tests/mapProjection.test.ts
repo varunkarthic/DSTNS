@@ -110,7 +110,7 @@ describe('fit layout', () => {
   });
 
   it('matches the deck width at each breakpoint', () => {
-    expect(mapFitLayout(1280, 800).centerX).toBeCloseTo((1280 - 420) / 2);
+    expect(mapFitLayout(1280, 800).centerX).toBeCloseTo((1280 - 450) / 2);
     expect(mapFitLayout(1281, 800).centerX).toBeCloseTo((1281 - 480) / 2);
     expect(mapFitLayout(1024, 800).centerX).toBeCloseTo((1024 - STRIP_SPACE) / 2);
   });
@@ -131,7 +131,7 @@ describe('map insets', () => {
   it('reserves the dock, deck and rail at each breakpoint', async () => {
     const { mapInsets } = await import('../src/mapProjection');
     expect(mapInsets(1440, 900)).toEqual({ top: 24, left: 76, right: 504, bottom: 150 });
-    expect(mapInsets(1200, 800)).toEqual({ top: 24, left: 76, right: 444, bottom: 150 });
+    expect(mapInsets(1200, 800)).toEqual({ top: 24, left: 76, right: 474, bottom: 150 });
     expect(mapInsets(1000, 800)).toEqual({ top: 24, left: 76, right: STRIP_SPACE + 24, bottom: 150 });
     expect(mapInsets(600, 800)).toEqual({ top: 24, left: 16, right: STRIP_SPACE + 24, bottom: 196 });
     expect(mapInsets(1440, 900, true)).toEqual({ top: 24, left: 76, right: STRIP_SPACE + 24, bottom: 150 });

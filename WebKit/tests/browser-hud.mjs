@@ -167,6 +167,20 @@ try {
     assert.ok(await page.getByRole("slider", { name: "Simulation speed" }).isVisible(), "speed visible at 1280x640");
     const labelBox = await page.locator(".rail-terminate > span").evaluate((el) => ({ w: el.getBoundingClientRect().width, d: getComputedStyle(el).display, n: el.textContent, W: innerWidth }));
     assert.ok(labelBox.w > 0, `Terminate keeps its label at the minimum ${JSON.stringify(labelBox)}`);
+    // With every count at its widest, all the telemetry tabs still fit in their row.
+    const tabsFit = await page.locator(".tab-row").evaluate((row) => {
+      for (const tab of row.querySelectorAll("[role=tab]")) {
+        if (!/News|Incidents|Notifications|Apps/.test(tab.textContent)) continue;
+        const count = tab.querySelector(".count") ?? tab.appendChild(Object.assign(document.createElement("span"), { className: "count" }));
+        count.dataset.probe = "1";
+        count.textContent = "99+";
+      }
+      const box = row.getBoundingClientRect();
+      const fit = [...row.querySelectorAll("[role=tab]")].every((tab) => tab.getBoundingClientRect().right <= box.right + 0.5);
+      row.querySelectorAll("[data-probe]").forEach((count) => count.remove());
+      return fit;
+    });
+    assert.ok(tabsFit, "telemetry tabs fit with every count at 99+");
     const seedKey = await page.locator(".seed-value .seed-key").evaluate((el) => ({ w: el.getBoundingClientRect().width, d: getComputedStyle(el).display, W: innerWidth, H: innerHeight, rail: el.closest(".rail").clientWidth }));
     assert.ok(seedKey.w > 0, `the seed keeps its label at the minimum ${JSON.stringify(seedKey)}`);
     assert.ok(await page.locator(".rail").evaluate((el) => el.scrollWidth <= el.clientWidth), "nothing in the rail overflows at the minimum");

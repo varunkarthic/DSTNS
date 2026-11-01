@@ -2458,3 +2458,7 @@ html, body, #root {
 .settings-back:hover { background: var(--hover); }
 /* The group's edge is drawn inside it, so its height is the same 40px as everything else in the HUD. */
 .lower-hud .hud-group { border: 0; box-shadow: var(--hud-shadow), inset 0 0 0 1px rgb(var(--border-rgb) / 14%); }
+/* All six tabs fit with every count at 99+, however narrow the panel gets. */
+.tab-row { display: flex; gap: 0; padding-inline: 2px; }
+.tab-row button { flex: 1 1 auto; min-width: 0; padding-inline: 6px; white-space: nowrap; justify-content: center; }
+.tab-row .count { margin-left: 3px; min-width: 0; padding-inline: 4px; font-size: 9.5px; }

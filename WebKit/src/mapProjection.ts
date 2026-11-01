@@ -114,7 +114,7 @@ export const STRIP_SPACE = 72;
  */
 export function deckSpace(width: number, compact = false): number {
   if (compact || width <= 1024) return STRIP_SPACE;
-  return width <= 1280 ? 420 : 480;
+  return width <= 1280 ? 450 : 480;
 }
 
 export function mapFitLayout(width: number, height: number, compact = false, left = 0): MapFitLayout {
