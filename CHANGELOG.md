@@ -17,6 +17,12 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Light and dark, gone through surface by surface
+
+- **All text now meets WCAG AA contrast in both themes.** Light mode had 30 kinds of text below it, because its faint text and its accent, green, amber and red were too pale, especially on their own tints. The Terminate dialog's title was a pale red meant for dark surfaces. Colour-vision palettes keep to the same standard.
+- **About's licence card** is one card: its head fills the top when pointed at, instead of a pill inside it, and its text lines up.
+- Switches that are on are solid in light mode, Settings content scrolls under a line, and a notification's details read the same in the capsule and the history.
+
 ### Scrolling
 
 - **Fixed: lists did not scroll with the pointer on text.** A rule applied to every element told clipped text, which is a scroll container too, not to pass a scroll on. Over a row's title, tag or details the list did not move at all; only its icon and padding scrolled. The rule now applies only to regions that really scroll.

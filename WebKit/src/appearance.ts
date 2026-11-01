@@ -46,10 +46,10 @@ const PALETTES: Record<"dark" | "light", Record<ColorVision, MeaningPalette>> = 
     monochrome: { clear: "#7d7d7d", moderate: "#b4b4b4", severe: "#f4f4f4", flooded: "#555555", ok: "#c8c8c8", warn: "#e0e0e0", danger: "#ffffff", accent: "#e8e8e8", series: ["#ffffff", "#cccccc", "#aaaaaa", "#888888", "#e6e6e6", "#b8b8b8", "#979797", "#767676"] },
   },
   light: {
-    standard: { clear: "#2fb391", moderate: "#e8a020", severe: "#dc3b4b", flooded: "#2f86e6", ok: "#0e8c6c", warn: "#a86c00", danger: "#c9293a", accent: "#0a78c2", series: ["#3a5bd9", "#b86e12", "#2c8a3e", "#b5487a", "#6c4cd6", "#0e8a85", "#8c7a00", "#5b6b76"] },
-    protanopia: { clear: "#0072b2", moderate: "#a89b00", severe: "#7a2e00", flooded: "#6b6b8a", ok: "#0072b2", warn: "#8a7f00", danger: "#a84600", accent: "#0072b2", series: OKABE_ITO_SERIES_LIGHT },
-    deuteranopia: { clear: "#0072b2", moderate: "#a89b00", severe: "#7a2e00", flooded: "#6b6b8a", ok: "#0072b2", warn: "#8a7f00", danger: "#a84600", accent: "#0072b2", series: OKABE_ITO_SERIES_LIGHT },
-    tritanopia: { clear: "#007d73", moderate: "#d6688a", severe: "#8f0015", flooded: "#555555", ok: "#007d73", warn: "#b84a6e", danger: "#b0001c", accent: "#007d73", series: ["#007d73", "#d6688a", "#333333", "#8f0015", "#00525a", "#b84a6e", "#808080", "#3f9d94"] },
+    standard: { clear: "#2fb391", moderate: "#e8a020", severe: "#dc3b4b", flooded: "#2f86e6", ok: "#096850", warn: "#805100", danger: "#ae2331", accent: "#085f9a", series: ["#3a5bd9", "#b86e12", "#2c8a3e", "#b5487a", "#6c4cd6", "#0e8a85", "#8c7a00", "#5b6b76"] },
+    protanopia: { clear: "#0072b2", moderate: "#a89b00", severe: "#7a2e00", flooded: "#6b6b8a", ok: "#006096", warn: "#655d00", danger: "#9a4000", accent: "#006096", series: OKABE_ITO_SERIES_LIGHT },
+    deuteranopia: { clear: "#0072b2", moderate: "#a89b00", severe: "#7a2e00", flooded: "#6b6b8a", ok: "#006096", warn: "#655d00", danger: "#9a4000", accent: "#006096", series: OKABE_ITO_SERIES_LIGHT },
+    tritanopia: { clear: "#007d73", moderate: "#d6688a", severe: "#8f0015", flooded: "#555555", ok: "#00675e", warn: "#963c59", danger: "#b0001c", accent: "#00675e", series: ["#007d73", "#d6688a", "#333333", "#8f0015", "#00525a", "#b84a6e", "#808080", "#3f9d94"] },
     monochrome: { clear: "#9a9a9a", moderate: "#666666", severe: "#111111", flooded: "#c4c4c4", ok: "#4a4a4a", warn: "#333333", danger: "#000000", accent: "#222222", series: ["#000000", "#333333", "#555555", "#777777", "#222222", "#444444", "#666666", "#888888"] },
   },
 };

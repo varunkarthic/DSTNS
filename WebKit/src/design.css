@@ -49,18 +49,18 @@
   --on-background: #16242e;
   --on-surface: #16242e;
   --on-surface-variant: #4a5a65;
-  --outline: #76858f;
+  --outline: #606e78;
   --outline-variant: #d2d9de;
-  --primary: #0a78c2;
-  --primary-container: #0a78c2;
-  --primary-fixed-dim: #0a78c2;
-  --surface-tint: #0a78c2;
-  --secondary: #0e8c6c;
-  --mint: #0e8c6c;
+  --primary: #085f9a;
+  --primary-container: #085f9a;
+  --primary-fixed-dim: #085f9a;
+  --surface-tint: #085f9a;
+  --secondary: #096850;
+  --mint: #096850;
   --muted: #5a6a75;
   --text: #16242e;
-  --text-dim: #52626d;
-  --text-faint: #7f8e98;
+  --text-dim: #4b5a65;
+  --text-faint: #606e78;
   --hud-bg: #ffffff;
   --hud-bg-strong: #ffffff;
   --hud-border: rgb(16 32 44 / 7%);
@@ -74,9 +74,9 @@
   --well-line: rgb(16 32 44 / 6%);
   --hover: rgb(16 32 44 / 5%);
   --pressed: rgb(16 32 44 / 9%);
-  --accent-soft: rgb(10 120 194 / 10%);
-  --cyan-soft: rgb(10 120 194 / 10%);
-  --accent-line: rgb(10 120 194 / 35%);
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+  --cyan-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 [data-theme="light"] .network-map,
 [data-theme="light"] .workspace {
@@ -2599,3 +2599,27 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .place-search-results .place-glyph { width: 36px; height: 36px; }
 /* Scrolled to its end, the last section sits a full radius in, clear of the panel's corners. */
 .settings-scroll { padding-bottom: 18px; }
+
+/* ---- Polish, from going through every surface in both themes ------------------------------------- */
+/* A pale red meant for dark surfaces could not be read on white. */
+[data-theme="light"] { --error: var(--danger); --on-error: #ffffff; }
+[data-theme="light"] .switch.on, [data-theme="light"] .switch.on:hover:not(:disabled) { background: var(--accent); }
+/* Faint text stays readable on the dark wells too. */
+:root:not([data-theme="light"]) { --text-faint: #7b8e9c; }
+.stream-empty { color: var(--text-dim); }
+
+/* A disclosure is one card. Its head fills the card's top when pointed at, rather than being a pill inside it. */
+.disclosure { overflow: hidden; }
+.disclosure-head { padding: 0 16px; border-radius: 0; }
+.disclosure.open .disclosure-head { box-shadow: inset 0 -1px 0 var(--well-line); }
+.disclosure-body > div { padding: 0 16px; }
+.disclosure.open .disclosure-body > div { padding: 12px 16px 6px; }
+
+/* What scrolls under a heading goes under a line, not into empty space. */
+.settings-head { box-shadow: 0 1px 0 var(--well-line); position: relative; z-index: 1; }
+.settings-scroll { padding-top: 12px; }
+
+/* The capsule's details read as the same list as the history's. */
+.capsule-facts > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.capsule-facts dd { margin: 0; text-align: left; font-family: inherit; font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
+.capsule-facts dd.mono { font-family: var(--font-mono, monospace); font-size: 11.5px; }
