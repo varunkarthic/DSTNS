@@ -74,6 +74,7 @@ smooths the steps a mouse wheel arrives in; a softer one with no bounce takes it
 | Where | Limit |
 |---|---|
 | Every scrolling region | Its top and bottom. `installEdgeResistance` covers them all, so a new menu needs nothing |
+| Scrolling menus | Content goes under a band that blurs more towards the edge: 40 px at the end and 24 px at the start, each driven by a scroll timeline so that it goes away when there is nothing beyond it |
 | Map zoom | 5% past fit is free, then resistance to a hard 10%, and it stays where it is let go |
 | Map pan | Part of the network stays on screen |
 | Speed and interval sliders | Either end |
@@ -125,7 +126,7 @@ Defined in `system.css`. Use these rather than literal values.
 
 | Kind | Tokens |
 |---|---|
-| Radius | `--r-xs` 16, `--r-sm` 22, `--r-md` 28, `--r-lg` 36, `--r-pill`. Anything up to 72 px tall is a stadium, a rectangle with a semicircle on each end, and taller regions keep the same 36 px curve. What sits in a stadium's end is round, with its centre on the semicircle's |
+| Radius | Not one radius but one look, since a curve looks larger on a small thing than on a large one. Panel `--r-lg` 26; 8 px in, card `--r-md` 18; 6 px in, tile `--r-sm` 12; 4 px in, chip `--r-xs` 8. A control one line tall is a stadium (`--r-pill`), sized so that it is concentric as well: a 36 px field 8 px inside a panel has an 18 px end. What sits in a stadium's end is round, with its centre on the semicircle's. Lists are one card with divider lines, not a stack of rounded cards |
 | Control height | `--ctl-sm` 26, `--ctl` 32, `--ctl-lg` 36 |
 | Surface | `--glass` translucent, `--surface-solid` where text is read at length |
 | Palette | `--accent`, `--ok`, `--warn`, `--danger`, `--text`, `--text-dim`, `--text-faint` |

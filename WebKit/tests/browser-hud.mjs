@@ -155,7 +155,7 @@ try {
     const vw = page.viewportSize();
     const rail = await box(page.locator(".rail"));
     const cluster = page.locator(".lower-hud .hud-zone > *:visible");
-    const aligned = page.locator(".lower-hud .hud-pill:visible, .lower-hud .capsule:visible");
+    const aligned = page.locator(".lower-hud .hud-group:visible, .lower-hud .capsule:visible, .lower-hud .notification-idle:visible");
     const baseline = [];
     for (const el of await aligned.all()) baseline.push(await el.boundingBox());
     assert.ok(baseline.every(b => Math.abs(b.height - 40) < 1), "all lower HUD surfaces share 40px height");

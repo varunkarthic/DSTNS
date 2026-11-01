@@ -2584,14 +2584,14 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .reduce-motion .seed-check path { animation: none; stroke-dashoffset: 0; }
 
 /* ---- Corners within corners: an inner radius is the outer one less the gap between them. ------------
-   On this scale, a gap of about 6 steps down once (36, 28, 22, 16). A corner well clear of the one outside it need not follow it. */
+   On this scale, the ladder is at "The shape", below. */
 .stream-card { padding: 7px 12px 7px 7px; }
 .row-icon { border-radius: var(--r-xs); }
 .history-head { padding: 7px 10px 7px 7px; }
 .history-detail { padding-left: 43px; }
 .segmented { padding: 3px; }
 .segmented-pill { top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--count)); border-radius: var(--r-xs); }
-.settings-note { border-radius: var(--r-sm); }
+.settings-note { border-radius: var(--r-xs); }
 .place-finder { padding: 8px; }
 .place-search-field { border-radius: var(--r-sm); }
 .place-search-results button { min-height: 38px; padding: 4px; border-radius: var(--r-sm); }
@@ -2605,7 +2605,7 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .rail :is(.rail-terminate, .seed-value, .rail-btn) { border-radius: var(--r-xs); }
 .place-search-results .place-glyph { width: 36px; height: 36px; }
 /* Scrolled to its end, the last section sits a full radius in, clear of the panel's corners. */
-.settings-scroll { padding-bottom: 36px; }
+.settings-scroll { padding-bottom: 8px; }
 
 /* ---- Polish, from going through every surface in both themes ------------------------------------- */
 /* A pale red meant for dark surfaces could not be read on white. */
@@ -2682,32 +2682,67 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 @keyframes tour-ping { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(1.08); } }
 
 /* ---- The shape ------------------------------------------------------------------------------------
-   Anything up to 72px tall is a stadium: a rectangle with a semicircle on each end, because the radius
-   is more than half its height. Taller regions keep that same curve. What sits inside a stadium is a
-   circle or a stadium itself, centred on the end it sits in. */
-:is(.hud-group, .tab-row, .tab-pill, .tab-row button, .tab-row button[aria-selected="true"], .seg, .seg button, .segmented, .segmented-pill, .segmented button, .skip-menu, .skip-menu button, .chips, .chip-filter, .fabric-tabs, .fabric-tabs-pill, .fabric-tabs button, .fabric-sidebar-apps, .fabric-sidebar-apps button, .panel-actions, .time-control, .seed-value, .select-trigger, .menu-item, .place-row, .layer-row, .place-search-field, .place-search-results button, .focus-menu > button, .about-links a, .keycap, .btn, .rail-terminate, .capsule-head, .capsule-tech > button, .capsule-others button, .fabric-action, .fabric-picking, .fabric-picking button, .place-filters button, .settings-section > .settings-action, .settings-section > .settings-nav.settings-action, .settings-action, .settings-nav.settings-action, .fabric-rows li > :is(button, div), .place-rows li, .disclosure-head) { border-radius: var(--r-pill); }
-:is(.row-icon, .settings-row-icon, .place-glyph, .place-search-results .place-glyph, .inspect-head .place-glyph, .dialog-icon, .fabric-tile, .settings-action-mark, .settings-nav-mark, .rail-btn, .rail-btn.play, .rail .rail-btn, .icon-btn, .btn.icon, .capsule-icon-btn, .strip-expand, .strip-view, .strip-fabric, .strip-overview) { border-radius: 50%; }
-.rail :is(.rail-terminate, .seed-value) { border-radius: var(--r-pill); }
-:is(.rail, .capsule:not(.open), .hud-pill, .hud-button.hud-pill, .map-dock, .fabric-sidebar-tab) { border-radius: var(--r-pill); }
-:is(.stream-card, .history-row, .history-head, .stack-card, .subsystem-card, .settings-section, .settings-section:first-child, .disclosure, .about-scroll .disclosure, .link-row) { border-radius: var(--r-lg); }
-:is(.metric-grid, .fabric-hero, .fabric-empty, .about-facts, .about-dialog .about-facts, .done-dialog .done-stats, .summary-grid, .inspect-card, .fabric-spark) { border-radius: var(--r-md); }
-.hud-group > .legend-road .hud-pill, .hud-center > .legend-road .hud-pill { border-radius: var(--r-pill) 0 0 var(--r-pill); }
-.hud-group > button.hud-pill, .hud-center > .legend-place .hud-pill { border-radius: 0 var(--r-pill) var(--r-pill) 0; }
-.hud-group > .legend-place .hud-pill { border-radius: 0; }
-/* The ends of a stadium hold round things, with their centres on the semicircle's. */
-.rail { padding-inline: 13px; }
-.stream-card { padding: 12px 22px 12px 14px; }
-.history-head { padding-inline: 14px 22px; }
-.settings-action, .settings-nav.settings-action { padding-inline: 10px 20px; }
-.place-search-results button { padding: 4px 16px 4px 4px; }
-.place-row { padding-inline: 10px 16px; }
+   Not one radius, but one look. A curve looks larger on a small thing than on a large one, so each size
+   has its own, and each is the one outside it less the gap between them:
+     panel 26, 8px in: card 18, 6px in: tile 12, 4px in: chip 8.
+   A control a line tall is a stadium, sized so that it is that as well: a 36px field 8px inside a panel
+   has an 18px end. What sits in a stadium's end is round, with its centre on the semicircle's.
+   Lists are one card with divider lines, not a stack of rounded cards. */
+:is(.rail, .capsule:not(.open), .hud-pill, .hud-button.hud-pill, .hud-group, .map-dock, .tab-row, .tab-pill, .tab-row button, .tab-row button[aria-selected="true"], .seg, .seg button, .segmented, .segmented-pill, .segmented button, .chips, .chip-filter, .fabric-tabs, .fabric-tabs-pill, .fabric-tabs button, .fabric-sidebar-apps, .fabric-sidebar-apps button, .fabric-sidebar-tab, .fabric-picking, .fabric-picking button, .panel-actions, .time-control, .seed-value, .rail .seed-value, .rail .rail-terminate, .select-trigger, .place-search-field, .place-filters button, .about-links a, .keycap, .btn, .rail-terminate, .capsule-head, .capsule-tech > button, .capsule-others button, .fabric-action, .skip-menu, .skip-menu button, .place-row, .layer-row, .menu-item, .focus-menu > button, .place-search-results button, .place-rows li, .fabric-rows li > :is(button, div), .day-track) { border-radius: var(--r-pill); }
+:is(.row-icon, .settings-row-icon, .place-glyph, .place-search-results .place-glyph, .inspect-head .place-glyph, .dialog-icon, .fabric-tile, .settings-action-mark, .settings-nav-mark, .rail-btn, .rail-btn.play, .rail .rail-btn, .map-dock button, .icon-btn, .btn.icon, .capsule-icon-btn, .strip-expand, .strip-view, .strip-fabric) { border-radius: 50%; }
+:is(.metric-grid, .stream-frame, .settings-section, .settings-section:first-child, .settings-action, .settings-nav.settings-action, .about-facts, .about-dialog .about-facts, .disclosure, .about-scroll .disclosure, .subsystem-card, .fabric-hero, .fabric-empty, .fabric-apps > li > button, .done-dialog .done-stats, .summary-grid, .inspect-card, .link-row, .tip:has(.tip-detail)) { border-radius: var(--r-md); }
+:is(.fabric-spark, .history-detail dl.technical, .loading-error, .viewport-facts > div) { border-radius: var(--r-sm); }
+/* A bar's segments are stadiums inside it, 3px in, so that what lights up follows the bar's own ends. */
+.lower-hud .hud-group { padding: 3px; gap: 0; align-items: center; }
+.hud-group > * { display: inline-flex; height: 34px; margin: 0; align-items: center; align-self: center; }
+.hud-group .hud-pill, .hud-group .hud-pill.hud-button, .hud-group > button.hud-pill { display: inline-flex; height: 34px; margin: 0; align-items: center; line-height: 1; transform: none; }
+.hud-group > * + *, .hud-group > button { border-left: 0; }
+.hud-group .hud-pill.hud-button, .hud-group > button.hud-pill, .hud-group > .legend-road .hud-pill, .hud-group > .legend-place .hud-pill, .hud-center > .legend-road .hud-pill, .hud-center > .legend-place .hud-pill { border-radius: var(--r-pill); }
+.telemetry-deck.compact .deck-surface, .strip-overview, .strip-metric { border-radius: var(--r-pill); }
+
+/* The deck: 8px in from its edge, everything inside it is a card or a stadium. */
+.deck-full { padding: 8px; gap: 8px; }
+.deck-header { padding: 6px 6px 2px 14px; }
+.metric-grid { margin: 0; }
+.tab-row { margin: 0; padding: 3px; height: 38px; }
+.tab-row button, .tab-pill { height: 32px; }
+
+/* A list is one card: rows divided by a line that starts where their text does. */
+.stream-frame { display: flex; flex: 0 1 auto; min-height: 0; overflow: hidden; background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); }
+.stream { flex: 1; gap: 0; padding: 0; margin: 0; }
+.stream-card, .stream-card.alert, .history-row { position: relative; margin: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.stream-card { padding: 11px 16px 11px 14px; }
+.stream-card + .stream-card::before, .history-row + .history-row::before { content: ""; position: absolute; top: 0; left: 50px; right: 0; height: 1px; background: var(--well-line); }
+.history-head { border-radius: 0; padding: 11px 14px; }
+.history-detail { padding: 0 16px 12px 50px; }
+@media (hover: hover) and (pointer: fine) {
+  .stream-card:hover, .history-head:hover { background: var(--hover); }
+}
+.stream-empty { padding: 28px 16px; }
+.stream .chips { flex: none; margin: 10px 10px 8px; }
+.stream-more { margin: 8px auto; }
+
+/* Rows in a panel light up as a stadium, with their round icon concentric in its end. */
+.place-finder { padding: 8px; gap: 8px; }
+.place-search-field { height: 36px; min-height: 36px; padding-inline: 12px 14px; }
+.place-search-results { padding: 0 8px 8px; }
+.place-search-results button { min-height: 48px; padding: 6px 18px 6px 6px; }
+.place-row { min-height: 44px; padding-inline: 8px 16px; }
 .layer-row { padding-inline: 14px; }
 .menu-item { padding-inline: 14px; }
 .capsule-head { padding-inline-end: 12px; }
 
+/* The ends of a bar hold round things, with the same gap all the way round. */
+.rail { padding-inline: 10px; }
+
+/* A disclosure is one card: its head fills the top and a straight line divides it from what opens. */
+.disclosure { overflow: hidden; }
+.disclosure-head { min-height: 44px; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.disclosure.open .disclosure-head { box-shadow: 0 1px 0 var(--well-line); }
+
 /* ---- Tooltips: a small stadium with no pointer, which comes out of the control it describes ------- */
-.tip { max-width: 280px; gap: 3px; padding: 7px 14px; border-radius: var(--r-sm); background: var(--surface-solid); border: 1px solid var(--glass-line-strong); box-shadow: 0 12px 28px -10px rgb(0 0 0 / 45%), 0 2px 6px rgb(0 0 0 / 16%); backdrop-filter: none; transition: opacity 110ms ease-out, transform var(--motion-release-ms, 180ms) var(--motion-release, ease-out); }
-.tip:has(.tip-detail) { padding: 10px 16px; }
+.tip { max-width: 280px; gap: 3px; padding: 7px 14px; border-radius: var(--r-pill); background: var(--surface-solid); border: 1px solid var(--glass-line-strong); box-shadow: 0 12px 28px -10px rgb(0 0 0 / 45%), 0 2px 6px rgb(0 0 0 / 16%); backdrop-filter: none; transition: opacity 110ms ease-out, transform var(--motion-release-ms, 180ms) var(--motion-release, ease-out); }
+.tip:has(.tip-detail) { padding: 10px 14px; }
 .tip::after { display: none; }
 .tip.tip-top { transform: translateY(3px) scale(0.97); transform-origin: 50% 100%; }
 .tip.tip-bottom { transform: translateY(-3px) scale(0.97); transform-origin: 50% 0; }
@@ -2727,3 +2762,29 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 
 /* ---- Focus rings are for Tab: see main.tsx --------------------------------------------------------- */
 html:not([data-input="tab"]) :focus-visible { outline: none; }
+
+/* ---- Scrolling menus end softly -------------------------------------------------------------------
+   Content goes under a band that blurs more the nearer it is to the edge, instead of being cut by a line.
+   It goes away at each end, so that what is there can be read. The scroller carries it, on its own clock. */
+:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)::after,
+:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)::before {
+  content: ""; position: sticky; display: block; flex: none; z-index: 2; left: 0; width: 100%; pointer-events: none;
+  backdrop-filter: blur(5px);
+  animation-timing-function: linear; animation-fill-mode: both; animation-timeline: scroll(nearest block);
+}
+:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)::after {
+  bottom: 0; height: 40px; margin-top: -40px; opacity: 0;
+  mask-image: linear-gradient(to top, #000 8%, rgb(0 0 0 / 55%) 45%, transparent);
+  animation-name: edge-end; animation-range: calc(100% - 40px) 100%;
+}
+:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)::before {
+  top: 0; height: 24px; margin-bottom: -24px; opacity: 0;
+  mask-image: linear-gradient(to bottom, #000 8%, rgb(0 0 0 / 55%) 45%, transparent);
+  animation-name: edge-start; animation-range: 0 24px;
+}
+@keyframes edge-end { from { opacity: 1; } to { opacity: 0; } }
+@keyframes edge-start { from { opacity: 0; } to { opacity: 1; } }
+
+/* Settings: a panel's 8px all round, so that its cards are concentric with it. */
+.settings-scroll { padding: 8px; gap: 8px; }
+.settings-section, .settings-section:first-child { padding-inline: 14px; }

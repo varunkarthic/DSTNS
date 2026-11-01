@@ -51,9 +51,8 @@ function measureTarget(name: string): Rect | null {
   const w = window.innerWidth, h = window.innerHeight;
   if (!box || box.width <= 0 || box.height <= 0 || box.bottom <= 0 || box.right <= 0 || box.top >= h || box.left >= w) return null;
   const pad = fit ? 8 : 4;
-  const style = el ? getComputedStyle(el) : null;
-  const rawRadius = style?.borderTopLeftRadius || style?.borderRadius || "0";
-  const round = fit ? 16 : rawRadius.includes("%") ? box.height * parseFloat(rawRadius) / 100 : parseFloat(rawRadius) || 0;
+  // A fitted target is loose text, so its outline is a stadium around that text.
+  const round = fit ? Math.min(box.width, box.height) / 2 : el ? visibleRadius(el, box) : 0;
   const left = Math.max(4, box.left - pad);
   const top = Math.max(4, box.top - pad);
   return {
@@ -61,8 +60,40 @@ function measureTarget(name: string): Rect | null {
     top,
     width: Math.max(0, Math.min(w - 4, box.right + pad) - left),
     height: Math.max(0, Math.min(h - 4, box.bottom + pad) - top),
-    radius: `${Math.min(box.width / 2, box.height / 2, round) + pad}px`,
+    radius: `${round + pad}px`,
   };
+}
+
+/**
+ * The curve actually seen on a target, not what its anchor declares. Many anchors draw nothing
+ * and only hold what does, so this looks at the part that fills the box and has something to
+ * show. Failing that, a control still has the shape it takes when pointed at, and a loose group
+ * in a bar is drawn round as the bar is.
+ */
+export function visibleRadius(el: Element, box: { width: number; height: number }): number {
+  const fills = (other: Element) => {
+    const r = other.getBoundingClientRect();
+    return Math.abs(r.width - box.width) < 6 && Math.abs(r.height - box.height) < 6;
+  };
+  // The anchor, what surrounds it at the same size, and what fills it, outermost last.
+  const chain: Element[] = [el];
+  for (let up = el.parentElement; up && fills(up); up = up.parentElement) chain.push(up, ...[...up.children].filter((c) => c !== el && fills(c)));
+  for (let down: Element | undefined = el; down; ) {
+    down = [...down.children].find(fills);
+    if (down) chain.push(down);
+  }
+  let declared = 0;
+  for (const node of chain) {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    const raw = style.borderTopLeftRadius;
+    const radius = Math.min(raw.includes("%") ? (Math.min(rect.width, rect.height) * parseFloat(raw)) / 100 : parseFloat(raw) || 0, rect.width / 2, rect.height / 2);
+    const painted = style.backgroundColor !== "rgba(0, 0, 0, 0)" || style.backgroundImage !== "none" || parseFloat(style.borderTopWidth) > 0 || style.boxShadow !== "none";
+    if (painted && radius > 0) return radius;
+    declared ||= radius;
+  }
+  if (declared) return declared;
+  return box.height <= 64 ? box.height / 2 : 12;
 }
 
 /**

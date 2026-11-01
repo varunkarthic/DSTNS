@@ -572,14 +572,10 @@ turns Auto Focus off.
 `enable-force` mode, which sets only how a session starts. A lake or park running far past the last road does not shrink the fit, so
 in such a city the bounding box of everything drawn can sit a little off-centre.
 
-## 43. One radius, so that short things are stadiums
+## 43. One look, not one radius
 
-**Problem.** Rounded corners on a scale of small radii made everything a slightly different squircle, and the bottom bar read as a
-box. The owner asked for a true semicircle on each end, throughout.
+**Problem.** One large radius everywhere made the interface look wrong in places: tall cards looked over-rounded, the search field's curve did not follow its panel's, and stacks of rounded rows left curves running into each other. A radius that is mathematically the same does not look the same on things of different sizes.
 
-**Decision.** The scale rises to 16, 22, 28 and 36, so a thing shorter than twice its radius is a stadium without anyone choosing
-that for it, and a tall region keeps the same curve as the bar. Controls and rows use the full pill or the 36 px radius. What sits in
-a stadium's end is round, with its centre on the semicircle's, and the end's padding is set by that.
+**Decision.** A ladder set by nesting: a panel is 26, a card 8 px inside it 18, a tile 6 px inside that 12, a chip 4 px inside that 8. A control a line tall is a stadium, sized so that it also fits the ladder: a 36 px field 8 px inside a panel has an 18 px end. Round things sit centred in a stadium's end. Lists are one card with divider lines that start where the text does, and a row lights up to the card's own edge. The tutorial's outline takes its curve from the part of its target that is actually drawn, not from what the anchor declares.
 
-**Consequences.** Text must stay clear of the ends, so rows and bars carry more padding at the sides. A panel as tall as the telemetry
-deck cannot be a stadium, and is not: a semicircle on a 480 px wide panel would cut into its content.
+**Consequences.** Panels have 8 px of padding, so that their cards are concentric, and their text is inset by the cards. A panel too tall to be a stadium is not one. A scroller holds its own blurred edges on a scroll timeline, so they cost no script.

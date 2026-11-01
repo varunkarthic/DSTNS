@@ -95,8 +95,10 @@ function StreamScroll({ children, resetKey, labelledBy }: { children: ReactNode;
     if (ref.current) ref.current.scrollTop = 0;
   }, [resetKey]);
   return (
-    <div ref={ref} className="stream scroll-region" role="tabpanel" aria-labelledby={labelledBy} tabIndex={0}>
-      {children}
+    <div className="stream-frame">
+      <div ref={ref} className="stream scroll-region" role="tabpanel" aria-labelledby={labelledBy} tabIndex={0}>
+        {children}
+      </div>
     </div>
   );
 }

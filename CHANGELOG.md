@@ -19,7 +19,10 @@ responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `We
 
 ### Stadiums, a film that explains itself, and a fuller report
 
-- **Everything is a stadium now.** Anything up to 72 px tall has a true semicircle on each end, led by the bottom bar, and taller regions keep the same 36 px curve. Round things sit centred in those ends. Map markers are circles. Tooltips lost their pointer and come out of the control they describe.
+- **One look, not one radius.** Bars and controls a line tall are true stadiums, led by the bottom bar, and each is sized to sit concentrically in what holds it. Panels are 26, cards 8 px inside them 18, and so on inwards. Round things sit centred in a stadium's end, and map markers are circles.
+- **Lists are one card with divider lines,** rather than a stack of rounded rows, and a row lights up to the card's edge.
+- **Scrolling menus end softly.** Content goes under a progressive blur rather than being cut off by a line, and it clears when there is nothing more.
+- **Tooltips** lost their pointer and come out of the control they describe. **The tour's outline** now follows the curve of what is actually drawn on each step. The licence disclosure's divider is straight, and the hover on the collapsed telemetry strip follows the strip.
 - **Travel demand** is a neighbourhood from above: trips leave the homes, queues grow back from the doors of what draws them, and a column over each roof shows how much it is drawing.
 - **Repeatable worlds** shows it happening: one seed grows two towns alike, building for building and car for car, with the same event at the same moment, and another seed grows a different town.
 - **WebFabric** shows what it is: application windows dock, a line opens to the map, and what each sends appears on the map in its colour.
