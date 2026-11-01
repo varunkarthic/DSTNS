@@ -2536,3 +2536,14 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .about-facts > div:nth-child(2) { border-top: 1px solid var(--well-line); }
 /* Blur stays off everywhere, in one rule that nothing else outranks. */
 html body *, html body *::before, html body *::after { backdrop-filter: none !important;  }
+
+/* ---- A new world: the old one leaves, then the film with nothing before it ------------------------ */
+.loading-surface.boot.rejoin::before { animation: end-cover 900ms var(--ease) both; }
+.loading-surface.boot.rejoin.exiting .loading-card.film, .loading-surface.boot.rejoin.exiting .loading-licence { opacity: 0; }
+.loading-surface.boot .loading-card.film .loading-seed { position: absolute; top: 30px; right: 28px; margin: 0; }
+.loading-surface.boot .loading-card.film .loading-steps { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+/* The film has the whole window, as it does at start-up, and the bar returns with the map. */
+.app-shell:has(.loading-surface.rejoin) .app-header { opacity: 0; pointer-events: none; transition: opacity 500ms var(--ease); }
+.app-shell:has(.loading-surface.rejoin.closing) .app-header { opacity: 1; transition: opacity 700ms var(--ease) 500ms; }
+/* Its fade-in has to let go, or the handover's slower fade never gets to run. */
+.loading-surface.boot.rejoin.landing::before { animation: none; }

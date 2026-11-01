@@ -13,7 +13,7 @@ import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
 import { BootFailure, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
-import { LANDING_MS, landingPoints } from "./BootScene";
+import { filmAvailable, LANDING_MS, landingPoints, REJOIN_MIN_MS } from "./BootScene";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
 import { NotificationHistory } from "./notificationHistory";
@@ -853,15 +853,22 @@ export default function App() {
     };
   }, [world.active, world.error, worldLoaded]);
   // Once the new world is on screen, show Ready briefly, then fade out.
+  const worldStartedAt = useRef(0);
+  useEffect(() => {
+    if (world.active) worldStartedAt.current = performance.now();
+  }, [world.active]);
   useEffect(() => {
     if (!world.active || !worldLoaded) return;
     setManualFocus(null);
     setDismissedFocus(new Set());
     setDialog(null);
     logControl("regenerate", `ready ${world.status?.seed ?? ""}`);
-    // Ready is the one result worth a moment's reading: it hands over a new world.
-    const t1 = setTimeout(() => setWorld((w) => ({ ...w, closing: true })), 700);
-    const t2 = setTimeout(() => setWorld(NO_WORLD_JOB), 700 + MOTION_MS.overlay);
+    // The old world finishes leaving and the name re-forms, however fast the new one was,
+    // and then the particles land on the new roads.
+    const film = !reduceMotion && filmAvailable();
+    const wait = film ? Math.max(700, REJOIN_MIN_MS - (performance.now() - worldStartedAt.current)) : 700;
+    const t1 = setTimeout(() => setWorld((w) => ({ ...w, closing: true })), wait);
+    const t2 = setTimeout(() => setWorld(NO_WORLD_JOB), wait + (film ? LANDING_MS : MOTION_MS.overlay));
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -1329,6 +1336,7 @@ export default function App() {
               error={world.error}
               onRetry={() => void requestWorld()}
               onCancel={() => setWorld(NO_WORLD_JOB)}
+              landing={landOnRoads}
               reduceMotion={reduceMotion}
             />
           )}

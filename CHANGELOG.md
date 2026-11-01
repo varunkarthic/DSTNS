@@ -17,6 +17,10 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Generating a new world is one continuous animation
+
+The particles lift off the current map's roads, form the name, blast apart, recollect into the name, and the film carries on, with progress along the bottom, until they land on the new world's roads. There is no title screen. It takes about 11 seconds at its fastest. A failed generation still shows its message with Retry and Return to current world, and the current world is untouched.
+
 ### Scrolling redesigned
 
 - **Scrolling is more responsive everywhere.** Under 4× CPU throttle at 10× speed on a Retina-scale window, on the About page, median input delay fell from 92 to 35 ms, the worst case from 203 to 68 ms, and main-thread paint from 766 to 23 ms.

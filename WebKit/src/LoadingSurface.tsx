@@ -73,6 +73,8 @@ export function LoadingSurface({
   landing,
   phase = "film",
   ending = false,
+  rejoin = false,
+  exiting = false,
   onFilmCycle,
 }: {
   /** "boot" covers the screen; "overlay" floats a card over the dimmed map. */
@@ -106,6 +108,10 @@ export function LoadingSurface({
   phase?: BootPhase;
   /** The end of a session, with its own short version of the film. */
   ending?: boolean;
+  /** The world is being replaced: its ending runs first, then the film without a title. */
+  rejoin?: boolean;
+  /** That ending is still under way, so nothing is shown over it yet. */
+  exiting?: boolean;
   onFilmCycle?: () => void;
 }) {
   // The wordmark hands over to the one in the header, so the screen resolves into
@@ -208,7 +214,7 @@ export function LoadingSurface({
   return (
     <div
       ref={surface}
-      className={`loading-surface ${mode} phase-${film ? phase : "film"}${ending ? " ending" : ""}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
+      className={`loading-surface ${mode} phase-${film ? phase : "film"}${ending ? " ending" : ""}${rejoin ? " rejoin" : ""}${exiting ? " exiting" : ""}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
       role={role}
       aria-modal={role === "alertdialog" ? true : undefined}
       aria-labelledby={titleId}
@@ -216,9 +222,9 @@ export function LoadingSurface({
       aria-live={role === "status" ? "polite" : undefined}
     >
       {mode === "boot" && (
-        <BootScene playing={film && phase === "film"} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending} onCycle={onFilmCycle} reduceMotion={reduceMotion} />
+        <BootScene playing={film && phase === "film" && !exiting} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending || rejoin} rejoin={rejoin} quiet={failed && rejoin} onCycle={onFilmCycle} reduceMotion={reduceMotion} />
       )}
-      {film && <BootTitle phase={phase} />}
+      {film && !rejoin && <BootTitle phase={phase} />}
       {body}
       {footer}
     </div>

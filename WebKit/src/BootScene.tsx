@@ -32,6 +32,12 @@ const easeInOut = (t: number) => {
 const CAMERA = { k: 9, c: 6 };
 /** How long the handover takes. The surface stays mounted this long. */
 export const LANDING_MS = 2300;
+/** A new world: how long the old one takes to leave, before the particles recollect. */
+export const REJOIN_AT_MS = 5800;
+/** Whether this browser can draw the film at all. */
+export const filmAvailable = () => typeof WebGL2RenderingContext !== "undefined";
+/** And how long before a ready world may interrupt them forming the name again. */
+export const REJOIN_MIN_MS = REJOIN_AT_MS + 2800;
 // With nothing to do, the network rests dimly, out of the way of what is on screen.
 const REST_DIM = 0.14;
 // How long the particles stand on the logo before letting go, while it fades.
@@ -472,7 +478,7 @@ function rgb(value: string, fallback: [number, number, number]): [number, number
   return parts.length >= 3 && parts.every(Number.isFinite) ? [parts[0] / 255, parts[1] / 255, parts[2] / 255] : fallback;
 }
 
-export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, onCycle, reduceMotion }: {
+export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, onCycle, reduceMotion }: {
   /** The film runs; otherwise the network rests dimly behind whatever is on screen. */
   playing: boolean;
   /** Nothing is drawn yet, because the title has the screen. */
@@ -482,6 +488,10 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
   landing?: () => Float32Array | null;
   /** The server has stopped: particles leave the roads, form the name once, and rest. */
   ending?: boolean;
+  /** After ending, the same particles recollect into the name and the film carries on. */
+  rejoin?: boolean;
+  /** Something is to be read on screen: stay out of its way. */
+  quiet?: boolean;
   /** The film has shown every scene once. */
   onCycle?: () => void;
   reduceMotion: boolean;
@@ -492,6 +502,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
   playingRef.current = playing;
   const closingRef = useRef(closing);
   closingRef.current = closing;
+  const quietRef = useRef(quiet);
+  quietRef.current = quiet;
   const cycleRef = useRef(onCycle);
   cycleRef.current = onCycle;
   const asleepRef = useRef(asleep);
@@ -623,6 +635,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     let landed = false; // Whether the particles have somewhere to land.
     let landedFrom = 0;
     let endScattered = false;
+    let rejoined = false;
     let endStart = 0;
     let closingFor = -1;
     let blend = 1;
@@ -706,7 +719,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
           landing = 0;
           dissolving = false;
         }
-      } else if (ending && started) {
+      } else if (ending && started && !rejoined) {
         // The end, simply: off the roads into the name, and then it drifts apart and rests.
         const t = now / 1000 - endStart;
         landing = 1 - easeInOut((t - 0.5) / 2.2);
@@ -718,15 +731,29 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
           blend = 0;
           velocity = 0;
         }
-        if (t > 9) {
+        if (t > 9 && !rejoin) {
           paint();
           return; // Nothing else will happen here, so nothing else is spent.
         }
       }
       // Having landed, they give way to the map's own roads.
-      const endingDim = ending ? (now / 1000 - endStart > 4.6 ? REST_DIM : 1) : null;
+      const endingDim = quietRef.current ? REST_DIM : ending && !rejoined ? (!rejoin && now / 1000 - endStart > 4.6 ? REST_DIM : 1) : null;
       const dimTo = endingDim ?? (landed ? (closingFor > LAND_S + 0.1 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM);
-      dim += (dimTo - dim) * Math.min(1, dt * (ending ? 1.6 : landed ? 4 : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
+      dim += (dimTo - dim) * Math.min(1, dt * (quietRef.current || (ending && !rejoined) ? 1.6 : landed ? 4 : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
+      // The old world's particles, blown apart, come back together as the name, and the
+      // film carries on from there as it does at start-up.
+      if (rejoin && started && !rejoined && playingRef.current) {
+        rejoined = true;
+        from = to;
+        to = wordmark;
+        scene = 0;
+        bind(from, to);
+        blend = 0;
+        velocity = 0;
+        held = 0;
+        landing = 0;
+        setChapter(0);
+      }
       if (ending && !started && wordmark >= 0) {
         // Starts standing on the map's roads, wherever they are, and gathers into the name.
         started = true;
@@ -774,7 +801,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
           }
         }
         if (held > HOLD_S && !closingRef.current) next();
-      } else if (!asleepRef.current && !ending && scene !== 1) {
+      } else if (!asleepRef.current && !ending && !quietRef.current && scene !== 1) {
         next(1);
       }
       paint();
@@ -838,7 +865,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       document.removeEventListener("visibilitychange", onVisibility);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
-  }, [reduceMotion, ending]);
+  }, [reduceMotion, ending, rejoin]);
 
   const shown = FILM_CHAPTERS[playing ? chapter : 0];
   return (

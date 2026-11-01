@@ -12,6 +12,8 @@ import type { ReactNode } from "react";
 import { Icon } from "./Icons";
 import { Logo } from "./Logo";
 import { LoadingSurface } from "./LoadingSurface";
+import { filmAvailable, REJOIN_AT_MS } from "./BootScene";
+import { LICENCE } from "./Splash";
 import { useTimeFormat } from "./preferences";
 import { formatDuration, formatWallDuration } from "./timeFormat";
 import type { Backpressure, WorldStatus, Envelope, Status, Topology } from "./types";
@@ -572,9 +574,11 @@ export function WorldGenerationOverlay({
   closing,
   error,
   reduceMotion = false,
+  landing,
   onRetry,
   onCancel,
 }: {
+  landing?: () => Float32Array | null;
   status: WorldStatus | null;
   requestedSeed: string;
   /** The new world's map has arrived in the interface. */
@@ -587,6 +591,13 @@ export function WorldGenerationOverlay({
 }) {
   const step = worldStep(status, loaded);
   const failed = !!error;
+  // The old world leaves first, and only then is there anything to report on screen.
+  const [exiting, setExiting] = useState(!reduceMotion && filmAvailable());
+  useEffect(() => {
+    if (reduceMotion || !exiting) return;
+    const timer = setTimeout(() => setExiting(false), REJOIN_AT_MS);
+    return () => clearTimeout(timer);
+  }, [reduceMotion, exiting]);
   const done = step.index >= WORLD_STEPS.length - 1;
   const retry = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -594,7 +605,11 @@ export function WorldGenerationOverlay({
   }, [failed]);
   return (
     <LoadingSurface
-      mode="overlay"
+      mode="boot"
+      rejoin
+      exiting={exiting && !failed}
+      landing={landing}
+      footer={<p className="loading-licence">{LICENCE}</p>}
       role="alertdialog"
       titleId="world-title"
       title={failed ? "World generation failed" : done ? "New world ready" : "Generating new world"}
@@ -606,7 +621,7 @@ export function WorldGenerationOverlay({
       progressLabel="Download progress"
       failed={failed}
       error={error}
-      note={failed ? "The previous world is unchanged, and is still loaded." : done ? undefined : "The current world is paused and stays loaded until the new one is ready."}
+      note={failed ? "The previous world is unchanged, and is still loaded." : undefined}
       closing={closing}
       reduceMotion={reduceMotion}
       actions={

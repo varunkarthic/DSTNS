@@ -152,6 +152,8 @@ parts the cloud and a click sends a ring through it. When the map is ready, the 
 roads exactly where the map has drawn them and give way to it, so the film becomes the map. A failure
 or a shutdown is something to read, so it stays a card in the middle, with the network resting dimly behind it.
 
+Generating a new world uses the same particles, without a break. They lift off the current map's roads, form the name, blast apart and recollect into it, and the film carries on until they land on the new world's roads. It does not repeat the title, and it does not wait for a full cycle of the film: once the name has re-formed, it leaves as soon as the world is ready.
+
 It dissolves into the map as soon as the map exists, and the interface arrives around it in
 a stagger. Nothing is held for effect, and
 stages are never shown as if they were still running after they finish.

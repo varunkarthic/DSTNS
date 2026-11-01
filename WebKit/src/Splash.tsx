@@ -113,7 +113,7 @@ export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabl
   return { stage: { step, label: BOOT_STEPS[step].label, detail: STAGE_DETAIL[step] }, holding };
 }
 
-const LICENCE = "Deterministic Spatiotemporal Transport Network Simulator · © 2026 Varun Karthic · AGPL-3.0-or-later · Map data © OpenStreetMap contributors (ODbL)";
+export const LICENCE = "Deterministic Spatiotemporal Transport Network Simulator · © 2026 Varun Karthic · AGPL-3.0-or-later · Map data © OpenStreetMap contributors (ODbL)";
 
 export function Splash({
   stage,

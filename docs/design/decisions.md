@@ -455,3 +455,13 @@ longer for recovery than for trouble, and each release that has to be taken back
 
 **Consequences.** A first start takes about 45 seconds, and the run has already begun behind the film, so its clock is
 that far along when the map appears. A reload during a run, or reduced motion, skips this.
+
+## 34. A new world is one continuous animation
+
+**Problem.** Generating a world showed a card over the dimmed map, a separate experience from starting up and shutting down.
+
+**Decision.** The same particles carry it: off the old roads into the name, apart, back into the name, through the film, and
+onto the new roads. Nothing is reported on screen until the old world has left, about six seconds in.
+
+**Consequences.** Generating a world takes at least about 11 seconds, however fast the world is ready. A failure rests the
+particles and shows the same readable card, and the current world stays loaded.

@@ -368,6 +368,9 @@ Full details: [Installation](https://dstns.readthedocs.io/getting-started/instal
 | A PDF of the day | **Export Report** |
 | Learn the interface | **Tutorial** |
 
+Generating a new world plays as one continuous animation, from the old map's roads to the new one's, and takes at least
+about 11 seconds.
+
 The observer needs a window of at least **1280 × 640**. Below that it says so rather than squeezing the interface.
 
 When the world is ready, the start-up film plays through once before handing over to the map, so a first start takes
