@@ -5,9 +5,11 @@
 
 #include "dstns/rng.hpp"
 #include "dstns/utf8.hpp"
+#include "support.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <regex>
 
@@ -21,6 +23,8 @@ constexpr std::size_t kMaxApps = 64, kMaxElements = 64, kMaxUiBytes = 4 * 1024 *
                       kMaxNotifications = 1000, kMaxAudit = 2000, kMaxFields = 128, kMaxPage = 200, kMaxTimers = 32,
                       kMaxTopics = 32, kMaxStorageKeys = 256, kMaxStorageBytes = 256 * 1024, kMaxMessageBytes = 16 * 1024;
 constexpr double kNotificationBurst = 40, kNotificationsPerSecond = 20;
+constexpr std::int64_t kSignatureWindowS = 60;
+constexpr std::size_t kMaxLaunchCommands = 8, kMaxCommandBytes = 1024, kMaxProposals = 64;
 constexpr int kManifestVersion = 1, kApiMajor = 1;
 
 // Requested and granted without asking: they only add to the application's own
@@ -145,6 +149,15 @@ json validate_manifest(const json& manifest) {
     if (manifest.contains("lease_s") && !(manifest.at("lease_s").is_number() && manifest.at("lease_s").get<double>() >= 1 && manifest.at("lease_s").get<double>() <= 3600))
         bad("manifest.lease_s must be in [1, 3600]");
     if (manifest.contains("settings")) validate_settings(manifest.at("settings"));
+    if (manifest.contains("frame_origins")) {
+        const auto& origins = manifest.at("frame_origins");
+        if (!origins.is_array() || origins.size() > 16) bad("manifest.frame_origins must be an array of up to 16 origins");
+        static const std::regex kOrigin("https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?");
+        for (const auto& origin : origins)
+            if (!origin.is_string() || !std::regex_match(origin.get<std::string>(), kOrigin)) bad("a frame origin is a scheme and a host, such as https://example.org");
+    }
+    if (manifest.contains("security") && !(manifest.at("security").is_object() && manifest.at("security").value("require_signatures", json(false)).is_boolean()))
+        bad("manifest.security.require_signatures must be true or false");
     return manifest;
 }
 
@@ -246,10 +259,23 @@ AppRegistry::AppRegistry(std::filesystem::path store) : store_(std::move(store))
     // A damaged store must not stop the simulator: applications register again.
     try {
         const auto saved = json::parse(in);
+        // Sealed with a key kept apart from it. One that does not match is set aside, not trusted:
+        // it holds what proves who an application is and what it may do.
+        if (saved.contains("integrity") && !fabric::same_secret(saved.at("integrity").get<std::string>(), fabric::hmac_sha256(store_key(), saved.at("apps").dump() + saved.value("launch", json::object()).dump()))) {
+            store_rejected_ = true;
+            in.close();
+            std::error_code ignored;
+            std::filesystem::rename(store_, store_.string() + ".rejected", ignored);
+            return;
+        }
+        launch_ = saved.value("launch", json::object());
         for (const auto& [id, record] : saved.at("apps").items()) {
             App app;
             app.id = id;
-            app.token = record.at("token");
+            // An older store kept the token itself. It keeps working, and is kept only as a hash from here on.
+            app.token_hash = record.contains("token_hash") ? record.at("token_hash").get<std::string>() : sha256(record.at("token").get<std::string>());
+            app.signing_key = record.contains("signing_key") ? record.at("signing_key").get<std::string>() : Seed128::secure().hex() + Seed128::secure().hex();
+            app.signatures_required = record.value("signatures_required", false);
             app.state = "unloaded";
             app.manifest = record.at("manifest");
             app.granted = record.at("granted").get<std::set<std::string>>();
@@ -270,20 +296,37 @@ AppRegistry::AppRegistry(std::filesystem::path store) : store_(std::move(store))
 void AppRegistry::persist() {
     auto apps = json::object();
     for (const auto& [id, app] : apps_)
-        apps[id] = {{"token", app.token}, {"manifest", app.manifest}, {"granted", app.granted}, {"values", app.values},
+        apps[id] = {{"token_hash", app.token_hash}, {"signing_key", app.signing_key}, {"signatures_required", app.signatures_required}, {"manifest", app.manifest}, {"granted", app.granted}, {"values", app.values},
                     {"settings_version", app.settings_version}, {"user_suspended", app.user_suspended}, {"storage", app.storage}};
     // Written beside the target and renamed, so a crash leaves the old file whole.
     const auto temporary = store_.string() + ".tmp";
     {
         std::ofstream out(temporary, std::ios::trunc);
         if (!out) return;  // Settings still apply for this run.
-        out << dump_json(json{{"version", 1}, {"apps", std::move(apps)}});
+        const auto seal = hmac_sha256(store_key(), apps.dump() + launch_.dump());
+        out << dump_json(json{{"version", 2}, {"apps", std::move(apps)}, {"launch", launch_}, {"integrity", seal}});
         if (!out) return;
     }
     std::error_code ignored;
     // It holds application tokens, so it is as private as operator.token.
     std::filesystem::permissions(temporary, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, ignored);
     std::filesystem::rename(temporary, store_, ignored);
+}
+
+std::string AppRegistry::store_key() {
+    if (!store_key_.empty()) return store_key_;
+    const auto path = store_.string() + ".key";
+    std::ifstream in(path);
+    if (in) std::getline(in, store_key_);
+    if (store_key_.size() < 32) {
+        store_key_ = Seed128::secure().hex() + Seed128::secure().hex();
+        std::ofstream out(path, std::ios::trunc);
+        out << store_key_ << '\n';
+        out.close();
+        std::error_code ignored;
+        std::filesystem::permissions(path, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, ignored);
+    }
+    return store_key_;
 }
 
 AppRegistry::App& AppRegistry::find(const std::string& id) {
@@ -332,7 +375,7 @@ json AppRegistry::register_app(const json& raw, const std::string& presented) {
     bool returning = false;
     if (existing != apps_.end()) {
         auto& previous = existing->second;
-        const bool owner = !presented.empty() && presented == previous.token;
+        const bool owner = !presented.empty() && same_secret(sha256(presented), previous.token_hash);
         if (!owner) {
             if (previous.state != "unloaded")
                 throw Refusal(409, "APP_ID_CONFLICT", "an application with the ID " + id + " is already registered; present its token to update it");
@@ -349,13 +392,24 @@ json AppRegistry::register_app(const json& raw, const std::string& presented) {
     // application exactly as it was.
     App app = returning ? existing->second : App{};
     app.id = id;
-    if (app.token.empty() || presented != app.token) app.token = Seed128::secure().hex() + Seed128::secure().hex();
+    // Only a hash is kept, so the token itself exists only here and with the application.
+    auto token = presented;
+    if (app.token_hash.empty() || !same_secret(sha256(presented), app.token_hash)) {
+        token = Seed128::secure().hex() + Seed128::secure().hex();
+        app.token_hash = sha256(token);
+        app.signing_key = Seed128::secure().hex() + Seed128::secure().hex();
+    }
     const auto requested = manifest.value("capabilities", std::vector<std::string>{});
     std::set<std::string> kept;
+    // Permission to show frames was given for particular origins. Asking for more asks again.
+    const auto old_origins = returning ? app.manifest.value("frame_origins", std::set<std::string>{}) : std::set<std::string>{};
+    const auto new_origins = manifest.value("frame_origins", std::set<std::string>{});
+    const bool widened = returning && !std::includes(old_origins.begin(), old_origins.end(), new_origins.begin(), new_origins.end());
     for (const auto& capability : requested) {
-        if (kAutomatic.count(capability) || (returning && app.granted.count(capability))) kept.insert(capability);
+        if (kAutomatic.count(capability) || (returning && app.granted.count(capability) && !(capability == "ui.frames" && widened))) kept.insert(capability);
     }
     app.granted = std::move(kept);
+    app.signatures_required = manifest.contains("security") && manifest.at("security").value("require_signatures", false);
     app.manifest = manifest;
     app.lease_s = manifest.value("lease_s", 60.0);
     app.elements = json::array();
@@ -376,7 +430,7 @@ json AppRegistry::register_app(const json& raw, const std::string& presented) {
     auto& installed = apps_[id] = std::move(app);
     mark(installed);
     persist();
-    return {{"app", public_view(installed, true)}, {"token", installed.token}};
+    return {{"app", public_view(installed, true)}, {"token", token}, {"signing_key", installed.signing_key}};
 }
 
 void AppRegistry::adopt_settings(App& app) {
@@ -427,6 +481,15 @@ void AppRegistry::check_element(const App& app, const json& element) const {
         const auto url = element.at("frame").is_string() ? element.at("frame").get<std::string>() : std::string{};
         if ((slot != "panel" && slot != "sidebar" && slot != "deck") || !(url.starts_with("http://") || url.starts_with("https://")) || url.size() > 2000)
             throw Refusal(400, "INVALID_ELEMENT", "frame must be an http or https URL on a panel or sidebar");
+        // Declared origins are a promise: a frame cannot quietly come from somewhere else.
+        if (app.manifest.contains("frame_origins")) {
+            const auto scheme = url.find("://");
+            const auto end = url.find_first_of("/?#", scheme + 3);
+            const auto origin = url.substr(0, end);
+            const auto& allowed = app.manifest.at("frame_origins");
+            if (std::find(allowed.begin(), allowed.end(), origin) == allowed.end())
+                throw Refusal(403, "FRAME_ORIGIN_NOT_DECLARED", "frame comes from " + origin + ", which the manifest does not declare");
+        }
         if (app.manifest.contains("capabilities")) {
             const auto& requested = app.manifest.at("capabilities");
             if (std::find(requested.begin(), requested.end(), "ui.frames") == requested.end())
@@ -445,10 +508,7 @@ std::size_t AppRegistry::ui_bytes(const json& elements) const { return elements.
 void AppRegistry::authenticate(const std::string& id, const std::string& token) {
     std::lock_guard lock(mutex_);
     auto& app = find(id);
-    // Same length and every byte compared, so timing says nothing about a guess.
-    unsigned difference = app.token.size() == token.size() ? 0 : 1;
-    for (std::size_t i = 0; i < std::min(app.token.size(), token.size()); ++i) difference |= static_cast<unsigned>(app.token[i] ^ token[i]);
-    if (difference || token.empty()) {
+    if (token.empty() || !same_secret(sha256(token), app.token_hash)) {
         ++app.refused;
         throw Refusal(401, "APP_TOKEN_INVALID", "this request needs the application's bearer token");
     }
@@ -476,7 +536,8 @@ json AppRegistry::public_view(const App& app, bool with_ui) const {
                  {"description", app.manifest.value("description", "")}, {"author", app.manifest.value("author", "")},
                  {"state", app.state}, {"detail", app.detail}, {"user_suspended", app.user_suspended}, {"order", app.order},
                  {"capabilities", {{"requested", std::move(requested)}, {"granted", app.granted}, {"pending", std::move(pending)}}},
-                 {"settings", app.manifest.value("settings", json(nullptr))}};
+                 {"settings", app.manifest.value("settings", json(nullptr))},
+                 {"security", {{"signatures_required", app.signatures_required}, {"frame_origins", app.manifest.value("frame_origins", json::array())}}}};
     if (view["settings"].is_object()) view["settings"].erase("migrations");
     if (with_ui) {
         auto shown = json::array();
@@ -517,7 +578,7 @@ json AppRegistry::state(std::uint64_t since, std::uint64_t notifications_since) 
         recent.push_back(item);
         if (recent.size() >= kMaxPage) break;
     }
-    json out = {{"revision", revision_}, {"notification_sequence", notification_sequence_}, {"notifications", std::move(recent)}};
+    json out = {{"revision", revision_}, {"notification_sequence", notification_sequence_}, {"notifications", std::move(recent)}, {"launch_plan", launch_plan_}};
     if (since == revision_) {
         out["unchanged"] = true;
         return out;
@@ -770,9 +831,27 @@ json AppRegistry::set_grants(const std::string& id, const json& capabilities) {
 void AppRegistry::audit(const std::string& id, const std::string& action, const json& params,
                         const std::string& run_id, double virtual_s, const std::string& outcome) {
     std::lock_guard lock(mutex_);
-    audit_.push_back({{"sequence", ++audit_sequence_}, {"app_id", id}, {"action", action}, {"params", params}, {"run_id", run_id},
-                      {"virtual_s", virtual_s}, {"outcome", outcome}, {"at_ms", wall_ms()}});
+    json entry = {{"sequence", ++audit_sequence_}, {"app_id", id}, {"action", action}, {"params", params}, {"run_id", run_id},
+                  {"virtual_s", virtual_s}, {"outcome", outcome}, {"at_ms", wall_ms()}, {"previous", audit_head_}};
+    audit_head_ = sha256(entry.dump());
+    entry["hash"] = audit_head_;
+    audit_.push_back(std::move(entry));
     while (audit_.size() > kMaxAudit) audit_.pop_front();
+}
+
+json AppRegistry::audit_verify() {
+    std::lock_guard lock(mutex_);
+    std::string previous = audit_.empty() ? std::string{} : audit_.front().at("previous").get<std::string>();
+    std::size_t checked = 0;
+    for (auto entry : audit_) {
+        const auto claimed = entry.at("hash").get<std::string>();
+        entry.erase("hash");
+        if (entry.at("previous") != previous || sha256(entry.dump()) != claimed)
+            return {{"intact", false}, {"checked", checked}, {"first_bad_sequence", entry.at("sequence")}};
+        previous = claimed;
+        ++checked;
+    }
+    return {{"intact", previous == audit_head_ || audit_.empty()}, {"checked", checked}, {"head", audit_head_}};
 }
 
 json AppRegistry::audit_log(std::size_t limit) {
@@ -796,6 +875,7 @@ json AppRegistry::discovery() {
         {"motions", {"none", "fade", "rise", "slide", "scale", "pop", "drop"}},
         {"tones", kTones},
         {"topics", {"lifecycle", "world", "news", "news.<category>"}},
+        {"security", {{"token_rotation", true}, {"signed_requests", "hmac-sha256"}, {"signature_window_s", kSignatureWindowS}, {"frame_origins", true}, {"response_digest", "sha256"}}},
         {"limits", {{"apps", kMaxApps}, {"elements", kMaxElements}, {"ui_bytes", kMaxUiBytes}, {"events_kept", kMaxEventQueue}, {"timers", kMaxTimers},
                     {"topics", kMaxTopics}, {"storage_keys", kMaxStorageKeys}, {"storage_bytes", kMaxStorageBytes}, {"message_bytes", kMaxMessageBytes}}},
     };
@@ -995,6 +1075,102 @@ json AppRegistry::health(const std::string& id) {
             {"ui", {{"elements", app.elements.size()}, {"bytes", ui_bytes(app.elements)}}},
             {"storage", {{"keys", app.storage.size()}, {"bytes", app.storage.dump().size()}}},
             {"timers", app.timers.size()}, {"topics", app.topics}};
+}
+
+void AppRegistry::verify_signature(const std::string& id, const std::string& method, const std::string& target, const std::string& timestamp,
+                                   const std::string& nonce, const std::string& signature, const std::string& body) {
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    if (signature.empty()) {
+        if (!app.signatures_required) return;
+        ++app.refused;
+        throw Refusal(401, "SIGNATURE_REQUIRED", "this application asked for its requests to be signed");
+    }
+    const auto refuse = [&](const std::string& code, const std::string& message) {
+        ++app.refused;
+        throw Refusal(401, code, message);
+    };
+    std::int64_t at = 0;
+    try {
+        at = std::stoll(timestamp);
+    } catch (const std::exception&) {
+        refuse("SIGNATURE_INVALID", "X-DSTNS-Timestamp must be seconds since the epoch");
+    }
+    const std::int64_t now = wall_ms() / 1000;
+    if (std::llabs(now - at) > kSignatureWindowS) refuse("SIGNATURE_EXPIRED", "the signature's timestamp is more than " + std::to_string(kSignatureWindowS) + " seconds out");
+    if (nonce.size() < 8 || nonce.size() > 128) refuse("SIGNATURE_INVALID", "X-DSTNS-Nonce must be 8 to 128 characters");
+    if (!same_secret(signature, hmac_sha256(app.signing_key, method + "\n" + target + "\n" + timestamp + "\n" + nonce + "\n" + sha256(body))))
+        refuse("SIGNATURE_INVALID", "the signature does not match this request");
+    // Checked last, so that a forgery cannot use up a nonce.
+    for (auto seen = app.nonces.begin(); seen != app.nonces.end();) seen = seen->second < now - kSignatureWindowS * 2 ? app.nonces.erase(seen) : std::next(seen);
+    if (!app.nonces.emplace(nonce, at).second) refuse("SIGNATURE_REPLAYED", "this nonce has been used");
+}
+
+std::string AppRegistry::sign_response(const std::string& id, int status, const std::string& nonce, const std::string& digest) {
+    std::lock_guard lock(mutex_);
+    const auto found = apps_.find(id);
+    return found == apps_.end() ? std::string{} : hmac_sha256(found->second.signing_key, std::to_string(status) + "\n" + nonce + "\n" + digest);
+}
+
+json AppRegistry::rotate_credentials(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    const auto token = Seed128::secure().hex() + Seed128::secure().hex();
+    app.token_hash = sha256(token);
+    app.signing_key = Seed128::secure().hex() + Seed128::secure().hex();
+    app.nonces.clear();
+    push_event(app, "credentials.rotated", json::object());
+    persist();
+    return {{"token", token}, {"signing_key", app.signing_key}};
+}
+
+json AppRegistry::security() {
+    std::lock_guard lock(mutex_);
+    std::size_t signing = 0;
+    for (const auto& [id, app] : apps_) signing += app.signatures_required ? 1 : 0;
+#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+    const bool tls_built = true;
+#else
+    const bool tls_built = false;
+#endif
+    const char* cert = std::getenv("DSTNS_TLS_CERT");
+    return {{"transport", {{"tls", cert && *cert}, {"tls_available", tls_built}}},
+            {"store", {{"sealed", true}, {"rejected", store_rejected_}, {"tokens", "hashed"}}},
+            {"applications", {{"registered", apps_.size()}, {"requiring_signatures", signing}}},
+            {"audit", {{"entries", audit_.size()}, {"head", audit_head_}}}};
+}
+
+json AppRegistry::propose_launch(const std::string& id, const json& spec, const std::string& proposed_by) {
+    const auto refuse = [](const std::string& message) { throw Refusal(400, "INVALID_LAUNCH", message); };
+    if (!std::regex_match(id, kAppId) || id.size() < 3 || id.size() > 64) refuse("the ID must be 3 to 64 lower-case letters, digits, dots and hyphens");
+    if (!spec.is_object() || !spec.contains("commands") || !spec.at("commands").is_array() || spec.at("commands").empty() || spec.at("commands").size() > kMaxLaunchCommands)
+        refuse("commands must be an array of 1 to " + std::to_string(kMaxLaunchCommands) + " commands");
+    for (const auto& command : spec.at("commands"))
+        if (!command.is_string() || command.get<std::string>().empty() || command.get<std::string>().size() > kMaxCommandBytes) refuse("a command is text of up to " + std::to_string(kMaxCommandBytes) + " bytes");
+    if (spec.dump().size() > 16 * 1024) refuse("the proposal is too large");
+    std::lock_guard lock(mutex_);
+    if (!launch_.contains(id) && launch_.size() >= kMaxProposals) throw Refusal(429, "TOO_MANY_PROPOSALS", "too many launch proposals are waiting");
+    launch_[id] = {{"id", id}, {"spec", spec}, {"proposed_by", proposed_by}, {"at_ms", wall_ms()}};
+    persist();
+    return launch_[id];
+}
+
+void AppRegistry::withdraw_launch(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    if (!launch_.erase(id)) throw Refusal(404, "PROPOSAL_NOT_FOUND", "no launch proposal for " + id);
+    persist();
+}
+
+json AppRegistry::launch_proposals() {
+    std::lock_guard lock(mutex_);
+    auto items = json::array();
+    for (const auto& [id, proposal] : launch_.items()) items.push_back(proposal);
+    return {{"items", std::move(items)}};
+}
+
+void AppRegistry::set_launch_plan(const json& plan) {
+    std::lock_guard lock(mutex_);
+    launch_plan_ = plan;
 }
 
 void AppRegistry::set_stops(const std::string& id, const json& nodes) {

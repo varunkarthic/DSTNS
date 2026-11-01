@@ -5,6 +5,7 @@
 #include "dstns/webfabric/registry.hpp"
 #include "dstns/osm_fetch.hpp"
 #include "support.hpp"
+#include "dstns/rng.hpp"
 
 namespace dstns {
 using namespace fabric;
@@ -29,7 +30,14 @@ void ApiServer::install_guards() {
             send(r,{{"error",{{"code","CROSS_ORIGIN_FORBIDDEN"},{"message","State-changing requests must come from the observer's own origin."}}}},403);
             return httplib::Server::HandlerResponse::Handled;
         }
-        if((req.path=="/api/v1/playback/start"||req.path=="/api/v1/playback/prepare") && req.method=="POST" && (operator_token.empty()||req.get_header_value("X-DSTNS-Operator")!=operator_token)) {
+        // The engine, through Fabric, answers only to those it belongs to. Reading is open, as reading
+        // the view is; an application acts through its own capability-checked route, and is recorded.
+        if (req.path.starts_with(kEngineBase) && req.method != "GET" && req.method != "HEAD" && req.method != "OPTIONS" && !is_host(req)) {
+            send(r,{{"ok",false},{"error",{{"code","AUTHORIZATION_REQUIRED"},{"message","This route answers to the observer and the operator. An application acts through /api/v1/fabric/apps/{id}/control, with its token and the capability it was granted."}}}},401);
+            return httplib::Server::HandlerResponse::Handled;
+        }
+        const auto engine_start = std::string(kEngineBase) + "/start", engine_prepare = std::string(kEngineBase) + "/prepare";
+        if((req.path=="/api/v1/playback/start"||req.path=="/api/v1/playback/prepare"||req.path==engine_start||req.path==engine_prepare) && req.method=="POST" && (operator_token.empty()||req.get_header_value("X-DSTNS-Operator")!=operator_token)) {
             send(r,{{"error",{{"code","CLI_START_REQUIRED"},{"message","Start simulations through the operator CLI."}}}},403);return httplib::Server::HandlerResponse::Handled;
         }
         return httplib::Server::HandlerResponse::Unhandled;
@@ -38,7 +46,7 @@ void ApiServer::install_guards() {
     // CORS is granted per request, below, not to everyone: "*" would let any
     // web page the operator visits read the run from a local server.
     server_->set_default_headers({
-        {"Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Authorization"},
+        {"Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Authorization, X-DSTNS-Host, X-DSTNS-Timestamp, X-DSTNS-Nonce, X-DSTNS-Signature"},
         {"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
         {"Cache-Control", "no-store"}
     });
@@ -46,12 +54,26 @@ void ApiServer::install_guards() {
     // Only the server's own origin, and origins listed in DSTNS_ALLOWED_ORIGINS,
     // may read responses from a browser. The observer is served by this server,
     // so it is same-origin and needs no cross-origin grant at all.
-    server_->set_post_routing_handler([](const auto& req, auto& res) {
+    server_->set_post_routing_handler([this](const auto& req, auto& res) {
         const auto origin = req.get_header_value("Origin");
         if (!origin.empty() && same_origin(origin, req.get_header_value("Host"), req.get_header_value("X-Forwarded-Host"))) {
             res.set_header("Access-Control-Allow-Origin", origin);
         }
         res.set_header("Vary", "Origin");
+        if (req.path.starts_with("/api/v1/playback/") || req.path.starts_with("/api/v1/control/") || req.path == "/stop") {
+            res.set_header("Deprecation", "true");
+            res.set_header("Warning", "299 DSTNS \"Legacy API: please switch to the Fabric API at /api/v1/fabric/engine\"");
+        }
+        // Integrity: a digest of the bytes sent, and a signature over them for a request that was signed.
+        if (req.path.starts_with("/api/v1/fabric/") && !res.body.empty()) {
+            const auto digest = sha256(res.body);
+            res.set_header("X-DSTNS-Content-SHA256", digest);
+            if (req.has_header("X-DSTNS-Signature") && req.path.starts_with("/api/v1/fabric/apps/")) {
+                const auto id = req.path.substr(20, req.path.find('/', 20) - 20);
+                const auto signature = registry_->sign_response(id, res.status, req.get_header_value("X-DSTNS-Nonce"), digest);
+                if (!signature.empty()) res.set_header("X-DSTNS-Response-Signature", signature);
+            }
+        }
     });
 
     server_->Options(R"(.*)", [](const auto&, auto& r) {

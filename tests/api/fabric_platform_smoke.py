@@ -7,9 +7,12 @@
 Discovery, atomic UI batches, the application's own store across a restart, messages between
 applications, subscriptions to the simulation, timers on its clock, and health.
 """
+import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
+import secrets
 import socket
 import subprocess
 import tempfile
@@ -69,6 +72,108 @@ def manifest(app_id, *capabilities):
 
 def status(id_, text="on"):
     return {"id": id_, "slot": "status", "text": text}
+
+
+def call_raw(server, method, route, data=None, headers=None):
+    """As Server.call, with the response's headers too."""
+    sent = {"Content-Type": "application/json", **(headers or {})}
+    request = urllib.request.Request(f"http://127.0.0.1:{server.port}{route}", method=method, headers=sent, data=None if data is None else json.dumps(data).encode())
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return response.status, json.load(response), dict(response.headers)
+    except urllib.error.HTTPError as error:
+        return error.code, json.load(error), dict(error.headers)
+
+
+def signed(key, method, target, payload=b"", timestamp=None, nonce=None):
+    timestamp = str(int(time.time()) if timestamp is None else timestamp)
+    nonce = nonce or secrets.token_hex(12)
+    message = "\n".join([method, target, timestamp, nonce, hashlib.sha256(payload).hexdigest()])
+    return {"X-DSTNS-Timestamp": timestamp, "X-DSTNS-Nonce": nonce, "X-DSTNS-Signature": hmac.new(key.encode(), message.encode(), hashlib.sha256).hexdigest()}
+
+
+def security_checks(server, token_a, token_b, operator):
+    call = server.call
+    host = {"X-DSTNS-Host": "observer"}
+    # Tokens are not on disk, only their hashes, and the store is sealed.
+    store = json.loads((Path(server.logs) / "fabric-apps.json").read_text())
+    assert token_a not in json.dumps(store) and "integrity" in store and store["apps"]["org.test.alpha"]["token_hash"]
+    assert oct((Path(server.logs) / "fabric-apps.json.key").stat().st_mode & 0o777) == "0o600"
+
+    # An application that asks for signing cannot be driven by its token alone.
+    status_, reply = call("POST", BASE, {**manifest("org.test.signed", "storage", "sim.read"), "security": {"require_signatures": True}})
+    assert status_ == 201, reply
+    token, key = reply["data"]["token"], reply["data"]["signing_key"]
+    route = f"{BASE}/org.test.signed/storage/k"
+    assert code(call("GET", route, token=token)) == "SIGNATURE_REQUIRED"
+    payload = json.dumps({"v": 1}).encode()
+    headers = signed(key, "PUT", route, payload)
+    request = urllib.request.Request(f"http://127.0.0.1:{server.port}{route}", method="PUT", data=payload, headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}", **headers})
+    with urllib.request.urlopen(request, timeout=20) as response:
+        assert response.status == 200
+        # The response is signed in return, and its digest is of what was sent.
+        sent = response.read()
+        digest = response.headers["X-DSTNS-Content-SHA256"]
+        assert digest == hashlib.sha256(sent).hexdigest()
+        expected = hmac.new(key.encode(), f"200\n{headers['X-DSTNS-Nonce']}\n{digest}".encode(), hashlib.sha256).hexdigest()
+        assert response.headers["X-DSTNS-Response-Signature"] == expected
+    # The same request again is a replay; a changed one, an old one or a guessed one is refused too.
+    assert code(call("GET", route, token=token, headers=signed(key, "GET", route))) != "SIGNATURE_INVALID"
+    replay = signed(key, "GET", route)
+    assert call("GET", route, token=token, headers=replay)[0] == 200
+    assert code(call("GET", route, token=token, headers=replay)) == "SIGNATURE_REPLAYED"
+    assert code(call("GET", route, token=token, headers=signed(key, "GET", route + "x"))) in {"SIGNATURE_INVALID", "KEY_NOT_FOUND"}
+    assert code(call("GET", route, token=token, headers=signed("wrong", "GET", route))) == "SIGNATURE_INVALID"
+    assert code(call("GET", route, token=token, headers=signed(key, "GET", route, timestamp=int(time.time()) - 600))) == "SIGNATURE_EXPIRED"
+
+    # Rotating replaces both at once.
+    rotate = f"{BASE}/org.test.signed/credentials/rotate"
+    fresh = call("POST", rotate, {}, token=token, headers=signed(key, "POST", rotate, b"{}"))[1]["data"]
+    assert fresh["token"] != token and fresh["signing_key"] != key
+    assert code(call("GET", route, token=token, headers=signed(key, "GET", route))) == "APP_TOKEN_INVALID"
+    assert call("GET", route, token=fresh["token"], headers=signed(fresh["signing_key"], "GET", route))[0] == 200
+
+    # A frame comes only from where the manifest says, and asking for more asks a person again.
+    app = "org.test.framed"
+    frames = {**manifest(app, "ui.frames", "ui.panels"), "frame_origins": ["https://a.example"]}
+    token_f = call("POST", BASE, frames)[1]["data"]["token"]
+    base_f = f"{BASE}/{app}"
+    assert call("PUT", f"{base_f}/ui/p", {"slot": "panel", "frame": "https://a.example/x"}, token_f)[0] == 200
+    assert code(call("PUT", f"{base_f}/ui/q", {"slot": "panel", "frame": "https://evil.example/x"}, token_f)) == "FRAME_ORIGIN_NOT_DECLARED"
+    assert code(call("PUT", f"{base_f}/ui/r", {"slot": "panel", "frame": "https://a.example.evil.example/x"}, token_f)) == "FRAME_ORIGIN_NOT_DECLARED"
+    assert call("PUT", f"{base_f}/grants", {"capabilities": ["ui.frames", "ui.panels"]}, headers=host)[0] == 200
+    same = call("POST", BASE, frames, token_f)[1]["data"]["app"]["capabilities"]["granted"]
+    assert "ui.frames" in same, "the same origins keep the permission"
+    wider = call("POST", BASE, {**frames, "frame_origins": ["https://a.example", "https://b.example"]}, token_f)[1]["data"]["app"]["capabilities"]
+    assert "ui.frames" not in wider["granted"] and "ui.frames" in wider["pending"], wider
+
+    # The audit log is a chain, which can be checked.
+    token_c = call("POST", BASE, manifest("org.test.auditor", "control.playback"))[1]["data"]["token"]
+    assert call("PUT", f"{BASE}/org.test.auditor/grants", {"capabilities": ["control.playback"]}, headers=host)[0] == 200
+    for action in ("pause", "play"):
+        assert call("POST", f"{BASE}/org.test.auditor/control", {"action": action}, token_c)[0] == 200
+    entries = call("GET", "/api/v1/fabric/audit")[1]["data"]["items"]
+    assert entries[-1]["previous"] == entries[-2]["hash"], entries[-2:]
+    assert call("GET", "/api/v1/fabric/audit/verify", headers=host)[1]["data"]["intact"] is True
+    assert call("GET", "/api/v1/fabric/audit/verify")[0] == 403
+    posture = call("GET", "/api/v1/fabric/security", headers=operator)[1]["data"]
+    assert posture["store"]["tokens"] == "hashed" and posture["audit"]["verification"]["intact"] is True and posture["transport"]["tls"] is False, posture
+    assert call("GET", "/api/v1/fabric/security")[0] == 403
+
+    # A launch is only ever proposed. The application, for itself, or the operator, for any.
+    assert code(call("PUT", f"{BASE}/org.test.alpha/launch", {"commands": []}, token_a)) == "INVALID_LAUNCH"
+    assert call("PUT", f"{BASE}/org.test.alpha/launch", {"commands": ["python3 app.py"]}, token_a)[1]["data"]["proposed_by"] == "application"
+    assert call("PUT", "/api/v1/fabric/launch/org.test.other", {"commands": ["x"]})[0] == 403, "not without being the operator"
+    assert call("PUT", "/api/v1/fabric/launch/org.test.other", {"commands": ["x"]}, headers=operator)[1]["data"]["proposed_by"] == "operator"
+    listed = {p["id"] for p in call("GET", "/api/v1/fabric/launch", headers=operator)[1]["data"]["items"]}
+    assert listed == {"org.test.alpha", "org.test.other"}, listed
+    assert call("GET", "/api/v1/fabric/launch")[0] == 403
+    assert call("DELETE", "/api/v1/fabric/launch/org.test.other", headers=operator)[0] == 200
+    # And the observer can be told what is being started.
+    assert call("PUT", "/api/v1/fabric/launch/plan", {"apps": [{"id": "x", "name": "X", "state": "starting"}]})[0] == 403
+    assert call("PUT", "/api/v1/fabric/launch/plan", {"apps": [{"id": "x", "name": "X", "state": "starting"}]}, headers=operator)[0] == 200
+    assert call("GET", "/api/v1/fabric/state?since=999999999")[1]["data"]["launch_plan"]["apps"][0]["id"] == "x", "whether or not anything else changed"
+    assert call("DELETE", "/api/v1/fabric/launch/plan", headers=operator)[0] == 200
 
 
 def main():
@@ -157,6 +262,25 @@ def main():
             only = call("GET", f"{delta}/events", token=token_d)[1]["data"]["items"]
             assert all(e["type"] != "news" or e["data"]["category"] == "incident" for e in only), only
 
+            # The engine, through Fabric: authorized, and the older paths still answer and say so.
+            engine = "/api/v1/fabric/engine"
+            assert call("GET", f"{engine}/status")[0] == 200
+            assert code(call("POST", f"{engine}/pause", {})) == "AUTHORIZATION_REQUIRED"
+            assert code(call("POST", f"{engine}/pause", {}, token_b)) == "AUTHORIZATION_REQUIRED", "an application acts through its own route"
+            assert code(call("POST", f"{engine}/start", {"seed": "1"}, headers={"X-DSTNS-Host": "observer"})) == "CLI_START_REQUIRED"
+            assert call("POST", f"{engine}/pause", {}, headers=operator)[0] == 200
+            assert call("POST", f"{engine}/play", {}, headers={"X-DSTNS-Host": "observer"})[0] == 200
+            assert call("PUT", f"{engine}/tick-rate", {"tick_rate": 2}, headers=operator)[0] == 200
+            legacy = call_raw(server, "GET", "/api/v1/playback/status")
+            assert legacy[0] == 200 and legacy[2].get("Deprecation") == "true" and "Fabric API" in legacy[2].get("Warning", ""), legacy[2]
+            assert legacy[1]["legacy"]["use"] == f"{engine}/status" and "legacy API" in legacy[1]["legacy"]["message"], legacy[1]
+            current = call_raw(server, "GET", f"{engine}/status")
+            assert "legacy" not in current[1] and "Deprecation" not in current[2], current[2]
+            pause = call_raw(server, "POST", "/api/v1/playback/pause", {})
+            assert pause[0] == 200 and pause[1]["legacy"]["use"] == f"{engine}/pause", pause
+
+            security_checks(server, token_a, token_b, operator)
+
             # Health, for the application itself or for a supervisor.
             health = call("GET", f"{beta}/health", token=token_b)[1]["data"]
             assert health["requests"] > 3 and health["timers"] == 2 and health["messages"]["received"] == 1 and health["storage"]["keys"] == 0, health
@@ -168,6 +292,18 @@ def main():
             # It returns as itself, with its token, and finds what it left.
             assert call("POST", BASE, manifest("org.test.alpha", "sim.read", "storage", "apps.messages", "ui.status"), token_a)[0] in {200, 201}
             assert call("GET", f"{alpha}/storage/prefs", token=token_a)[1]["data"]["value"]["n"] == 3, "the store survives a restart"
+            # A store that has been changed behind the server's back is not trusted.
+            server.stop()
+            store = Path(tmp) / "fabric-apps.json"
+            sealed = json.loads(store.read_text())
+            sealed["apps"]["org.test.alpha"]["manifest"]["capabilities"].append("control.world")
+            sealed["apps"]["org.test.alpha"]["granted"].append("control.world")
+            store.write_text(json.dumps(sealed))
+            server = Server(tmp)
+            call = server.call
+            assert call("GET", f"{alpha}/health", headers={"X-DSTNS-Operator": server.operator})[0] == 404, "what it said is not believed"
+            assert call("GET", "/api/v1/fabric/security", headers={"X-DSTNS-Operator": server.operator})[1]["data"]["store"]["rejected"] is True
+            assert (Path(tmp) / "fabric-apps.json.rejected").exists()
         finally:
             server.stop()
     print("fabric platform ok")

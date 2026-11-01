@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "support.hpp"
+#include "dstns/rng.hpp"
 
 #include "dstns/utf8.hpp"
 
@@ -217,4 +218,49 @@ ScenarioConfig config_from(const json& j) {
     }
     return c;
 }
+httplib::Server::Handler legacy_route(std::string successor, httplib::Server::Handler handler) {
+    return [successor = std::move(successor), handler = std::move(handler)](const httplib::Request& req, httplib::Response& r) {
+        handler(req, r);
+        // Spliced rather than parsed, because some of these are polled often.
+        if (r.body.size() < 2 || r.body.front() != '{' || r.body.back() != '}') return;
+        const auto notice = json{{"message", "This is the legacy API. It still works, but it will not gain new features: please switch to the Fabric API."},
+                                 {"use", successor}}.dump();
+        r.body.insert(r.body.size() - 1, std::string(r.body.size() > 2 ? "," : "") + "\"legacy\":" + notice);
+        r.set_header("X-DSTNS-Successor", successor);
+    };
+}
+
+bool is_host(const httplib::Request& req) {
+    const char* token = std::getenv("DSTNS_OPERATOR_TOKEN");
+    if (token && *token && same_secret(req.get_header_value("X-DSTNS-Operator"), token)) return true;
+    // A sandboxed frame has an opaque origin and a page elsewhere fails the check; a custom
+    // header also forces a browser to ask first, which is refused.
+    if (!req.has_header("X-DSTNS-Host")) return false;
+    return !req.has_header("Origin") || same_origin(req.get_header_value("Origin"), req.get_header_value("Host"), req.get_header_value("X-Forwarded-Host"));
+}
+
+std::string hmac_sha256(std::string_view key, std::string_view message) {
+    constexpr std::size_t kBlock = 64;
+    const auto bytes = [](const std::string& hex) {
+        std::string out;
+        for (std::size_t i = 0; i + 1 < hex.size(); i += 2) out.push_back(static_cast<char>(std::stoi(hex.substr(i, 2), nullptr, 16)));
+        return out;
+    };
+    std::string padded = key.size() > kBlock ? bytes(sha256(key)) : std::string(key);
+    padded.resize(kBlock, '\0');
+    std::string inner(kBlock, '\0'), outer(kBlock, '\0');
+    for (std::size_t i = 0; i < kBlock; ++i) {
+        inner[i] = static_cast<char>(padded[i] ^ 0x36);
+        outer[i] = static_cast<char>(padded[i] ^ 0x5c);
+    }
+    return sha256(outer + bytes(sha256(inner + std::string(message))));
+}
+
+bool same_secret(std::string_view a, std::string_view b) {
+    // Every byte compared, so that the time taken says nothing about a guess.
+    unsigned difference = a.size() == b.size() ? 0 : 1;
+    for (std::size_t i = 0; i < std::min(a.size(), b.size()); ++i) difference |= static_cast<unsigned>(a[i] ^ b[i]);
+    return difference == 0;
+}
+
 } // namespace dstns::fabric

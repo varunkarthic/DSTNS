@@ -49,7 +49,7 @@ class FakeServer:
                     if fake.current:
                         body["observer_ui_version"] = "observer-v2"
                     return self.reply(200, body)
-                if path == "/api/v1/playback/status":
+                if path == "/api/v1/fabric/engine/status":
                     return self.reply(200, {"run_id": "run_test", "seed": "42",
                                             "clock": {"simulated_current_time": "01:00:00", "virtual_day_seconds": 3600,
                                                       "simulation_percentage": 3600 / 86400, "tick_rate": 1},
@@ -77,13 +77,13 @@ class FakeServer:
                 length = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(length) or b"{}")
                 fake.requests.append(("POST", self.path, body))
-                if self.path == "/api/v1/playback/start":
+                if self.path == "/api/v1/fabric/engine/start":
                     if fake.start_code != 202:
                         return self.reply(fake.start_code, {"error": {"code": "MAP_FETCH_FAILED" if fake.start_code == 503 else "BAD",
                                                                       "message": "could not fetch the map"}})
                     fake.lifecycle = "IDLE" if fake.preparation_error else fake.lifecycle_after_start
                     return self.reply(202, {"data": {"accepted": True}})
-                if self.path in ("/api/v1/playback/pause", "/api/v1/playback/play", "/api/v1/playback/seek"):
+                if self.path in ("/api/v1/fabric/engine/pause", "/api/v1/fabric/engine/play", "/api/v1/fabric/engine/seek"):
                     fake.lifecycle = "PAUSED" if self.path.endswith("pause") else "RUNNING"
                     return self.reply(200, {"data": {"lifecycle": fake.lifecycle}})
                 if self.path == "/api/v1/system/terminate":

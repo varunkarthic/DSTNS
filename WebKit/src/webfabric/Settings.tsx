@@ -7,7 +7,7 @@ import { Row, Section, Segmented, Switch } from "../settingsControls";
 import { BrandLogo } from "../BrandLogo";
 import { Select } from "../Popover";
 import { fabric, useFabricApps } from "./store";
-import type { AppState, FabricApp, FabricHealth, SettingsField } from "./store";
+import type { AppState, FabricApp, FabricHealth, FabricSecurity, SettingsField } from "./store";
 import { formatBytes } from "../units";
 
 /**
@@ -217,6 +217,9 @@ function AppDetails({ app, onForgotten }: { app: FabricApp; onForgotten: () => v
         <dt>Identifier</dt>
         <dd className="mono">{app.id}</dd>
         {app.author && (<><dt>Author</dt><dd>{app.author}</dd></>)}
+        <dt>Requests</dt>
+        <dd>{app.security?.signatures_required ? "Signed, and refused if not" : "Token only"}</dd>
+        {!!app.security?.frame_origins.length && (<><dt>Frames from</dt><dd className="mono">{app.security.frame_origins.join(", ")}</dd></>)}
       </dl>
       {app.description && <p className="settings-note">{app.description}</p>}
       {app.blocked_ui.length > 0 && <p className="settings-note">Waiting for permission to show: {app.blocked_ui.join(", ")}.</p>}
@@ -290,6 +293,33 @@ function AppCard({ app, onOpen }: { app: FabricApp; onOpen: () => void }) {
         <Icon name="chevronRight" size={14} />
       </button>
     </li>
+  );
+}
+
+/** What is protecting applications and what they do, read from the server rather than asserted. */
+function SecurityPosture() {
+  const [posture, setPosture] = useState<FabricSecurity | null>(null);
+  useEffect(() => {
+    let live = true;
+    void fabric.security().then((next) => live && next?.audit && setPosture(next), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!posture) return null;
+  return (
+    <Section title="Security">
+      <dl className="fabric-facts">
+        <dt>Connection</dt>
+        <dd>{posture.transport.tls ? "Encrypted with TLS" : "Not encrypted. Fine on this machine; use TLS or a gateway across a network"}</dd>
+        <dt>Credentials</dt>
+        <dd>{posture.store.rejected ? "A changed store was rejected. Applications must register again" : "Tokens stored as hashes, in a sealed store"}</dd>
+        <dt>Audit log</dt>
+        <dd>{posture.audit.verification.intact ? `Intact, ${posture.audit.verification.checked} entries checked` : "Does not verify: entries have been altered"}</dd>
+        <dt>Signing</dt>
+        <dd>{posture.applications.requiring_signatures} of {posture.applications.registered} applications require it</dd>
+      </dl>
+    </Section>
   );
 }
 
@@ -384,6 +414,7 @@ export function WebFabricSettings({ onBack }: { onBack: () => void }) {
           </ul>
         </section>
       )}
-    </div>
+      <SecurityPosture />
+      </div>
   );
 }

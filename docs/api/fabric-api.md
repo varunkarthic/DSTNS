@@ -195,6 +195,113 @@ As well as text, stats, charts and controls, a panel can declare:
 | `gauge` | `value` between `min` and `max` (default 0 to 1), `label`, optional `caption` and `tone`. Travels to a new value |
 | `bars` | `items`: `label`, `value`, optional `caption` and `tone`. Each scaled to the largest |
 
+## The engine
+
+Every control of the engine is under Fabric. These replace `/api/v1/playback/*` and `/api/v1/control/*`, with the same bodies and responses:
+
+| Route | Does |
+| --- | --- |
+| `GET /api/v1/fabric/engine/status` | Lifecycle and clock |
+| `POST .../engine/start`, `prepare` | Start or prepare a run. Operator only |
+| `POST .../engine/play`, `pause`, `stop`, `reset`, `seek`, `step` | Move through simulated time |
+| `PUT .../engine/tick-rate` | Set the speed |
+| `POST .../engine/day`, `undo`, `redo`; `GET .../engine/history` | Change the day; undo and redo |
+| `POST .../engine/events/weather`, `traffic`, `surge` | Schedule an event |
+| `PUT .../engine/edges/{id}`; `POST .../engine/signals/{id}`; `PUT .../engine/modules/{module}` | Override a road, toggle a signal, switch a subsystem |
+
+Reading is open, as reading the view is. Changing anything needs the operator's credential (`X-DSTNS-Operator`) or to be the observer (`X-DSTNS-Host`, from its own origin), and otherwise answers `401 AUTHORIZATION_REQUIRED`. An application acts through `POST /api/v1/fabric/apps/{id}/control`, with its token and the capability it was granted, and each action is recorded.
+
+### The legacy API
+
+The older paths still work exactly as they did, so nothing that uses them breaks. Every answer now says it is legacy:
+
+```http
+HTTP/1.1 200 OK
+Deprecation: true
+Warning: 299 DSTNS "Legacy API: please switch to the Fabric API at /api/v1/fabric/engine"
+X-DSTNS-Successor: /api/v1/fabric/engine/pause
+
+{"...": "...", "legacy": {"message": "This is the legacy API. It still works, but it will not gain new features: please switch to the Fabric API.", "use": "/api/v1/fabric/engine/pause"}}
+```
+
+They will not gain new features, and do not ask for the authorization above. No date has been set for removing them.
+
+## Security
+
+| What | How |
+| --- | --- |
+| **Who is asking** | An application's bearer token, which it receives once. The server keeps only its SHA-256 hash, so a copy of the store does not give up the token |
+| **What it may do** | Capabilities. Some are automatic, and those that interrupt, run code in the page or change the simulation wait for a person |
+| **That a request is genuine** | Optional signing with HMAC-SHA-256, below. An application can require it of itself in its manifest |
+| **That a response is genuine** | `X-DSTNS-Content-SHA256` on every Fabric response, and a signature on the response to a signed request |
+| **That it is private** | TLS, with a build that has it. Below |
+| **That the records are true** | The audit log is a hash chain, and the store of applications is sealed |
+| **Where a frame comes from** | `frame_origins` in the manifest. A frame from anywhere else is refused, and asking for more origins asks the person again |
+
+### Signing requests
+
+Registering returns a `signing_key` beside the token, once. Sign any request with these three headers, as well as the token:
+
+```text
+X-DSTNS-Timestamp: seconds since the epoch, within 60 seconds of the server
+X-DSTNS-Nonce:     8 to 128 random characters, never used twice
+X-DSTNS-Signature: hex( HMAC-SHA-256( signing_key, canonical ) )
+
+canonical = METHOD \n TARGET \n TIMESTAMP \n NONCE \n hex( SHA-256( BODY ) )
+```
+
+`TARGET` is the path with its query, as sent. In Python:
+
+```python
+digest = hashlib.sha256(body).hexdigest()
+canonical = "\n".join([method, target, timestamp, nonce, digest])
+signature = hmac.new(signing_key.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+```
+
+The response then carries `X-DSTNS-Response-Signature`, which is `hex(HMAC-SHA-256(signing_key, STATUS \n NONCE \n hex(SHA-256(RESPONSE_BODY))))`, so that the application knows the answer is from the server and to this request. Do not ask for gzip if you mean to check it, because the digest is of the bytes sent.
+
+With `"security": {"require_signatures": true}` in the manifest, the server refuses this application's unsigned requests, so that a stolen token alone is not enough.
+
+| Refusal | Means |
+| --- | --- |
+| `SIGNATURE_REQUIRED` | Its manifest asks for signing, and this was not signed |
+| `SIGNATURE_INVALID` | It does not match this request, or a header is malformed |
+| `SIGNATURE_EXPIRED` | The timestamp is over 60 seconds out |
+| `SIGNATURE_REPLAYED` | This nonce has been used |
+
+`POST /api/v1/fabric/apps/{id}/credentials/rotate` replaces the token and the key at once. The old ones stop working immediately.
+
+### Encryption
+
+Across a network, use TLS: traffic on `127.0.0.1` does not leave the machine, and signing proves a message is genuine but does not hide it. The server can serve HTTPS itself, from a build that has it:
+
+```sh
+cmake -S . -B build -DDSTNS_TLS=ON            # needs OpenSSL
+build/dstns_server --tls-cert cert.pem --tls-key key.pem
+```
+
+A server asked for TLS that cannot provide it refuses to start, rather than serving in the clear what was meant to be private. The default build does not link OpenSSL, and a gateway in front of it does the same job. Tokens are hashed and the store is readable only by its owner, but what an application keeps in its store is not encrypted on disk: do not put secrets there.
+
+### Integrity of the records
+
+Each audit entry includes the hash of the one before, and its own hash covers all of it: `hash = SHA-256(entry, with previous = the last hash)`. `GET /api/v1/fabric/audit/verify` walks the chain and says where it first breaks. The log is held in memory for the life of the server, so this shows that what is served has not been altered; export it if it must outlast the server.
+
+The store of applications is sealed with HMAC-SHA-256 under a key in a separate file, `fabric-apps.json.key`, readable only by its owner. A store that does not match is not believed: it is set aside as `fabric-apps.json.rejected`, applications register again, and `GET /api/v1/fabric/security` says so. Someone who can read the key can of course also reseal the store, so this catches a changed file, not someone who has already taken over the account.
+
+`GET /api/v1/fabric/security` reports all of this, and the WebFabric page in Settings shows it. `./launcher fabric status` prints it, and exits with a failure if the audit log or the store do not verify.
+
+## Starting applications with the launcher
+
+An application or the operator can say how the launcher should start it. This is only ever a proposal: the server runs nothing, and a person reads it and approves it at the launcher before it can run.
+
+```http
+PUT /api/v1/fabric/apps/{id}/launch          # the application, for itself, with its token
+PUT /api/v1/fabric/launch/{id}               # the operator, for any application
+{"name": "Route planner", "commands": ["python3 planner.py --url {url}"], "cwd": ".", "ready": "fabric", "timeout_s": 60}
+```
+
+`GET /api/v1/fabric/launch` lists what is waiting. See [the launcher guide](../guide/operator-cli.md#applications).
+
 ## For the observer
 
 `GET /fabric/state?since=R&notifications_since=N` returns `revision`,

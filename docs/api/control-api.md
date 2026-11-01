@@ -1,5 +1,8 @@
 # Control API
 
+!!! warning "This is the legacy API"
+    These routes still work, and every answer now says so with a `legacy` notice and a `Deprecation` header. They will not gain new features. Use the same routes under [`/api/v1/fabric/engine`](fabric-api.md#the-engine).
+
 Acting on a running world: speed, day type, modules, roads, signals, rain and
 demand surges, with undo and redo. All routes are under `/api/v1/control`;
 every one except `tick-rate` needs a world (409 or 400 otherwise). They refuse cross-site browser requests (see

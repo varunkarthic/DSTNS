@@ -70,6 +70,13 @@ export interface FabricWidget {
   options?: { value: string | number; label: string }[];
 }
 
+export interface FabricSecurity {
+  transport: { tls: boolean; tls_available: boolean };
+  store: { sealed: boolean; rejected: boolean; tokens: string };
+  applications: { registered: number; requiring_signatures: number };
+  audit: { entries: number; verification: { intact: boolean; checked: number } };
+}
+
 export interface FabricHealth {
   requests: number;
   refused: number;
@@ -196,6 +203,8 @@ export interface FabricApp {
   state: AppState;
   detail: string;
   user_suspended: boolean;
+  /** Absent from an older server. */
+  security?: { signatures_required: boolean; frame_origins: string[] };
   order: number;
   capabilities: { requested: string[]; granted: string[]; pending: string[] };
   settings: SettingsSchema | null;
@@ -433,6 +442,10 @@ class FabricStore {
   async suspend(appId: string, suspended: boolean) {
     await call(`/apps/${appId}/${suspended ? "suspend" : "resume"}`, { method: "POST", body: "{}" });
     await this.refresh();
+  }
+  /** What is protecting what, for a person to check. */
+  security() {
+    return call<FabricSecurity>("/security");
   }
   /** How an application is doing, for its page in Settings. */
   health(appId: string) {

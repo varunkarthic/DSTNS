@@ -25,12 +25,17 @@ FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download
 FetchContent_Declare(httplib URL https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.28.0.tar.gz)
 set(HTTPLIB_USE_BROTLI_IF_AVAILABLE OFF CACHE BOOL "Use gzip for bounded dynamic response latency" FORCE)
 set(HTTPLIB_REQUIRE_ZLIB ON CACHE BOOL "Compress large topology and state responses" FORCE)
-# The server speaks plain HTTP (TLS belongs to the gateway) and compresses with
-# gzip only. Left to themselves, httplib links OpenSSL and zstd whenever it finds
-# them, which ties the build to whichever versions happen to be installed: a
-# Homebrew OpenSSL upgrade breaks a configured tree, and Debian's libzstd-dev
-# fails to configure with CMake 3.25.
-set(HTTPLIB_USE_OPENSSL_IF_AVAILABLE OFF CACHE BOOL "No TLS in the engine" FORCE)
+# By default the server speaks plain HTTP (TLS belongs to the gateway, or to a build with
+# DSTNS_TLS) and compresses with gzip only. Left to themselves, httplib links OpenSSL and zstd
+# whenever it finds them, which ties the build to whichever versions happen to be installed: a
+# Homebrew OpenSSL upgrade breaks a configured tree, and Debian's libzstd-dev fails to configure
+# with CMake 3.25. So TLS is something to ask for.
+option(DSTNS_TLS "Serve HTTPS with --tls-cert and --tls-key; needs OpenSSL to build" OFF)
+if(DSTNS_TLS)
+  set(HTTPLIB_REQUIRE_OPENSSL ON CACHE BOOL "TLS was asked for" FORCE)
+else()
+  set(HTTPLIB_USE_OPENSSL_IF_AVAILABLE OFF CACHE BOOL "No TLS in the engine" FORCE)
+endif()
 set(HTTPLIB_USE_ZSTD_IF_AVAILABLE OFF CACHE BOOL "gzip only" FORCE)
 set(HTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN OFF CACHE BOOL "No TLS in the engine" FORCE)
 FetchContent_MakeAvailable(json httplib)

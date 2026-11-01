@@ -22,17 +22,6 @@ std::string bearer(const httplib::Request& req) {
     return header.starts_with("Bearer ") ? header.substr(7) : std::string{};
 }
 
-// The observer, or the operator's own tooling, rather than an application. A
-// sandboxed frame has an opaque origin and a page elsewhere fails the check; a
-// custom header also forces a browser to ask first, which is refused. A local
-// process can send this header too, as it can already call /control directly.
-bool is_host(const httplib::Request& req) {
-    const char* token = std::getenv("DSTNS_OPERATOR_TOKEN");
-    if (token && *token && req.get_header_value("X-DSTNS-Operator") == token) return true;
-    if (!req.has_header("X-DSTNS-Host")) return false;
-    return !req.has_header("Origin") || same_origin(req.get_header_value("Origin"), req.get_header_value("Host"), req.get_header_value("X-Forwarded-Host"));
-}
-
 void require_host(const httplib::Request& req) {
     if (!is_host(req)) throw Refusal(403, "HOST_REQUIRED", "only the observer or the operator may do this");
 }
@@ -47,6 +36,8 @@ void ApiServer::routes_apps() {
     const auto owner = [this](const httplib::Request& req) {
         const std::string id = req.matches[1];
         registry_->authenticate(id, bearer(req));
+        registry_->verify_signature(id, req.method, req.target, req.get_header_value("X-DSTNS-Timestamp"), req.get_header_value("X-DSTNS-Nonce"),
+                                    req.get_header_value("X-DSTNS-Signature"), req.body);
         return id;
     };
 
@@ -120,6 +111,48 @@ void ApiServer::routes_apps() {
                             news.contains("data") ? news.at("data").value("items", json::array()) : json::array());
         }
         ok(r, registry_->events(id, unsigned_parameter(req, "since", 0)));
+    });
+
+    server_->Post(route("/credentials/rotate"), [this, ok, owner](const auto& req, auto& r) { ok(r, registry_->rotate_credentials(owner(req))); });
+    server_->Get("/api/v1/fabric/security", [this, ok](const auto& req, auto& r) {
+        require_host(req);
+        auto out = registry_->security();
+        out["audit"]["verification"] = registry_->audit_verify();
+        ok(r, out);
+    });
+    server_->Get("/api/v1/fabric/audit/verify", [this, ok](const auto& req, auto& r) {
+        require_host(req);
+        ok(r, registry_->audit_verify());
+    });
+
+    // How the launcher should start an application: set by the application itself or the operator,
+    // and only ever a proposal. Nothing here runs: a person approves it at the launcher first.
+    server_->Put(route("/launch"), [this, ok, owner](const auto& req, auto& r) {
+        const auto id = owner(req);
+        ok(r, registry_->propose_launch(id, body(req), "application"));
+    });
+    server_->Put("/api/v1/fabric/launch/plan", [this, ok](const auto& req, auto& r) {
+        require_host(req);
+        registry_->set_launch_plan(body(req));
+        ok(r, json::object());
+    });
+    server_->Delete("/api/v1/fabric/launch/plan", [this, ok](const auto& req, auto& r) {
+        require_host(req);
+        registry_->set_launch_plan(nullptr);
+        ok(r, json::object());
+    });
+    server_->Get("/api/v1/fabric/launch", [this, ok](const auto& req, auto& r) {
+        require_host(req);
+        ok(r, registry_->launch_proposals());
+    });
+    server_->Put(R"(/api/v1/fabric/launch/([a-z0-9.-]+))", [this, ok](const auto& req, auto& r) {
+        require_host(req);
+        ok(r, registry_->propose_launch(req.matches[1], body(req), "operator"));
+    });
+    server_->Delete(R"(/api/v1/fabric/launch/([a-z0-9.-]+))", [this, ok](const auto& req, auto& r) {
+        require_host(req);
+        registry_->withdraw_launch(req.matches[1]);
+        ok(r, json::object());
     });
 
     // What the server offers, for an application or a tool to find out rather than assume.

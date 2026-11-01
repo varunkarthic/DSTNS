@@ -13,7 +13,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     response = await fetch(base + path, {
       ...init,
       signal: AbortSignal.timeout(15000),
-      headers: { "Content-Type": "application/json", ...init?.headers },
+      // Says this is the observer: a browser cannot send this for another page without asking first.
+      headers: { "Content-Type": "application/json", "X-DSTNS-Host": "observer", ...init?.headers },
     });
   } catch {
     throw new Error("Simulator unavailable. Waiting to reconnect…");
@@ -33,7 +34,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   if (
     path.includes("/view/") ||
-    path.endsWith("/playback/status") ||
+    path.endsWith("/engine/status") ||
     path.startsWith("/api/v1/news")
   ) {
     if (
@@ -49,7 +50,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export type PlaybackGuard = { expected_run_id?: string; expected_playback_revision?: number; require_asb_normal?: boolean };
 export const api = {
   systemInfo: () => request<{version?: string; build?: {compiler?: string; cpp_standard?: number}; sumo?: {available?: boolean; version?: string}}>("/api/v1/system/info"),
-  status: () => request<Envelope<Status>>("/api/v1/playback/status"),
+  status: () => request<Envelope<Status>>("/api/v1/fabric/engine/status"),
   topology: () => request<Envelope<Topology>>("/api/v1/view/topology"),
   snapshot: () => request<Envelope<Snapshot>>("/api/v1/view/snapshot"),
   /** `realistic` asks for Realistic News narrations; without it the feed is the core's own. */
@@ -65,22 +66,22 @@ export const api = {
     ),
   congestion: () => request<Envelope<Congestion>>("/api/v1/view/congestion"),
   pause: (guard: PlaybackGuard = {}) =>
-    request<{ changed: boolean; playback_revision: number; run_id: string }>("/api/v1/playback/pause", { method: "POST", body: JSON.stringify(guard) }),
-  play: (guard: PlaybackGuard = {}) => request("/api/v1/playback/play", { method: "POST", body: JSON.stringify(guard) }),
+    request<{ changed: boolean; playback_revision: number; run_id: string }>("/api/v1/fabric/engine/pause", { method: "POST", body: JSON.stringify(guard) }),
+  play: (guard: PlaybackGuard = {}) => request("/api/v1/fabric/engine/play", { method: "POST", body: JSON.stringify(guard) }),
   tick: (tick_rate: number) =>
-    request("/api/v1/control/tick-rate", {
+    request("/api/v1/fabric/engine/tick-rate", {
       method: "PUT",
       body: JSON.stringify({ tick_rate }),
     }),
   // target_time is virtual seconds into the day, or "HH:MM:SS".
   seek: (target_time: number | string, play = false) =>
-    request("/api/v1/playback/seek", {
+    request("/api/v1/fabric/engine/seek", {
       method: "POST",
       body: JSON.stringify({ target_time, play }),
     }),
   // Advance a fixed number of virtual seconds and hold paused.
   step: (seconds: number) =>
-    request<{ simulated_seconds: number; stepped_seconds: number; lifecycle: string }>("/api/v1/playback/step", {
+    request<{ simulated_seconds: number; stepped_seconds: number; lifecycle: string }>("/api/v1/fabric/engine/step", {
       method: "POST",
       body: JSON.stringify({ seconds }),
     }),
@@ -111,7 +112,7 @@ export const api = {
     return out.sort((a, b) => a.news_id - b.news_id);
   },
   reset: () =>
-    request("/api/v1/playback/reset", { method: "POST", body: "{}" }),
+    request("/api/v1/fabric/engine/reset", { method: "POST", body: "{}" }),
   terminate: () =>
     request("/api/v1/system/terminate", { method: "POST", body: "{}" }),
   // ASB: report how far behind this observer is and receive the resulting

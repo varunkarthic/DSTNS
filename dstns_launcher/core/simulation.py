@@ -55,7 +55,7 @@ class World:
 
 @dataclass
 class Status:
-    """One reading of ``/api/v1/playback/status``."""
+    """One reading of ``/api/v1/fabric/engine/status``."""
 
     reachable: bool
     lifecycle: str = "UNREACHABLE"
@@ -93,7 +93,7 @@ BUSY_POLL_LIMIT = 90
 
 
 def status(port: int, paths: Paths = PATHS) -> Status:
-    response = api.call(port, "/api/v1/playback/status", timeout=3, paths=paths)
+    response = api.call(port, "/api/v1/fabric/engine/status", timeout=3, paths=paths)
     if not response.ok or not isinstance(response.body, dict):
         return Status(reachable=False)
     body = response.body
@@ -191,7 +191,7 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
     reporter.message(Level.INFO,
                      "Resolving the seed to a city district" if on_demand else "Loading the OpenStreetMap district",
                      "downloading from OpenStreetMap if not already cached" if on_demand else request["map"]["osm_file"])
-    response = api.call(port, "/api/v1/playback/start", "POST", request, paths=paths)
+    response = api.call(port, "/api/v1/fabric/engine/start", "POST", request, paths=paths)
     if response.code != 202:
         message = response.error_message() if response.code else "The server could not be reached."
         if response.error_code() == "MAP_FETCH_FAILED":
@@ -206,7 +206,7 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
     try:
         while time.monotonic() < deadline:
             if cancel is not None and cancel.is_set():
-                api.call(port, "/api/v1/playback/reset", "POST", {}, timeout=5, paths=paths)
+                api.call(port, "/api/v1/fabric/engine/reset", "POST", {}, timeout=5, paths=paths)
                 raise SimulationStartError("Start-up was cancelled.")
             current = status(port, paths)
             if current.lifecycle in {"RUNNING", "PAUSED", "READY"}:
@@ -257,9 +257,9 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
 def control(port: int, action: str, paths: Paths = PATHS) -> api.Response:
     """``play``, ``pause`` or ``restart`` (back to 00:00:00 in the same world)."""
     routes = {
-        "play": ("/api/v1/playback/play", {}),
-        "pause": ("/api/v1/playback/pause", {}),
-        "restart": ("/api/v1/playback/seek", {"target_time": 0, "play": True}),
+        "play": ("/api/v1/fabric/engine/play", {}),
+        "pause": ("/api/v1/fabric/engine/pause", {}),
+        "restart": ("/api/v1/fabric/engine/seek", {"target_time": 0, "play": True}),
     }
     route, payload = routes[action]
     response = api.call(port, route, "POST", payload, timeout=60, paths=paths)

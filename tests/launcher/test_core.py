@@ -266,7 +266,7 @@ class Runs(WithWorkspace):
         with FakeServer() as fake:
             world = simulation.start_run(fake.port, {"seed": "42", "day": 1, "map": {"osm_file": "auto"}}, Reporter(), self.paths)
             self.assertEqual((world.place, world.nodes, world.day_name), ("Testville, Nowhere", 5, "weekend"))
-            self.assertEqual(fake.posted("/api/v1/playback/start")[0]["seed"], "42")
+            self.assertEqual(fake.posted("/api/v1/fabric/engine/start")[0]["seed"], "42")
 
     def test_map_failure_offers_recovery(self):
         with FakeServer(start_code=503) as fake:

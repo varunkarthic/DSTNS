@@ -34,7 +34,7 @@ describe("Observer transport", () => {
       .mockResolvedValue(new Response(JSON.stringify({ ok: true })));
     await api.pause();
     expect(fetch).toHaveBeenCalledWith(
-      "/api/v1/playback/pause",
+      "/api/v1/fabric/engine/pause",
       expect.objectContaining({ method: "POST" }),
     );
   });

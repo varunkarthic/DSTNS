@@ -40,6 +40,8 @@ int main(int argc, char** argv) {
                 port = static_cast<std::uint16_t>(value);
             }
             else if (a == "--logs" && i + 1 < argc) logs = argv[++i];
+            else if (a == "--tls-cert" && i + 1 < argc) setenv("DSTNS_TLS_CERT", argv[++i], 1);
+            else if (a == "--tls-key" && i + 1 < argc) setenv("DSTNS_TLS_KEY", argv[++i], 1);
             else if (a == "--maps" && i + 1 < argc) maps = argv[++i];
             else if (a == "--map-cache" && i + 1 < argc) cache_policy = argv[++i];
             else if (a == "--map-cache-keep" && i + 1 < argc) cache_keep = std::stoul(argv[++i]);

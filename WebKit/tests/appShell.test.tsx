@@ -171,9 +171,9 @@ function mockApi(overrides: Partial<Mock> = {}) {
       if (state.world.state === "generating" && state.worldQueue.length) state.world = { ...state.world, ...state.worldQueue.shift() };
       return json({ api_version: "1.0", data: state.world });
     }
-    if (path.includes("/playback/step")) return json({ simulated_seconds: state.clock.virtual_day_seconds + 60, stepped_seconds: 60, lifecycle: "PAUSED" });
+    if (path.includes("/engine/step")) return json({ simulated_seconds: state.clock.virtual_day_seconds + 60, stepped_seconds: 60, lifecycle: "PAUSED" });
     let data: unknown = {};
-    if (path.includes("/playback/status"))
+    if (path.includes("/engine/status"))
       data = { lifecycle: state.lifecycle, preparation_error: (state as unknown as { preparation_error?: string }).preparation_error, day: 0, saved_seed_id: "", map_selection_version: "urban-crfg-v3", modules: { traffic: true, signals: true, dws: true }, playback_revision: 1 };
     else if (path.includes("/view/topology")) {
       if (state.topologyDelay) return json({ error: { code: "NOT_READY", message: "no topology yet" } }, 409);
@@ -264,18 +264,18 @@ describe("command rail", () => {
     render(<App />);
     await ready();
     fireEvent.click(screen.getByLabelText("Pause simulation"));
-    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/pause"))).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/engine/pause"))).toBe(true));
 
     // Back and Forward skip 15 minutes by default, through real seeks.
     fireEvent.click(screen.getByLabelText("Back 15 min"));
-    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 21600 - 900)).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/engine/seek") && JSON.parse(c.body).target_time === 21600 - 900)).toBe(true));
     fireEvent.click(screen.getByLabelText("Forward 15 min"));
-    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 21600 + 900)).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/engine/seek") && JSON.parse(c.body).target_time === 21600 + 900)).toBe(true));
 
     // Step uses the core's step operation, which holds the run afterwards.
     fireEvent.click(screen.getByLabelText("Step 1 min"));
     await waitFor(() => {
-      const step = calls.find((c) => c.path.includes("/playback/step"));
+      const step = calls.find((c) => c.path.includes("/engine/step"));
       expect(step && JSON.parse(step.body)).toEqual({ seconds: 60 });
     });
   });
@@ -294,7 +294,7 @@ describe("command rail", () => {
 
     fireEvent.click(screen.getByLabelText("Reset simulation to the start of the day"));
     fireEvent.click(await screen.findByRole("button", { name: "Start Over" }));
-    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek") && JSON.parse(c.body).target_time === 0)).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/engine/seek") && JSON.parse(c.body).target_time === 0)).toBe(true));
   });
 
   it("offers each supported speed as a stop on a slider, and sets the real engine rate", async () => {
@@ -307,13 +307,13 @@ describe("command rail", () => {
     expect(slider).toHaveAttribute("aria-valuetext", "1 times speed");
     fireEvent.keyDown(slider, { key: "ArrowRight" });
     await waitFor(() => {
-      const tick = calls.find((c) => c.path.includes("/control/tick-rate"));
+      const tick = calls.find((c) => c.path.includes("/engine/tick-rate"));
       expect(tick && JSON.parse(tick.body)).toEqual({ tick_rate: 2 });
     });
     expect(slider).toHaveAttribute("aria-valuetext", "2 times speed");
     calls.length = 0;
     fireEvent.keyDown(slider, { key: "End" });
-    await waitFor(() => expect(calls.some((c) => c.path.includes("/control/tick-rate") && JSON.parse(c.body).tick_rate === 10)).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/engine/tick-rate") && JSON.parse(c.body).tick_rate === 10)).toBe(true));
   });
 
   it("shows progress and switches 12/24 hour time everywhere from one control", async () => {
@@ -727,7 +727,7 @@ describe("settings", () => {
     fireEvent.keyDown(within(drawer).getByRole("slider", { name: "Step interval" }), { key: "ArrowLeft" });
     expect(screen.getByLabelText("Back 1 h 00 min")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Step 10 s"));
-    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/step") && JSON.parse(c.body).seconds === 10)).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/engine/step") && JSON.parse(c.body).seconds === 10)).toBe(true));
   });
 });
 
@@ -741,7 +741,7 @@ describe("fine control", () => {
     expect(within(menu).getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["1m", "5m", "15m", "30m", "1h"]);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "30m" }));
     await waitFor(() => {
-      const seek = calls.find((c) => c.path.includes("/playback/seek"));
+      const seek = calls.find((c) => c.path.includes("/engine/seek"));
       expect(seek && JSON.parse(seek.body).target_time).toBe(21600 + 1800);
     });
   });
@@ -1138,7 +1138,7 @@ describe("a finished run's next move", () => {
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(screen.getByRole("dialog", { name: /Reset the simulation/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start Over" }));
-    await waitFor(() => expect(calls.some((c) => c.path.includes("/playback/seek"))).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/engine/seek"))).toBe(true));
   });
 
   it("offers a new world, which is a different question and asks separately", async () => {

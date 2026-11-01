@@ -41,6 +41,25 @@ public:
     /// `presented` is the bearer token, if any: it proves ownership of an ID.
     nlohmann::json register_app(const nlohmann::json& manifest, const std::string& presented);
     void authenticate(const std::string& id, const std::string& token);
+    /// A signed request's signature, freshness and nonce. Refused if unsigned and the application requires signing.
+    void verify_signature(const std::string& id, const std::string& method, const std::string& target, const std::string& timestamp,
+                          const std::string& nonce, const std::string& signature, const std::string& body);
+    /// Empty if the application is unknown.
+    [[nodiscard]] std::string sign_response(const std::string& id, int status, const std::string& nonce, const std::string& digest);
+    /// A new token and signing key. The old ones stop working at once.
+    nlohmann::json rotate_credentials(const std::string& id);
+    /// Each entry is chained to the one before by a hash, so that a change to any of them shows.
+    [[nodiscard]] nlohmann::json audit_verify();
+    /// What is protecting what, for a person to check.
+    [[nodiscard]] nlohmann::json security();
+
+    /// How the launcher should start an application. Only ever a proposal: nothing here
+    /// runs, and a person has to approve it at the launcher before it can.
+    nlohmann::json propose_launch(const std::string& id, const nlohmann::json& spec, const std::string& proposed_by);
+    void withdraw_launch(const std::string& id);
+    [[nodiscard]] nlohmann::json launch_proposals();
+    /// What the launcher is starting, for the observer to say while it waits.
+    void set_launch_plan(const nlohmann::json& plan);
     void require_capability(const std::string& id, const std::string& capability);
 
     [[nodiscard]] nlohmann::json list();
@@ -113,7 +132,9 @@ public:
 private:
     using Clock = std::chrono::steady_clock;
     struct App {
-        std::string id, token, state{"registered"}, detail;
+        std::string id, token_hash, signing_key, state{"registered"}, detail;
+        bool signatures_required{};
+        std::map<std::string, std::int64_t> nonces;
         nlohmann::json manifest;
         std::set<std::string> granted;
         bool user_suspended{};
@@ -156,7 +177,13 @@ private:
     void check_element(const App& app, const nlohmann::json& element) const;
     [[nodiscard]] std::size_t ui_bytes(const nlohmann::json& elements) const;
 
+    std::string store_key();
     std::filesystem::path store_;
+    std::string store_key_;
+    std::string audit_head_;
+    bool store_rejected_{};
+    nlohmann::json launch_ = nlohmann::json::object();
+    nlohmann::json launch_plan_ = nullptr;
     std::mutex mutex_;
     std::map<std::string, App> apps_;
     std::deque<nlohmann::json> notifications_;

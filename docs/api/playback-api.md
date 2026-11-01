@@ -1,5 +1,8 @@
 # Playback API
 
+!!! warning "This is the legacy API"
+    These routes still work, and every answer now says so with a `legacy` notice and a `Deprecation` header. They will not gain new features. Use the same routes under [`/api/v1/fabric/engine`](fabric-api.md#the-engine).
+
 Starting a run and moving through its virtual day. All routes are under
 `/api/v1/playback`. State-changing routes refuse cross-site browser requests
 (see [Security](../deployment/security.md#origin-check-cross-site-request-forgery)); errors follow

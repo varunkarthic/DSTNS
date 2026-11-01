@@ -10,9 +10,19 @@ using namespace fabric;
 
 // Moving through simulated time.
 void ApiServer::routes_playback() {
-    // Playback API
-    server_->Get("/api/v1/playback/status", [this](const auto&, auto& r) { send(r, engine_.status()); });
-    server_->Post("/api/v1/playback/start", [this](const httplib::Request& req, httplib::Response& r) {
+    // The engine's controls belong to Fabric, and are authorized there (see install_guards). The
+    // older paths keep working, and say what replaced them.
+    const std::string engine = kEngineBase;
+    const auto get = [this, engine](const std::string& name, httplib::Server::Handler handler) {
+        server_->Get("/api/v1/playback/" + name, legacy_route(engine + "/" + name, handler));
+        server_->Get(engine + "/" + name, handler);
+    };
+    const auto post = [this, engine](const std::string& name, httplib::Server::Handler handler) {
+        server_->Post("/api/v1/playback/" + name, legacy_route(engine + "/" + name, handler));
+        server_->Post(engine + "/" + name, handler);
+    };
+    get("status", [this](const auto&, auto& r) { send(r, engine_.status()); });
+    post("start", [this](const httplib::Request& req, httplib::Response& r) {
         auto j = body(req);
         const auto seed = seed_from(j);
         auto c = config_from(j);
@@ -20,22 +30,20 @@ void ApiServer::routes_playback() {
         auto res = engine_.start_async(seed, c, start);
         send(r, res, 202);
     });
-    server_->Post("/api/v1/playback/pause", [this](const auto& req, auto& r) { send(r, engine_.pause(body(req))); });
-    server_->Post("/api/v1/playback/play", [this](const auto& req, auto& r) { send(r, engine_.play(body(req))); });
-    server_->Post("/api/v1/playback/stop", [this](const auto&, auto& r) { send(r, engine_.stop()); });
-    server_->Post("/stop", [this](const auto&, auto& r) { send(r, engine_.stop()); });
-    server_->Post("/api/v1/playback/reset", [this](const auto&, auto& r) { send(r, engine_.reset()); });
-    server_->Post("/api/v1/playback/seek", [this](const auto& req, auto& r) {
+    post("pause", [this](const auto& req, auto& r) { send(r, engine_.pause(body(req))); });
+    post("play", [this](const auto& req, auto& r) { send(r, engine_.play(body(req))); });
+    post("stop", [this](const auto&, auto& r) { send(r, engine_.stop()); });
+    server_->Post("/stop", legacy_route(engine + "/stop", [this](const auto&, auto& r) { send(r, engine_.stop()); }));
+    post("reset", [this](const auto&, auto& r) { send(r, engine_.reset()); });
+    post("seek", [this](const auto& req, auto& r) {
         auto j = body(req);
         send(r, engine_.seek(time_value(j.at("target_time")), j.value("play", false)));
     });
 
     // Advance a fixed amount of virtual time and hold there.
-    server_->Post("/api/v1/playback/step", [this](const auto& req, auto& r) {
-        send(r, step(engine_, body(req)));
-    });
+    post("step", [this](const auto& req, auto& r) { send(r, step(engine_, body(req))); });
 
-    server_->Post("/api/v1/playback/prepare", [this](const httplib::Request& req, httplib::Response& r) {
+    post("prepare", [this](const httplib::Request& req, httplib::Response& r) {
         auto j = body(req);
         const auto seed = seed_from(j);
         auto c = config_from(j);

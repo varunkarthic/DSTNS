@@ -21,6 +21,18 @@ responses reads `1.3`. The observer's folder is renamed from `ui-engine/` to `We
 
 - **Fixed: coming back to the simulation found it suspended.** Opening the report in a new tab and returning a while later found ASB at 100% and the interface suspended. A hidden page draws nothing and has its timers throttled, which looked exactly like one failing to keep up. The page now says it is away, nothing it reports meanwhile counts against it, and on its return it has a moment to catch up with a note saying so. Failing while visible is still acted on.
 
+### The engine moves under Fabric, and Fabric is secured
+
+**Every older route still works, and 155 recorded calls replay with no differences.**
+
+- **The engine's controls are in the Fabric API,** at `/api/v1/fabric/engine`, where changing anything needs the operator or the observer. The observer and the launcher use them. The older `/api/v1/playback` and `/api/v1/control` routes still answer, and now say they are legacy, in the body and in `Deprecation` and `Warning` headers.
+- **Tokens are hashed.** The server keeps only a hash, and a store from before this is converted when it is next read.
+- **Requests can be signed** with HMAC-SHA-256 and a nonce and timestamp, which stops a changed or replayed request. An application can require it of itself, so that a stolen token is not enough, and it can replace its credentials at any time. Signed requests get signed responses, and every Fabric response carries a digest.
+- **TLS,** in a build configured with `DSTNS_TLS`, with `--tls-cert` and `--tls-key`. A server that is asked for it and cannot provide it refuses to start. The default build is unchanged and does not link OpenSSL.
+- **The audit log is a hash chain,** which can be checked, and **the store of applications is sealed**: one that has been changed is set aside and not believed.
+- **A frame comes only from where the manifest says,** if it says, and asking for more origins asks the person again.
+- **The launcher can be told how to start an application** through the API. It is only ever a proposal, and nothing runs until a person approves it at the launcher.
+
 ### More for applications: Fabric 1.3
 
 Everything here is additive, and every recorded call behaves as it did.
