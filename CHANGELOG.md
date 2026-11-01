@@ -17,6 +17,10 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### A world waits for its start-up
+
+- **The simulation does not run on behind the film.** While an observer is showing its start-up, a world that finishes stays at its first second and starts when the panels have arrived. It carries on by itself within 4 seconds if the observer closes or disconnects or its tab is hidden. With no observer, nothing waits, and an observer connecting during a run changes nothing. `POST /api/v1/system/observer` and `observer_hold` in the playback status are new.
+
 ### Pulling at the end of a list
 
 - **A pull at the end of a list now answers.** It gave up after two shrinking wheel events, which a real finger produces all the time, so pulling often did nothing and felt unresponsive. The content now comes with the pull, ever less the further it goes, and springs back on release. Momentum still gets one motion, and a pull that carries on after a fast arrival is picked up from where the bounce has reached.

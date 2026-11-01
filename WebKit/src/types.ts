@@ -35,6 +35,8 @@ export interface Envelope<T> {
 }
 export interface Status {
   preparation_error?: string;
+  /** The world is ready and waiting for an observer's start-up to finish. */
+  observer_hold?: boolean;
   playback_revision?: number;
   lifecycle: Lifecycle;
   day: number;

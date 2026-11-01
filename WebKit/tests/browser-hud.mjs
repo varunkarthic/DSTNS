@@ -86,7 +86,16 @@ try {
   await page.getByRole("button", { name: "Pause simulation" }).waitFor({ timeout: 30000 });
   // The film plays through once, and says it is finishing rather than appearing stuck.
   await page.getByRole("heading", { name: "Finishing setup" }).waitFor({ timeout: 40000 });
+  // The world is ready, and waits for the film rather than running on behind it.
+  const waiting = (await call("/api/v1/playback/status")).body;
+  assert.equal(waiting.data.lifecycle, "PAUSED", "the world waits while the film plays");
+  assert.equal(waiting.data.observer_hold, true);
+  assert.equal(waiting.clock?.simulated_seconds ?? waiting.simulated_seconds ?? 0, 0, "and has not moved");
   await page.locator(".loading-surface").waitFor({state: "detached", timeout: 90000});
+  await page.waitForTimeout(500);
+  const going = (await call("/api/v1/playback/status")).body;
+  assert.equal(going.data.lifecycle, "RUNNING", "it starts once the interface has arrived");
+  assert.equal(going.data.observer_hold, false);
   assert.equal(await page.locator(".loading-surface").count(), 0, "the start-up screen leaves once the film has played and the map is up");
 
   check("the browser icon is the mark", async () => {
@@ -555,7 +564,8 @@ try {
       };
       step();
     }));
-    await cdp.send("Input.synthesizeScrollGesture", { x, y, yDistance: -500, speed: 2400, gestureSourceType: "mouse", preventFling: true });
+    // Exactly to the end, as momentum would arrive: a gesture that keeps pushing is a pull.
+    await cdp.send("Input.synthesizeScrollGesture", { x, y, yDistance: -300, speed: 2400, gestureSourceType: "mouse", preventFling: true });
     const { most, inline } = await seen;
     assert.equal(most, 1, "one bounce");
     assert.equal(inline, false, "played by the compositor, not stepped by the page");

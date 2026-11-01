@@ -28,6 +28,13 @@ void ApiServer::routes_system() {
         send(r, {{"api_version", kApiVersion}, {"data", {{"loaded", loads > 0}, {"loads", loads}}}});
     });
 
+    // An open observer says whether it is still showing its start-up. While it is, a world that
+    // finishes waits for it. Saying nothing for a few seconds counts as having gone.
+    server_->Post("/api/v1/system/observer", [this](const auto& req, auto& r) {
+        const auto j = body(req);
+        send(r, {{"api_version", kApiVersion}, {"data", engine_.observer_presence(j.value("waiting", false))}});
+    });
+
     // Health & System Status
     auto health_handler = [this](const auto&, auto& r) {
         send(r, {
@@ -86,6 +93,7 @@ void ApiServer::routes_system() {
                 {{"POST","/api/v1/system/backpressure","Report observer health"}},
                 {{"GET","/api/v1/system/ui-config","Operator defaults for the interface"}},
                 {{"GET","/api/v1/system/observer","Observer page-load count"}},
+                {{"POST","/api/v1/system/observer","An open observer reports whether a world should wait for it"}},
                 {{"GET","/api/v1/system/narrator","Narration model, queue and cache"}},
                 {{"POST","/api/v1/system/terminate","Stop the simulation and exit the process"}}}),
             group("playback","Moving through simulated time",{

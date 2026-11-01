@@ -274,7 +274,8 @@ export default function App() {
   const recorder = useRef(new TelemetryRecorder());
 
   const status = sim.status?.data;
-  const lifecycle = status?.lifecycle ?? "IDLE";
+  // A world waiting for the start-up to finish is about to run, and nobody asked it to pause.
+  const lifecycle = status?.observer_hold ? "RUNNING" : status?.lifecycle ?? "IDLE";
   const clock = sim.snapshot?.clock ?? sim.status?.clock;
   const virtual = clock?.virtual_day_seconds ?? 0;
   const valid = !!sim.snapshot && !sim.error && !sim.stale;
@@ -945,6 +946,21 @@ export default function App() {
   if (bootFailure) lastFailure.current = bootFailure;
   const failure = usePresence(!!bootFailure, MOTION_MS.boot);
   const arrival = useArrival(!!(showSplash || bootFailure || shutDown || (world.active && !world.closing)), reduceMotion || !filmAvailable());
+  // While the start-up is on screen, a world that finishes waits for it. A hidden tab is not
+  // watching, and a closed one stops saying so, and the engine then carries on by itself.
+  const waitingForFilm = opening === true && arrival !== "all" && !bootFailure && !shutDown;
+  useEffect(() => {
+    if (!waitingForFilm) return;
+    const report = () => void api.observer(!document.hidden).catch(() => undefined);
+    report();
+    const timer = setInterval(report, 1500);
+    document.addEventListener("visibilitychange", report);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", report);
+      void api.observer(false).catch(() => undefined);
+    };
+  }, [waitingForFilm]);
   const statusDetail = [
     ...(asb ? [`${formatRate(asb.throughput?.bytes_per_s ?? 0)}`, `${(asb.throughput?.snapshots_per_s ?? 0).toFixed(1)} snapshots/s`] : []),
     ...(sim.latencyMs !== null ? [`${sim.latencyMs} ms round trip`] : []),

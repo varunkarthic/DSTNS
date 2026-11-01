@@ -124,6 +124,9 @@ public:
     [[nodiscard]] nlohmann::json sumo_simulate(const std::filesystem::path& directory, std::uint32_t begin_s, std::uint32_t end_s) const;
     // Adaptive Simulation Backpressure. The observer reports how far behind it
     // is; the engine throttles itself to close the gap and publishes what it did.
+    // An observer showing its start-up says so. A world finished in the meantime waits at its
+    // first second until the observer is ready, or stops saying so. Headless runs never wait.
+    nlohmann::json observer_presence(bool waiting);
     nlohmann::json report_backpressure(double virtual_lag_s, double client_frame_s, double since_poll_s);
     [[nodiscard]] nlohmann::json backpressure() const;
     // Record that a payload of this size was served, for the data-rate report.
@@ -166,6 +169,11 @@ private:
     std::atomic<bool> compiling_{false}; // Concurrent compiles fail without occupying HTTP workers.
     std::uint64_t compile_generation_{}; // Guarded by mutex_; reset/terminate invalidate a pending install.
     std::string preparation_error_;
+    bool observer_waiting_{};
+    bool observer_hold_{};
+    std::chrono::steady_clock::time_point observer_seen_{};
+    [[nodiscard]] bool observer_watching() const;
+    void release_observer_hold();
     // What the last failed attempt asked for, so trying again can pick somewhere else.
     std::optional<Seed128> failed_seed_;
     std::optional<std::pair<ScenarioConfig, std::uint32_t>> failed_start_;

@@ -235,6 +235,7 @@ SimulationEngine::~SimulationEngine() {
 }
 
 void SimulationEngine::transition(Lifecycle next) {
+    if (next != Lifecycle::Paused) observer_hold_ = false;
     const auto old = lifecycle_;
     lifecycle_ = next;
     // Mirror the state where a reader can see it without the engine mutex, so
@@ -553,7 +554,13 @@ nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig&
             failed_start_.reset();
             install_scenario(std::move(scenario), config.tick_rate, start);
             preparing_stage_.store(0);
-            transition(Lifecycle::Running);
+            // Someone is watching it arrive, so it does not start without them.
+            if (observer_watching()) {
+                transition(Lifecycle::Paused);
+                observer_hold_ = true;
+            } else {
+                transition(Lifecycle::Running);
+            }
             anchor_wall_clock();
             cv_.notify_all();
         } catch (...) {
@@ -593,9 +600,39 @@ void SimulationEngine::check_playback_guard(const nlohmann::json& guard) const {
         throw std::logic_error("ASB intervention prevents automatic playback restoration");
 }
 
+// Long enough for a page's timers to be late, short enough that closing the tab is soon noticed.
+constexpr double kObserverLeaseS = 4.0;
+
+bool SimulationEngine::observer_watching() const {
+    return observer_waiting_ && std::chrono::duration<double>(std::chrono::steady_clock::now() - observer_seen_).count() < kObserverLeaseS;
+}
+
+void SimulationEngine::release_observer_hold() {
+    if (!observer_hold_) return;
+    observer_hold_ = false;
+    if (lifecycle_ != Lifecycle::Paused) return;
+    transition(Lifecycle::Running);
+    anchor_wall_clock();
+    cv_.notify_all();
+}
+
+nlohmann::json SimulationEngine::observer_presence(bool waiting) {
+    std::lock_guard lock(mutex_);
+    observer_waiting_ = waiting;
+    observer_seen_ = std::chrono::steady_clock::now();
+    if (!waiting) release_observer_hold();
+    return {{"waiting", observer_waiting_}, {"hold", observer_hold_}, {"lifecycle", to_string(lifecycle_)}};
+}
+
 nlohmann::json SimulationEngine::pause(const nlohmann::json& guard) {
     std::lock_guard lock(mutex_);
     check_playback_guard(guard);
+    if (lifecycle_ == Lifecycle::Paused && observer_hold_) {
+        // It was only waiting, so whoever asks has really paused it, and a tutorial closing
+        // afterwards should start it as though it had been running.
+        observer_hold_ = false;
+        return {{"changed", true}, {"lifecycle", "PAUSED"}, {"playback_revision", playback_revision_}, {"run_id", run_id_}, {"simulated_seconds", virtual_s_}, {"state_revision", graph_->state_revision()}};
+    }
     if (lifecycle_ == Lifecycle::Paused) {
         if (guard.empty()) ++playback_revision_; // An explicit pause supersedes a tutorial's lease.
         return {{"changed", false}, {"lifecycle", "PAUSED"}, {"playback_revision", playback_revision_}, {"run_id", run_id_}};
@@ -614,6 +651,7 @@ nlohmann::json SimulationEngine::pause(const nlohmann::json& guard) {
 nlohmann::json SimulationEngine::play(const nlohmann::json& guard) {
     std::lock_guard lock(mutex_);
     check_playback_guard(guard);
+    observer_hold_ = false;
     if (lifecycle_ == Lifecycle::Running) return {{"changed", false}, {"lifecycle", "RUNNING"}};
     if (lifecycle_ != Lifecycle::Paused) {
         throw std::logic_error("simulation cannot play from current lifecycle");
@@ -1439,6 +1477,8 @@ void SimulationEngine::loop() {
         cv_.wait_for(lock, std::chrono::milliseconds(50));
         if (terminate_requested_) break;
         if (!graph_) continue;
+        // The observer went away while the world was waiting for it.
+        if (observer_hold_ && !observer_watching()) release_observer_hold();
 
         if (lifecycle_ == Lifecycle::Running) {
             const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
@@ -1598,6 +1638,7 @@ nlohmann::json SimulationEngine::status() const {
     return envelope({
         {"lifecycle", to_string(lifecycle_)},
         {"preparation_error", preparation_error_},
+        {"observer_hold", observer_hold_},
         {"playback_revision", playback_revision_},
         {"run_id", run_id_},
         {"day", graph_ ? graph_->scenario().config.day : -1},

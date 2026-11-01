@@ -268,6 +268,40 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
   /api/v1/system/observer:
+    post:
+      tags:
+      - System
+      summary: An open observer reports whether a finishing world should wait for it
+      description: A run that finishes preparing while this is true stays at its first second, with
+        observer_hold true in the playback status, until it is false or 4 seconds pass without a report.
+        A client that never calls this is never waited for.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                waiting:
+                  type: boolean
+      responses:
+        '200':
+          description: The observer's state as the engine sees it
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      waiting:
+                        type: boolean
+                      hold:
+                        type: boolean
+                      lifecycle:
+                        type: string
     get:
       tags:
       - System

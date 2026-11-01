@@ -91,6 +91,8 @@ export const api = {
       body: JSON.stringify(expected_run_id ? { expected_run_id } : {}),
     }),
   worldStatus: () => request<{ data: WorldStatus }>("/api/v1/world/status"),
+  observer: (waiting: boolean) =>
+    request<unknown>("/api/v1/system/observer", { method: "POST", body: JSON.stringify({ waiting }) }),
   /** Every news item recorded for the run, paged in core-sized requests. */
   allNews: async (runId: string, max = 20000): Promise<News[]> => {
     const out: News[] = [];

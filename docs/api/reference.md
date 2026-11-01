@@ -14,6 +14,7 @@ Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed,
 | POST | `/api/v1/world/regenerate` | Replace the world with one from a fresh secure seed; HTTP 202, progress via `/world/status` |
 | GET | `/api/v1/world/status` | State of the current or last world generation job |
 | GET | `/api/v1/system/observer` | Whether the observer page has been served yet, and how many times |
+| POST | `/api/v1/system/observer` | An open observer reports whether a world should wait for it: `{"waiting": true}` |
 | PUT | `/api/v1/control/tick-rate` | Rate in (0, 10]; the interface offers 0.25, 0.5, 1, 2, 3, 5, 10 and 20 |
 | GET | `/api/v1` , `/api/v1/system/endpoints` | Machine-readable index of every group and route |
 | GET | `/api/v1/view/topology` | Immutable geographic graph, road names/tags, features, bounds, projection |
@@ -185,6 +186,13 @@ interface and waits for this before requesting a run, so world selection, the
 map download, generation and initialization are all watched in the interface
 rather than happening behind a blank tab. It counts page loads only and carries
 no session identity.
+
+`POST /api/v1/system/observer` with `{"waiting": true}` is how an open observer says it is
+still showing its start-up. A run that finishes preparing in the meantime stays at its first
+second, with `lifecycle` `PAUSED` and `observer_hold` true in `GET /api/v1/playback/status`, until
+the observer sends `{"waiting": false}` or stops reporting for 4 seconds. A client that never calls
+this is never waited for, so headless runs start at once, and nothing changes once a run is going.
+Pausing or playing during the wait ends it.
 
 `GET /api/v1/system/map-status` reports the live map download and, in
 `preparation`, what a compile is doing when no map is moving: `selecting`

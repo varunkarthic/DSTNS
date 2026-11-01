@@ -16,3 +16,4 @@ python3 "$root/tests/launcher/test_narration.py"
 
 python3 "$root/tests/api/loading_smoke.py"
 python3 "$root/tests/api/another_city_smoke.py"
+python3 "$root/tests/api/observer_hold_smoke.py"
