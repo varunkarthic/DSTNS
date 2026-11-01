@@ -262,6 +262,63 @@ describe("in scrolling regions", () => {
     expect(curve(played[0]).at(-1)).toBeCloseTo(0);
   });
 
+  it("follows a slow, uneven pull at the limit for as long as it lasts", () => {
+    region.scrollTop = 800;
+    let last = 0;
+    let most = 0;
+    // A real finger: small, noisy, sometimes shrinking several times running.
+    for (const delta of [3, 5, 4, 3, 2, 6, 5, 4, 3, 7, 5, 6, 4, 3, 5, 6, 4, 5, 3, 6]) {
+      wheel(delta);
+      flush();
+      last = Math.abs(offset(region.style.transform));
+      most = Math.max(most, last);
+    }
+    expect(most).toBeGreaterThan(12);
+    expect(last).toBeGreaterThan(most * 0.8);
+    expect(played).toEqual([]);
+    run(14);
+    expect(played).toHaveLength(1);
+    expect(region.style.transform).toBe("");
+  });
+
+  it("answers at once: the first event of a pull already moves it", () => {
+    region.scrollTop = 800;
+    wheel(30);
+    run(3);
+    const shown = Math.abs(offset(region.style.transform));
+    run(14);
+    expect(shown).toBeGreaterThan(3);
+  });
+
+  it("picks up a pull that carries on after a fast arrival", () => {
+    arriveAt(40);
+    expect(played).toHaveLength(1);
+    for (let i = 0; i < 8; i++) {
+      wheel(20);
+      flush();
+    }
+    expect(played[0].cancel).toHaveBeenCalled();
+    expect(Math.abs(offset(region.style.transform))).toBeGreaterThan(8);
+    run(14);
+    expect(played).toHaveLength(2);
+  });
+
+  it("starts each pull from rest, not from where the last one reached", () => {
+    region.scrollTop = 800;
+    for (let i = 0; i < 8; i++) {
+      wheel(30);
+      flush();
+    }
+    run(14);
+    played[0].onfinish?.();
+    flush(300);
+    wheel(6);
+    run(3);
+    const shown = Math.abs(offset(region.style.transform));
+    run(14);
+    expect(shown).toBeLessThan(4);
+  });
+
   it("answers a new gesture after a pause", () => {
     arriveAt(40);
     flush(300);

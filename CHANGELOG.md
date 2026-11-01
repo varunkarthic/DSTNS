@@ -17,6 +17,10 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Pulling at the end of a list
+
+- **A pull at the end of a list now answers.** It gave up after two shrinking wheel events, which a real finger produces all the time, so pulling often did nothing and felt unresponsive. The content now comes with the pull, ever less the further it goes, and springs back on release. Momentum still gets one motion, and a pull that carries on after a fast arrival is picked up from where the bounce has reached.
+
 ### Start-up film, arrival and traffic
 
 - **Eleven different scenes, moving throughout.** No scene shares a layout now: a city with a river and ring roads, one junction with queues and red and green signals, a skyline rising, stacked bars under a moving sun, a stepping dial, a storm, a globe with continents, two identical trees from two seeds, a viewfinder locking on, and a rippling weave. Colours hold in both themes.

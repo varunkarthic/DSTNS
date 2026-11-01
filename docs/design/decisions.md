@@ -514,8 +514,8 @@ enough: every wheel event it sends waits for the main thread, even on a plain pa
 scroll. `:has()` stays off whole-page ancestors, and the map no longer pauses for scrolling.
 
 **Consequences.** The browser suite now scrolls with the pointer on cut-off text and checks that a bounce is played off the main
-thread. A wheel event cannot say whether it is a finger or momentum, so a finger that pushes on after a fast arrival still gets no
-further stretch.
+thread. A wheel event cannot say whether it is a finger or momentum, so the two are told apart by shape: momentum fades smoothly, and a
+finger is noisy and holds up.
 
 ## 39. Every scene of the film is its own subject
 

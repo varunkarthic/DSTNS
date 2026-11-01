@@ -16,6 +16,12 @@ import { animate, stepSpring } from "./motion";
  * and the same gesture feels the same on both.
  */
 
+/** How hard a pull it took to get to a displacement: the opposite of `resist`. */
+function unresist(shown: number, bound: number, constant = 0.55): number {
+  const part = Math.min(0.98, Math.abs(shown) / bound);
+  return Math.sign(shown) * (1 / (1 - part) - 1) * (bound / constant);
+}
+
 /** Visible displacement for a pull past a limit. Never reaches `bound`. */
 export function resist(pull: number, bound = 64, constant = 0.55): number {
   if (pull === 0 || bound <= 0) return 0;
@@ -55,11 +61,18 @@ const SCROLLING = /(auto|scroll)/;
 // peaks about 90 ms after arriving and is home about 0.6 s later.
 const BOUNCE = { k: 121, c: 22 };
 const OMEGA = Math.sqrt(BOUNCE.k);
+// While a finger is pulling, the content stays with it, a frame or two behind at most.
+const HOLD = { k: 900, c: 60 };
 // A region gives up to this share of its own size, within a limit.
 const EDGE_SHARE = 0.3;
 const EDGE_LIMIT = 120;
 // A wheel has no release: this long without being pushed is letting go.
-const LET_GO_MS = 90;
+const LET_GO_MS = 120;
+// Momentum only ever fades, and smoothly. A finger is noisy, so it takes this many shrinking
+// events in a row to call it momentum, and this many holding up to call it a finger again.
+const FADING_EVENTS = 5;
+const PULLING_EVENTS = 3;
+const PULLING_DELTA = 6;
 // And no lift either: this long with no wheel events at all is a new gesture. Momentum
 // arrives far more often than this, so it is always part of the gesture that began it.
 const GESTURE_GAP_MS = 180;
@@ -128,6 +141,7 @@ interface Stretch {
   pushedAt: number;
   lastDelta: number;
   fading: number;
+  pulling: number;
   /** This gesture has had its one motion, so the rest of its events do nothing. */
   spent: boolean;
   gesture: number;
@@ -161,13 +175,14 @@ export function installEdgeResistance(root: Document = document): () => void {
   const stretchFor = (el: HTMLElement, axis: Axis) => {
     let s = stretches.get(el);
     if (!s) {
-      s = { axis, direction: 0, x: 0, v: 0, pull: 0, pushedAt: -Infinity, lastDelta: 0, fading: 0, spent: false, gesture, holding: null, bounce: null, bounceFrom: [0, 0] };
+      s = { axis, direction: 0, x: 0, v: 0, pull: 0, pushedAt: -Infinity, lastDelta: 0, fading: 0, pulling: 0, spent: false, gesture, holding: null, bounce: null, bounceFrom: [0, 0] };
       stretches.set(el, s);
     }
     if (s.gesture !== gesture) {
       s.gesture = gesture;
       s.spent = false;
       s.fading = 0;
+      s.pulling = 0;
       s.lastDelta = 0;
     }
     s.axis = axis;
@@ -178,7 +193,8 @@ export function installEdgeResistance(root: Document = document): () => void {
 
   /** Where the content is shown now, whichever of the two is moving it. */
   const where = (s: Stretch): [number, number] => {
-    if (!s.bounce) return [s.x, s.v];
+    if (s.holding) return [s.x, s.v];
+    if (!s.bounce) return [0, 0];
     return spring(s.bounceFrom[0], s.bounceFrom[1], Number(s.bounce.currentTime ?? 0) / 1000);
   };
 
@@ -226,14 +242,25 @@ export function installEdgeResistance(root: Document = document): () => void {
     bounce(el, s, x, s.direction * peak * OMEGA * Math.E);
   };
 
-  /** Pushing against a limit already reached. Once a push starts to fade, it is over. */
+  /**
+   * Pulling against a limit: the content comes with the pull, ever less the further it goes,
+   * and goes back when it is let go. Momentum arriving here is not a pull, however long it lasts.
+   */
   const press = (el: HTMLElement, axis: Axis, delta: number) => {
     const s = stretchFor(el, axis);
-    if (s.spent) return;
     const size = Math.abs(delta);
-    s.fading = size < s.lastDelta * 0.97 ? s.fading + 1 : 0;
+    const holdingUp = size >= s.lastDelta * 0.97;
+    s.fading = holdingUp ? 0 : s.fading + 1;
+    s.pulling = holdingUp ? s.pulling + 1 : 0;
     s.lastDelta = size;
-    if (s.fading >= 2) {
+    const bound = boundOf(el, axis);
+    if (s.spent) {
+      if (s.pulling < PULLING_EVENTS || size < PULLING_DELTA) return;
+      // It kept going after all: someone is pulling, so pick it up from wherever it is now.
+      s.spent = false;
+      s.pull = unresist(where(s)[0], bound);
+    }
+    if (s.fading >= FADING_EVENTS) {
       s.spent = true;
       s.pull = 0;
       return;
@@ -245,7 +272,6 @@ export function installEdgeResistance(root: Document = document): () => void {
     [s.x, s.v] = where(s);
     s.bounce?.cancel();
     s.bounce = null;
-    const bound = boundOf(el, axis);
     s.holding = animate((dt) => {
       if (performance.now() - s.pushedAt > LET_GO_MS) s.pull = 0;
       if (!s.pull) {
@@ -255,7 +281,7 @@ export function installEdgeResistance(root: Document = document): () => void {
         bounce(el, s, s.x, s.v);
         return false;
       }
-      [s.x, s.v] = stepSpring(s.x, s.v, resist(s.pull, bound), BOUNCE, dt);
+      [s.x, s.v] = stepSpring(s.x, s.v, resist(s.pull, bound), HOLD, dt);
       const shown = shownAt(s.axis, s.x);
       el.style.transform = shown.transform;
       el.style.clipPath = shown.clipPath;
@@ -287,6 +313,7 @@ export function installEdgeResistance(root: Document = document): () => void {
         s.spent = false;
         s.lastDelta = 0;
         s.fading = 0;
+        s.pulling = 0;
       }
     }
   };
