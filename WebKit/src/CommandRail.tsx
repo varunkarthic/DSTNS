@@ -468,14 +468,19 @@ function SeedControl({ seed, canRegenerate, onRegenerate }: { seed: string; canR
   };
   return (
     <div className="seed" data-tutorial="seed">
-      <Tooltip label={feedback === "copied" ? "Copied" : "Copy seed"} detail={seed ? <span className="mono">{seed}</span> : undefined}>
-        <button type="button" className="seed-value" onClick={copy} disabled={!seed} aria-label={seed ? `Copy seed ${seed}` : "No seed"}>
-          <span className="seed-key">Seed</span>
-          <span className="mono">{seed ? shortSeed(seed) : "None"}</span>
+      <Tooltip label="Copy seed" detail={seed ? <span className="mono">{seed}</span> : undefined} disabled={!!feedback}>
+        <button type="button" className={`seed-value${feedback ? ` is-${feedback}` : ""}`} onClick={copy} disabled={!seed} aria-label={seed ? `Copy seed ${seed}` : "No seed"}>
+          <span className="seed-face">
+            <span className="seed-key">Seed</span>
+            <span className="mono">{seed ? shortSeed(seed) : "None"}</span>
+          </span>
           <span className={`seed-feedback${feedback ? ` ${feedback}` : ""}`} aria-live="polite">
             {feedback === "copied" ? (
               <>
-                <Icon name="check" size={14} /> Copied
+                <svg className="seed-check" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 8.5l3.2 3.2L13 4.8" pathLength={1} />
+                </svg>
+                Copied
               </>
             ) : feedback === "failed" ? (
               "Copy failed"

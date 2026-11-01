@@ -2062,8 +2062,9 @@
     filter: blur(6px);
   }
 }
+/* Shortened, not removed: taking the animation away and giving it back would replay it. */
 .reduce-motion .map-layer {
-  animation: none;
+  animation-duration: 1ms;
 }
 
 /* ---- Guided tour ------------------------------------------------------------------ */

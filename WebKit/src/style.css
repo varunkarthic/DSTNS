@@ -792,7 +792,8 @@ progress::-webkit-progress-value {
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--line-rgb) / 22%) transparent;
 }
-.reduce-motion *,
+/* The map is shortened in hud.css instead: giving its arrival back would replay it. */
+.reduce-motion *:not(.map-layer),
 .reduce-motion *:before,
 .reduce-motion *:after {
   animation: none !important;

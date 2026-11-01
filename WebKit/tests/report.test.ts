@@ -162,7 +162,7 @@ describe("report generation", () => {
   it("includes the throughput chart and every section's key content", async () => {
     const { doc } = await buildReport(input(), { font });
     const text = doc.boxes.map((b) => b.text ?? "").join("\n");
-    expect(text).toMatch(/Connection throughput \((kB|MB|KiB|MiB)\/s\)/);
+    expect(text).toMatch(/Connection throughput \((KB|MB|KiB|MiB)\/s\)/);
     expect(text).toContain("Congestion index across the virtual day");
     expect(text).toContain("Incident register");
     expect(text).toContain("Backpressure interventions");

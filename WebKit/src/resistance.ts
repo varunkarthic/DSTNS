@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { animate } from "./motion";
+import { animate, stepSpring } from "./motion";
 
 /**
  * Dynamic Edge Resistance.
@@ -56,11 +56,16 @@ export function scrollingNow(): boolean {
 }
 
 const SCROLLING = /(auto|scroll)/;
-// How far a region gives: subtle, and in proportion to it.
-const EDGE_LIMIT = 12;
-// How fast it lets go, per second, and how closely it follows the push.
-const RELEASE = 26;
-const FOLLOW = 42;
+// The bounce: a critically damped spring, so it never wobbles and never pauses. Apple does
+// not publish its figures; this is home about half a second after being let go.
+const BOUNCE = { k: 225, c: 30 };
+// Past this, a fling is no more dramatic: the curve has already given all it will.
+const MAX_SPEED = 4500;
+// A region gives up to this share of its own size, within a limit.
+const EDGE_SHARE = 0.45;
+const EDGE_LIMIT = 180;
+// A wheel has no release: this long without being pushed is letting go.
+const LET_GO_MS = 90;
 
 function normalised(event: WheelEvent, page: number): [number, number] {
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? page : 1;
@@ -92,49 +97,93 @@ function regionFor(start: Element | null, axis: "x" | "y"): HTMLElement | null {
   return null;
 }
 
-interface Stretch { axis: "x" | "y"; pull: number; x: number; cancel: (() => void) | null }
+interface Stretch {
+  axis: "x" | "y";
+  /** How far past the limit the content has travelled, before the curve is applied. */
+  x: number;
+  v: number;
+  /** Where a continuing push is holding it. */
+  held: number;
+  pushedAt: number;
+  lastDelta: number;
+  fading: number;
+  cancel: (() => void) | null;
+}
 
 /**
  * Installs itself once, for every scrolling region now and later.
  *
- * It only ever listens. Scrolling itself belongs to the browser and runs on the
- * compositor, whatever the page is doing, so a busy map cannot make a list lag. All this
- * adds, at a limit, is a small movement of the region as a whole: one compositor transform,
- * touched only while it is moving.
+ * Scrolling itself belongs to the browser and runs on the compositor, whatever the page
+ * is doing. This only listens, and takes over at the moment the browser stops at a limit,
+ * as a scroll view does: the content carries on at the speed it arrived, compressed by the
+ * rubber-band curve, and a critically damped spring brings it home. A slow scroll barely
+ * shows at the edge and a fast one travels further, because it is one motion, not a stop
+ * followed by a separate effect. The region's frame stays where it is and only what is
+ * inside it moves, using one transform and one clip, touched only while it is moving.
  */
 export function installEdgeResistance(root: Document = document): () => void {
   const stretches = new WeakMap<HTMLElement, Stretch>();
+  const positions = new WeakMap<Element, { at: number; top: number }>();
   const reduced = () => root.documentElement.classList.contains("reduce-motion");
+  let wheelAt = -Infinity;
+
+  const stretchFor = (el: HTMLElement, axis: "x" | "y") => {
+    let s = stretches.get(el);
+    if (!s) {
+      s = { axis, x: 0, v: 0, held: 0, pushedAt: -Infinity, lastDelta: 0, fading: 0, cancel: null };
+      stretches.set(el, s);
+    }
+    s.axis = axis;
+    return s;
+  };
 
   const run = (el: HTMLElement, s: Stretch) => {
     if (s.cancel) return;
     s.cancel = animate((dt) => {
-      s.pull *= Math.exp(-RELEASE * dt);
-      if (Math.abs(s.pull) < 0.5) s.pull = 0;
-      const dimension = s.axis === "y" ? el.clientHeight : el.clientWidth;
-      const target = -resist(s.pull, Math.min(EDGE_LIMIT, dimension * 0.05));
-      s.x += (target - s.x) * Math.min(1, FOLLOW * dt);
-      const done = !s.pull && Math.abs(s.x) < 0.05;
-      if (done) {
-        s.x = 0;
+      if (performance.now() - s.pushedAt > LET_GO_MS) s.held = 0;
+      [s.x, s.v] = stepSpring(s.x, s.v, s.held, BOUNCE, dt);
+      if (!s.held && Math.abs(s.x) < 0.5 && Math.abs(s.v) < 10) {
+        s.x = s.v = 0;
         s.cancel = null;
         el.style.removeProperty("transform");
+        el.style.removeProperty("clip-path");
         return false;
       }
-      el.style.transform = s.axis === "y" ? `translate3d(0, ${s.x.toFixed(2)}px, 0)` : `translate3d(${s.x.toFixed(2)}px, 0, 0)`;
+      const size = s.axis === "y" ? el.clientHeight : el.clientWidth;
+      // Past the bottom the content moves up: its top edge is held in place by the clip.
+      const shown = -resist(s.x, Math.min(EDGE_LIMIT, size * EDGE_SHARE));
+      const px = shown.toFixed(2);
+      const clipped = Math.abs(shown).toFixed(2);
+      if (s.axis === "y") {
+        el.style.transform = `translate3d(0, ${px}px, 0)`;
+        el.style.clipPath = shown < 0 ? `inset(${clipped}px 0 0 0)` : `inset(0 0 ${clipped}px 0)`;
+      } else {
+        el.style.transform = `translate3d(${px}px, 0, 0)`;
+        el.style.clipPath = shown < 0 ? `inset(0 0 0 ${clipped}px)` : `inset(0 ${clipped}px 0 0)`;
+      }
       return true;
     });
   };
 
-  const push = (el: HTMLElement, axis: "x" | "y", delta: number) => {
-    let s = stretches.get(el);
-    if (!s) {
-      s = { axis, pull: 0, x: 0, cancel: null };
-      stretches.set(el, s);
-    }
-    s.axis = axis;
-    const next = s.pull + delta;
-    s.pull = s.pull && Math.sign(next) !== Math.sign(s.pull) ? 0 : next;
+  /** The content reached a limit at this speed: it keeps going, into the curve. */
+  const arrive = (el: HTMLElement, axis: "x" | "y", speed: number) => {
+    const s = stretchFor(el, axis);
+    if (s.cancel) return;
+    s.v = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, speed));
+    s.x = 0;
+    run(el, s);
+  };
+
+  /** Pushing against a limit already reached. A trackpad's fading momentum is not a push. */
+  const press = (el: HTMLElement, axis: "x" | "y", delta: number) => {
+    const s = stretchFor(el, axis);
+    const size = Math.abs(delta);
+    s.fading = size < s.lastDelta * 0.97 ? s.fading + 1 : 0;
+    s.lastDelta = size;
+    if (s.fading >= 2) return;
+    s.pushedAt = performance.now();
+    const next = s.held + delta;
+    s.held = s.held && Math.sign(next) !== Math.sign(s.held) ? 0 : next;
     run(el, s);
   };
 
@@ -150,10 +199,19 @@ export function installEdgeResistance(root: Document = document): () => void {
     if (!el) return;
     const position = now.axis === "y" ? el.scrollTop : el.scrollLeft;
     const size = now.axis === "y" ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth;
-    if (now.delta < 0 ? position <= 0 : position >= size - 1) push(el, now.axis, now.delta);
+    if (now.delta < 0 ? position <= 0 : position >= size - 1) press(el, now.axis, now.delta);
+    else {
+      const s = stretches.get(el);
+      if (s) {
+        s.held = 0;
+        s.lastDelta = 0;
+        s.fading = 0;
+      }
+    }
   };
   const onWheel = (event: WheelEvent) => {
     if (event.ctrlKey) return;
+    wheelAt = performance.now();
     const [dx, dy] = normalised(event, root.documentElement.clientHeight);
     const axis = Math.abs(dy) >= Math.abs(dx) ? "y" : "x";
     const delta = axis === "y" ? dy : dx;
@@ -162,6 +220,19 @@ export function installEdgeResistance(root: Document = document): () => void {
       scheduled = true;
       requestAnimationFrame(settle);
     }
+  };
+
+  /** Scrolling reached a limit: how fast it was going is read from the scroll itself. */
+  const watch = (el: Element) => {
+    const now = performance.now();
+    const top = el.scrollTop;
+    const last = positions.get(el);
+    positions.set(el, { at: now, top });
+    // Only a person's scrolling: a list being reset by code has no speed to carry.
+    if (!last || now - wheelAt > 150 || reduced() || !(el instanceof HTMLElement)) return;
+    const speed = ((top - last.top) / Math.max(4, now - last.at)) * 1000;
+    const atLimit = (speed < 0 && top <= 0) || (speed > 0 && top >= el.scrollHeight - el.clientHeight - 1);
+    if (atLimit && Math.abs(speed) > 60) arrive(el, "y", speed);
   };
 
   let scrolling: HTMLElement | null = null;
@@ -173,6 +244,7 @@ export function installEdgeResistance(root: Document = document): () => void {
   const onScroll = (event: Event) => {
     const el = event.target;
     lastScroll = performance.now();
+    if (el instanceof Element) watch(el);
     // Rows passing under the pointer would each restyle on hover, on the main thread.
     if (el instanceof HTMLElement && el !== scrolling) {
       scrolling?.classList.remove("is-scrolling");

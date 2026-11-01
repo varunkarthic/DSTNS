@@ -375,7 +375,7 @@ Sections:
 | Auto Focus | Auto Focus Events switch; Round-Robin or Latest |
 | Do Not Disturb | Switch; muted categories with descriptions; muted severities; a note on the Auto Focus override |
 | Time and playback | 12 or 24 hour time; Back and Forward interval; fine control, which asks how far on each press; Step interval |
-| Units | Data sizes as kB, MB and GB (powers of 1,000) or KiB, MiB and GiB (powers of 1,024) |
+| Units | Data sizes as KB, MB and GB (powers of 1,000) or KiB, MiB and GiB (powers of 1,024) |
 | Keyboard | Every shortcut, shown and changeable. Select one and press a key; a key already in use swaps. Resets separately, and with Reset all settings |
 | Applications | [WebFabric](../components/webfabric.md): registered applications, their settings and permissions |
 | Reset | Returns settings, Layers, Places, shortcuts and the telemetry layout to their defaults |

@@ -2547,3 +2547,35 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .app-shell:has(.loading-surface.rejoin.closing) .app-header { opacity: 1; transition: opacity 700ms var(--ease) 500ms; }
 /* Its fade-in has to let go, or the handover's slower fade never gets to run. */
 .loading-surface.boot.rejoin.landing::before { animation: none; }
+
+/* ---- A notification in the history: one surface, one column --------------------------------------- */
+.history-row { overflow: hidden; }
+.history-row:hover, .history-row.open { background: var(--well); }
+.history-head, .history-head:hover, .history-head:active { background: none; border-radius: 0; }
+.history-detail { padding: 0 12px 12px 48px; }
+.history-detail dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin: 0; }
+.history-detail dl > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--well-line); }
+.history-detail dt { margin: 0; font-size: 11px; letter-spacing: 0; text-transform: none; color: var(--text-faint); }
+.history-detail dd { margin: 0; font-family: inherit; font-size: 12px; line-height: 1.4; text-align: left; color: var(--text); overflow-wrap: anywhere; }
+.history-detail dd.mono, .history-detail dl.technical dd { font-family: var(--font-mono, monospace); font-size: 11.5px; }
+.history-detail .text-toggle { display: inline-flex; align-items: center; gap: 4px; margin: 6px 0 0; padding: 4px 0; background: none; }
+
+/* ---- Settings: headings, rows and the title share one left edge ------------------------------------ */
+.settings-head { padding-left: 26px; padding-right: 14px; }
+.settings-section, .settings-section:first-child { padding: 12px 14px; }
+.settings-section h3 { margin: 0 0 8px; }
+.settings-section > .settings-action, .settings-section > .settings-nav.settings-action { margin: 0 -6px -2px; width: calc(100% + 12px); min-height: 48px; padding: 6px; border: 0; border-radius: var(--r-sm); background: none; }
+.settings-section > .settings-action:hover:not(:disabled) { background: var(--hover); border: 0; }
+
+/* ---- Copying the seed: the number makes way, and the word arrives ---------------------------------- */
+.seed-value { overflow: hidden; transition: background var(--motion-fade-ms, 200ms) var(--ease); }
+.seed-face { display: inline-flex; align-items: center; gap: 8px; transition: transform var(--motion-shift-ms, 300ms) var(--motion-shift, ease-out), opacity var(--motion-fade-ms, 200ms) var(--ease); }
+.seed-value.is-copied .seed-face, .seed-value.is-failed .seed-face { transform: translateY(-14px); opacity: 0; }
+.seed-feedback { background: none; opacity: 0; transform: translateY(14px); color: var(--ok); gap: 6px; font-size: 12px; transition: transform var(--motion-snap-ms, 300ms) var(--motion-snap, ease-out), opacity var(--motion-fade-ms, 200ms) var(--ease); }
+.seed-feedback.copied, .seed-feedback.failed { transform: none; opacity: 1; }
+.seed-value.is-copied { background: rgb(var(--ok-rgb) / 12%); }
+.seed-value.is-failed { background: rgb(var(--danger-rgb) / 12%); }
+.seed-value.is-failed .seed-feedback { color: var(--danger); }
+.seed-check path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: seed-check 320ms var(--ease) 90ms forwards; }
+@keyframes seed-check { to { stroke-dashoffset: 0; } }
+.reduce-motion .seed-check path { animation: none; stroke-dashoffset: 0; }

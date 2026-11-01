@@ -377,14 +377,14 @@ export function SettingsDrawer({
           <Row
             stacked
             title="Data sizes"
-            hint={values.byteUnits === "decimal" ? "Powers of 1,000: 1 GB is 1,000 MB, and 1 MB is 1,000 kB." : "Powers of 1,024: 1 GiB is 1,024 MiB, and 1 MiB is 1,024 KiB."}
+            hint={values.byteUnits === "decimal" ? "Powers of 1,000: 1 GB is 1,000 MB, and 1 MB is 1,000 KB." : "Powers of 1,024: 1 GiB is 1,024 MiB, and 1 MiB is 1,024 KiB."}
             control={
               <Segmented
                 label="Data sizes"
                 value={values.byteUnits}
                 onChange={actions.onByteUnits}
                 options={[
-                  { value: "decimal", label: "kB, MB, GB" },
+                  { value: "decimal", label: "KB, MB, GB" },
                   { value: "binary", label: "KiB, MiB, GiB" },
                 ]}
               />

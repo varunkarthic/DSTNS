@@ -10,7 +10,7 @@ export const setByteUnits = (next: ByteUnits) => {
 };
 
 const SCALES: Record<ByteUnits, { base: number; names: [string, string, string] }> = {
-  decimal: { base: 1000, names: ["kB", "MB", "GB"] },
+  decimal: { base: 1000, names: ["KB", "MB", "GB"] },
   binary: { base: 1024, names: ["KiB", "MiB", "GiB"] },
 };
 

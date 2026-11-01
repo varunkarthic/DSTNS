@@ -102,30 +102,70 @@ describe("in scrolling regions", () => {
     expect(region.style.transform).toBe("");
   });
 
-  it("gives a little at a limit, and only a little", () => {
-    region.scrollTop = 0;
-    wheel(-2000);
-    run(3);
-    expect(shift()).toBeGreaterThan(0.5);
-    expect(shift()).toBeLessThanOrEqual(12);
+  it("carries a fast arrival further than a slow one, within its bound", () => {
+    const peak = (from: number, step: number) => {
+      region.scrollTop = from;
+      wheel(step);
+      region.dispatchEvent(new Event("scroll", { bubbles: true }));
+      flush(16);
+      region.scrollTop = 800;
+      region.dispatchEvent(new Event("scroll", { bubbles: true }));
+      let most = 0;
+      for (let i = 0; i < 80; i++) {
+        flush();
+        most = Math.max(most, shift());
+      }
+      return most;
+    };
+    const slow = peak(796, 4);
+    const fast = peak(700, 100);
+    expect(fast).toBeGreaterThan(slow);
+    expect(fast).toBeLessThanOrEqual(90);
+    expect(fast).toBeGreaterThan(12);
   });
 
-  it("is back quickly, and leaves nothing behind", () => {
+  it("does not take a list being reset by code for a person scrolling", () => {
+    region.scrollTop = 800;
+    region.dispatchEvent(new Event("scroll", { bubbles: true }));
+    flush(500);
+    region.scrollTop = 0;
+    region.dispatchEvent(new Event("scroll", { bubbles: true }));
+    run(3);
+    expect(region.style.transform).toBe("");
+  });
+
+  it("comes home with no hold, and leaves nothing behind", () => {
     region.scrollTop = 0;
     wheel(-400);
-    run(30);
+    run(4);
+    expect(shift()).toBeGreaterThan(0.5);
+    run(45);
     expect(region.style.transform).toBe("");
-    expect(region.style.transform).toBe("");
+    expect(region.style.clipPath ?? "").toBe("");
   });
 
-  it("moves only the region itself, one transform", () => {
+  it("does not let a trackpad's fading momentum hold it out", () => {
+    region.scrollTop = 800;
+    wheel(200);
+    run(1);
+    let size = 180;
+    for (let i = 0; i < 40; i++) {
+      wheel(size);
+      size *= 0.86;
+      flush();
+    }
+    run(10);
+    expect(shift()).toBeLessThan(3);
+  });
+
+  it("moves only the region itself", () => {
     const child = document.createElement("div");
     region.appendChild(child);
-    region.scrollTop = 0;
-    wheel(-400);
+    region.scrollTop = 800;
+    wheel(400);
     run(3);
+    expect(shift()).toBeGreaterThan(0.5);
     expect(child.style.transform).toBe("");
-    expect(region.style.getPropertyValue("--edge-y")).toBe("");
   });
 
   it("does nothing under reduced motion", () => {
