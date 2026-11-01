@@ -56,8 +56,15 @@ const settings = (extra = []) => ({ version: 1, groups: [{ id: "general", label:
 const register = async (id, name, capabilities, ui = [], extra = {}) => {
   const res = await call("POST", "/api/v1/fabric/apps", { id, name, version: "1.0.0", capabilities, settings: settings(), ui, ...extra });
   assert.equal(res.code, 201, JSON.stringify(res.body));
+  checkingIn.set(id, res.body.data.token);
   return res.body.data.token;
 };
+// As a real application does: the film outlasts a lease, and an application that goes silent is hidden.
+const checkingIn = new Map();
+const keepAlive = setInterval(() => {
+  for (const [id, token] of checkingIn) void call("POST", `/api/v1/fabric/apps/${id}/heartbeat`, {}, token).catch(() => undefined);
+}, 15000);
+keepAlive.unref();
 
 let browser;
 let failures = 0;
@@ -250,8 +257,6 @@ try {
 
   await test("a dialog waits for its grant, and is attributed", async () => {
     assert.equal(await page.locator(".dialog").count(), 0);
-    // It has been waiting since the start of the film, and an application must keep checking in.
-    await call("POST", "/api/v1/fabric/apps/org.mock.prompt/heartbeat", {}, dialogs);
     await call("PUT", "/api/v1/fabric/apps/org.mock.prompt/grants", { capabilities: ["ui.dialogs"] }, null, { "X-DSTNS-Operator": operator });
     const dialog = page.getByRole("dialog").filter({ hasText: "A question" });
     await dialog.waitFor({ timeout: 6000 });
