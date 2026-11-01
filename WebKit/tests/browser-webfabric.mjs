@@ -250,6 +250,8 @@ try {
 
   await test("a dialog waits for its grant, and is attributed", async () => {
     assert.equal(await page.locator(".dialog").count(), 0);
+    // It has been waiting since the start of the film, and an application must keep checking in.
+    await call("POST", "/api/v1/fabric/apps/org.mock.prompt/heartbeat", {}, dialogs);
     await call("PUT", "/api/v1/fabric/apps/org.mock.prompt/grants", { capabilities: ["ui.dialogs"] }, null, { "X-DSTNS-Operator": operator });
     const dialog = page.getByRole("dialog").filter({ hasText: "A question" });
     await dialog.waitFor({ timeout: 6000 });

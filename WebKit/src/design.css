@@ -2539,8 +2539,6 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .loading-surface.boot.rejoin.exiting .loading-card.film, .loading-surface.boot.rejoin.exiting .loading-licence { opacity: 0; }
 .loading-surface.boot .loading-card.film .loading-steps { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 /* The film has the whole window, as it does at start-up, and the bar returns with the map. */
-.app-shell.world-busy .app-header { opacity: 0; pointer-events: none; transition: opacity 500ms var(--ease); }
-.app-shell.world-busy.world-closing .app-header { opacity: 1; transition: opacity 700ms var(--ease) 500ms; }
 /* Its fade-in has to let go, or the handover's slower fade never gets to run. */
 .loading-surface.boot.rejoin.landing::before { animation: none; }
 
@@ -2623,3 +2621,20 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .capsule-facts > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: baseline; }
 .capsule-facts dd { margin: 0; text-align: left; font-family: inherit; font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
 .capsule-facts dd.mono { font-family: var(--font-mono, monospace); font-size: 11.5px; }
+
+/* ---- Arriving: the roads are built, then the map comes under them, then the panels ---------------- */
+/* Opacity only: the particles stand exactly on the map's roads, so it must not be scaled or blurred. */
+.app-shell.booting .map-layer { transform: none; filter: none; }
+.app-shell.booting.map-showing .map-layer { opacity: 1; transition: opacity 850ms var(--ease); transition-delay: 0ms; }
+.loading-surface.boot.landing::before { transition: opacity 850ms var(--ease) var(--map-at, 0ms); }
+.app-shell.booting .app-header { transform: translateY(-32px); }
+.app-shell.booting .map-dock { transform: translateX(-56px); }
+.app-shell.booting .telemetry-deck { transform: translateX(64px); }
+.app-shell.booting .bottom-stack { transform: translateY(56px); }
+.app-shell .app-header { transition-delay: 0ms; }
+.app-shell .map-dock { transition-delay: 70ms; }
+.app-shell .telemetry-deck { transition-delay: 130ms; }
+.app-shell .bottom-stack { transition-delay: 190ms; }
+.app-shell .map-readout { transition-delay: 320ms; }
+/* Everything opaque about the surface is on its ::before, which fades, or the map could not show through. */
+[data-theme="light"] .loading-surface.boot { background: none; }

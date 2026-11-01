@@ -5,7 +5,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "./Icons";
 import { Logo } from "./Logo";
-import { BootScene } from "./BootScene";
+import { BootScene, MAP_AT_MS } from "./BootScene";
+import type { CSSProperties } from "react";
 
 /**
  * The loading surface.
@@ -207,6 +208,7 @@ export function LoadingSurface({
   return (
     <div
       ref={surface}
+      style={{ "--map-at": `${MAP_AT_MS}ms` } as CSSProperties}
       className={`loading-surface ${mode} phase-${film ? phase : "film"}${ending ? " ending" : ""}${rejoin ? " rejoin" : ""}${exiting ? " exiting" : ""}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
       role={role}
       aria-modal={role === "alertdialog" ? true : undefined}

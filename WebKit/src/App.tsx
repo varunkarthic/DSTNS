@@ -13,7 +13,7 @@ import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
 import { BootFailure, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
-import { filmAvailable, LANDING_MS, landingPoints, REJOIN_MIN_MS } from "./BootScene";
+import { filmAvailable, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, REJOIN_MIN_MS } from "./BootScene";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
 import { NotificationHistory } from "./notificationHistory";
@@ -119,6 +119,31 @@ interface WorldJob {
   error: string;
   closing: boolean;
 }
+/**
+ * What may be on screen as a world arrives. While the film is building the roads nothing is;
+ * then the map comes under them, and last of all the panels come in around it.
+ */
+function useArrival(covered: boolean, instant: boolean): "covered" | "map" | "all" {
+  const [stage, setStage] = useState<"covered" | "map" | "all">(covered ? "covered" : "all");
+  useEffect(() => {
+    if (covered) {
+      setStage("covered");
+      return;
+    }
+    if (instant) {
+      setStage("all");
+      return;
+    }
+    const map = setTimeout(() => setStage((now) => (now === "covered" ? "map" : now)), MAP_AT_MS);
+    const panels = setTimeout(() => setStage("all"), PANELS_AT_MS);
+    return () => {
+      clearTimeout(map);
+      clearTimeout(panels);
+    };
+  }, [covered, instant]);
+  return stage;
+}
+
 const NO_WORLD_JOB: WorldJob = { active: false, requestedSeed: "", status: null, error: "", closing: false };
 
 /** A concise, operator-facing reason for a failed world generation. */
@@ -919,6 +944,7 @@ export default function App() {
   const lastFailure = useRef(bootFailure);
   if (bootFailure) lastFailure.current = bootFailure;
   const failure = usePresence(!!bootFailure, MOTION_MS.boot);
+  const arrival = useArrival(!!(showSplash || bootFailure || shutDown || (world.active && !world.closing)), reduceMotion || !filmAvailable());
   const statusDetail = [
     ...(asb ? [`${formatRate(asb.throughput?.bytes_per_s ?? 0)}`, `${(asb.throughput?.snapshots_per_s ?? 0).toFixed(1)} snapshots/s`] : []),
     ...(sim.latencyMs !== null ? [`${sim.latencyMs} ms round trip`] : []),
@@ -966,7 +992,7 @@ export default function App() {
       <div
         inert={tutorial.active || undefined}
         data-tour-target={tutorial.active ? tutorialTarget : undefined}
-        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${showSplash || bootFailure || shutDown ? " booting" : ""}${world.active ? " world-busy" : ""}${world.closing ? " world-closing" : ""}${lifecycle === "COMPLETED" ? " day-complete" : ""}`}
+        className={`app-shell${reduceMotion ? " reduce-motion" : ""}${suspended ? " suspended-shell" : ""}${telemetryOpen ? " telemetry-open" : ""}${deckCompact ? " deck-compact" : ""}${arrival !== "all" ? " booting" : ""}${arrival === "map" ? " map-showing" : ""}${world.active ? " world-busy" : ""}${lifecycle === "COMPLETED" ? " day-complete" : ""}`}
       >
         {asb && asb.state !== "NORMAL" && (
           <div className={`asb-banner ${asbInfo.tone}`} role="status">

@@ -3,35 +3,42 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LOGO_SVG } from "./logoAsset";
+import { appearance } from "./appearance";
 import { stepSpring } from "./motion";
+import { buildFormations, COUNT, formation, KIND, sequence, STRIDE } from "./bootScenes";
 
 /**
  * The start-up film.
  *
  * A single cloud of particles, drawn in three dimensions, keeps re-forming into what
- * DSTNS does: the wordmark, a street network, a city, traffic, weather, a world of
- * seeds and the weave of WebFabric. It plays for as long as the system takes to load,
- * and is not a measure of it: progress is reported separately, from what the core says.
+ * DSTNS does, each scene its own subject (see bootScenes.ts) and moving for as long as it
+ * holds. It plays for as long as the system takes to load, and is not a measure of it:
+ * progress is reported separately, from what the core says.
  *
  * All the movement happens in the vertex shader, so the page spends one draw call on
  * it. Without WebGL2 the captions still play over the plain background.
  */
 
-const COUNT = 24000;
-const STRIDE = 7; // x y z, vx vy vz, tint
-const HOLD_S = 3.6;
+const HOLD_S = 4;
 const MORPH = { k: 11, c: 5.6 };
 // Going to and from the logo and the map are timed, not sprung: an ease in and out has no
 // sudden start, which is what makes particles leaving a shape feel soft.
 const DISSOLVE_S = 2.1;
-const LAND_S = 1.35;
+// Arriving: the particles gather into the name, then build the roads from the centre out,
+// as the end of a session plays backwards. Only then does the map come, then the panels.
+const GATHER_S = 1.15;
+const LAND_S = 2.3;
 const easeInOut = (t: number) => {
   const x = Math.max(0, Math.min(1, t));
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 };
 const CAMERA = { k: 9, c: 6 };
+/** When the map fades in under the roads the particles have just built. */
+export const MAP_AT_MS = Math.round((GATHER_S + LAND_S * 0.86) * 1000);
+/** When the panels come in around it. */
+export const PANELS_AT_MS = MAP_AT_MS + 650;
 /** How long the handover takes. The surface stays mounted this long. */
-export const LANDING_MS = 2300;
+export const LANDING_MS = PANELS_AT_MS + 500;
 /** A new world: how long the old one takes to leave, before the particles recollect. */
 export const REJOIN_AT_MS = 5800;
 /** Whether this browser can draw the film at all. */
@@ -59,233 +66,20 @@ export const FILM_CHAPTERS: readonly { label: string; title: string; text: strin
   { label: "Extensions", title: "WebFabric", text: "Connect your own applications." },
 ];
 
-interface Camera { yaw: number; pitch: number; distance: number; spin: number }
+interface Camera { yaw: number; pitch: number; distance: number; spin: number; push: number }
 const CAMERAS: Camera[] = [
-  { yaw: 0, pitch: 0, distance: 3.1, spin: 0.012 },
-  { yaw: 0.5, pitch: 0.95, distance: 3.5, spin: 0.05 },
-  { yaw: -0.5, pitch: 0.55, distance: 2.8, spin: 0.05 },
-  { yaw: -0.7, pitch: 0.62, distance: 3.2, spin: 0.06 },
-  { yaw: 0.3, pitch: 0.24, distance: 2.9, spin: -0.03 },
-  { yaw: 0.9, pitch: 0.82, distance: 2.9, spin: -0.05 },
-  { yaw: -0.3, pitch: 0.34, distance: 3.3, spin: 0.04 },
-  { yaw: 0.3, pitch: -0.1, distance: 2.9, spin: -0.03 },
-  { yaw: 0, pitch: 0.2, distance: 3.2, spin: 0.12 },
-  { yaw: 0.25, pitch: 1.0, distance: 3.1, spin: 0.03 },
-  { yaw: 0.6, pitch: 0.72, distance: 3.0, spin: -0.04 },
+  { yaw: 0, pitch: 0, distance: 3.1, spin: 0.012, push: 0.03 },
+  { yaw: 0.35, pitch: 1.08, distance: 3.95, spin: 0.05, push: 0.1 },
+  { yaw: -0.5, pitch: 0.92, distance: 3.25, spin: 0.035, push: 0.09 },
+  { yaw: -0.6, pitch: 0.24, distance: 3.75, spin: 0.09, push: 0.08 },
+  { yaw: 0.14, pitch: 0.14, distance: 3.25, spin: -0.012, push: 0.05 },
+  { yaw: -0.22, pitch: 0.1, distance: 3.25, spin: 0.018, push: 0.05 },
+  { yaw: 0.26, pitch: 0.13, distance: 3.75, spin: -0.04, push: 0.07 },
+  { yaw: 0.2, pitch: 0.3, distance: 3.3, spin: 0.26, push: 0.05 },
+  { yaw: 0.12, pitch: 0.05, distance: 3.5, spin: 0.018, push: 0.06 },
+  { yaw: 0.2, pitch: 1.1, distance: 3.3, spin: 0.02, push: 0.16 },
+  { yaw: 0.55, pitch: 0.78, distance: 3.2, spin: -0.05, push: 0.08 },
 ];
-
-/** A fixed sequence, so the film is the same each time it is seen. */
-function sequence(seed = 48271) {
-  let state = seed;
-  return () => (state = (state * 48271) % 2147483647) / 2147483647;
-}
-
-type Put = (i: number, x: number, y: number, z: number, vx?: number, vy?: number, vz?: number, tint?: number) => void;
-function formation(fill: (put: Put, random: () => number) => void, seed: number): Float32Array {
-  const data = new Float32Array(COUNT * STRIDE);
-  const put: Put = (i, x, y, z, vx = 0, vy = 0, vz = 0, tint = 0) => data.set([x, y, z, vx, vy, vz, tint], i * STRIDE);
-  fill(put, sequence(seed));
-  return data;
-}
-
-type Segment = [number, number, number, number];
-function streets(): { roads: Segment[]; cells: [number, number, number][] } {
-  const random = sequence(90210);
-  const span = 1.7;
-  const steps = 11;
-  const size = (span * 2) / steps;
-  const at: [number, number][][] = [];
-  for (let i = 0; i <= steps; i++) {
-    at[i] = [];
-    for (let j = 0; j <= steps; j++) at[i][j] = [-span + i * size + (random() - 0.5) * size * 0.5, -span + j * size + (random() - 0.5) * size * 0.5];
-  }
-  const roads: Segment[] = [];
-  const cells: [number, number, number][] = [];
-  for (let i = 0; i <= steps; i++)
-    for (let j = 0; j <= steps; j++) {
-      const [x, z] = at[i][j];
-      if (i < steps && random() > 0.14) roads.push([x, z, at[i + 1][j][0], at[i + 1][j][1]]);
-      if (j < steps && random() > 0.14) roads.push([x, z, at[i][j + 1][0], at[i][j + 1][1]]);
-      if (i < steps && j < steps) cells.push([x + size / 2, z + size / 2, size * 0.34]);
-    }
-  return { roads, cells };
-}
-
-function buildFormations(): Float32Array[] {
-  const { roads, cells } = streets();
-  const onRoad = (random: () => number) => {
-    const [ax, az, bx, bz] = roads[Math.floor(random() * roads.length)];
-    const t = random();
-    return { x: ax + (bx - ax) * t, z: az + (bz - az) * t, ax, az, bx, bz };
-  };
-  const scatter = (put: Put, i: number, random: () => number) => {
-    const a = random() * Math.PI * 2;
-    const r = 1.2 + random() * 1.4;
-    put(i, Math.cos(a) * r, (random() - 0.5) * 2, Math.sin(a) * r);
-  };
-  return [
-    // The wordmark, until its drawing arrives: a soft cloud.
-    formation((put, random) => {
-      for (let i = 0; i < COUNT; i++) scatter(put, i, random);
-    }, 11),
-    // Streets: the roads, with junctions picked out.
-    formation((put, random) => {
-      for (let i = 0; i < COUNT; i++) {
-        const road = onRoad(random);
-        if (i % 9 === 0) put(i, road.ax + (random() - 0.5) * 0.014, 0, road.az + (random() - 0.5) * 0.014, 0, 0, 0, 1);
-        else put(i, road.x, (random() - 0.5) * 0.006, road.z, 0, 0, 0, 0.18);
-      }
-    }, 12),
-    // Signals: traffic waiting at each junction, thinning away from the stop line, with
-    // the rest of the road moving and one small light over the junction.
-    formation((put, random) => {
-      for (let i = 0; i < COUNT; i++) {
-        const [ax, az, bx, bz] = roads[Math.floor(random() * roads.length)];
-        const kind = i % 10;
-        if (kind < 2) {
-          const t = random();
-          put(i, ax + (bx - ax) * t, 0, az + (bz - az) * t, 0, 0, 0, 0.1);
-        } else if (kind < 7) {
-          // A queue: dense at the stop line, and thinning as it goes back along the road.
-          const back = Math.pow(random(), 2.4) * 0.42;
-          const towardsB = i % 2 === 0;
-          const t = towardsB ? 1 - 0.035 - back : 0.035 + back;
-          const side = (random() - 0.5) * 0.012;
-          put(i, ax + (bx - ax) * t + side, 0.012, az + (bz - az) * t - side, 0, 0, 0, 0.8 - back);
-        } else if (kind < 9) {
-          // Traffic that has the green, moving through.
-          if (i % 2) put(i, ax, 0.012, az, bx - ax, 0, bz - az, 0.55);
-          else put(i, bx, 0.012, bz, ax - bx, 0, az - bz, 0.55);
-        } else {
-          // The light, small and steady, just above the junction.
-          const [x, z] = i % 20 < 10 ? [ax, az] : [bx, bz];
-          const a = random() * Math.PI * 2;
-          const r = Math.pow(random(), 1.5) * 0.011;
-          put(i, x + Math.cos(a) * r, 0.05 + (random() - 0.5) * 0.012, z + Math.sin(a) * r, 0, 0, 0, 1);
-        }
-      }
-    }, 21),
-    // A city: blocks standing between the roads.
-    formation((put, random) => {
-      const heights = cells.map(() => 0.1 + Math.pow(random(), 2.6) * 0.9);
-      for (let i = 0; i < COUNT; i++) {
-        if (i % 4 === 0) {
-          const road = onRoad(random);
-          put(i, road.x, 0, road.z, 0, 0, 0, 0.1);
-          continue;
-        }
-        const index = Math.floor(random() * cells.length);
-        const [cx, cz, half] = cells[index];
-        const h = heights[index];
-        const side = Math.floor(random() * 4);
-        const along = (random() - 0.5) * 2 * half;
-        const up = random() < 0.25 ? h : random() * h;
-        const top = up === h;
-        const x = top ? cx + (random() - 0.5) * 2 * half : cx + (side < 2 ? along : side === 2 ? half : -half);
-        const z = top ? cz + (random() - 0.5) * 2 * half : cz + (side >= 2 ? along : side === 0 ? half : -half);
-        put(i, x, up, z, 0, 0, 0, top ? 0.9 : 0.25 + (up / h) * 0.3);
-      }
-    }, 13),
-    // The day's rhythm: an hour to a column, with its two peaks.
-    formation((put, random) => {
-      const hours = 24;
-      const rhythm = (h: number) => 0.14 + 0.95 * Math.exp(-((h - 8.3) ** 2) / 3.4) + 1.15 * Math.exp(-((h - 17.6) ** 2) / 4.6) + 0.38 * Math.exp(-((h - 12.8) ** 2) / 14);
-      for (let i = 0; i < COUNT; i++) {
-        const hour = Math.floor(random() * hours);
-        const height = rhythm(hour);
-        const up = random() < 0.2 ? height : random() * height;
-        const x = (hour - (hours - 1) / 2) * 0.125 + (random() - 0.5) * 0.085;
-        const z = (random() - 0.5) * 0.5;
-        put(i, x, up - 0.55, z, 0, 0, 0, Math.min(1, 0.16 + (up / 1.25) * 0.95));
-      }
-    }, 22),
-    // Traffic: the roads faint, and vehicles running along them.
-    formation((put, random) => {
-      for (let i = 0; i < COUNT; i++) {
-        const road = onRoad(random);
-        if (i % 3 === 0) put(i, road.x, 0, road.z, 0, 0, 0, 0.08);
-        else if (random() < 0.5) put(i, road.ax, 0.012, road.az, road.bx - road.ax, 0, road.bz - road.az, 1);
-        else put(i, road.bx, 0.012, road.bz, road.ax - road.bx, 0, road.az - road.bz, 1);
-      }
-    }, 14),
-    // Weather: rain falling from cells, onto roads and the rings it leaves there.
-    formation((put, random) => {
-      const storms = [[-0.7, -0.4, 0.8], [0.8, 0.5, 0.65], [0.1, 1.0, 0.45]];
-      for (let i = 0; i < COUNT; i++) {
-        const [cx, cz, radius] = storms[i % storms.length];
-        const a = random() * Math.PI * 2;
-        if (i % 2 === 0) {
-          const r = Math.sqrt(random()) * radius;
-          put(i, cx + Math.cos(a) * r, 1.15 + random() * 0.3, cz + Math.sin(a) * r, 0, -1.3, 0, 0.75);
-        } else if (i % 4 === 1) {
-          const r = radius * (0.35 + 0.65 * Math.floor(random() * 3) / 2);
-          put(i, cx + Math.cos(a) * r, 0, cz + Math.sin(a) * r, 0, 0, 0, 0.55);
-        } else {
-          const road = onRoad(random);
-          put(i, road.x, 0, road.z, 0, 0, 0, 0.12);
-        }
-      }
-    }, 15),
-    // Cities: filled in once its typeface has loaded.
-    formation((put, random) => {
-      for (let i = 0; i < COUNT; i++) scatter(put, i, random);
-    }, 24),
-    // Seeds: a world, with one district drawing the eye.
-    formation((put, random) => {
-      const golden = Math.PI * (3 - Math.sqrt(5));
-      const radius = 1.18;
-      for (let i = 0; i < COUNT; i++) {
-        const y = 1 - (2 * (i + 0.5)) / COUNT;
-        const r = Math.sqrt(1 - y * y);
-        const a = i * golden;
-        const x = Math.cos(a) * r;
-        const z = Math.sin(a) * r;
-        const near = Math.hypot(x - 0.42, y - 0.5, z - 0.75);
-        if (near < 0.3) put(i, x * radius, y * radius, z * radius, 0, 0, 0, 1);
-        else put(i, x * radius, y * radius, z * radius, 0, 0, 0, random() < 0.05 ? 0.7 : 0.14);
-      }
-    }, 16),
-    // Auto Focus: a frame closing on an event, with the rings of its footprint.
-    formation((put, random) => {
-      const half = 0.62;
-      for (let i = 0; i < COUNT; i++) {
-        const kind = i % 10;
-        if (kind < 4) {
-          const road = onRoad(random);
-          put(i, road.x, 0, road.z, 0, 0, 0, 0.1);
-        } else if (kind < 7) {
-          // Four corners of the frame.
-          const sx = i % 2 ? 1 : -1;
-          const sz = (i >> 1) % 2 ? 1 : -1;
-          const along = random() * 0.26;
-          const flip = (i >> 2) % 2;
-          const x = sx * (flip ? half : half - along);
-          const z = sz * (flip ? half - along : half);
-          put(i, x + (random() - 0.5) * 0.012, 0.03, z + (random() - 0.5) * 0.012, 0, 0, 0, 1);
-        } else {
-          const a = random() * Math.PI * 2;
-          const r = 0.42 + (random() - 0.5) * 0.02;
-          put(i, Math.cos(a) * r, 0.02, Math.sin(a) * r, -Math.cos(a) * 0.36, 0, -Math.sin(a) * 0.36, 0.8);
-        }
-      }
-    }, 25),
-    // WebFabric: strands passing over and under one another.
-    formation((put, random) => {
-      const strands = 15;
-      for (let i = 0; i < COUNT; i++) {
-        const across = i % 2 === 0;
-        const n = Math.floor(random() * strands);
-        const u = (random() - 0.5) * 3.2;
-        const v = (n - (strands - 1) / 2) * (3.2 / strands);
-        const phase = Math.sin(u * (strands / 3.2) * Math.PI + n * Math.PI);
-        const y = (across ? 1 : -1) * phase * 0.075 + (random() - 0.5) * 0.008;
-        const width = (random() - 0.5) * 0.09;
-        if (across) put(i, u, y, v + width, 0, 0, 0, 0.72);
-        else put(i, v + width, y, u, 0, 0, 0, 0.3);
-      }
-    }, 17),
-  ];
-}
 
 /** The wordmark as points, sampled from its own drawing, so it can never differ from the logo. */
 function wordmarkFormation(image: HTMLImageElement): { data: Float32Array; uv: Float32Array } | null {
@@ -312,7 +106,7 @@ function wordmarkFormation(image: HTMLImageElement): { data: Float32Array; uv: F
       const y = inside[pick + 1] + random();
       uv[i * 2] = x / width;
       uv[i * 2 + 1] = y / height;
-      put(i, (x - width / 2) * scale, (height / 2 - y) * scale, (random() - 0.5) * 0.05, 0, 0, 0, random() < 0.12 ? 0.8 : 0.3);
+      put(i, (x - width / 2) * scale, (height / 2 - y) * scale, (random() - 0.5) * 0.05, { kind: KIND.shimmer, tint: random() < 0.12 ? 0.8 : 0.3 });
     }
   }, 18);
   return { data, uv };
@@ -320,7 +114,8 @@ function wordmarkFormation(image: HTMLImageElement): { data: Float32Array; uv: F
 
 /**
  * Where the particles land: along the roads, exactly where the map has drawn them, in
- * clip space. x, y and a tint for each. Longer roads get more particles.
+ * clip space. x, y, a tint, and when it arrives: nearest the middle of the map first, so
+ * that the network builds outward along its own roads. Longer roads get more particles.
  */
 export function landingPoints(roads: readonly { x_m: number; y_m: number }[][], view: { x: number; y: number; scale: number }, box: { left: number; top: number }, width: number, height: number, count = COUNT): Float32Array | null {
   const lengths: number[] = [];
@@ -333,7 +128,7 @@ export function landingPoints(roads: readonly { x_m: number; y_m: number }[][], 
   }
   if (!(total > 0) || !(width > 0) || !(height > 0)) return null;
   const random = sequence(5150);
-  const data = new Float32Array(count * 3);
+  const data = new Float32Array(count * 4);
   let road = 0;
   let passed = lengths[0];
   for (let i = 0; i < count; i++) {
@@ -353,62 +148,154 @@ export function landingPoints(roads: readonly { x_m: number; y_m: number }[][], 
     const t = Math.min(1, left / piece);
     const x = box.left + view.x + (p.x_m + (q.x_m - p.x_m) * t) * view.scale;
     const y = box.top + view.y - (p.y_m + (q.y_m - p.y_m) * t) * view.scale;
-    data.set([(x / width) * 2 - 1, 1 - (y / height) * 2, 0.45 + random() * 0.55], i * 3);
+    data[i * 4] = (x / width) * 2 - 1;
+    data[i * 4 + 1] = 1 - (y / height) * 2;
+    data[i * 4 + 2] = 0.45 + random() * 0.55;
   }
+  // The middle of the network, in the window's proportions rather than the map's.
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < count; i++) {
+    cx += data[i * 4] / count;
+    cy += data[i * 4 + 1] / count;
+  }
+  const aspect = width / height;
+  let furthest = 1e-6;
+  for (let i = 0; i < count; i++) {
+    const d = Math.hypot((data[i * 4] - cx) * aspect, data[i * 4 + 1] - cy);
+    data[i * 4 + 3] = d;
+    if (d > furthest) furthest = d;
+  }
+  for (let i = 0; i < count; i++) data[i * 4 + 3] = data[i * 4 + 3] / furthest * 0.92 + random() * 0.08;
   return data;
 }
 
-/** A word in solid particles, deep enough to read as an object when the camera turns. */
-function wordFormation(word: string, seed: number): Float32Array | null {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return null;
-  const font = `600 220px "Space Grotesk", system-ui, sans-serif`;
-  ctx.font = font;
-  const width = Math.ceil(ctx.measureText(word).width) + 20;
-  const height = 280;
-  canvas.width = width;
-  canvas.height = height;
-  ctx.font = font;
-  ctx.textBaseline = "middle";
-  ctx.textAlign = "center";
-  ctx.fillText(word, width / 2, height / 2);
-  const alpha = ctx.getImageData(0, 0, width, height).data;
-  const inside: number[] = [];
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (alpha[(y * width + x) * 4 + 3] > 120) inside.push(x, y);
-  if (!inside.length) return null;
-  const scale = Math.min(2.7 / width, 1.5 / height);
-  return formation((put, random) => {
-    for (let i = 0; i < COUNT; i++) {
-      const pick = Math.floor(random() * (inside.length / 2)) * 2;
-      const depth = (random() - 0.5) * 0.34;
-      put(i, (inside[pick] + random() - width / 2) * scale, (height / 2 - inside[pick + 1] - random()) * scale, depth, 0, 0, 0, depth > 0.12 ? 0.85 : 0.22);
-    }
-  }, seed);
-}
-
 const VERTEX = `#version 300 es
-in vec3 aFrom, aFromV, aTo, aToV, aLand;
-in float aFromTint, aToTint;
+in vec3 aFrom, aFromV, aTo, aToV;
+in vec4 aFromM, aToM; // tint kind phase hue
+in vec4 aLand; // x y tint order
 in float aSeed;
 uniform mat4 uView;
-uniform float uMix, uTime, uPixels, uLand;
+uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo;
 uniform vec2 uPointer;
-uniform vec3 uRipple;
-out float vTint, vAlpha;
+uniform vec3 uRipple, uBase, uAccent, uWarm, uDanger, uOk, uRoad;
+out vec3 vColour;
+out float vAlpha;
+const float PI = 3.14159265;
+float ease(float x) { x = clamp(x, 0.0, 1.0); return x * x * (3.0 - 2.0 * x); }
+float overshoot(float x) { x = clamp(x, 0.0, 1.0) - 1.0; return 1.0 + 2.4 * x * x * x + 1.4 * x * x; }
+// One side of the junction has the green at a time.
+float northGreen() { return smoothstep(-0.14, 0.14, sin(uTime * PI / 2.3)); }
+struct Live { vec3 p; float alpha; float size; float tint; float hue; };
+Live live(vec3 p, vec3 v, vec4 m, float age) {
+  float t = uTime, tint = m.x, phase = m.z, hue = m.w, alpha = 1.0, size = 1.0;
+  int kind = int(m.y + 0.5);
+  if (kind == ${KIND.flow}) {
+    float f = fract(t * 0.22 + phase * 37.0);
+    p += v * f;
+    alpha = smoothstep(0.0, 0.08, f) * smoothstep(1.0, 0.92, f);
+  } else if (kind == ${KIND.arc}) {
+    float f = fract(t * 0.3 + phase * 37.0);
+    float s = f * f * (3.0 - 2.0 * f);
+    p += v * s;
+    p.y += 4.0 * f * (1.0 - f) * 0.3 * length(v.xz + vec2(v.y * 0.5));
+    alpha = smoothstep(0.0, 0.1, f) * smoothstep(1.0, 0.86, f);
+  } else if (kind == ${KIND.route}) {
+    float f = fract(t * 0.2 + phase * 37.0);
+    float s = f * f * (3.0 - 2.0 * f);
+    p = normalize(p + v * s + 1e-4) * length(p) * (1.0 + 0.22 * sin(f * PI));
+    alpha = smoothstep(0.0, 0.1, f) * smoothstep(1.0, 0.86, f);
+  } else if (kind == ${KIND.rise}) {
+    float g = overshoot((age - 0.1 - phase * 1.3) / 0.75);
+    p.y = v.y + (p.y - v.y) * g;
+    alpha = ease(g * 4.0);
+    if (tint > 0.8) alpha *= 0.72 + 0.28 * sin(t * 1.7 + phase * 90.0 + p.x * 60.0 + p.y * 40.0);
+  } else if (kind == ${KIND.fall}) {
+    float f = fract(t * 1.08 + phase * 37.0);
+    p += v * f;
+    alpha = smoothstep(0.0, 0.06, f) * (1.0 - f * 0.25);
+  } else if (kind == ${KIND.ring}) {
+    float f = fract(t * 0.42 + phase);
+    p += v * f;
+    alpha = (1.0 - f) * smoothstep(0.0, 0.06, f);
+  } else if (kind == ${KIND.tick}) {
+    float beat = fract(t);
+    float steps = floor(t) + ease(beat / 0.18);
+    float a = -v.x * steps * PI / 30.0;
+    p.xy = mat2(cos(a), sin(a), -sin(a), cos(a)) * p.xy;
+    size = 1.0 + exp(-beat * 9.0) * 0.8;
+  } else if (kind == ${KIND.pulse}) {
+    float w = 0.5 + 0.5 * sin(t * 2.3 + phase * 6.283);
+    w *= w;
+    alpha = 0.4 + 0.6 * w;
+    size = 1.5 + w * 1.5;
+  } else if (kind == ${KIND.reveal}) {
+    float r = age / 2.3;
+    float g = smoothstep(phase, phase + 0.05, r);
+    float front = exp(-pow((r - phase) * 16.0, 2.0));
+    alpha = g;
+    size = 1.0 + front * 1.9;
+    tint = max(tint, front);
+    p.y += (1.0 - g) * 0.16;
+  } else if (kind == ${KIND.lane}) {
+    bool north = abs(v.z) > abs(v.x);
+    float red = north ? 1.0 - northGreen() : northGreen();
+    float s = fract(t * 0.1 + phase);
+    float stopAt = 0.395;
+    if (s < stopAt) s = stopAt - (stopAt - s) * mix(1.0, 0.36, red);
+    p += v * s;
+    alpha = smoothstep(0.0, 0.04, s) * smoothstep(1.0, 0.96, s);
+  } else if (kind == ${KIND.light}) {
+    size = 2.6;
+    alpha = 0.92;
+  } else if (kind == ${KIND.wave}) {
+    p.y += 0.075 * sin(p.x * 2.6 + p.z * 1.8 - t * 1.9) + 0.03 * sin(p.z * 5.0 + t * 1.2);
+  } else if (kind == ${KIND.sun}) {
+    float a = PI * clamp((age - 0.2) / 3.5, 0.0, 1.0);
+    p.x += -cos(a) * 1.6;
+    p.y += sin(a) * 1.0 - 0.28;
+    size = 1.8;
+  } else if (kind == ${KIND.bracket}) {
+    float g = ease((age - 0.15) / 1.5);
+    vec2 centre = v.xz;
+    p.xz = centre + (p.xz - centre) * mix(2.3, 1.0, g) + (1.0 - g) * vec2(-1.1, 0.75) * (1.0 + 0.2 * sin(age * 5.0));
+    float locked = exp(-pow((age - 1.75) * 5.0, 2.0));
+    size = 1.0 + locked * 2.0;
+  } else if (kind == ${KIND.boil}) {
+    p += 0.035 * vec3(sin(t * 0.55 + p.y * 7.0 + phase * 6.0), sin(t * 0.65 + p.x * 6.0), cos(t * 0.5 + p.z * 7.0));
+    p.x += sin(t * 0.22) * 0.09;
+  } else if (kind == ${KIND.shimmer}) {
+    float band = exp(-pow((p.x - (fract(t * 0.3) * 4.0 - 2.0)) * 3.4, 2.0));
+    tint = max(tint, band);
+    size = 1.0 + band * 0.9;
+    p.z += 0.016 * sin(p.x * 4.0 + t * 1.4);
+    p.y += 0.004 * sin(p.x * 9.0 + t * 2.0 + phase * 6.0);
+  }
+  if (kind == ${KIND.rest} || kind == ${KIND.reveal}) p += 0.009 * vec3(sin(t * 0.9 + phase * 40.0), sin(t * 1.1 + phase * 57.0), cos(t * 0.8 + phase * 31.0));
+  return Live(p, alpha, size, tint, hue);
+}
+vec3 colourOf(float tint, float hue) {
+  if (hue < 0.5) return mix(uBase, uAccent, tint);
+  if (hue < 1.5) return uWarm;
+  if (hue < 2.5) return uDanger;
+  if (hue < 3.5) return uOk;
+  float g = northGreen();
+  return mix(uDanger, uOk, hue < 4.5 ? g : 1.0 - g);
+}
 void main() {
-  // Particles set off in turn, not as a block.
-  float m = clamp(uMix * 1.5 - aSeed * 0.5, 0.0, 1.0);
+  // Particles set off as a front across the scene, not as a block and not as noise.
+  float order = mix(aSeed, clamp((aTo.x + 1.9) / 3.8, 0.0, 1.0), 0.62);
+  float m = clamp(uMix * 1.5 - order * 0.5, 0.0, 1.0);
   m = m * m * (3.0 - 2.0 * m);
-  float flight = fract(uTime * 0.22 + aSeed * 37.0);
-  vec3 a = aFrom + aFromV * flight;
-  vec3 b = aTo + aToV * flight;
-  vec3 p = mix(a, b, m);
-  // On the way, each one swings out on its own path, and the cloud turns as it travels.
+  Live a = live(aFrom, aFromV, aFromM, uAgeFrom);
+  Live b = live(aTo, aToV, aToM, uAgeTo);
+  vec3 p = mix(a.p, b.p, m);
+  // On the way they ride one current together, each a little off its line.
   float swing = sin(m * 3.14159);
   float angle = aSeed * 40.0 + uTime * 0.6;
-  p += swing * vec3(cos(angle), sin(angle * 1.3) * 0.7, sin(angle)) * (0.18 + aSeed * 0.4);
-  float turn = swing * (0.5 + aSeed * 0.6);
+  vec3 current = vec3(sin(p.y * 2.3 + uTime * 0.7), sin(p.z * 2.1 + uTime * 0.6 + 1.3), cos(p.x * 2.5 + uTime * 0.5));
+  p += swing * (current * 0.3 + vec3(cos(angle), sin(angle * 1.3) * 0.7, sin(angle)) * (0.06 + aSeed * 0.14));
+  float turn = swing * (0.35 + aSeed * 0.35);
   p.xz = mat2(cos(turn), -sin(turn), sin(turn), cos(turn)) * p.xz;
   vec4 clip = uView * vec4(p, 1.0);
   // The pointer parts the cloud, and a click sends a ring through it.
@@ -420,28 +307,36 @@ void main() {
     float reach = length(r) - uRipple.z * 1.5;
     ndc += normalize(r + 1e-4) * exp(-reach * reach * 60.0) * 0.07 * exp(-uRipple.z * 2.2);
   }
-  // Handing over to the map: from wherever each particle is, to its place on a road.
-  float l = clamp(uLand * 1.4 - aSeed * 0.4, 0.0, 1.0);
+  // Building the map: each particle flies in on a curve to its place on a road, nearest
+  // the middle first, and catches the light as it lands.
+  float l = clamp(uLand * 1.5 - aLand.w * 0.5, 0.0, 1.0);
   l = l * l * (3.0 - 2.0 * l);
-  ndc = mix(ndc, aLand.xy, l);
+  vec2 way = aLand.xy - ndc;
+  ndc = mix(ndc, aLand.xy, l) + vec2(-way.y, way.x) * sin(l * 3.14159) * (0.1 + (aSeed - 0.5) * 0.14);
+  float arriving = smoothstep(0.72, 1.0, l) * smoothstep(1.0, 0.0, (uLand * 1.5 - aLand.w * 0.5 - 1.0) * 5.0);
   gl_Position = vec4(ndc * clip.w, clip.z, clip.w);
   float depth = clip.w;
-  gl_PointSize = mix(uPixels * (1.0 + aSeed * 0.9) * clamp(3.4 / depth, 0.35, 2.6), uPixels * 0.8, l);
-  vTint = mix(mix(aFromTint, aToTint, m), aLand.z, l);
+  float size = mix(a.size, b.size, m);
+  gl_PointSize = mix(uPixels * size * (1.0 + aSeed * 0.9) * clamp(3.4 / depth, 0.35, 2.6), uPixels * (0.85 + arriving * 1.5), l);
+  float tint = mix(a.tint, b.tint, m);
+  vColour = mix(mix(colourOf(a.tint, a.hue), colourOf(b.tint, b.hue), m), mix(uRoad, uAccent, arriving * 0.7), l);
   // Nearer and further than the focal distance falls away, as with a lens.
-  vAlpha = mix((0.32 + vTint * 0.68) * clamp(1.5 - abs(depth - 3.1) * 0.5, 0.18, 1.0), 0.9, l);
+  float shown = (0.32 + tint * 0.68) * clamp(1.5 - abs(depth - 3.1) * 0.5, 0.18, 1.0) * mix(a.alpha, b.alpha, m);
+  vAlpha = mix(shown, 0.92, l);
 }`;
 
 const FRAGMENT = `#version 300 es
 precision mediump float;
-in float vTint, vAlpha;
-uniform vec3 uBase, uAccent;
-uniform float uDim;
+in vec3 vColour;
+in float vAlpha;
+uniform float uDim, uCover;
 out vec4 colour;
 void main() {
   float d = length(gl_PointCoord - 0.5);
   float a = min(1.0, smoothstep(0.5, 0.08, d) * vAlpha * uDim);
-  colour = vec4(mix(uBase, uAccent, vTint) * a, a);
+  // Part light, part paint: enough cover that a crowded point keeps its colour rather than
+  // adding up to white, which is what lets a signal look red.
+  colour = vec4(vColour * a, a * uCover);
 }`;
 
 function compile(gl: WebGL2RenderingContext): WebGLProgram | null {
@@ -554,19 +449,19 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     const bind = (from: number, to: number) => {
       attribute("aFrom", scenes[from], 3, 0);
       attribute("aFromV", scenes[from], 3, 3);
-      attribute("aFromTint", scenes[from], 1, 6);
+      attribute("aFromM", scenes[from], 4, 6);
       attribute("aTo", scenes[to], 3, 0);
       attribute("aToV", scenes[to], 3, 3);
-      attribute("aToTint", scenes[to], 1, 6);
+      attribute("aToM", scenes[to], 4, 6);
     };
     const uniform = (name: string) => gl.getUniformLocation(program, name);
-    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), dim: uniform("uDim"), land: uniform("uLand") };
+    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand") };
     const landAt = gl.getAttribLocation(program, "aLand");
     const landBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(COUNT * 3), gl.DYNAMIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(COUNT * 4), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(landAt);
-    gl.vertexAttribPointer(landAt, 3, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(landAt, 4, gl.FLOAT, false, 0, 0);
 
     // Starts as the cloud, and the first thing it does is become the wordmark.
     let from = 0, to = 0;
@@ -591,16 +486,6 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       blend = 0;
       velocity = 0;
     };
-    // The words wait for their typeface, and are swapped in without anyone seeing.
-    void document.fonts?.load(`600 220px "Space Grotesk"`).then(() => {
-      if (cancelled) return;
-      for (const [index, word] of [[7, "150+"]] as const) {
-        const data = wordFormation(word, 30 + index);
-        if (!data) continue;
-        gl.bindBuffer(gl.ARRAY_BUFFER, scenes[index]);
-        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-      }
-    });
     image.src = `data:image/svg+xml,${encodeURIComponent(LOGO_SVG)}`;
 
     const size = () => {
@@ -615,10 +500,15 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       const light = document.documentElement.dataset.theme === "light";
       gl.uniform3fv(u.base, rgb(style.getPropertyValue("--line-rgb"), [0.7, 0.92, 1]));
       gl.uniform3fv(u.accent, rgb(style.getPropertyValue("--accent-rgb"), [0.2, 0.84, 1]));
+      gl.uniform3fv(u.warm, rgb(style.getPropertyValue("--warn-rgb"), [1, 0.72, 0.22]));
+      gl.uniform3fv(u.danger, rgb(style.getPropertyValue("--danger-rgb"), [1, 0.42, 0.45]));
+      gl.uniform3fv(u.ok, rgb(style.getPropertyValue("--ok-rgb"), [0.37, 0.89, 0.75]));
+      // Once landed they are the map's own roads, in the map's own colour.
+      const clear = appearance.meaning.clear;
+      gl.uniform3f(u.road, parseInt(clear.slice(1, 3), 16) / 255, parseInt(clear.slice(3, 5), 16) / 255, parseInt(clear.slice(5, 7), 16) / 255);
       gl.enable(gl.BLEND);
-      // Light adds up towards white on a dark page; on a light one it has to cover.
-      if (light) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-      else gl.blendFunc(gl.ONE, gl.ONE);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.uniform1f(u.cover, light ? 1 : 0.7);
       strength = light ? 1.5 : 1;
       if (reduceMotion) paint();
     };
@@ -642,6 +532,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     let velocity = 0;
     let scene = 0; // Which chapter the cloud is showing.
     let held = 0;
+    let ageFrom = 99; // How long each of the two scenes being mixed has been on screen.
+    let ageTo = 0;
     let time = 0;
     let frame = 0;
     let dim = asleepRef.current || ending ? 0 : playingRef.current ? 1 : REST_DIM;
@@ -657,7 +549,11 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       if (!gl || !element) return;
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.uniformMatrix4fv(u.view, false, viewMatrix(element.width / element.height, camera.yaw + camera.orbit, camera.pitch, camera.distance));
+      // Closing slowly on whatever is holding.
+      const push = 1 - CAMERAS[scene].push * easeInOut(held / (HOLD_S + 1));
+      gl.uniformMatrix4fv(u.view, false, viewMatrix(element.width / element.height, camera.yaw + camera.orbit, camera.pitch + Math.sin(time * 0.31) * 0.012, camera.distance * push));
+      gl.uniform1f(u.ageFrom, ageFrom);
+      gl.uniform1f(u.ageTo, ageTo);
       gl.uniform1f(u.mix, blend);
       gl.uniform1f(u.land, landing);
       gl.uniform1f(u.time, time);
@@ -677,6 +573,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       blend = 0;
       velocity = 0;
       held = 0;
+      ageFrom = ageTo;
+      ageTo = 0;
       // Each scene has its own framing. The drift of the last one is folded into the
       // camera, which then turns by the short way to where this one should be seen.
       const turn = Math.PI * 2;
@@ -690,6 +588,9 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       last = now;
       time += dt;
       held += dt;
+      ageFrom += dt;
+      // A scene starts its own story as the particles arrive, not as they set off.
+      ageTo += blend > 0.55 ? dt : 0;
       [blend, velocity] = stepSpring(blend, velocity, 1, MORPH, dt);
       const want = CAMERAS[scene];
       [camera.yaw, camera.vy] = stepSpring(camera.yaw, camera.vy, want.yaw, CAMERA, dt);
@@ -709,10 +610,12 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
           dissolving = false;
           landedFrom = 0;
           landing = 0;
+          // First the name, as the end of a session finishes on it.
+          if (wordmark >= 0 && to !== wordmark) next(0);
         }
       }
       if (closingFor >= 0) closingFor += dt;
-      if (landed) landing = Math.max(landedFrom, easeInOut(closingFor / LAND_S));
+      if (landed) landing = Math.max(landedFrom, easeInOut((closingFor - GATHER_S) / LAND_S));
       else if (dissolving) {
         landing = 1 - easeInOut((held - DISSOLVE_HOLD_S) / DISSOLVE_S);
         if (landing <= 0.0001) {
@@ -738,8 +641,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       }
       // Having landed, they give way to the map's own roads.
       const endingDim = quietRef.current ? REST_DIM : ending && !rejoined ? (!rejoin && now / 1000 - endStart > 4.6 ? REST_DIM : 1) : null;
-      const dimTo = endingDim ?? (landed ? (closingFor > LAND_S + 0.1 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM);
-      dim += (dimTo - dim) * Math.min(1, dt * (quietRef.current || (ending && !rejoined) ? 1.6 : landed ? 4 : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
+      const dimTo = endingDim ?? (landed ? (closingFor > (MAP_AT_MS + 500) / 1000 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM);
+      dim += (dimTo - dim) * Math.min(1, dt * (quietRef.current || (ending && !rejoined) ? 1.6 : landed ? 2.6 : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
       // The old world's particles, blown apart, come back together as the name, and the
       // film carries on from there as it does at start-up.
       if (rejoin && started && !rejoined && playingRef.current) {
@@ -779,11 +682,11 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
           if (wordmark >= 0 && wordmarkUv && logo && !reduceMotion) {
             // Every particle starts on the logo itself, exactly where it is drawn on
             // the page. As the logo fades, they are what is left, and then they let go.
-            const points = new Float32Array(COUNT * 3);
+            const points = new Float32Array(COUNT * 4);
             for (let i = 0; i < COUNT; i++) {
               const x = logo.left + wordmarkUv[i * 2] * logo.width;
               const y = logo.top + wordmarkUv[i * 2 + 1] * logo.height;
-              points.set([(x / window.innerWidth) * 2 - 1, 1 - (y / window.innerHeight) * 2, 0.8], i * 3);
+              points.set([(x / window.innerWidth) * 2 - 1, 1 - (y / window.innerHeight) * 2, 0.8, wordmarkUv[i * 2]], i * 4);
             }
             gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
             gl.bufferData(gl.ARRAY_BUFFER, points, gl.DYNAMIC_DRAW);

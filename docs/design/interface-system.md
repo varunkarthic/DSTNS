@@ -140,6 +140,7 @@ One surface, `LoadingSurface` in `boot` mode, for every state before a map:
 
 | State | Shows |
 |---|---|
+| Arriving | Gather into the name, build the roads outward, map under them at `MAP_AT_MS`, panels from their own edges at `PANELS_AT_MS`. Particles land exactly on the drawn roads, so the map is only faded, never scaled or blurred |
 | Opening | Nothing for two seconds, then a still title: the name, its designer and its licence. It then moves to the corner and the film begins |
 | Waiting | The film, and what to do. No progress, because nothing is loading |
 | Loading | The film, the current stage, and the five stages along the bottom. A segment fills only where a real total is known; otherwise it moves without claiming how far along it is |

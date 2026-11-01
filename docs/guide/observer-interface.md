@@ -60,10 +60,12 @@ preparation. A percentage is shown only for a download whose total size the
 core knows. Nothing is invented: when no run has been started the screen says
 so and shows no progress at all.
 
-The heading names the current stage, and nothing is held for effect: once the
-first network arrives the screen dissolves while the map renders behind it, with
-the instrumentation fading up in place. While nothing has been asked for, nothing
-moves. If nothing can load, the same surface says what happened and clears by itself
+The heading names the current stage. The film has eleven scenes, each its own subject and each
+moving for as long as it holds. When the first network arrives the particles gather into the name,
+then fly out and build the map's roads from the middle of the network outward, which is how a
+session ends played backwards. The map then fades in under those roads, and last of all the header,
+the sidebar, the telemetry panel and the bottom row slide in from their own edges. Generating a new
+world arrives the same way. With reduced motion everything simply appears. If nothing can load, the same surface says what happened and clears by itself
 when the simulator answers, and after **Terminate** it says the server has shut down.
 In an overlay form, it is also used for world generation.
 
@@ -754,7 +756,6 @@ icon, with no geometry duplicated anywhere.
 - Scrolling belongs to the browser's compositor. Nothing listens in a way that can hold it up, each scrolling region has
   its own layer, and nothing inside one is masked or blurred. Panels are solid and scrims are a plain dim, so nothing has
   to be re-blurred while the map changes behind it.
-- While anything scrolls, or a dialog is open, flow markers wait. Rows under the pointer do not restyle during a scroll.
 - Nothing animates a painted property forever: the status pulse is `transform` and `opacity` only, and the day's
   progress updates about once a second rather than every frame.
 - The map draws in tiles, grouped by style. Roads, names, markers and signals are drawn once per snapshot or camera

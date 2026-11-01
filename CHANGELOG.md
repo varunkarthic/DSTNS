@@ -17,6 +17,13 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Start-up film, arrival and traffic
+
+- **Eleven different scenes, moving throughout.** No scene shares a layout now: a city with a river and ring roads, one junction with queues and red and green signals, a skyline rising, stacked bars under a moving sun, a stepping dial, a storm, a globe with continents, two identical trees from two seeds, a viewfinder locking on, and a rippling weave. Colours hold in both themes.
+- **The particles build the map.** They gather into the name, fly out and build the roads from the middle outward, the end of a session played backwards. Then the map fades in under them, and the header, sidebar, telemetry and bottom row slide in from their edges. Generating a new world does the same.
+- **Fixed: in light mode the map stayed hidden until the end of the handover,** behind a background that never faded.
+- **Vehicles on the map drive.** They follow the shape of the road, carry on through junctions instead of vanishing, keep their distance, stop at red signals with brake lights, and fade when the core's counts change. They are drawn every frame while the machine can afford it. They still stand for the core's aggregate figures, not individually tracked vehicles.
+
 ### Light and dark, gone through surface by surface
 
 - **All text now meets WCAG AA contrast in both themes.** Light mode had 30 kinds of text below it, because its faint text and its accent, green, amber and red were too pale, especially on their own tints. The Terminate dialog's title was a pale red meant for dark surfaces. Colour-vision palettes keep to the same standard.

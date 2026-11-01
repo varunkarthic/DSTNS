@@ -516,3 +516,29 @@ scroll. `:has()` stays off whole-page ancestors, and the map no longer pauses fo
 **Consequences.** The browser suite now scrolls with the pointer on cut-off text and checks that a bounce is played off the main
 thread. A wheel event cannot say whether it is a finger or momentum, so a finger that pushes on after a fast arrival still gets no
 further stretch.
+
+## 39. Every scene of the film is its own subject
+
+**Problem.** Six of the eleven scenes were built on one street grid and stood still between morphs, so the film felt repetitive and
+said little.
+
+**Decision.** Each scene has its own subject and its own motion while it holds: a city's streets drawn outward, one junction whose
+cars queue and release on red and green, a skyline rising, stacked bars under a moving sun, a dial that steps, a storm, a globe, two
+identical trees, a viewfinder locking on, and a rippling weave. All of it moves in the vertex shader, so a scene costs the page one
+draw call. Colour blending is partly opaque, so crowded points keep their colour: additive light turned every signal white.
+
+**Consequences.** A test compares how particles are spread between scenes and fails if two grow alike. The film takes about 44
+seconds, which is what a mock application in a test has to outlast.
+
+## 40. The markers on the map drive
+
+**Problem.** The core's traffic model is aggregate, so markers were drawn along each edge's straight line and restarted at its start.
+They ignored bends and vanished at every junction.
+
+**Decision.** `flowTraffic.ts` keeps a pool of markers that follow the road's shape, carry on into a next road chosen by its flow and
+how straight it is, keep their distance using a car-following rule, stop where the core's signal multiplier says red, and fade rather
+than pop when the core's numbers change. Near enough, they show a windscreen and brake lights. They are sized to the road as drawn.
+
+**Consequences.** They are still representative: their number and speed come from the core, nothing feeds back into the simulation,
+and the hover card still says that individual vehicles are not tracked. They keep to the right on every map, which is wrong for
+left-driving countries and is left as it is, because the map does not know which side a country drives on.
