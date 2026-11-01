@@ -736,7 +736,7 @@ export default function App() {
   const reportRoads = useCallback(() => {
     const view = mapView.current;
     const box = document.querySelector(".static-map")?.getBoundingClientRect();
-    return view && box && sim.topology ? landingPoints(sim.topology.edges.map((edge) => edge.geometry), view, box, window.innerWidth, window.innerHeight, 3000) : null;
+    return view && box && sim.topology ? landingPoints(sim.topology.edges.map((edge) => edge.geometry), view, box, window.innerWidth, window.innerHeight, 12000) : null;
   }, [sim.topology]);
   const reportButton = useCallback(() => document.querySelector("[data-report-button]")?.getBoundingClientRect() ?? null, []);
   const report = useCallback(

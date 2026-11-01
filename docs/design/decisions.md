@@ -524,8 +524,8 @@ said little.
 
 **Decision.** Each scene has its own subject and its own motion while it holds: a city's streets drawn outward, one junction whose
 cars queue and release on red and green, trips queueing at the doors of what draws them, a ridgeline of the day's traffic, a queue
-growing back from a collision, a storm, a globe, seeds as barcodes printing two towns alike and a third different, a viewfinder locking
-on, and the interface itself in miniature with applications arriving and becoming part of it. Particles form no words or
+growing back from a collision, a storm, a globe, a skyline and its exact mirror image rising from two seeds, a viewfinder locking on, and
+an open book of code whose coloured lines build what they declare in the interface beside it. Particles form no words or
 numbers except the name, and a test fails if a scene draws text. All of it moves in the vertex shader, so a scene costs the page one
 draw call. Colour blending is partly opaque, so crowded points keep their colour: additive light turned every signal white.
 

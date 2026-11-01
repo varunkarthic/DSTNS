@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { LOGO_SVG } from "./logoAsset";
 import { appearance } from "./appearance";
 import { stepSpring } from "./motion";
-import { buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B, formation, IN_WORLD, KIND, sequence, STRIDE, TRIP_ROADS, WRECK_AT } from "./bootScenes";
+import { buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B, formation, IN_WORLD, KIND, sequence, SEAM, SEEDS_AT, STRIDE, TRIP_ROADS, WRECK_AT } from "./bootScenes";
 
 /**
  * The start-up film.
@@ -21,7 +21,7 @@ import { buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B,
 
 const HOLD_S = 4;
 // How long each scene holds: a junction needs time for its lights to go round.
-const HOLDS = [4, 4.4, 6.2, 5.6, 5, 5.4, 4, 4, 5.6, 4.6, 6.4];
+const HOLDS = [4, 4.4, 6.2, 5.6, 5, 5.4, 4, 4, 6.4, 4.6, 7];
 const MORPH = { k: 11, c: 5.6 };
 // Going to and from the logo and the map are timed, not sprung: an ease in and out has no
 // sudden start, which is what makes particles leaving a shape feel soft.
@@ -95,9 +95,9 @@ const CAMERAS: Camera[] = [
   { yaw: CAMERA_YAW_INCIDENT, pitch: 0.46, distance: 3.05, spin: 0.006, push: 0.05 },
   { yaw: 0.26, pitch: 0.13, distance: 3.75, spin: -0.04, push: 0.07 },
   { yaw: 0.2, pitch: 0.3, distance: 3.3, spin: 0.26, push: 0.05 },
-  { yaw: 0, pitch: 0.56, distance: 3.45, spin: 0.004, push: 0.04 },
+  { yaw: 0, pitch: 0, distance: 3.6, spin: 0.012, push: 0.04 },
   { yaw: 0.14, pitch: 1.12, distance: 3.2, spin: 0.012, push: 0.03 },
-  { yaw: -0.12, pitch: 0.2, distance: 3.2, spin: 0.004, push: 0.03 },
+  { yaw: 0, pitch: 0.06, distance: 3.72, spin: 0.002, push: 0.03 },
 ];
 
 /** How far the map's camera has carried the roads since the particles were told where they are. */
@@ -405,11 +405,6 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
     float g = ease((age - 0.5) / 3.6);
     p.y = v.y + (p.y - v.y) * g;
     alpha = smoothstep(0.0, 0.08, g) * (0.7 + 0.3 * sin(t * 3.0 + p.y * 24.0));
-  } else if (kind == ${KIND.ping}) {
-    float x = mod(age - 2.1, 3.3);
-    float f = clamp(x / 1.1, 0.0, 1.0);
-    p += v * f;
-    alpha = step(2.1, age) * (1.0 - f) * smoothstep(0.0, 0.04, f);
   } else if (kind == ${KIND.dock}) {
     // Phase is when it comes, on the scene's own clock. It arrives, overshoots a little and settles.
     float g = ease((age - phase) / 0.7);
@@ -424,6 +419,40 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
     alpha = smoothstep(at, at + 0.06, age);
     tint = max(tint, wave);
     size = 1.0 + wave * 2.1 + exp(-pow((age - at) * 12.0, 2.0)) * 1.4;
+  } else if (kind == ${KIND.tower}) {
+    // Grows as the first ripple passes, and turns into the second city as the second one does.
+    float d = v.z;
+    float first = ease(((age - ${SEEDS_AT[0].toFixed(2)}) * 1.75 - d) / 0.42);
+    float second = ease(((age - ${SEEDS_AT[1].toFixed(2)}) * 1.9 - d) / 0.42);
+    float h = mix(0.0, v.x, first);
+    h = mix(h, v.y, second);
+    p.y = p.y * h + ${SEAM.toFixed(2)};
+    float front = exp(-pow((age - ${SEEDS_AT[0].toFixed(2)}) * 1.75 - d, 2.0) * 16.0) + exp(-pow((age - ${SEEDS_AT[1].toFixed(2)}) * 1.9 - d, 2.0) * 16.0);
+    alpha = smoothstep(0.0, 0.03, h);
+    tint = max(tint, min(1.0, front));
+    size = 1.0 + min(1.0, front) * 0.9;
+  } else if (kind == ${KIND.ripple}) {
+    float x = age - phase;
+    float reach = x * 1.9;
+    p = v * reach;
+    p.y = ${SEAM.toFixed(2)};
+    alpha = step(0.0, x) * smoothstep(2.3, 0.2, reach);
+    size = 1.0;
+  } else if (kind == ${KIND.seedfall}) {
+    // Falls with gathering speed, meets its twin at the seam, and is spent.
+    float x = clamp((age - phase + 0.62) / 0.62, 0.0, 1.0);
+    float y = v.y * 1.3 * (1.0 - x * x);
+    float spent = smoothstep(phase, phase + 0.22, age);
+    p = vec3(p.x, p.y + y + ${SEAM.toFixed(2)}, 0.0);
+    alpha = step(phase - 0.62, age) * (1.0 - spent);
+    size = 1.6 + spent * 2.0;
+  } else if (kind == ${KIND.courier}) {
+    float begins = floor(phase) / 10.0;
+    float f = fract(age * 1.2 + fract(phase) * 7.0);
+    float s = f * f * (3.0 - 2.0 * f);
+    p += v * s;
+    p.z += sin(f * PI) * 0.42;
+    alpha = smoothstep(begins, begins + 0.12, age) * smoothstep(begins + 1.25, begins + 1.0, age) * smoothstep(0.0, 0.08, f) * smoothstep(1.0, 0.92, f);
   } else if (kind == ${KIND.bracket}) {
     // Wider while the camera is moving, snapping tight each time it arrives.
     float move1 = clamp((age - 0.75) / 0.65, 0.0, 1.0);
