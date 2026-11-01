@@ -29,6 +29,8 @@ import {
 import type { CompletionSummary } from "./Dialogs";
 import { Tooltip } from "./Tooltip";
 import { useISDNotifications } from "./ISDHandler";
+import { resolveBindings, useShortcuts } from "./shortcuts";
+import { RATES, rateIndexOf } from "./CommandRail";
 import type { ISDCondition } from "./ISDHandler";
 import { Tutorial } from "./Tutorial";
 import { useTutorial } from "./useTutorial";
@@ -235,7 +237,6 @@ export default function App() {
   const readout = useRef<MapReadoutHandle>(null);
   const mapScale = useRef(1);
   const [mapStatus, setMapStatus] = useState<Record<string, unknown> | null>(null);
-  const [splashDismissed, setSplashDismissed] = useState(false);
   const [shutDown, setShutDown] = useState(false);
   const [manualFocus, setManualFocus] = useState<FocusRequest | null>(null);
   const [world, setWorld] = useState<WorldJob>(NO_WORLD_JOB);
@@ -733,13 +734,6 @@ export default function App() {
   const togglePlace = (kind: string, on: boolean) => changePlaces({ ...places, [kind]: on });
   /** Back to the kinds shown out of the box, forgetting every per-kind choice. */
   const resetPlaces = () => changePlaces({ ...operatorConfig.places });
-  const resetSettings = () => {
-    const { auto_focus, notifications, playback, clock, reduce_motion, accessibility } = operatorConfig;
-    persist({ auto_focus, notifications, playback, clock, reduce_motion, accessibility });
-    setMotionChoice(resolveReduceMotion(reduce_motion));
-    setAutoFocus(auto_focus.mode === "enable-force");
-    setManualFocus(null);
-  };
   const resetAllPreferences = () => {
     clearOverrides();
     setConfig(operatorConfig);
@@ -887,7 +881,7 @@ export default function App() {
   const bootPhase = useBootPhase(opening === null ? null : !opening);
   const paced = usePacedStages(splashStage, bootPhase, opening !== false && !reduceMotion);
   const shownStage = paced.stage;
-  const showSplash = !splashDismissed && (!!shownStage || paced.holding) && !sim.error && !world.active;
+  const showSplash = (!!shownStage || paced.holding) && !sim.error && !world.active;
   // The start-up screen dissolves over the rendered map rather than vanishing.
   const lastSplash = useRef(shownStage);
   if (shownStage) lastSplash.current = shownStage;
@@ -913,6 +907,30 @@ export default function App() {
   const interactive = valid && !suspended && !world.active;
   const viewport = useViewportSize();
   const tooSmall = viewportTooSmall(viewport.width, viewport.height);
+
+  const stepSpeed = (direction: number) => {
+    const next = RATES[Math.max(0, Math.min(RATES.length - 1, rateIndexOf(requestedRate) + direction))];
+    if (next !== requestedRate) void action(() => api.tick(next));
+  };
+  useShortcuts(resolveBindings(config.shortcuts), {
+    play: () => interactive && ["RUNNING", "PAUSED"].includes(lifecycle) && void action(lifecycle === "PAUSED" ? api.play : api.pause),
+    back: () => interactive && void action(() => api.seek(Math.max(0, virtual - config.playback.skip_seconds))),
+    forward: () => interactive && void action(() => api.seek(Math.min(DAY_SECONDS, virtual + config.playback.skip_seconds))),
+    step: () => interactive && void action(() => api.step(config.playback.step_seconds)),
+    slower: () => interactive && !rateLocked && stepSpeed(-1),
+    faster: () => interactive && !rateLocked && stepSpeed(1),
+    "zoom-in": () => mapControls.current?.zoomIn(),
+    "zoom-out": () => mapControls.current?.zoomOut(),
+    fit: () => mapControls.current?.fit(),
+    search: () => document.querySelector<HTMLElement>("[data-search-trigger]")?.click(),
+    layers: () => !suspended && setLayersOpen((v) => !v),
+    "auto-focus": () => mode !== "disable" && toggleAutoFocus(!autoFocus),
+    dnd: () => setDnd(!dnd),
+    motion: () => !motionLocked && setMotion(!motionChoice),
+    settings: () => setSettingsOpen((v) => !v),
+    telemetry: () => setCollapsed(!deckCollapsed),
+    clock: () => toggleHour12(),
+  }, !tutorial.active && !dialog && !startupOnScreen.current);
 
   if (tooSmall) {
     return (
@@ -1062,10 +1080,11 @@ export default function App() {
               reduceTransparency: access.reduce_transparency,
               advanced: access.advanced,
               byteUnits: config.display.byte_units,
+              shortcuts: config.shortcuts,
               fineControl: config.playback.fine_control,
             }}
             actions={{
-              onReset: resetSettings,
+              onReset: resetAllPreferences,
               onAutoFocus: toggleAutoFocus,
               onStrategy: setStrategy,
               onDnd: setDnd,
@@ -1081,6 +1100,7 @@ export default function App() {
               onReduceTransparency: (value) => persist({ accessibility: { ...access, reduce_transparency: value } }),
               onAdvanced: (value) => persist({ accessibility: { ...access, advanced: value } }),
               onByteUnits: (value) => persist({ display: { byte_units: value } }),
+              onShortcuts: (shortcuts) => persist({ shortcuts }),
               onFineControl: (value) => persist({ playback: { ...config.playback, fine_control: value } }),
             }}
           />
@@ -1113,7 +1133,7 @@ export default function App() {
               <div className="hud-zone hud-left">
                 <NotificationCapsule items={suspended || tutorial.active ? [] : shown} systemError={systemError} onDismissError={!sim.error && !sim.stale && actionError ? () => setActionError("") : undefined} focusedKey={autoFocus ? activeKey : null} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
               </div>
-              <div className="hud-zone hud-center">
+              <div className="hud-zone hud-right map-hud hud-group" role="group" aria-label="Map key and layers">
                 <RoadLegend />
                 <PlaceLegend
                   features={sim.topology?.features ?? NO_FEATURES}
@@ -1126,8 +1146,6 @@ export default function App() {
                   onShowAll={(kinds) => changePlaces({ ...places, ...Object.fromEntries(kinds.map((kind) => [kind, true])) })}
                   onResetPlaces={resetPlaces}
                 />
-              </div>
-              <div className="hud-zone hud-right map-hud" data-tutorial="hud">
                 <button
                   ref={layersTrigger}
                   className={`hud-pill hud-button${layersOpen ? " active" : ""}`}
@@ -1195,12 +1213,12 @@ export default function App() {
           </div>
 
           {splash.mounted && lastSplash.current && (
-            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} onDismiss={() => setSplashDismissed(true)} />
+            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} />
           )}
           {failure.mounted && <BootFailure message={lastFailure.current} reachable={!!sim.status} closing={failure.closing} reduceMotion={reduceMotion} />}
           {shutDown && <ShutdownSurface reduceMotion={reduceMotion} />}
 
-          {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} onResetPreferences={resetAllPreferences} narratorBadge={narratorBadge(narrator)} />}
+          {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} narratorBadge={narratorBadge(narrator)} />}
           {dialog === "reset" && (
             <ConfirmCard
               title="Reset the simulation?"

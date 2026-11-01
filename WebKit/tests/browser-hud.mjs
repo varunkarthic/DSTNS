@@ -422,6 +422,15 @@ try {
     const legend = page.getByRole("dialog", { name: "Place legend" });
     await legend.waitFor();
     await page.waitForTimeout(350);
+    // Nothing in a row spills out of it, so rows can never overlap.
+    for (const row of await legend.locator(".place-row").all()) {
+      const outer = await row.boundingBox();
+      for (const inner of await row.locator(":scope *").all()) {
+        const box = await inner.boundingBox();
+        if (!box || !box.width) continue;
+        assert.ok(box.x >= outer.x - 1 && box.x + box.width <= outer.x + outer.width + 1 && box.y >= outer.y - 1 && box.y + box.height <= outer.y + outer.height + 1, "a place row contains its parts");
+      }
+    }
     const rows = await legend.locator(".place-row").allInnerTexts();
     assert.ok(rows.length >= 3, `the legend lists the kinds on the map (${rows.length})`);
     // Every glyph the legend shows is one the map actually draws.

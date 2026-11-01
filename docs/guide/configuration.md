@@ -32,7 +32,7 @@ read; changing them has no effect.
 | `seed` | `"auto"` | — | informational | Without `--seed` the CLI always draws a fresh 64-bit seed |
 | `day` | `0` | `0` weekday, `1` weekend | CLI | Day type; `--day-type` overrides |
 | `playback.duration_seconds` | `3600` | integer [60, 3600] | CLI, engine | Wall-clock seconds one virtual day takes at 1× |
-| `playback.tick_rate` | `1.0` | (0, 20] | CLI, engine | Initial speed multiplier |
+| `playback.tick_rate` | `1.0` | (0, 10] | CLI, engine | Initial speed multiplier |
 | `playback.checkpoint_virtual_seconds` | `900` | — | informational | Checkpoint spacing is fixed at 900 s |
 
 ### Map
@@ -93,7 +93,7 @@ What `POST /api/v1/playback/start` and `/prepare` accept (the CLI builds this):
 | `seed` | number or string | Decimal, `0x` hex (up to 128 bits), `auto`, `random`, `""` or `0` (fresh seed) |
 | `day` | 0, 1 or `"auto"` | |
 | `playback_duration_seconds` (alias `simulation_time`) | integer | [60, 3600] |
-| `tick_rate` | number | (0, 20] |
+| `tick_rate` | number | (0, 10] |
 | `start_virtual_time` | seconds or `HH:MM:SS` | [0, 86400] |
 | `map.osm_file` | string | Path or `auto` (the default when there is no `fixture`) |
 | `map.max_nodes`, `map.city_extent_m`, `map.district_nodes`, `map.cache_dir` | | As in the table above |

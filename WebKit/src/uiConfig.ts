@@ -33,6 +33,9 @@ export type AutoFocusStrategy = "round-robin" | "latest";
 /** How news is worded: by the on-device model (Realistic News), or from predefined wordings. */
 export type NewsStyle = "realistic" | "standard";
 
+import { SHORTCUTS } from "./shortcuts";
+import type { ShortcutOverrides } from "./shortcuts";
+
 export interface UiConfig {
   layers: Layers;
   /** Which place kinds are drawn. Absent means shown. */
@@ -68,6 +71,8 @@ export interface UiConfig {
   asb: { enabled: boolean; report_interval_ms: number };
   /** Realistic News is used only when the core's narrator is available. */
   news: { style: NewsStyle };
+  /** Keyboard shortcuts this viewer has changed. */
+  shortcuts: ShortcutOverrides;
   accessibility: {
     theme: ThemeSetting;
     color_vision: ColorVision;
@@ -101,7 +106,8 @@ export const BUILT_IN: UiConfig = {
   clock: { hour12: false },
   asb: { enabled: true, report_interval_ms: 1000 },
   news: { style: "realistic" },
-  accessibility: { theme: "dark", color_vision: "standard", reduce_transparency: false, advanced: true },
+  shortcuts: {},
+  accessibility: { theme: "system", color_vision: "standard", reduce_transparency: false, advanced: true },
 };
 
 const REDUCE_MOTION: ReduceMotionSetting[] = ["auto", "on", "off"];
@@ -143,6 +149,12 @@ function num(value: unknown, fallback: number, min: number, max: number): number
  * or partially-written ui-config.json degrades to the defaults for the fields
  * it got wrong rather than breaking the interface.
  */
+function readShortcuts(value: unknown, fallback: ShortcutOverrides): ShortcutOverrides {
+  if (!value || typeof value !== "object") return fallback;
+  const known = new Set(SHORTCUTS.map((shortcut) => shortcut.id as string));
+  return Object.fromEntries(Object.entries(value).filter(([id, key]) => known.has(id) && typeof key === "string" && key)) as ShortcutOverrides;
+}
+
 export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
   if (!patch || typeof patch !== "object") return base;
   const p = patch as Record<string, unknown>;
@@ -200,6 +212,7 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
       report_interval_ms: num(asb.report_interval_ms, base.asb.report_interval_ms, 250, 10000),
     },
     news: { style: oneOf(news.style, NEWS_STYLES, base.news.style) },
+    shortcuts: readShortcuts(p.shortcuts, base.shortcuts),
     display: { byte_units: oneOf((p.display as Record<string, unknown> | undefined)?.byte_units, ["decimal", "binary"] as ByteUnits[], base.display.byte_units) },
     accessibility: {
       theme: oneOf(accessibility.theme, ["system", "dark", "light"] as ThemeSetting[], base.accessibility.theme),
@@ -258,7 +271,24 @@ export function diffConfig(base: UiConfig, next: UiConfig): Record<string, unkno
     const changed = section(base[key], next[key]);
     if (Object.keys(changed).length) patch[key] = changed;
   }
+  if (JSON.stringify(base.shortcuts) !== JSON.stringify(next.shortcuts)) patch.shortcuts = next.shortcuts;
   return patch;
+}
+
+/**
+ * A launcher set to start with default settings opens the page with ?defaults. That
+ * forgets this browser's choices for the interface, once, and leaves the address clean.
+ */
+export function applyLaunchDefaults(): void {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("defaults")) return;
+    for (const key of [STORE_KEY, "dstns.telemetry-mode.v1", "dstns.telemetry-tab.v1"]) localStorage.removeItem(key);
+    url.searchParams.delete("defaults");
+    window.history.replaceState(null, "", url);
+  } catch {
+    /* Without storage there are no choices to forget. */
+  }
 }
 
 export function writeOverrides(config: UiConfig, base: UiConfig = BUILT_IN): void {

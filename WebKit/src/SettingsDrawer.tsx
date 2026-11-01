@@ -13,6 +13,8 @@ import type { ColorVision, ThemeSetting } from "./appearance";
 import type { ByteUnits } from "./units";
 import { useFabricApps } from "./webfabric/store";
 import { WebFabricSettings } from "./webfabric/Settings";
+import { ShortcutSettings } from "./ShortcutSettings";
+import type { ShortcutOverrides } from "./shortcuts";
 import { BrandLogo } from "./BrandLogo";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from "./notificationModel";
 import { SKIP_OPTIONS, STEP_OPTIONS } from "./uiConfig";
@@ -51,6 +53,7 @@ export interface SettingsValues {
   reduceTransparency: boolean;
   advanced: boolean;
   byteUnits: ByteUnits;
+  shortcuts: ShortcutOverrides;
   fineControl: boolean;
 }
 
@@ -71,6 +74,7 @@ export interface SettingsActions {
   onReduceTransparency: (on: boolean) => void;
   onAdvanced: (on: boolean) => void;
   onByteUnits: (units: ByteUnits) => void;
+  onShortcuts: (shortcuts: ShortcutOverrides) => void;
   onFineControl: (on: boolean) => void;
 }
 
@@ -114,7 +118,13 @@ export function SettingsDrawer({
       }),
     [theme],
   );
-  const [page, setPage] = useState<"main" | "webfabric">("main");
+  const [page, setPage] = useState<"main" | "webfabric" | "shortcuts">("main");
+  const [resetDone, setResetDone] = useState(false);
+  useEffect(() => {
+    if (!resetDone) return;
+    const timer = setTimeout(() => setResetDone(false), 1800);
+    return () => clearTimeout(timer);
+  }, [resetDone]);
   const apps = useFabricApps();
   const waitingApps = apps.filter((app) => app.capabilities.pending.length > 0 && app.state !== "unloaded").length;
   const scroll = useScrollFade<HTMLDivElement>();
@@ -152,9 +162,10 @@ export function SettingsDrawer({
       <div {...scroll} className={`settings-scroll ${scroll.className}`} tabIndex={0} aria-label="Settings preferences">
         {page === "webfabric" ? (
           <WebFabricSettings onBack={() => setPage("main")} />
+        ) : page === "shortcuts" ? (
+          <ShortcutSettings overrides={values.shortcuts} onChange={actions.onShortcuts} onBack={() => setPage("main")} />
         ) : (
         <>
-        <button type="button" className="btn" onClick={actions.onReset}><Icon name="reset" size={16} />Reset settings</button>
         <Section title="Accessibility" icon="eye">
           <Row
             stacked
@@ -381,10 +392,21 @@ export function SettingsDrawer({
           />
         </Section>
 
+        <Section title="Keyboard" icon="keyboard">
+          <button type="button" className="settings-action" onClick={() => setPage("shortcuts")}>
+            <span className="settings-action-mark" aria-hidden="true"><Icon name="keyboard" size={16} /></span>
+            <span className="settings-action-text">
+              <strong>Keyboard shortcuts</strong>
+              <small>{Object.keys(values.shortcuts).length ? `${Object.keys(values.shortcuts).length} changed` : "View and change them"}</small>
+            </span>
+            <Icon name="chevronRight" size={14} />
+          </button>
+        </Section>
+
         <Section title="Applications" icon="stack">
-          <button type="button" className="settings-nav" onClick={() => setPage("webfabric")}>
-            <span className="settings-nav-mark" aria-hidden="true"><BrandLogo name="webfabric-mark" height={15} /></span>
-            <span className="settings-nav-text">
+          <button type="button" className="settings-nav settings-action" onClick={() => setPage("webfabric")}>
+            <span className="settings-nav-mark settings-action-mark" aria-hidden="true"><BrandLogo name="webfabric-mark" height={15} /></span>
+            <span className="settings-nav-text settings-action-text">
               <strong>WebFabric</strong>
               <small>{apps.length === 0 ? "No applications connected" : `${apps.length} ${apps.length === 1 ? "application" : "applications"}, ${apps.filter((app) => app.state === "active").length} active`}</small>
             </span>
@@ -392,6 +414,22 @@ export function SettingsDrawer({
             <Icon name="chevronRight" size={14} />
           </button>
         </Section>
+
+        <button
+          type="button"
+          className="settings-action"
+          aria-label="Reset settings"
+          onClick={() => {
+            actions.onReset();
+            setResetDone(true);
+          }}
+        >
+          <span className="settings-action-mark" aria-hidden="true"><Icon name={resetDone ? "check" : "reset"} size={16} /></span>
+          <span className="settings-action-text" role="status">
+            <strong>{resetDone ? "Settings reset" : "Reset all settings"}</strong>
+            <small>{resetDone ? "Everything here is back to its default." : "Returns everything here to its default."}</small>
+          </span>
+        </button>
         </>
         )}
       </div>

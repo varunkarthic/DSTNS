@@ -13,8 +13,9 @@ import threading
 from dataclasses import dataclass, field
 
 from . import api, narration, server, simulation
+from . import configuration
 from .configuration import RunOptions
-from .errors import SimulationStartError
+from .errors import ConfigurationError, SimulationStartError
 from .process import check_cancelled
 from .paths import PATHS, Paths
 from .reporting import Level, Reporter
@@ -24,7 +25,7 @@ from .simulation import World
 LOG = logging.getLogger("dstns.launcher")
 
 # How long the observer has the screen before the engine is asked for a world.
-OBSERVER_LEAD_S = 4.5
+OBSERVER_LEAD_S = 3.5
 
 
 @dataclass
@@ -79,8 +80,9 @@ class Session:
             check_cancelled(cancel)
         health = handle.health or {}
         observing = health.get("lifecycle") in {"RUNNING", "PAUSED"} and not options.explicit()
+        address = self._observer_address(handle.url, options)
         if open_browser and not observing:
-            simulation.open_in_browser(handle.url)
+            simulation.open_in_browser(address)
             loaded = simulation.wait_for_observer(handle.port, 12, self.paths, cancel=cancel)
             reporter.message(Level.INFO, "Observer open" if loaded else "Observer opening",
                              f"{handle.url} · preparing the world")
@@ -104,8 +106,18 @@ class Session:
                 narration.confirm(handle.port, reporter, self.paths, cancel=cancel)
         reporter.message(Level.INFO, "Observer ready", handle.url)
         if open_browser and observing:
-            simulation.open_in_browser(handle.url)
+            simulation.open_in_browser(address)
         return self.world
+
+    def _observer_address(self, url: str, options: RunOptions) -> str:
+        """The page to open: asked to forget this browser's settings, if so configured."""
+        wanted = options.default_settings
+        if not wanted:
+            try:
+                wanted = bool((configuration.load(self.paths).get("launcher") or {}).get("default_settings"))
+            except ConfigurationError:
+                wanted = False
+        return f"{url}?defaults" if wanted else url
 
     @property
     def port(self) -> int | None:

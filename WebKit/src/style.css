@@ -38,7 +38,7 @@ input {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  background: #14212dcc;
+  background: rgb(var(--ink-rgb) / 4%);
 }
 button {
   cursor: pointer;
@@ -49,16 +49,16 @@ button {
     border-color var(--duration);
 }
 button:hover {
-  background: #29404e;
-  border-color: #37d7ff66;
+  background: var(--hover);
+  border-color: rgb(var(--accent-rgb) / 40%);
 }
 button:disabled {
   opacity: 0.42;
   cursor: default;
 }
 button[aria-pressed="true"] {
-  background: #37d7ff18;
-  border-color: #37d7ff88;
+  background: rgb(var(--accent-rgb) / 10%);
+  border-color: rgb(var(--accent-rgb) / 53%);
   color: var(--text-dim);
 }
 button:focus-visible,

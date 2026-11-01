@@ -97,7 +97,7 @@ Focus frames an event, so a focused event is never hidden under a panel.
 |---|---|
 | Playback | Reset, Back, Step, Play/Pause, Forward |
 | Time | Time and progress control |
-| Speed | 0.25×, 0.5×, 1×, 2×, 3×, 5×, 10×, 20× |
+| Speed | 0.25×, 0.5×, 1×, 2×, 3×, 5×, 10×, 10× |
 | Session | Seed with copy and Generate New World, runtime status, Terminate |
 
 Every control is a real engine operation:
@@ -127,10 +127,10 @@ glyph swaps with a short rotation.
 
 ## Time and progress
 
-The clock shows the current simulation time, with the share of the day completed beneath it, or
-Paused. Beside it, the day timeline marks the hours of the day, fills as the day passes and stands a
-playhead at the current time. It takes whatever width the bar has left. The timeline reports time and does not
-set it: Back, Forward and Step move through the day.
+The clock shows the current simulation time, with the share of the day completed beneath it, or Paused. Beside it, the
+day is drawn as the sun's path: above a dashed horizon from six until six, and below it through the night. What has
+passed is lit, and the sun or the moon stands at the current time. It reports time and does not set it: Back, Forward and
+Step move through the day.
 
 - **Click** the clock to switch between 12 and 24 hour time everywhere.
 - Between snapshots the playhead keeps advancing at the running rate, and a skip travels on a spring.
@@ -153,9 +153,9 @@ such text, so they follow the preference too. Midnight at the end of the day is
 
 ## Speed
 
-A slider with eight evenly spaced stops: 0.25×, 0.5×, 1×, 2×, 3×, 5×, 10× and 20×. Drag it,
+A slider with eight evenly spaced stops: 0.25×, 0.5×, 1×, 2×, 3×, 5×, 10× and 10×. Drag it,
 throw it (it settles on the stop its momentum reaches), or use the arrow keys, Home and End.
-Past either end it resists. The core accepts any rate in (0, 20], and results do not depend
+Past either end it resists. The core accepts any rate in (0, 10], and results do not depend
 on the rate, because physics steps are fixed at one second. Above 5× a second of real time
 spans more simulated time than one snapshot shows, so the picture moves in larger steps.
 

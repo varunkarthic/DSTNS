@@ -541,8 +541,8 @@ body:has(.reduce-motion) .floating {
   font-weight: 700;
   line-height: 1;
   color: var(--text);
-  background: var(--tint, #162e3b);
-  border: 1.2px solid #638591;
+  background: var(--tint, rgb(var(--ink-rgb) / 8%));
+  border: 1.2px solid rgb(var(--line-rgb) / 40%);
 }
 .place-rows {
   list-style: none;

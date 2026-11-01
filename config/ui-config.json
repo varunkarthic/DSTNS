@@ -54,7 +54,7 @@
     "report_interval_ms": 1000
   },
   "accessibility": {
-    "theme": "dark",
+    "theme": "system",
     "color_vision": "standard",
     "reduce_transparency": false,
     "advanced": true

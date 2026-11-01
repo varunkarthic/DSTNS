@@ -2,7 +2,10 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { expect, it } from "vitest";
-import { landingPoints } from "../src/BootScene";
+import { FILM_CHAPTERS, landingPoints } from "../src/BootScene";
+import { sunHeight } from "../src/CommandRail";
+import { BUILT_IN } from "../src/uiConfig";
+import { filterPlaces, PLACE_FILTERS } from "../src/mapModel";
 
 const road = (...points: [number, number][]) => points.map(([x_m, y_m]) => ({ x_m, y_m }));
 
@@ -33,4 +36,33 @@ it("gives longer roads more particles, and spreads them along every piece", () =
 it("has nowhere to land without roads or a window", () => {
   expect(landingPoints([], { x: 0, y: 0, scale: 1 }, { left: 0, top: 0 }, 100, 100)).toBeNull();
   expect(landingPoints([road([0, 0], [1, 0])], { x: 0, y: 0, scale: 1 }, { left: 0, top: 0 }, 0, 100)).toBeNull();
+});
+
+it("keeps every headline to one or two words, and nothing has a comma", () => {
+  for (const chapter of FILM_CHAPTERS) {
+    expect(chapter.title.split(" ").length).toBeLessThanOrEqual(2);
+    expect(`${chapter.label}${chapter.title}${chapter.text}`).not.toContain(",");
+  }
+});
+
+it("puts the sun on the horizon at six, highest at noon, lowest at midnight", () => {
+  expect(sunHeight(0.25)).toBeCloseTo(0);
+  expect(sunHeight(0.5)).toBeCloseTo(1);
+  expect(sunHeight(0.75)).toBeCloseTo(0);
+  expect(sunHeight(0)).toBeCloseTo(-1);
+});
+
+it("follows the device's appearance out of the box", () => {
+  expect(BUILT_IN.accessibility.theme).toBe("system");
+});
+
+it("filters places, with modelled ones meaning those the core gives demand", () => {
+  const place = (name: string, category: string, demand_type: string | null = null) => ({ id: name, name, category, polygon: false, tags: {}, demand_type }) as never;
+  const modelled = PLACE_FILTERS.find((f) => f.id === "modelled")!;
+  const school = place("Hill School", "school", "school");
+  const cafe = place("Cafe", "restaurant");
+  expect(modelled.test(school)).toBe(true);
+  expect(modelled.test(cafe)).toBe(false);
+  expect(PLACE_FILTERS.find((f) => f.id === "education")!.test(school)).toBe(true);
+  expect(filterPlaces([place("B", "school"), place("A", "school"), place("A", "school")]).map((f: { name: string }) => f.name)).toEqual(["A", "B"]);
 });

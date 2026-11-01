@@ -25,7 +25,7 @@ dimension hide behind health in the others.
 | `client_frame_s` | Wall-clock interval between the observer's own frames | 33 ms healthy → 233 ms saturated |
 | `since_poll_s` | Seconds since the observer last managed to poll | 2 s healthy → 8 s saturated |
 
-Lag is judged *relative to the rate*, because at 20× the observer is expected to
+Lag is judged *relative to the rate*, because at 10× the observer is expected to
 be several virtual seconds behind simply because each poll covers more ground.
 A fixed threshold would declare every fast run unhealthy.
 
@@ -234,7 +234,7 @@ so one round trip both informs and instructs.
   "rate_capped": true,
   "rate_cap": 11.8,
   "applied_tick_rate": 11.8,
-  "requested_tick_rate": 20,
+  "requested_tick_rate": 10,
   "stressed_for_s": 0,
   "state_for_s": 143.2,
   "throughput": { "snapshots_per_s": 1.02, "bytes_per_s": 1842365 },

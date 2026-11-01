@@ -22,10 +22,10 @@ import type { Clock, Lifecycle } from "./types";
  */
 
 /** Speeds offered, as multiples of the configured playback pace. */
-// The rates the operator may choose. 20x is the ceiling the core enforces. Above 5x
+// The rates the operator may choose. 10x is the ceiling the core enforces. Above 5x
 // a second of real time spans more simulated time than one snapshot shows, so the
 // picture moves in larger steps; results do not change.
-export const RATES = [0.25, 0.5, 1, 2, 3, 5, 10, 20] as const;
+export const RATES = [0.25, 0.5, 1, 2, 3, 5, 10] as const;
 
 /** Index of the offered rate nearest to `rate`. */
 export function rateIndexOf(rate: number): number {
@@ -201,7 +201,7 @@ export function CommandRail(props: CommandRailProps) {
 
 /**
  * Drives the progress line every frame. Between polls it advances at the running
- * rate, so even at 20x it moves rather than jumps; a seek or skip arrives as a new
+ * rate, so even at 10x it moves rather than jumps; a seek or skip arrives as a new
  * target for a spring, so it travels there rather than teleporting.
  */
 export function useSmoothProgress(percent: number, ratePerSecond: number, reduceMotion: boolean) {
@@ -209,7 +209,13 @@ export function useSmoothProgress(percent: number, ratePerSecond: number, reduce
   const goal = useRef({ percent, at: 0, rate: ratePerSecond });
   const state = useRef({ x: percent, v: 0, cancel: null as (() => void) | null });
   const paint = (value: number) => {
-    bar.current?.style.setProperty("--day", (Math.max(0, Math.min(100, value)) / 100).toFixed(5));
+    const el = bar.current;
+    if (!el) return;
+    const day = Math.max(0, Math.min(100, value)) / 100;
+    const height = sunHeight(day);
+    el.style.setProperty("--day", day.toFixed(5));
+    el.style.setProperty("--sky", `${(ARC_HORIZON - ARC_RISE * height).toFixed(2)}px`);
+    el.style.setProperty("--night", height < 0 ? "1" : "0");
   };
   useLayoutEffect(() => {
     goal.current = { percent, at: performance.now(), rate: ratePerSecond };
@@ -244,17 +250,33 @@ export function useSmoothProgress(percent: number, ratePerSecond: number, reduce
   return bar;
 }
 
+/** Where the sun is at this share of the day, from -1 at midnight to 1 at noon. */
+export function sunHeight(day: number): number {
+  return Math.sin(2 * Math.PI * (day - 0.25));
+}
+
+const ARC_WIDTH = 240;
+const ARC_HEIGHT = 28;
+const ARC_HORIZON = 13;
+const ARC_RISE = 9;
+const ARC_PATH = Array.from({ length: 49 }, (_, i) => `${i ? "L" : "M"}${(i / 48) * ARC_WIDTH} ${(ARC_HORIZON - ARC_RISE * sunHeight(i / 48)).toFixed(2)}`).join(" ");
+
 /**
- * The day, as a place. Hours are marked along it, what has passed is filled, and a
- * playhead stands at now. It reports time and does not set it: moving through the day
- * is what Back, Forward and Step are for, because moving replays the model.
+ * The day as the sun's path: up over the horizon at six, highest at noon, down at six
+ * and on under the horizon through the night. What has passed is lit, and the sun or the
+ * moon stands at now. It reports time and does not set it: moving through the day is
+ * what Back, Forward and Step are for, because moving replays the model.
  */
 function DayTimeline({ track, hour12, paused }: { track: RefObject<HTMLElement | null>; hour12: boolean; paused: boolean }) {
   const hours = hour12 ? ["12a", "6a", "12p", "6p", "12a"] : ["00", "06", "12", "18", "24"];
   return (
     <div className={`day-timeline${paused ? " paused" : ""}`} aria-hidden="true">
       <span className="day-track" ref={track}>
-        <i className="day-fill" />
+        <svg viewBox={`0 0 ${ARC_WIDTH} ${ARC_HEIGHT}`} preserveAspectRatio="none">
+          <line className="day-horizon" x1="0" x2={ARC_WIDTH} y1={ARC_HORIZON} y2={ARC_HORIZON} vectorEffect="non-scaling-stroke" />
+          <path className="day-path" d={ARC_PATH} vectorEffect="non-scaling-stroke" />
+          <path className="day-passed" d={ARC_PATH} vectorEffect="non-scaling-stroke" />
+        </svg>
         <i className="day-head" />
       </span>
       <span className="day-hours">

@@ -114,6 +114,10 @@ export function Tooltip({
     timer.current = setTimeout(() => setOpen(true), wait);
   };
   useEffect(() => () => clearTimeout(timer.current), []);
+  // Once its control has opened something, the tooltip would only repeat what is on screen.
+  useEffect(() => {
+    if (disabled) hide();
+  }, [disabled, hide]);
   useEffect(() => {
     if (!open) return;
     // A tooltip never outlives scrolling or a click elsewhere.

@@ -8,7 +8,7 @@
  * are revealed for their step and the previous layout is restored. The last step is
  * the playback group, and its action starts the simulation.
  */
-export const TUTORIAL_VERSION = "6";
+export const TUTORIAL_VERSION = "7";
 
 export interface TutorialStep {
   target: string;
@@ -38,7 +38,7 @@ export const tutorialSteps: readonly TutorialStep[] = [
   { target: "layers", chapter: MAP, title: "Layers", body: "Layers controls which elements the map draws: roads, traffic, vehicles, signals, buildings, names, weather and flooding. Hiding a layer does not disable the underlying model. Reset restores the configured defaults." },
   { target: "legend", chapter: MAP, title: "Road states", body: "Green indicates congestion below 35%, amber 35% to 70%, and red 70% or above, or a closure. Blue indicates a flooded road. The colours follow the colour vision option selected in Settings." },
   { target: "places", chapter: MAP, title: "Places", body: "Places lists each kind of marker with its count, and controls which kinds are drawn. Where the core models demand, the current multiplier on base demand is shown. Not modelled indicates that the map contains the place but the traffic model has no schedule for it." },
-  { target: "hud", chapter: MAP, title: "Coordinates and scale", body: "Coordinates follow the pointer over the map and otherwise show the district anchor. The scale bar states the distance represented at the current zoom." },
+  { target: "coords", chapter: MAP, title: "Coordinates and scale", body: "Coordinates follow the pointer over the map and otherwise show the district anchor. The scale bar states the distance represented at the current zoom." },
   { target: "telemetry", chapter: TELEMETRY, title: "Live telemetry", body: "This panel reads the latest simulation snapshot, with network totals at the top and detailed views below. When collapsed, it becomes a narrow strip whose buttons open temporary panels. The panel is expanded for this tutorial and restored afterwards." },
   { target: "telemetry-roads", chapter: TELEMETRY, title: "Road edges", body: "This figure counts directional edges in the loaded topology, so the two directions of one road are two edges. Flowing counts the edges with at least one vehicle in the current snapshot." },
   { target: "telemetry-vehicles", chapter: TELEMETRY, title: "Vehicles and queues", body: "Vehicles is the sum of the current per-edge vehicle counts, and halting is the sum of the per-edge queues. Both are instantaneous model totals, not unique vehicles observed across the day." },
@@ -53,7 +53,7 @@ export const tutorialSteps: readonly TutorialStep[] = [
   { target: "telemetry-apps", chapter: WEBFABRIC, title: "WebFabric", body: "Independent applications connect through the Fabric API and appear here, in the design of DSTNS. They can add panels, map overlays, routes and animated vehicles along real roads. When this panel is collapsed, the WebFabric mark on the strip opens the same view." },
   { target: "settings", chapter: WEBFABRIC, title: "Application permissions", body: "Each application's settings and permissions are in Settings, under WebFabric. Applications may add to their own surfaces by default. Dialogs, their own web pages, and anything that changes the simulation require explicit permission." },
   { target: "clock", chapter: SESSION, title: "Simulation time", body: "The clock shows virtual simulation time, with the share of the day beneath it, and the timeline alongside marks the 24-hour day. Selecting the clock switches the whole interface between 12-hour and 24-hour format." },
-  { target: "rate", chapter: SESSION, title: "Simulation speed", body: "Speed ranges from 0.25× to 20× the configured playback pace. Adaptive Simulation Backpressure can temporarily apply a lower rate while retaining the requested rate for recovery. A lock indicates that the core is holding the speed." },
+  { target: "rate", chapter: SESSION, title: "Simulation speed", body: "Speed ranges from 0.25× to 10× the configured playback pace. Adaptive Simulation Backpressure can temporarily apply a lower rate while retaining the requested rate for recovery. A lock indicates that the core is holding the speed." },
   { target: "seed", chapter: SESSION, title: "Reproducible worlds", body: "The seed determines the city district and the deterministic scenario. Selecting the number copies it. Generate asks for confirmation before preparing a replacement; if preparation fails, the current world remains available. A new world starts paused at 00:00." },
   { target: "status", chapter: SESSION, title: "Runtime status", body: "Online indicates that current data is arriving, Degraded indicates stale data or backpressure, and Offline indicates that the simulator is unreachable. Hovering reports measured latency and throughput." },
   { target: "help", chapter: SESSION, title: "Reports and help", body: "Export Report saves an observation of the loaded run with its provenance, model figures and recorded events. About contains the licence and source link. This tutorial can be reopened from here without starting a new world." },

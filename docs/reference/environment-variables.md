@@ -60,7 +60,7 @@ and [Docker deployment](../deployment/docker.md).
 | `DSTNS_AUTOSTART` | `1` | `0` starts the server without starting a run |
 | `DSTNS_SEED` | `auto` | Decimal or `0x` seed; `auto` draws a fresh one |
 | `DSTNS_DAY_TYPE` | `weekday` | `weekday` or `weekend` |
-| `DSTNS_SPEED` | `1` | Initial speed multiplier, in (0, 20] |
+| `DSTNS_SPEED` | `1` | Initial speed multiplier, in (0, 10] |
 | `DSTNS_DURATION` | `3600` | Wall-clock seconds per virtual day at 1x, 60 to 3600 |
 | `DSTNS_OSM_FILE` | `auto` | `auto` lets the seed choose the map; a path inside the container pins one |
 | `DSTNS_MAP_CACHE` | `prune` | `keep`, `prune` or `clear`; passed to `--map-cache` |

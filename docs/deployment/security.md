@@ -240,7 +240,7 @@ status and a stable error code (see [API errors](../api/errors.md)).
 | Times (`target_time`, SUMO `begin_s`) | Seconds in [0, 86400] or `HH:MM:SS` | Unsigned JSON numbers skipped the range check |
 | Query numbers (`limit`, `since_news_id`) | Unsigned decimal; a sign is 400 | `stoull("-1")` wraps to 2^64 - 1 |
 | Undo and redo `count` | Integer in [1, 10000], read signed | `nlohmann::json` wraps a negative number into an unsigned type |
-| Tick rate | Finite, in (0, 20] | NaN and infinity must not reach the clock |
+| Tick rate | Finite, in (0, 10] | NaN and infinity must not reach the clock |
 | Edge overrides | Finite multipliers in [0, 2] | |
 | Weather | Intensity, gain in [0, 1]; radius > 0; duration 1 to 1440 min | Overflow of the end time |
 | Surges | Factor in (0, 10]; radius in (0, 20000] m; duration 1 to 86400 s | A negative factor produced negative demand |

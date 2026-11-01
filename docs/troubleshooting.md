@@ -154,7 +154,7 @@ See [ASB](concepts/backpressure.md).
 The observer needs at least 1024 × 640 CSS pixels and says so rather than
 squeezing. Enlarge the window or zoom out.
 
-## playback.tick_rate must be in (0, 20]
+## playback.tick_rate must be in (0, 10]
 
 `config/defaults.json` or `--speed` asks for more than the engine allows.
 Speeds offered in the interface are 0.25, 0.5, 1, 2, 3, 5, 10 and 20.

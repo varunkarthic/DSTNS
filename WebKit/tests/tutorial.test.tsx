@@ -7,7 +7,7 @@ import { Tutorial, placeTutorialCard } from "../src/Tutorial";
 import { tutorialSteps } from "../src/tutorialSteps";
 afterEach(()=>{cleanup();vi.restoreAllMocks();});
 it('covers every telemetry view, measurements, notifications and error priority',()=>{
-  for(const target of ['telemetry-roads','telemetry-vehicles','telemetry-incidents-metric','telemetry-weather','telemetry-congestion','telemetry-stack','telemetry-events','telemetry-queue','telemetry-incidents','telemetry-notifications','notifications','hud'])
+  for(const target of ['telemetry-roads','telemetry-vehicles','telemetry-incidents-metric','telemetry-weather','telemetry-congestion','telemetry-stack','telemetry-events','telemetry-queue','telemetry-incidents','telemetry-notifications','notifications','coords'])
     expect(tutorialSteps.some(s=>s.target===target),target).toBe(true);
   expect(tutorialSteps.find(s=>s.target==='telemetry-congestion')?.body).toContain('60%');
   expect(tutorialSteps.find(s=>s.target==='dnd')?.body).toContain('System errors always take priority');

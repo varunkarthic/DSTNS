@@ -318,12 +318,12 @@ def main():
             assert code == 400
             assertions += 1
 
-            code, tick = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 20.0})
-            assert code == 200 and tick["requested_tick_rate"] == 20.0, "20x is the highest offered rate"
+            code, tick = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 10.0})
+            assert code == 200 and tick["requested_tick_rate"] == 10.0, "10x is the highest offered rate"
             assertions += 1
 
-            code, err = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 20.5})
-            assert code == 400, "rates above 20x are rejected"
+            code, err = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 10.5})
+            assert code == 400, "rates above 10x are rejected"
             assertions += 1
 
             code, tick = call(base, "/api/v1/control/tick-rate", "PUT", {"tick_rate": 0.5})

@@ -290,7 +290,7 @@ Every control validates its input, applies immediately, increments
 | `add_weather` | epicentre node, intensity in [0, 1], radius > 0, duration in [1, 1440] virtual minutes, flood gain in [0, 1] | Manual storm, scheduled at least 5 playback seconds after the previous manual storm |
 | `set_day` | 0 (weekday) or 1 (weekend) | Rebuilds the demand schedule for the day type |
 | `set_module` | `traffic`, `signals`, `buildings`, `dws`, `flooding`, `news` | Enables or disables a subsystem |
-| `set_tick_rate` | (0, 20] | Requested rate; ASB may hold the applied rate lower |
+| `set_tick_rate` | (0, 10] | Requested rate; ASB may hold the applied rate lower |
 
 ## Undo and redo
 

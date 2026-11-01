@@ -14,8 +14,20 @@ only within one version.
 
 **Observer 3.0.0, API contract 1.2.** The engine stays at 2.1.0, and every existing endpoint
 behaves as before, 155 recorded calls being replayed to prove it, with one deliberate widening:
-`tick_rate` now accepts up to 20. Results for a seed do not depend on the rate. `api_version` in
+`tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
+
+### Latest interface round
+
+- **Speed is capped at 10×.** The engine, API and launcher all refuse more.
+- **Keyboard shortcuts,** shown and changeable in Settings. A key already in use swaps. Resetting them, or all settings, returns the defaults.
+- **Start-up:** the title's logo dissolves into the particle wordmark, the first wait is one second, and all headlines are one or two words. Signals and Auto Focus replace the earlier 86,400, closure and backpressure scenes.
+- **The day's progress** is now the sun's path, with a moon after dark.
+- **Search** has filters, including Modelled, and scrolls properly. **Places** groups kinds by whether they affect traffic.
+- **Roads, Places and Layers** are one connected control. **The telemetry panel** is wider, so `99+` counts fit.
+- **About** is redesigned, with GitHub and documentation links and no reset. **The Auto Focus menu** is redesigned.
+- **Appearance now defaults to Auto,** following the device. **The launcher** can open with default settings: `--default-settings`, or `launcher.default_settings`.
+- **Light mode:** hovering no longer turns controls dark. Edge resistance returns within about 150 ms.
 
 ### Latest changes to start-up, backpressure and the tray
 

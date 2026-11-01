@@ -35,7 +35,7 @@ describe("minimum viewport", () => {
     // The command rail, the tool dock and the telemetry strip all take space;
     // what is left has to be worth drawing a network in.
     const layout = mapFitLayout(MIN_WIDTH, MIN_HEIGHT);
-    expect(layout.available).toBeGreaterThanOrEqual(800);
+    expect(layout.available).toBeGreaterThanOrEqual(700);
     // Header, lower HUD and rail come out of the height.
     expect(MIN_HEIGHT - 56 - 60 - 60).toBeGreaterThanOrEqual(400);
   });

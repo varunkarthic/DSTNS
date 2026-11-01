@@ -408,3 +408,12 @@ nothing for two seconds, then a still title, then the film. Stages are shown one
 
 **Consequences.** Start-up takes about ten seconds even at its fastest. Stages can lag what the core has done, but never
 lead it. A page opened on a running world, or with reduced motion, skips the pacing.
+
+## 30. The speed limit is 10×
+
+**Problem.** Above 10×, the picture moves in steps too large to follow, and backpressure often reduces the speed anyway.
+
+**Decision.** `kMaxTickRate` is 10. The engine, Fabric, the launcher and the slider all use that limit.
+
+**Consequences.** A request above 10 is refused with the existing validation error, and a saved run asking for more must be changed.
+Results for a seed do not depend on the rate, so no run changes.

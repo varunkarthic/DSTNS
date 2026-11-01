@@ -23,7 +23,7 @@ from .errors import ConfigurationError
 from .paths import PATHS, Paths
 
 # The engine refuses anything faster (kMaxTickRate in include/dstns/model.hpp).
-MAX_TICK_RATE = 20.0
+MAX_TICK_RATE = 10.0
 MAP_SELECTION_VERSION = "urban-crfg-v3"
 _SEED = re.compile(r"^(?:0x[0-9a-fA-F]{1,32}|[0-9]{1,39})$")
 
@@ -225,6 +225,9 @@ FIELDS: tuple[Field, ...] = (
     Field("modules.news", "News", "Modules", Kind.BOOLEAN, "The operator news feed.", default=True),
     Field("dws.frequency", "Storms per day", "Weather", Kind.INTEGER,
           "Scheduled storms in a virtual day.", unit="storms", minimum=0, default=3, extra=_dws_spacing),
+    Field("launcher.default_settings", "Open with default settings", "Launcher", Kind.BOOLEAN,
+          "Each launch opens the observer with its settings at their defaults, forgetting what this browser had chosen. "
+          "--default-settings does the same once.", default=False),
     Field("api.host", "Bind address", "Server", Kind.TEXT,
           "127.0.0.1 keeps the server local; 0.0.0.0 exposes it to the network.", default="127.0.0.1"),
     Field("api.port", "Port", "Server", Kind.INTEGER,
@@ -251,6 +254,7 @@ def check_field(field: Field, value: Any, config: dict[str, Any]) -> str:
 @dataclass
 class RunOptions:
     """What the operator asked for, before defaults are applied."""
+    default_settings: bool = False
 
     seed: str | None = None
     saved_seed: str | None = None

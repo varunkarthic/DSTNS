@@ -8,9 +8,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { Icon, ActionIcon, MotionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
+import { Floating, useDismiss } from "./Popover";
+import { Switch } from "./settingsControls";
 import type { AutoFocusStrategy } from "./uiConfig";
 import type { MapFeature } from "./types";
-import { placeKind, placeTitle, popularPlaces, searchPlaces } from "./mapModel";
+import { PLACE_FILTERS, filterPlaces, placeKind, placeTitle, popularPlaces, searchPlaces } from "./mapModel";
 
 /**
  * The left sidebar: zoom, fit, place search, Auto Focus, Do Not Disturb,
@@ -64,6 +66,8 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
+const SEARCH_LIMIT = 60;
+
 function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean; features: MapFeature[]; city?: string; onClose: () => void; onPick: (feature: MapFeature) => void }) {
   const scroll = useScrollFade<HTMLUListElement>();
   const input = useRef<HTMLInputElement>(null);
@@ -71,11 +75,26 @@ function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean;
   const [active, setActive] = useState(0);
   const needle = query.trim();
   const popular = useMemo(() => popularPlaces(features), [features]);
-  const results = useMemo(() => (needle ? searchPlaces(features, needle) : popular), [features, needle, popular]);
-  useEffect(() => setActive(0), [needle]);
+  const [filter, setFilter] = useState("all");
+  const filters = useMemo(() => PLACE_FILTERS.filter((f) => f.id === "all" || features.some(f.test)), [features]);
+  const chosen = PLACE_FILTERS.find((f) => f.id === filter) ?? PLACE_FILTERS[0];
+  const results = useMemo(() => {
+    if (filter === "all") return needle ? searchPlaces(features, needle) : popular;
+    const within = features.filter(chosen.test);
+    return needle ? searchPlaces(within, needle) : filterPlaces(within);
+  }, [features, needle, popular, filter, chosen]);
+  const list = useRef<HTMLUListElement | null>(null);
+  useEffect(() => setActive(0), [needle, filter]);
+  // The result chosen from the keyboard stays in view.
+  useEffect(() => {
+    list.current?.querySelector(".active")?.scrollIntoView({ block: "nearest" });
+  }, [active]);
   useEffect(() => {
     if (open) input.current?.focus({ preventScroll: true });
-    else setQuery("");
+    else {
+      setQuery("");
+      setFilter("all");
+    }
   }, [open]);
   useEffect(() => {
     if (!open) return;
@@ -103,9 +122,16 @@ function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean;
           </button>
         )}
       </label>
-      <p className="place-search-heading">{needle ? (results.length ? `${results.length === 24 ? "24+" : results.length} ${results.length === 1 ? "place" : "places"}` : "") : popular.length ? `Popular${city ? ` in ${city}` : " in this district"}` : ""}</p>
+      <div className="place-filters" role="radiogroup" aria-label="Filter places">
+        {filters.map((f) => (
+          <button key={f.id} type="button" role="radio" aria-checked={filter === f.id} className={filter === f.id ? "on" : ""} title={f.hint} onClick={() => setFilter(f.id)}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+      <p className="place-search-heading">{needle || filter !== "all" ? `${results.length >= SEARCH_LIMIT ? `${SEARCH_LIMIT}+` : results.length} ${results.length === 1 ? "place" : "places"}` : "Popular here"}</p>
       {results.length > 0 && (
-        <ul {...scroll} className={`place-search-results ${scroll.className}`} aria-label={needle ? "Matching places" : "Popular places"}>
+        <ul {...scroll} ref={(el) => { list.current = el; scroll.ref?.(el as never); }} className={`place-search-results ${scroll.className}`} aria-label={needle ? "Matching places" : "Popular places"}>
           {results.map((feature, index) => (
             <li key={feature.id}>
               <button type="button" className={index === active ? "active" : ""} onPointerEnter={() => setActive(index)} onClick={() => onPick(feature)}>
@@ -134,6 +160,8 @@ export function MapDock(props: MapDockProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const dockRef = useRef<HTMLDivElement>(null);
+  const focusButton = useRef<HTMLButtonElement>(null);
+  const focusMenu = useRef<HTMLDivElement>(null);
   // Tell a double click from two singles without delaying the toggle much.
   const clickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -142,21 +170,7 @@ export function MapDock(props: MapDockProps) {
     if (props.settingsOpen) setSearchOpen(false);
   }, [props.settingsOpen]);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onPointer = (e: PointerEvent) => {
-      if (!dockRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [menuOpen]);
+  useDismiss(menuOpen, () => setMenuOpen(false), [focusButton, focusMenu]);
 
   useEffect(() => () => clearTimeout(clickTimer.current), []);
 
@@ -203,8 +217,10 @@ export function MapDock(props: MapDockProps) {
         label={props.autoFocusAvailable ? (props.autoFocus ? "Auto Focus on" : "Auto Focus off") : "Auto Focus unavailable"}
         detail={props.autoFocusAvailable ? "Double-click for Round-Robin or Latest." : "Disabled for this deployment."}
         side={["right"]}
+        disabled={menuOpen}
       >
         <button
+          ref={focusButton}
           data-tutorial="focus"
           aria-label="Auto Focus on live events"
           aria-pressed={props.autoFocus}
@@ -275,33 +291,41 @@ export function MapDock(props: MapDockProps) {
         </button>
       </Tooltip>
 
-      {menuOpen && (
-        <div className="dock-menu" role="menu" aria-label="Auto Focus order">
-          <span className="dock-menu-title">Auto Focus</span>
-          {(
-            [
-              ["round-robin", "Round-Robin", "Visit every live event in turn."],
-              ["latest", "Latest", "Stay on the most recent event."],
-            ] as const
-          ).map(([value, label, hint]) => (
-            <button
-              key={value}
-              role="menuitemradio"
-              aria-checked={props.strategy === value}
-              className={props.strategy === value ? "selected" : ""}
-              onClick={() => {
-                props.onStrategy(value);
-                setMenuOpen(false);
-              }}
-            >
-              <strong>{label}</strong>
-              <small>{hint}</small>
-            </button>
-          ))}
-        </div>
-      )}
-
     </nav>
+    <Floating anchor={focusButton} open={menuOpen} preferred={["right"]} className="focus-menu" panelRef={focusMenu} role="menu" label="Auto Focus order">
+      <header className="focus-menu-head">
+        <span>
+          <Icon name="focus" size={16} />
+          Auto Focus
+        </span>
+        <Switch label="Auto Focus" checked={props.autoFocus} onChange={() => props.onToggleAutoFocus()} />
+      </header>
+      <span className="focus-menu-title">Order</span>
+      {(
+        [
+          ["round-robin", "Round-Robin", "Visit every live event in turn."],
+          ["latest", "Latest", "Stay on the most recent event."],
+        ] as const
+      ).map(([value, label, hint]) => (
+        <button
+          key={value}
+          type="button"
+          role="menuitemradio"
+          aria-checked={props.strategy === value}
+          className={props.strategy === value ? "selected" : ""}
+          onClick={() => {
+            props.onStrategy(value);
+            setMenuOpen(false);
+          }}
+        >
+          <span>
+            <strong>{label}</strong>
+            <small>{hint}</small>
+          </span>
+          {props.strategy === value && <Icon name="check" size={14} strokeWidth={2.2} />}
+        </button>
+      ))}
+    </Floating>
     <FluidPanel open={searchOpen} anchor="[data-search-trigger]" label="Search places" className="search-panel" width={372} reduceMotion={props.reduceMotion}>
       <PlaceSearch
         open={searchOpen}

@@ -346,6 +346,7 @@ For `start` and `seeds save`:
 | `--speed X` | 0.01 to 5 | Initial speed multiplier |
 | `--max-nodes N` | Integer 2 to 50000 | Graph size cap |
 | `--osm-file PATH` | Existing file | Pin a map instead of letting the seed choose |
+| `--default-settings` | | Open the observer with its settings at their defaults, forgetting what this browser had chosen. `launcher.default_settings` in `config/defaults.json`, also under Configuration, does this on every launch. |
 | `--open`, `--no-open` | | Open the observer in a browser. Default: when a desktop is present |
 | `--narrator MODE` | `auto`, `fm`, `off`, `http://HOST:PORT`, `unix:/PATH` | [Realistic News](narration.md). Default: `narration.mode` in `config/defaults.json`, else `auto` |
 
@@ -487,7 +488,7 @@ status, the terminal's size and capabilities, and the paths in use.
 
 | Message | Meaning and remedy |
 |---|---|
-| `playback.tick_rate must be in (0, 20]` | `config/defaults.json` asks for a speed the engine refuses |
+| `playback.tick_rate must be in (0, 10]` | `config/defaults.json` asks for a speed the engine refuses |
 | `Seed must be a decimal integer or 0x hexadecimal, within 128 bits` | Malformed `--seed` |
 | `--seed and --saved-seed are mutually exclusive` | Pick one |
 | `OSM data unavailable; provide --osm-file PATH` | A pinned map path does not exist |

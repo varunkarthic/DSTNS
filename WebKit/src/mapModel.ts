@@ -308,8 +308,39 @@ export function popularPlaces<T extends Searchable>(features: readonly T[], limi
     .slice(0, limit);
 }
 
+type Filterable = Searchable & { demand_type?: string | null };
+const ofKinds = (...ids: string[]) => (feature: Filterable) => ids.includes(placeKind(feature).id);
+
+/** The ways the search can be narrowed. Modelled means the core gives it a demand schedule. */
+export const PLACE_FILTERS: readonly { id: string; label: string; hint: string; test: (feature: Filterable) => boolean }[] = [
+  { id: "all", label: "All", hint: "Every place", test: () => true },
+  { id: "modelled", label: "Modelled", hint: "Places that affect traffic in the model", test: (feature) => !!feature.demand_type },
+  { id: "health", label: "Health", hint: "Hospitals and pharmacies", test: ofKinds("hospital", "pharmacy") },
+  { id: "education", label: "Education", hint: "Schools and universities", test: ofKinds("school", "university") },
+  { id: "work", label: "Work", hint: "Offices and industry", test: ofKinds("office", "industrial") },
+  { id: "shopping", label: "Shopping", hint: "Malls and shops", test: ofKinds("mall", "shops") },
+  { id: "food", label: "Food", hint: "Food and drink", test: ofKinds("food") },
+  { id: "transport", label: "Transport", hint: "Transport hubs and parking", test: ofKinds("transport", "parking") },
+  { id: "leisure", label: "Leisure", hint: "Culture, sport, parks and hotels", test: ofKinds("culture", "stadium", "park", "hotel") },
+];
+
+/** Everything in a filter, named places first. */
+export function filterPlaces<T extends Searchable>(features: readonly T[], limit = 60): T[] {
+  const seen = new Set<string>();
+  const named = [...features]
+    .filter((f) => f.name?.trim())
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .filter((f) => {
+      const key = f.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  return [...named, ...features.filter((f) => !f.name?.trim())].slice(0, limit);
+}
+
 /** Live results: names that begin with the query, then words that do, then the rest. */
-export function searchPlaces<T extends Searchable>(features: readonly T[], query: string, limit = 24): T[] {
+export function searchPlaces<T extends Searchable>(features: readonly T[], query: string, limit = 60): T[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
   const scored: { feature: T; score: number; name: string }[] = [];

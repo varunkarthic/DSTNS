@@ -98,9 +98,9 @@ describe('fit layout', () => {
   it('centres the network on the visible map area, not the viewport', () => {
     // With the deck showing, the centre must sit left of the viewport centre.
     const wide = mapFitLayout(1440, 900);
-    expect(wide.centerX).toBeCloseTo((1440 - 420) / 2);
+    expect(wide.centerX).toBeCloseTo((1440 - 480) / 2);
     expect(wide.centerX).toBeLessThan(720);
-    expect(wide.available).toBe(1440 - 420 - 110);
+    expect(wide.available).toBe(1440 - 480 - 110);
   });
 
   it('keeps only the collapsed strip docked below 1024px', () => {
@@ -110,8 +110,8 @@ describe('fit layout', () => {
   });
 
   it('matches the deck width at each breakpoint', () => {
-    expect(mapFitLayout(1280, 800).centerX).toBeCloseTo((1280 - 340) / 2);
-    expect(mapFitLayout(1281, 800).centerX).toBeCloseTo((1281 - 420) / 2);
+    expect(mapFitLayout(1280, 800).centerX).toBeCloseTo((1280 - 420) / 2);
+    expect(mapFitLayout(1281, 800).centerX).toBeCloseTo((1281 - 480) / 2);
     expect(mapFitLayout(1024, 800).centerX).toBeCloseTo((1024 - STRIP_SPACE) / 2);
   });
 
@@ -130,8 +130,8 @@ describe('fit layout', () => {
 describe('map insets', () => {
   it('reserves the dock, deck and rail at each breakpoint', async () => {
     const { mapInsets } = await import('../src/mapProjection');
-    expect(mapInsets(1440, 900)).toEqual({ top: 24, left: 76, right: 444, bottom: 150 });
-    expect(mapInsets(1200, 800)).toEqual({ top: 24, left: 76, right: 364, bottom: 150 });
+    expect(mapInsets(1440, 900)).toEqual({ top: 24, left: 76, right: 504, bottom: 150 });
+    expect(mapInsets(1200, 800)).toEqual({ top: 24, left: 76, right: 444, bottom: 150 });
     expect(mapInsets(1000, 800)).toEqual({ top: 24, left: 76, right: STRIP_SPACE + 24, bottom: 150 });
     expect(mapInsets(600, 800)).toEqual({ top: 24, left: 16, right: STRIP_SPACE + 24, bottom: 196 });
     expect(mapInsets(1440, 900, true)).toEqual({ top: 24, left: 76, right: STRIP_SPACE + 24, bottom: 150 });

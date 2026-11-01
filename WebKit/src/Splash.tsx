@@ -43,7 +43,7 @@ export interface SplashStage {
   waiting?: boolean;
 }
 
-const TITLE_WAIT_MS = 2000;
+const TITLE_WAIT_MS = 1000;
 const TITLE_HOLD_MS = 2200;
 // Each stage has the screen for at least this long, including those the core has already
 // passed, so a fast start-up can still be seen from the beginning.
@@ -113,27 +113,20 @@ export function Splash({
   stage,
   reduceMotion,
   closing = false,
-  onDismiss,
   landing,
   phase,
 }: {
   stage: SplashStage;
   reduceMotion: boolean;
   closing?: boolean;
-  onDismiss?: () => void;
   landing?: () => Float32Array | null;
   phase?: BootPhase;
 }) {
-  // Only offer a way past the start-up screen once waiting has become
-  // notable, so the option does not flash up during a fast start.
-  const [stalled, setStalled] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    const timer = setTimeout(() => setStalled(true), 20000);
     const started = performance.now();
     const clock = setInterval(() => setElapsed(Math.floor((performance.now() - started) / 1000)), 1000);
     return () => {
-      clearTimeout(timer);
       clearInterval(clock);
     };
   }, []);
@@ -154,13 +147,6 @@ export function Splash({
       closing={closing}
       reduceMotion={reduceMotion}
       titleId="splash-title"
-      actions={
-        stalled && onDismiss && !closing && !stage.waiting ? (
-          <button type="button" className="btn ghost" onClick={onDismiss}>
-            Continue without waiting
-          </button>
-        ) : undefined
-      }
       footer={<p className="loading-licence">{LICENCE}</p>}
     />
   );

@@ -180,7 +180,7 @@ try {
   // entities. The fit pads the network by 3% on each side.
   await page.getByRole("button", { name: "Fit network to viewport" }).click();
   await wait(1600);
-  const deckPx = bounds.width <= 1024 ? 0 : bounds.width <= 1280 ? 340 : 420;
+  const deckPx = bounds.width <= 1024 ? 0 : bounds.width <= 1280 ? 420 : 480;
   const insets = { top: 24, left: bounds.width <= 720 ? 16 : 76, right: deckPx + 24, bottom: bounds.width <= 720 ? 196 : 150 };
   const usableW = bounds.width - insets.left - insets.right;
   const usableH = bounds.height - insets.top - insets.bottom;

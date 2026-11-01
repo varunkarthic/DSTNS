@@ -33,7 +33,7 @@ journal.
 { "tick_rate": 2 }
 ```
 
-(0, 20]. The interface offers 0.25, 0.5, 1, 2, 3, 5, 10 and 20. ASB may hold the
+(0, 10]. The interface offers 0.25, 0.5, 1, 2, 3, 5 and 10. ASB may hold the
 applied rate below the request while the observer is behind; the request is
 remembered and restored when it catches up.
 

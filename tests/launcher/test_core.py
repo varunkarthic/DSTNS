@@ -48,7 +48,7 @@ class Configuration(WithWorkspace):
 
     def test_invalid_values_are_refused_with_the_engine_bounds(self):
         config = configuration.load(self.paths)
-        for key, value, message in (("duration_seconds", 59, "duration_seconds"), ("tick_rate", 20.5, "tick_rate"),
+        for key, value, message in (("duration_seconds", 59, "duration_seconds"), ("tick_rate", 10.5, "tick_rate"),
                                     ("tick_rate", 0, "tick_rate")):
             broken = json.loads(json.dumps(config))
             broken["playback"][key] = value
@@ -428,9 +428,24 @@ class ObserverFirstTest(unittest.TestCase):
                 mock.patch.object(session_module.simulation, "start_run", side_effect=lambda *a, **k: order.append("start")), \
                 mock.patch.object(session_module.simulation, "check_cancelled", create=True), \
                 mock.patch.object(session_module.narration, "confirm"), \
-                mock.patch.object(session_module, "check_cancelled", create=True):
+                mock.patch.object(session_module, "check_cancelled", create=True), \
+                mock.patch.object(session_module.configuration, "load", return_value={}):
             launcher._launch(mock.Mock(explicit=lambda: False), reporter, open_browser=True, cancel=cancel)
         self.assertEqual(order, ["open", ("wait", session_module.OBSERVER_LEAD_S), "start"])
+
+
+
+class DefaultSettingsTest(unittest.TestCase):
+    def test_the_observer_can_be_opened_with_default_settings(self):
+        from unittest import mock
+        from dstns_launcher.core import configuration as config_module, session as session_module
+        launcher = session_module.Session.__new__(session_module.Session)
+        launcher.paths = None
+        with mock.patch.object(config_module, "load", return_value={"launcher": {"default_settings": False}}):
+            self.assertEqual(launcher._observer_address("http://x/", mock.Mock(default_settings=False)), "http://x/")
+            self.assertEqual(launcher._observer_address("http://x/", mock.Mock(default_settings=True)), "http://x/?defaults")
+        with mock.patch.object(config_module, "load", return_value={"launcher": {"default_settings": True}}):
+            self.assertEqual(launcher._observer_address("http://x/", mock.Mock(default_settings=False)), "http://x/?defaults")
 
 
 if __name__ == "__main__":

@@ -128,12 +128,11 @@ export function AboutCard({
   onClose,
   closing,
   location,
-  seed, status, topology, onResetPreferences, narratorBadge,
+  seed, status, topology, narratorBadge,
 }: {
   narratorBadge?: string;
   status?: Envelope<Status> | null;
   topology?: Topology | null;
-  onResetPreferences?: () => void;
   version: string;
   onClose: () => void;
   closing?: boolean;
@@ -147,7 +146,6 @@ export function AboutCard({
     void api.systemInfo().then((info) => { if(!cancelled && typeof info?.version === "string")setSystem(info); }).catch(() => {});
     return () => { cancelled=true; };
   }, []);
-  const [resetDone, setResetDone] = useState(false);
   const [licence, setLicence] = useState(false);
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -165,19 +163,20 @@ export function AboutCard({
   };
   return (
     <Scrim onClose={onClose} labelledBy="about-title" closing={closing} className="about-dialog">
-      <div className="about-head">
-        <Logo height={26} />
-        <button type="button" className="icon-btn" aria-label="Close About DSTNS" onClick={onClose}>
+      <header className="about-hero">
+        <Logo height={24} />
+        <button type="button" className="icon-btn about-close" aria-label="Close About DSTNS" onClick={onClose}>
           <Icon name="close" size={16} />
         </button>
-      </div>
-      <h2 id="about-title" className="about-title">
-        Deterministic Spatiotemporal Transport Network Simulator
-      </h2>
-      <div className="about-badges">
-        <span className="badge">Version {version}</span>
-        <span className="badge">AGPL-3.0-or-later</span>
-      </div>
+        <h2 id="about-title" className="about-title">Deterministic Spatiotemporal Transport Network Simulator</h2>
+        <p className="about-byline">Version {version} · © 2026 Varun Karthic · AGPL-3.0-or-later</p>
+        <nav className="about-links" aria-label="Links">
+          <a href="https://github.com/varunkarthic/DSTNS" target="_blank" rel="noreferrer noopener"><Icon name="github" size={16} />GitHub</a>
+          <a href="https://dstns.readthedocs.io/" target="_blank" rel="noreferrer noopener"><Icon name="book" size={16} />Documentation</a>
+          <a href="/api/v1/system/source"><Icon name="download" size={16} />Source offer</a>
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer noopener"><Icon name="external" size={16} />Map attribution</a>
+        </nav>
+      </header>
 
       <div {...scroll} className={`about-scroll ${scroll.className}`} tabIndex={0} aria-label="System details">
       <section className="about-section">
@@ -200,7 +199,7 @@ export function AboutCard({
           </div>
           <div><dt>Lifecycle</dt><dd>{status?.data.lifecycle || "Unavailable"}</dd></div>
           <div><dt>Network</dt><dd>{topology ? `${topology.nodes.length.toLocaleString()} nodes · ${topology.edges.length.toLocaleString()} edges · ${topology.features.length.toLocaleString()} places` : "Unavailable"}</dd></div>
-          <div className="advanced-only"><dt>Coordinates</dt><dd className="mono">{topology?.location?.city ? `${topology.location.anchor_lat.toFixed(6)}, ${topology.location.anchor_lon.toFixed(6)}` : "Unavailable"}</dd></div>
+          <div className="advanced-only"><dt>Coordinates</dt><dd className="mono">{topology?.location?.city ? `${topology.location.anchor_lat.toFixed(4)}, ${topology.location.anchor_lon.toFixed(4)}` : "Unavailable"}</dd></div>
           <div className="advanced-only"><dt>Run</dt><dd className="mono">{status?.run_id || "No run"}</dd></div>
           <div className="advanced-only"><dt>Graph hash</dt><dd className="mono">{topology?.graph_hash || "Unavailable"}</dd></div>
           <div className="advanced-only"><dt>Map source</dt><dd>{topology?.source || "Unavailable"}</dd></div>
@@ -272,33 +271,6 @@ export function AboutCard({
         </div>
       </div>
 
-      <div className="about-links">
-        <a className="link-row" href="/api/v1/system/source">
-          <Icon name="download" size={16} />
-          <span>
-            Source code
-            <small>Source offer for this version</small>
-          </span>
-        </a>
-        <a className="link-row" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer noopener">
-          <Icon name="external" size={16} />
-          <span>
-            Map attribution
-            <small>OpenStreetMap copyright and licence</small>
-          </span>
-        </a>
-      </div>
-
-      <div className="about-reset">
-        <div><strong>Interface preferences</strong><p>Restore settings, Layers, Places and telemetry layout to the operator’s defaults. Your simulation and recorded events stay as they are.</p></div>
-        <button className="btn" onClick={() => { onResetPreferences?.(); setResetDone(true); }}><Icon name="reset" size={16} />Reset all preferences</button>
-        <span role="status">{resetDone ? "Interface preferences restored." : ""}</span>
-      </div>
-      </div>
-      <div className="dialog-actions">
-        <button className="btn primary" onClick={onClose}>
-          Close
-        </button>
       </div>
     </Scrim>
   );

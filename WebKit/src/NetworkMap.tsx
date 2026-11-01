@@ -555,7 +555,7 @@ function NetworkMap({
         }
       vehicleMarkers.current = [];
       const drawStarted = performance.now();
-      // Above roughly 20x real time individual markers move further than they
+      // Above roughly 10x real time individual markers move further than they
       // are wide each frame, so they read as noise. Spend the budget on fewer,
       // and let the measured cost pull it down further on heavy scenes.
       const rateFactor = tickRate <= 4 ? 1 : tickRate <= 20 ? 0.6 : 0.3;

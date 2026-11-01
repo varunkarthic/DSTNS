@@ -1987,44 +1987,6 @@ html, body, #root {
 .rail .runtime { background: none; padding: 0 2px; letter-spacing: 0.04em; }
 .rail-terminate { height: 34px; padding: 0 12px; }
 
-/* The day: hours marked along it, what has passed filled in, a playhead at now. */
-.day-timeline { flex: 1; min-width: 96px; display: flex; flex-direction: column; gap: 5px; justify-content: center; }
-.day-track {
-  --day: 0;
-  position: relative;
-  display: block;
-  height: 8px;
-  border-radius: var(--r-xs);
-  background:
-    repeating-linear-gradient(to right, rgb(var(--line-rgb) / 16%) 0 1px, transparent 1px calc(100% / 24)),
-    rgb(var(--line-rgb) / 7%);
-  container-type: inline-size;
-  overflow: visible;
-}
-.day-fill {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(to right, rgb(var(--accent-rgb) / 35%), var(--accent));
-  transform: scaleX(var(--day));
-  transform-origin: left;
-  will-change: transform;
-}
-.day-head {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  left: -1.5px;
-  width: 3px;
-  border-radius: var(--r-pill);
-  background: var(--text);
-  box-shadow: 0 0 0 2px var(--surface-solid);
-  transform: translateX(calc(var(--day) * 100cqw));
-  will-change: transform;
-}
-.day-timeline.paused .day-head { background: var(--text-dim); }
-.day-hours { display: flex; justify-content: space-between; font: 500 9.5px/1 var(--font-mono, monospace); color: var(--text-faint); }
-.reduce-motion .day-fill, .reduce-motion .day-head { will-change: auto; }
 
 /* ---- Live telemetry: a line of figures, then the detail ---------------------------------------- */
 .deck-header { padding-block: 8px 6px; min-height: 0; }
@@ -2213,7 +2175,7 @@ html, body, #root {
 .film-chapter { display: block; margin-bottom: 10px; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 .film-caption h3 { margin: 0 0 8px; font-family: var(--font-display, inherit); font-size: clamp(30px, 3.6vw, 46px); font-weight: 500; line-height: 1.08; letter-spacing: -0.02em; color: var(--text); text-wrap: balance; text-shadow: 0 1px 24px rgb(var(--surface-rgb) / 90%), 0 0 4px rgb(var(--surface-rgb) / 60%); }
 .film-caption p { margin: 0; max-width: 48ch; font-size: 15px; line-height: 1.5; color: var(--text-dim); text-shadow: 0 0 12px rgb(var(--surface-rgb) / 95%), 0 0 3px rgb(var(--surface-rgb) / 80%); }
-.film-ticks { display: flex; gap: 4px; margin-top: 16px; animation: none !important; }
+.film-ticks { display: flex; gap: 4px; margin-top: 16px; animation-delay: 0.7s !important; }
 .film-ticks i { display: block; width: 18px; height: 2px; border-radius: 1px; background: rgb(var(--line-rgb) / 22%); transition: background var(--motion-fade-ms, 200ms) var(--motion-fade, ease-out); }
 .film-ticks i.on { background: var(--accent); }
 @keyframes film-caption { from { opacity: 0; transform: translateY(12px); filter: blur(6px); } }
@@ -2320,7 +2282,8 @@ html, body, #root {
 .boot-title { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; opacity: 0; color: var(--text); pointer-events: none; }
 .boot-title.is-title { opacity: 1; transition: opacity 900ms var(--ease); }
 .boot-title.is-film { opacity: 1; }
-.boot-title-logo { margin-bottom: 18px; transition: transform 900ms var(--motion-overlay, ease-out); }
+.boot-title-logo { margin-bottom: 18px; transition: opacity 620ms var(--ease) 80ms; }
+.boot-title.is-film .boot-title-logo { opacity: 0; }
 .boot-title p { margin: 0; font-size: 14px; color: var(--text); transition: opacity 320ms var(--ease); }
 .boot-title p.boot-title-licence { font-size: 12px; color: var(--text-faint); }
 .boot-title.is-film p { opacity: 0; }
@@ -2343,3 +2306,155 @@ html, body, #root {
   .metric-label { font-size: 9px; letter-spacing: 0.03em; }
   .metric-sub { font-size: 10px; }
 }
+.loading-surface.boot .film .boot-logo { transition: opacity 500ms var(--ease) 700ms; }
+
+/* ---- The day, as the sun's path ------------------------------------------------------------------ */
+.day-timeline { flex: 1; min-width: 96px; display: flex; flex-direction: column; gap: 2px; justify-content: center; }
+.day-track {
+  --day: 0;
+  --sky: 26px;
+  --night: 1;
+  position: relative;
+  display: block;
+  height: 28px;
+  container-type: inline-size;
+  /* Night, dawn, day, dusk and night again, as a faint wash behind the path. */
+  background: linear-gradient(to right, transparent, rgb(var(--accent-rgb) / 3%) 25%, rgb(var(--accent-rgb) / 11%) 50%, rgb(var(--accent-rgb) / 3%) 75%, transparent);
+  border-radius: var(--r-xs);
+}
+.day-track svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; fill: none; }
+.day-horizon { stroke: rgb(var(--line-rgb) / 22%); stroke-width: 1; stroke-dasharray: 2 3; }
+.day-path { stroke: rgb(var(--line-rgb) / 24%); stroke-width: 1.5; stroke-linecap: round; }
+.day-passed { stroke: var(--accent); stroke-width: 2; stroke-linecap: round; clip-path: inset(-4px calc((1 - var(--day)) * 100%) -4px 0); }
+.day-head {
+  position: absolute;
+  top: 0;
+  left: -6px;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 0 2px var(--surface-solid), 0 0 10px rgb(var(--warn-rgb) / 70%);
+  transform: translate(calc(var(--day) * 100cqw), var(--sky));
+  will-change: transform;
+}
+/* After dark, the sun is a crescent moon. */
+.day-head::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 70% 35%, var(--surface-solid) 0 42%, var(--text) 44%); opacity: var(--night); }
+.day-timeline.paused .day-head { box-shadow: 0 0 0 2px var(--surface-solid); }
+.day-hours { display: flex; justify-content: space-between; font: 500 9.5px/1 var(--font-mono, monospace); color: var(--text-faint); }
+
+/* ---- Small print: attribution above the coordinates, on the right -------------------------------- */
+.app-shell .map-readout { flex-direction: column; align-items: flex-end; gap: 3px; }
+.map-readout-row { display: flex; align-items: center; gap: 12px; }
+
+/* ---- Roads, Places and Layers are one control ---------------------------------------------------- */
+.lower-hud .hud-group { display: inline-flex; align-items: stretch; height: 40px; border: 1px solid rgb(var(--border-rgb) / 14%); border-radius: var(--r-lg); background: var(--hud-bg-strong, var(--surface-solid)); box-shadow: var(--hud-shadow); overflow: visible; gap: 0; }
+.hud-group > * { display: flex; align-items: stretch; }
+.hud-group > * + *, .hud-group > button { border-left: 1px solid rgb(var(--border-rgb) / 12%); }
+.hud-group .hud-pill.hud-button, .hud-group > button.hud-pill { height: 100%; margin: 0; padding: 0 14px; display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; box-shadow: none; border-radius: 0; backdrop-filter: none; }
+.hud-group > button.hud-pill { border-left: 1px solid rgb(var(--border-rgb) / 12%); border-radius: 0 var(--r-lg) var(--r-lg) 0; }
+.hud-group > .legend-road .hud-pill { border-radius: var(--r-lg) 0 0 var(--r-lg); }
+.hud-group > .legend-place .hud-pill { border-radius: 0; }
+.hud-group .hud-pill:hover:not(:disabled) { background: var(--hover); }
+.hud-group .hud-pill.active { background: rgb(var(--accent-rgb) / 12%); color: var(--accent); }
+
+/* ---- Road states ---------------------------------------------------------------------------------- */
+.road-menu { width: 300px; }
+.road-rows { display: grid; gap: 2px; padding: 0 10px 8px; }
+.road-row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 6px; }
+.road-swatch { flex: none; width: 22px; height: 6px; border-radius: var(--r-pill); }
+.road-row .layer-name { display: block; color: var(--text); }
+
+/* ---- Places: one line of name, one of demand, and the switch ------------------------------------- */
+.place-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; min-height: 46px; padding: 4px 6px; border-radius: var(--r-sm); color: var(--text-dim); transition: background var(--t-fast) var(--ease); }
+.place-row:hover { background: var(--hover); }
+.place-row.on { color: var(--text); }
+.place-row > .icon, .place-row > .place-glyph { justify-self: center; }
+.place-row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.place-row-name { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.place-row-text > small { font-size: 10.5px; line-height: 1.25; color: var(--text-faint); white-space: normal; }
+.place-row-demand { position: static; display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 6px; font-size: 10.5px; color: var(--text-faint); }
+.place-row-demand .mono { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.place-row-demand .demand-bar { position: relative; display: block; width: 44px; height: 3px; margin: 0; overflow: hidden; border-radius: var(--r-pill); background: rgb(var(--line-rgb) / 14%); }
+.place-row-demand .demand-bar i { position: absolute; inset: 0; display: block; width: auto; height: auto; transform-origin: left; }
+.place-row-count { min-width: 30px; font-size: 11px; text-align: right; color: var(--text-faint); }
+.place-row:not(.on) .place-glyph { opacity: 0.45; }
+
+/* ---- The Auto Focus menu ---------------------------------------------------------------------- */
+.floating.focus-menu { width: 264px; padding: 8px; }
+.focus-menu-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 8px; font-size: 13px; font-weight: 600; color: var(--text); }
+.focus-menu-head > span { display: inline-flex; align-items: center; gap: 8px; }
+.focus-menu-head .icon { color: var(--accent); }
+.focus-menu-title { display: block; padding: 6px 6px 4px; border-top: 1px solid var(--well-line); font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint); }
+.focus-menu > button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text); text-align: left; transition: background var(--t-fast) var(--ease); }
+.focus-menu > button:hover { background: var(--hover); }
+.focus-menu > button.selected { background: rgb(var(--accent-rgb) / 10%); }
+.focus-menu > button.selected .icon { color: var(--accent); }
+.focus-menu > button strong { display: block; font-size: 12.5px; font-weight: 500; }
+.focus-menu > button small { display: block; margin-top: 2px; font-size: 11px; color: var(--text-dim); }
+
+/* ---- Search -------------------------------------------------------------------------------------- */
+.place-finder { display: flex; flex-direction: column; min-height: 0; height: 100%; max-height: inherit; overflow: hidden; }
+.place-filters { flex: none; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px 2px; }
+.place-filters button { height: 26px; padding: 0 10px; border: 1px solid var(--well-line); border-radius: var(--r-pill); background: none; color: var(--text-dim); font-size: 11.5px; transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
+.place-filters button:hover { background: var(--hover); color: var(--text); }
+.place-filters button.on { border-color: rgb(var(--accent-rgb) / 45%); background: rgb(var(--accent-rgb) / 12%); color: var(--accent); }
+.place-search-heading { flex: none; }
+.place-search-results { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+/* ---- Settings: rows that lead somewhere or do something are one design --------------------------- */
+.settings-action { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 12px 10px 10px; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); color: var(--text); text-align: left; transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
+.settings-action:hover:not(:disabled) { background: var(--hover); border-color: rgb(var(--line-rgb) / 18%); }
+.settings-action:disabled { opacity: 0.55; cursor: default; }
+.settings-action > .icon { flex: none; color: var(--text-faint); }
+.settings-action-mark { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--r-sm); background: rgb(var(--ink-rgb) / 6%); color: var(--text-dim); }
+.settings-action-mark .brand-logo { display: block; }
+.settings-action-text { flex: 1; min-width: 0; display: block; }
+.settings-action-text strong { display: block; font-size: 13px; font-weight: 600; }
+.settings-action-text small { display: block; margin-top: 2px; font-size: 11.5px; color: var(--text-dim); }
+.settings-scroll > .settings-action { margin-top: 12px; }
+.shortcut-list { margin: 0; padding: 0; list-style: none; }
+.shortcut-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; font-size: 12.5px; color: var(--text); }
+.keycap { min-width: 34px; height: 26px; padding: 0 9px; border: 1px solid var(--well-line); border-bottom-width: 2px; border-radius: var(--r-xs); background: var(--well); color: var(--text); font: 500 11.5px/1 var(--font-mono, monospace); transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
+.keycap:hover { background: var(--hover); }
+.keycap.changed { color: var(--accent); }
+.keycap.recording { border-color: var(--accent); background: rgb(var(--accent-rgb) / 12%); color: var(--accent); font-family: inherit; }
+.shortcut-note { color: var(--accent); }
+
+/* ---- About -------------------------------------------------------------------------------------- */
+.dialog.about-dialog { width: min(640px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 48px); padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.about-hero { position: relative; flex: none; padding: 20px 20px 14px; border-bottom: 1px solid var(--well-line); }
+.about-hero .dstns-logo { display: block; }
+.about-hero .about-close { position: absolute; top: 12px; right: 12px; }
+.about-hero .about-title { margin: 12px 0 2px; font-size: 15px; font-weight: 600; line-height: 1.3; }
+.about-byline { margin: 0; font-size: 12px; color: var(--text-dim); }
+.about-links { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+.about-links a { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--well-line); border-radius: var(--r-sm); background: var(--well); color: var(--text); font-size: 12px; text-decoration: none; transition: background var(--t-fast) var(--ease); }
+.about-links a:hover { background: var(--hover); }
+.about-links a .icon { color: var(--text-dim); }
+.dialog.about-dialog .about-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 20px 20px; display: grid; gap: 14px; }
+.about-section { margin: 0; padding: 0; border: 0; }
+.about-section h3 { margin: 0 0 8px; font-size: 10.5px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint); }
+.about-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; margin: 0; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); overflow: hidden; }
+.about-facts > div { display: block; min-width: 0; padding: 9px 12px; border-top: 1px solid var(--well-line); }
+.about-facts > div:nth-child(-n + 2) { border-top: 0; }
+.about-facts > div:nth-child(even) { border-left: 1px solid var(--well-line); }
+.about-facts dt { font-size: 10.5px; color: var(--text-faint); }
+.about-facts dd { margin: 2px 0 0; font-size: 12.5px; color: var(--text); text-align: left; overflow-wrap: anywhere; }
+.about-seed { display: flex; align-items: center; gap: 6px; }
+.subsystem-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.subsystem-card { padding: 12px; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); }
+.subsystem-card .brand-logo { display: block; }
+.subsystem-card p { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--text-dim); }
+.about-fineprint { margin: 8px 0 0; font-size: 11px; color: var(--text-faint); }
+.about-scroll .disclosure { margin: 0; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); }
+.place-row > .place-glyph { position: static; inset: auto; width: 24px; height: 24px; min-height: 0; display: grid; place-items: center; align-self: center; margin: 0; }
+.day-path { stroke: rgb(var(--line-rgb) / 34%); }
+/* Bare buttons inherit nothing dark on hover, whatever the theme. */
+:is(.switch, .settings-back):hover:not(:disabled) { border-color: transparent; }
+.switch:hover:not(:disabled) { background: rgb(var(--ink-rgb) / 18%); }
+.switch.on:hover:not(:disabled) { background: var(--accent); }
+.settings-back:hover { background: var(--hover); }
+/* The group's edge is drawn inside it, so its height is the same 40px as everything else in the HUD. */
+.lower-hud .hud-group { border: 0; box-shadow: var(--hud-shadow), inset 0 0 0 1px rgb(var(--border-rgb) / 14%); }

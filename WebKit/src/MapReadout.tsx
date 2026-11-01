@@ -40,13 +40,15 @@ export const MapReadout = forwardRef<MapReadoutHandle, { fallback: { lat: number
   return (
     <div className="map-readout" data-tip-avoid>
       <span className="map-attribution">© OpenStreetMap contributors</span>
-      <span ref={coordinate} className="mono" aria-label="Pointer coordinates">
-        {pointed.current ? undefined : fallback ? formatCoordinate(fallback.lat, fallback.lon) : "No coordinates"}
-      </span>
-      <span className="map-scale-mark mono" aria-label="Map scale">
-        <i ref={mark} />
-        <span ref={label} />
-      </span>
+      <div className="map-readout-row" data-tutorial="coords">
+        <span ref={coordinate} className="mono" aria-label="Pointer coordinates">
+          {pointed.current ? undefined : fallback ? formatCoordinate(fallback.lat, fallback.lon) : "No coordinates"}
+        </span>
+        <span className="map-scale-mark mono" aria-label="Map scale">
+          <i ref={mark} />
+          <span ref={label} />
+        </span>
+      </div>
     </div>
   );
 });

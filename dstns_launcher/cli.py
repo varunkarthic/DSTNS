@@ -74,6 +74,8 @@ def parse(argv: list[str]) -> Arguments:
             args.open = True
         elif arg == "--no-open":
             args.open = False
+        elif arg == "--default-settings":
+            args.run.default_settings = True
         elif arg in {"--help", "-h"}:
             positional.append("help")
         elif arg in {"--version", "-V"}:
@@ -161,6 +163,7 @@ Run options (start, seeds save)
   --speed X              0.01 to 5
   --max-nodes N          2 to 50000
   --osm-file PATH        Run this map instead of letting the seed choose
+  --default-settings     Open the observer with its settings at their defaults
   --open, --no-open      Open the observer in a browser (default: when a desktop is present)
   --narrator MODE        Plain-language news: auto (Apple Foundation Models where available),
                          fm, off, or a Chat Completions endpoint http://HOST:PORT | unix:/PATH.

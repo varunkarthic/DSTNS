@@ -302,8 +302,8 @@ describe("command rail", () => {
     render(<App />);
     await ready();
     const slider = screen.getByRole("slider", { name: "Simulation speed" });
-    // 20x is the ceiling the core enforces; the slider never offers a speed the core would refuse.
-    expect(RATES).toEqual([0.25, 0.5, 1, 2, 3, 5, 10, 20]);
+    // 10x is the ceiling the core enforces; the slider never offers a speed the core would refuse.
+    expect(RATES).toEqual([0.25, 0.5, 1, 2, 3, 5, 10]);
     expect(slider).toHaveAttribute("aria-valuetext", "1 times speed");
     fireEvent.keyDown(slider, { key: "ArrowRight" });
     await waitFor(() => {
@@ -313,7 +313,7 @@ describe("command rail", () => {
     expect(slider).toHaveAttribute("aria-valuetext", "2 times speed");
     calls.length = 0;
     fireEvent.keyDown(slider, { key: "End" });
-    await waitFor(() => expect(calls.some((c) => c.path.includes("/control/tick-rate") && JSON.parse(c.body).tick_rate === 20)).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.path.includes("/control/tick-rate") && JSON.parse(c.body).tick_rate === 10)).toBe(true));
   });
 
   it("shows progress and switches 12/24 hour time everywhere from one control", async () => {
@@ -778,11 +778,8 @@ describe("layers and legend", () => {
     mockApi();
     render(<App />);
     await ready();
-    const legend = screen.getByRole("list", { name: "Road state legend" });
-    expect(legend).toHaveTextContent(/Clear.*Moderate.*Severe.*Flooded/);
-    // The compact form opens the same legend in a popover.
     fireEvent.click(screen.getByRole("button", { name: "Road state legend" }));
-    expect(await screen.findByRole("dialog", { name: "Road state legend" })).toHaveTextContent(/Clear.*Flooded/);
+    expect(await screen.findByRole("dialog", { name: "Road state legend" })).toHaveTextContent(/Clear.*Moderate.*Severe.*Flooded/);
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Road state legend" })).not.toBeInTheDocument());
   });
@@ -954,21 +951,21 @@ describe("place legend", () => {
     await ready();
     fireEvent.click(screen.getByRole("button", { name: "Place legend" }));
     const legend = await screen.findByRole("dialog", { name: "Place legend" });
-    const rows = Array.from(legend.querySelectorAll(".place-row"));
+    const rows = Array.from(legend.querySelectorAll(".place-row:not(.place-row-master)"));
     // Kinds are drawn, not lettered: the row carries its name and figures,
     // and the glyph beside it is the shape the map draws.
     expect(rows.map((r) => r.textContent)).toEqual([
       "HospitalPeak 1.15×1",
       "SchoolPeak 1.62×2",
-      "PharmacyNot modelled1",
+      "Pharmacy1",
     ]);
     for (const row of rows) expect(row.querySelector(".place-glyph svg path")).toBeTruthy();
     // Unclassified dots are off by default and can be turned on here or in Layers.
     const toggle = within(legend).getByRole("switch", { name: "Show unclassified places" });
     expect(toggle).toHaveAttribute("aria-checked", "false");
     fireEvent.click(toggle);
-    await waitFor(() => expect(legend.querySelectorAll(".place-row")).toHaveLength(4));
-    expect(legend.querySelectorAll(".place-row")[3]).toHaveTextContent(/UnclassifiedNot modelled2/);
+    await waitFor(() => expect(legend.querySelectorAll(".place-row:not(.place-row-master)")).toHaveLength(4));
+    expect(legend.querySelectorAll(".place-row:not(.place-row-master)")[3]).toHaveTextContent(/Unclassified2/);
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Layers" }));
     expect(screen.getByRole("switch", { name: "Unclassified places" })).toHaveAttribute("aria-checked", "true");
@@ -1021,7 +1018,10 @@ describe("dialogs and suspension", () => {
     expect(dialog).toHaveTextContent("Varun Karthic");
     expect(dialog).toHaveTextContent(/Affero General Public License/);
     expect(dialog).toHaveTextContent(/Version \d+\.\d+\.\d+/);
-    expect(screen.getByRole("link", { name: /Source code/ })).toHaveAttribute("href", "/api/v1/system/source");
+    expect(screen.getByRole("link", { name: /Source offer/ })).toHaveAttribute("href", "/api/v1/system/source");
+    expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute("href", "https://github.com/varunkarthic/DSTNS");
+    expect(screen.getByRole("link", { name: "Documentation" })).toHaveAttribute("href", "https://dstns.readthedocs.io/");
+    expect(within(dialog).queryByRole("button", { name: /Reset/ })).toBeNull();
     // The licence is a custom disclosure, closed until asked for.
     const licence = within(dialog).getByRole("button", { name: /Licence and attribution/ });
     expect(licence).toHaveAttribute("aria-expanded", "false");
@@ -1029,7 +1029,7 @@ describe("dialogs and suspension", () => {
     expect(licence).toHaveAttribute("aria-expanded", "true");
     expect(within(dialog).getByRole("button", { name: "Copy seed" })).toBeInTheDocument();
     expect(dialog).toHaveTextContent("Berlin, Germany");
-    expect(dialog).toHaveTextContent("52.505000, 13.423500");
+    expect(dialog).toHaveTextContent("52.5050, 13.4235");
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Deterministic Spatiotemporal/ })).not.toBeInTheDocument());
   });
@@ -1158,17 +1158,6 @@ describe("a finished run's next move", () => {
 
 
 describe("preference resets", () => {
-  it("resets settings to operator defaults without changing layers or places", async () => {
-    mockApi({uiConfig: {clock: {hour12: true}, notifications: {dnd: true}}});
-    localStorage.setItem("dstns.ui-config.v1", JSON.stringify({clock: {hour12: false}, notifications: {dnd: false}, layers: {roads: false}, places: {school: false}}));
-    render(<App/>); await ready();
-    fireEvent.click(screen.getByRole("button", {name: "Settings"}));
-    fireEvent.click(screen.getByRole("button", {name: "Reset settings"}));
-    expect(screen.getByRole("radio", {name: "12 hour"})).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("switch", {name: "Do Not Disturb"})).toHaveAttribute("aria-checked", "true");
-    expect(JSON.parse(localStorage.getItem("dstns.ui-config.v1")!)).toEqual({layers: {roads: false}, places: {school: false}});
-    expect(calls).toEqual([]);
-  });
   it("globally restores UI defaults without touching unrelated storage or playback", async () => {
     mockApi({uiConfig: {layers: {labels: true}, places: {school: false}}});
     localStorage.setItem("dstns.ui-config.v1", JSON.stringify({layers: {roads: false}, places: {hospital: false}, notifications: {dnd: true}}));
@@ -1176,15 +1165,15 @@ describe("preference resets", () => {
     localStorage.setItem("dstns.telemetry-tab.v1", "queue");
     localStorage.setItem("unrelated", "keep");
     render(<App/>); await ready();
-    fireEvent.click(screen.getByLabelText("About DSTNS, licence and source"));
-    fireEvent.click(screen.getByRole("button", {name: "Reset all preferences"}));
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(await screen.findByRole("button", {name: "Reset settings"}));
     expect(localStorage.getItem("dstns.ui-config.v1")).toBeNull();
     expect(localStorage.getItem("dstns.telemetry-tab.v1")).toBeNull();
     expect(localStorage.getItem("unrelated")).toBe("keep");
     expect(screen.getByTestId("map").getAttribute("data-layers")).toContain("roads");
     expect(screen.getByTestId("map").getAttribute("data-layers")).toContain("labels");
     expect(JSON.parse(screen.getByTestId("map").getAttribute("data-places")!)).toMatchObject({school: false});
-    expect(screen.getByText("Interface preferences restored.")).toBeInTheDocument();
+    expect(screen.getByText("Settings reset")).toBeInTheDocument();
     expect(calls).toEqual([]);
   });
 });

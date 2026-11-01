@@ -357,7 +357,7 @@ try {
     await page.getByRole("button", { name: /About DSTNS/ }).click();
     const about = page.locator(".about-dialog");
     await about.getByRole("img", { name: "WebFabric" }).waitFor();
-    const size = await about.getByRole("img", { name: "WebFabric" }).locator("img.for-dark").evaluate((img) => [img.naturalWidth / img.naturalHeight, img.clientWidth / img.clientHeight]);
+    const size = await about.getByRole("img", { name: "WebFabric" }).locator("img:visible").evaluate((img) => [img.naturalWidth / img.naturalHeight, img.clientWidth / img.clientHeight]);
     assert.ok(Math.abs(size[0] - size[1]) < 0.05, `the logo keeps its proportions: ${size}`);
     assert.match(await about.innerText(), /AGPL-3.0-or-later/);
     await page.screenshot({ path: path.join(out, "about.png") });

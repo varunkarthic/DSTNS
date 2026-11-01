@@ -20,24 +20,7 @@ export const ROAD_STATES = [
   { id: "flooded", label: "Flooded", color: "var(--state-flooded)", hint: "Standing water on the road." },
 ] as const;
 
-function RoadRows() {
-  return (
-    <>
-      {ROAD_STATES.map((s) => (
-        <span key={s.id} className="legend-item" title={s.hint}>
-          <i className="legend-swatch" style={{ background: s.color }} aria-hidden="true" />
-          <span>{s.label}<small>{s.hint}</small></span>
-        </span>
-      ))}
-    </>
-  );
-}
-
-/**
- * Road state legend. Inline where the lower HUD has room; a compact button
- * with the same swatches and a popover where it does not. Which of the two is
- * visible is decided by the HUD's container width in CSS.
- */
+/** Road states, in the same panel as Places and Layers. */
 export function RoadLegend() {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -45,17 +28,6 @@ export function RoadLegend() {
   useDismiss(open, () => setOpen(false), [trigger, panel]);
   return (
     <div className="legend-road" data-tutorial="legend">
-      <div className="hud-pill legend-inline" role="list" aria-label="Road state legend" data-tip-avoid>
-        <span className="legend-heading" aria-hidden="true">
-          Roads
-        </span>
-        {ROAD_STATES.map((s) => (
-          <span key={s.id} className="legend-item" role="listitem">
-            <i className="legend-swatch" style={{ background: s.color }} aria-hidden="true" />
-            {s.label}
-          </span>
-        ))}
-      </div>
       <button
         ref={trigger}
         type="button"
@@ -71,10 +43,20 @@ export function RoadLegend() {
         </span>
         Roads
       </button>
-      <Floating anchor={trigger} open={open} className="legend-popover" panelRef={panel} label="Road state legend">
-        <span className="floating-title"><Icon name="road" size={16} />Road state</span>
-        <div className="legend-list">
-          <RoadRows />
+      <Floating anchor={trigger} open={open} preferred={["top"]} className="layers-menu road-menu" panelRef={panel}>
+        <div className="layers-panel road-panel" role="dialog" aria-label="Road state legend" data-tip-avoid>
+          <header>
+            <span className="layers-title"><Icon name="road" size={16} />Road states</span>
+          </header>
+          <div className="road-rows">
+            {ROAD_STATES.map((s) => (
+              <div key={s.id} className="road-row">
+                <i className="road-swatch" style={{ background: s.color }} aria-hidden="true" />
+                <span className="layer-name">{s.label}<small>{s.hint}</small></span>
+              </div>
+            ))}
+          </div>
+          <p className="layers-note">Colours follow the colour vision option in Settings.</p>
         </div>
       </Floating>
     </div>
@@ -152,23 +134,26 @@ export function PlaceLegend({
   // Demand is only read while the legend is open, so ticks cost nothing when closed.
   const entries = useMemo(() => placeLegend(census, open ? demand : undefined, showOther), [census, demand, open, showOther]);
   const hiddenOther = census.entries.filter((e) => e.group === "other").reduce((n, e) => n + e.count, 0);
-  const typed = entries.filter((e) => e.group !== "other");
+  const modelled = entries.filter((e) => e.group !== "other" && e.peak !== null);
+  const otherKinds = entries.filter((e) => e.group !== "other" && e.peak === null);
   const untyped = entries.filter((e) => e.group === "other");
   const row = (e: PlaceLegendEntry) => {
     // A kind not named in the record is shown: new kinds appear the
     // day they are added rather than waiting for saved settings.
     const shown = places[e.id] !== false;
     return (
-      <div key={e.id} className={`layer-row place-row${shown ? " on" : ""}`}>
+      <div key={e.id} className={`place-row${shown ? " on" : ""}`}>
         <PlaceGlyph kind={e.id} icon={e.icon} />
-        <span className="layer-name">
-          {e.label}
-          <small className="place-demand" title={demandDetail(e)}>
-            <DemandBar entry={e} />
-            <span className="mono">{demandSummary(e)}</span>
-          </small>
+        <span className="place-row-text">
+          <span className="place-row-name">{e.label}</span>
+          {e.peak !== null && (
+            <span className="place-row-demand" title={demandDetail(e)}>
+              <DemandBar entry={e} />
+              <span className="mono">{demandSummary(e)}</span>
+            </span>
+          )}
         </span>
-        <span className="layer-count mono">{e.count.toLocaleString()}</span>
+        <span className="place-row-count mono">{e.count.toLocaleString()}</span>
         <button
           type="button"
           role="switch"
@@ -220,20 +205,28 @@ export function PlaceLegend({
           </header>
           {!visible && <p className="layers-empty">Buildings are hidden in Layers. Markers return when that layer is on.</p>}
           <div {...rowScroll} className={`layers-scroll ${rowScroll.className}`} tabIndex={0} aria-label="Kinds of place">
-            <div className="layer-group" role="group" aria-label="On the map">
-              <span className="layer-group-title">On the map</span>
-              {typed.map(row)}
-            </div>
+            {modelled.length > 0 && (
+              <div className="layer-group" role="group" aria-label="Affect traffic">
+                <span className="layer-group-title">Affect traffic</span>
+                {modelled.map(row)}
+              </div>
+            )}
+            {otherKinds.length > 0 && (
+              <div className="layer-group" role="group" aria-label="Shown for reference">
+                <span className="layer-group-title">Shown for reference</span>
+                {otherKinds.map(row)}
+              </div>
+            )}
             {hiddenOther > 0 && (
               <div className="layer-group" role="group" aria-label="Unclassified">
                 <span className="layer-group-title">Unclassified</span>
-                <div className={`layer-row${showOther ? " on" : ""}`}>
+                <div className={`place-row place-row-master${showOther ? " on" : ""}`}>
                   <Icon name="pin" size={16} />
-                  <span className="layer-name">
-                    Unclassified places
-                    <small>Benches, stops, rail lines and other untyped points.</small>
+                  <span className="place-row-text">
+                    <span className="place-row-name">Unclassified places</span>
+                    <small>Benches, stops and other untyped points</small>
                   </span>
-                  <span className="layer-count mono">{hiddenOther.toLocaleString()}</span>
+                  <span className="place-row-count mono">{hiddenOther.toLocaleString()}</span>
                   <button
                     type="button"
                     role="switch"
@@ -249,7 +242,7 @@ export function PlaceLegend({
               </div>
             )}
           </div>
-          <p className="layers-note">Demand is the multiplier on base demand that the core applies.</p>
+          <p className="layers-note">Switch a kind off to hide it from the map. The figure is how much it is raising demand now.</p>
         </div>
       </Floating>
     </div>

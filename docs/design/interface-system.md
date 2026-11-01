@@ -164,6 +164,11 @@ wherever specificity and load order disagree, so it needs a visual regression su
 first. Tokens and shared rules are the path in the meantime: do not add a fifth way to
 do something. A few small bars still animate `width`.
 
+## Keyboard shortcuts
+
+`shortcuts.ts` holds the defaults, and only what a person changes is stored. They do nothing while typing in a field, in a dialog, during the
+tutorial or during start-up, and Space on a focused control still presses that control. A key already in use swaps, so no key has two meanings.
+
 ## Intentional System Design
 
 `ISDHandler.tsx` explains what is on purpose but looks like a fault. A notification in the tray states that it is

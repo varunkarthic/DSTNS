@@ -25,25 +25,19 @@ export type BootPhase = "blank" | "title" | "film";
 
 /**
  * The first thing seen: still and plain, so that everything after it arrives. As the
- * film starts, the name moves to its place in the corner and the rest fades.
+ * film starts, particles take up the logo's exact shape and it fades out from under them.
  */
 function BootTitle({ phase }: { phase: BootPhase }) {
-  const logo = useRef<HTMLDivElement>(null);
   const [gone, setGone] = useState(phase === "film");
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (phase !== "film" || gone) return;
-    const from = logo.current?.getBoundingClientRect();
-    const home = document.querySelector(".loading-mark .boot-logo")?.getBoundingClientRect();
-    if (from && home && logo.current) {
-      logo.current.style.transform = `translate(${home.left + home.width / 2 - (from.left + from.width / 2)}px, ${home.top + home.height / 2 - (from.top + from.height / 2)}px) scale(${home.height / from.height})`;
-    }
     const timer = setTimeout(() => setGone(true), 950);
     return () => clearTimeout(timer);
   }, [phase, gone]);
   if (gone) return null;
   return (
     <div className={`boot-title is-${phase}`}>
-      <div ref={logo} className="boot-title-logo"><Logo height={56} /></div>
+      <div className="boot-title-logo"><Logo height={56} /></div>
       <p>Designed by Varun Karthic</p>
       <p className="boot-title-licence">© 2026 Varun Karthic · AGPL-3.0-or-later</p>
     </div>

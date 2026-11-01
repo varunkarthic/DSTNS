@@ -78,7 +78,7 @@
 
   /* Chrome */
   --header-height: 68px;
-  --deck-width: 420px;
+  --deck-width: 480px;
 
   /* Glass */
   --glass-bg: rgb(var(--surface-rgb) / 85%);
@@ -1295,7 +1295,7 @@ button:disabled {
 
 @media (max-width: 1280px) {
   :root {
-    --deck-width: 340px;
+    --deck-width: 420px;
   }
   /* The tiles are laid out for a 420px deck; scale their type down so the
    * figures and their tags still fit instead of being clipped. */

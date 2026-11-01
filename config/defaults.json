@@ -21,6 +21,9 @@
     "cache_policy": "prune",
     "cache_keep": 1
   },
+  "launcher": {
+    "default_settings": false
+  },
   "modules": {
     "traffic": true,
     "signals": true,
