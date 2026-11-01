@@ -263,7 +263,7 @@ class RunningScreen(Page):
         # Waiting for the observer is not a pause anyone asked for: it starts by itself.
         if current.observer_hold:
             state = State.RUNNING
-        self.header.set_state(state if current.lifecycle != "RUNNING" else State.RUNNING, current.lifecycle.lower())
+        self.header.set_state(state if current.lifecycle != "RUNNING" else State.RUNNING, "waiting for the observer" if current.observer_hold else current.lifecycle.lower())
         rows = []
         if world:
             rows += [Row("Place", world.place), Row("Seed", world.seed), Row("Day", world.day_name)]
