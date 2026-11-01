@@ -97,6 +97,7 @@ struct AsbAction {
 };
 
 struct AsbStatus {
+    bool observer_away{false};
     AsbState state{AsbState::Normal};
     double score{};               // damped backpressure the controller acts on, 0..1
     double raw_score{};           // the latest instantaneous reading, 0..1
@@ -124,6 +125,11 @@ public:
     // directly instead of sleeping.
     void observe(const AsbSample& sample, double now_s);
 
+    // The observer's page is in the background, or has come back. A hidden page cannot draw and has
+    // its timers throttled, which looks exactly like a failing one, so while it is away nothing it
+    // reports counts against it, and it comes back with a clean slate.
+    void set_away(bool away, double now_s);
+
     // Record that a snapshot of this size was served, for the data-rate report.
     void record_delivery(std::size_t bytes, double now_s);
 
@@ -146,6 +152,7 @@ private:
               double before, double after);
 
     AsbState state_{AsbState::Normal};
+    bool away_{false};
     // The damped score the controller acts on, and the instantaneous one it was
     // derived from. Both are published: the first explains the behaviour, the
     // second explains the first.

@@ -307,3 +307,9 @@ The observer side is covered in `WebKit/tests/appShell.test.tsx`, which
 asserts the Async overlay's exact promise (suspended interface, running
 simulation, four controls) and that Restricted genuinely locks the rate slider
 and the motion toggle.
+
+## A page in the background
+
+A browser stops drawing a hidden tab and throttles its timers, so a hidden page reports lag and stale data that look exactly like a failure. So the observer says when it goes: it sends `"away": true`, reports nothing further, and the controller ignores anything that does arrive while it is away. On its return it sends `"away": false`, which clears the score and the stress and recovery windows, and for six seconds it reports itself as in step while it catches up, with a note on screen saying so. `observer_away` in the response says which it is. A real failure after that is noticed as usual.
+
+Making a report is excused in the same way, since it moves a large amount of data between threads.

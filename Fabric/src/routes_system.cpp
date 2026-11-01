@@ -296,7 +296,8 @@ void ApiServer::routes_system() {
         send(r, engine_.report_backpressure(
                     j.value("virtual_lag_s", 0.0),
                     j.value("client_frame_s", 0.0),
-                    j.value("since_poll_s", 0.0)));
+                    j.value("since_poll_s", 0.0),
+                    j.value("away", false)));
     });
     server_->Get("/api/v1/system/backpressure", [this](const auto&, auto& r) {
         send(r, engine_.backpressure());

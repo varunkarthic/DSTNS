@@ -296,6 +296,24 @@ int main() {
     check(std::string(to_string(AsbState::Restricted)) == "RESTRICTED", "Restricted stringifies");
     check(std::string(to_string(AsbState::Async)) == "ASYNC", "Async stringifies");
 
+    {
+        // A page in the background is not a failing page: it comes back with nothing against it.
+        AdaptiveBackpressure asb;
+        double t = feed(asb, healthy(5.0), 0, 4);
+        asb.set_away(true, t);
+        t = feed(asb, drowning(5.0), t, 300);
+        check(asb.state() == AsbState::Normal, "being away is not judged, however bad it looks");
+        check(asb.score() < kAsbSyncedScore, "and adds nothing to the score");
+        check(asb.status(t).observer_away, "the status says it is away");
+        asb.set_away(false, t);
+        check(!asb.status(t).observer_away, "and says when it is back");
+        t = feed(asb, healthy(5.0), t, 2);
+        check(asb.state() == AsbState::Normal && asb.score() < kAsbSyncedScore, "it comes back with a clean slate");
+        // And being back, a real failure is still noticed.
+        t = feed(asb, drowning(5.0), t, 60);
+        check(asb.state() != AsbState::Normal, "a real failure after returning is still acted on");
+    }
+
     if (failures) {
         std::cerr << failures << " ASB assertion(s) failed\n";
         return 1;

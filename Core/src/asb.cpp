@@ -87,7 +87,19 @@ void AdaptiveBackpressure::escalate(AsbState next, const std::string& reason, do
          reason, now_s, before, cap_);
 }
 
+void AdaptiveBackpressure::set_away(bool away, double now_s) {
+    if (away == away_) return;
+    away_ = away;
+    if (away) return;
+    score_ = raw_score_ = 0.0;
+    seeded_ = true;
+    last_observed_ = now_s;
+    stressed_since_ = -1;
+    healthy_since_ = -1;
+}
+
 void AdaptiveBackpressure::observe(const AsbSample& sample, double now_s) {
+    if (away_) return;
 
     // The worst single symptom drives the reading. Averaging across symptoms
     // would let a severe problem in one dimension hide behind health in the
@@ -223,6 +235,7 @@ AsbStatus AdaptiveBackpressure::status(double now_s) const {
     out.rate_locked = state_ != AsbState::Normal;
     out.motion_locked = state_ != AsbState::Normal;
     out.gui_suspended = state_ == AsbState::Async;
+    out.observer_away = away_;
     out.rate_capped = state_ != AsbState::Normal || std::isfinite(cap_);
     out.rate_cap = out.rate_capped ? (state_ == AsbState::Normal ? cap_ : 1.0) : 0.0;
     out.stressed_for_s = stressed_since_ < 0 ? 0.0 : now_s - stressed_since_;
@@ -250,6 +263,7 @@ double AdaptiveBackpressure::govern_tick_rate(double requested, double now_s) co
 
 void AdaptiveBackpressure::reset() {
     state_ = AsbState::Normal;
+    away_ = false;
     score_ = 0;
     raw_score_ = 0;
     seeded_ = false;

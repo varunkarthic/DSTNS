@@ -39,7 +39,7 @@ import { useTutorial } from "./useTutorial";
 import { NotificationCapsule } from "./NotificationCapsule";
 import { SettingsDrawer } from "./SettingsDrawer";
 import { useSimulation } from "./useSimulation";
-import { useBackpressure, describeAsb, formatRate } from "./useBackpressure";
+import { excuseBackpressure, useBackpressure, describeAsb, formatRate } from "./useBackpressure";
 import { api } from "./api";
 import { formatCoordinate } from "./mapProjection";
 import { MOTION_MS } from "./motion";
@@ -289,7 +289,7 @@ export default function App() {
   const seed = sim.status?.seed || sim.status?.global_seed || "";
 
   // ---- Backpressure -----------------------------------------------------
-  const { asb, resetToken } = useBackpressure({
+  const { asb, resetToken, catchingUp } = useBackpressure({
     enabled: config.asb.enabled,
     intervalMs: config.asb.report_interval_ms,
     renderedVirtualSecond: sim.snapshot?.clock.virtual_day_seconds ?? 0,
@@ -363,6 +363,7 @@ export default function App() {
   const intentional: ISDCondition[] = tutorial.active
     ? []
     : [
+        catchingUp && ("returned" as const),
         suspended && ("async" as const),
         asb?.state === "RESTRICTED" && ("restricted" as const),
         rateLocked && ("rate-locked" as const),
@@ -722,6 +723,7 @@ export default function App() {
   const [reportFilm, setReportFilm] = useState<{ label: string; share: number; ready: boolean } | null>(null);
   const reportFile = useRef<{ blob: Blob; name: string } | null>(null);
   const saveReport = useCallback(() => {
+    excuseBackpressure();
     const file = reportFile.current;
     reportFile.current = null;
     setReportFilm(null);
@@ -744,6 +746,7 @@ export default function App() {
         if (!sim.status || !sim.snapshot || !sim.topology) throw new Error("The report needs a loaded simulation.");
         try {
           setReportFilm({ label: "Gathering the run", share: 0, ready: false });
+          excuseBackpressure(12000);
           const [{ exportReport }, fullNews] = await Promise.all([
             import("./report"),
             api.allNews(sim.status.run_id).catch(() => sim.news),
@@ -940,7 +943,7 @@ export default function App() {
   }, [world.active, worldLoaded]);
 
   // ---- Derived presentation ---------------------------------------------------
-  const systemError = sim.error || (sim.stale ? "Simulation data is stale. Reconnecting." : "") || actionError;
+  const systemError = sim.error || (sim.stale && !catchingUp && !document.hidden ? "Simulation data is stale. Reconnecting." : "") || actionError;
   const asbInfo = describeAsb(asb);
   const splashStage = splashStageFor(mapStatus as never, lifecycle, sim.stage, !!sim.topology, !!sim.status);
   // The opening plays once, for a page opened ahead of its world. Reloading a run goes straight in.

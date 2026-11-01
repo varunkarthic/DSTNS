@@ -951,7 +951,7 @@ double SimulationEngine::asb_now() const {
 }
 
 nlohmann::json SimulationEngine::report_backpressure(double virtual_lag_s, double client_frame_s,
-                                                     double since_poll_s) {
+                                                     double since_poll_s, bool away) {
     std::lock_guard lock(mutex_);
     if (!std::isfinite(virtual_lag_s) || virtual_lag_s < 0)
         throw std::invalid_argument("virtual_lag_s must be finite and non-negative");
@@ -971,6 +971,7 @@ nlohmann::json SimulationEngine::report_backpressure(double virtual_lag_s, doubl
         asb_.reset();
         return backpressure_json();
     }
+    asb_.set_away(away, now);
     asb_.observe({virtual_lag_s, client_frame_s, since_poll_s, requested_tick_rate_}, now);
     // Apply whatever ASB now permits, without losing the operator's request.
     const auto governed = asb_.govern_tick_rate(requested_tick_rate_, now);
@@ -1008,6 +1009,7 @@ nlohmann::json SimulationEngine::backpressure_json() const {
         {"rate_locked", s.rate_locked},
         {"motion_locked", s.motion_locked},
         {"gui_suspended", s.gui_suspended},
+        {"observer_away", s.observer_away},
         {"rate_capped", s.rate_capped},
         {"rate_cap", std::isfinite(s.rate_cap) ? s.rate_cap : -1.0},
         {"applied_tick_rate", tick_rate_},

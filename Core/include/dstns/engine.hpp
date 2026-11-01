@@ -127,7 +127,7 @@ public:
     // An observer showing its start-up says so. A world finished in the meantime waits at its
     // first second until the observer is ready, or stops saying so. Headless runs never wait.
     nlohmann::json observer_presence(bool waiting);
-    nlohmann::json report_backpressure(double virtual_lag_s, double client_frame_s, double since_poll_s);
+    nlohmann::json report_backpressure(double virtual_lag_s, double client_frame_s, double since_poll_s, bool away = false);
     [[nodiscard]] nlohmann::json backpressure() const;
     // Record that a payload of this size was served, for the data-rate report.
     void note_delivery(std::size_t bytes);

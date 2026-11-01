@@ -17,7 +17,7 @@ import type { UiNotification } from "./notificationModel";
  * time on screen is up, and it stays in the notification history.
  */
 
-export type ISDCondition = "async" | "restricted" | "rate-locked" | "rate-governed" | "motion-locked" | "reduced-detail" | "large-steps" | "app-lapsed";
+export type ISDCondition = "returned" | "async" | "restricted" | "rate-locked" | "rate-governed" | "motion-locked" | "reduced-detail" | "large-steps" | "app-lapsed";
 
 export interface ISDNote {
   title: string;
@@ -39,6 +39,12 @@ export function isdNote(condition: ISDCondition, figures: ISDFigures): ISDNote {
         title: "Interface suspended on purpose",
         why: "It could not keep pace, so Adaptive Simulation Backpressure stopped drawing to protect the run. The simulation is still running and its results are not affected.",
         next: ["Wait, or pause the simulation to let the interface catch up.", "Reload the page if it does not recover."],
+      };
+    case "returned":
+      return {
+        title: "Catching up after being away",
+        why: "This tab was in the background, so the interface stopped drawing while the simulation carried on. Nothing was lost, and this is not counted against it.",
+        next: ["No action is needed. It is back in step within a few seconds."],
       };
     case "restricted":
       return {

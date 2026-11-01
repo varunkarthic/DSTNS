@@ -17,6 +17,10 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.3`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### A tab in the background is not a failing tab
+
+- **Fixed: coming back to the simulation found it suspended.** Opening the report in a new tab and returning a while later found ASB at 100% and the interface suspended. A hidden page draws nothing and has its timers throttled, which looked exactly like one failing to keep up. The page now says it is away, nothing it reports meanwhile counts against it, and on its return it has a moment to catch up with a note saying so. Failing while visible is still acted on.
+
 ### More for applications: Fabric 1.3
 
 Everything here is additive, and every recorded call behaves as it did.

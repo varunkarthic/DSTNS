@@ -120,9 +120,10 @@ export const api = {
     virtual_lag_s: number,
     client_frame_s: number,
     since_poll_s: number,
+    away = false,
   ) =>
     request<Backpressure>("/api/v1/system/backpressure", {
       method: "POST",
-      body: JSON.stringify({ virtual_lag_s, client_frame_s, since_poll_s }),
+      body: JSON.stringify({ virtual_lag_s, client_frame_s, since_poll_s, away }),
     }),
 };

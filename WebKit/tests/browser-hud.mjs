@@ -138,6 +138,31 @@ try {
     await page.waitForFunction(() => document.querySelector('[aria-label="Auto Focus on live events"]').getAttribute("aria-pressed") === "true");
   });
 
+  check("a page in the background is not judged for it", async () => {
+    // As the browser does for a hidden tab: no frames, and a page that says it has gone.
+    const hide = (hidden) => page.evaluate((value) => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => value });
+      document.dispatchEvent(new Event("visibilitychange"));
+    }, hidden);
+    await hide(true);
+    await page.waitForTimeout(600);
+    assert.equal((await call("/api/v1/system/backpressure")).body.observer_away, true, "the server knows it is away");
+    // What a hidden tab looks like when its timers do fire: long frames and old data.
+    for (let i = 0; i < 6; i++) await call("/api/v1/system/backpressure", { virtual_lag_s: 9000, client_frame_s: 30, since_poll_s: 900, away: true });
+    await page.waitForTimeout(800);
+    const away = (await call("/api/v1/system/backpressure")).body;
+    assert.equal(away.state, "NORMAL", "being away is not a failure");
+    assert.equal(away.gui_suspended, false);
+    assert.ok(away.score < 0.3, `and adds nothing to the score: ${away.score}`);
+    await hide(false);
+    await page.waitForTimeout(800);
+    const back = (await call("/api/v1/system/backpressure")).body;
+    assert.equal(back.observer_away, false, "it says when it is back");
+    assert.equal(back.state, "NORMAL");
+    assert.equal(await page.locator(".suspended-shell").count(), 0, "and nothing is suspended");
+    await page.evaluate(() => { delete document.hidden; });
+  });
+
   check("the browser icon is the mark", async () => {
     const icon = await page.evaluate(() => document.querySelector("link[rel='icon']")?.getAttribute("href"));
     assert.equal(icon, "/favicon.svg", "the page references the icon");

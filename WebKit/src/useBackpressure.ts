@@ -23,6 +23,17 @@ export interface BackpressureClient {
   asb: Backpressure | null;
   /** Soft restart counter: incremented when ASB asks for a presentation reset. */
   resetToken: number;
+  /** Just back from another tab, and catching up. That is expected, and is said so. */
+  catchingUp: boolean;
+}
+
+/** How long a page gets to catch up, after being away or after a heavy moment of its own. */
+const GRACE_MS = 6000;
+let graceUntil = 0;
+
+/** Something normal is about to look like falling behind, such as making a report. */
+export function excuseBackpressure(ms = GRACE_MS): void {
+  graceUntil = Math.max(graceUntil, performance.now() + ms);
 }
 
 const IDLE: Backpressure | null = null;
@@ -74,6 +85,7 @@ export function useBackpressure(options: {
     options;
   const [asb, setAsb] = useState<Backpressure | null>(IDLE);
   const [resetToken, setResetToken] = useState(0);
+  const [catchingUp, setCatchingUp] = useState(false);
 
   // Rolling frame cost, sampled from animation frames the browser is already
   // producing. A starved tab reports long frames even when its lag looks small.
@@ -108,6 +120,36 @@ export function useBackpressure(options: {
     };
   }, []);
 
+  // A hidden page draws nothing and has its timers throttled, which looks exactly like a
+  // failing one. So it says it is away, reports nothing meanwhile, and on its return has a
+  // moment to catch up before it is judged again. The spike on coming back is expected.
+  useEffect(() => {
+    let awayAt = 0;
+    let over: ReturnType<typeof setTimeout> | undefined;
+    const seen = () => {
+      if (document.hidden) {
+        awayAt = performance.now();
+        void api.backpressure(0, 0, 0, true).catch(() => undefined);
+        return;
+      }
+      frameCost.current = 0.016;
+      excuseBackpressure();
+      void api.backpressure(0, 0.016, 0, false).catch(() => undefined);
+      // A glance elsewhere needs no explaining; only a real absence does.
+      if (awayAt && performance.now() - awayAt > 4000) {
+        setCatchingUp(true);
+        clearTimeout(over);
+        over = setTimeout(() => setCatchingUp(false), GRACE_MS);
+      }
+      awayAt = 0;
+    };
+    document.addEventListener("visibilitychange", seen);
+    return () => {
+      document.removeEventListener("visibilitychange", seen);
+      clearTimeout(over);
+    };
+  }, []);
+
   // A soft restart is requested once per default-state action, not on every
   // poll that happens to still be reporting it.
   const lastAction = useRef<number>(-1);
@@ -123,12 +165,17 @@ export function useBackpressure(options: {
     let timer: ReturnType<typeof setTimeout>;
 
     const report = async () => {
+      if (document.hidden) {
+        timer = setTimeout(report, intervalMs);
+        return;
+      }
       // Seconds since fresh simulation data last arrived. Measured against the
       // data feed, not against this reporter's own success: backpressure POSTs
       // can keep succeeding long after snapshots have stopped.
       const sinceData = Math.max(0, (performance.now() - freshAt.current) / 1000);
       try {
-        const next = await api.backpressure(lag.current, frameCost.current, sinceData);
+        const excused = performance.now() < graceUntil;
+        const next = excused ? await api.backpressure(0, 0.016, 0) : await api.backpressure(lag.current, frameCost.current, sinceData);
         if (cancelled) return;
         if (!isBackpressure(next)) return;
         setAsb(next);
@@ -153,7 +200,7 @@ export function useBackpressure(options: {
     };
   }, [enabled, active, intervalMs, runId]);
 
-  return { asb, resetToken };
+  return { asb, resetToken, catchingUp };
 }
 
 /** Human phrasing for a backpressure state, for the status strip. */
