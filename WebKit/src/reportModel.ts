@@ -4,7 +4,7 @@
 import { formatBytes as shownBytes, rateUnit } from "./units";
 import type { Congestion, News, Topology } from "./types";
 import type { TelemetrySample } from "./telemetryRecorder";
-import { stripPrefix } from "./notificationModel";
+import { inPlainWords, stripPrefix } from "./notificationModel";
 
 /**
  * Report data derivation.
@@ -135,7 +135,7 @@ const TIMELINE_TEMPLATES = new Set([
  * consecutive onsets within `burstSeconds` become one row with a count. Demand
  * ramps are included only at their peaks.
  */
-export function timeline(news: News[], burstSeconds = 60): TimelineRow[] {
+export function timeline(news: News[], burstSeconds = 60, topology: Topology | null = null): TimelineRow[] {
   const rows: TimelineRow[] = [];
   const sorted = [...news].sort((a, b) => a.virtual_day_s - b.virtual_day_s || a.news_id - b.news_id);
   for (const n of sorted) {
@@ -152,7 +152,7 @@ export function timeline(news: News[], burstSeconds = 60): TimelineRow[] {
       time: n.virtual_day_s,
       category: n.category,
       severity: n.severity,
-      text: n.template_id === "FLOOD_STARTED" ? "Flooding detected on 1 road" : stripPrefix(n.message),
+      text: n.template_id === "FLOOD_STARTED" ? "Flooding detected on 1 road" : inPlainWords(n.message, topology),
       count: 1,
       source: n.template_id === "FLOOD_STARTED" ? undefined : n,
     });

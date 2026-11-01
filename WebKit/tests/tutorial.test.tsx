@@ -23,6 +23,21 @@ it('supports back, keyboard navigation, skip, and target cleanup',()=>{
   fireEvent.keyDown(document,{key:'Escape'});expect(onSkip).toHaveBeenCalledOnce();expect(onStart).not.toHaveBeenCalled();
   unmount();expect(onTarget).toHaveBeenLastCalledWith('');
 });
+it('works the arrow keys on the last step: back goes back, and forward starts the simulation',()=>{
+  const onStart=vi.fn();
+  render(<Tutorial onSkip={vi.fn()} onStart={onStart} onTarget={vi.fn()} reduceMotion/>);
+  for(let i=0;i<tutorialSteps.length-1;i++) fireEvent.keyDown(document,{key:'ArrowRight'});
+  expect(screen.getByRole('button',{name:'Start Simulation'})).toBeInTheDocument();
+  expect(onStart).not.toHaveBeenCalled();
+  // Holding the key down to get through the tour must not also start it.
+  fireEvent.keyDown(document,{key:'ArrowRight',repeat:true});
+  expect(onStart).not.toHaveBeenCalled();
+  fireEvent.keyDown(document,{key:'ArrowLeft'});
+  expect(screen.getByRole('button',{name:'Next'})).toBeInTheDocument();
+  fireEvent.keyDown(document,{key:'ArrowRight'});
+  fireEvent.keyDown(document,{key:'ArrowRight'});
+  expect(onStart).toHaveBeenCalledOnce();
+});
 it('places cards inside supported viewports beside a small target',()=>{
   for(const width of [1024,1280,1920]) for(const top of [20,300,540]) {
     const target={left:20,top,width:38,height:38};

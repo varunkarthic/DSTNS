@@ -9,6 +9,8 @@ import { tutorialSteps } from "./tutorialSteps";
 type Rect = { left: number; top: number; width: number; height: number; radius?: string };
 const GAP = 14;
 const EDGE = 12;
+const MOTES = 56;
+const STREAM = 70;
 
 /**
  * Where the tutorial card goes for a target: below, above, right or left of
@@ -61,6 +63,85 @@ function measureTarget(name: string): Rect | null {
     height: Math.max(0, Math.min(h - 4, box.bottom + pad) - top),
     radius: `${Math.min(box.width / 2, box.height / 2, round) + pad}px`,
   };
+}
+
+/**
+ * A hint of the start-up's particles: a few motes drifting about whatever the tour is showing,
+ * and a thin stream that carries over to the next thing. It stays well in the background.
+ */
+function TourMotes({ rect }: { rect: Rect | null }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const latest = useRef(rect);
+  latest.current = rect;
+  useEffect(() => {
+    const element = canvas.current;
+    const ctx = typeof Path2D === "undefined" ? null : element?.getContext("2d");
+    if (!element || !ctx) return;
+    const [r, g, b] = getComputedStyle(element).getPropertyValue("--accent-rgb").trim().split(/\s+/).map(Number);
+    const colour = (alpha: number) => `rgba(${r || 55},${g || 215},${b || 255},${alpha})`;
+    const motes = Array.from({ length: MOTES }, () => ({ along: Math.random(), speed: (Math.random() - 0.5) * 0.024, out: 5 + Math.random() * 22, phase: Math.random() * 6.28, size: 0.6 + Math.random() * 0.9 }));
+    let stream: { from: [number, number]; to: [number, number]; at: number }[] = [];
+    let centre: [number, number] | null = null;
+    let frame = 0;
+    let last = performance.now();
+    // A point on the outline of a rectangle, `along` the way round it, `out` beyond it.
+    const onOutline = (box: Rect, along: number, out: number): [number, number] => {
+      const perimeter = 2 * (box.width + box.height);
+      let d = (((along % 1) + 1) % 1) * perimeter;
+      if (d < box.width) return [box.left + d, box.top - out];
+      d -= box.width;
+      if (d < box.height) return [box.left + box.width + out, box.top + d];
+      d -= box.height;
+      if (d < box.width) return [box.left + box.width - d, box.top + box.height + out];
+      d -= box.width;
+      return [box.left - out, box.top + box.height - d];
+    };
+    const paint = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      if (element.width !== Math.round(width * ratio)) {
+        element.width = Math.round(width * ratio);
+        element.height = Math.round(height * ratio);
+      }
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      const box = latest.current;
+      if (box) {
+        const next: [number, number] = [box.left + box.width / 2, box.top + box.height / 2];
+        // The tour has moved on: a thin stream follows it there.
+        if (centre && Math.hypot(next[0] - centre[0], next[1] - centre[1]) > 24) {
+          const from = centre;
+          stream = Array.from({ length: STREAM }, () => ({ from: [from[0] + (Math.random() - 0.5) * 40, from[1] + (Math.random() - 0.5) * 40] as [number, number], to: onOutline(box, Math.random(), 4 + Math.random() * 10), at: now + Math.random() * 180 }));
+        }
+        centre = next;
+        for (const mote of motes) {
+          mote.along += mote.speed * dt;
+          const [x, y] = onOutline(box, mote.along, mote.out + Math.sin(now / 900 + mote.phase) * 3);
+          ctx.fillStyle = colour(0.1 + 0.2 * (0.5 + 0.5 * Math.sin(now / 700 + mote.phase)));
+          ctx.beginPath();
+          ctx.arc(x, y, mote.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      for (const p of stream) {
+        const t = (now - p.at) / 620;
+        if (t < 0 || t > 1) continue;
+        const e = t * t * (3 - 2 * t);
+        const lift = Math.sin(t * Math.PI) * 26;
+        ctx.fillStyle = colour(0.42 * Math.sin(t * Math.PI));
+        ctx.beginPath();
+        ctx.arc(p.from[0] + (p.to[0] - p.from[0]) * e, p.from[1] + (p.to[1] - p.from[1]) * e - lift, 1.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      frame = requestAnimationFrame(paint);
+    };
+    frame = requestAnimationFrame(paint);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return <canvas ref={canvas} className="tour-motes" aria-hidden="true" />;
 }
 
 /**
@@ -124,6 +205,8 @@ export function Tutorial({
   }, [step.target]);
 
   const move = (delta: number) => setIndex((i) => Math.max(0, Math.min(tutorialSteps.length - 1, i + delta)));
+  const lastRef = useRef(last);
+  lastRef.current = last;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -132,8 +215,14 @@ export function Tutorial({
         actions.current.onSkip();
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
-        move(1);
+        e.stopPropagation();
+        // The last step's forward is its button: starting the simulation. Holding the key
+        // down to get through the tour must not also set it off.
+        if (lastRef.current) {
+          if (!e.repeat) actions.current.onStart();
+        } else move(1);
       } else if (e.key === "ArrowLeft") {
+        e.stopPropagation();
         e.preventDefault();
         move(-1);
       } else if (e.key === "Tab") {
@@ -159,7 +248,11 @@ export function Tutorial({
         className={`tour-spotlight${rect ? "" : " none"}`}
         aria-hidden="true"
         style={{ transform: `translate(${spot.left}px, ${spot.top}px)`, width: spot.width, height: spot.height, borderRadius: rect?.radius ?? "0" }}
-      />
+      >
+        {/* Replayed for each step, a soft ring going out as the spotlight arrives. */}
+        {rect && !reduceMotion && <span key={index} className="tour-ping" />}
+      </div>
+      {!reduceMotion && <TourMotes rect={rect} />}
       <div
         ref={panel}
         className={`tour-card${position ? " placed" : ""}`}
@@ -184,7 +277,7 @@ export function Tutorial({
         </div>
         <span className="tour-progress" aria-hidden="true"><i style={{ transform: `scaleX(${(index + 1) / tutorialSteps.length})` }} /></span>
         <footer className="tour-actions">
-          <span className="tour-note">Simulation time is paused.</span>
+          <span className="tour-note">Time is paused · ← → to move</span>
           <button className="btn" disabled={index === 0} onClick={() => move(-1)}>
             Back
           </button>

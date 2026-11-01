@@ -69,7 +69,7 @@ const END_SCATTER_AT_S = 4.3;
 export const FILM_CHAPTERS: readonly { label: string; title: string; text: string }[] = [
   { label: "Deterministic Spatiotemporal Transport Network Simulator", title: "Traffic simulation", text: "A full simulated day in one district." },
   { label: "Networks", title: "Mapped streets", text: "Every district comes from OpenStreetMap." },
-  { label: "Signals", title: "Signal timing", text: "Every junction runs its own schedule." },
+  { label: "Signals", title: "Signal timing", text: "Signalled junctions each run their own schedule." },
   { label: "Demand", title: "Travel demand", text: "Every school and office draws trips." },
   { label: "Rhythm", title: "Rush hour", text: "Modelled demand rises and falls through the day." },
   { label: "Reports", title: "Run reports", text: "Export the whole day as a PDF with its figures and sources." },

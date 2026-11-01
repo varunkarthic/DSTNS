@@ -14,7 +14,7 @@ import { api } from "./api";
 import { formatCompact } from "./format";
 import { DELIVERY_LABEL, filterHistory } from "./notificationHistory";
 import type { Delivery, HistoryEntry, HistoryFilter } from "./notificationHistory";
-import { SEVERITY_LABEL, describeNews, stripPrefix } from "./notificationModel";
+import { SEVERITY_LABEL, describeNews, inPlainWords } from "./notificationModel";
 import { useTimeFormat } from "./preferences";
 import { networkFigures, weatherSummary } from "./telemetryModel";
 import type { WeatherSummary } from "./telemetryModel";
@@ -308,7 +308,7 @@ function StackView({ status, snapshot, topology, asb, virtualTime }: Pick<Props,
   );
 }
 
-function NewsView({ news }: { news: News[] }) {
+function NewsView({ news, topology }: { news: News[]; topology: Topology | null }) {
   const time = useTimeFormat();
   if (!news.length) return <Empty icon="info">No events recorded yet for this run.</Empty>;
   return (
@@ -318,7 +318,7 @@ function NewsView({ news }: { news: News[] }) {
           key={item.news_id}
           icon={categoryIcon(item.category)}
           tone={item.severity === "alert" ? "red" : item.severity === "warning" ? "amber" : ""}
-          title={time.text(stripPrefix(item.message))}
+          title={time.text(inPlainWords(item.message, topology))}
           meta={<span className="mono">{time.event(item)}</span>}
           metaRight={item.category}
         />
@@ -363,7 +363,7 @@ interface QueueState {
 }
 
 /** The scheduled-event queue. It is paged by the core and only polled while visible. */
-function QueueView({ runId, filter, onFilter }: { runId: string; filter: QueueState; onFilter: (f: QueueState) => void }) {
+function QueueView({ runId, filter, onFilter, topology }: { runId: string; filter: QueueState; onFilter: (f: QueueState) => void; topology: Topology | null }) {
   const time = useTimeFormat();
   const [queue, setQueue] = useState<EventPage | null>(null);
   const [error, setError] = useState("");
@@ -422,10 +422,10 @@ function QueueView({ runId, filter, onFilter }: { runId: string; filter: QueueSt
         <StreamRow
           key={`${item.id}-${item.virtual_s}`}
           icon={categoryIcon(item.category === "incidents" ? "incident" : item.category)}
-          title={time.text(item.description)}
+          title={time.text(inPlainWords(item.description, topology))}
           tag={item.category}
           meta={<span className="mono">{time.time(item.virtual_s)}</span>}
-          metaRight={`${filter.view === "future" ? "scheduled" : "executed"} · entity ${item.entity}`}
+          metaRight={filter.view === "future" ? "scheduled" : "executed"}
         />
       ))}
       {queue && (
@@ -579,11 +579,11 @@ function DetailView({ view, props, state }: { view: PanelView; props: Props; sta
     case "stack":
       return <StackView status={props.status} snapshot={props.snapshot} topology={props.topology} asb={props.asb} virtualTime={props.virtualTime} />;
     case "events":
-      return <NewsView news={props.news} />;
+      return <NewsView news={props.news} topology={props.topology} />;
     case "incidents":
       return <IncidentsView news={props.news} topology={props.topology} />;
     case "queue":
-      return <QueueView runId={props.runId} filter={state.queue} onFilter={state.setQueue} />;
+      return <QueueView runId={props.runId} filter={state.queue} onFilter={state.setQueue} topology={props.topology} />;
     case "apps":
       return <FabricDeck />;
     case "notifications":

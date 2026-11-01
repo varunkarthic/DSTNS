@@ -8,6 +8,7 @@ import {
   describeNews,
   districtOf,
   focusMatches,
+  inPlainWords,
   orderForDisplay,
   pickWording,
   shouldDisplayNotification,
@@ -327,5 +328,32 @@ describe("narration", () => {
     const items = [incident("Harbour Road is closed."), incident("Harbour Road is closed.")];
     const [group] = buildNotifications(items, topology);
     expect(group.summary).toMatch(/^Harbour Road is closed\./);
+  });
+});
+
+describe("the core's messages, in plain words", () => {
+  const topology = {
+    features: [{ id: "way/137", name: "St. Mary's", category: "hospital" }, { id: "way/138", name: "", category: "shopping_mall" }],
+    edges: [{ id: 0, name: "Mill Road", from: 0, to: 1, road_class: "residential" }, { id: 1, name: "", from: 1, to: 2, road_class: "residential" }],
+    nodes: [{ id: 0, position: { x_m: 0, y_m: 0 } }, { id: 1, position: { x_m: 1, y_m: 0 } }, { id: 2, position: { x_m: 2, y_m: 0 } }],
+  } as never;
+  it("names places, and says so when one has no name", () => {
+    expect(inPlainWords("Hospital baseline demand · way/137", topology)).toBe("Hospital baseline demand · St. Mary's");
+    expect(inPlainWords("Retail demand · way/138", topology)).toBe("Retail demand · an unnamed shopping mall");
+    expect(inPlainWords("Demand · node/999", topology)).toBe("Demand · an unnamed place");
+  });
+  it("names roads and junctions", () => {
+    expect(inPlainWords("Flooding detected on Edge 0", topology)).toBe("Flooding detected on Mill Road");
+    expect(inPlainWords("Crash on Edge #1", topology)).toBe("Crash on an unnamed road");
+    expect(inPlainWords("Forecast: Rain around Node 0", topology)).toBe("Forecast: Rain around Mill Road");
+  });
+  it("says which way a signal serves", () => {
+    expect(inPlainWords("Signal 0 → A amber", topology)).toBe("Signal at Mill Road → north and south amber");
+    expect(inPlainWords("Signal 0 → B green", topology)).toBe("Signal at Mill Road → east and west green");
+    expect(inPlainWords("Signal 0 → All red", topology)).toBe("Signal at Mill Road → all red");
+  });
+  it("leaves nothing that looks like an identifier, even with no network to look in", () => {
+    const text = inPlainWords("[DEMAND] way/1 Edge 2 Node 3 Signal 4 → A red", null);
+    expect(text).not.toMatch(/way\/|Edge \d|Node \d|Signal \d/);
   });
 });

@@ -100,13 +100,13 @@ export function roadInspection(
     causes.push(
       "Demand: " +
         s.demand_causes
-          .map((id) => t.features.find((f) => f.id === id)?.name || id)
+          .map((id) => t.features.find((f) => f.id === id)?.name || "an unnamed place")
           .slice(0, 3)
           .join(", "),
     );
   return {
     title: roadTitle(e),
-    category: `Road · E-${e.id}`,
+    category: "Road",
     status: s ? roadState(s) : "State unavailable",
     description: causes.join(" · ") || "No active effects recorded.",
     metrics: [

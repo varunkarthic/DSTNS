@@ -1015,7 +1015,7 @@ function NetworkMap({
         info = {
           ...roadInspection(edge, state.edges.get(edge.id), topology),
           title: "Modeled vehicle flow",
-          category: `Edge E-${edge.id}`,
+          category: "Modelled flow",
           description:
             "Representative flow marker from aggregate count and speed. Individual vehicle position and identity are not tracked.",
         };

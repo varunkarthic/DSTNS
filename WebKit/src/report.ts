@@ -115,7 +115,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   const incidents = incidentRecords(news);
   const floods = news.filter((n) => n.template_id === "FLOOD_STARTED");
   const floodRoads = new Set(floods.map((n) => (n.data as Record<string, unknown>)?.edge_id)).size;
-  const events = timeline(news);
+  const events = timeline(news, 60, topology);
   const history = congestion.history ?? [];
   const samples = telemetry.samples;
   const simSamples = latestByVirtual(samples);

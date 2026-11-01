@@ -239,6 +239,30 @@ export function stripPrefix(message: string): string {
   return message.replace(/^\[.*?\]\s*/, "");
 }
 
+const NAMES = new WeakMap<Topology, Map<string, string>>();
+function placeNamed(topology: Topology, id: string): string | undefined {
+  let names = NAMES.get(topology);
+  if (!names) {
+    names = new Map(topology.features.map((f) => [f.id, f.name || `an unnamed ${f.category.replace(/_/g, " ")}`]));
+    NAMES.set(topology, names);
+  }
+  return names.get(id);
+}
+
+/**
+ * The core's message in words a person reads. It names things by their identifiers, which are
+ * right for a log and mean nothing on screen, so they become the place or road they stand for.
+ */
+export function inPlainWords(message: string, topology: Topology | null): string {
+  const road = (node: string) => (topology ? roadNearNode(topology, Number(node)) : undefined);
+  return stripPrefix(message)
+    .replace(/\b(?:way|node|relation)\/\d+\b/g, (id) => (topology && placeNamed(topology, id)) || "an unnamed place")
+    .replace(/\bEdge #?(\d+)\b/g, (_, id) => topology?.edges[Number(id)]?.name || "an unnamed road")
+    .replace(/\bSignal (\d+) → ([AB]) (\w+)/g, (_, node, group, colour) => `Signal${road(node) ? ` at ${road(node)}` : ""} → ${group === "A" ? "north and south" : "east and west"} ${colour}`)
+    .replace(/\bSignal (\d+) → All (\w+)/g, (_, node, colour) => `Signal${road(node) ? ` at ${road(node)}` : ""} → all ${colour}`)
+    .replace(/\b[Nn]ode #?(\d+)\b/g, (_, id) => road(id) ?? "a junction");
+}
+
 /** The incident description the core embeds before " on Edge #". */
 function incidentDescription(message: string): string {
   return stripPrefix(message).replace(/\s+on Edge #\d+.*$/, "").trim();
@@ -452,7 +476,7 @@ function describeTemplate(item: News, topology: Topology | null): Described {
       const text = stripPrefix(item.message);
       const [label, name] = text.split(" · ");
       const multiplier = typeof d.multiplier === "number" ? d.multiplier : 1;
-      const where = name?.trim() || feature?.name || "a modelled place";
+      const where = (name?.trim() && inPlainWords(name.trim(), topology)) || feature?.name || "a modelled place";
       const back = /returns to normal/i.test(label);
       const peak = /peak/i.test(label);
       const reason = label.replace(/\s*peak$/i, "").trim();
