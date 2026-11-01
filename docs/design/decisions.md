@@ -523,13 +523,13 @@ finger is noisy and holds up.
 said little.
 
 **Decision.** Each scene has its own subject and its own motion while it holds: a city's streets drawn outward, one junction whose
-cars queue and release on red and green, trips queueing at the doors of what draws them, a stream through the day, a queue growing
-back from a collision, a storm, a globe, two towns alike from one seed beside a different one, a viewfinder locking on, and
-application windows docking and drawing on a map. Particles form no words or
+cars queue and release on red and green, trips queueing at the doors of what draws them, a ridgeline of the day's traffic, a queue
+growing back from a collision, a storm, a globe, seeds as barcodes printing two towns alike and a third different, a viewfinder locking
+on, and the interface itself in miniature with applications arriving and becoming part of it. Particles form no words or
 numbers except the name, and a test fails if a scene draws text. All of it moves in the vertex shader, so a scene costs the page one
 draw call. Colour blending is partly opaque, so crowded points keep their colour: additive light turned every signal white.
 
-**Consequences.** A test compares how particles are spread between scenes and fails if two grow alike. The film takes about 44
+**Consequences.** A test compares how particles are spread between scenes and fails if two grow alike. The film takes about 55
 seconds, which is what a mock application in a test has to outlast.
 
 ## 40. The markers on the map drive

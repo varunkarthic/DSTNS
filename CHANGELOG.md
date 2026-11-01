@@ -24,11 +24,12 @@ responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `We
 - **Scrolling menus end softly.** Content goes under a progressive blur rather than being cut off by a line, and it clears when there is nothing more.
 - **Tooltips** lost their pointer and come out of the control they describe. **The tour's outline** now follows the curve of what is actually drawn on each step. The licence disclosure's divider is straight, and the hover on the collapsed telemetry strip follows the strip.
 - **Travel demand** is a neighbourhood from above: trips leave the homes, queues grow back from the doors of what draws them, and a column over each roof shows how much it is drawing.
-- **Repeatable worlds** shows it happening: one seed grows two towns alike, building for building and car for car, with the same event at the same moment, and another seed grows a different town.
-- **WebFabric** shows what it is: application windows dock, a line opens to the map, and what each sends appears on the map in its colour.
+- **Rush hour** is a ridgeline of the day: each line is a road's traffic from midnight to midnight, and a curtain of light raises the two rush hours as it crosses them.
+- **Repeatable worlds** shows it happening: a seed is drawn as a barcode, the same code prints two towns alike, building for building and car for car, with the same event at the same moment, and a different code prints a different town.
+- **WebFabric** shows what it is: the interface itself in miniature, with applications arriving and becoming part of it. One takes a sidebar and draws a route, one adds a tool and shades a district, one adds a panel and raises a notification.
 - **The pointer** moves through the particles like a hand through water, rather than punching a hole in them.
 - **The particles stay on the roads** as the map moves over for the panels. They stood still before, which looked like a misalignment.
-- **The last screen** says "Server Terminated". The name blows apart as it used to, and the mint light goes out with it, then settles.
+- **The last screen** says "Server Terminated". The name draws in on itself and bursts, with a shock ring going out through the particles and the mint light released with them, then settling.
 - **The speed slider tells the truth when ASB holds it back.** The thumb travels to the speed being applied, and a line stays on your target.
 - **What only reports moves like what can be moved.** Every read-only bar slides smoothly, and keeps its rounded end as it does.
 - **Fixed: a button kept its outline after a keyboard shortcut.** Focus rings now appear only for people moving with Tab.

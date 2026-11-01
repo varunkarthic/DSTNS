@@ -49,10 +49,10 @@ export const KIND = {
   shimmer: 15,
   /** Flies from here to there over the curve of the globe. */
   route: 16,
-  /** Part of a stream through the day, as wide as the day is busy there. vx is across it, vz its depth. */
-  stream: 17,
-  /** Part of a ring that fills to vx as demand builds. Phase is how far round it is. */
-  gauge: 18,
+  /** A point on one road's traffic through the day, carried along it. vx is how far back the road lies, vy how busy it is. */
+  ridge: 17,
+  /** The moment of the day, a curtain of light going across. */
+  sweep: 18,
   /** A car on a road blocked ahead, caught by the queue as it grows back. vx is its lane, vy its direction. */
   queue: 19,
   /** Part of the wreck, from the moment it happens. With a vector, it spreads out along it. */
@@ -65,8 +65,8 @@ export const KIND = {
   ping: 23,
   /** An application's window arriving from along its vector. The whole part of phase says which application. */
   dock: 24,
-  /** What passes between an application and the map, once it has docked. The whole part of phase says which. */
-  link: 25,
+  /** Something an application has sent: it arrives after its window does. The whole part of phase says which, the rest when. */
+  sent: 25,
 } as const;
 
 /** Added to a kind: it belongs to the world Auto Focus is flying over, and moves with it. */
@@ -498,34 +498,30 @@ function demand(): Float32Array {
   }, 13);
 }
 
-/** The whole day as a stream of traffic, swelling at each rush hour, with a mark over each peak and the hours beneath it. */
+/** Rows of a ridgeline, front to back: each is one road's traffic through the day, so that the two rush hours stand up as ranges of hills. */
+export const RIDGES = 22;
+
+/** The day as a landscape: each line is a road's traffic from midnight to midnight, and a curtain of light goes across, raising them as it passes. */
 function rushHour(): Float32Array {
-  const atHour = (h: number) => -1.75 + (h / 24) * 3.5;
-  const axis = -0.84;
-  // The peaks, and how high the stream stands at each: see rhythm() in the shader.
-  const peaks = [
-    { hour: 8.3, top: 0.7 },
-    { hour: 17.6, top: 0.81 },
-  ];
+  const atHour = (h: number) => -1.8 + (h / 24) * 3.6;
+  const front = 0.92;
   return formation((put, random) => {
     for (let i = 0; i < COUNT; i++) {
       const kind = i % 50;
       if (kind === 0) {
-        put(i, -1.75 + random() * 3.5, axis, 0, { tint: 0.35 });
+        // The day's axis along the front, steady, with a mark for each hour and a longer one every six.
+        put(i, -1.8 + random() * 3.6, -0.04, front + 0.12, { kind: KIND.dock, phase: -1, tint: 0.45 });
       } else if (kind < 3) {
         const hour = Math.floor(random() * 25);
         const major = hour % 6 === 0;
-        put(i, atHour(hour) + (random() - 0.5) * 0.008, axis - random() * (major ? 0.09 : 0.035), 0, { tint: major ? 0.95 : 0.35 });
+        put(i, atHour(hour), -0.04 - random() * (major ? 0.11 : 0.04), front + 0.12, { kind: KIND.dock, phase: -1, tint: major ? 1 : 0.4 });
       } else if (kind < 5) {
-        // A small caret over each peak, arriving as the stream reaches it.
-        const peak = peaks[random() < 0.5 ? 0 : 1];
-        const t = random() * 2 - 1;
-        const y = peak.top + 0.1 + Math.abs(t) * 0.05 + (random() - 0.5) * 0.01;
-        put(i, atHour(peak.hour) + t * 0.055, y, 0, { tint: 0.95, hue: HUE.warm, kind: KIND.rise, v: [0, peak.top, 0], phase: (peak.hour / 24) * 1.4 });
+        // The curtain.
+        put(i, 0, random(), front - random() * 1.9, { kind: KIND.sweep, tint: 0.25 });
       } else {
-        // Across the stream, evenly, so that its outline is sharp, with a little depth.
-        const across = random() * 2 - 1;
-        put(i, 0, 0, 0, { v: [across, 0, (random() - 0.5) * 2], kind: KIND.stream, tint: 0.6 });
+        // The roads, carried along through the day. Each has its own size, and its peaks fall a little differently.
+        const row = Math.floor(random() * RIDGES);
+        put(i, 0, 0, 0, { v: [front - (row / (RIDGES - 1)) * 1.9, 0.72 + ((row * 37) % 11) * 0.05, ((row * 53) % 17) / 17], kind: KIND.ridge, tint: 0.7 });
       }
     }
   }, 22);
@@ -715,7 +711,10 @@ function globe(): Float32Array {
   }, 16);
 }
 
-/** One seed grows two worlds the same, building for building, car for car and event for event, and another seed grows a different one. */
+/**
+ * A seed is a code, drawn as a barcode because it needs no numbers. The same code prints the same town, building for
+ * building, car for car and event for event, and a different code prints a different town.
+ */
 function twinWorlds(): Float32Array {
   const scale = 0.31;
   interface Box { u: number; v: number; w: number; d: number; h: number; from: number }
@@ -745,9 +744,19 @@ function twinWorlds(): Float32Array {
   const other = grow(31337, 2, [-0.55, 0.5]);
   const tiles = [{ cx: -1.3, world: same }, { cx: 0, world: same }, { cx: 1.3, world: other }];
   const place = (cx: number, u: number, v: number): [number, number] => [cx + (u - v) * scale, (u + v) * scale];
-  const middle = -0.66; // How far below the worlds their seeds lie.
-  const shared: [number, number] = [-0.65, middle];
-  const own: [number, number] = [1.3, middle];
+  // The codes, over each town, the same in the first two.
+  const code = (seed: number) => {
+    const r = sequence(seed);
+    const bars: [number, number][] = [];
+    for (let at = -0.5; at < 0.5; ) {
+      const wide = 0.018 + r() * 0.05;
+      bars.push([at, Math.min(0.5, at + wide)]);
+      at += wide + 0.016 + r() * 0.036;
+    }
+    return bars;
+  };
+  const codes = [code(2718), code(2718), code(31337)];
+  const codeAt = 0.82; // How high they float.
   // Each slot draws the same numbers in every world, so that the two made from one seed are alike point for point.
   const slots = Math.ceil(COUNT / 3);
   const numbers = new Float32Array(slots * 12);
@@ -770,13 +779,13 @@ function twinWorlds(): Float32Array {
         const [u, v] = line < n ? [world.us[line], along] : [along, world.vs[line - n]];
         const [x, z] = place(cx, u, v);
         put(i, x, 0.002, z, { kind: KIND.reveal, phase: 0.04 + Math.hypot(u, v) * 0.14, tint: 0.5 });
-      } else if (kind < 27) {
+      } else if (kind < 22) {
         // Buildings, standing up from the middle outward.
         const box = world.boxes[Math.floor(draw() * world.boxes.length)];
         const [ax, y, az, tint] = buildingPoint(draw, box.w * scale, box.d * scale, box.h, 0.56);
         const [x, z] = place(cx, box.u + ax * box.w, box.v + az * box.d);
         put(i, x, y, z, { kind: KIND.rise, v: [0, 0, 0], phase: 0.08 + box.from * 0.5, tint });
-      } else if (kind < 30) {
+      } else if (kind < 25) {
         // Traffic, the same cars at the same moment.
         const car = Math.floor(draw() * 18);
         const n = world.us.length;
@@ -787,7 +796,7 @@ function twinWorlds(): Float32Array {
         const [bx, bz] = place(cx, bu, bv);
         const [ox, oz] = [(draw() - 0.5) * 0.016, (draw() - 0.5) * 0.016];
         put(i, (car % 2 ? bx : ax) + ox, 0.01 + draw() * 0.008, (car % 2 ? bz : az) + oz, { v: car % 2 ? [ax - bx, 0, az - bz] : [bx - ax, 0, bz - az], kind: KIND.flow, phase: car / 18, tint: 0.7, hue: HUE.ok });
-      } else if (kind < 34) {
+      } else if (kind < 29) {
         // The slab each stands on: its edges above and below, and the corners between them.
         const edge = Math.floor(draw() * 4);
         const t = draw() * 2 - 1;
@@ -795,30 +804,31 @@ function twinWorlds(): Float32Array {
         const [x, z] = place(cx, u, v);
         const below = draw();
         put(i, x, below < 0.62 ? 0 : -0.075, z, { tint: below < 0.62 ? 0.55 : 0.2 });
-      } else if (kind < 36) {
+      } else if (kind < 31) {
         // Something happens: the same moment and the same place in the same world.
         const [x, z] = place(cx, world.us[world.us.length - 1], world.vs[0]);
         const a = draw() * TAU;
         put(i, x, 0.016, z, { v: [Math.cos(a) * 0.2, 0, Math.sin(a) * 0.2], kind: KIND.ping, tint: 1, hue: HUE.danger, phase: 0.5 });
-      } else if (side === 2) {
-        // Its own seed, feeding this world from below.
-        if (kind < 38) {
-          const a = draw() * TAU;
-          const r = Math.pow(draw(), 0.7) * 0.04;
-          put(i, own[0] + Math.cos(a) * r, own[1] + Math.sin(a) * r, 0, { kind: KIND.pulse, tint: 1, phase: 0.6 });
-        } else {
-          put(i, own[0] + (draw() - 0.5) * 0.03, own[1], (draw() - 0.5) * 0.03, { v: [0, -own[1] - 0.08, 0], kind: KIND.flow, tint: 1, phase: draw() });
-        }
       } else if (kind < 37) {
-        // The one seed that both of these grew from.
-        const a = draw() * TAU;
-        const r = Math.pow(draw(), 0.7) * 0.05;
-        put(i, shared[0] + Math.cos(a) * r, shared[1] + Math.sin(a) * r, 0, { kind: KIND.pulse, tint: 1, hue: HUE.warm, phase: 0.1 });
+        // The code over this town, turned to face the viewer.
+        const bars = codes[side];
+        const [from, to] = bars[Math.floor(draw() * bars.length)];
+        const x = from + (to - from) * draw();
+        const y = (draw() - 0.5) * 0.2;
+        put(i, cx + x, codeAt + y * 0.85, -0.3 + y * 0.53, { v: [0, 0.22, 0], kind: KIND.dock, phase: 0.02, tint: 1, hue: side === 2 ? HUE.ramp : HUE.warm });
       } else if (kind < 38) {
-        const to = tiles[side].cx;
-        put(i, shared[0] + (draw() - 0.5) * 0.03, shared[1], (draw() - 0.5) * 0.03, { v: [to - shared[0], -shared[1] - 0.08, 0], kind: KIND.flow, tint: 1, hue: HUE.warm, phase: draw() });
+        // Read down into the town: a thread from each bar.
+        const bars = codes[side];
+        const [from, to] = bars[Math.floor(draw() * bars.length)];
+        const x = (from + to) / 2;
+        put(i, cx + x, codeAt - 0.08, -0.3, { v: [-x * 0.6, -codeAt + 0.2, 0.3], kind: KIND.flow, phase: draw(), tint: 0.5, hue: side === 2 ? HUE.ramp : HUE.warm });
+      } else if (side === 2) {
+        // A different town has nothing to join it to the others.
+        const edge = draw() * 2 - 1;
+        const [x, z] = place(cx, edge, 1);
+        put(i, x, 0, z, { tint: 0.5 });
       } else {
-        // Threads between the same buildings in the two worlds: these two are alike.
+        // Threads between the same buildings in the two towns: these two are alike.
         const box = [...same.boxes].sort((a, b) => b.h - a.h)[Math.floor(draw() * 5)];
         const [x, z] = place(tiles[0].cx, box.u, box.v);
         put(i, x, box.h + 0.01, z, { v: [tiles[1].cx - tiles[0].cx, 0, 0], kind: KIND.arc, tint: 0.9, hue: HUE.ok, phase: draw() });
@@ -896,119 +906,150 @@ function viewfinder(): Float32Array {
   }, 25);
 }
 
-/** Applications connecting to the simulator: each window docks, a line opens to the map, and what it sends appears on the map in its colour. */
+/**
+ * The interface itself, in miniature: its header, tools, map, telemetry and controls. Applications come in from outside and
+ * become part of it: one takes a sidebar and drives a route on the map, one adds a tool and shades a district, one adds a
+ * panel beside the telemetry and raises a notification.
+ */
 function fabric(): Float32Array {
-  const [hw, hd, cz] = [1.0, 0.66, 0.18];
+  const [left, right, top, bottom] = [-1.5, 1.5, 1.02, -0.62];
+  const r = 0.09;
   const random = sequence(2024);
-  const streetsX = [-0.72, -0.44, -0.14, 0.2, 0.5, 0.78].map((x) => x + (random() - 0.5) * 0.05);
-  const streetsZ = [-0.42, -0.14, 0.14, 0.42].map((z) => z + (random() - 0.5) * 0.04);
-  const apps = [
-    { x: -1.48, y: 0.5, z: -0.2, from: [-1.1, 0.25, 0] as const, hue: HUE.warm, socket: [-hw, cz - 0.14] as const },
-    { x: 0, y: 0.62, z: -0.72, from: [0, 0.8, 0] as const, hue: HUE.ok, socket: [0, cz - hd] as const },
-    { x: 1.48, y: 0.5, z: -0.2, from: [1.1, 0.25, 0] as const, hue: HUE.ramp, socket: [hw, cz - 0.14] as const },
-  ];
-  const [cardW, cardH, corner] = [0.32, 0.22, 0.05];
-  // Up a window, square to the camera, so that it reads as a window seen head on.
-  const lean = [Math.cos(0.7), -Math.sin(0.7)] as const;
-  // The first application sends a route along the streets, the second places markers, the third a region.
-  const via: [number, number][] = [[-hw, cz - 0.14], [streetsX[1], cz - 0.14], [streetsX[1], cz + streetsZ[2]], [streetsX[3], cz + streetsZ[2]], [streetsX[3], cz + streetsZ[3]], [streetsX[5], cz + streetsZ[3]]];
-  const pieces = via.slice(1).map((end, n) => ({ a: via[n], b: end, length: Math.hypot(end[0] - via[n][0], end[1] - via[n][1]) }));
-  const routeLength = pieces.reduce((sum, piece) => sum + piece.length, 0);
-  const markers: [number, number][] = [[streetsX[2], cz + streetsZ[0]], [streetsX[4], cz + streetsZ[0]], [streetsX[0], cz + streetsZ[1]], [streetsX[3], cz + streetsZ[1]], [streetsX[1], cz + streetsZ[3]]];
-  const region = { x: streetsX[4], z: cz + streetsZ[1] + 0.06, r: 0.27 };
-  // When each arrives, then each thing it sends, on the scene's own clock.
-  const arrives = (app: number) => 0.15 + app * 0.85;
-  const sends = (app: number) => (arrives(app) + 0.78) / 2.3;
-  // A point on a rounded rectangle's edge.
-  const edge = (t: number): [number, number] => {
-    const [w, h] = [cardW - corner, cardH - corner];
-    const arc = (corner * Math.PI) / 2;
-    const perimeter = 4 * (w + h) + 4 * arc;
-    let d = t * perimeter;
-    const sides: [number, number, number, number, number][] = [[-w, cardH, 2 * w, 0, Math.PI / 2], [cardW, h, 0, -2 * h, 0], [w, -cardH, -2 * w, 0, -Math.PI / 2], [-cardW, -h, 0, 2 * h, Math.PI]];
-    const corners: [number, number, number][] = [[w, h, Math.PI / 2], [w, -h, 0], [-w, -h, -Math.PI / 2], [-w, h, Math.PI]];
-    for (let n = 0; n < 4; n++) {
-      const [sx, sy, dx, dy] = sides[n];
-      const length = Math.hypot(dx, dy);
-      if (d < length) return [sx + (dx / length) * d, sy + (dy / length) * d];
-      d -= length;
-      if (d < arc) {
-        const a = corners[n][2] - d / corner;
-        return [corners[n][0] + Math.cos(a) * corner, corners[n][1] + Math.sin(a) * corner];
+  type Seg = [number, number, number, number];
+  // A rounded rectangle as straight runs, with each corner as a short curve.
+  const rounded = (x0: number, y0: number, x1: number, y1: number, radius: number): Seg[] => {
+    const out: Seg[] = [[x0 + radius, y1, x1 - radius, y1], [x1, y1 - radius, x1, y0 + radius], [x1 - radius, y0, x0 + radius, y0], [x0, y0 + radius, x0, y1 - radius]];
+    for (const [cx, cy, start] of [[x1 - radius, y1 - radius, 0], [x0 + radius, y1 - radius, Math.PI / 2], [x0 + radius, y0 + radius, Math.PI], [x1 - radius, y0 + radius, Math.PI * 1.5]] as const) {
+      for (let n = 0; n < 6; n++) {
+        const [a, c] = [start + (n / 6) * (Math.PI / 2), start + ((n + 1) / 6) * (Math.PI / 2)];
+        out.push([cx + Math.cos(a) * radius, cy + Math.sin(a) * radius, cx + Math.cos(c) * radius, cy + Math.sin(c) * radius]);
       }
-      d -= arc;
     }
-    return [-cardW, 0];
+    return out;
   };
+  const along = (segs: Seg[], value: number): [number, number] => {
+    const lengths = segs.map(([a, b, c, d]) => Math.hypot(c - a, d - b));
+    let at = value * lengths.reduce((sum, length) => sum + length, 0);
+    for (let n = 0; n < segs.length; n++) {
+      if (at <= lengths[n] || n === segs.length - 1) {
+        const t = Math.min(1, at / (lengths[n] || 1));
+        return [segs[n][0] + (segs[n][2] - segs[n][0]) * t, segs[n][1] + (segs[n][3] - segs[n][1]) * t];
+      }
+      at -= lengths[n];
+    }
+    return [0, 0];
+  };
+  // The parts of the interface.
+  const frame = rounded(left, bottom, right, top, r);
+  const header = top - 0.13;
+  const dock = rounded(left + 0.06, 0.02, left + 0.2, header - 0.06, 0.07);
+  const deck = rounded(right - 0.72, bottom + 0.26, right - 0.06, header - 0.06, 0.05);
+  const rail = rounded(left + 0.28, bottom + 0.05, right - 0.06, bottom + 0.2, 0.075);
+  const map = { x0: left + 0.26, x1: right - 0.78, y0: bottom + 0.26, y1: header - 0.06 };
+  const streets: Seg[] = [];
+  for (let n = 0; n < 7; n++) {
+    const y = map.y0 + ((n + 0.5 + (random() - 0.5) * 0.5) / 7) * (map.y1 - map.y0);
+    streets.push([map.x0, y, map.x1, y + (random() - 0.5) * 0.1]);
+  }
+  for (let n = 0; n < 9; n++) {
+    const x = map.x0 + ((n + 0.5 + (random() - 0.5) * 0.5) / 9) * (map.x1 - map.x0);
+    streets.push([x, map.y0, x + (random() - 0.5) * 0.1, map.y1]);
+  }
+  // What the applications bring. Their windows start outside, and the sidebar takes the room the map gives it.
+  const sidebar = rounded(map.x0 + 0.02, map.y0 + 0.02, map.x0 + 0.46, map.y1 - 0.02, 0.05);
+  const panel = rounded(right - 0.68, bottom + 0.3, right - 0.1, bottom + 0.72, 0.04);
+  const tool = { x: left + 0.13, y: 0.14, r: 0.045 };
+  const capsule = rounded(map.x0 + 0.5, bottom + 0.3, map.x0 + 1.14, bottom + 0.4, 0.05);
+  const route: Seg[] = (() => {
+    const via: [number, number][] = [[map.x0 + 0.52, map.y0 + 0.24], [map.x0 + 0.72, map.y0 + 0.28], [map.x0 + 0.78, map.y0 + 0.62], [map.x0 + 1.12, map.y0 + 0.66], [map.x0 + 1.2, map.y0 + 1.0], [map.x1 - 0.1, map.y0 + 1.04]];
+    return via.slice(1).map((end, n) => [via[n][0], via[n][1], end[0], end[1]] as Seg);
+  })();
+  const district = { x: map.x0 + 1.16, y: map.y0 + 0.34, rx: 0.2, ry: 0.15 };
+  // When each arrives, then when what it sends appears. Reveal runs on age / 2.3.
+  const arrives = [0.5, 1.5, 2.5];
+  const after = (app: number, delay: number) => (arrives[app] + 0.75 + delay) / 2.3;
+  const dock_ = (app: number) => arrives[app];
+  const HUES = [HUE.warm, HUE.ok, HUE.ramp];
+  // Already there, and steady: this is the interface, which does not shimmer.
+  const still = { v: [0, 0, 0] as [number, number, number], kind: KIND.dock, phase: -1 };
   return formation((put, rnd) => {
     for (let i = 0; i < COUNT; i++) {
       const kind = i % 50;
-      const app = Math.floor(rnd() * 3);
-      const a = apps[app];
-      if (kind < 3) {
-        // The map's edge.
-        const side = Math.floor(rnd() * 4);
-        const t = rnd() * 2 - 1;
-        put(i, side < 2 ? t * hw : side === 2 ? -hw : hw, 0, cz + (side < 2 ? (side === 0 ? -hd : hd) : t * hd), { tint: 0.5 });
-      } else if (kind < 13) {
-        // Its streets, all of it there from the start, because this is the simulator's own map.
-        const across = rnd() < 0.55;
-        const n = across ? streetsZ[Math.floor(rnd() * streetsZ.length)] : streetsX[Math.floor(rnd() * streetsX.length)];
-        const t = rnd() * 2 - 1;
-        put(i, across ? t * hw : n, 0, across ? cz + n : cz + t * hd, { tint: 0.26 });
-      } else if (kind < 17) {
-        // Blocks between them.
-        put(i, (rnd() * 2 - 1) * hw * 0.96, 0.002, cz + (rnd() * 2 - 1) * hd * 0.96, { tint: 0.05 });
-      } else if (kind < 23) {
-        // Each application's window: its outline.
-        const [x, y] = edge(rnd());
-        put(i, a.x + x, a.y + y * lean[0], a.z + y * lean[1], { v: [a.from[0], a.from[1], a.from[2]], kind: KIND.dock, phase: app + 0.5, tint: 0.9, hue: a.hue });
+      if (kind < 4) {
+        // The window it all sits in.
+        const [x, y] = along(frame, rnd());
+        put(i, x, y, 0, { ...still, tint: 0.72 });
+      } else if (kind < 5) {
+        // The header's line, with the name and a few controls as marks.
+        const mark = rnd();
+        if (mark < 0.5) put(i, left + rnd() * (right - left), header, 0, { ...still, tint: 0.28 });
+        else if (mark < 0.8) put(i, left + 0.08 + rnd() * 0.24, top - 0.065 + (rnd() - 0.5) * 0.02, 0, { ...still, tint: 0.9 });
+        else put(i, right - 0.42 + rnd() * 0.34, top - 0.065 + (rnd() - 0.5) * 0.024, 0, { ...still, tint: 0.5 });
+      } else if (kind < 9) {
+        // The tools down the side, and the telemetry and controls.
+        const [x, y] = along(dock, rnd());
+        const part = rnd();
+        if (part < 0.25) put(i, x, y, 0, { ...still, tint: 0.5 });
+        else if (part < 0.6) {
+          const [dx, dy] = along(deck, rnd());
+          put(i, dx, dy, 0, { ...still, tint: 0.5 });
+        } else {
+          const [rx, ry] = along(rail, rnd());
+          put(i, rx, ry, 0, { ...still, tint: 0.5 });
+        }
+      } else if (kind < 11) {
+        // What is in them: tool marks, telemetry rows, and the rail's controls and timeline.
+        const part = rnd();
+        if (part < 0.2) {
+          const n = Math.floor(rnd() * 5);
+          put(i, left + 0.13 + (rnd() - 0.5) * 0.04, 0.2 + n * 0.12 + (rnd() - 0.5) * 0.04, 0, { ...still, tint: 0.55 });
+        } else if (part < 0.72) {
+          const n = Math.floor(rnd() * 7);
+          put(i, right - 0.66 + rnd() * 0.54 * (0.6 + ((n * 37) % 5) * 0.1), header - 0.14 - n * 0.075, 0, { ...still, tint: 0.42 });
+        } else {
+          put(i, left + 0.5 + rnd() * 1.9, bottom + 0.125 + (rnd() - 0.5) * 0.012, 0, { ...still, tint: 0.48 });
+        }
+      } else if (kind < 16) {
+        // The map's streets.
+        const [x, y] = along([streets[Math.floor(rnd() * streets.length)]], rnd());
+        put(i, x, y, 0, { ...still, tint: 0.24 });
+      } else if (kind < 22) {
+        // The first application's sidebar, coming in from the left.
+        const [x, y] = along(sidebar, rnd());
+        const row = rnd();
+        const [px, py] = row < 0.5 ? [x, y] : [map.x0 + 0.07 + rnd() * 0.3, map.y1 - 0.1 - Math.floor(rnd() * 7) * 0.13];
+        put(i, px, py, 0.02, { v: [-1.5, 0.15, 0.5], kind: KIND.dock, phase: dock_(0), tint: row < 0.5 ? 1 : 0.7, hue: HUES[0] });
+      } else if (kind < 27 || kind >= 45) {
+        // Its route, drawn along the streets, and what it drives along it.
+        const at = rnd();
+        const [x, y] = along(route, at);
+        put(i, x + (rnd() - 0.5) * 0.012, y + (rnd() - 0.5) * 0.012, 0.015, { v: [0, 0, at], kind: KIND.sent, phase: arrives[0] + 0.75, tint: 0.85, hue: HUES[0] });
+      } else if (kind < 29) {
+        // The second's tool, joining the others from above.
+        const a = rnd() * TAU;
+        const d = Math.sqrt(rnd()) * tool.r;
+        put(i, tool.x + Math.cos(a) * d, tool.y + Math.sin(a) * d, 0.02, { v: [-0.7, -1.2, 0.5], kind: KIND.dock, phase: dock_(1), tint: 1, hue: HUES[1] });
       } else if (kind < 32) {
-        // And what is in it: a heading, and lines or bars of its own.
-        const heading = rnd() < 0.26;
-        let [x, y] = [-cardW * 0.7 + rnd() * cardW * (heading ? 0.8 : 1.4), 0];
-        if (heading) y = cardH * 0.58 + (rnd() - 0.5) * 0.018;
-        else if (app === 0) {
-          const bar = Math.floor(((x + cardW * 0.7) / (cardW * 1.4)) * 7);
-          const tall = [0.3, 0.5, 0.85, 0.62, 1, 0.74, 0.46][bar];
-          x = -cardW * 0.7 + (bar + 0.2 + rnd() * 0.6) * (cardW * 0.2);
-          y = -cardH * 0.7 + rnd() * tall * cardH * 1.05;
-        } else if (app === 1) y = cardH * (0.2 - Math.floor(rnd() * 4) * 0.28) + (rnd() - 0.5) * 0.012;
-        else y = -cardH * 0.2 + Math.sin((x / cardW) * 5 + 0.5) * cardH * 0.34 + (rnd() - 0.5) * 0.012;
-        put(i, a.x + x, a.y + y * lean[0], a.z + y * lean[1], { v: [a.from[0], a.from[1], a.from[2]], kind: KIND.dock, phase: app + 0.5, tint: heading ? 0.9 : 0.6, hue: heading ? a.hue : HUE.ramp });
-      } else if (kind < 38) {
-        // What passes along the line between the window and the map, both ways.
-        const [bx, bz] = a.socket;
-        const up = rnd() < 0.4;
-        const [wx, wy, wz] = [a.x, a.y - cardH * lean[0], a.z - cardH * lean[1]];
-        const from: [number, number, number] = up ? [bx, 0.01, bz] : [wx, wy, wz];
-        const to: [number, number, number] = up ? [wx, wy, wz] : [bx, 0.01, bz];
-        const off = (rnd() - 0.5) * 0.014;
-        put(i, from[0] + off, from[1] + off, from[2], { v: [to[0] - from[0], to[1] - from[1], to[2] - from[2]], kind: KIND.link, phase: app + rnd() * 0.999, tint: 1, hue: a.hue });
-      } else if (kind < 44) {
-        // The first draws its route along the streets.
-        let at = rnd() * routeLength;
-        const done = at / routeLength;
-        const piece = pieces.find((p) => {
-          if (at <= p.length) return true;
-          at -= p.length;
-          return false;
-        }) ?? pieces[pieces.length - 1];
-        const t = Math.min(1, at / piece.length);
-        put(i, piece.a[0] + (piece.b[0] - piece.a[0]) * t + (rnd() - 0.5) * 0.016, 0.012, piece.a[1] + (piece.b[1] - piece.a[1]) * t + (rnd() - 0.5) * 0.016, { kind: KIND.reveal, phase: sends(0) + done * 0.34, tint: 1, hue: HUE.warm });
-      } else if (kind < 47) {
-        // The second places markers, each standing up from the map.
-        const at = Math.floor(rnd() * markers.length);
-        const [mx, mz] = markers[at];
-        const angle = rnd() * TAU;
-        const r = Math.sqrt(rnd()) * 0.042;
-        put(i, mx + Math.cos(angle) * r, 0.016, mz + Math.sin(angle) * r, { kind: KIND.reveal, phase: sends(1) + at * 0.05, tint: 1, hue: HUE.ok });
-      } else {
-        // The third marks out a region: its edge, and a light fill.
-        const angle = rnd() * TAU;
-        const inside = rnd() < 0.6;
-        const r = region.r * (inside ? Math.sqrt(rnd()) : 1) * (1 + Math.sin(angle * 3 + 1) * 0.08);
-        put(i, region.x + Math.cos(angle) * r * 1.15, 0.008, region.z + Math.sin(angle) * r * 0.78, { kind: KIND.reveal, phase: sends(2) + (r / region.r) * 0.09, tint: inside ? 0.36 : 1 });
+        // The district it shades, with an edge that holds it.
+        const a = rnd() * TAU;
+        const inside = rnd() < 0.4;
+        const d = inside ? Math.sqrt(rnd()) : 1 + (rnd() - 0.5) * 0.02;
+        put(i, district.x + Math.cos(a) * d * district.rx, district.y + Math.sin(a) * d * district.ry, 0.01, { kind: KIND.reveal, phase: after(1, d * 0.3), tint: inside ? 0.2 : 0.9, hue: HUES[1] });
+      } else if (kind < 42) {
+        // The third's panel, coming in from the right, with a chart in it.
+        const part = rnd();
+        if (part < 0.42) {
+          const [x, y] = along(panel, rnd());
+          put(i, x, y, 0.02, { v: [1.5, -0.2, 0.5], kind: KIND.dock, phase: dock_(2), tint: 1, hue: HUES[2] });
+        } else {
+          const n = Math.floor(rnd() * 9);
+          const tall = [0.3, 0.5, 0.8, 0.55, 0.95, 0.7, 0.45, 0.62, 0.38][n];
+          put(i, right - 0.62 + (n + 0.2 + rnd() * 0.6) * 0.052, bottom + 0.34 + rnd() * tall * 0.3, 0.02, { v: [1.5, -0.2, 0.5], kind: KIND.dock, phase: dock_(2), tint: 0.85, hue: HUES[2] });
+        }
+      } else if (kind < 45) {
+        // And the notification it raises.
+        const [x, y] = along(capsule, rnd());
+        put(i, x, y, 0.02, { v: [0, -0.32, 0], kind: KIND.dock, phase: arrives[2] + 0.85, tint: 1, hue: HUES[2] });
       }
     }
   }, 17);
@@ -1019,8 +1060,10 @@ export function endMist(): Float32Array {
   return formation((put, random) => {
     for (let i = 0; i < COUNT; i++) {
       const a = random() * TAU;
-      const r = 0.2 + Math.sqrt(-2 * Math.log(1 - random() * 0.985)) * 0.95;
-      put(i, Math.cos(a) * r, Math.sin(a) * r, (random() - 0.5) * 1.1, { kind: KIND.boil, tint: 0.14 + random() * 0.3, hue: HUE.ok });
+      // A ring ahead of the rest, going out through everything as the shock of it.
+      const shock = i % 9 === 0;
+      const r = shock ? 3.1 + random() * 0.12 : 0.2 + Math.sqrt(-2 * Math.log(1 - random() * 0.985)) * 0.95;
+      put(i, Math.cos(a) * r, Math.sin(a) * r, shock ? 0 : (random() - 0.5) * 1.1, { kind: KIND.boil, tint: shock ? 0.9 : 0.14 + random() * 0.3, hue: HUE.ok });
     }
   }, 31);
 }

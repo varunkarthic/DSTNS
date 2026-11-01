@@ -21,7 +21,7 @@ import { buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B,
 
 const HOLD_S = 4;
 // How long each scene holds: a junction needs time for its lights to go round.
-const HOLDS = [4, 4.4, 6.2, 5.6, 4.4, 5.4, 4, 4, 5.6, 4.6, 5.4];
+const HOLDS = [4, 4.4, 6.2, 5.6, 5, 5.4, 4, 4, 5.6, 4.6, 6.4];
 const MORPH = { k: 11, c: 5.6 };
 // Going to and from the logo and the map are timed, not sprung: an ease in and out has no
 // sudden start, which is what makes particles leaving a shape feel soft.
@@ -82,7 +82,7 @@ export const FILM_CHAPTERS: readonly { label: string; title: string; text: strin
   { label: "Places", title: "Cities worldwide", text: "A seed chooses the district." },
   { label: "Reproducibility", title: "Repeatable worlds", text: "Any seed grows the same day on any machine." },
   { label: "Camera", title: "Auto Focus", text: "The camera follows what matters." },
-  { label: "Extensions", title: "WebFabric", text: "Your own applications connect and draw on the map." },
+  { label: "Extensions", title: "WebFabric", text: "Your own applications become part of the interface." },
 ];
 
 interface Camera { yaw: number; pitch: number; distance: number; spin: number; push: number }
@@ -91,13 +91,13 @@ const CAMERAS: Camera[] = [
   { yaw: 0.2, pitch: 1.2, distance: 3.7, spin: 0.018, push: 0.07 },
   { yaw: -0.28, pitch: 1.02, distance: 3.3, spin: 0.02, push: 0.07 },
   { yaw: 0.14, pitch: 0.74, distance: 3.55, spin: 0.006, push: 0.05 },
-  { yaw: 0, pitch: 0.03, distance: 3.25, spin: 0.006, push: 0.04 },
+  { yaw: -0.08, pitch: 0.42, distance: 3.5, spin: 0.005, push: 0.04 },
   { yaw: CAMERA_YAW_INCIDENT, pitch: 0.46, distance: 3.05, spin: 0.006, push: 0.05 },
   { yaw: 0.26, pitch: 0.13, distance: 3.75, spin: -0.04, push: 0.07 },
   { yaw: 0.2, pitch: 0.3, distance: 3.3, spin: 0.26, push: 0.05 },
   { yaw: 0, pitch: 0.56, distance: 3.45, spin: 0.004, push: 0.04 },
   { yaw: 0.14, pitch: 1.12, distance: 3.2, spin: 0.012, push: 0.03 },
-  { yaw: 0, pitch: 0.7, distance: 3.5, spin: 0.004, push: 0.04 },
+  { yaw: -0.12, pitch: 0.2, distance: 3.2, spin: 0.004, push: 0.03 },
 ];
 
 /** How far the map's camera has carried the roads since the particles were told where they are. */
@@ -198,7 +198,7 @@ in vec4 aFromM, aToM; // tint kind phase hue
 in vec4 aLand; // x y tint order
 in float aSeed;
 uniform mat4 uView;
-uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo, uSweep, uAspect, uReach, uBurst;
+uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo, uSweep, uAspect, uReach, uBurst, uInhale;
 uniform vec2 uPointer, uPointerV, uLandShift;
 uniform vec3 uRipple, uBase, uAccent, uWarm, uDanger, uOk, uRoad;
 out vec3 vColour;
@@ -213,9 +213,6 @@ float cycleOf(bool north, float age) { return mod(age + 0.5 + (north ? 0.0 : 3.0
 float heldAt(float x, float behind) {
   if (x < 2.4) return 1.0 - smoothstep(behind, behind + 0.5, x);
   return smoothstep(2.4, 2.95, x);
-}
-float rhythm(float h) {
-  return 0.05 + 0.62 * exp(-pow(h - 8.3, 2.0) / 3.2) + 0.76 * exp(-pow(h - 17.6, 2.0) / 4.2) + 0.2 * exp(-pow(h - 12.8, 2.0) / 14.0);
 }
 struct Live { vec3 p; float alpha; float size; float tint; float hue; };
 Live live(vec3 p, vec3 v, vec4 m, float age) {
@@ -319,22 +316,23 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
     p += v * f;
     alpha = x < 2.7 ? 1.0 : smoothstep(6.0, 5.7, x) * 0.0 + 0.0;
     size = 1.3;
-  } else if (kind == ${KIND.stream}) {
-    float f = fract(t * 0.07 + phase * 37.0);
-    float r = rhythm(f * 24.0);
-    float x = -1.75 + 3.5 * f;
-    float grow = smoothstep(0.0, 0.1, age / 2.4 - f);
-    p = vec3(x, 0.06 + v.x * r * 0.88 * mix(0.35, 1.0, grow), v.z * r * 0.4);
-    alpha = 0.35 + 0.65 * grow;
-    tint = 0.28 + r * 0.8;
-    float noise = fract(phase * 91.0) * 0.12;
-    hue = r > 0.6 + noise ? 2.0 : (r > 0.34 + noise ? 1.0 : 0.0);
-  } else if (kind == ${KIND.gauge}) {
-    float filled = v.x * ease((age - 0.2) / 2.6);
-    alpha = smoothstep(filled + 0.012, filled - 0.004, phase);
-    float front = exp(-pow((phase - filled) * 34.0, 2.0));
-    size = 1.0 + front * 2.0;
-    p.z += 0.0;
+  } else if (kind == ${KIND.ridge}) {
+    // Carried along its road through the day. It stands at the height of that road's
+    // traffic once the moment of the day has passed it, and lies flat until then.
+    float f = fract(t * 0.05 + phase * 37.0);
+    float h = f * 24.0;
+    float shift = (v.z - 0.5) * 1.3;
+    float r = (0.05 + 0.62 * exp(-pow(h - 8.3 - shift, 2.0) / (2.0 + v.z * 2.4)) + 0.76 * exp(-pow(h - 17.6 + shift, 2.0) / (2.6 + v.z * 2.8)) + 0.2 * exp(-pow(h - 12.8, 2.0) / 14.0)) * v.y;
+    float passed = smoothstep(f - 0.03, f + 0.03, age / 3.4);
+    p = vec3(-1.8 + 3.6 * f, (r + 0.012 * sin(f * 90.0 + v.x * 40.0)) * passed * 1.05, v.x);
+    tint = 0.3 + r * 0.8;
+    float noise = fract(phase * 91.0) * 0.1;
+    hue = passed < 0.5 ? 0.0 : (r < 0.3 + noise ? 0.0 : (r < 0.56 + noise ? 1.0 : 2.0));
+    alpha = 0.45 + 0.55 * passed;
+  } else if (kind == ${KIND.sweep}) {
+    float at = age / 3.4;
+    p = vec3(-1.8 + 3.6 * at, p.y * 1.15, p.z);
+    alpha = smoothstep(0.0, 0.04, at) * smoothstep(1.02, 0.94, at) * 0.5;
   } else if (kind == ${KIND.queue}) {
     // Those reaching the queue slow to a crawl, and those in the outer lanes squeeze into
     // the inner one to get past. The tail works back up the road.
@@ -413,18 +411,19 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
     p += v * f;
     alpha = step(2.1, age) * (1.0 - f) * smoothstep(0.0, 0.04, f);
   } else if (kind == ${KIND.dock}) {
-    float g = ease((age - 0.15 - floor(phase) * 0.85) / 0.7);
+    // Phase is when it comes, on the scene's own clock. It arrives, overshoots a little and settles.
+    float g = ease((age - phase) / 0.7);
     float settle = 1.0 - g;
     p += v * settle * settle;
-    alpha = g;
-    size = 1.0 + exp(-pow((age - 0.85 - floor(phase) * 0.85) * 5.0, 2.0)) * 0.9;
-  } else if (kind == ${KIND.link}) {
-    float f = fract(t * 0.55 + fract(phase) * 13.0);
-    float begins = 0.72 + floor(phase) * 0.85;
-    p += v * f;
-    alpha = smoothstep(begins, begins + 0.3, age) * smoothstep(0.0, 0.1, f) * smoothstep(1.0, 0.9, f);
-  } else if (kind == ${KIND.wave}) {
-    p.y += 0.075 * sin(p.x * 2.6 + p.z * 1.8 - t * 1.9) + 0.03 * sin(p.z * 5.0 + t * 1.2);
+    alpha = smoothstep(0.0, 0.3, g);
+    size = 1.0 + exp(-pow((age - phase - 0.72) * 5.0, 2.0)) * 1.1;
+  } else if (kind == ${KIND.sent}) {
+    // Drawn along its length after phase, then with something travelling it. vz is how far along.
+    float at = phase + v.z * 0.9;
+    float wave = exp(-pow((v.z - fract(t * 0.24)) * 16.0, 2.0)) * step(phase + 1.0, age);
+    alpha = smoothstep(at, at + 0.06, age);
+    tint = max(tint, wave);
+    size = 1.0 + wave * 2.1 + exp(-pow((age - at) * 12.0, 2.0)) * 1.4;
   } else if (kind == ${KIND.bracket}) {
     // Wider while the camera is moving, snapping tight each time it arrives.
     float move1 = clamp((age - 0.75) / 0.65, 0.0, 1.0);
@@ -477,6 +476,10 @@ void main() {
   }
   Live a = live(aFrom, aFromV, aFromM, uAgeFrom);
   Live b = live(aTo, aToV, aToM, uAgeTo);
+  // The name draws in on itself just before it goes, as anything does before a burst.
+  float drawn = 1.0 - uInhale * 0.075;
+  a.p *= drawn;
+  if (uBurst < 0.5) b.p *= drawn;
   vec3 p = mix(a.p, b.p, m);
   // On the way they ride one current together, each a little off its line.
   float swing = sin(m * 3.14159);
@@ -669,7 +672,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       return buffer;
     })()) - 1 : 0;
     const uniform = (name: string) => gl.getUniformLocation(program, name);
-    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), sweep: uniform("uSweep"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand"), aspect: uniform("uAspect"), reach: uniform("uReach"), pointerV: uniform("uPointerV"), burst: uniform("uBurst"), landShift: uniform("uLandShift") };
+    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), sweep: uniform("uSweep"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand"), aspect: uniform("uAspect"), reach: uniform("uReach"), pointerV: uniform("uPointerV"), burst: uniform("uBurst"), inhale: uniform("uInhale"), landShift: uniform("uLandShift") };
     const landAt = gl.getAttribLocation(program, "aLand");
     const landBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
@@ -781,6 +784,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.uniform1f(u.reach, pointer.reach);
       gl.uniform1f(u.aspect, element.width / element.height);
       gl.uniform1f(u.burst, endScattered && !rejoin ? 1 : 0);
+      gl.uniform1f(u.inhale, ending && !rejoin && started ? easeInOut((performance.now() / 1000 - endStart - (END_SCATTER_AT_S - 0.42)) / 0.42) : 0);
       gl.uniform2f(u.landShift, (mapCarry.x / window.innerWidth) * 2, -(mapCarry.y / window.innerHeight) * 2);
       gl.uniform3f(u.ripple, ripple.x, ripple.y, ripple.age);
       gl.uniform1f(u.dim, dim * strength);
