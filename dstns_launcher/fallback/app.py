@@ -209,7 +209,7 @@ class FallbackApp:
                     continue
                 self.out.message(Level.WARNING, "The server is no longer reachable")
                 return
-            rows = [("State", current.lifecycle.capitalize()), ("Simulation time", f"{current.clock} / 24:00:00 ({current.fraction * 100:.1f}%)")]
+            rows = [("State", "Waiting for the observer" if current.observer_hold else current.lifecycle.capitalize()), ("Simulation time", f"{current.clock} / 24:00:00 ({current.fraction * 100:.1f}%)")]
             if self.session.world:
                 world = self.session.world
                 rows += [("Place", world.place), ("Seed", world.seed), ("Day", world.day_name)]

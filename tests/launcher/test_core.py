@@ -290,6 +290,17 @@ class Runs(WithWorkspace):
             world = simulation.start_run(fake.port, {"seed": "1", "map": {"osm_file": "auto"}}, Reporter(), self.paths, observer_can_retry=True)
             self.assertEqual(world.place, "Testville, Nowhere")
 
+    def test_says_when_a_world_is_waiting_for_the_observer(self):
+        with FakeServer(lifecycle_after_start="PAUSED") as fake:
+            fake.observer_hold = True
+            messages = []
+            class Recording(Reporter):
+                def message(self, level, title, detail=""):
+                    messages.append(title)
+            world = simulation.start_run(fake.port, {"seed": "1", "map": {"osm_file": "auto"}}, Recording(), self.paths)
+            self.assertEqual(world.place, "Testville, Nowhere")
+            self.assertTrue(any("waiting for the observer" in m for m in messages), messages)
+
     def test_synthetic_topology_is_refused(self):
         with FakeServer(topology_source="synthetic") as fake:
             with self.assertRaisesRegex(SimulationStartError, "usable real OSM"):

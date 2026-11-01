@@ -67,6 +67,8 @@ class Status:
     tick_rate: float | None = None
     day: int = -1
     preparation_error: str = ""
+    #: Ready, and waiting for an open observer to finish showing its start-up.
+    observer_hold: bool = False
     checkpoints: int | None = None
 
     @property
@@ -108,6 +110,7 @@ def status(port: int, paths: Paths = PATHS) -> Status:
         tick_rate=clock.get("tick_rate"),
         day=int(data.get("day", -1)),
         preparation_error=str(data.get("preparation_error") or ""),
+        observer_hold=bool(data.get("observer_hold")),
         checkpoints=data.get("checkpoint_count"),
     )
 
@@ -244,7 +247,9 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
         reporter.message(Level.INFO, "District",
                          f"{loaded.place} · {loaded.latitude:.4f}, {loaded.longitude:.4f}"
                          f"{' (downloaded)' if loaded.downloaded else ' (cached)'}")
-    reporter.message(Level.SUCCESS, f"Simulation running · {loaded.seed} · {loaded.day_name}",
+    # Decided by what the observer is doing, and it starts by itself if the observer goes away.
+    waiting = current.observer_hold
+    reporter.message(Level.SUCCESS, f"{'Simulation ready, waiting for the observer' if waiting else 'Simulation running'} · {loaded.seed} · {loaded.day_name}",
                      f"{loaded.nodes:,} road nodes · {loaded.places:,} buildings and places")
     return loaded
 

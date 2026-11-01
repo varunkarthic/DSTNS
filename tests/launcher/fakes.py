@@ -54,7 +54,7 @@ class FakeServer:
                                             "clock": {"simulated_current_time": "01:00:00", "virtual_day_seconds": 3600,
                                                       "simulation_percentage": 3600 / 86400, "tick_rate": 1},
                                             "data": {"lifecycle": fake.lifecycle, "day": 0,
-                                                     "preparation_error": fake.preparation_error}})
+                                                     "preparation_error": fake.preparation_error, "observer_hold": getattr(fake, "observer_hold", False)}})
                 if path == "/api/v1/system/map-status":
                     return self.reply(200, {"data": {"active": False}})
                 if path == "/api/v1/view/topology":

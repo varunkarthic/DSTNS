@@ -260,6 +260,9 @@ class RunningScreen(Page):
         if current is None:
             return
         state = {"RUNNING": State.PASS, "PAUSED": State.WARNING, "SEEKING": State.RUNNING}.get(current.lifecycle, State.PENDING)
+        # Waiting for the observer is not a pause anyone asked for: it starts by itself.
+        if current.observer_hold:
+            state = State.RUNNING
         self.header.set_state(state if current.lifecycle != "RUNNING" else State.RUNNING, current.lifecycle.lower())
         rows = []
         if world:
