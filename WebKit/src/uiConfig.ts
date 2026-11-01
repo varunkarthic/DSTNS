@@ -50,6 +50,8 @@ export interface UiConfig {
   notifications: {
     enabled: boolean;
     dnd: boolean;
+    /** The capsule shows the most important event and counts the rest; otherwise the newest. */
+    important_first: boolean;
     /** Categories silenced while Do Not Disturb is on. */
     dnd_categories: string[];
     /** Severities silenced while Do Not Disturb is on. */
@@ -95,6 +97,7 @@ export const BUILT_IN: UiConfig = {
   notifications: {
     enabled: true,
     dnd: false,
+    important_first: true,
     dnd_categories: [...NOTIFICATION_CATEGORY_IDS],
     dnd_severities: [],
     max_visible: 3,
@@ -192,6 +195,7 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
     notifications: {
       enabled: bool(notes.enabled, base.notifications.enabled),
       dnd: bool(notes.dnd, base.notifications.dnd),
+      important_first: bool(notes.important_first, base.notifications.important_first),
       dnd_categories: subset(notes.dnd_categories, NOTIFICATION_CATEGORY_IDS, base.notifications.dnd_categories),
       dnd_severities: subset(notes.dnd_severities, NOTIFICATION_SEVERITY_IDS, base.notifications.dnd_severities),
       max_visible: Math.round(num(notes.max_visible, base.notifications.max_visible, 1, 8)),

@@ -569,7 +569,6 @@ export function worldStep(status: WorldStatus | null, loaded: boolean): { index:
 
 export function WorldGenerationOverlay({
   status,
-  requestedSeed,
   loaded,
   closing,
   error,
@@ -580,7 +579,6 @@ export function WorldGenerationOverlay({
 }: {
   landing?: () => Float32Array | null;
   status: WorldStatus | null;
-  requestedSeed: string;
   /** The new world's map has arrived in the interface. */
   loaded: boolean;
   closing?: boolean;
@@ -613,7 +611,6 @@ export function WorldGenerationOverlay({
       role="alertdialog"
       titleId="world-title"
       title={failed ? "World generation failed" : done ? "New world ready" : "Generating new world"}
-      seed={status?.seed || requestedSeed || undefined}
       steps={WORLD_STEPS}
       stepIndex={step.index}
       status={step.detail}

@@ -125,7 +125,7 @@ Defined in `system.css`. Use these rather than literal values.
 
 | Kind | Tokens |
 |---|---|
-| Radius | `--r-xs` 6, `--r-sm` 10, `--r-md` 14, `--r-lg` 18, `--r-xl` 24, `--r-pill` |
+| Radius | `--r-xs` 6, `--r-sm` 10, `--r-md` 14, `--r-lg` 18, `--r-pill`. An inner corner is the outer radius less the gap between them, so a gap of 4 steps down once and a gap of 8 steps down twice |
 | Control height | `--ctl-sm` 26, `--ctl` 32, `--ctl-lg` 36 |
 | Surface | `--glass` translucent, `--surface-solid` where text is read at length |
 | Palette | `--accent`, `--ok`, `--warn`, `--danger`, `--text`, `--text-dim`, `--text-faint` |

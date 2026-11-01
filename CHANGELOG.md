@@ -17,6 +17,15 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Finding things, and reading them
+
+- **A place chosen from search is marked on the map:** it flashes three times and stays lit until the map is next touched.
+- **Hovering an incident shows its details,** ahead of anything under it, and works whichever of the two incident layers is on.
+- **Rows that are cut off open.** Click a row in Stack, News, Queue or Incidents to read all of it.
+- **Show important on top,** a new setting that is on by default (`notifications.important_first`). The capsule shows the most important event and counts the rest. Severity now outranks the focused event and system explanations, and the capsule returns to the most important event after being closed.
+- **Corners are concentric.** An inner radius is its outer radius less the gap between them, checked in the browser suite.
+- The regeneration screen no longer shows the seed.
+
 ### Scroll limits behave like a scroll view
 
 - **Edge resistance now follows how scroll views work.** Content carries on past a limit at the speed it arrived, compressed by the same rubber-band curve (constant 0.55), and a critically damped spring brings it home. It used to stop dead and then make a small, unrelated movement. A region's frame now stays still while what is inside it moves.

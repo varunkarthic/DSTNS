@@ -477,3 +477,14 @@ second after being let go. Chrome has no elastic scrolling on inner elements, so
 
 **Consequences.** Fast scrolling into a limit now travels visibly further than the 12 px it used to be allowed. A trackpad's
 fading momentum no longer holds a stretch open, because a run of shrinking events is not treated as a push.
+
+## 36. What matters most is what the capsule shows
+
+**Problem.** The capsule shows one notification and counts the rest. Putting the focused event and system explanations first could
+hide a collision behind a note about speed.
+
+**Decision.** Severity decides first, then incidents, then system explanations and the focused event, then recency. A setting,
+on by default, returns to newest first.
+
+**Consequences.** The capsule can differ from what Auto Focus is showing while something more severe is current. The focused event
+is still in the list, and still shown when muted.

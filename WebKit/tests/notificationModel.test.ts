@@ -268,10 +268,16 @@ describe("Do Not Disturb", () => {
 describe("ordering", () => {
   const base = (id: string, severity: UiNotification["severity"], timestamp: number, focusKey?: string) =>
     ({ id, severity, timestamp, focusKey }) as UiNotification;
-  it("puts the focused event first, then severity, then recency", () => {
+  it("puts severity first, then the focused event, then recency; or only recency when asked", () => {
     const list = [base("a", "info", 50), base("b", "alert", 10), base("c", "alert", 20), base("d", "info", 5, "weather-1")];
-    expect(orderForDisplay(list, "weather-1").map((n) => n.id)).toEqual(["d", "c", "b", "a"]);
+    expect(orderForDisplay(list, "weather-1").map((n) => n.id)).toEqual(["c", "b", "d", "a"]);
     expect(orderForDisplay(list, null).map((n) => n.id)).toEqual(["c", "b", "a", "d"]);
+    expect(orderForDisplay(list, "weather-1", false).map((n) => n.id)).toEqual(["a", "c", "b", "d"]);
+  });
+  it("puts an incident above anything else of its severity", () => {
+    const news = { ...base("news", "alert", 90), category: "traffic" } as UiNotification;
+    const crash = { ...base("crash", "alert", 10), category: "incident" } as UiNotification;
+    expect(orderForDisplay([news, crash], null)[0].id).toBe("crash");
   });
 });
 

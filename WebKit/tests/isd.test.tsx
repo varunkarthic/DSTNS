@@ -31,12 +31,13 @@ describe("Intentional System Design Handler", () => {
     expect(note.why).toContain("Adaptive Simulation Backpressure");
   });
 
-  it("is not silenced by Do Not Disturb or by turning notifications off, and is read first", () => {
+  it("is not silenced by Do Not Disturb or by turning notifications off, and is read first among its equals", () => {
     const note = isdNotification("async", figures, 0);
     const silenced = { enabled: false, dnd: true, mutedCategories: ["system"], mutedSeverities: ["info"] } as never;
     expect(shouldDisplayNotification(note, silenced, { enabled: false, targetKey: null })).toBe(true);
-    const other = { ...note, id: "other", isd: false, severity: "alert", timestamp: 9 } as UiNotification;
+    const other = { ...note, id: "other", isd: false, timestamp: note.timestamp + 9 } as UiNotification;
     expect(orderForDisplay([other, note], null)[0].id).toBe(note.id);
+    expect(orderForDisplay([{ ...other, severity: "alert" }, { ...note, severity: "warning" }], null)[0].id).toBe("other");
   });
 
   it("announces a condition once a page load", () => {

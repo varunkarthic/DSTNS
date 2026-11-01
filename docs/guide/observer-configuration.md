@@ -89,6 +89,7 @@ or in Settings.
 "notifications": {
   "enabled": true,
   "dnd": false,
+  "important_first": true,
   "dnd_categories": ["weather", "flooding", "incident", "traffic", "demand", "signals", "system"],
   "dnd_severities": [],
   "max_visible": 3,
@@ -100,6 +101,7 @@ or in Settings.
 | --- | --- |
 | `enabled` | Show notifications at all |
 | `dnd` | Do Not Disturb. When on, notifications in the muted categories and severities are not shown |
+| `important_first` | The capsule shows the most important event and counts the others. When off, it shows the newest |
 | `dnd_categories` | Categories muted while DND is on. Any of `weather`, `flooding`, `incident`, `traffic`, `demand`, `signals`, `system`. Unknown values are dropped |
 | `dnd_severities` | Severities muted while DND is on: `info`, `warning`, `alert` |
 | `dwell_ms` | 1000 to 60000. How long a notification remains before it expires. An expanded notification does not expire while open |

@@ -404,7 +404,7 @@ describe("world regeneration", () => {
 
     const overlay = await screen.findByRole("alertdialog");
     await waitFor(() => expect(calls.some((c) => c.path.includes("/world/regenerate") && JSON.parse(c.body).expected_run_id === "run_1")).toBe(true));
-    expect(await within(overlay).findByText("4210818")).toBeInTheDocument();
+    expect(within(overlay).queryByText("4210818")).toBeNull();
     // Real download progress is shown when the core knows the size.
     expect(await within(overlay).findByText(/Downloading Oslo, Norway: 2\.1 MB of 8\.4 MB/, {}, { timeout: 3000 })).toBeInTheDocument();
     expect(within(overlay).getByRole("progressbar", { name: "Download progress" })).toHaveAttribute("aria-valuenow", "25");

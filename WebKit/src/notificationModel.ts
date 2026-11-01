@@ -583,13 +583,23 @@ export function shouldDisplayNotification(
   return !policy.mutedCategories.includes(n.category) && !policy.mutedSeverities.includes(n.severity);
 }
 
-/** Order for the capsule: the focused event first, then severity, then recency. */
-export function orderForDisplay(list: UiNotification[], focusedKey: string | null | undefined): UiNotification[] {
+/**
+ * Order for the capsule, which shows the first and counts the rest. Important first: severity,
+ * then incidents, then what explains the system's own behaviour or the camera, then recency.
+ * Otherwise simply the newest.
+ */
+export function orderForDisplay(list: UiNotification[], focusedKey: string | null | undefined, importantFirst = true): UiNotification[] {
   return [...list].sort((a, b) => {
+    if (!importantFirst) return b.timestamp - a.timestamp;
     const fa = focusMatches(a.focusKey, focusedKey) ? 1 : 0;
     const fb = focusMatches(b.focusKey, focusedKey) ? 1 : 0;
-    // What explains the system's own behaviour is read first: it answers "what just happened?".
-    return Number(!!b.isd) - Number(!!a.isd) || fb - fa || rank(b.severity) - rank(a.severity) || b.timestamp - a.timestamp;
+    return (
+      rank(b.severity) - rank(a.severity) ||
+      Number(b.category === "incident") - Number(a.category === "incident") ||
+      Number(!!b.isd) - Number(!!a.isd) ||
+      fb - fa ||
+      b.timestamp - a.timestamp
+    );
   });
 }
 

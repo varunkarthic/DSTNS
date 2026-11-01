@@ -73,6 +73,7 @@ export function NotificationCapsule(
     clearTimeout(resetTimer.current);
     resetTimer.current = setTimeout(() => {
       setHeld(null);
+      setSelected(null);
       setTechnical(false);
     }, reduceMotion ? 0 : MOTION_MS.overlay + 160);
   };

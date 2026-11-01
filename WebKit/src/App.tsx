@@ -518,16 +518,17 @@ export default function App() {
     // Do Not Disturb stops new notifications. One already on screen lives out its
     // time: it was seen, and taking it away mid-read would be its own disturbance.
     const visible = notifications.filter((n) => shouldDisplayNotification(n, policy, focus) || (policy.enabled && onScreen.current.has(n.id)));
-    let list: UiNotification[] = orderForDisplay(visible, activeKey);
+    let list: UiNotification[] = visible;
     // The event auto-focus is showing always has a notification, even if the
     // news that announced it has expired or was muted.
     if (!dayOver && autoFocus && active && sim.snapshot && !dismissedFocus.has(active.key) && !list.some((n) => focusMatches(n.focusKey, activeKey)))
       list = [focusNotification(active, sim.snapshot.data, sim.topology, virtual), ...list];
+    list = orderForDisplay(list, activeKey, config.notifications.important_first);
     onScreen.current = new Set(list.map((n) => n.id));
     return { shown: list };
     // Rebuilt when inputs change; the virtual clock alone does not warrant it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notifications, policy, autoFocus, activeKey, active?.key, sim.snapshot, sim.topology, dismissedFocus, dayOver]);
+  }, [notifications, policy, autoFocus, activeKey, active?.key, sim.snapshot, sim.topology, dismissedFocus, dayOver, config.notifications.important_first]);
   // ---- Notification history ------------------------------------------------
   // Every notification-worthy event is kept, whether or not it was shown.
   const historyStore = useRef(new NotificationHistory());
@@ -1082,6 +1083,7 @@ export default function App() {
               autoFocus,
               autoFocusAvailable: mode !== "disable",
               strategy: config.auto_focus.strategy,
+              importantFirst: config.notifications.important_first,
               dnd,
               mutedCategories: config.notifications.dnd_categories,
               mutedSeverities: config.notifications.dnd_severities,
@@ -1106,6 +1108,7 @@ export default function App() {
               onReset: resetAllPreferences,
               onAutoFocus: toggleAutoFocus,
               onStrategy: setStrategy,
+              onImportantFirst: (on) => persist({ notifications: { ...config.notifications, important_first: on } }),
               onDnd: setDnd,
               onMutedCategories: (ids) => persist({ notifications: { ...config.notifications, dnd_categories: ids } }),
               onMutedSeverities: (ids) => persist({ notifications: { ...config.notifications, dnd_severities: ids } }),
@@ -1330,7 +1333,6 @@ export default function App() {
           {world.active && (
             <WorldGenerationOverlay
               status={world.status}
-              requestedSeed={world.requestedSeed}
               loaded={worldLoaded}
               closing={world.closing}
               error={world.error}

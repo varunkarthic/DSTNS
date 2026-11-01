@@ -277,6 +277,12 @@ collapses it. While it is open the list is held steady, so a notification that
 would expire cannot vanish while being read. The capsule never covers the
 command rail.
 
+### Important on top
+
+**Show important on top**, in Settings under Notifications, is on by default. With several events current, the capsule shows the
+most important and counts the others as +X: highest severity first, then incidents, then the rest by how recent they are. Turned
+off, it shows the newest.
+
 ## Do Not Disturb
 
 Turning it on stops new notifications; one already on screen lives out its time rather than
@@ -361,6 +367,7 @@ keep the camera moving for nothing.
 
 The sidebar holds zoom in, zoom out, fit network, place search, Auto Focus,
 Do Not Disturb, reduced motion and Settings. Icons are 18 px (Settings 20 px).
+The place you choose from search flashes on the map three times and stays marked until you next touch the map.
 Search opens a field beside the sidebar; results centre the map on the place
 and open its inspection card.
 
@@ -457,6 +464,8 @@ sum overlapping cells.
 Lists fade out at the bottom while more content lies below; the fade is removed
 when the real end is reached, so it never implies hidden content. Every list
 has an empty state.
+
+A row in Stack, News, Queue or Incidents that is cut off opens when clicked, or with Enter or Space, and shows all of its text.
 
 ## Tooltips
 

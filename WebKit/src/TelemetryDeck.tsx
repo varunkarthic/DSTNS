@@ -127,8 +127,26 @@ function StreamRow({
   meter?: number;
   alert?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  // Only what is actually cut off opens, and a drag to select text is not a click.
+  const toggle = (row: HTMLElement) => {
+    if (window.getSelection()?.toString()) return;
+    const cut = [...row.querySelectorAll<HTMLElement>(".stream-title, .stream-meta span")].some((el) => el.scrollWidth > el.clientWidth + 1);
+    if (open || cut) setOpen(!open);
+  };
   return (
-    <div className={`stream-card${alert ? " alert" : ""}`}>
+    <div
+      className={`stream-card${alert ? " alert" : ""}${open ? " open" : ""}`}
+      role="button"
+      tabIndex={0}
+      aria-expanded={open}
+      onClick={(e) => toggle(e.currentTarget)}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        toggle(e.currentTarget);
+      }}
+    >
       <span className={`row-icon ${tone}`} aria-hidden="true">
         <Icon name={icon} size={14} />
       </span>

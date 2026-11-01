@@ -2540,7 +2540,6 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 /* ---- A new world: the old one leaves, then the film with nothing before it ------------------------ */
 .loading-surface.boot.rejoin::before { animation: end-cover 900ms var(--ease) both; }
 .loading-surface.boot.rejoin.exiting .loading-card.film, .loading-surface.boot.rejoin.exiting .loading-licence { opacity: 0; }
-.loading-surface.boot .loading-card.film .loading-seed { position: absolute; top: 30px; right: 28px; margin: 0; }
 .loading-surface.boot .loading-card.film .loading-steps { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 /* The film has the whole window, as it does at start-up, and the bar returns with the map. */
 .app-shell:has(.loading-surface.rejoin) .app-header { opacity: 0; pointer-events: none; transition: opacity 500ms var(--ease); }
@@ -2579,3 +2578,25 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .seed-check path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: seed-check 320ms var(--ease) 90ms forwards; }
 @keyframes seed-check { to { stroke-dashoffset: 0; } }
 .reduce-motion .seed-check path { animation: none; stroke-dashoffset: 0; }
+
+/* ---- Corners within corners: an inner radius is the outer one less the gap between them. ------------
+   On this scale, a gap of 4 steps down once (18, 14, 10, 6) and a gap of 8 steps down twice. */
+.stream-card { padding: 7px 12px 7px 7px; }
+.row-icon { border-radius: var(--r-xs); }
+.history-head { padding: 7px 10px 7px 7px; }
+.history-detail { padding-left: 43px; }
+.segmented { padding: 3px; }
+.segmented-pill { top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--count)); border-radius: var(--r-xs); }
+.settings-note { border-radius: var(--r-xs); }
+.place-finder { padding: 8px; }
+.place-search-field { border-radius: var(--r-sm); }
+.place-search-results button { min-height: 38px; padding: 4px; border-radius: var(--r-sm); }
+.place-search-results .place-glyph { border-radius: var(--r-xs); }
+
+/* A row opens to show what its width had cut off. */
+.stream-card { cursor: default; }
+.stream-card.open .stream-title, .stream-card.open .stream-meta span { white-space: normal; overflow: visible; text-overflow: clip; }
+.stream-card.open .stream-meta { flex-wrap: wrap; }
+.stream-card:focus-visible { outline: 2px solid var(--accent-line); outline-offset: -2px; }
+.rail :is(.rail-terminate, .seed-value, .rail-btn) { border-radius: var(--r-xs); }
+.place-search-results .place-glyph { width: 36px; height: 36px; }

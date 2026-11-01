@@ -506,6 +506,37 @@ try {
     assert.ok(statSync(target).size > 50000);
   });
 
+  check("corners inside corners follow them", async () => {
+    await page.keyboard.press("Escape");
+    const stray = await page.evaluate(() => {
+      const radius = (el) => parseFloat(getComputedStyle(el).borderTopLeftRadius);
+      const drawn = (el) => {
+        const c = getComputedStyle(el);
+        const box = el.getBoundingClientRect();
+        return box.width > 0 && c.visibility !== "hidden" && +c.opacity > 0 && (c.backgroundColor !== "rgba(0, 0, 0, 0)" || parseFloat(c.borderTopWidth) > 0);
+      };
+      const pill = (el, r) => { const b = el.getBoundingClientRect(); return r >= Math.min(b.width, b.height) / 2 - 0.5; };
+      const out = [];
+      for (const el of document.querySelectorAll("body *")) {
+        const r = radius(el);
+        if (r <= 3 || pill(el, r) || !drawn(el)) continue;
+        let parent = el.parentElement;
+        while (parent && parent !== document.body && !(drawn(parent) && radius(parent) > 3)) parent = parent.parentElement;
+        if (!parent || parent === document.body) continue;
+        const R = radius(parent);
+        if (pill(parent, R)) continue;
+        const a = parent.getBoundingClientRect(), b = el.getBoundingClientRect();
+        const gaps = [Math.max(b.left - a.left, b.top - a.top), Math.max(a.right - b.right, b.top - a.top), Math.max(b.left - a.left, a.bottom - b.bottom), Math.max(a.right - b.right, a.bottom - b.bottom)];
+        const gap = Math.min(...gaps);
+        // A corner further in than the outer radius no longer reads as following it.
+        if (gap < 0 || gap >= R) continue;
+        if (Math.abs(r - (R - gap)) > 5) out.push(`${el.className} in ${parent.className}: ${r} for ${R} less ${gap}`);
+      }
+      return out;
+    });
+    assert.deepEqual(stray, []);
+  });
+
   check("no page errors", async () => {
     assert.deepEqual(errors, []);
   });

@@ -60,7 +60,6 @@ export function LoadingSurface({
   failed = false,
   error,
   note,
-  seed,
   actions,
   closing = false,
   reduceMotion,
@@ -89,7 +88,6 @@ export function LoadingSurface({
   failed?: boolean;
   error?: string;
   note?: string;
-  seed?: string;
   actions?: ReactNode;
   closing?: boolean;
   reduceMotion: boolean;
@@ -161,11 +159,6 @@ export function LoadingSurface({
       )}
       {eyebrow && <p className="loading-eyebrow">{eyebrow}</p>}
       <h2 id={titleId} key={title}>{title}</h2>
-      {seed && (
-        <p className="loading-seed">
-          <span>Seed</span> <span className="mono">{seed}</span>
-        </p>
-      )}
       {failed ? (
         <>
           {error && (

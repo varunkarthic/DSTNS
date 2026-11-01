@@ -36,6 +36,9 @@ import {
   stepRainCells,
 } from "./mapModel";
 import type {
+  EdgeState,
+  IncidentState,
+  MapFeature,
   Inspection,
   Layers,
   PlaceVisibility,
@@ -54,6 +57,26 @@ export type MapControls = {
   /** Show the inspection card for a place, as hovering it would. */
   inspectFeature: (id: string) => void;
 };
+const FOUND_FLASH_MS = 2400;
+const FOUND_RGB = "255,196,77";
+
+/** What the hover card says about an incident, in the same terms as a place. */
+function incidentInspection(incident: IncidentState, edge: TopologyEdge, edgeState: EdgeState | undefined, topology: Topology): Inspection {
+  const road = roadInspection(edge, edgeState, topology);
+  const kind = incident.flood > 0.01 ? "Flooding" : incident.type ? incident.type.charAt(0).toUpperCase() + incident.type.slice(1).toLowerCase().replace(/_/g, " ") : "Incident";
+  const effect = [
+    incident.speed_multiplier !== undefined && !incident.closed ? `Traffic moves at ${Math.round(incident.speed_multiplier * 100)}% of its normal speed.` : "",
+    incident.vehicle_count ? `Vehicles on this road: ${incident.vehicle_count.toLocaleString()}.` : "",
+  ].filter(Boolean);
+  return {
+    ...road,
+    title: `${kind} on ${edge.name || "an unnamed road"}`,
+    category: "Incident",
+    status: incident.closed ? "Road closed" : incident.flood > 0.01 ? "Flooded" : "Open, slowed",
+    description: [incident.description && `${incident.description.replace(/\.$/, "")}.`, ...effect].filter(Boolean).join(" ") || road.description,
+  };
+}
+
 /** Pixels per metre; a map point (x_m, y_m) sits at (x + x_m * scale, y - y_m * scale). */
 export type MapTransform = { x: number; y: number; scale: number };
 export type MapView = {
@@ -144,6 +167,8 @@ function NetworkMap({
     dynamic = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 1000, h: 700 }),
     [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
+  // The place last chosen from search, marked on the map until the map is next touched.
+  const [found, setFound] = useState<{ feature: MapFeature; at: number } | null>(null);
   const [hover, setHover] = useState<{
     info: Inspection;
     x: number;
@@ -664,11 +689,44 @@ function NetworkMap({
         Math.max(0.12, quality.current * (cost > 11 ? 0.82 : cost < 5 ? 1.05 : 1)),
       );
       ctx.globalAlpha = 1;
+      const flashing = !!found && !reduceMotion && performance.now() - found.at < FOUND_FLASH_MS;
+      if (found) {
+        const age = reduceMotion ? FOUND_FLASH_MS : performance.now() - found.at;
+        const p = screen(found.feature.position);
+        // Three flashes, then it stays lit.
+        const lit = age < FOUND_FLASH_MS ? 0.35 + 0.65 * Math.abs(Math.cos((age / FOUND_FLASH_MS) * Math.PI * 3)) : 1;
+        ctx.strokeStyle = `rgba(${FOUND_RGB},${lit})`;
+        ctx.fillStyle = `rgba(${FOUND_RGB},${lit * 0.22})`;
+        ctx.lineWidth = 2.5;
+        if (found.feature.polygon && found.feature.geometry.length > 2) {
+          ctx.beginPath();
+          found.feature.geometry.forEach((point, i) => {
+            const q = screen(point);
+            if (i) ctx.lineTo(q.x, q.y);
+            else ctx.moveTo(q.x, q.y);
+          });
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        if (flashing) {
+          const phase = ((age / FOUND_FLASH_MS) * 3) % 1;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 22 + phase * 34, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${FOUND_RGB},${(1 - phase) * 0.7})`;
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
+        }
+      }
       // Flow markers read just as well at half the frame rate, and that leaves the main
       // thread free for everything being touched. A camera move redraws at once through
       // this effect, and rain on a spring asks for every frame.
       const moving = rainNow.some((cell) => cell.moving);
-      if (moving) frame = requestAnimationFrame(draw);
+      if (moving || flashing) frame = requestAnimationFrame(draw);
       else if (running && !reduceMotion && (layers.vehicles || (snapshot?.active_incidents.length ?? 0) > 0)) frame = requestAnimationFrame(() => (frame = requestAnimationFrame(draw)));
     };
     draw();
@@ -687,6 +745,7 @@ function NetworkMap({
     places,
     reduceMotion,
     running,
+    found,
     virtualTime,
     flowing,
     tickRate,
@@ -853,7 +912,20 @@ function NetworkMap({
     let footprint: { key: string; info: Inspection } | undefined;
     let info: Inspection | undefined,
       key = "";
-    if (layers.buildings) {
+    // Incidents are drawn over everything, so they are found before anything under them.
+    if (layers.events || layers.incidents)
+      for (const incident of snapshot?.active_incidents ?? []) {
+        const edge = topology.edges[incident.edge_id];
+        if (!edge?.geometry.length) continue;
+        const a = edge.geometry[0],
+          b = edge.geometry[edge.geometry.length - 1];
+        if (Math.hypot((a.x_m + b.x_m) / 2 - x, -(a.y_m + b.y_m) / 2 - y) * view.scale < 18) {
+          key = `i${edge.id}`;
+          info = incidentInspection(incident, edge, state.edges.get(edge.id), topology);
+          break;
+        }
+      }
+    if (!info && layers.buildings) {
       let nearest = 15;
       let hit = -1;
       for (const marker of markerHits.current) {
@@ -897,26 +969,6 @@ function NetworkMap({
               ],
               ["Cycle", `${signal.cycle_length}s`],
             ],
-          };
-          break;
-        }
-      }
-    if (!info && layers.events)
-      for (const incident of snapshot?.active_incidents ?? []) {
-        const edge = topology.edges[incident.edge_id];
-        if (!edge) continue;
-        const a = edge.geometry[0],
-          b = edge.geometry[edge.geometry.length - 1];
-        if (
-          Math.hypot((a.x_m + b.x_m) / 2 - x, -(a.y_m + b.y_m) / 2 - y) *
-            view.scale <
-          12
-        ) {
-          key = `e${edge.id}`;
-          info = {
-            ...roadInspection(edge, state.edges.get(edge.id), topology),
-            title: `Incident on ${edge.name || `E-${edge.id}`}`,
-            category: "Incident effect",
           };
           break;
         }
@@ -1105,6 +1157,7 @@ function NetworkMap({
         // gliding to, rather than at a stale pointer position.
         const layout = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
         const rect = host.current?.getBoundingClientRect();
+        setFound({ feature, at: performance.now() });
         setHover({
           info: placeInspection(feature, state.demand.get(feature.id)),
           x: (rect?.left ?? 0) + layout.centerX + 18,
@@ -1156,6 +1209,10 @@ function NetworkMap({
           ? { ...hover.info, metrics: current.metrics }
           : current;
       }
+    } else if (/^i[0-9]+$/.test(key)) {
+      const edge = topology.edges[Number(key.slice(1))];
+      const incident = snapshot?.active_incidents.find((i) => i.edge_id === edge?.id);
+      if (edge && incident) hoverInfo = incidentInspection(incident, edge, state.edges.get(edge.id), topology);
     } else if (/^s[0-9]+$/.test(key)) {
       const signal = state.signals.get(Number(key.slice(1)));
       if (signal)
@@ -1208,6 +1265,7 @@ function NetworkMap({
         onPointerDown={(e) => {
           cancelGlide();
           clearHover();
+          setFound(null);
           drag.current = { x: e.clientX, y: e.clientY, view };
           trackX.current.reset();
           trackY.current.reset();

@@ -1793,29 +1793,6 @@ body:has(.reduce-motion) .floating {
 .loading-surface.still .loading-ring svg {
   animation: none !important;
 }
-.loading-seed {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 100%;
-  margin: 0;
-  padding: 4px 10px;
-  border-radius: var(--r-pill);
-  background: var(--well);
-  font-size: 11px;
-  color: var(--text);
-}
-.loading-seed > span:first-child {
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.loading-seed .mono {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .loading-steps {
   list-style: none;
   width: 100%;

@@ -34,6 +34,7 @@ export interface SettingsValues {
   autoFocus: boolean;
   autoFocusAvailable: boolean;
   strategy: AutoFocusStrategy;
+  importantFirst: boolean;
   dnd: boolean;
   mutedCategories: string[];
   mutedSeverities: string[];
@@ -61,6 +62,7 @@ export interface SettingsActions {
   onReset: () => void;
   onAutoFocus: (on: boolean) => void;
   onStrategy: (s: AutoFocusStrategy) => void;
+  onImportantFirst: (on: boolean) => void;
   onDnd: (on: boolean) => void;
   onMutedCategories: (ids: string[]) => void;
   onMutedSeverities: (ids: string[]) => void;
@@ -240,6 +242,15 @@ export function SettingsDrawer({
                 ]}
               />
             }
+          />
+        </Section>
+
+        <Section title="Notifications" icon="bell">
+          <Row
+            title="Show important on top"
+            hint="The most important event is shown, and the others are counted beside it. Off, the newest is shown."
+            htmlFor="set-important"
+            control={<Switch id="set-important" label="Show important on top" checked={values.importantFirst} onChange={actions.onImportantFirst} />}
           />
         </Section>
 
