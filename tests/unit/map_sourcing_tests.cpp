@@ -196,6 +196,24 @@ int main() {
         check(rejected, "a truncated cache entry is re-fetched rather than loaded as a map");
         ::unsetenv("DSTNS_PYTHON");
 
+        // A downloader that goes quiet is stopped, and says so.
+        const auto silent = sandbox / "silent";
+        std::ofstream(silent) << "#!/bin/sh\nsleep 30\n";
+        std::filesystem::permissions(silent, std::filesystem::perms::owner_all);
+        ::setenv("DSTNS_PYTHON", silent.c_str(), 1);
+        ::setenv("DSTNS_MAP_STALL_S", "1", 1);
+        const auto stalled_from = std::chrono::steady_clock::now();
+        std::string stalled;
+        try {
+            (void)acquire_map_tile(missing, sandbox);
+        } catch (const MapFetchError& error) {
+            stalled = error.what();
+        }
+        check(stalled.find("No data arrived for 1 seconds") != std::string::npos, "a silent download fails with a reason");
+        check(std::chrono::steady_clock::now() - stalled_from < std::chrono::seconds(10), "a silent download is stopped at its limit");
+        ::unsetenv("DSTNS_MAP_STALL_S");
+        ::unsetenv("DSTNS_PYTHON");
+
         // ---- The cache is swept on boot so extracts cannot accumulate -----
         // City extracts are tens of megabytes each; without this a long-lived
         // install grows one per city ever visited.

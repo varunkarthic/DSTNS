@@ -3,6 +3,7 @@
 
 import { formatBytes } from "./units";
 import { useEffect, useState } from "react";
+import { Icon } from "./Icons";
 import { LoadingSurface } from "./LoadingSurface";
 import type { BootPhase } from "./LoadingSurface";
 import { Mark } from "./Logo";
@@ -166,7 +167,7 @@ export function Splash({
  * trying behind this screen. With one, the server has answered that this world cannot be
  * prepared, and only starting another will change that.
  */
-export function BootFailure({ message, reduceMotion, closing = false, reachable = false }: { message: string; reduceMotion: boolean; closing?: boolean; reachable?: boolean }) {
+export function BootFailure({ message, reduceMotion, closing = false, reachable = false, onRetry }: { message: string; reduceMotion: boolean; closing?: boolean; reachable?: boolean; onRetry?: () => void }) {
   return (
     <LoadingSurface
       mode="boot"
@@ -174,12 +175,19 @@ export function BootFailure({ message, reduceMotion, closing = false, reachable 
       failed
       title={reachable ? "This world could not be prepared" : "DSTNS could not start"}
       error={message}
-      note={reachable ? "Nothing has been lost, and the simulator is still running. Start a run with a different seed from the DSTNS CLI." : "Nothing has been lost. This screen clears by itself as soon as the simulator answers."}
+      note={reachable ? (onRetry ? "Nothing has been lost, and the simulator is still running." : "Nothing has been lost, and the simulator is still running. Start a run with a different seed from the DSTNS CLI.") : "Nothing has been lost. This screen clears by itself when the simulator answers."}
       closing={closing}
       reduceMotion={reduceMotion}
       titleId="boot-failure-title"
       actions={
-        reachable ? undefined : (
+        reachable ? (
+          onRetry && (
+            <button type="button" className="btn primary" onClick={onRetry}>
+              <Icon name="reroll" size={16} />
+              Try another city
+            </button>
+          )
+        ) : (
           <button type="button" className="btn" onClick={() => window.location.reload()}>
             Reload
           </button>

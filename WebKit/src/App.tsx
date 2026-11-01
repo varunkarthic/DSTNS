@@ -128,7 +128,7 @@ export function worldErrorMessage(code: string, message: string): string {
     // name; what follows is the cause, which may name several mirrors and what
     // to do about them, so it is kept whole.
     const cause = message.replace(/^.*?fetch_osm:\s*/s, "").replace(/^OSM download failed[^:]*:\s*/s, "").trim();
-    return `The map for this seed could not be downloaded from OpenStreetMap. ${cause || message}`.trim();
+    return `This city's map could not be downloaded from OpenStreetMap. ${cause || message}`.trim();
   }
   if (code === "WORLD_REGENERATION_DISABLED") return "World generation is disabled for this deployment.";
   if (code === "LIFECYCLE_CONFLICT") return message.charAt(0).toUpperCase() + message.slice(1) + ".";
@@ -1239,7 +1239,16 @@ export default function App() {
           {splash.mounted && lastSplash.current && (
             <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} onFilmCycle={onFilmCycle} />
           )}
-          {failure.mounted && <BootFailure message={lastFailure.current} reachable={!!sim.status} closing={failure.closing} reduceMotion={reduceMotion} />}
+          {failure.mounted && (
+            <BootFailure
+              message={/^OSM download/.test(lastFailure.current) ? worldErrorMessage("MAP_FETCH_FAILED", lastFailure.current) : lastFailure.current}
+              reachable={!!sim.status}
+              // Only the download of a seed-chosen city leaves something to try again.
+              onRetry={regenerationEnabled && /^OSM download|map tile for/.test(lastFailure.current) ? () => void api.regenerateWorld().catch((e) => console.error("Could not try another city:", e)) : undefined}
+              closing={failure.closing}
+              reduceMotion={reduceMotion}
+            />
+          )}
           {(shutDown || serverGone) && <ShutdownSurface reduceMotion={reduceMotion} landing={landOnRoads} lost={serverGone && !shutDown} />}
 
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} narratorBadge={narratorBadge(narrator)} />}

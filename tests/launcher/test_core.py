@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import threading
+import time
 import json
 import os
 import re
@@ -278,6 +279,16 @@ class Runs(WithWorkspace):
         with FakeServer(preparation_error="district too small") as fake:
             with self.assertRaisesRegex(SimulationStartError, "district too small"):
                 simulation.start_run(fake.port, {"seed": "1", "map": {"osm_file": "auto"}}, Reporter(), self.paths)
+
+    def test_a_failed_download_waits_for_the_observer_to_try_another_city(self):
+        with FakeServer(preparation_error="OSM download failed") as fake:
+            def retried():
+                time.sleep(0.3)
+                fake.preparation_error = ""
+                fake.lifecycle = "RUNNING"
+            threading.Thread(target=retried, daemon=True).start()
+            world = simulation.start_run(fake.port, {"seed": "1", "map": {"osm_file": "auto"}}, Reporter(), self.paths, observer_can_retry=True)
+            self.assertEqual(world.place, "Testville, Nowhere")
 
     def test_synthetic_topology_is_refused(self):
         with FakeServer(topology_source="synthetic") as fake:

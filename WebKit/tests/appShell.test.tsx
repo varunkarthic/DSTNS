@@ -406,9 +406,10 @@ describe("world regeneration", () => {
     await waitFor(() => expect(calls.some((c) => c.path.includes("/world/regenerate") && JSON.parse(c.body).expected_run_id === "run_1")).toBe(true));
     expect(within(overlay).queryByText("4210818")).toBeNull();
     // Real download progress is shown when the core knows the size.
-    expect(await within(overlay).findByText(/Downloading Oslo, Norway: 2\.1 MB of 8\.4 MB/, {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(await within(overlay).findByText("Downloading Oslo", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(within(overlay).getByText("2.1 MB of 8.4 MB from OpenStreetMap")).toBeInTheDocument();
     expect(within(overlay).getByRole("progressbar", { name: "Download progress" })).toHaveAttribute("aria-valuenow", "25");
-    expect(await within(overlay).findByText("Constructing the graph, signals and schedules", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(await within(overlay).findByText("Building the road graph, signals and schedules", {}, { timeout: 3000 })).toBeInTheDocument();
 
     // The core swaps worlds: the interface picks the new run up and the overlay leaves.
     state.runId = "run_2";
@@ -435,7 +436,7 @@ describe("world regeneration", () => {
     expect(errors).toHaveBeenCalled();
     // Retry issues a fresh request; Return closes without touching the run.
     calls.length = 0;
-    fireEvent.click(within(overlay).getByRole("button", { name: "Retry" }));
+    fireEvent.click(within(overlay).getByRole("button", { name: "Try another city" }));
     await waitFor(() => expect(calls.some((c) => c.path.includes("/world/regenerate"))).toBe(true));
     state.worldQueue = [{ state: "failed", stage: "failed", error: { code: "WORLD_GENERATION_FAILED", message: "x" } }];
     fireEvent.click(await screen.findByRole("button", { name: "Return to current world" }, { timeout: 3000 }));

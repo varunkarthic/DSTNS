@@ -166,6 +166,9 @@ private:
     std::atomic<bool> compiling_{false}; // Concurrent compiles fail without occupying HTTP workers.
     std::uint64_t compile_generation_{}; // Guarded by mutex_; reset/terminate invalidate a pending install.
     std::string preparation_error_;
+    // What the last failed attempt asked for, so trying again can pick somewhere else.
+    std::optional<Seed128> failed_seed_;
+    std::optional<std::pair<ScenarioConfig, std::uint32_t>> failed_start_;
     std::string run_id_; std::uint32_t virtual_s_{}; std::uint32_t start_virtual_s_{}; double tick_rate_{1};
     std::chrono::steady_clock::time_point anchor_wall_{}; std::uint32_t anchor_virtual_s_{};
     std::chrono::steady_clock::time_point last_global_dump_{};

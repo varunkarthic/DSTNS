@@ -81,6 +81,7 @@ class Session:
         health = handle.health or {}
         observing = health.get("lifecycle") in {"RUNNING", "PAUSED"} and not options.explicit()
         address = self._observer_address(handle.url, options)
+        loaded = False
         if open_browser and not observing:
             simulation.open_in_browser(address)
             loaded = simulation.wait_for_observer(handle.port, 12, self.paths, cancel=cancel)
@@ -100,7 +101,7 @@ class Session:
             self.observed_existing = True
             self.world = None
         else:
-            self.world = simulation.start_run(handle.port, request, reporter, self.paths, cancel=cancel)
+            self.world = simulation.start_run(handle.port, request, reporter, self.paths, cancel=cancel, observer_can_retry=loaded)
             self.observed_existing = False
             if handle.managed:
                 narration.confirm(handle.port, reporter, self.paths, cancel=cancel)

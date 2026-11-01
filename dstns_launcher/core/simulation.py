@@ -177,8 +177,12 @@ def map_recovery(paths: Paths = PATHS, message: str = "") -> str:
 
 
 def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Paths = PATHS,
-              cancel: threading.Event | None = None) -> World:
-    """Start a run and wait until the world is live, reporting real progress."""
+              cancel: threading.Event | None = None, observer_can_retry: bool = False) -> World:
+    """Start a run and wait until the world is live, reporting real progress.
+
+    With an observer open, a failed download is not the end: its screen offers another
+    city, so the server stays up and this keeps waiting until cancelled.
+    """
     check_cancelled(cancel)
     on_demand = request["map"]["osm_file"] == "auto"
     reporter.message(Level.INFO,
@@ -195,6 +199,7 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
 
     deadline = time.monotonic() + PREPARE_LIMIT
     drew = False
+    reported = ""
     try:
         while time.monotonic() < deadline:
             if cancel is not None and cancel.is_set():
@@ -204,6 +209,14 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
             if current.lifecycle in {"RUNNING", "PAUSED", "READY"}:
                 break
             if current.lifecycle == "IDLE" and current.preparation_error:
+                if observer_can_retry and on_demand:
+                    if current.preparation_error != reported:
+                        reported = current.preparation_error
+                        reporter.message(Level.WARNING, "The map could not be downloaded",
+                                         f"{reported} Choose Try another city in the observer, or press Ctrl+C to stop.")
+                    deadline = time.monotonic() + PREPARE_LIMIT
+                    time.sleep(POLL_SECONDS)
+                    continue
                 raise SimulationStartError(current.preparation_error,
                                            remedy=map_recovery(paths, current.preparation_error) if on_demand else "Check the map file.")
             if on_demand:
@@ -224,7 +237,9 @@ def start_run(port: int, request: dict[str, Any], reporter: Reporter, paths: Pat
         if drew:
             reporter.progress_done()
 
-    loaded = world(port, str(request.get("seed", "")), int(request.get("day", 0)), paths)
+    # The observer may have tried another city, which means another seed.
+    seed = (current.seed if reported else "") or str(request.get("seed", ""))
+    loaded = world(port, seed, int(request.get("day", 0)), paths)
     if loaded.city:
         reporter.message(Level.INFO, "District",
                          f"{loaded.place} · {loaded.latitude:.4f}, {loaded.longitude:.4f}"

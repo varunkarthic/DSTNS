@@ -91,8 +91,11 @@ start again (the CLI rebuilds when sources change).
 ## MAP_FETCH_FAILED
 
 The seed's city extract could not be downloaded, and DSTNS never substitutes
-another city. The message names the city, the coordinates and the cause, and
-the CLI lists maps already on disk.
+another city by itself. The message names the city, the coordinates and the cause, and
+the CLI lists maps already on disk. The observer offers **Try another city**.
+
+- `No data arrived for 200 seconds` means no mirror sent anything in that time.
+  `DSTNS_MAP_STALL_S` changes the limit.
 
 - Check the network, VPN or proxy.
 - Overpass mirrors rate-limit heavy users. Wait, or point at another instance:

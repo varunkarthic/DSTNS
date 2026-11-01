@@ -186,13 +186,15 @@ The arrows beside the seed generate a new world.
 3. **Progress.** The overlay polls `GET /api/v1/world/status` every 400 ms and
    shows the stages the core reports:
 
-   | Step | Core stages | Detail shown |
+   The screen is the one used when starting up: what is happening on the left, its
+   details on the right, and the same steps beneath.
+
+   | Step | Core stages | Left, then right |
    |---|---|---|
-   | Generating seed | before the first status | "Requesting a new seed" |
-   | Preparing map data | `compiling`, `requesting`, `downloading`, `validating` | City and real bytes; a percentage bar only when the download size is known |
-   | Building road network | `building` | Graph, signals and schedules |
+   | Selecting world | before the first status, `compiling` | "Selecting world", then resolving the seed |
+   | Downloading map | `requesting`, `downloading`, `validating` | The city, then real bytes; a percentage bar appears when the total is known |
+   | Generating world | `building` | "Generating world", then graph, signals and schedules |
    | Initializing simulation | `installing`, and `ready` until the map arrives | Starting the new world |
-   | Ready | `ready` with the new map loaded | Shown briefly, then the overlay fades |
 
    No percentage is invented: stage progress is shown as steps, and a bar
    appears only for downloads with a known size.
@@ -207,8 +209,8 @@ The arrows beside the seed generate a new world.
 ### Failure
 
 If generation fails the overlay shows a short reason, never a stack trace, and
-states that the previous world is still running and unchanged. **Retry** makes
-a fresh request; **Return to current world** closes the overlay. Technical
+states that the previous world is still running and unchanged. **Try another city**
+makes a fresh request for a different city; **Return to current world** closes the overlay. Technical
 details go to the browser console. The core guarantees the previous world is
 untouched because the new one is compiled separately and only installed on
 success.
@@ -649,7 +651,7 @@ confirmations (Terminate) use red; others use cyan.
 | Stale data | "Simulation data is stale. Reconnecting."; Degraded |
 | Map download failed at startup | Failure screen with city, coordinates and cause, and Reload |
 | Server terminated | Shutdown screen saying how to start again |
-| World generation failed | Overlay with reason, Retry and Return |
+| World generation failed | Overlay with reason, Try another city and Return |
 | Report failed | Error banner, and inside the completion dialog |
 | Clipboard refused | "Copy failed" in place |
 | Tutorial target hidden | Note in the tutorial card |

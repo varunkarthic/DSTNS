@@ -37,9 +37,10 @@ The script:
 
 - queries Overpass for `highway`, `building`, `landuse` and `leisure` ways,
   traffic-signal nodes, and the nodes they reference, in XML;
-- tries each endpoint in `DSTNS_OVERPASS_ENDPOINTS`, or four public mirrors,
-  with retries and exponential back-off;
-- reads the response, publishing `connect`, `download`, `parse` and byte
+- tries each endpoint in `DSTNS_OVERPASS_ENDPOINTS`, or four public mirrors, moving
+  on after 10 seconds without a connection or 60 seconds without data, then
+  tries again once if all of them failed;
+- asks for a compressed response, and writes and checks it as it arrives, publishing `connect`, `download`, `parse` and byte
   counts to a `.progress` sidecar that `/api/v1/system/map-status` and the
   observer read;
 - checks that it is an `<osm>` document with at least one way and no Overpass

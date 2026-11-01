@@ -387,7 +387,7 @@ try {
     // The current world is paused for the swap and its controls rest.
     assert.match((await call("/api/v1/playback/status")).body.data.lifecycle, /PAUSED|PREPARING/);
     assert.ok(await page.locator(".app-shell.world-busy").count(), "the controls show they are busy");
-    assert.match(await overlay.innerText(), /Generating new world/);
+    assert.match(await overlay.innerText(), /Selecting world/);
     // Nothing of the confirmation is left behind it.
     assert.equal(await page.locator(".scrim:not(.loading-surface) .dialog").count(), 0, "the confirmation has left");
     // The old world leaves first, with nothing over it, and there is no title screen.

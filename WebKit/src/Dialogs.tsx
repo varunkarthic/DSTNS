@@ -13,7 +13,8 @@ import { Icon } from "./Icons";
 import { Logo } from "./Logo";
 import { LoadingSurface } from "./LoadingSurface";
 import { filmAvailable, REJOIN_AT_MS } from "./BootScene";
-import { LICENCE } from "./Splash";
+import { BOOT_STEPS, LICENCE, splashStageFor } from "./Splash";
+import type { SplashStage } from "./Splash";
 import { useTimeFormat } from "./preferences";
 import { formatDuration, formatWallDuration } from "./timeFormat";
 import type { Backpressure, WorldStatus, Envelope, Status, Topology } from "./types";
@@ -522,48 +523,26 @@ export function CompletionDialog({
 // World generation
 // ---------------------------------------------------------------------------
 
-export const WORLD_STEPS = [
-  { id: "seed", label: "Generating seed" },
-  { id: "map", label: "Preparing map data" },
-  { id: "network", label: "Building road network" },
-  { id: "init", label: "Initializing simulation" },
-  { id: "ready", label: "Ready" },
-] as const;
-
 /**
- * Which step a backend stage belongs to, and how to describe it. Only stages
- * the core actually reports are shown; download progress is a percentage only
- * when the core knows the total size.
+ * The screen's words for a stage the core reports, the same as starting up: what is
+ * happening on the left, its details on the right.
  */
-export function worldStep(status: WorldStatus | null, loaded: boolean): { index: number; detail: string; progress?: number } {
-  if (!status || status.state === "idle") return { index: 0, detail: "Requesting a new seed" };
-  const city = status.map?.city ? `${status.map.city}${status.map.country ? `, ${status.map.country}` : ""}` : "";
-  switch (status.stage) {
-    case "compiling":
-      return { index: 1, detail: "Selecting a district from the seed" };
+export function worldStage(status: WorldStatus | null, loaded: boolean): SplashStage {
+  const selecting = { step: 1, label: "Selecting world", detail: "Resolving the seed to a city district" };
+  switch (status?.stage) {
     case "requesting":
-      return { index: 1, detail: city ? `Requesting ${city} from OpenStreetMap` : "Requesting map data" };
-    case "downloading": {
-      const total = status.map?.total ?? 0;
-      const bytes = status.map?.bytes ?? 0;
-      return {
-        index: 1,
-        detail: total > 0 ? `Downloading ${city || "map data"}: ${formatBytes(bytes)} of ${formatBytes(total)}` : `Downloading ${city || "map data"}: ${formatBytes(bytes)}`,
-        progress: total > 0 ? Math.min(1, bytes / total) : undefined,
-      };
-    }
+    case "downloading":
     case "validating":
-      return { index: 1, detail: city ? `Validating ${city}` : "Validating map data" };
+      return splashStageFor({ ...status.map, active: true }, "PREPARING", "", false) ?? selecting;
     case "building":
-      // Before the map fetch reports anything the core is still choosing the
-      // district, which reads as preparation rather than construction.
-      return status.elapsed_s < 0.8 ? { index: 1, detail: "Selecting a district from the seed" } : { index: 2, detail: "Constructing the graph, signals and schedules" };
+      // Before the map fetch reports anything the core is still choosing the district.
+      return status.elapsed_s < 0.8 ? selecting : { step: 3, label: "Generating world", detail: "Building the road graph, signals and schedules" };
     case "installing":
-      return { index: 3, detail: "Starting the new world" };
+      return { step: 4, label: "Initializing simulation", detail: "Starting the new world" };
     case "ready":
-      return loaded ? { index: 4, detail: "The new world is loaded" } : { index: 3, detail: "Loading the new map" };
+      return loaded ? { step: 4, label: "New world ready", detail: "The new world is loaded" } : { step: 4, label: "Initializing simulation", detail: "Loading the new map" };
     default:
-      return { index: 0, detail: "" };
+      return selecting;
   }
 }
 
@@ -587,7 +566,7 @@ export function WorldGenerationOverlay({
   onRetry: () => void;
   onCancel: () => void;
 }) {
-  const step = worldStep(status, loaded);
+  const stage = worldStage(status, loaded);
   const failed = !!error;
   // The old world leaves first, and only then is there anything to report on screen.
   const [exiting, setExiting] = useState(!reduceMotion && filmAvailable());
@@ -596,7 +575,6 @@ export function WorldGenerationOverlay({
     const timer = setTimeout(() => setExiting(false), REJOIN_AT_MS);
     return () => clearTimeout(timer);
   }, [reduceMotion, exiting]);
-  const done = step.index >= WORLD_STEPS.length - 1;
   const retry = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (failed) retry.current?.focus();
@@ -610,11 +588,11 @@ export function WorldGenerationOverlay({
       footer={<p className="loading-licence">{LICENCE}</p>}
       role="alertdialog"
       titleId="world-title"
-      title={failed ? "World generation failed" : done ? "New world ready" : "Generating new world"}
-      steps={WORLD_STEPS}
-      stepIndex={step.index}
-      status={step.detail}
-      progress={step.progress}
+      title={failed ? "World generation failed" : stage.label}
+      steps={BOOT_STEPS}
+      stepIndex={stage.step}
+      status={stage.detail}
+      progress={stage.progress}
       progressLabel="Download progress"
       failed={failed}
       error={error}
@@ -629,7 +607,7 @@ export function WorldGenerationOverlay({
             </button>
             <button type="button" ref={retry} className="btn primary" onClick={onRetry}>
               <Icon name="reroll" size={16} />
-              Retry
+              Try another city
             </button>
           </>
         ) : undefined

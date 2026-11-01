@@ -488,3 +488,14 @@ on by default, returns to newest first.
 
 **Consequences.** The capsule can differ from what Auto Focus is showing while something more severe is current. The focused event
 is still in the list, and still shown when muted.
+
+## 37. A failed download offers somewhere else, when asked
+
+**Problem.** A download with no answer could wait for half an hour, and a failure at start-up left nothing to do in the observer.
+
+**Decision.** No new data for 200 seconds is a failure, enforced by the core so that a hung downloader is covered too. A mirror
+changing is not progress. **Try another city** uses a new seed, chosen so that it names a different city from the one that failed.
+
+**Consequences.** Nothing is substituted without being asked, so a seed still names one map. A slow connection still passes, because
+any new data resets the limit. Each mirror gets 60 seconds before the first data, so a query that needs longer on a busy mirror is
+abandoned in favour of the next. With four mirrors the last gets only 20 seconds before the limit.

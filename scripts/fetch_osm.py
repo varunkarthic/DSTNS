@@ -15,12 +15,14 @@ atomically so an interrupted run cannot leave a truncated map behind.
 """
 import argparse
 import hashlib
+import http.client
 import json
 import math
 import os
 import socket
 import sys
 import time
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 import urllib.error
@@ -34,10 +36,12 @@ import xml.etree.ElementTree as ET
 # (repeatable) or DSTNS_OVERPASS_ENDPOINTS to use a private instance.
 DEFAULT_ENDPOINTS = (
     'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+    'https://overpass.openstreetmap.fr/api/interpreter',
     'https://overpass.private.coffee/api/interpreter',
-    'https://overpass.osm.jp/api/interpreter',
 )
+# A mirror that will not even accept a connection is not worth a full wait for data.
+CONNECT_SECONDS = 10
 MAX_BYTES = 200 * 1024 * 1024
 MAX_AREA_SQ_DEG = 0.05
 METRES_PER_DEGREE_LAT = 111320.0
@@ -50,7 +54,9 @@ parser.add_argument('--output', type=Path, default=Path('data/maps/berlin-urban.
 parser.add_argument('--retries', type=int, default=1, help='extra attempts per endpoint after a transient failure')
 parser.add_argument('--endpoint', action='append', default=[],
                     help='Overpass endpoint to use instead of the built-in mirrors; repeat for failover')
-parser.add_argument('--timeout', type=int, default=180)
+parser.add_argument('--timeout', type=int, default=90, help='seconds Overpass may spend on the query')
+parser.add_argument('--quiet-seconds', type=float, default=60,
+                    help='move to the next mirror after this long with no data from this one')
 args = parser.parse_args()
 
 
@@ -119,6 +125,8 @@ def endpoints():
 def host_of(url):
     return urllib.parse.urlsplit(url).netloc or url
 
+args.output.parent.mkdir(parents=True, exist_ok=True)
+
 # Progress is published beside the target so the operator CLI can render a bar
 # for what is otherwise a silent multi-minute wait inside the core.
 progress_path = args.output.with_name(args.output.name + '.progress')
@@ -134,98 +142,132 @@ def publish(phase, done=0, total=0):
         pass  # Progress reporting must never break the download.
 
 
+temporary = args.output.with_name(args.output.name + f'.{os.getpid()}.part')
+
+
+class Unusable(Exception):
+    """This mirror's answer cannot be used, though another's might be."""
+
+
 def read_streaming(response):
+    """Write the response to the temporary file as it arrives; return its digest and size."""
     # Overpass sends Content-Length only sometimes; report what is known.
     total = int(response.headers.get('Content-Length') or 0)
-    chunks, done, last = [], 0, 0.0
-    while True:
-        chunk = response.read(256 * 1024)
-        if not chunk:
-            break
-        chunks.append(chunk)
-        done += len(chunk)
-        if done > MAX_BYTES:
-            raise ValueError('too large')
-        now = time.monotonic()
-        if now - last > 0.25:
-            publish('download', done, total)
-            last = now
-    publish('download', done, total or done)
-    return b''.join(chunks)
+    gzipped = response.headers.get('Content-Encoding') == 'gzip'
+    inflate = zlib.decompressobj(31) if gzipped else None
+    digest, size, received, last = hashlib.sha256(), 0, 0, 0.0
+    with temporary.open('wb') as out:
+        while True:
+            # read1 returns what has arrived rather than waiting to fill the buffer.
+            chunk = response.read1(256 * 1024)
+            if not chunk:
+                break
+            received += len(chunk)
+            data = inflate.decompress(chunk) if inflate else chunk
+            size += len(data)
+            if size > MAX_BYTES:
+                raise ValueError('too large')
+            digest.update(data)
+            out.write(data)
+            now = time.monotonic()
+            if now - last > 0.25:
+                publish('download', received, total)
+                last = now
+    publish('download', received, total or received)
+    return digest.hexdigest(), size
 
 
-content = None
+def check_map():
+    """Read the document as a stream, so a large map need not all be in memory."""
+    roads, root = False, None
+    try:
+        for event, element in ET.iterparse(temporary, events=('start', 'end')):
+            if root is None:
+                root = element
+                if root.tag != 'osm':
+                    raise Unusable(f'expected an <osm> document, got <{root.tag}>')
+            if event == 'end':
+                if element.tag == 'remark':
+                    raise Unusable(f'Overpass reported an error: {(element.text or "unspecified").strip()}')
+                roads = roads or element.tag == 'way'
+                root.clear()
+    except ET.ParseError as error:
+        raise Unusable(f'Overpass returned unparseable XML: {error}') from error
+    return roads
+
+
+digest = None
 used_endpoint = ''
 publish('connect')
 # Per-endpoint outcome, so a failure can say what every mirror actually said
 # rather than only the last one.
-outcomes = []
+outcomes = {}
 refused_everywhere = True
-for endpoint in endpoints():
-    request = urllib.request.Request(
-        endpoint,
-        data=payload,
-        headers={'User-Agent': 'DSTNS urban source importer'},
-    )
-    reason = ''
-    for attempt in range(args.retries + 1):
+remaining = endpoints()
+for attempt in range(args.retries + 1):
+    # A busy mirror is left for the next one at once. Only when all have been
+    # tried is it worth waiting to ask them again.
+    if attempt:
+        publish('retry')
+        time.sleep(2 ** (attempt - 1) * 3)
+    retry = []
+    for endpoint in remaining:
+        request = urllib.request.Request(
+            endpoint,
+            data=payload,
+            headers={'User-Agent': 'DSTNS urban source importer', 'Accept-Encoding': 'gzip'},
+        )
+        reason = ''
         try:
-            with urllib.request.urlopen(request, timeout=args.timeout + 40) as response:
-                content = read_streaming(response)
+            if not urllib.request.getproxies():
+                parts = urllib.parse.urlsplit(endpoint)
+                port = parts.port or (443 if parts.scheme == 'https' else 80)
+                socket.create_connection((parts.hostname, port), CONNECT_SECONDS).close()
+            with urllib.request.urlopen(request, timeout=args.quiet_seconds) as response:
+                digest, size = read_streaming(response)
+            publish('parse', size, size)
+            if not check_map():
+                temporary.unlink(missing_ok=True)
+                fail(f'no roads found in {box}; the tile is empty water or wilderness')
+            used_endpoint = endpoint
             break
         except ValueError:
-            progress_path.unlink(missing_ok=True)
+            temporary.unlink(missing_ok=True)
             fail(f'OSM response exceeds {MAX_BYTES // (1024 * 1024)} MiB; reduce the extent')
+        except Unusable as error:
+            reason = str(error)
+            refused_everywhere = False
+            retry.append(endpoint)
         except urllib.error.HTTPError as error:
             # 429 and 5xx are Overpass shedding load; anything else is our request.
             reason = f'HTTP {error.code} {error.reason}'
             refused_everywhere = False
-            if error.code not in (429, 500, 502, 503, 504):
-                break
-        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            if error.code in (429, 500, 502, 503, 504):
+                retry.append(endpoint)
+        except (urllib.error.URLError, http.client.HTTPException, zlib.error, TimeoutError, OSError) as error:
             inner = getattr(error, 'reason', error)
-            reason = str(inner)
+            reason = str(inner) or type(inner).__name__
             if not isinstance(inner, (ConnectionRefusedError, socket.gaierror)):
                 refused_everywhere = False
-        if content is not None or attempt == args.retries:
-            break
-        publish('retry')
-        time.sleep(2 ** attempt * 3)
-    if content is not None:
-        used_endpoint = endpoint
+            retry.append(endpoint)
+        digest = None
+        temporary.unlink(missing_ok=True)
+        outcomes[endpoint] = f'{host_of(endpoint)} ({reason or "no response"})'
+        publish('connect')
+    if digest is not None or not retry:
         break
-    outcomes.append(f'{host_of(endpoint)} ({reason or "no response"})')
-    publish('connect')
+    remaining = retry
 
-if content is None:
-    detail = '; '.join(outcomes) or 'no endpoints configured'
+if digest is None:
+    detail = '; '.join(outcomes.values()) or 'no endpoints configured'
     if refused_everywhere:
         fail('no route to Overpass from this host: ' + detail
              + '. Check the network connection, VPN or proxy, or set DSTNS_OVERPASS_ENDPOINTS '
                'to a reachable Overpass instance. An already cached city can be used with --osm-file.')
     fail('every Overpass endpoint failed: ' + detail)
 
-if len(content) > MAX_BYTES:
-    fail(f'OSM response exceeds {MAX_BYTES // (1024 * 1024)} MiB; reduce --radius-m')
-
-publish('parse', len(content), len(content))
+# Renamed into place, so readers never observe a partial file.
 try:
-    root = ET.fromstring(content)
-except ET.ParseError as error:
-    fail(f'Overpass returned unparseable XML: {error}')
-if root.tag != 'osm':
-    fail(f'expected an <osm> document, got <{root.tag}>')
-remark = root.find('remark')
-if remark is not None:
-    fail(f'Overpass reported an error: {(remark.text or "unspecified").strip()}')
-if root.find('way') is None:
-    fail(f'no roads found in {box}; the tile is empty water or wilderness')
-
-args.output.parent.mkdir(parents=True, exist_ok=True)
-# Write via a temporary sibling then rename, so readers never observe a partial file.
-temporary = args.output.with_name(args.output.name + f'.{os.getpid()}.part')
-try:
-    temporary.write_bytes(content)
     os.replace(temporary, args.output)
 except OSError as error:
     temporary.unlink(missing_ok=True)
@@ -238,8 +280,8 @@ manifest = {
     'endpoint': used_endpoint,
     'bbox': [south, west, north, east],
     'retrieved_at': datetime.now(timezone.utc).isoformat(),
-    'sha256': hashlib.sha256(content).hexdigest(),
-    'bytes': len(content),
+    'sha256': digest,
+    'bytes': size,
     'query': query,
 }
 args.output.with_suffix('.manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')

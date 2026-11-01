@@ -17,6 +17,14 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### Map downloads
+
+- **A silent download now fails.** With no new data for 200 seconds (`DSTNS_MAP_STALL_S`), the download stops and says so. It could previously wait about half an hour across mirrors and retries.
+- **Mirrors that answer.** `overpass.kumi.systems` was an old name for `overpass.private.coffee`, and `overpass.osm.jp` no longer accepts connections. They are replaced by `maps.mail.ru` and `overpass.openstreetmap.fr`.
+- **Faster downloads.** Responses are compressed in transit. A busy mirror is left for the next at once, and a silent one after 10 seconds without a connection or 60 without data, and an error from one mirror no longer ends the attempt. Maps are written and checked as they arrive rather than held in memory.
+- **Try another city.** A failed world, at start-up or when regenerating, offers a button that tries a different city. `POST /api/v1/world/regenerate` now also accepts a request after a failed first start. With an observer open, the launcher keeps the server running for this.
+- Regenerating a world uses the same screen as starting up: what is happening on the left, its details on the right.
+
 ### Finding things, and reading them
 
 - **A place chosen from search is marked on the map:** it flashes three times and stays lit until the map is next touched.

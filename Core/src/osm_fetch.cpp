@@ -19,6 +19,7 @@
 
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <spawn.h>
 #include <unistd.h>
 #include <signal.h>
@@ -48,13 +49,48 @@ std::string python_interpreter() {
     return "python3";
 }
 
+// Read the sidecar the Python downloader updates as bytes arrive.
+void read_progress(MapFetchStatus& status) {
+    std::ifstream in(status.file + ".progress");
+    if (!in) return;
+    std::string text((std::istreambuf_iterator<char>(in)), {});
+    const auto number = [&](const char* key) -> std::uintmax_t {
+        const auto at = text.find(key);
+        if (at == std::string::npos) return 0;
+        const auto colon = text.find(':', at);
+        if (colon == std::string::npos) return 0;
+        return std::strtoull(text.c_str() + colon + 1, nullptr, 10);
+    };
+    const auto phase_at = text.find("\"phase\"");
+    if (phase_at != std::string::npos) {
+        const auto open_quote = text.find('"', text.find(':', phase_at));
+        const auto close_quote = text.find('"', open_quote + 1);
+        if (open_quote != std::string::npos && close_quote != std::string::npos)
+            status.phase = sanitize_message(text.substr(open_quote + 1, close_quote - open_quote - 1), 64);
+    }
+    status.bytes = number("\"bytes\"");
+    status.total = number("\"total\"");
+}
+
+// How long a download may go without a single new byte before it is abandoned.
+int stall_limit_s() {
+    if (const char* override = std::getenv("DSTNS_MAP_STALL_S"); override && *override) {
+        const int seconds = std::atoi(override);
+        if (seconds > 0) return seconds;
+    }
+    return 200;
+}
+
 // A private process group lets session termination stop the downloader and its
 // descendants without touching the launcher's terminal or unrelated processes.
 std::mutex child_mutex;
 pid_t download_pid = 0;
 bool download_cancelled = false;
-int run_capture(const std::string& command, std::string& output) {
+// `watched` is the file whose progress sidecar shows the download moving. Mirrors
+// failing over are not progress: only bytes arriving are, then parsing them.
+int run_capture(const std::string& command, std::string& output, const std::string& watched, bool& stalled) {
     output.clear();
+    stalled = false;
     int pipefd[2];
     if (::pipe(pipefd) != 0) return -1;
     // Close-on-exec, so no other child this process starts (SUMO, say) holds
@@ -85,13 +121,34 @@ int run_capture(const std::string& command, std::string& output) {
     ::close(pipefd[1]);
     if (error) { ::close(pipefd[0]); return -1; }
     std::array<char, 4096> buffer{};
+    const auto limit = std::chrono::seconds(stall_limit_s());
+    auto last_progress = std::chrono::steady_clock::now();
+    MapFetchStatus seen;
+    seen.file = watched;
+    std::uintmax_t last_bytes = 0;
+    std::string last_phase;
     for (;;) {
-        const auto n = ::read(pipefd[0], buffer.data(), buffer.size());
-        if (n > 0) {
-            output.append(buffer.data(), static_cast<std::size_t>(n));
-            if (output.size() > 65536) output.erase(0, output.size() - 65536);
-        } else if (n < 0 && errno == EINTR) continue;
-        else break;
+        pollfd ready{pipefd[0], POLLIN, 0};
+        const int polled = ::poll(&ready, 1, 1000);
+        if (polled > 0) {
+            const auto n = ::read(pipefd[0], buffer.data(), buffer.size());
+            if (n > 0) {
+                output.append(buffer.data(), static_cast<std::size_t>(n));
+                if (output.size() > 65536) output.erase(0, output.size() - 65536);
+            } else if (!(n < 0 && errno == EINTR)) break;
+        } else if (polled < 0 && errno != EINTR) break;
+        read_progress(seen);
+        if ((seen.phase == "download" || seen.phase == "parse") && (seen.bytes != last_bytes || seen.phase != last_phase)) {
+            last_bytes = seen.bytes;
+            last_phase = seen.phase;
+            last_progress = std::chrono::steady_clock::now();
+        }
+        if (std::chrono::steady_clock::now() - last_progress >= limit) {
+            stalled = true;
+            std::lock_guard lock(child_mutex);
+            ::kill(-pid, SIGKILL);
+            break;
+        }
     }
     ::close(pipefd[0]);
     int status = 0;
@@ -131,29 +188,6 @@ std::string tail_lines(const std::string& text, std::size_t count) {
 std::mutex g_fetch_mutex;
 MapFetchStatus g_fetch;
 std::chrono::steady_clock::time_point g_started;
-
-// Read the sidecar the Python downloader updates as bytes arrive.
-void read_progress(MapFetchStatus& status) {
-    std::ifstream in(status.file + ".progress");
-    if (!in) return;
-    std::string text((std::istreambuf_iterator<char>(in)), {});
-    const auto number = [&](const char* key) -> std::uintmax_t {
-        const auto at = text.find(key);
-        if (at == std::string::npos) return 0;
-        const auto colon = text.find(':', at);
-        if (colon == std::string::npos) return 0;
-        return std::strtoull(text.c_str() + colon + 1, nullptr, 10);
-    };
-    const auto phase_at = text.find("\"phase\"");
-    if (phase_at != std::string::npos) {
-        const auto open_quote = text.find('"', text.find(':', phase_at));
-        const auto close_quote = text.find('"', open_quote + 1);
-        if (open_quote != std::string::npos && close_quote != std::string::npos)
-            status.phase = sanitize_message(text.substr(open_quote + 1, close_quote - open_quote - 1), 64);
-    }
-    status.bytes = number("\"bytes\"");
-    status.total = number("\"total\"");
-}
 
 } // namespace
 
@@ -230,9 +264,12 @@ MapTileResult acquire_map_tile(const MapLocation& location, const std::filesyste
             << " --output=" << shell_quote(target.string());
 
     std::string output;
-    const int status = run_capture(command.str(), output);
+    bool stalled = false;
+    const int status = run_capture(command.str(), output, target.string(), stalled);
+    if (stalled) output = "No data arrived for " + std::to_string(stall_limit_s()) + " seconds, so the download was stopped.";
     if (status != 0) {
         std::filesystem::remove(target, ec);
+        std::filesystem::remove(target.string() + ".progress", ec);
         throw MapFetchError("OSM download failed for " + location.city + " (" + location.country + ") at "
                             + std::to_string(location.anchor_lat) + ", " + std::to_string(location.anchor_lon)
                             + ": " + (output.empty() ? "the downloader produced no output" : tail_lines(output, 3)));

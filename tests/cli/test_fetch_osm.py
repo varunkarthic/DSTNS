@@ -9,12 +9,14 @@ tests stand up their own endpoints: a closed port, a mirror that rate limits,
 and one that serves a map, and check what the operator is told when none of
 them answers.
 """
+import gzip
 import http.server
 import json
 import socket
 import subprocess
 import sys
 import threading
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -41,6 +43,18 @@ class Overpass(http.server.BaseHTTPRequestHandler):
         self.rfile.read(int(self.headers.get('Content-Length') or 0))
         type(self).seen.append(self.path)
         step = type(self).script.pop(0) if type(self).script else MAP
+        if step == 'silent':
+            time.sleep(3)
+            return
+        if step == 'gzip':
+            self.send_response(200)
+            body = gzip.compress(MAP)
+            self.send_header('Content-Encoding', 'gzip')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            type(self).accepted = self.headers.get('Accept-Encoding')
+            self.wfile.write(body)
+            return
         if isinstance(step, int):
             self.send_response(step)
             self.send_header('Content-Length', '0')
@@ -129,6 +143,29 @@ class FetchOsmTests(unittest.TestCase):
         result = fetch(self.out, [flaky], extra=['--retries', '1'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(handler.seen), 2, 'the mirror was retried, not abandoned')
+
+    def test_asks_for_compression_and_stores_the_map_itself(self):
+        url, handler = self.endpoint(['gzip'])
+        result = fetch(self.out, [url])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(handler.accepted, 'gzip')
+        self.assertEqual(self.out.read_bytes(), MAP)
+        self.assertEqual(json.loads(self.out.with_suffix('.manifest.json').read_text())['bytes'], len(MAP))
+
+    def test_moves_on_from_a_mirror_that_says_nothing(self):
+        silent, _ = self.endpoint(['silent'])
+        url, handler = self.endpoint()
+        result = fetch(self.out, [silent, url], extra=['--quiet-seconds', '0.5'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(handler.seen), 1)
+
+    def test_tries_another_mirror_when_one_answers_with_an_error(self):
+        busy, _ = self.endpoint([b'<osm><remark>runtime error: Query timed out</remark></osm>'])
+        url, handler = self.endpoint()
+        result = fetch(self.out, [busy, url])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(handler.seen), 1)
+        self.assertEqual(list(self.out.parent.glob('*.part')), [])
 
     def test_reports_every_endpoint_when_the_host_is_offline(self):
         first, second = closed_port(), closed_port()

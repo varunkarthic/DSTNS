@@ -549,6 +549,8 @@ nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig&
             std::lock_guard lock(mutex_);
             if (generation != compile_generation_ || terminate_requested_)
                 throw std::logic_error("world preparation cancelled by runtime change");
+            failed_seed_.reset();
+            failed_start_.reset();
             install_scenario(std::move(scenario), config.tick_rate, start);
             preparing_stage_.store(0);
             transition(Lifecycle::Running);
@@ -560,6 +562,10 @@ nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig&
             if (generation == compile_generation_ && !terminate_requested_) {
                 try { throw; } catch (const std::exception& error) { preparation_error_ = error.what(); }
                 catch (...) { preparation_error_ = "World preparation failed."; }
+                if (config.osm_file == "auto") {
+                    failed_seed_ = seed;
+                    failed_start_.emplace(config, start);
+                }
                 transition(Lifecycle::Idle);
             }
         }
@@ -703,10 +709,29 @@ nlohmann::json SimulationEngine::step(std::uint32_t seconds) {
     };
 }
 
+// A fresh seed, for a city other than the one that has just failed.
+static Seed128 seed_avoiding_failed_city(const std::optional<Seed128>& failed, const ScenarioConfig& config) {
+    // Short enough for an operator to read off the screen and retype.
+    Seed128 seed = Seed128::secure64();
+    if (!failed || config.osm_file != "auto") return seed;
+    const auto city = select_map_location(*failed, config.map_city_extent_m).city;
+    while (select_map_location(seed, config.map_city_extent_m).city == city) seed = Seed128::secure64();
+    return seed;
+}
+
 nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request) {
+    // The first world never arrived, so there is none to replace: this is that start again.
+    {
+        std::unique_lock lock(mutex_);
+        if (lifecycle_ == Lifecycle::Idle && failed_start_) {
+            const auto [failed_config, start] = *failed_start_;
+            const auto seed = seed_avoiding_failed_city(failed_seed_, failed_config);
+            lock.unlock();
+            return start_async(seed, failed_config, start);
+        }
+    }
     auto compile_lease = std::make_shared<CompileLease>(compiling_);
     std::uint64_t compile_generation;
-    // Short enough for an operator to read off the screen and retype.
     Seed128 seed = Seed128::secure64();
     ScenarioConfig config;
     std::string previous;
@@ -731,6 +756,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         // Re-rolling must let the new seed choose its own place, so restore
         // the "auto" source; an operator-pinned map file stays pinned.
         if (!graph_->scenario().map_city.empty()) config.osm_file = "auto";
+        seed = seed_avoiding_failed_city(failed_seed_, config);
         previous = run_id_;
         rate = requested_tick_rate_;
         compile_generation = ++compile_generation_;
@@ -753,6 +779,10 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
     world_worker_ = std::jthread([this, seed, config, generation, compile_generation, compile_lease](std::stop_token) {
         set_thread_role(ThreadRole::Preparation);
         auto fail = [&](const std::string& code, const std::string& message) {
+            {
+                std::lock_guard lock(mutex_);
+                failed_seed_ = seed;
+            }
             world_generating_.store(false);
             preparing_stage_.store(0);
             std::lock_guard l(world_mutex_);
@@ -776,6 +806,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
                 if (terminate_requested_ || compile_generation != compile_generation_)
                     return fail("WORLD_CANCELLED", "Runtime changed before the world was ready; the replacement was not installed.");
                 transition(Lifecycle::Preparing);
+                failed_seed_.reset();
                 install_scenario(std::move(scenario), config.tick_rate, 0);
                 // A regenerated world waits for the operator rather than
                 // running away while its map is still being drawn.

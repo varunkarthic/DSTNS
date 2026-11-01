@@ -145,6 +145,7 @@ dstns_server [--host ADDR] [--port 1-65535] [--logs DIR] [--maps DIR]
 | `DSTNS_DISABLE_WORLD_REGENERATION` | server | `1` makes `/world/regenerate` return 403 |
 | `DSTNS_PYTHON` | server | Python interpreter for the map downloader (default `python3`) |
 | `DSTNS_OVERPASS_ENDPOINTS` | `fetch_osm.py` | Comma-separated Overpass API endpoints to try |
+| `DSTNS_MAP_STALL_S` | server | Seconds a map download may go without new data before it fails (default `200`) |
 | `SUMO_HOME` | server, CLI | Where to find `bin/sumo` and `bin/netconvert` first |
 | `DSTNS_API_PORT` | CLI, Vite, preflight | Port to use or proxy to, overriding `api.port` |
 | `DSTNS_LOGS_DIR` | CLI | Logs directory passed to the server |

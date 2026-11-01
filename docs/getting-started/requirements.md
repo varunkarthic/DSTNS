@@ -102,7 +102,7 @@ Mobile browsers can open the observer but are not a supported way to operate it.
 
 | Direction | Destination | Purpose | When |
 |---|---|---|---|
-| Outbound HTTPS | `overpass-api.de`, `overpass.kumi.systems`, `overpass.private.coffee`, `overpass.osm.jp` | Download a city's map from OpenStreetMap | The first time a seed selects a city |
+| Outbound HTTPS | `overpass-api.de`, `maps.mail.ru`, `overpass.openstreetmap.fr`, `overpass.private.coffee` | Download a city's map from OpenStreetMap | The first time a seed selects a city |
 | Outbound HTTPS | GitHub, npm registry, Debian or Homebrew mirrors | Fetch build dependencies | First build only |
 | Inbound TCP 8090 | The DSTNS server | The observer and the API | Always; bound to `127.0.0.1` by default |
 | Inbound TCP 8443 | The optional TLS gateway | HTTPS access | Only with the `tls` Compose profile |
