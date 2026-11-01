@@ -106,7 +106,7 @@ try {
     { id: "load", slot: "status", label: "Load", value: "0", tone: "ok" },
     { id: "zone", slot: "overlay", features: [{ type: "circle", x_m: 0, y_m: 0, radius_m: 400, tone: "warn", label: "Study area" }] },
     { id: "tools", slot: "map_control", label: "Lab tools", icon: "gauge", opens: "lab" },
-    { id: "lab", slot: "panel", title: "Traffic Lab", widgets: [{ type: "text", text: "Declared by the application." }, { type: "stat", label: "Vehicles", value: 12, tone: "ok" }, { type: "progress", label: "Sweep", value: 0.4 }, { type: "button", id: "run", label: "Run sweep" }, { type: "toggle", id: "auto", label: "Auto", value: true }] },
+    { id: "lab", slot: "panel", title: "Traffic Lab", widgets: [{ type: "keyvalues", items: [{ label: "Fleet", value: 12 }, { label: "Late", value: 3, tone: "warn" }] }, { type: "table", columns: [{ label: "Route" }, { label: "Buses", align: "right" }], cells: [["R1", 4], ["R2", 8]] }, { type: "gauge", label: "Load", value: 0.62, tone: "ok" }, { type: "bars", items: [{ label: "North", value: 8 }, { label: "South", value: 4, tone: "warn" }] }, { type: "text", text: "Declared by the application." }, { type: "stat", label: "Vehicles", value: 12, tone: "ok" }, { type: "progress", label: "Sweep", value: 0.4 }, { type: "button", id: "run", label: "Run sweep" }, { type: "toggle", id: "auto", label: "Auto", value: true }] },
     { id: "edge", slot: "indicator", edge: "right", position: 0.3, tone: "danger", label: "Hot spot" },
     { id: "export", slot: "header", label: "Lab export", icon: "download" },
   ]);
@@ -241,6 +241,12 @@ try {
     const panel = page.getByRole("dialog", { name: "Traffic Lab, Traffic Lab" });
     await panel.waitFor();
     await wait(600);
+    // The richer components render as data, in the interface's own shapes.
+    assert.deepEqual(await panel.locator(".fabric-keyvalues dt").allInnerTexts(), ["Fleet", "Late"]);
+    assert.equal(await panel.locator(".fabric-table tbody tr").count(), 2);
+    assert.equal(await panel.locator(".fabric-table td.right").first().innerText(), "4");
+    assert.equal(await panel.locator(".fabric-gauge[role=meter]").getAttribute("aria-valuenow"), "62");
+    assert.equal(await panel.locator(".fabric-bars li").count(), 2);
     const box = await panel.boundingBox();
     assert.ok(box && box.width > 200 && box.height > 200, `the panel has its size: ${JSON.stringify(box)}`);
     assert.equal(await panel.evaluate((el) => getComputedStyle(el).opacity), "1");

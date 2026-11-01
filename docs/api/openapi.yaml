@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: DSTNS API
-  version: 1.2.0
+  version: 1.3.0
   description: 'Deterministic Spatiotemporal Transport Network Simulator runtime API.
 
 
@@ -1602,6 +1602,280 @@ paths:
           application/json:
             schema:
               type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/capabilities:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricCapabilities
+      summary: What this server offers applications
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/ui/batch:
+    post:
+      tags:
+      - Fabric
+      operationId: fabricUiBatch
+      summary: Change several elements at once, all or none
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/subscriptions:
+    put:
+      tags:
+      - Fabric
+      operationId: fabricSubscribe
+      summary: Choose what of the simulation arrives as events
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/timers:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricTimers
+      summary: Timers on the simulation's clock
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/timers/{timer}:
+    put:
+      tags:
+      - Fabric
+      operationId: fabricSetTimer
+      summary: Set a timer on the simulation's clock
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: timer
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    delete:
+      tags:
+      - Fabric
+      operationId: fabricClearTimer
+      summary: Clear a timer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: timer
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/storage:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricStorage
+      summary: The application's stored keys
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/storage/{key}:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricStorageGet
+      summary: Read a stored value
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    put:
+      tags:
+      - Fabric
+      operationId: fabricStoragePut
+      summary: Store a value, kept across restarts
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    delete:
+      tags:
+      - Fabric
+      operationId: fabricStorageDelete
+      summary: Delete a stored value
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/messages:
+    post:
+      tags:
+      - Fabric
+      operationId: fabricMessage
+      summary: Send another application a message
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/fabric/apps/{id}/health:
+    get:
+      tags:
+      - Fabric
+      operationId: fabricHealth
+      summary: How the application is doing
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: Success

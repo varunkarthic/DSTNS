@@ -109,7 +109,85 @@ void ApiServer::routes_apps() {
         ok(r, {{"sequence", registry_->notify(id, body(req))}}, 202);
     });
     server_->Get(route("/events"), [this, ok, owner](const auto& req, auto& r) {
-        ok(r, registry_->events(owner(req), unsigned_parameter(req, "since", 0)));
+        const auto id = owner(req);
+        // The simulation reaches an application when it asks: no thread, and no cost for one that wants none of it.
+        if (registry_->follows_simulation(id)) {
+            const auto status = engine_.status();
+            const auto news = engine_.news(registry_->news_cursor(id), 200, 0, false);
+            const auto& data = status.contains("data") ? status.at("data") : status;
+            registry_->pump(id, status.value("run_id", std::string{}), data.value("lifecycle", std::string{}),
+                            status.contains("clock") ? status.at("clock").value("virtual_day_seconds", 0.0) : 0.0,
+                            news.contains("data") ? news.at("data").value("items", json::array()) : json::array());
+        }
+        ok(r, registry_->events(id, unsigned_parameter(req, "since", 0)));
+    });
+
+    // What the server offers, for an application or a tool to find out rather than assume.
+    server_->Get("/api/v1/fabric/capabilities", [ok](const auto&, auto& r) { ok(r, AppRegistry::discovery()); });
+
+    server_->Post(route("/ui/batch"), [this, ok, owner, on_network](const auto& req, auto& r) {
+        const auto id = owner(req);
+        const auto request = body(req);
+        const auto upsert = request.value("upsert", json::array());
+        if (upsert.is_array())
+            for (const auto& declared : upsert) on_network(declared);
+        registry_->batch_ui(id, upsert, request.value("remove", json::array()));
+        ok(r, json::object());
+    });
+
+    server_->Put(route("/subscriptions"), [this, ok, owner](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->require_capability(id, "sim.read");
+        ok(r, registry_->subscribe(id, body(req).at("topics")));
+    });
+    const auto timer = route(R"(/timers/([a-z0-9_-]+))");
+    server_->Get(route("/timers"), [this, ok, owner](const auto& req, auto& r) { ok(r, registry_->timers(owner(req))); });
+    server_->Put(timer, [this, ok, owner](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->require_capability(id, "sim.read");
+        ok(r, registry_->set_timer(id, req.matches[2], body(req)));
+    });
+    server_->Delete(timer, [this, ok, owner](const auto& req, auto& r) {
+        registry_->clear_timer(owner(req), req.matches[2]);
+        ok(r, json::object());
+    });
+
+    const auto stored = route(R"(/storage/([a-z0-9][a-z0-9_-]{0,39}))");
+    server_->Get(route("/storage"), [this, ok, owner](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->require_capability(id, "storage");
+        ok(r, registry_->storage(id));
+    });
+    server_->Get(stored, [this, ok, owner](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->require_capability(id, "storage");
+        ok(r, registry_->storage_get(id, req.matches[2]));
+    });
+    server_->Put(stored, [this, ok, owner](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->require_capability(id, "storage");
+        registry_->storage_put(id, req.matches[2], body(req));
+        ok(r, json::object());
+    });
+    server_->Delete(stored, [this, ok, owner](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->require_capability(id, "storage");
+        registry_->storage_delete(id, req.matches[2]);
+        ok(r, json::object());
+    });
+
+    server_->Post(route("/messages"), [this, ok, owner](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->require_capability(id, "apps.messages");
+        const auto request = body(req);
+        registry_->send_message(id, request.at("to").template get<std::string>(), request);
+        ok(r, json::object(), 202);
+    });
+
+    // The application's own token, or the person's or a supervisor's.
+    server_->Get(route("/health"), [this, ok](const auto& req, auto& r) {
+        if (!is_host(req)) registry_->authenticate(req.matches[1], bearer(req));
+        ok(r, registry_->health(req.matches[1]));
     });
 
     // What a person did with something the application put on screen.

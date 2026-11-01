@@ -70,6 +70,37 @@ public:
 
     nlohmann::json set_grants(const std::string& id, const nlohmann::json& capabilities);
 
+    /// What this server offers, so that an application or a tool can find out rather than assume.
+    [[nodiscard]] static nlohmann::json discovery();
+
+    /// Several elements changed at once: all of it applies, or none of it.
+    void batch_ui(const std::string& id, const nlohmann::json& upsert, const nlohmann::json& remove);
+
+    /// What of the simulation arrives in the application's events. Topics are `lifecycle`,
+    /// `world`, `news`, and `news.<category>`. Nothing is sent that was not asked for.
+    nlohmann::json subscribe(const std::string& id, const nlohmann::json& topics);
+    /// A timer on the simulation's own clock, once at `at_s` or then every `every_s`.
+    nlohmann::json set_timer(const std::string& id, const std::string& timer, const nlohmann::json& spec);
+    void clear_timer(const std::string& id, const std::string& timer);
+    [[nodiscard]] nlohmann::json timers(const std::string& id);
+    /// Whether the application is waiting on anything the simulation does, and from which news on.
+    [[nodiscard]] bool follows_simulation(const std::string& id);
+    [[nodiscard]] std::uint64_t news_cursor(const std::string& id);
+    /// Brings the application up to date, when it asks for its events. Costs nothing between polls.
+    void pump(const std::string& id, const std::string& run_id, const std::string& lifecycle, double virtual_s, const nlohmann::json& news);
+
+    /// A small store of the application's own, kept across restarts of either side.
+    [[nodiscard]] nlohmann::json storage(const std::string& id);
+    [[nodiscard]] nlohmann::json storage_get(const std::string& id, const std::string& key);
+    void storage_put(const std::string& id, const std::string& key, const nlohmann::json& value);
+    void storage_delete(const std::string& id, const std::string& key);
+
+    /// Delivered as a `message` event, when both applications have asked to use messages.
+    void send_message(const std::string& from, const std::string& to, const nlohmann::json& message);
+
+    /// How the application is doing, for a person or a supervisor.
+    [[nodiscard]] nlohmann::json health(const std::string& id);
+
     /// Nodes an application treats as its own bus stops. Presentation only: the
     /// core reports their demand and the simulation never reads them.
     void set_stops(const std::string& id, const nlohmann::json& nodes);
@@ -101,6 +132,15 @@ private:
         std::uint64_t ui_all_at{};
         std::map<std::string, std::uint64_t> element_rev;
         std::vector<std::uint32_t> stops;
+        std::set<std::string> topics;
+        struct Timer { double at_s{}, every_s{}, next_s{}; bool done{}; nlohmann::json data; };
+        std::map<std::string, Timer> timers;
+        std::uint64_t news_seen{};
+        std::string seen_run, seen_lifecycle;
+        double seen_virtual{-1};
+        nlohmann::json storage = nlohmann::json::object();
+        Clock::time_point registered_at{};
+        std::uint64_t requests{}, refused{}, rate_limited{}, lapses{}, messages_sent{}, messages_received{}, dropped_events{};
     };
 
     App& find(const std::string& id);

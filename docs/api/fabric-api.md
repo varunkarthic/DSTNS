@@ -129,6 +129,72 @@ and recorded, whether it succeeds or not.
 virtual second and outcome. It holds the most recent 2000, in memory, for this
 process; each is also written to the system log.
 
+## What the simulation tells an application
+
+An application can follow the simulation without polling the view API. Choose what arrives in `GET /api/v1/fabric/apps/{id}/events`, which needs `sim.read`:
+
+```http
+PUT /api/v1/fabric/apps/{id}/subscriptions
+{"topics": ["lifecycle", "world", "news.incident"]}
+```
+
+| Topic | Event | When |
+| --- | --- | --- |
+| `lifecycle` | `lifecycle.changed` | The run starts, pauses, resumes or completes |
+| `world` | `world.changed` | A new world replaces this one |
+| `news` | `news` | Every item of the news feed |
+| `news.<category>` | `news` | Items of one category, such as `news.incident` |
+
+Timers run on the simulation's clock, not the wall's, so they mean the same at any speed:
+
+```http
+PUT /api/v1/fabric/apps/{id}/timers/morning
+{"at_s": 28800, "every_s": 3600, "data": {"why": "hourly"}}
+```
+
+A `timer` event carries `id`, `at_s`, `virtual_s` and your `data`. A timer with `every_s` repeats; one without fires once. Moving back through the day, by a reset or a replay, sets timers going again from where the clock now is. Nothing runs between polls: an application is brought up to date when it asks, so one that follows nothing costs nothing.
+
+## An application's own store
+
+With the `storage` capability, an application has a private key and value store that survives restarts of either side: at most 256 keys and 256 KB. A value is any JSON.
+
+```http
+PUT /api/v1/fabric/apps/{id}/storage/preferences
+{"theme": "plain"}
+```
+
+`GET .../storage` lists the keys and bytes used, and `GET` or `DELETE .../storage/{key}` read or remove one. Going over a limit is refused with `STORAGE_FULL`, and nothing is dropped.
+
+## Messages between applications
+
+With `apps.messages`, one application can send another a message of up to 16 KB. It arrives as a `message` event carrying `from`, `type` and `data`. An application that has not asked to use messages cannot be sent any (`RECIPIENT_NOT_LISTENING`), and sending shares the same rate limit as notifications.
+
+```http
+POST /api/v1/fabric/apps/{id}/messages
+{"to": "org.example.planner", "type": "route.changed", "data": {"route": "R1"}}
+```
+
+## Changing several things at once
+
+`POST /api/v1/fabric/apps/{id}/ui/batch` takes `upsert`, an array of elements, and `remove`, an array of IDs. It applies whole or not at all, so that nothing appears half-updated. Every check comes before any change.
+
+## Health and discovery
+
+`GET /api/v1/fabric/apps/{id}/health`, with the application's token or the operator's, reports its state, last contact, requests made and refused, rate limiting, lease lapses, events waiting and dropped, messages, interface size, stored bytes, timers and topics. The observer shows this on the application's page in Settings, and the launcher uses it to supervise.
+
+`GET /api/v1/fabric/capabilities` needs no token and says what the server offers: slots, widgets, overlay features, capabilities and which of them need a person's permission, motions, tones, topics and limits. Find out from here rather than assuming.
+
+## Components
+
+As well as text, stats, charts and controls, a panel can declare:
+
+| Widget | Shape |
+| --- | --- |
+| `keyvalues` | `items`: `label`, `value`, optional `tone`. One card with divider lines |
+| `table` | `columns`: `label`, optional `align`; `cells`: rows of up to 8 cells. Scrolls within its card, header kept |
+| `gauge` | `value` between `min` and `max` (default 0 to 1), `label`, optional `caption` and `tone`. Travels to a new value |
+| `bars` | `items`: `label`, `value`, optional `caption` and `tone`. Each scaled to the largest |
+
 ## For the observer
 
 `GET /fabric/state?since=R&notifications_since=N` returns `revision`,

@@ -40,10 +40,13 @@ export interface FabricLegendItem {
 }
 
 export interface FabricWidget {
-  type: "route" | "sparkline" | "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input";
+  type: "route" | "sparkline" | "table" | "gauge" | "bars" | "keyvalues" | "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input";
   id?: string;
   /** For a route: its stops in order. */
   stops?: { id?: string; label: string; caption?: string; state?: "passed" | "current" | "next" }[];
+  /** For a table: its columns. Its rows are arrays of cells, in `cells`. */
+  columns?: { label: string; align?: "left" | "right" }[];
+  cells?: (string | number)[][];
   /** For a sparkline: the figures, oldest first. */
   values?: number[];
   series?: number;
@@ -65,6 +68,20 @@ export interface FabricWidget {
   max?: number;
   step?: number;
   options?: { value: string | number; label: string }[];
+}
+
+export interface FabricHealth {
+  requests: number;
+  refused: number;
+  rate_limited: number;
+  lease_lapses: number;
+  last_seen_s: number | null;
+  events: { sequence: number; queued: number; dropped: number };
+  messages: { sent: number; received: number };
+  ui: { elements: number; bytes: number };
+  storage: { keys: number; bytes: number };
+  timers: number;
+  topics: string[];
 }
 
 export interface FabricStatItem {
@@ -416,6 +433,10 @@ class FabricStore {
   async suspend(appId: string, suspended: boolean) {
     await call(`/apps/${appId}/${suspended ? "suspend" : "resume"}`, { method: "POST", body: "{}" });
     await this.refresh();
+  }
+  /** How an application is doing, for its page in Settings. */
+  health(appId: string) {
+    return call<FabricHealth>(`/apps/${appId}/health`);
   }
   async forget(appId: string) {
     await call(`/apps/${appId}`, { method: "DELETE" });

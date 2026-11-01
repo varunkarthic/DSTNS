@@ -18,7 +18,8 @@ using json = nlohmann::json;
 // Bounds, so one application cannot exhaust the server or the page. Nothing is
 // silently discarded at these limits: a request over one is refused with a code.
 constexpr std::size_t kMaxApps = 64, kMaxElements = 64, kMaxUiBytes = 4 * 1024 * 1024, kMaxEventQueue = 1000,
-                      kMaxNotifications = 1000, kMaxAudit = 2000, kMaxFields = 128, kMaxPage = 200;
+                      kMaxNotifications = 1000, kMaxAudit = 2000, kMaxFields = 128, kMaxPage = 200, kMaxTimers = 32,
+                      kMaxTopics = 32, kMaxStorageKeys = 256, kMaxStorageBytes = 256 * 1024, kMaxMessageBytes = 16 * 1024;
 constexpr double kNotificationBurst = 40, kNotificationsPerSecond = 20;
 constexpr int kManifestVersion = 1, kApiMajor = 1;
 
@@ -26,7 +27,7 @@ constexpr int kManifestVersion = 1, kApiMajor = 1;
 // surfaces. Everything else interrupts the viewer, runs the application's own
 // code in the page, or changes the simulation, so a person grants it.
 const std::set<std::string> kAutomatic = {"ui.header", "ui.status", "ui.panels", "ui.sidebar", "ui.deck", "ui.notifications", "ui.overlays",
-                                          "ui.map-controls", "ui.indicators", "settings", "sim.read"};
+                                          "ui.map-controls", "ui.indicators", "settings", "sim.read", "storage", "apps.messages"};
 const std::set<std::string> kExplicit = {"ui.dialogs", "ui.frames", "control.playback", "control.events", "control.world"};
 const std::map<std::string, std::string> kSlotCapability = {
     {"header", "ui.header"}, {"status", "ui.status"}, {"panel", "ui.panels"}, {"sidebar", "ui.sidebar"}, {"deck", "ui.deck"}, {"overlay", "ui.overlays"},
@@ -255,6 +256,7 @@ AppRegistry::AppRegistry(std::filesystem::path store) : store_(std::move(store))
             app.values = record.at("values");
             app.settings_version = record.at("settings_version");
             app.user_suspended = record.value("user_suspended", false);
+            app.storage = record.value("storage", json::object());
             app.order = next_order_++;
             apps_.emplace(id, std::move(app));
         }
@@ -269,7 +271,7 @@ void AppRegistry::persist() {
     auto apps = json::object();
     for (const auto& [id, app] : apps_)
         apps[id] = {{"token", app.token}, {"manifest", app.manifest}, {"granted", app.granted}, {"values", app.values},
-                    {"settings_version", app.settings_version}, {"user_suspended", app.user_suspended}};
+                    {"settings_version", app.settings_version}, {"user_suspended", app.user_suspended}, {"storage", app.storage}};
     // Written beside the target and renamed, so a crash leaves the old file whole.
     const auto temporary = store_.string() + ".tmp";
     {
@@ -313,6 +315,7 @@ void AppRegistry::sweep() {
             mark(app);
         } else if (silent > app.lease_s && !app.lease_lapsed) {
             app.lease_lapsed = true;
+            ++app.lapses;
             app.state = "suspended";
             app.detail = "The application has not checked in.";
             mark(app);
@@ -359,7 +362,7 @@ json AppRegistry::register_app(const json& raw, const std::string& presented) {
     app.state = app.user_suspended ? "suspended" : "registered";
     app.detail.clear();
     app.lease_lapsed = false;
-    app.last_seen = app.bucket_at = Clock::now();
+    app.last_seen = app.bucket_at = app.registered_at = Clock::now();
     app.bucket = kNotificationBurst;
     if (!returning) app.order = next_order_++;
     adopt_settings(app);
@@ -445,14 +448,21 @@ void AppRegistry::authenticate(const std::string& id, const std::string& token) 
     // Same length and every byte compared, so timing says nothing about a guess.
     unsigned difference = app.token.size() == token.size() ? 0 : 1;
     for (std::size_t i = 0; i < std::min(app.token.size(), token.size()); ++i) difference |= static_cast<unsigned>(app.token[i] ^ token[i]);
-    if (difference || token.empty()) throw Refusal(401, "APP_TOKEN_INVALID", "this request needs the application's bearer token");
+    if (difference || token.empty()) {
+        ++app.refused;
+        throw Refusal(401, "APP_TOKEN_INVALID", "this request needs the application's bearer token");
+    }
+    ++app.requests;
     touch(app);
 }
 
 void AppRegistry::require_capability(const std::string& id, const std::string& capability) {
     std::lock_guard lock(mutex_);
-    const auto& app = find(id);
-    if (!app.granted.count(capability)) throw Refusal(403, "CAPABILITY_NOT_GRANTED", "this application has not been granted " + capability);
+    auto& app = find(id);
+    if (!app.granted.count(capability)) {
+        ++app.refused;
+        throw Refusal(403, "CAPABILITY_NOT_GRANTED", "this application has not been granted " + capability);
+    }
     if (app.state == "suspended" || app.state == "unloaded" || app.state == "failed")
         throw Refusal(409, "APP_NOT_ACTIVE", "this application is " + app.state);
 }
@@ -665,7 +675,10 @@ std::uint64_t AppRegistry::notify(const std::string& id, const json& notificatio
     app.bucket = std::min(kNotificationBurst, app.bucket + std::chrono::duration<double>(now - app.bucket_at).count() * kNotificationsPerSecond);
     app.bucket_at = now;
     // Refused, not dropped: the application is told, and can send again.
-    if (app.bucket < 1) throw Refusal(429, "RATE_LIMITED", "too many notifications; send fewer, or update a status element instead");
+    if (app.bucket < 1) {
+        ++app.rate_limited;
+        throw Refusal(429, "RATE_LIMITED", "too many notifications; send fewer, or update a status element instead");
+    }
     app.bucket -= 1;
     notifications_.push_back({{"sequence", ++notification_sequence_}, {"app_id", id}, {"app_name", app.manifest.value("name", id)},
                               {"severity", severity}, {"title", title}, {"body", body}, {"at_ms", wall_ms()}});
@@ -675,7 +688,10 @@ std::uint64_t AppRegistry::notify(const std::string& id, const json& notificatio
 
 void AppRegistry::push_event(App& app, const std::string& type, const json& data) {
     app.event_queue.push_back({{"sequence", ++app.event_sequence}, {"type", type}, {"data", data}, {"at_ms", wall_ms()}});
-    while (app.event_queue.size() > kMaxEventQueue) app.event_queue.pop_front();
+    while (app.event_queue.size() > kMaxEventQueue) {
+        app.event_queue.pop_front();
+        ++app.dropped_events;
+    }
 }
 
 json AppRegistry::events(const std::string& id, std::uint64_t since) {
@@ -765,6 +781,220 @@ json AppRegistry::audit_log(std::size_t limit) {
     const auto count = std::min(limit, audit_.size());
     for (auto entry = audit_.end() - static_cast<std::ptrdiff_t>(count); entry != audit_.end(); ++entry) items.push_back(*entry);
     return items;
+}
+
+json AppRegistry::discovery() {
+    auto slots = json::array();
+    for (const auto& [slot, capability] : kSlotCapability) slots.push_back({{"slot", slot}, {"capability", capability}});
+    return {
+        {"manifest_version", kManifestVersion},
+        {"requires_api", kApiMajor},
+        {"capabilities", {{"automatic", kAutomatic}, {"needs_a_person", kExplicit}}},
+        {"slots", std::move(slots)},
+        {"widgets", {"text", "heading", "note", "stat", "stats", "keyvalues", "table", "gauge", "bars", "progress", "sparkline", "route", "chips", "list", "legend", "tabs", "input", "button", "toggle", "select", "slider"}},
+        {"overlay_features", {"route", "path", "marker", "circle", "polygon", "line", "label", "heatmap"}},
+        {"motions", {"none", "fade", "rise", "slide", "scale", "pop", "drop"}},
+        {"tones", kTones},
+        {"topics", {"lifecycle", "world", "news", "news.<category>"}},
+        {"limits", {{"apps", kMaxApps}, {"elements", kMaxElements}, {"ui_bytes", kMaxUiBytes}, {"events_kept", kMaxEventQueue}, {"timers", kMaxTimers},
+                    {"topics", kMaxTopics}, {"storage_keys", kMaxStorageKeys}, {"storage_bytes", kMaxStorageBytes}, {"message_bytes", kMaxMessageBytes}}},
+    };
+}
+
+void AppRegistry::batch_ui(const std::string& id, const json& upsert, const json& remove) {
+    if (!upsert.is_array() || !remove.is_array()) throw Refusal(400, "INVALID_ELEMENT", "upsert and remove must be arrays");
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    auto next = app.elements;
+    std::vector<std::string> changed;
+    for (const auto& element : remove) {
+        if (!element.is_string()) throw Refusal(400, "INVALID_ELEMENT", "remove lists element IDs");
+        const auto existing = std::find_if(next.begin(), next.end(), [&](const json& item) { return item.at("id") == element; });
+        if (existing == next.end()) throw Refusal(404, "ELEMENT_NOT_FOUND", "no such element: " + element.get<std::string>());
+        next.erase(existing);
+    }
+    for (const auto& element : upsert) {
+        check_element(app, element);
+        const auto existing = std::find_if(next.begin(), next.end(), [&](const json& item) { return item.at("id") == element.at("id"); });
+        if (existing != next.end()) *existing = element;
+        else next.push_back(element);
+        changed.push_back(element.at("id").get<std::string>());
+    }
+    // Every check comes before any change, so a refused batch leaves everything as it was.
+    if (next.size() > kMaxElements) throw Refusal(413, "UI_TOO_LARGE", "at most " + std::to_string(kMaxElements) + " elements");
+    if (ui_bytes(next) > kMaxUiBytes) throw Refusal(413, "UI_TOO_LARGE", "the declared UI is too large");
+    app.elements = std::move(next);
+    if (remove.empty()) {
+        ++revision_;
+        app.changed_at = revision_;
+        for (const auto& element : changed) app.element_rev[element] = revision_;
+    } else {
+        mark(app);
+    }
+}
+
+json AppRegistry::subscribe(const std::string& id, const json& topics) {
+    if (!topics.is_array() || topics.size() > kMaxTopics) throw Refusal(400, "INVALID_TOPICS", "topics must be an array of up to " + std::to_string(kMaxTopics));
+    static const std::regex kTopic("lifecycle|world|news(\\.[a-z_]{1,32})?");
+    std::set<std::string> wanted;
+    for (const auto& topic : topics) {
+        if (!topic.is_string() || !std::regex_match(topic.get<std::string>(), kTopic)) throw Refusal(400, "INVALID_TOPICS", "unknown topic: " + topic.dump());
+        wanted.insert(topic.get<std::string>());
+    }
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    app.topics = std::move(wanted);
+    return {{"topics", app.topics}};
+}
+
+json AppRegistry::set_timer(const std::string& id, const std::string& timer, const json& spec) {
+    if (!spec.is_object() || !spec.value("at_s", json(nullptr)).is_number()) throw Refusal(400, "INVALID_TIMER", "a timer needs at_s, in simulated seconds");
+    const auto at_s = spec.at("at_s").get<double>();
+    const auto every_s = spec.value("every_s", 0.0);
+    if (!std::isfinite(at_s) || at_s < 0 || !std::isfinite(every_s) || every_s < 0 || (every_s > 0 && every_s < 1))
+        throw Refusal(400, "INVALID_TIMER", "at_s must not be negative, and every_s must be at least 1");
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    if (!app.timers.count(timer) && app.timers.size() >= kMaxTimers) throw Refusal(413, "TOO_MANY_TIMERS", "at most " + std::to_string(kMaxTimers) + " timers");
+    App::Timer entry{at_s, every_s, at_s, false, spec.value("data", json(nullptr))};
+    if (app.seen_virtual >= 0 && every_s > 0)
+        while (entry.next_s <= app.seen_virtual) entry.next_s += every_s;
+    app.timers[timer] = std::move(entry);
+    return {{"id", timer}, {"at_s", at_s}, {"every_s", every_s}};
+}
+
+void AppRegistry::clear_timer(const std::string& id, const std::string& timer) {
+    std::lock_guard lock(mutex_);
+    if (!find(id).timers.erase(timer)) throw Refusal(404, "TIMER_NOT_FOUND", "no such timer: " + timer);
+}
+
+json AppRegistry::timers(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    auto items = json::array();
+    for (const auto& [name, timer] : find(id).timers)
+        items.push_back({{"id", name}, {"at_s", timer.at_s}, {"every_s", timer.every_s}, {"next_s", timer.next_s}, {"done", timer.done}});
+    return {{"items", std::move(items)}};
+}
+
+bool AppRegistry::follows_simulation(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    const auto& app = find(id);
+    return !app.topics.empty() || !app.timers.empty();
+}
+
+std::uint64_t AppRegistry::news_cursor(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    return find(id).news_seen;
+}
+
+void AppRegistry::pump(const std::string& id, const std::string& run_id, const std::string& lifecycle, double virtual_s, const json& news) {
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    const auto wants = [&](const std::string& topic) { return app.topics.count(topic) > 0; };
+    const bool new_run = run_id != app.seen_run;
+    if (new_run) {
+        if (!app.seen_run.empty() && wants("world")) push_event(app, "world.changed", {{"run_id", run_id}});
+        app.seen_run = run_id;
+        app.news_seen = 0;
+    }
+    if (lifecycle != app.seen_lifecycle) {
+        if (wants("lifecycle")) push_event(app, "lifecycle.changed", {{"from", app.seen_lifecycle}, {"to", lifecycle}, {"run_id", run_id}, {"virtual_s", virtual_s}});
+        app.seen_lifecycle = lifecycle;
+    }
+    if (news.is_array()) {
+        for (const auto& item : news) {
+            const auto number = item.value("news_id", std::uint64_t{0});
+            if (number <= app.news_seen) continue;
+            app.news_seen = number;
+            const auto category = item.value("category", std::string{});
+            if (wants("news") || wants("news." + category)) push_event(app, "news", item);
+        }
+    }
+    // Moving back through the day, by a reset or a replay, sets the timers going again.
+    if (new_run || virtual_s + 1e-6 < app.seen_virtual)
+        for (auto& [name, timer] : app.timers) {
+            timer.done = false;
+            timer.next_s = timer.at_s;
+            if (timer.every_s > 0)
+                while (timer.next_s < virtual_s) timer.next_s += timer.every_s;
+        }
+    app.seen_virtual = virtual_s;
+    for (auto& [name, timer] : app.timers) {
+        if (timer.done || virtual_s < timer.next_s) continue;
+        push_event(app, "timer", {{"id", name}, {"at_s", timer.next_s}, {"virtual_s", virtual_s}, {"data", timer.data}});
+        if (timer.every_s > 0) {
+            while (timer.next_s <= virtual_s) timer.next_s += timer.every_s;
+        } else {
+            timer.done = true;
+        }
+    }
+}
+
+json AppRegistry::storage(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    const auto& app = find(id);
+    auto keys = json::array();
+    for (const auto& [key, value] : app.storage.items()) keys.push_back(key);
+    return {{"keys", std::move(keys)}, {"bytes", app.storage.dump().size()}, {"limit_bytes", kMaxStorageBytes}};
+}
+
+json AppRegistry::storage_get(const std::string& id, const std::string& key) {
+    std::lock_guard lock(mutex_);
+    const auto& app = find(id);
+    if (!app.storage.contains(key)) throw Refusal(404, "KEY_NOT_FOUND", "nothing is stored under " + key);
+    return {{"key", key}, {"value", app.storage.at(key)}};
+}
+
+void AppRegistry::storage_put(const std::string& id, const std::string& key, const json& value) {
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    auto next = app.storage;
+    next[key] = value;
+    if (next.size() > kMaxStorageKeys) throw Refusal(413, "STORAGE_FULL", "at most " + std::to_string(kMaxStorageKeys) + " keys");
+    if (next.dump().size() > kMaxStorageBytes) throw Refusal(413, "STORAGE_FULL", "the store is limited to " + std::to_string(kMaxStorageBytes) + " bytes");
+    app.storage = std::move(next);
+    persist();
+}
+
+void AppRegistry::storage_delete(const std::string& id, const std::string& key) {
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    if (!app.storage.erase(key)) throw Refusal(404, "KEY_NOT_FOUND", "nothing is stored under " + key);
+    persist();
+}
+
+void AppRegistry::send_message(const std::string& from, const std::string& to, const json& message) {
+    if (!message.is_object() || !message.value("type", json(nullptr)).is_string()) throw Refusal(400, "INVALID_MESSAGE", "a message needs a type");
+    if (message.dump().size() > kMaxMessageBytes) throw Refusal(413, "MESSAGE_TOO_LARGE", "a message is limited to " + std::to_string(kMaxMessageBytes) + " bytes");
+    std::lock_guard lock(mutex_);
+    auto& sender = find(from);
+    auto& recipient = find(to);
+    if (!recipient.granted.count("apps.messages")) throw Refusal(403, "RECIPIENT_NOT_LISTENING", to + " does not accept messages");
+    const auto now = Clock::now();
+    sender.bucket = std::min(kNotificationBurst, sender.bucket + std::chrono::duration<double>(now - sender.bucket_at).count() * kNotificationsPerSecond);
+    sender.bucket_at = now;
+    if (sender.bucket < 1) {
+        ++sender.rate_limited;
+        throw Refusal(429, "RATE_LIMITED", "too many messages; send fewer");
+    }
+    sender.bucket -= 1;
+    ++sender.messages_sent;
+    ++recipient.messages_received;
+    push_event(recipient, "message", {{"from", from}, {"type", message.at("type")}, {"data", message.value("data", json(nullptr))}});
+}
+
+json AppRegistry::health(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    const auto& app = find(id);
+    const auto now = Clock::now();
+    const auto ago = [&](Clock::time_point when) { return when == Clock::time_point{} ? json(nullptr) : json(std::chrono::duration<double>(now - when).count()); };
+    return {{"id", id}, {"state", app.state}, {"detail", app.detail}, {"lease_s", app.lease_s}, {"last_seen_s", ago(app.last_seen)}, {"uptime_s", ago(app.registered_at)},
+            {"requests", app.requests}, {"refused", app.refused}, {"rate_limited", app.rate_limited}, {"lease_lapses", app.lapses},
+            {"events", {{"sequence", app.event_sequence}, {"queued", app.event_queue.size()}, {"dropped", app.dropped_events}}},
+            {"messages", {{"sent", app.messages_sent}, {"received", app.messages_received}}},
+            {"ui", {{"elements", app.elements.size()}, {"bytes", ui_bytes(app.elements)}}},
+            {"storage", {{"keys", app.storage.size()}, {"bytes", app.storage.dump().size()}}},
+            {"timers", app.timers.size()}, {"topics", app.topics}};
 }
 
 void AppRegistry::set_stops(const std::string& id, const json& nodes) {

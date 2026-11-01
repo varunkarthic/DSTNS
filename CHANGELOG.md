@@ -12,10 +12,23 @@ only within one version.
 
 ## [Unreleased]
 
-**Observer 3.0.0, API contract 1.2.** The engine stays at 2.1.0, and every existing endpoint
+**Observer 3.1.0, API contract 1.3.** The engine stays at 2.1.0, and every existing endpoint
 behaves as before, 155 recorded calls being replayed to prove it, with one deliberate widening:
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
-responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
+responses reads `1.3`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
+
+### More for applications: Fabric 1.3
+
+Everything here is additive, and every recorded call behaves as it did.
+
+- **Applications can follow the simulation.** `PUT .../subscriptions` chooses what arrives as events: lifecycle, a new world, the news or one category of it.
+- **Timers on the simulation's clock,** once or repeating, which mean the same at any speed and start again when the day is reset.
+- **A store of the application's own,** kept across restarts of either side, within limits that are refused rather than silently enforced.
+- **Messages between applications,** for those that asked to use them.
+- **Atomic batches** of UI changes, so that nothing appears half-updated.
+- **Health,** per application: requests, refusals, rate limiting, lease lapses, events waiting and dropped, and what it has declared. It shows on the application's page in Settings.
+- **Discovery,** `GET /api/v1/fabric/capabilities`, says what the server offers rather than leaving it to be assumed.
+- **New components:** tables, gauges, bars and key and value lists, each drawn in the interface's own shapes.
 
 ### Stadiums, a film that explains itself, and a fuller report
 

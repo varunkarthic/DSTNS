@@ -7,7 +7,8 @@ import { Row, Section, Segmented, Switch } from "../settingsControls";
 import { BrandLogo } from "../BrandLogo";
 import { Select } from "../Popover";
 import { fabric, useFabricApps } from "./store";
-import type { AppState, FabricApp, SettingsField } from "./store";
+import type { AppState, FabricApp, FabricHealth, SettingsField } from "./store";
+import { formatBytes } from "../units";
 
 /**
  * Settings → WebFabric. Every application's settings are drawn here from its own
@@ -192,11 +193,17 @@ function AppPermissions({ app }: { app: FabricApp }) {
 function AppDetails({ app, onForgotten }: { app: FabricApp; onForgotten: () => void }) {
   const [audit, setAudit] = useState<{ action: string; outcome: string; sequence: number }[]>([]);
   const [error, setError] = useState("");
+  const [health, setHealth] = useState<FabricHealth | null>(null);
   useEffect(() => {
     let live = true;
     void fabric.audit().then((log) => live && setAudit(log.items.filter((item) => item.app_id === app.id).slice(-10).reverse()), () => undefined);
+    // An older server has no health to report, and the page simply goes without it.
+    const look = () => void fabric.health(app.id).then((next) => live && next?.events && setHealth(next), () => undefined);
+    look();
+    const timer = setInterval(look, 2000);
     return () => {
       live = false;
+      clearInterval(timer);
     };
   }, [app.id]);
   const act = (work: Promise<unknown>) => work.then(() => setError(""), (e: Error) => setError(e.message));
@@ -213,6 +220,21 @@ function AppDetails({ app, onForgotten }: { app: FabricApp; onForgotten: () => v
       </dl>
       {app.description && <p className="settings-note">{app.description}</p>}
       {app.blocked_ui.length > 0 && <p className="settings-note">Waiting for permission to show: {app.blocked_ui.join(", ")}.</p>}
+      {health && (
+        <Section title="Health">
+          <dl className="fabric-health">
+            <div><dt>Requests</dt><dd className="mono">{health.requests.toLocaleString()}</dd></div>
+            <div><dt>Refused</dt><dd className="mono">{health.refused.toLocaleString()}</dd></div>
+            <div><dt>Rate limited</dt><dd className="mono">{health.rate_limited.toLocaleString()}</dd></div>
+            <div><dt>Last seen</dt><dd className="mono">{health.last_seen_s === null ? "Not yet" : `${health.last_seen_s.toFixed(0)} s ago`}</dd></div>
+            <div><dt>Lease lapses</dt><dd className="mono">{health.lease_lapses}</dd></div>
+            <div><dt>Events waiting</dt><dd className="mono">{health.events.queued}</dd></div>
+            <div><dt>Interface</dt><dd className="mono">{health.ui.elements} elements</dd></div>
+            <div><dt>Stored</dt><dd className="mono">{formatBytes(health.storage.bytes)}</dd></div>
+            <div><dt>Timers</dt><dd className="mono">{health.timers}</dd></div>
+          </dl>
+        </Section>
+      )}
       {audit.length > 0 && (
         <Section title="Actions on the simulation">
           <ul className="fabric-audit">

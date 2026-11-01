@@ -2806,3 +2806,34 @@ html:not([data-input="tab"]) :focus-visible { outline: none; }
 
 /* All three of the bar's segments, whatever wraps them, are the same height on the same line. */
 .lower-hud .hud-group > :is(.legend-road, .legend-place), .lower-hud .hud-group .legend-place > .tooltip-anchor { height: 34px; align-self: center; }
+
+/* ---- WebFabric's components: each is the interface's own, so an application looks as if it belongs ---- */
+.fabric-progress > div { background: rgb(var(--ink-rgb) / 9%); }
+.fabric-progress i { width: 100%; border-radius: var(--r-pill); transition: transform 860ms cubic-bezier(0.22, 0.84, 0.3, 1); }
+.fabric-keyvalues { display: flex; flex-direction: column; margin: 0; overflow: hidden; border-radius: var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); }
+.fabric-keyvalues > div { display: flex; justify-content: space-between; gap: 16px; padding: 9px 14px; font-size: 12.5px; }
+.fabric-keyvalues > div + div { box-shadow: inset 0 1px 0 var(--well-line); }
+.fabric-keyvalues dt { color: var(--text-dim); }
+.fabric-keyvalues dd { margin: 0; color: var(--tone, var(--text)); }
+.fabric-table-frame { overflow: auto; border-radius: var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); }
+.fabric-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fabric-table th { position: sticky; top: 0; padding: 9px 14px; text-align: left; font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-dim); background: var(--surface-solid); box-shadow: inset 0 -1px 0 var(--well-line); }
+.fabric-table td { padding: 8px 14px; color: var(--text); box-shadow: inset 0 -1px 0 var(--well-line); }
+.fabric-table tr:last-child td { box-shadow: none; }
+.fabric-table .right { text-align: right; }
+.fabric-gauge { position: relative; display: grid; justify-items: center; gap: 2px; padding: 4px 0; font-size: 12px; color: var(--text-dim); }
+.fabric-gauge svg { width: 100%; max-width: 160px; overflow: visible; fill: none; stroke-width: 7; stroke-linecap: round; }
+.fabric-gauge .track { stroke: rgb(var(--ink-rgb) / 10%); }
+.fabric-gauge .fill { stroke: var(--tone, var(--accent)); transition: stroke-dasharray 860ms cubic-bezier(0.22, 0.84, 0.3, 1); }
+.fabric-gauge strong { margin-top: -26px; font-size: 18px; font-weight: 500; color: var(--tone, var(--text)); }
+.fabric-bars { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--text-dim); }
+.fabric-bars li { display: grid; grid-template-columns: minmax(0, 96px) minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.fabric-bars li > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fabric-bars i { display: block; height: 6px; overflow: hidden; border-radius: var(--r-pill); background: rgb(var(--ink-rgb) / 9%); }
+.fabric-bars b { display: block; height: 100%; border-radius: var(--r-pill); background: var(--tone, var(--accent)); transition: transform 860ms cubic-bezier(0.22, 0.84, 0.3, 1); }
+.fabric-bars strong { font-weight: 500; color: var(--text); }
+.reduce-motion :is(.fabric-progress i, .fabric-gauge .fill, .fabric-bars b) { transition: none; }
+.fabric-health { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 0; overflow: hidden; border-radius: var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); }
+.fabric-health > div { padding: 10px 14px; box-shadow: inset 1px 0 0 var(--well-line), inset 0 1px 0 var(--well-line); }
+.fabric-health dt { font-size: 11px; color: var(--text-dim); }
+.fabric-health dd { margin: 2px 0 0; font-size: 13.5px; color: var(--text); }

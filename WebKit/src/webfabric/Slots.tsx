@@ -159,7 +159,7 @@ const FabricRowItem = memo(function FabricRowItem({ row, onSelect }: { row: Fabr
       {row.badge && <span className="fabric-row-badge mono">{text(row.badge).slice(0, 6)}</span>}
       <span className="fabric-row-text">
         <span>{text(row.subtitle) || text(row.title)}</span>
-        {share !== null && <span className="fabric-row-bar"><i style={{ transform: `scaleX(${share})` }} /></span>}
+        {share !== null && <span className="fabric-row-bar"><i style={{ transform: `translateX(${share * 100 - 100}%)` }} /></span>}
       </span>
       {row.value !== undefined && <span className="fabric-row-value mono">{text(row.value)}</span>}
     </>
@@ -310,6 +310,61 @@ function Widget({ app, element, widget }: { app: FabricApp; element: FabricEleme
       );
     case "sparkline":
       return <FabricSparkline widget={widget} />;
+    case "keyvalues":
+      return (
+        <dl className="fabric-keyvalues">
+          {(Array.isArray(widget.items) ? widget.items : []).slice(0, 40).map((item, index) => (
+            <div key={index} className={toneClass(item.tone).trim()}>
+              <dt>{text(item.label)}</dt>
+              <dd className="mono">{text(item.value)}</dd>
+            </div>
+          ))}
+        </dl>
+      );
+    case "table":
+      return (
+        <div className="fabric-table-frame">
+          <table className="fabric-table">
+            <thead>
+              <tr>{(widget.columns ?? []).slice(0, 8).map((column, index) => <th key={index} className={column.align === "right" ? "right" : undefined}>{text(column.label)}</th>)}</tr>
+            </thead>
+            <tbody>
+              {(widget.cells ?? []).slice(0, 200).map((row, r) => (
+                <tr key={r}>{row.slice(0, 8).map((cell, c) => <td key={c} className={widget.columns?.[c]?.align === "right" ? "right mono" : undefined}>{text(cell)}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    case "gauge": {
+      // A half circle, drawn by how much of its length shows, so that a new value travels there.
+      const share = Math.min(1, Math.max(0, (Number(widget.value) - (widget.min ?? 0)) / ((widget.max ?? 1) - (widget.min ?? 0)) || 0));
+      return (
+        <div className={`fabric-gauge${toneClass(widget.tone)}`} role="meter" aria-valuenow={Math.round(share * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={label || name}>
+          <svg viewBox="0 0 100 56" aria-hidden="true">
+            <path className="track" d="M8 50a42 42 0 0 1 84 0" pathLength={100} />
+            <path className="fill" d="M8 50a42 42 0 0 1 84 0" pathLength={100} style={{ strokeDasharray: `${share * 100} 100` }} />
+          </svg>
+          <strong className="mono">{text(widget.caption) || `${Math.round(share * 100)}%`}</strong>
+          <span>{label}</span>
+        </div>
+      );
+    }
+    case "bars": {
+      const items = (Array.isArray(widget.items) ? widget.items : []).slice(0, 24);
+      const most = Math.max(1e-9, ...items.map((item) => Number(item.value) || 0));
+      return (
+        <ul className="fabric-bars">
+          {items.map((item, index) => (
+            <li key={index} className={toneClass(item.tone).trim()}>
+              <span>{text(item.label)}</span>
+              <i aria-hidden="true"><b style={{ transform: `translateX(${((Number(item.value) || 0) / most) * 100 - 100}%)` }} /></i>
+              <strong className="mono">{text(item.caption) || text(item.value)}</strong>
+            </li>
+          ))}
+        </ul>
+      );
+    }
     case "tabs":
       return <FabricTabs app={app} element={element} widget={widget} />;
     case "input":
@@ -327,7 +382,7 @@ function Widget({ app, element, widget }: { app: FabricApp; element: FabricEleme
         <div className={`fabric-progress${toneClass(widget.tone)}`}>
           <span>{label}</span>
           <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)} aria-label={label || "Progress"}>
-            <i style={{ transform: `scaleX(${share})` }} />
+            <i style={{ transform: `translateX(${share * 100 - 100}%)` }} />
           </div>
         </div>
       );
