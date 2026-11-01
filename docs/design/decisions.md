@@ -471,12 +471,13 @@ particles and shows the same readable card, and the current world stays loaded.
 **Problem.** Stopping at a limit and then playing a small fixed effect felt like running into a magnet. Reaching the limit fast
 and slow looked the same, because the two had no connection.
 
-**Decision.** The speed at the limit is read from the scroll itself and handed to a critically damped spring, through the
-rubber-band curve with constant 0.55, as scroll views work. Apple does not publish its spring, so it is tuned to be home about half a
-second after being let go. Chrome has no elastic scrolling on inner elements, so this is drawn with one transform and one clip on the region.
+**Decision.** The speed at the limit is read from the scroll itself and handed to a critically damped spring acting on the
+position shown, so the return is one curve. The rubber-band curve limits how far a harder fling or a longer push travels. Apple
+does not publish its spring, so it is tuned to be home about 0.6 s after being let go. Chrome has no elastic scrolling on inner elements, so this is drawn with one transform and one clip on the region.
 
 **Consequences.** Fast scrolling into a limit now travels visibly further than the 12 px it used to be allowed. A trackpad's
-fading momentum no longer holds a stretch open, because a run of shrinking events is not treated as a push.
+momentum never starts a second motion: one gesture gets one, and a pause of 180 ms between wheel events begins the next. A finger
+that pushes on after a fast arrival gets no further stretch, because a wheel event cannot say which of the two it is.
 
 ## 36. What matters most is what the capsule shows
 

@@ -120,7 +120,7 @@ describe("in scrolling regions", () => {
     const slow = peak(796, 4);
     const fast = peak(700, 100);
     expect(fast).toBeGreaterThan(slow);
-    expect(fast).toBeLessThanOrEqual(90);
+    expect(fast).toBeLessThanOrEqual(60);
     expect(fast).toBeGreaterThan(12);
   });
 
@@ -144,18 +144,40 @@ describe("in scrolling regions", () => {
     expect(region.style.clipPath ?? "").toBe("");
   });
 
-  it("does not let a trackpad's fading momentum hold it out", () => {
+  it("gives a gesture one motion, however unevenly its momentum fades", () => {
+    region.scrollTop = 780;
+    wheel(120);
+    region.dispatchEvent(new Event("scroll", { bubbles: true }));
+    flush();
     region.scrollTop = 800;
-    wheel(200);
-    run(1);
-    let size = 180;
-    for (let i = 0; i < 40; i++) {
-      wheel(size);
-      size *= 0.86;
+    region.dispatchEvent(new Event("scroll", { bubbles: true }));
+    let size = 100;
+    let rises = 0;
+    let last = 0;
+    for (let i = 0; i < 60; i++) {
+      // Plateaus and small rises, as a trackpad really sends them.
+      wheel(Math.max(1, Math.round(size * (i % 5 === 0 ? 1.12 : 1))));
+      size *= 0.93;
       flush();
+      const now = shift();
+      if (now > last + 0.05 && i > 8) rises += 1;
+      last = now;
     }
-    run(10);
-    expect(shift()).toBeLessThan(3);
+    expect(rises).toBe(0);
+    run(40);
+    expect(region.style.transform).toBe("");
+  });
+
+  it("answers a new gesture after a pause", () => {
+    region.scrollTop = 800;
+    wheel(100);
+    run(60);
+    expect(region.style.transform).toBe("");
+    flush(300);
+    wheel(100);
+    run(4);
+    expect(shift()).toBeGreaterThan(0.5);
+    run(60);
   });
 
   it("moves only the region itself", () => {

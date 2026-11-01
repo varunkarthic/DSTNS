@@ -36,7 +36,7 @@ responses reads `1.2`. The observer's folder is renamed from `ui-engine/` to `We
 
 ### Scroll limits behave like a scroll view
 
-- **Edge resistance now follows how scroll views work.** Content carries on past a limit at the speed it arrived, compressed by the same rubber-band curve (constant 0.55), and a critically damped spring brings it home. It used to stop dead and then make a small, unrelated movement. A region's frame now stays still while what is inside it moves.
+- **Edge resistance now follows how scroll views work.** Content carries on past a limit at the speed it arrived, with how far it travels limited by a rubber-band curve, and a critically damped spring brings it home. It used to stop dead and then make a small, unrelated movement. One gesture gets one motion, however unevenly its momentum fades, and the spring acts on the position shown, so the return is one curve. A region's frame now stays still while what is inside it moves.
 - **Fixed:** turning reduced motion off replayed the map's arrival, flashing it through a blur.
 - The notification history is one surface with one column of details. Settings headings, rows and the title share one left edge. Copying the seed has a new animation. Decimal units read `KB`.
 
