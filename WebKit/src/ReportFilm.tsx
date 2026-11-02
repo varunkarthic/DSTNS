@@ -3,22 +3,17 @@
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { sequence } from "./bootScenes";
-import { paintCover } from "./reportCover";
+import { filmAvailable, landingPoints } from "./BootScene";
+import { coverFrame, paintCover } from "./reportCover";
+import type { MapTransform } from "./NetworkMap";
 import type { Snapshot, Topology } from "./types";
 
 /**
- * The report being printed, out of what is on screen.
- *
- * The screen blurs back, and a sheet grows out of the button that asked for it. Streams of particles
- * leave the map and the panels, curve round to the sheet's edges and run in along a line of light, and
- * as that line moves down the sheet it leaves the page behind it. These are the report's real pages, in
- * miniature, with this run's own figures: its cover, its summary, its day and its map. A finished page
- * tucks in behind the next, and the deck goes back along the way it came as the file saves.
- *
- * Its pace follows the worker building the file, so this cannot run ahead of it, and it takes long
- * enough to follow when the work is quick. Only what is in the air costs anything each frame: a page
- * is drawn once, and revealed by copying the strip the line has just passed over.
+ * The report being made, in the start-up film's language. The map's own roads brighten as the interface
+ * softens behind them. They lift off as particles, ride one current together, and land on the same roads as
+ * the cover draws them, and the cover then fades in under them, as the map does under its roads at the
+ * start. Once the file is ready it saves, and they go back the way they came. Nothing is timed to look
+ * busy: the work is on a worker, and this only has to be worth watching for the few seconds it takes.
  */
 
 export interface ReportPreview {
@@ -26,371 +21,279 @@ export interface ReportPreview {
   country: string;
   seed: string;
   generated: string;
-  /** Four figures from this run. */
-  figures: { label: string; value: string; tone: string }[];
-  /** The congestion index across the day, oldest first. */
-  day: number[];
   topology: Topology;
   snapshot: Snapshot;
   virtualS: number;
 }
 
-const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
-// Seconds, at the least, for the whole report.
-const MIN_S = 4.4;
-const GROW_MS = 760;
-// Particles a second, and how long each is in the air.
-const FEED = 620;
-const FLIGHT_S = 0.95;
-const INK = "#0f1d27";
-const DIM = "#4b5c68";
-const RULE = "#dfe5ea";
-const ACCENT = "#0a7f9e";
+const COUNT = 18000;
+// All of these are seconds, and all of them are eased in the shader or here.
+const LIFT_S = 0.35;
+const GATHER_S = 2.4;
+const COVER_AT_S = LIFT_S + GATHER_S * 0.76;
+const COVER_S = 1.05;
+const MIN_S = 4.1;
+const RETURN_S = 1.95;
 
-type Paint = (g: CanvasRenderingContext2D, w: number, h: number) => void;
+const smoother = (x: number) => {
+  const t = Math.max(0, Math.min(1, x));
+  return t * t * t * (t * (t * 6 - 15) + 10);
+};
 
-/** The pages, as the report lays them out, with real words only where they are large enough to read. */
-function pagesFor(preview: ReportPreview, roads: Float32Array | null): Paint[] {
-  const heading = (g: CanvasRenderingContext2D, w: number, label: string, title: string) => {
-    g.fillStyle = ACCENT;
-    g.font = `500 ${w * 0.02}px Inter, system-ui, sans-serif`;
-    g.fillText(label, w * 0.08, w * 0.12);
-    g.fillStyle = INK;
-    g.font = `400 ${w * 0.058}px Inter, system-ui, sans-serif`;
-    g.fillText(title, w * 0.08, w * 0.195);
-    g.fillStyle = ACCENT;
-    g.fillRect(w * 0.08, w * 0.215, w * 0.09, Math.max(1, w * 0.004));
-  };
-  const lines = (g: CanvasRenderingContext2D, w: number, top: number, count: number) => {
-    g.fillStyle = RULE;
-    for (let n = 0; n < count; n++) {
-      const long = 0.84 - ((n * 37) % 5) * 0.07;
-      g.beginPath();
-      g.roundRect(w * 0.08, top + n * w * 0.034, w * long, w * 0.012, w * 0.006);
-      g.fill();
-    }
-  };
-  return [
-    // The cover, painted exactly as the report's own is, only smaller.
-    (g, w, h) => {
-      g.fillStyle = "#071420";
-      g.fillRect(0, 0, w, h);
-      const city = paintCover(preview.topology, preview.snapshot, preview.virtualS, Math.min(w, 460), true);
-      if (city) g.drawImage(city as CanvasImageSource, 0, 0, w, h);
-      const edge = w * 0.076;
-      let size = w * 0.215;
-      g.font = `400 ${size}px Inter, system-ui, sans-serif`;
-      size = Math.min(size, (size * w * 0.848) / g.measureText(preview.city).width);
-      const under = h * 0.729;
-      g.font = `500 ${w * 0.022}px Inter, system-ui, sans-serif`;
-      g.fillStyle = "#5ee3bf";
-      g.fillText("A SIMULATED DAY IN", edge, under - size * 1.26);
-      g.font = `400 ${size}px Inter, system-ui, sans-serif`;
-      g.fillStyle = "#ffffff";
-      g.fillText(preview.city, edge, under - size * 0.28);
-      g.font = `400 ${w * 0.036}px Inter, system-ui, sans-serif`;
-      g.fillStyle = "#b7cbd7";
-      g.fillText(preview.country, edge, under + w * 0.038);
-      g.font = `400 ${w * 0.024}px Inter, system-ui, sans-serif`;
-      g.fillStyle = "#e8f1f6";
-      g.fillText(`Seed ${preview.seed.length > 22 ? `${preview.seed.slice(0, 20)}…` : preview.seed}`, edge, h * 0.885);
-      g.fillText(preview.generated, w * 0.53, h * 0.885);
-    },
-    // The summary, with its own figures.
-    (g, w, h) => {
-      g.fillStyle = "#ffffff";
-      g.fillRect(0, 0, w, h);
-      heading(g, w, "SECTION 1", "Executive Summary");
-      const tile = w * 0.2;
-      preview.figures.slice(0, 4).forEach((figure, n) => {
-        const x = w * 0.08 + n * (tile + w * 0.013);
-        g.fillStyle = "#f2f5f7";
-        g.beginPath();
-        g.roundRect(x, w * 0.27, tile, w * 0.15, w * 0.015);
-        g.fill();
-        g.fillStyle = "#7b8a95";
-        g.font = `500 ${w * 0.017}px Inter, system-ui, sans-serif`;
-        g.fillText(figure.label.toUpperCase(), x + w * 0.016, w * 0.305);
-        g.fillStyle = figure.tone;
-        g.font = `400 ${w * 0.038}px Inter, system-ui, sans-serif`;
-        g.fillText(figure.value, x + w * 0.016, w * 0.365, tile - w * 0.03);
-      });
-      lines(g, w, w * 0.49, 7);
-      g.fillStyle = INK;
-      g.font = `500 ${w * 0.03}px Inter, system-ui, sans-serif`;
-      g.fillText("Key observations", w * 0.08, w * 0.82);
-      lines(g, w, w * 0.86, 9);
-    },
-    // The day, from this run's own history.
-    (g, w, h) => {
-      g.fillStyle = "#ffffff";
-      g.fillRect(0, 0, w, h);
-      heading(g, w, "SECTION 5", "Traffic Analysis");
-      const [left, top, width, tall] = [w * 0.08, w * 0.3, w * 0.84, w * 0.4];
-      g.strokeStyle = RULE;
-      g.lineWidth = 1;
-      for (let n = 0; n <= 4; n++) {
-        g.beginPath();
-        g.moveTo(left, top + (n / 4) * tall);
-        g.lineTo(left + width, top + (n / 4) * tall);
-        g.stroke();
-      }
-      const day = preview.day.length > 1 ? preview.day : [8, 12, 34, 72, 44, 30, 36, 58, 90, 62, 28, 14];
-      const most = Math.max(1, ...day);
-      const at = (n: number) => [left + (n / (day.length - 1)) * width, top + tall - (day[n] / most) * tall * 0.92] as const;
-      g.beginPath();
-      day.forEach((_, n) => (n ? g.lineTo(...at(n)) : g.moveTo(...at(n))));
-      g.lineTo(left + width, top + tall);
-      g.lineTo(left, top + tall);
-      g.closePath();
-      g.fillStyle = "rgba(10, 127, 158, 0.12)";
-      g.fill();
-      g.beginPath();
-      day.forEach((_, n) => (n ? g.lineTo(...at(n)) : g.moveTo(...at(n))));
-      g.strokeStyle = ACCENT;
-      g.lineWidth = Math.max(1.5, w * 0.005);
-      g.lineJoin = "round";
-      g.stroke();
-      g.fillStyle = DIM;
-      g.font = `500 ${w * 0.03}px Inter, system-ui, sans-serif`;
-      g.fillStyle = INK;
-      g.fillText("Most congested roads", w * 0.08, w * 0.8);
-      for (let n = 0; n < 10; n++) {
-        g.fillStyle = n % 2 ? "#ffffff" : "#f2f5f7";
-        g.fillRect(w * 0.08, w * (0.83 + n * 0.04), w * 0.84, w * 0.04);
-        g.fillStyle = RULE;
-        g.beginPath();
-        g.roundRect(w * 0.1, w * (0.845 + n * 0.04), w * (0.34 - ((n * 13) % 7) * 0.02), w * 0.011, w * 0.005);
-        g.roundRect(w * 0.72, w * (0.845 + n * 0.04), w * 0.16, w * 0.011, w * 0.005);
-        g.fill();
-      }
-    },
-    // The map, in print colours, from the roads on screen.
-    (g, w, h) => {
-      g.fillStyle = "#ffffff";
-      g.fillRect(0, 0, w, h);
-      heading(g, w, "SECTION 13", "Map at Export");
-      const box = { x: w * 0.08, y: w * 0.28, w: w * 0.84, h: h - w * 0.28 - w * 0.2 };
-      g.fillStyle = "#f6f8fa";
-      g.beginPath();
-      g.roundRect(box.x, box.y, box.w, box.h, w * 0.015);
-      g.fill();
-      if (roads?.length) {
-        let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
-        for (let at = 0; at < roads.length; at += 4) {
-          minX = Math.min(minX, roads[at]);
-          maxX = Math.max(maxX, roads[at]);
-          minY = Math.min(minY, roads[at + 1]);
-          maxY = Math.max(maxY, roads[at + 1]);
-        }
-        const aspect = window.innerWidth / window.innerHeight;
-        const fit = Math.min((box.w * 0.92) / ((maxX - minX) * aspect), (box.h * 0.92) / (maxY - minY));
-        const [ox, oy] = [box.x + (box.w - (maxX - minX) * aspect * fit) / 2, box.y + (box.h - (maxY - minY) * fit) / 2];
-        g.fillStyle = "#2fa98a";
-        const dot = Math.max(0.7, w * 0.0028);
-        for (let at = 0; at < roads.length; at += 4) g.fillRect(ox + (roads[at] - minX) * aspect * fit, oy + (maxY - roads[at + 1]) * fit, dot, dot);
-      }
-      lines(g, w, h - w * 0.14, 3);
-    },
-  ];
+const VERTEX = `#version 300 es
+in vec2 aFrom, aTo;
+in vec3 aMeta; // seed, order, how much of it stays once it is on the page
+uniform float uMix, uTime, uAspect, uAlpha, uPixels, uSettle, uSweep;
+uniform vec3 uInk, uLit;
+out vec3 vColour;
+out float vAlpha;
+const float PI = 3.14159265;
+void main() {
+  float seed = aMeta.x;
+  // A front, from the middle outward, and no sudden start or stop in speed or in the change of speed.
+  float m = clamp(uMix * 1.5 - aMeta.y * 0.5, 0.0, 1.0);
+  m = m * m * m * (m * (m * 6.0 - 15.0) + 10.0);
+  vec2 p = mix(aFrom, aTo, m);
+  vec2 q = vec2(p.x * uAspect, p.y);
+  // One body of water: a slow field they are all carried by, and only a little of their own. Squared, so
+  // that it adds no speed of its own where a particle starts or stops.
+  float swing = sin(m * PI);
+  float arc = swing * swing;
+  vec2 current = vec2(sin(q.y * 1.9 + uTime * 0.5) + cos(q.x * 1.3 - uTime * 0.4), sin(q.x * 1.7 + uTime * 0.45) + cos(q.y * 1.1 + uTime * 0.35));
+  float angle = seed * 40.0 + uTime * 0.6;
+  q += arc * (current * 0.075 + vec2(cos(angle), sin(angle * 1.3)) * (0.012 + seed * 0.03));
+  float turn = arc * (0.22 + seed * 0.12);
+  q = mat2(cos(turn), -sin(turn), sin(turn), cos(turn)) * q;
+  gl_Position = vec4(q.x / uAspect, q.y, 0.0, 1.0);
+  // While the work goes on, a slow light passes down the page's roads.
+  float band = exp(-pow((aTo.y - uSweep) * 9.0, 2.0)) * m;
+  gl_PointSize = uPixels * (1.0 + seed * 0.7) * (1.0 + 0.3 * swing + band * 0.7);
+  vAlpha = uAlpha * mix(1.0, aMeta.z, smoothstep(0.55, 1.0, m)) * (1.0 - 0.3 * swing) * mix(1.0, uSettle + band * 0.8, m);
+  vColour = mix(uInk, uLit, m);
+}`;
+
+const FRAGMENT = `#version 300 es
+precision mediump float;
+in vec3 vColour;
+in float vAlpha;
+uniform float uCover;
+out vec4 colour;
+void main() {
+  float a = min(1.0, smoothstep(0.5, 0.08, length(gl_PointCoord - 0.5)) * vAlpha);
+  colour = vec4(vColour * a, a * uCover);
+}`;
+
+function program(gl: WebGL2RenderingContext): WebGLProgram | null {
+  const made = gl.createProgram();
+  if (!made) return null;
+  for (const [kind, source] of [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, FRAGMENT]] as const) {
+    const shader = gl.createShader(kind);
+    if (!shader) return null;
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    gl.attachShader(made, shader);
+  }
+  gl.linkProgram(made);
+  return gl.getProgramParameter(made, gl.LINK_STATUS) ? made : null;
 }
 
-export function ReportFilm({ label, share, ready, preview, roads, target, reduceMotion, onDone }: {
+/** The cover as the report's own, smaller: the same picture, with its words. */
+function paintPage(canvas: HTMLCanvasElement, preview: ReportPreview) {
+  const g = canvas.getContext("2d");
+  if (!g) return;
+  const [w, h] = [canvas.width, canvas.height];
+  g.fillStyle = "#071420";
+  g.fillRect(0, 0, w, h);
+  const city = paintCover(preview.topology, preview.snapshot, preview.virtualS, Math.min(w, 460), true);
+  if (city) g.drawImage(city as CanvasImageSource, 0, 0, w, h);
+  const edge = w * 0.076;
+  let size = w * 0.215;
+  g.font = `400 ${size}px Inter, system-ui, sans-serif`;
+  size = Math.min(size, (size * w * 0.848) / g.measureText(preview.city).width);
+  const under = h * 0.729;
+  g.font = `500 ${w * 0.022}px Inter, system-ui, sans-serif`;
+  g.fillStyle = "#5ee3bf";
+  g.fillText("A SIMULATED DAY IN", edge, under - size * 1.26);
+  g.font = `400 ${size}px Inter, system-ui, sans-serif`;
+  g.fillStyle = "#ffffff";
+  g.fillText(preview.city, edge, under - size * 0.28);
+  g.font = `400 ${w * 0.036}px Inter, system-ui, sans-serif`;
+  g.fillStyle = "#b7cbd7";
+  g.fillText(preview.country, edge, under + w * 0.038);
+  g.font = `400 ${w * 0.024}px Inter, system-ui, sans-serif`;
+  g.fillStyle = "#e8f1f6";
+  g.fillText(`Seed ${preview.seed.length > 22 ? `${preview.seed.slice(0, 20)}…` : preview.seed}`, edge, h * 0.885);
+  g.fillText(preview.generated, w * 0.53, h * 0.885);
+}
+
+const rgbOf = (value: string, fallback: [number, number, number]): [number, number, number] => {
+  const parts = value.trim().split(/[\s,]+/).map(Number);
+  return parts.length >= 3 && parts.every(Number.isFinite) ? [parts[0] / 255, parts[1] / 255, parts[2] / 255] : fallback;
+};
+
+export function ReportFilm({ label, share, ready, preview, view, reduceMotion, onSave, onDone }: {
   label: string;
-  /** How far the worker has got, 0 to 1. */
   share: number;
-  /** The file is finished. */
   ready: boolean;
   preview: ReportPreview;
-  /** The map's roads, as points on the page in clip space, four numbers each. */
-  roads: () => Float32Array | null;
-  /** The button it comes out of and goes back to. */
-  target: () => DOMRect | null;
+  /** Where the map is on screen now. */
+  view: () => { view: MapTransform; box: DOMRect } | null;
   reduceMotion: boolean;
+  /** The file is ready, and the page is about to give way to the map. */
+  onSave: () => void;
   onDone: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const air = useRef<HTMLCanvasElement>(null);
-  const deck = useRef<HTMLDivElement>(null);
-  const line = useRef<HTMLElement>(null);
+  const page = useRef<HTMLCanvasElement>(null);
   const fill = useRef<HTMLElement>(null);
-  const words = useRef<HTMLElement>(null);
-  const latest = useRef({ share, ready, onDone, preview });
-  latest.current = { share, ready, onDone, preview };
+  const words = useRef<HTMLParagraphElement>(null);
+  const latest = useRef({ share, ready, onSave, onDone, preview });
+  latest.current = { share, ready, onSave, onDone, preview };
   // The words keep pace with what is seen, not with the worker, which is usually ahead of it.
   const said = useRef<{ share: number; label: string }[]>([]);
   if (said.current[said.current.length - 1]?.label !== label && label !== "Done") said.current.push({ share, label });
 
   useEffect(() => {
-    if (reduceMotion) return;
+    const sheet = page.current;
     const canvas = air.current;
-    const holder = deck.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !holder || !ctx) return;
+    if (reduceMotion || !sheet || !canvas) return;
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = window.innerWidth * ratio;
-    canvas.height = window.innerHeight * ratio;
-    ctx.scale(ratio, ratio);
-    const box = holder.getBoundingClientRect();
-    const onRoads = roads();
-    const paints = pagesFor(latest.current.preview, onRoads);
-    // Each page: what is shown, and the whole of it, drawn once and copied across as the line passes.
-    const sheets = [...holder.querySelectorAll<HTMLCanvasElement>("canvas")].map((shown, n) => {
-      shown.width = box.width * ratio;
-      shown.height = box.height * ratio;
-      const whole = document.createElement("canvas");
-      [whole.width, whole.height] = [shown.width, shown.height];
-      paints[n](whole.getContext("2d")!, whole.width, whole.height);
-      const g = shown.getContext("2d")!;
-      // The sheet itself is there before the line reaches it.
-      g.fillStyle = n === 0 ? "#071420" : "#ffffff";
-      g.fillRect(0, 0, shown.width, shown.height);
-      return { shown, g, whole, copied: 0 };
-    });
-    const place = (active: number) => sheets.forEach(({ shown }, n) => {
-      shown.style.setProperty("--back", String(Math.max(0, active - n)));
-      shown.style.zIndex = String(n > active ? 0 : 10 - (active - n));
-      shown.classList.toggle("waiting", n > active);
-    });
-    place(0);
+    const box = sheet.getBoundingClientRect();
+    sheet.width = Math.round(box.width * ratio);
+    sheet.height = Math.round(box.height * ratio);
+    paintPage(sheet, latest.current.preview);
 
-    // Out of the button, along a curve: the same path it will go back by.
-    const button = target();
-    const [dx, dy] = button ? [button.left + button.width / 2 - (box.left + box.width / 2), button.top + button.height / 2 - (box.top + box.height / 2)] : [0, 240];
-    const small = `translate(${dx}px, ${dy}px) scale(0.05)`;
-    const middle = `translate(${dx * 0.42}px, ${dy * 0.18}px) scale(0.5)`;
-    holder.animate([{ transform: small, opacity: 0, offset: 0 }, { opacity: 1, offset: 0.25 }, { transform: middle, offset: 0.55 }, { transform: "none", opacity: 1, offset: 1 }], { duration: GROW_MS, easing: "cubic-bezier(0.3, 0, 0.1, 1)", fill: "both" });
-
-    const random = sequence(4077);
-    const panels = [...document.querySelectorAll(".metric, .stream-card, .rail, .map-dock, .hud-group, .capsule, .tab-row")].map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
-    const source = (): [number, number] => {
-      if (onRoads?.length && (random() < 0.62 || !panels.length)) {
-        const at = Math.floor(random() * (onRoads.length / 4)) * 4;
-        return [((onRoads[at] + 1) / 2) * window.innerWidth, ((1 - onRoads[at + 1]) / 2) * window.innerHeight];
+    const gl = filmAvailable() ? canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: true, antialias: false }) : null;
+    const made = gl && program(gl);
+    let uniform: (name: string) => WebGLUniformLocation | null = () => null;
+    let drawn = 0;
+    if (gl && made) {
+      canvas.width = window.innerWidth * ratio;
+      canvas.height = window.innerHeight * ratio;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      const { topology } = latest.current.preview;
+      const roads = topology.edges.filter((edge) => !edge.synthetic_reverse && edge.geometry.length > 1).map((edge) => edge.geometry);
+      const here = view();
+      const frame = coverFrame(topology, box.width);
+      // Sampled the same way for both, so that each particle has the same place on a road in each.
+      const from = here && landingPoints(roads, here.view, here.box, window.innerWidth, window.innerHeight, COUNT);
+      const to = frame && landingPoints(roads.map((road) => road.map((p) => ({ x_m: frame.U(p.x_m, p.y_m), y_m: frame.V(p.x_m, p.y_m) }))), { x: frame.left, y: frame.top, scale: frame.scale }, box, window.innerWidth, window.innerHeight, COUNT);
+      if (from && to) {
+        const data = new Float32Array(COUNT * 7);
+        let [seed, aspect] = [12345, window.innerWidth / window.innerHeight];
+        const page01 = (y: number) => (((1 - y) / 2) * window.innerHeight - box.top) / box.height;
+        for (let i = 0; i < COUNT; i++) {
+          seed = (Math.imul(seed, 1664525) + 1013904223) | 0;
+          const [fx, fy, tx, ty] = [from[i * 4], from[i * 4 + 1], to[i * 4], to[i * 4 + 1]];
+          const inside = Math.abs(((tx + 1) / 2) * window.innerWidth - (box.left + box.width / 2)) < box.width / 2;
+          const yy = page01(ty);
+          // The same fall-off as the cover's own drawing, so that nothing lands where the page has no road.
+          const keep = !inside || yy < 0 || yy > 0.69 ? 0 : Math.min(1, yy < 0.24 ? 0.1 + (yy / 0.24) * 0.9 : yy > 0.48 ? (0.69 - yy) / 0.21 : 1);
+          data.set([fx, fy, tx, ty, (seed >>> 8) / 16777216, Math.min(1, Math.hypot(fx * aspect, fy) / 1.5), keep], i * 7);
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+        const attribute = (name: string, size: number, offset: number) => {
+          const at = gl.getAttribLocation(made, name);
+          gl.enableVertexAttribArray(at);
+          gl.vertexAttribPointer(at, size, gl.FLOAT, false, 28, offset);
+        };
+        gl.useProgram(made);
+        attribute("aFrom", 2, 0);
+        attribute("aTo", 2, 8);
+        attribute("aMeta", 3, 16);
+        uniform = (name) => gl.getUniformLocation(made, name);
+        const style = getComputedStyle(document.documentElement);
+        const light = document.documentElement.dataset.theme === "light";
+        gl.uniform3fv(uniform("uInk"), rgbOf(style.getPropertyValue("--accent-rgb"), [0.22, 0.84, 1]));
+        gl.uniform3fv(uniform("uLit"), [0.42, 0.88, 1]);
+        gl.uniform1f(uniform("uCover"), light ? 1 : 0.7);
+        gl.uniform1f(uniform("uAspect"), aspect);
+        gl.uniform1f(uniform("uPixels"), ratio * 1.55);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        drawn = COUNT;
       }
-      const panel = panels[Math.floor(random() * panels.length)];
-      return panel ? [panel.left + random() * panel.width, panel.top + random() * panel.height] : [random() * window.innerWidth, random() * window.innerHeight];
-    };
-    // from x y, through x y, to x y, born, lives
-    const MAX = Math.ceil(FEED * FLIGHT_S * 1.5);
-    const flying = new Float32Array(MAX * 8);
-    let head = 0;
-    let owed = 0;
+    }
+    const [uMix, uTime, uAlpha, uSettle, uSweep] = ["uMix", "uTime", "uAlpha", "uSettle", "uSweep"].map(uniform);
+    const pageTop = 1 - ((box.top / window.innerHeight) * 2);
+    const pageSpan = (box.height / window.innerHeight) * 2;
+
+    const started = performance.now();
+    let previous = started;
     let shown = 0;
-    let previous = performance.now();
-    const started = previous + GROW_MS * 0.7;
-    let active = 0;
+    let leftAt = 0;
+    let finished = false;
     let frame = 0;
-    let flew = false;
-    const accent = document.documentElement.dataset.theme === "light" ? "#0a7f9e" : "#6fe3ff";
     const paint = (now: number) => {
       const dt = Math.min(0.05, (now - previous) / 1000);
       previous = now;
-      const elapsed = Math.max(0, (now - started) / 1000);
-      const real = latest.current.ready ? 1 : latest.current.share;
+      const t = (now - started) / 1000;
       // Follows the work, smoothly, and never faster than can be followed.
-      shown += (Math.min(real, elapsed / MIN_S) - shown) * Math.min(1, dt * 5);
-      if (latest.current.ready && elapsed > MIN_S) shown = Math.min(1, Math.max(shown, shown + dt * 0.5));
+      shown += (Math.min(latest.current.ready ? 1 : latest.current.share, t / MIN_S) - shown) * Math.min(1, dt * 5);
       if (fill.current) fill.current.style.transform = `translateX(${Math.min(1, shown) * 100 - 100}%)`;
-      if (words.current) {
-        const now_ = shown >= 0.995 ? "Done" : [...said.current].reverse().find((step) => step.share <= shown)?.label ?? said.current[0]?.label ?? "";
+      if (words.current && !leftAt) {
+        const now_ = latest.current.ready && t > MIN_S * 0.9 ? "Done" : [...said.current].reverse().find((step) => step.share <= shown)?.label ?? said.current[0]?.label ?? "";
         if (words.current.textContent !== now_) words.current.textContent = now_;
       }
-      // Which page, and how far down it the line has got.
-      const reach = Math.min(sheets.length - 0.0001, shown * sheets.length);
-      const page = Math.floor(reach);
-      if (page !== active) {
-        // Whatever is left of the page just finished, in one go.
-        const done = sheets[active];
-        done.g.drawImage(done.whole, 0, done.copied, done.whole.width, done.whole.height - done.copied, 0, done.copied, done.whole.width, done.whole.height - done.copied);
-        done.copied = done.whole.height;
-        active = page;
-        place(active);
-      }
-      const sheet = sheets[active];
-      const down = ease(Math.min(1, (reach - page) * 1.06));
-      const to = Math.floor(down * sheet.whole.height);
-      if (to > sheet.copied) {
-        sheet.g.drawImage(sheet.whole, 0, sheet.copied, sheet.whole.width, to - sheet.copied, 0, sheet.copied, sheet.whole.width, to - sheet.copied);
-        sheet.copied = to;
-      }
-      const lineY = box.top + down * box.height;
-      if (line.current) {
-        line.current.style.transform = `translateY(${down * box.height}px)`;
-        line.current.style.opacity = !flew && now > started && shown < 0.995 ? String(Math.min(1, Math.sin(Math.min(1, reach - page) * Math.PI) * 6)) : "0";
-      }
-      // The streams: from the screen, round to the sheet's edges, and in along the line.
-      if (!flew && now > started && shown < 0.985) {
-        owed += FEED * dt;
-        while (owed >= 1) {
-          owed -= 1;
-          const [sx, sy] = source();
-          const side = sx < box.left + box.width / 2 ? -1 : 1;
-          const edge = side < 0 ? box.left - 28 - random() * 60 : box.left + box.width + 28 + random() * 60;
-          flying.set([sx, sy, edge, lineY + (sy - lineY) * 0.16, box.left + box.width * (side < 0 ? random() * 0.62 : 0.38 + random() * 0.62), lineY, now, FLIGHT_S * (0.8 + random() * 0.4)], head * 8);
-          head = (head + 1) % MAX;
-        }
-      }
-      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      ctx.lineCap = "round";
-      ctx.lineWidth = 1.15;
-      ctx.strokeStyle = accent;
-      for (const [from, to_, alpha] of [[0, 0.2, 0.38], [0.2, 0.75, 0.72], [0.75, 1, 0.46]]) {
-        ctx.globalAlpha = alpha;
-        ctx.beginPath();
-        for (let i = 0; i < MAX; i++) {
-          const at = i * 8;
-          const age = flying[at + 7] ? (now - flying[at + 6]) / 1000 / flying[at + 7] : -1;
-          if (age < from || age >= to_ || age >= 1) continue;
-          const point = (t: number) => {
-            const e = t * t * (3 - 2 * t);
-            const u = 1 - e;
-            return [u * u * flying[at] + 2 * u * e * flying[at + 2] + e * e * flying[at + 4], u * u * flying[at + 1] + 2 * u * e * flying[at + 3] + e * e * flying[at + 5]] as const;
-          };
-          const [ax, ay] = point(Math.max(0, age - 0.03));
-          const [bx, by] = point(age);
-          ctx.moveTo(ax, ay);
-          ctx.lineTo(bx, by);
-        }
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      // All of it printed: the deck squares up, and goes back to the button by the way it came.
-      if (latest.current.ready && shown >= 0.999 && !flew) {
-        flew = true;
-        for (const done of sheets) done.g.drawImage(done.whole, 0, 0);
-        place(0);
-        for (const { shown: page_ } of sheets) page_.style.setProperty("--back", "0");
-        sheets.forEach(({ shown: page_ }, n) => (page_.style.zIndex = String(10 - n)));
+      if (latest.current.ready && t >= MIN_S && !leftAt) {
+        leftAt = t;
         root.current?.classList.add("leaving");
-        holder.animate([{ transform: "none", opacity: 1 }, { transform: middle, opacity: 1, offset: 0.5 }, { transform: small, opacity: 0.1 }], { duration: 680, delay: 340, easing: "cubic-bezier(0.6, 0, 0.3, 1)", fill: "forwards" });
-        const home = document.querySelector("[data-report-button]");
-        window.setTimeout(() => home?.animate([{ transform: "scale(1)" }, { transform: "scale(1.09)", offset: 0.4 }, { transform: "scale(1)" }], { duration: 420, easing: "cubic-bezier(0.3, 0, 0.1, 1)" }), 880);
-        window.setTimeout(() => latest.current.onDone(), 1040);
+        latest.current.onSave();
+      }
+      const back = leftAt ? (t - leftAt) / RETURN_S : 0;
+      sheet.style.opacity = String(leftAt ? 1 - smoother((t - leftAt) / 0.75) : smoother((t - COVER_AT_S) / COVER_S));
+      if (gl && drawn) {
+        const mix = leftAt ? 1 - Math.min(1, back) : Math.min(1, Math.max(0, (t - LIFT_S) / GATHER_S));
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.uniform1f(uMix, mix);
+        gl.uniform1f(uTime, t);
+        // In over the first half second, and out over the last of the way back, on the roads they came from.
+        gl.uniform1f(uAlpha, smoother(t / 0.5) * (leftAt ? 1 - smoother((back - 0.72) / 0.28) : 1));
+        // Once the cover has come in under them they are only its light, and they come up again to leave.
+        gl.uniform1f(uSettle, 1 - 0.68 * (leftAt ? 1 - smoother((t - leftAt) / 0.5) : smoother((t - COVER_AT_S) / COVER_S)));
+        const waited = (t - COVER_AT_S - COVER_S) / 2.6;
+        gl.uniform1f(uSweep, waited > 0 && !leftAt ? pageTop - (waited % 1) * pageSpan * 1.3 : -3);
+        gl.drawArrays(gl.POINTS, 0, drawn);
+      }
+      if (leftAt && back >= 1 && !finished) {
+        finished = true;
+        latest.current.onDone();
+        return;
       }
       frame = requestAnimationFrame(paint);
     };
     frame = requestAnimationFrame(paint);
-    return () => cancelAnimationFrame(frame);
-  }, [reduceMotion, roads, target]);
+    return () => {
+      cancelAnimationFrame(frame);
+      // A browser allows only so many of these, and a person may make many reports.
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    };
+    // Everything that changes while it runs is read through `latest`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reduceMotion]);
 
-  // Without the film, the file saves as soon as it is ready.
+  // With no film to finish, or nobody watching it, the file saves as soon as it is ready.
   useEffect(() => {
-    if (reduceMotion && ready) onDone();
-  }, [reduceMotion, ready, onDone]);
+    if (ready && (reduceMotion || document.hidden)) {
+      onSave();
+      onDone();
+    }
+  }, [ready, reduceMotion, onSave, onDone]);
 
   // On the page itself, because a blur can only see what its own ancestors let it.
   return createPortal(
     <div ref={root} className={`report-film${reduceMotion ? " still" : ""}`} role="status" aria-live="polite">
-      <div className="report-stack" ref={deck} aria-hidden="true">
-        <canvas /><canvas /><canvas /><canvas />
-        <i className="report-line" ref={line} />
-      </div>
-      <div className="report-film-label">
-        <strong ref={words}>{reduceMotion ? label : said.current[0]?.label}</strong>
+      <canvas ref={page} className="report-page" aria-hidden="true" />
+      <canvas ref={air} className="report-film-air" aria-hidden="true" />
+      <div className="film-caption report-caption">
+        <span className="film-chapter">{preview.country ? `${preview.city}, ${preview.country}` : preview.city}</span>
+        <h3>Simulation report</h3>
+        <p ref={words}>{said.current[0]?.label}</p>
         <span className="report-film-bar" aria-hidden="true"><i ref={fill} style={reduceMotion ? { transform: `translateX(${share * 100 - 100}%)` } : undefined} /></span>
       </div>
-      <canvas ref={air} className="report-film-air" aria-hidden="true" />
     </div>,
     document.body,
   );

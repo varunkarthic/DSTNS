@@ -751,31 +751,23 @@ export default function App() {
     excuseBackpressure();
     const file = reportFile.current;
     reportFile.current = null;
-    setReportFilm(null);
     if (!file) return;
     const url = URL.createObjectURL(file.blob);
     const link = Object.assign(document.createElement("a"), { href: url, download: file.name });
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 10000);
   }, []);
-  const reportRoads = useCallback(() => {
+  const closeReportFilm = useCallback(() => setReportFilm(null), []);
+  const reportView = useCallback(() => {
     const view = mapView.current;
     const box = document.querySelector(".static-map")?.getBoundingClientRect();
-    return view && box && sim.topology ? landingPoints(sim.topology.edges.map((edge) => edge.geometry), view, box, window.innerWidth, window.innerHeight, 12000) : null;
-  }, [sim.topology]);
-  const reportButton = useCallback(() => document.querySelector("[data-report-button]")?.getBoundingClientRect() ?? null, []);
+    return view && box ? { view, box } : null;
+  }, []);
   const reportPreview: ReportPreview | null = sim.topology && sim.snapshot && {
     city: sim.topology?.location?.city || "Explicit map file",
     country: sim.topology?.location?.country || "",
     seed: sim.status?.seed || sim.status?.global_seed || "",
     generated: new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }),
-    figures: [
-      { label: "Time", value: formatSimulationTime(sim.snapshot?.clock.virtual_day_seconds ?? 0, hour12, { seconds: false }), tone: "#0f1d27" },
-      { label: "Vehicles", value: (sim.snapshot?.data.edges.reduce((sum, edge) => sum + edge.vehicle_count, 0) ?? 0).toLocaleString(), tone: "#0a7f9e" },
-      { label: "Roads", value: (sim.topology?.edges.length ?? 0).toLocaleString(), tone: "#0d8f6b" },
-      { label: "Congestion", value: `${(sim.snapshot?.data.congestion.current ?? 0).toFixed(0)}%`, tone: "#b86e00" },
-    ],
-    day: (history?.history ?? sim.snapshot?.data.congestion.history ?? []).map((point) => point.current),
     topology: sim.topology,
     snapshot: sim.snapshot.data,
     virtualS: sim.snapshot.clock.virtual_day_seconds,
@@ -1179,7 +1171,7 @@ export default function App() {
                 <Icon name="info" size={16} />
               </button>
             </Tooltip>
-            <button className="btn primary-soft" data-report-button onClick={() => void report()} disabled={!!reportFilm || !valid || pending || suspended || world.active}>
+            <button className="btn primary-soft" onClick={() => void report()} disabled={!!reportFilm || !valid || pending || suspended || world.active}>
               <Icon name="download" size={16} />
               <span>Export Report</span>
             </button>
@@ -1421,7 +1413,7 @@ export default function App() {
               reduceMotion={reduceMotion}
             />
           )}
-          {reportFilm && reportPreview && <ReportFilm {...reportFilm} preview={reportPreview} roads={reportRoads} target={reportButton} reduceMotion={reduceMotion} onDone={saveReport} />}
+          {reportFilm && reportPreview && <ReportFilm {...reportFilm} preview={reportPreview} view={reportView} reduceMotion={reduceMotion} onSave={saveReport} onDone={closeReportFilm} />}
           {(shutDown || serverGone) && <ShutdownSurface reduceMotion={reduceMotion} landing={landOnRoads} lost={serverGone && !shutDown} />}
 
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} narratorBadge={narratorBadge(narrator)} />}

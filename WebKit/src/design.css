@@ -2796,28 +2796,23 @@ html body :is(.stream, .settings-scroll, .about-scroll, .place-search-results, .
 .settings-section, .settings-section:first-child { padding-inline: 14px; }
 
 /* ---- The report being put together: see ReportFilm.tsx. ------------------------------------------- */
-.report-film { position: fixed; inset: 0; z-index: 150; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+.report-film { position: fixed; inset: 0; z-index: 150; }
 /* The blur itself stays fixed, and only its opacity moves, so that it costs one compositing layer. */
-html body .report-film::before { backdrop-filter: blur(14px) saturate(1.15) !important; }
-.report-film::before { content: ""; position: absolute; inset: 0; background: rgb(var(--surface-rgb, 6 18 28) / 38%); animation: report-back 620ms var(--ease) both; }
-.report-film.leaving::before { animation: report-back-out 620ms var(--ease) both; }
+html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !important; }
+.report-film::before { content: ""; position: absolute; inset: 0; background: rgb(var(--surface-rgb, 6 18 28) / 48%); animation: report-back 900ms cubic-bezier(0.65, 0, 0.35, 1) both; }
+.report-film.leaving::before { animation: report-back-out 1250ms cubic-bezier(0.65, 0, 0.35, 1) 600ms both; }
 .report-film-air { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.report-stack { position: relative; height: 62vh; aspect-ratio: 210 / 297; }
-/* A finished page tucks back to the left, and each one further back turns a little more. */
-.report-stack canvas { --back: 0; position: absolute; inset: 0; width: 100%; height: 100%; border-radius: var(--r-xs); box-shadow: 0 30px 70px -18px rgb(0 0 0 / 55%), 0 0 0 1px rgb(255 255 255 / 7%); transform: translate(calc(var(--back) * -30px), calc(var(--back) * -5px)) rotate(calc(var(--back) * -2.4deg)) scale(calc(1 - var(--back) * 0.03)); transition: transform 680ms cubic-bezier(0.3, 0, 0.1, 1), opacity 340ms ease-out; }
-.report-stack canvas.waiting { opacity: 0; transform: translateY(22px) scale(0.985); }
-/* The line the page comes from under. */
-.report-line { position: absolute; z-index: 20; left: -3%; right: -3%; top: -1px; height: 2px; border-radius: var(--r-pill); background: rgb(var(--accent-rgb)); box-shadow: 0 0 14px 2px rgb(var(--accent-rgb) / 70%), 0 0 42px 8px rgb(var(--accent-rgb) / 24%); opacity: 0; pointer-events: none; }
-.report-film-label { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 260px; padding: 10px 18px; border-radius: var(--r-md); background: var(--surface-solid); box-shadow: var(--hud-shadow), inset 0 0 0 1px var(--well-line); animation: report-label 420ms var(--ease) 420ms both; transition: opacity 240ms ease-out; }
-.report-film.leaving .report-film-label { opacity: 0; }
-.report-film-label strong { font-size: 12.5px; font-weight: 550; color: var(--text); }
-.report-film-bar { display: block; width: 100%; height: 3px; overflow: hidden; border-radius: var(--r-pill); background: rgb(var(--ink-rgb) / 12%); }
+.report-page { position: absolute; left: 50%; top: 47%; height: min(70vh, 110vw); aspect-ratio: 210 / 297; transform: translate(-50%, -50%); border-radius: var(--r-xs); box-shadow: 0 40px 90px -24px rgb(0 0 0 / 55%), 0 0 0 1px rgb(255 255 255 / 7%); opacity: 0; }
+.report-caption { transition: opacity 520ms cubic-bezier(0.65, 0, 0.35, 1); }
+.report-film.leaving .report-caption { opacity: 0; }
+.report-caption > p { min-height: 1.5em; }
+.report-film-bar { display: block; width: 180px; height: 2px; margin-top: 16px; overflow: hidden; border-radius: var(--r-pill); background: rgb(var(--line-rgb) / 22%); }
 .report-film-bar i { display: block; width: 100%; height: 100%; border-radius: var(--r-pill); background: var(--accent); transform: translateX(-100%); }
-.report-film.still .report-stack { display: none; }
+.report-film.still .report-page, .report-film.still .report-film-air { display: none; }
 .report-film.still .report-film-bar i { transition: transform 200ms ease-out; }
+.report-film.still .film-caption > * { animation: none; }
 @keyframes report-back { from { opacity: 0; } }
 @keyframes report-back-out { to { opacity: 0; } }
-@keyframes report-label { from { opacity: 0; transform: translateY(8px); } }
 
 /* All three of the bar's segments, whatever wraps them, are the same height on the same line. */
 .lower-hud .hud-group > :is(.legend-road, .legend-place), .lower-hud .hud-group .legend-place > .tooltip-anchor { height: 34px; align-self: center; }

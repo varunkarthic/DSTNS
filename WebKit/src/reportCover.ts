@@ -52,17 +52,13 @@ function tintAt(virtualS: number): string {
 }
 
 /**
- * The cover's picture: this run's own city on a dark page, set behind the words like a watermark, only with
- * more to say. It's a drawing and not a photograph. The main roads run up the page at a slant, in colour;
- * streets are brighter where the core has more vehicles on them; roads in trouble show as they are at this
- * moment. It's in focus through the upper middle of the page, softens away from there, and dissolves
- * into the dark above the words.
+ * How the city sits on the page: where its traffic is, which way its main roads run, and so where everything
+ * is. The picture and the animation that lands on it both use this, so that they agree to the pixel.
  */
-export function paintCover(topology: Topology, snapshot: Snapshot, virtualS: number, width: number, quick = false): Sheet | null {
+export function coverFrame(topology: Topology, width: number) {
   const edges = topology.edges.filter((e) => !e.synthetic_reverse && e.geometry.length > 1);
   if (!edges.length) return null;
   const height = Math.round((width * 297) / 210);
-  const unit = width / 2480;
 
   // Where the roads are thickest, and which way the main ones run.
   let [sum, cx, cy, c2, s2] = [0, 0, 0, 0, 0];
@@ -104,6 +100,21 @@ export function paintCover(topology: Topology, snapshot: Snapshot, virtualS: num
   const between = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
   const left = between(width * 0.54, width - maxU * scale, -minU * scale);
   const top = between(height * 0.36, height * 0.7 + minV * scale, height * 0.03 + maxV * scale);
+  return { edges, height, U, V, scale, left, top };
+}
+
+/**
+ * The cover's picture: this run's own city on a dark page, set behind the words like a watermark, only with
+ * more to say. It's a drawing and not a photograph. The main roads run up the page at a slant, in colour;
+ * streets are brighter where the core has more vehicles on them; roads in trouble show as they are at this
+ * moment. It's in focus through the upper middle of the page, softens away from there, and dissolves
+ * into the dark above the words.
+ */
+export function paintCover(topology: Topology, snapshot: Snapshot, virtualS: number, width: number, quick = false): Sheet | null {
+  const frame = coverFrame(topology, width);
+  if (!frame) return null;
+  const { edges, height, U, V, scale, left, top } = frame;
+  const unit = width / 2480;
   const X = (x: number, y: number) => left + U(x, y) * scale;
   const Y = (x: number, y: number) => top - V(x, y) * scale;
   const trace = (pen: Pen, points: readonly { x_m: number; y_m: number }[], close = false) => {

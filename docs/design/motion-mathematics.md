@@ -679,23 +679,49 @@ $$
 
 ### Putting it together
 
-The worker reports progress, and the words shown keep pace with what's seen. What's shown follows the real progress, and never goes faster than a person can follow, with \(T_\text{min} = 4.4\) s:
+`WebKit/src/ReportFilm.tsx`. The same language as the start-up film: soft points and timed easing, and one thing happening at a time. There are 18,000 particles in one draw call, and nothing is uploaded per frame, so the work on the worker can't disturb it.
+
+Each particle has a place on a road on the map as it is now, and the same place on the same road as the cover draws it. Sampling along the roads is deterministic, so running it once with the map's view and once with the cover's turned frame gives two lists whose entries correspond. They land exactly on the cover's roads, and the cover then fades in under them, which is what the map does under its roads at the start.
+
+The timeline, in seconds, with \(\mu\) the crossing and \(s\) smootherstep:
+
+| From | To | What happens |
+|---|---|---|
+| 0 | 0.5 | The roads brighten where they are, while the interface blurs over 0.9 s |
+| 0.35 | 2.75 | \(\mu\) goes from 0 to 1, and the particles cross |
+| 2.17 | 3.22 | The cover fades in under them, by \(s\), and they settle to 32% as its light |
+| 3.22 | Until ready | A slow light passes down the page's roads every 2.6 s |
+| At least 4.1 | + 1.95 | The file saves, the cover fades out over 0.75 s, and \(\mu\) goes back from 1 to 0 |
+
+Each particle's own motion is the same as in the film's crossings. With \(o\) its order, by distance from the middle of the screen:
 
 $$
-\text{shown} \leftarrow \text{shown} + \left(\min\left(\text{real},\ \frac{\text{elapsed}}{T_\text{min}}\right) - \text{shown}\right)\min(1, 5\Delta t)
+m = s(\operatorname{clamp}(1.5\mu - 0.5 o)), \qquad p = \operatorname{mix}(p_\text{map}, p_\text{page}, m), \qquad w = \sin\pi m
 $$
 
-With 4 pages, the line is at page \(\lfloor 4\,\text{shown} \rfloor\) and goes down it by the cubic in-out of the remainder, times 1.06. Each page is drawn once off-screen, and each frame copies only the strip the line has just passed.
-
-Particles leave from the roads on screen, 62% of them, and the panels at 620 a second, each living for 0.95 s along a quadratic Bézier through a point just off the page's edge, at the height of the line:
+So it's on the move for two thirds of the crossing. In aspect-corrected space, they ride one current, and turn a little:
 
 $$
-B(e) = (1 - e)^2 P_0 + 2(1 - e)e P_1 + e^2 P_2, \qquad e = \text{ss}(\text{age})
+\vec{F} = \begin{pmatrix} \sin(1.9 q_y + 0.5t) + \cos(1.3 q_x - 0.4t) \\ \sin(1.7 q_x + 0.45t) + \cos(1.1 q_y + 0.35t) \end{pmatrix}
 $$
 
-Each is a short streak from \(B(e(\text{age} - 0.03))\) to \(B(e(\text{age}))\). All of them are stroked at three opacities, in three paths, so that thousands of them cost three draw calls.
+$$
+q \leftarrow q + w^2\left(0.075\vec{F} + (\cos\phi,\ \sin 1.3\phi)(0.012 + 0.03\,\text{seed})\right), \qquad \psi = w^2(0.22 + 0.12\,\text{seed})
+$$
 
-At the end, the sheets square up and fly back to the button by the way they came, on the same curve, and the button bumps by 9% as they arrive.
+Scaling by \(w^2\) adds no speed where a particle starts or stops. They dim in flight by \(1 - 0.3w\).
+
+A particle whose place is past the page's edge, or where the cover's own drawing has faded out, disappears as it lands, by \(\text{keep}\), which follows that same fade: rising from 0.1 to 1 over the top 24% of the page, and falling from 1 to 0 between 48% and 69%.
+
+The light passing down the page is \(e^{-(9(y - y_s))^2}\), adding to each particle's size and opacity.
+
+The progress shown follows the real progress, and never goes faster than a person can follow, with \(T_\text{min} = 4.1\) s:
+
+$$
+\text{shown} \leftarrow \text{shown} + \left(\min\left(\text{real},\ \frac{t}{T_\text{min}}\right) - \text{shown}\right)\min(1, 5\Delta t)
+$$
+
+The words beneath it keep pace with what's shown, not with the worker, which is usually ahead. With reduced motion there are only the words and the bar. With a hidden tab, which draws no frames, the file saves as soon as it's ready.
 
 ## Shapes
 

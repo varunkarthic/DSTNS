@@ -596,7 +596,7 @@ in such a city the bounding box of everything drawn can sit a little off-centre.
 
 No image is fetched from outside. The map is already here, so it works offline, matches the simulation exactly, adds no licence beyond OpenStreetMap's, and tells no third party which city is being simulated.
 
-**Consequences.** The file grows by about 800 KB. The animation paints the same picture at a small size, without buildings, so that the two can't differ. A blur is made from halving and doubling, as `ctx.filter` isn't available on every worker, and each halving must be exact, or a thin line comes back as beads.
+**Consequences.** The file grows by about 800 KB. The animation paints the same picture at a small size, without buildings, and its particles land on the same roads, as both use one frame, so that the two can't differ. A blur is made from halving and doubling, as `ctx.filter` isn't available on every worker, and each halving must be exact, or a thin line comes back as beads.
 
 ## 46. The film's moves are timed
 
@@ -605,3 +605,11 @@ No image is fetched from outside. The map is already here, so it works offline, 
 **Decision.** Scene changes and camera moves use smootherstep, which has zero speed and zero acceleration at both ends. A particle's departure is set by a front whose direction differs from scene to scene. Offsets from the straight line are scaled by \(\sin^2\), so they add no speed at either end. The push is folded into the starting distance, and both it and the slow drift begin only after the camera has arrived. Only the end's burst is still a spring, as it should feel like a burst.
 
 **Consequences.** A crossing takes 1.95 s and the camera's move 2.5 s, so every hold grew by about 0.4 s. The film has no springs left that a person can notice, other than the pointer's. The formulas are in [Motion and graphics mathematics](motion-mathematics.md).
+
+## 47. Making a report speaks the film's language
+
+**Problem.** Making a report was shown as a print sequence: sheets of paper in a fanned deck, a scan line, streaks of particles aimed at it, and the deck flying back into a button. It was a different language from the start-up film, with hard objects and many things moving at once, and it looked strange next to it.
+
+**Decision.** One gesture. The map's own roads lift off as particles, ride one current, land on those same roads as the cover draws them, and the cover fades in under them, as the map does under its roads at the start. When the file is ready, it saves and they go back. It uses the film's soft points, the film's timed easing, and the film's caption, in one draw call with nothing uploaded per frame.
+
+**Consequences.** Only the cover is shown, not the report's other pages. It takes at least 4.1 s before the file saves and about 6 s in all, which is also about how long the worker takes. The sampling must stay deterministic, as the two lists of places are matched by position.
