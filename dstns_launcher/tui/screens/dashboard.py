@@ -11,12 +11,14 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 
+from ...core import apps as catalogue
 from ...core import configuration, environment, server, simulation
 from ...core import seeds as seed_store
 from ...core.environment import State
 from ...core.errors import DSTNSLauncherError
 from ...core.paths import PATHS
 from ...core.version import DOCUMENTATION, FULL_NAME, LICENSE_SPDX, OSM_ATTRIBUTION, engine_version
+from ...modules import pages
 from ..base import Page
 from ..widgets import Key, Menu, MenuItem, Row, Rule, StatusTable
 
@@ -34,6 +36,15 @@ ITEMS = [
 ]
 
 
+def menu_items() -> list[MenuItem]:
+    """The dashboard's own entries, with what each module adds in its place."""
+    items = list(ITEMS)
+    for page in pages():
+        position = next((n for n, item in enumerate(items) if item.key == page.before), 1)
+        items.insert(position, MenuItem(page.key, page.label))
+    return items
+
+
 class DashboardScreen(Page):
     TITLE_TEXT = "Dashboard"
     KEYS = [Key("↑↓", "Navigate", "Move", essential=True), Key("Enter", "Select", "Select", essential=True),
@@ -46,10 +57,16 @@ class DashboardScreen(Page):
         self.server_status: simulation.Status | None = None
 
     def compose_body(self) -> ComposeResult:
+        with Horizontal(id="cards"):
+            for key, title in (("engine", "Engine"), ("run", "Simulation"), ("apps", "Applications"), ("checks", "This machine")):
+                card = Static("", id=f"card-{key}", classes="stat")
+                card.border_title = title
+                yield card
         with Horizontal(id="columns"):
-            with Vertical(id="sidebar"):
-                yield Menu(ITEMS, id="menu")
-            with VerticalScroll(id="content"):
+            with Vertical(id="sidebar") as side:
+                side.border_title = "Menu"
+                yield Menu(menu_items(), id="menu")
+            with VerticalScroll(id="content") as content:
                 yield Static("", id="panel-title", classes="panel-title")
                 yield Rule()
                 yield StatusTable(id="panel-rows", name_width=18)
@@ -83,18 +100,51 @@ class DashboardScreen(Page):
         self.server_status = current
         self.refresh_menu()
         self.update_header()
+        self.update_cards()
         menu = self.query_one("#menu", Menu)
         if menu.current and menu.current.key in {"start", "running"}:
             self.show(menu.current)
 
     def refresh_menu(self) -> None:
         menu = self.query_one("#menu", Menu)
-        items = list(ITEMS)
+        items = menu_items()
         if self.server_status and self.server_status.reachable and self.server_status.lifecycle in {
                 "RUNNING", "PAUSED", "SEEKING", "READY", "COMPLETED", "PREPARING"}:
             items.insert(0, MenuItem("running", "Running simulation"))
         if [item.key for item in items] != [item.key for item in menu.items]:
             menu.set_items(items)
+
+    def update_cards(self) -> None:
+        """The state of everything at a glance. Each says one thing, in two lines."""
+        def card(key: str, first: str, second: str = "", tone: str = "#E6F0F7") -> None:
+            text = Text(first, style=f"bold {tone}", no_wrap=True, overflow="ellipsis")
+            if second:
+                text.append("\n" + second, style="#93A8B6")
+            self.query_one(f"#card-{key}", Static).update(text)
+
+        current = self.server_status
+        online = bool(current and current.reachable)
+        card("engine", engine_version(), f"Serving on port {self.server_port}" if online else "Not running", "#5EE3BF" if online else "#E6F0F7")
+        if online and (current.active or current.lifecycle == "COMPLETED"):
+            card("run", current.clock, f"{current.lifecycle.title()}, {current.fraction * 100:.0f}% of the day", "#37D7FF")
+        else:
+            card("run", "None", "Ready to start" if online else "Start one from here")
+        try:
+            known = catalogue.load()
+        except DSTNSLauncherError:
+            known = {}
+        supervisor = self.app.session.supervisor
+        running = sum(1 for state in supervisor.states() if state.phase.value == "ready") if supervisor else 0
+        card("apps", f"{running} running" if running else f"{len(known)} set up", f"{len(known)} set up" if running else ("Enter Applications to add" if not known else "None running"))
+        checks = self.app.checks or []
+        failing = [check for check in checks if check.outcome.state is State.FAIL]
+        warning = [check for check in checks if check.outcome.state is State.WARNING]
+        if failing:
+            card("checks", "Not ready", failing[0].name, "#EF5A64")
+        elif warning:
+            card("checks", "Ready", f"{len(warning)} to look at", "#F0AA2E")
+        else:
+            card("checks", "Ready", f"{len(checks)} checks passed", "#5EE3BF")
 
     def update_header(self) -> None:
         checks = self.app.checks or []
@@ -120,7 +170,11 @@ class DashboardScreen(Page):
         self.query_one("#panel-text", Static).update(text)
 
     def describe(self, key: str) -> tuple[str, list[Row], Text]:
-        hint = Text(style="#8CA7B2")
+        for page in pages():
+            if page.key == key and page.describe:
+                title, rows, words = page.describe(self.app)
+                return title, rows, Text("\n" + words, style="#93A8B6")
+        hint = Text(style="#93A8B6")
         rows: list[Row] = []
         checks = {check.key: check for check in (self.app.checks or [])}
 
@@ -215,6 +269,9 @@ class DashboardScreen(Page):
         self.app.open(self.page_for(key))
 
     def page_for(self, key: str):
+        for page in pages():
+            if page.key == key:
+                return page.opens()
         if key == "running":
             from .running import RunningScreen
 

@@ -328,6 +328,8 @@ It works over SSH and in IDE terminals.
 | `test [all\|unit\|api\|replay\|benchmark\|sumo\|ui]` | Run test stages and print a summary; the exit status is non-zero if any fails |
 | `sumo` | Check the SUMO toolchain on a synthetic grid, outside the server |
 | `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, after confirmation |
+| `apps [list\|add\|set\|show\|remove\|run\|status\|logs\|doctor\|proposals\|approve\|reject]` | The applications this launcher can start; see [Applications](#applications) |
+| `fabric [status\|capabilities\|grant\|settings\|audit]` | Look at and act on a running server through the Fabric API |
 | `help`, `version`, `license` | Usage, version and licence notice, the licence text |
 | `--mode=server` | Run `dstns_server` in the foreground with the configured host and port |
 
@@ -393,6 +395,74 @@ started. `--narrator` lasts for one invocation; set `narration.mode` (in the
 | `--debug` | Verbose launcher log, tracebacks, and diagnostics on standard error for scripted commands |
 | `--verbose`, `-v` | Show command output while builds and tests run |
 | `--yes`, `-y` | Do not ask for confirmation (`reset`) |
+
+## Applications
+
+The launcher can start your own programs alongside a simulation. Each application has one or more commands. All but the last must finish successfully, and the last is the application, which stays running.
+
+```sh
+./launcher apps add org.example.planner \
+    --name "Route planner" \
+    --command "python3 -m pip install -q -r requirements.txt" \
+    --command "python3 planner.py --url {url}" \
+    --required --autostart
+
+./launcher start                                # starts it, because of --autostart
+./launcher start --apps org.example.planner     # or name which to start
+./launcher start --no-apps                      # or none at all
+```
+
+### When things happen
+
+1. The engine is built and started, and the observer opens on its film.
+2. The chosen applications start, all at once. The observer says "Starting applications" and how many are ready.
+3. **Once they are all ready, the simulation starts**, and the observer goes on to the dashboard as usual.
+
+An application that fails stops the simulation from starting only if it is `--required`. Otherwise the launcher says what went wrong and the run goes ahead without it. Its output goes to `logs/apps/<id>.log`, and an application that has been started this way stops when the launcher does.
+
+### Options
+
+| Option | Means |
+| --- | --- |
+| `--command CMD` | A command. Repeat it for several. `{url}`, `{port}`, `{id}` and `{root}` are filled in |
+| `--name NAME` | What to call it |
+| `--cwd DIR` | Where to run it, relative to the checkout |
+| `--env KEY=VALUE` | An environment variable. Repeat it for several |
+| `--ready HOW` | `fabric`: it reports itself active (the default). `process`: it stays up for a second. `delay:5`: after five seconds. Or a URL that answers |
+| `--timeout S` | How long to wait for it to be ready, 1 to 600 seconds, 60 by default |
+| `--restart POLICY` | `never` (the default), or `on-failure`, which tries five times, waiting longer each time |
+| `--required`, `--autostart` | As above. `--no-required` and `--no-autostart` turn them off |
+| `--grant CAPABILITY` | A permission to give it when it registers, so that you are not asked each time |
+| `--setting KEY=VALUE` | A setting to give it when it registers |
+
+There is no shell: a command is one program and its arguments, so what is in the catalogue is exactly what runs. Use `--cwd` and several commands instead of `cd` and `&&`. An application gets `DSTNS_URL`, `DSTNS_PORT` and `DSTNS_APP_ID` in its environment, and never the operator's credential.
+
+To be ready, an application calls `PUT /api/v1/fabric/apps/{id}/state` with `{"state": "active"}`. `Fabric/examples/hello_app.py` is the smallest whole one. An application that needs the road network has to wait for it, since the world is not loaded until after it is ready: subscribe to the `lifecycle` topic and draw on the map once the run has started.
+
+### Looking after them
+
+| Command | Does |
+| --- | --- |
+| `apps list`, `apps show ID` | What is set up. `--json` for a script |
+| `apps set ID ...` | Change one, with the options above. Only what is given changes |
+| `apps doctor [ID]` | Find what would stop them from starting, such as a program not on `PATH` |
+| `apps run ID...` | Start these with a server that is already running, and look after them until Ctrl+C |
+| `apps status` | What the server knows of each: its state, requests, refusals and any permissions it is waiting for |
+| `apps logs ID` | Its output |
+
+In the terminal interface, **Applications** on the dashboard does the same, and **Start simulation** lists each with a switch.
+
+### Through the Fabric API
+
+An application or the operator can propose how to start one, through the [Fabric API](../api/fabric-api.md#starting-applications-with-the-launcher). A proposal is only ever that. Nothing runs until a person has read exactly what it would run and approved it:
+
+```sh
+./launcher apps proposals
+./launcher apps approve org.example.planner     # shows the commands, and asks
+./launcher apps reject org.example.planner
+```
+
+The catalogue, `config/apps.json`, belongs to the person at the machine, is not committed, and only the launcher writes it. `DSTNS_APPS_FILE` moves it.
 
 ## What happens when a run starts
 

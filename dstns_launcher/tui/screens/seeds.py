@@ -41,7 +41,7 @@ class SeedsScreen(Page):
             self.records = seed_store.operate("list", {})
         except DSTNSLauncherError as exc:
             self.records = []
-            self.query_one("#seed-hint", Static).update(Text(str(exc), style="#F04444"))
+            self.query_one("#seed-hint", Static).update(Text(str(exc), style="#EF5A64"))
         menu = self.query_one("#seeds", Menu)
         menu.set_items([MenuItem(record["id"], record["id"]) for record in self.records])
         if not self.records:
@@ -49,13 +49,13 @@ class SeedsScreen(Page):
             self.query_one("#seed-detail", StatusTable).set_rows([])
             self.query_one("#seed-hint", Static).update(Text(
                 "Save a configuration from Start simulation (Save as), or with\n./launcher start --seed N --save-seed ID",
-                style="#8CA7B2"))
+                style="#93A8B6"))
 
     def on_menu_highlighted(self, event: Menu.Highlighted) -> None:
         try:
             record = seed_store.operate("inspect", {"id": event.item.key})
         except DSTNSLauncherError as exc:
-            self.query_one("#seed-hint", Static).update(Text(str(exc), style="#F04444"))
+            self.query_one("#seed-hint", Static).update(Text(str(exc), style="#EF5A64"))
             return
         config = record["config"]
         osm = config.get("map", {}).get("osm_file", "auto")
@@ -68,7 +68,7 @@ class SeedsScreen(Page):
             Row("Created", record["created_at"][:19].replace("T", " ") + " UTC"),
             Row("Description", record["description"] or "-"),
         ])
-        self.query_one("#seed-hint", Static).update(Text("\nEnter starts this configuration; d deletes it.", style="#8CA7B2"))
+        self.query_one("#seed-hint", Static).update(Text("\nEnter starts this configuration; d deletes it.", style="#93A8B6"))
 
     def on_menu_selected(self, event: Menu.Selected) -> None:
         from .running import RunningScreen

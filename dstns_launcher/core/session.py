@@ -13,6 +13,7 @@ import threading
 from dataclasses import dataclass, field
 
 from . import api, narration, server, simulation
+from . import apps as catalogue
 from . import configuration
 from .configuration import RunOptions
 from .errors import ConfigurationError, SimulationStartError
@@ -21,6 +22,7 @@ from .paths import PATHS, Paths
 from .reporting import Level, Reporter
 from .server import ServerHandle
 from .simulation import World
+from .supervisor import Supervisor
 
 LOG = logging.getLogger("dstns.launcher")
 
@@ -32,6 +34,7 @@ OBSERVER_LEAD_S = 3.5
 class Session:
     paths: Paths = PATHS
     handle: ServerHandle | None = None
+    supervisor: Supervisor | None = None
     world: World | None = None
     observed_existing: bool = False
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -92,6 +95,13 @@ class Session:
             if loaded and cancel.wait(OBSERVER_LEAD_S):
                 check_cancelled(cancel)
         check_cancelled(cancel)
+        # Then the applications. The engine is built and running and the observer is open, and the
+        # simulation does not start until they are all ready.
+        chosen = catalogue.selection(options, self.paths)
+        if chosen:
+            reporter.message(Level.INFO, "Starting applications", ", ".join(app.title for app in chosen))
+            self.supervise(handle.port, reporter, cancel).launch(chosen)
+        check_cancelled(cancel)
         if observing:
             current = api.call(handle.port, "/api/v1/view/topology", timeout=60, paths=self.paths)
             if ((current.body or {}).get("data") or {}).get("source") != "OpenStreetMap":
@@ -124,8 +134,18 @@ class Session:
     def port(self) -> int | None:
         return self.handle.port if self.handle else None
 
+    def supervise(self, port: int, reporter: Reporter | None = None, cancel: threading.Event | None = None) -> Supervisor:
+        """What looks after this session's applications."""
+        if self.supervisor is None or self.supervisor.port != port:
+            self.supervisor = Supervisor(port, reporter, self.paths, cancel)
+        elif reporter is not None:
+            self.supervisor.reporter = reporter
+        return self.supervisor
+
     def stop_server(self) -> bool:
         """Terminate the server gracefully. Returns whether it has stopped."""
+        if self.supervisor:
+            self.supervisor.stop_all()
         if not self.handle:
             return True
         stopped = server.shut_down(self.handle)
@@ -138,6 +158,9 @@ class Session:
             self._closed = True
             self._cancel.set()
             handle = self.handle
+        # Applications this session started go with it, whichever server they were talking to.
+        if self.supervisor:
+            self.supervisor.stop_all()
         if handle and handle.process is not None and handle.process.poll() is None:
             LOG.info("cleanup: stopping managed server on port %s", handle.port)
             server.stop_process(handle.process)

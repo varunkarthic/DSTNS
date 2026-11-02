@@ -34,7 +34,7 @@ class CompletionScreen(Page):
             yield Static("", id="headline", classes="section-title")
             yield Rule()
             yield StatusTable(id="summary", name_width=18)
-            yield Static(Text("\nThe observer holds the full report: choose Save Report there for the PDF.", style="#8CA7B2"),
+            yield Static(Text("\nThe observer holds the full report: choose Save Report there for the PDF.", style="#93A8B6"),
                          classes="hint")
             yield Static("")
             yield Menu([

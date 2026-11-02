@@ -250,7 +250,7 @@ class TextualInterface(unittest.TestCase):
             self.assertEqual(menu.current.key, first)
             await pilot.press("end")
             self.assertEqual(menu.current.key, "exit")
-            await pilot.press("home", "down", "down", "enter")
+            await pilot.press("home", "down", "down", "down", "enter")
             await pilot.pause(0.3)
             self.assertEqual(type(app.screen).__name__, "ConfigurationScreen")
             await pilot.press("escape")

@@ -17,6 +17,7 @@ __pycache__/
 logs/*.json
 
 # Operator credentials and saved local configurations
+config/apps.json
 logs/operator.token
 data/seed-store/
 artifacts/modernization/

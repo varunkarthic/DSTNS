@@ -29,6 +29,7 @@ from .core.session import Session
 from .core.terminal import Capabilities, detect
 from .core.version import (COPYRIGHT_ASCII, LICENSE_SPDX, OSM_ATTRIBUTION, OSM_LICENSE, PRODUCT, engine_version)
 from .fallback.formatting import LineReporter, Output, make_output
+from .modules import Context, find_command, help_lines
 
 LOG = logging.getLogger("dstns.launcher")
 
@@ -38,7 +39,7 @@ EXIT_INTERRUPTED = 130
 EXIT_TERMINATED = 143
 
 VALUE_OPTIONS = {"--seed", "--saved-seed", "--save-seed", "--day-type", "--osm-file", "--max-nodes", "--duration",
-                 "--speed", "--description"}
+                 "--speed", "--description", "--apps"}
 COMMANDS = {"start", "console", "seeds", "ui", "logs", "config", "test", "sumo", "reset", "help", "version", "license"}
 
 
@@ -47,6 +48,8 @@ class Arguments:
     command: str | None = None
     topic: str | None = None
     item: str | None = None
+    # What a module's command reads for itself.
+    rest: list[str] = field(default_factory=list)
     run: RunOptions = field(default_factory=RunOptions)
     mode: str | None = None
     yes: bool = False
@@ -64,6 +67,10 @@ def parse(argv: list[str]) -> Arguments:
     args = Arguments()
     positional: list[str] = []
     index = 0
+    # A module's command reads its own arguments: everything after its name is its own.
+    if argv and find_command(argv[0]):
+        args.command, args.rest = argv[0], argv[1:]
+        return args
     while index < len(argv):
         arg = argv[index]
         if arg in {"--yes", "-y"}:
@@ -76,6 +83,8 @@ def parse(argv: list[str]) -> Arguments:
             args.open = False
         elif arg == "--default-settings":
             args.run.default_settings = True
+        elif arg == "--no-apps":
+            args.run.no_apps = True
         elif arg in {"--help", "-h"}:
             positional.append("help")
         elif arg in {"--version", "-V"}:
@@ -131,6 +140,7 @@ def parse(argv: list[str]) -> Arguments:
     return args
 
 
+MODULE_HELP = "\n".join(help_lines())
 HELP = f"""\
 {PRODUCT} launcher
 
@@ -150,6 +160,7 @@ Commands
   test [all|unit|api|replay|benchmark|sumo|ui]
                          Run test stages
   sumo                   Check the SUMO toolchain on a synthetic grid
+{MODULE_HELP}
   reset [--yes]          Delete runtime logs, checkpoints and temporary files
   help, version, license
 
@@ -164,6 +175,8 @@ Run options (start, seeds save)
   --max-nodes N          2 to 50000
   --osm-file PATH        Run this map instead of letting the seed choose
   --default-settings     Open the observer with its settings at their defaults
+  --apps ID,ID           Start these applications with the run. The run waits until they are ready
+  --no-apps              Start no applications, not even those set to start with every run
   --open, --no-open      Open the observer in a browser (default: when a desktop is present)
   --narrator MODE        Plain-language news: auto (Apple Foundation Models where available),
                          fm, off, or a Chat Completions endpoint http://HOST:PORT | unix:/PATH.
@@ -427,6 +440,9 @@ def dispatch(args: Arguments, caps: Capabilities, out: Output, reporter: LineRep
     command = args.command
     if args.mode == "server":
         return server.run_foreground()
+    module_command = find_command(command)
+    if module_command:
+        return module_command.run(Context(args.rest, caps, out, reporter, session))
     if command == "help":
         print(HELP, end="")
         return EXIT_OK
@@ -459,7 +475,7 @@ def dispatch(args: Arguments, caps: Capabilities, out: Output, reporter: LineRep
         raise ConfigurationError(f"Unknown command: {command}", remedy="./launcher help lists every command.")
 
     if command is None:
-        command = "start" if (args.run.explicit() or not caps.interactive) else "console"
+        command = "start" if (args.run.explicit() or args.run.apps or not caps.interactive) else "console"
     if command == "start" and not caps.interactive:
         _install_signal_handlers(session)
         return command_start_headless(args, out, reporter, session)

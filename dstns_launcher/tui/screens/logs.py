@@ -59,10 +59,10 @@ class LogsScreen(Page):
         view.clear()
         self.query_one("#source-title", Static).update(logs.SOURCES[key].upper() + "  ·  logs/system.log")
         if lines is None:
-            view.write(Text("No system log yet. It is created when the server first starts.", style="#8CA7B2"))
+            view.write(Text("No system log yet. It is created when the server first starts.", style="#93A8B6"))
             return
         for line in lines:
-            style = "#F04444" if "[ERROR]" in line else "#F5B942" if "[WARN" in line else "#E6F2F5"
+            style = "#EF5A64" if "[ERROR]" in line else "#F0AA2E" if "[WARN" in line else "#E6F0F7"
             view.write(Text(line, style=style))
 
     def show_table(self, key: str, table) -> None:
@@ -70,12 +70,12 @@ class LogsScreen(Page):
         view.clear()
         self.query_one("#source-title", Static).update(logs.SOURCES[key].upper() + "  ·  logs/runtime.db")
         if table is None:
-            view.write(Text("No runtime database yet. It is created when the server first starts.", style="#8CA7B2"))
+            view.write(Text("No runtime database yet. It is created when the server first starts.", style="#93A8B6"))
             return
         if not table.rows:
-            view.write(Text("No records yet.", style="#8CA7B2"))
+            view.write(Text("No records yet.", style="#93A8B6"))
             return
-        grid = Table(show_edge=False, header_style="bold #22D3E6", box=None, pad_edge=False)
+        grid = Table(show_edge=False, header_style="bold #37D7FF", box=None, pad_edge=False)
         for column in table.columns:
             grid.add_column(column, overflow="ellipsis", no_wrap=True, max_width=48)
         for row in table.rows:

@@ -73,6 +73,16 @@ class FakeServer:
                     return self.reply(200, {"data": {"loaded": True}})
                 return self.reply(404, {"error": {"code": "NOT_FOUND", "message": "no such route"}})
 
+            def do_PUT(self):
+                length = int(self.headers.get("Content-Length") or 0)
+                body = json.loads(self.rfile.read(length) or b"null") if length else None
+                fake.requests.append(("PUT", self.path, body))
+                return self.reply(200, {"data": {}})
+
+            def do_DELETE(self):
+                fake.requests.append(("DELETE", self.path, None))
+                return self.reply(200, {"data": {}})
+
             def do_POST(self):
                 length = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(length) or b"{}")

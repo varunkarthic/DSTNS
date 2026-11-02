@@ -48,7 +48,7 @@ class TaskScreen(Page):
     def on_menu_highlighted(self, event: Menu.Highlighted) -> None:
         if not self.busy:
             self.query_one("#task-title", Static).update(event.item.label.upper())
-            self.query_one("#task-result", Static).update(Text(event.item.hint, style="#8CA7B2"))
+            self.query_one("#task-result", Static).update(Text(event.item.hint, style="#93A8B6"))
 
     def on_menu_selected(self, event: Menu.Selected) -> None:
         if self.busy:
@@ -71,7 +71,7 @@ class TaskScreen(Page):
         return TuiReporter(self.app, on_message=self.message, on_step=self.step, on_output=self.output)
 
     def message(self, level: Level, text: str, detail: str = "") -> None:
-        style = {Level.ERROR: "#F04444", Level.WARNING: "#F5B942", Level.SUCCESS: "#32D583"}.get(level, "#8CA7B2")
+        style = {Level.ERROR: "#EF5A64", Level.WARNING: "#F0AA2E", Level.SUCCESS: "#5EE3BF"}.get(level, "#93A8B6")
         self.query_one("#output", RichLog).write(Text(text + (f" · {detail}" if detail else ""), style=style))
 
     def step(self, state: str, title: str, summary: str) -> None:
@@ -84,13 +84,13 @@ class TaskScreen(Page):
     def output(self, text: str) -> None:
         log = self.query_one("#output", RichLog)
         for line in text.splitlines():
-            log.write(Text(line, style="#8CA7B2"))
+            log.write(Text(line, style="#93A8B6"))
 
     def done(self, ok: bool, summary: str) -> None:
         self.busy = False
         self.query_one("#activity", Activity).stop()
         self.header.set_state(State.PASS if ok else State.FAIL, "done" if ok else "failed")
-        self.query_one("#task-result", Static).update(Text(summary, style="#32D583" if ok else "#F04444"))
+        self.query_one("#task-result", Static).update(Text(summary, style="#5EE3BF" if ok else "#EF5A64"))
 
     @work(thread=True, exclusive=True, group="task")
     def execute(self, key: str) -> None:

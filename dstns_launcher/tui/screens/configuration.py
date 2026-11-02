@@ -54,7 +54,7 @@ class ConfigurationScreen(Page):
             with VerticalScroll(id="content"):
                 yield Static("config/defaults.json", classes="dim")
                 if self.load_error:
-                    yield Static(Text(self.load_error, style="#F04444"), classes="hint")
+                    yield Static(Text(self.load_error, style="#EF5A64"), classes="hint")
                 for category in configuration.CATEGORIES:
                     with Vertical(classes="category", id=f"category-{category.lower()}"):
                         yield Static(category, classes="section-title")
@@ -62,7 +62,7 @@ class ConfigurationScreen(Page):
                         for field in FIELDS:
                             if field.category == category:
                                 yield FieldRow(field.label, self.editor(field), field.unit, id=_id(field))
-                                yield Static(Text(field.help, style="#58717C"), classes="hint field-help hide-small")
+                                yield Static(Text(field.help, style="#5F7685"), classes="hint field-help hide-small")
                 yield Static("", id="save-status", classes="hint")
 
     def editor(self, field: Field):
@@ -138,10 +138,10 @@ class ConfigurationScreen(Page):
         status = self.query_one("#save-status", Static)
         if self.invalid:
             self.header.set_state(State.FAIL, f"{len(self.invalid)} invalid")
-            status.update(Text("\nCorrect the highlighted values before saving.", style="#F04444"))
+            status.update(Text("\nCorrect the highlighted values before saving.", style="#EF5A64"))
         elif self.dirty:
             self.header.set_state(State.WARNING, "unsaved")
-            status.update(Text("\nUnsaved changes. Ctrl+S saves them to config/defaults.json.", style="#F5B942"))
+            status.update(Text("\nUnsaved changes. Ctrl+S saves them to config/defaults.json.", style="#F0AA2E"))
         else:
             self.header.set_state(State.PASS, "saved")
             status.update("")

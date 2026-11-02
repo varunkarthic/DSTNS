@@ -84,7 +84,7 @@ class ChoiceDialog(ModalScreen[str]):
             yield Static(self.message, classes="message")
             if self.detail:
                 with VerticalScroll(classes="detail-box"):
-                    yield Static(Text(self.detail, style="#8CA7B2"), classes="message")
+                    yield Static(Text(self.detail, style="#93A8B6"), classes="message")
             yield Menu([MenuItem(key, label) for key, label in self.actions], id="choices")
 
     def on_mount(self) -> None:
@@ -106,11 +106,11 @@ def confirm(title: str, message: str, yes: str, no: str = "Cancel") -> ChoiceDia
 def error_dialog(title: str, exc: BaseException, actions: Sequence[tuple[str, str]]) -> ChoiceDialog:
     """The standard recoverable-error dialog: what happened, what to do, where the details are."""
     message = Text()
-    message.append(str(exc) or type(exc).__name__, style="#E6F2F5")
+    message.append(str(exc) or type(exc).__name__, style="#E6F0F7")
     remedy = getattr(exc, "remedy", "")
     if remedy:
-        message.append("\n\n" + remedy, style="#8CA7B2")
-    message.append(f"\n\nDetails have been written to:\n{PATHS.launcher_log}", style="#58717C")
+        message.append("\n\n" + remedy, style="#93A8B6")
+    message.append(f"\n\nDetails have been written to:\n{PATHS.launcher_log}", style="#5F7685")
     detail = getattr(exc, "detail", "") if isinstance(exc, DSTNSLauncherError) else ""
     return ChoiceDialog(title, message, actions, cancel=actions[-1][0], error=True,
                         detail="\n".join(detail.splitlines()[-12:]) if detail else "")
@@ -129,12 +129,12 @@ class HelpDialog(ModalScreen[None]):
         for index, (key, label) in enumerate(self.lines):
             if index:
                 text.append("\n")
-            text.append(key.ljust(16), style="bold #22D3E6")
-            text.append(label, style="#E6F2F5")
+            text.append(key.ljust(16), style="bold #37D7FF")
+            text.append(label, style="#E6F0F7")
         with Vertical(classes="dialog") as box:
             box.border_title = "Keyboard"
             yield Static(text, classes="message")
-            yield Static(Text("Esc or ? closes this help.", style="#58717C"))
+            yield Static(Text("Esc or ? closes this help.", style="#5F7685"))
 
     def action_close(self) -> None:
         self.dismiss(None)

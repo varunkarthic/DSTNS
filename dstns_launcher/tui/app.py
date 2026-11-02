@@ -51,11 +51,11 @@ class TooSmallScreen(Screen):
     def refresh_text(self) -> None:
         width, height = self.app.size
         text = Text(justify="center")
-        text.append("DSTNS\n\n", style="bold #22D3E6")
-        text.append("Terminal too small for the full interface.\n\n", style="#E6F2F5")
-        text.append(f"Current: {width} x {height}\n", style="#8CA7B2")
-        text.append(f"Recommended minimum: {MINIMUM[0]} x {MINIMUM[1]}\n\n", style="#8CA7B2")
-        text.append("Resize the terminal or press R for reduced mode.", style="#E6F2F5")
+        text.append("DSTNS\n\n", style="bold #37D7FF")
+        text.append("Terminal too small for the full interface.\n\n", style="#E6F0F7")
+        text.append(f"Current: {width} x {height}\n", style="#93A8B6")
+        text.append(f"Recommended minimum: {MINIMUM[0]} x {MINIMUM[1]}\n\n", style="#93A8B6")
+        text.append("Resize the terminal or press R for reduced mode.", style="#E6F0F7")
         self.query_one("#too-small", Static).update(text)
 
     def action_reduced(self) -> None:

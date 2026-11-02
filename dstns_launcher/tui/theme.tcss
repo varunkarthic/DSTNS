@@ -1,45 +1,67 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later
    Copyright (C) 2026 Varun Karthic */
 
-/* DSTNS terminal theme: near-black, dark blue structure, cyan highlights.
+/* The same design as the observer, as far as a terminal goes: its colours, its quiet surfaces, one
+   rounded card for one thing, a line between things rather than a box around each, and plain words.
    Meaning never depends on colour; every state also has a symbol and a word. */
 
-$bg: #050A0E;
-$surface: #081219;
-$surface-alt: #0B1820;
-$cyan: #22D3E6;
-$cyan-bright: #43E6F1;
-$teal: #087F8C;
-$navy: #0B3C5D;
-$text: #E6F2F5;
-$text-2: #8CA7B2;
-$muted: #58717C;
-$ok: #32D583;
-$warn: #F5B942;
-$err: #F04444;
+$bg: #071420;
+$surface: #0D1C28;
+$surface-alt: #122431;
+$cyan: #37D7FF;
+$cyan-bright: #6FE3FF;
+$teal: #1E7C8F;
+$navy: #243B4C;
+$text: #E6F0F7;
+$text-2: #93A8B6;
+$muted: #5F7685;
+$ok: #5EE3BF;
+$warn: #F0AA2E;
+$err: #EF5A64;
 
 Screen {
     background: $bg;
     color: $text;
     layers: base overlay;
+    overflow: hidden;
+}
+
+/* A quiet scrollbar, that shows where you are and otherwise keeps out of the way. */
+VerticalScroll, Vertical, ScrollableContainer {
+    scrollbar-size-vertical: 1;
+    scrollbar-color: $navy;
+    scrollbar-color-hover: $teal;
+    scrollbar-color-active: $cyan;
+    scrollbar-background: $bg;
+    scrollbar-background-hover: $bg;
+    scrollbar-background-active: $bg;
+    scrollbar-corner-color: $bg;
 }
 
 /* --- Frame: header, body, key bar ------------------------------------- */
 
 HeaderBar {
     dock: top;
-    height: 1;
-    background: $surface;
+    height: 3;
+    background: $bg;
     color: $text;
+    border: round $navy;
     padding: 0 1;
+    margin: 0 1;
 }
 
 KeyBar {
     dock: bottom;
     height: 1;
-    background: $surface;
+    background: $bg;
     color: $text-2;
-    padding: 0 1;
+    padding: 0 2;
+}
+
+App.-small HeaderBar {
+    height: 1;
+    border: none;
+    margin: 0;
 }
 
 .rule {
@@ -48,7 +70,7 @@ KeyBar {
 }
 
 .section-title {
-    color: $cyan;
+    color: $text-2;
     text-style: bold;
     height: 1;
     margin-top: 1;
@@ -76,12 +98,72 @@ KeyBar {
 Menu {
     height: auto;
     width: 1fr;
-    background: $bg;
+    background: transparent;
     color: $text;
 }
 
 Menu:focus {
-    background: $bg;
+    background: transparent;
+}
+
+/* --- One rounded card for one thing -------------------------------------- */
+
+.card {
+    height: auto;
+    width: 1fr;
+    border: round $navy;
+    border-title-color: $text-2;
+    padding: 0 2 1 2;
+    margin-top: 1;
+}
+
+.card:focus-within {
+    border: round $teal;
+    border-title-color: $cyan;
+}
+
+#cards {
+    height: 5;
+    width: 1fr;
+    margin: 0 1;
+}
+
+#cards > .stat {
+    width: 1fr;
+    height: 5;
+    border: round $navy;
+    border-title-color: $text-2;
+    padding: 0 1;
+    margin-left: 1;
+}
+
+#cards > .stat:first-child {
+    margin-left: 0;
+}
+
+App.-small #cards,
+App.-medium #cards {
+    display: none;
+}
+
+.field-hint {
+    padding-left: 24;
+    color: $muted;
+}
+
+TextArea {
+    height: 6;
+    background: transparent;
+    border: round $navy;
+    color: $text;
+}
+
+TextArea:focus {
+    border: round $cyan;
+}
+
+App.-small .field-hint {
+    padding-left: 2;
 }
 
 /* --- Splash ------------------------------------------------------------- */
@@ -146,27 +228,42 @@ App.-small #splash .legal {
 }
 
 .panel-title {
-    color: $cyan;
+    color: $text;
     text-style: bold;
     height: 1;
+    margin-bottom: 1;
 }
 
 #columns {
     height: 1fr;
-    width: 1fr;
+    width: 100%;
 }
 
 #sidebar {
-    width: 26;
+    width: 30;
     height: 1fr;
-    border-right: solid $navy;
-    padding: 1 1 0 1;
+    border: round $navy;
+    border-title-color: $text-2;
+    padding: 0 1;
+    margin: 0 0 0 1;
+}
+
+#sidebar:focus-within {
+    border: round $teal;
+    border-title-color: $cyan;
 }
 
 #content {
     width: 1fr;
     height: 1fr;
-    padding: 1 2 0 2;
+    border: round $navy;
+    border-title-color: $text-2;
+    padding: 0 2;
+    margin: 0 1;
+}
+
+#content Rule {
+    display: none;
 }
 
 StatusTable {
@@ -203,8 +300,9 @@ FieldRow .label {
 
 FieldRow .editor {
     width: 1fr;
-    max-width: 44;
+    max-width: 60;
     height: auto;
+    background: transparent;
 }
 
 FieldRow .unit {
@@ -218,39 +316,45 @@ FieldRow .problem {
     color: $err;
     height: auto;
     padding-left: 24;
+    display: none;
 }
 
+FieldRow .problem.-shown {
+    display: block;
+}
+
+/* No fill: a rounded border's line runs down the middle of its cell, so a fill would show outside it. */
 Input {
-    background: $surface;
-    border: tall $navy;
+    background: transparent;
+    border: round $navy;
     color: $text;
     width: 1fr;
 }
 
 Input:focus {
-    border: tall $cyan;
+    border: round $cyan;
 }
 
 Input.-invalid {
-    border: tall $err;
+    border: round $err;
 }
 
 Switch {
-    background: $surface;
-    border: tall $navy;
+    background: transparent;
+    border: round $navy;
 }
 
 Switch:focus {
-    border: tall $cyan;
+    border: round $cyan;
 }
 
 Select > SelectCurrent {
-    background: $surface;
-    border: tall $navy;
+    background: transparent;
+    border: round $navy;
 }
 
 Select:focus > SelectCurrent {
-    border: tall $cyan;
+    border: round $cyan;
 }
 
 /* --- Progress and logs ------------------------------------------------------- */
@@ -317,7 +421,7 @@ ModalScreen {
 /* --- Size classes: set on the App from the terminal size ------------------------ */
 
 App.-medium #sidebar {
-    width: 22;
+    width: 24;
 }
 
 App.-small #columns {
@@ -327,13 +431,16 @@ App.-small #columns {
 App.-small #sidebar {
     width: 1fr;
     height: auto;
-    border-right: none;
+    border: none;
     border-bottom: solid $navy;
     padding: 0 1 1 1;
+    margin: 0;
 }
 
 App.-small #content {
+    border: none;
     padding: 1 1 0 1;
+    margin: 0;
 }
 
 App.-small .body {

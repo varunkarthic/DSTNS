@@ -452,7 +452,7 @@ class ObserverFirstTest(unittest.TestCase):
                 mock.patch.object(session_module.narration, "confirm"), \
                 mock.patch.object(session_module, "check_cancelled", create=True), \
                 mock.patch.object(session_module.configuration, "load", return_value={}):
-            launcher._launch(mock.Mock(explicit=lambda: False), reporter, open_browser=True, cancel=cancel)
+            launcher._launch(mock.Mock(explicit=lambda: False, no_apps=True), reporter, open_browser=True, cancel=cancel)
         self.assertEqual(order, ["open", ("wait", session_module.OBSERVER_LEAD_S), "start"])
 
 

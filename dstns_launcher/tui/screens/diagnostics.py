@@ -92,8 +92,8 @@ class DiagnosticsScreen(Page):
         notes = Text()
         for check in self.items:
             if check.outcome.state is State.FAIL and check.outcome.detail:
-                notes.append(f"\n{check.name}\n", style="bold #F04444")
-                notes.append(check.outcome.detail.strip()[-800:] + "\n", style="#8CA7B2")
+                notes.append(f"\n{check.name}\n", style="bold #EF5A64")
+                notes.append(check.outcome.detail.strip()[-800:] + "\n", style="#93A8B6")
         self.query_one("#check-notes", Static).update(notes)
 
     @work(thread=True, exclusive=True, group="diagnostics-server")

@@ -100,16 +100,16 @@ class EnvironmentScreen(Page):
         self.header.set_state(State.FAIL, "not ready")
         summary = Text()
         summary.append(f"\n{len(blocking)} required check(s) failed. A simulation cannot start until they pass.\n",
-                       style="#F04444")
+                       style="#EF5A64")
         for check in blocking:
-            summary.append(f"\n{check.name}: ", style="bold #E6F2F5")
-            summary.append(check.outcome.value + "\n", style="#E6F2F5")
+            summary.append(f"\n{check.name}: ", style="bold #E6F0F7")
+            summary.append(check.outcome.value + "\n", style="#E6F0F7")
             if check.outcome.detail:
-                summary.append(check.outcome.detail.strip()[:400] + "\n", style="#8CA7B2")
+                summary.append(check.outcome.detail.strip()[:400] + "\n", style="#93A8B6")
             if check.outcome.remedy:
-                summary.append("Action: " + check.outcome.remedy + "\n", style="#8CA7B2")
+                summary.append("Action: " + check.outcome.remedy + "\n", style="#93A8B6")
         if warnings:
-            summary.append(f"\n{len(warnings)} warning(s); see above.\n", style="#F5B942")
+            summary.append(f"\n{len(warnings)} warning(s); see above.\n", style="#F0AA2E")
         self.query_one("#summary", Static).update(summary)
         menu.set_items([MenuItem("retry", "Retry"), MenuItem("diagnostics", "Diagnostics"),
                         MenuItem("continue", "Continue to the dashboard"), MenuItem("exit", "Exit")])

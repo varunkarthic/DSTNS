@@ -24,7 +24,7 @@ class AboutScreen(Page):
         with VerticalScroll(classes="body"):
             yield Static("")
             yield Wordmark()
-            yield Static(Text(FULL_NAME, style="bold #E6F2F5"))
+            yield Static(Text(FULL_NAME, style="bold #E6F0F7"))
             yield Rule()
             yield StatusTable([
                 Row("Version", engine_version()),
@@ -35,9 +35,9 @@ class AboutScreen(Page):
             ], name_width=12)
             yield Static("Map data", classes="section-title")
             yield Static(Text.assemble(
-                ("© OpenStreetMap contributors" if unicode else "(C) OpenStreetMap contributors", "#E6F2F5"),
-                ("\nOpenStreetMap data is available under the\n" + OSM_LICENSE + ".", "#8CA7B2")))
+                ("© OpenStreetMap contributors" if unicode else "(C) OpenStreetMap contributors", "#E6F0F7"),
+                ("\nOpenStreetMap data is available under the\n" + OSM_LICENSE + ".", "#93A8B6")))
             yield Static("Project", classes="section-title")
             yield StatusTable([Row("Source", REPOSITORY), Row("Documentation", DOCUMENTATION)], name_width=14)
             yield Static(Text("\nThis program comes with ABSOLUTELY NO WARRANTY. It is free software, and you are welcome\n"
-                              "to redistribute it under the terms of the licence; see LICENSE.", style="#58717C"))
+                              "to redistribute it under the terms of the licence; see LICENSE.", style="#5F7685"))

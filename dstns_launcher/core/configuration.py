@@ -265,6 +265,9 @@ class RunOptions:
     speed: str | None = None
     max_nodes: str | None = None
     osm_file: str | None = None
+    # Applications to start with this run, by ID, comma separated. None: those set to start by themselves.
+    apps: str | None = None
+    no_apps: bool = False
 
     def explicit(self) -> bool:
         return any(

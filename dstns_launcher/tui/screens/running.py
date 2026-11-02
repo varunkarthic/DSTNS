@@ -32,7 +32,7 @@ from ..widgets import Activity, Key, Row, Rule, StatusTable
 POLL = 0.25          # status refresh, seconds
 FIGURES_EVERY = 1.0  # network totals
 USAGE_EVERY = 2.0    # CPU and memory of a server we started
-LEVEL_STYLE = {Level.INFO: "#8CA7B2", Level.SUCCESS: "#32D583", Level.WARNING: "#F5B942", Level.ERROR: "#F04444"}
+LEVEL_STYLE = {Level.INFO: "#93A8B6", Level.SUCCESS: "#5EE3BF", Level.WARNING: "#F0AA2E", Level.ERROR: "#EF5A64"}
 
 
 def stop_in_background(app, then=None) -> None:
@@ -134,7 +134,7 @@ class RunningScreen(Page):
     def output(self, text: str) -> None:
         log = self.query_one("#log", RichLog)
         for line in text.splitlines()[-20:]:
-            log.write(Text("    " + line, style="#58717C"))
+            log.write(Text("    " + line, style="#5F7685"))
 
     def progress(self, label: str, done: float, total: float | None) -> None:
         bar = self.query_one("#progress", ProgressBar)
@@ -234,7 +234,7 @@ class RunningScreen(Page):
         log = self.query_one("#log", RichLog)
         for line in lines:
             self.app.run_log.append(line)
-            log.write(Text(line, style="#8CA7B2" if "[INFO]" in line else "#F5B942"))
+            log.write(Text(line, style="#93A8B6" if "[INFO]" in line else "#F0AA2E"))
         if not current.reachable:
             self.misses += 1
             # A busy engine can miss a few polls. Only a process that has really

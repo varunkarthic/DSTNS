@@ -31,8 +31,8 @@ LOGO_WIDTH = max(len(line) for line in LOGO.splitlines())
 SMALL_LOGO = (Path(__file__).resolve().parent.parent / "assets" / "logo-small.txt").read_text(encoding="utf-8").rstrip("\n")
 SMALL_LOGO_WIDTH = max(len(line) for line in SMALL_LOGO.splitlines())
 
-CYAN, TEXT, TEXT2, MUTED = "#22D3E6", "#E6F2F5", "#8CA7B2", "#58717C"
-TONES = {State.PASS: "#32D583", State.WARNING: "#F5B942", State.FAIL: "#F04444", State.SKIPPED: MUTED,
+CYAN, TEXT, TEXT2, MUTED = "#37D7FF", "#E6F0F7", "#93A8B6", "#5F7685"
+TONES = {State.PASS: "#5EE3BF", State.WARNING: "#F0AA2E", State.FAIL: "#EF5A64", State.SKIPPED: MUTED,
          State.RUNNING: CYAN, State.PENDING: MUTED}
 
 
@@ -150,13 +150,13 @@ class Rule(Static):
         width = max(1, self.size.width)
         char = "─" if unicode_ok() else "-"
         if not self.title_text:
-            return Text(char * width, style="#0B3C5D")
+            return Text(char * width, style="#243B4C")
         label = f" {self.title_text} "
         left = max(2, (width - len(label)) // 2)
         right = max(0, width - left - len(label))
-        line = Text(char * left, style="#0B3C5D")
+        line = Text(char * left, style="#243B4C")
         line.append(label, style=TEXT2)
-        line.append(char * right, style="#0B3C5D")
+        line.append(char * right, style="#243B4C")
         return line
 
 
@@ -226,8 +226,9 @@ class KeyBar(Static):
             text = Text(no_wrap=True, overflow="ellipsis")
             for key, label in variant:
                 if text.cell_len:
-                    text.append("   ")
-                text.append(key.key, style=f"bold {CYAN}")
+                    text.append("  ")
+                # A key looks like a key, even where the terminal can only suggest one.
+                text.append(f" {key.key} ", style=f"{TEXT} on #1A2F3E")
                 if label:
                     text.append(f" {label}", style=TEXT2)
             if text.cell_len <= width:
@@ -332,7 +333,7 @@ class Menu(Widget, can_focus=True):
             if item.disabled:
                 style = MUTED
             elif selected and self.has_focus:
-                style = f"bold #050A0E on {CYAN}"
+                style = f"bold #071420 on {CYAN}"
             elif selected:
                 style = f"bold {CYAN}"
             else:
@@ -449,4 +450,6 @@ class FieldRow(Widget):
 
     def set_problem(self, text: str) -> None:
         cross = "✗" if unicode_ok() else "x"
-        self.query_one(".problem", Static).update(f"{cross} {text}" if text else "")
+        problem = self.query_one(".problem", Static)
+        problem.update(f"{cross} {text}" if text else "")
+        problem.set_class(bool(text), "-shown")

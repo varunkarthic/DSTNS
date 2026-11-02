@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
+from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Input, Select, Static, Switch
 
+from ...core import apps as catalogue
 from ...core import configuration, simulation
 from ...core.configuration import RunOptions
 from ...core.errors import ConfigurationError
@@ -17,6 +18,11 @@ from ..widgets import FieldRow, Key, Menu, MenuItem, Rule
 
 AUTO = "__auto__"
 CUSTOM = "__custom__"
+
+
+def _safe(app_id: str) -> str:
+    """As an ID for a widget, which cannot have dots."""
+    return app_id.replace(".", "-")
 
 
 class StartScreen(Page):
@@ -35,24 +41,36 @@ class StartScreen(Page):
         fixture = "data/fixtures/real_network.osm.xml"
         maps.append(("Bundled offline district", fixture))
         maps.append(("Another file...", CUSTOM))
+        try:
+            self.catalogue = catalogue.load()
+        except ConfigurationError:
+            self.catalogue = {}
         with VerticalScroll(classes="body"):
-            yield Static("What to run", classes="section-title")
-            yield Rule()
-            yield FieldRow("Seed", Input(placeholder="empty: a new seed", id="seed", restrict=r"[0-9xXa-fA-F]*"),
-                           id="row-seed")
-            yield FieldRow("Day type", Select([("Weekday", "weekday"), ("Weekend", "weekend")], allow_blank=False,
-                                              value="weekend" if defaults.get("day") == 1 else "weekday", id="day"),
-                           id="row-day")
-            yield FieldRow("Map", Select(maps, allow_blank=False, value=AUTO, id="map"), id="row-map")
-            yield FieldRow("Map file", Input(placeholder="path to an OpenStreetMap XML file", id="map-file"), id="row-map-file")
-            yield FieldRow("Speed", Input(str(defaults["playback"]["tick_rate"]), id="speed"), "x" if not self.app.unicode else "×",
-                           id="row-speed")
-            yield Static("Optional", classes="section-title")
-            yield Rule()
-            yield FieldRow("Save as", Input(placeholder="ID to save this configuration", id="save-as"), id="row-save")
-            yield FieldRow("Description", Input(placeholder="a note stored with the saved seed", id="description"),
-                           id="row-description")
-            yield FieldRow("Open observer", Switch(value=bool(self.app.args.open), id="open"), id="row-open")
+            with Vertical(classes="card") as card:
+                card.border_title = "What to run"
+                yield FieldRow("Seed", Input(placeholder="empty: a new seed", id="seed", restrict=r"[0-9xXa-fA-F]*"),
+                               id="row-seed")
+                yield FieldRow("Day type", Select([("Weekday", "weekday"), ("Weekend", "weekend")], allow_blank=False,
+                                                  value="weekend" if defaults.get("day") == 1 else "weekday", id="day"),
+                               id="row-day")
+                yield FieldRow("Map", Select(maps, allow_blank=False, value=AUTO, id="map"), id="row-map")
+                yield FieldRow("Map file", Input(placeholder="path to an OpenStreetMap XML file", id="map-file"), id="row-map-file")
+                yield FieldRow("Speed", Input(str(defaults["playback"]["tick_rate"]), id="speed"), "x" if not self.app.unicode else "×",
+                               id="row-speed")
+            with Vertical(classes="card") as card:
+                card.border_title = "Applications"
+                if self.catalogue:
+                    yield Static("Started once the observer is open. The simulation waits until they are ready.", classes="hint")
+                    for app in self.catalogue.values():
+                        yield FieldRow(app.title, Switch(value=app.autostart, id=f"app-{_safe(app.id)}"), "required" if app.required else "", id=f"row-app-{_safe(app.id)}")
+                else:
+                    yield Static("None yet. Add one under Applications, to start your own program alongside the simulation.", classes="hint")
+            with Vertical(classes="card") as card:
+                card.border_title = "Optional"
+                yield FieldRow("Save as", Input(placeholder="ID to save this configuration", id="save-as"), id="row-save")
+                yield FieldRow("Description", Input(placeholder="a note stored with the saved seed", id="description"),
+                               id="row-description")
+                yield FieldRow("Open observer", Switch(value=bool(self.app.args.open), id="open"), id="row-open")
             yield Static("", id="form-error", classes="error-text")
             yield Menu([MenuItem("start", "Start simulation"), MenuItem("cancel", "Cancel")], id="actions")
 
@@ -86,6 +104,7 @@ class StartScreen(Page):
             day_type=str(self.query_one("#day", Select).value),
             speed=self.query_one("#speed", Input).value.strip() or None,
             osm_file=osm_file,
+            apps=",".join(app_id for app_id in self.catalogue if self.query_one(f"#app-{_safe(app_id)}", Switch).value),
             save_seed=self.query_one("#save-as", Input).value.strip() or None,
             description=self.query_one("#description", Input).value.strip() or None,
         )
