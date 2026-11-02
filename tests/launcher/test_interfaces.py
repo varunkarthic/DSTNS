@@ -218,6 +218,12 @@ class PlainMode(unittest.TestCase):
 class TextualInterface(unittest.TestCase):
     SIZES = [(160, 45), (120, 35), (100, 30), (80, 24), (70, 20), (60, 18), (50, 15)]
 
+    def setUp(self):
+        # A server that happens to be running on this machine is no part of these tests.
+        patcher = mock.patch("dstns_launcher.core.server.active_port", return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def make(self, width: int, height: int, *, colors: Colors = Colors.TRUECOLOR, initial: str = "home", argv=None):
         from dstns_launcher.tui.app import LauncherApp
 

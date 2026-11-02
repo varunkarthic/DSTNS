@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { sequence } from "./bootScenes";
-import { paintCover } from "./reportMap";
+import { paintCover } from "./reportCover";
 import type { Snapshot, Topology } from "./types";
 
 /**
@@ -32,6 +32,7 @@ export interface ReportPreview {
   day: number[];
   topology: Topology;
   snapshot: Snapshot;
+  virtualS: number;
 }
 
 const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
@@ -74,25 +75,26 @@ function pagesFor(preview: ReportPreview, roads: Float32Array | null): Paint[] {
     (g, w, h) => {
       g.fillStyle = "#071420";
       g.fillRect(0, 0, w, h);
-      // Small, since this runs on the page and the image is soft. The film must not wait for it.
-      const city = paintCover(preview.topology, preview.snapshot, Math.min(w, 420));
+      const city = paintCover(preview.topology, preview.snapshot, preview.virtualS, Math.min(w, 460), true);
       if (city) g.drawImage(city as CanvasImageSource, 0, 0, w, h);
-      const room = w * 0.84;
-      let size = w * 0.135;
+      const edge = w * 0.076;
+      let size = w * 0.215;
       g.font = `400 ${size}px Inter, system-ui, sans-serif`;
-      size = Math.min(size, (size * room) / g.measureText(preview.city).width);
+      size = Math.min(size, (size * w * 0.848) / g.measureText(preview.city).width);
+      const under = h * 0.729;
+      g.font = `500 ${w * 0.022}px Inter, system-ui, sans-serif`;
+      g.fillStyle = "#5ee3bf";
+      g.fillText("A SIMULATED DAY IN", edge, under - size * 1.26);
       g.font = `400 ${size}px Inter, system-ui, sans-serif`;
       g.fillStyle = "#ffffff";
-      g.fillText(preview.city, w * 0.08, h * 0.8);
-      g.font = `400 ${w * 0.034}px Inter, system-ui, sans-serif`;
-      g.fillStyle = "#9fb4c3";
-      g.fillText(preview.country, w * 0.08, h * 0.8 + w * 0.06);
-      g.fillStyle = "#5ee3bf";
-      g.fillRect(w * 0.08, h * 0.87, w * 0.08, Math.max(1, w * 0.005));
-      g.font = `400 ${w * 0.022}px Inter, system-ui, sans-serif`;
-      g.fillStyle = "#e6f0f7";
-      g.fillText(`Seed ${preview.seed.length > 22 ? `${preview.seed.slice(0, 20)}…` : preview.seed}`, w * 0.08, h * 0.915);
-      g.fillText(preview.generated, w * 0.52, h * 0.915);
+      g.fillText(preview.city, edge, under - size * 0.28);
+      g.font = `400 ${w * 0.036}px Inter, system-ui, sans-serif`;
+      g.fillStyle = "#b7cbd7";
+      g.fillText(preview.country, edge, under + w * 0.038);
+      g.font = `400 ${w * 0.024}px Inter, system-ui, sans-serif`;
+      g.fillStyle = "#e8f1f6";
+      g.fillText(`Seed ${preview.seed.length > 22 ? `${preview.seed.slice(0, 20)}…` : preview.seed}`, edge, h * 0.885);
+      g.fillText(preview.generated, w * 0.53, h * 0.885);
     },
     // The summary, with its own figures.
     (g, w, h) => {

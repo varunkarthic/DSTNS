@@ -623,30 +623,51 @@ If a machine can't keep up, the film draws fewer particles rather than stutterin
 
 ### The cover
 
-The cover is painted on a canvas of 1654 × 2339 px, which is A4 at 200 dpi, and saved as a JPEG at 0.9. The words go on top, as real text.
+A dark page, with this run's own city set behind the words: drawn from its map and its state at the moment of the report, and not fetched from anywhere. It's painted on a canvas of 2480 × 3508 px, which is A4 at 300 dpi, and saved as a JPEG at 0.94. The words go on top as real text.
 
-The city fills the page as a photograph fills a frame. The scale is the larger of the two fits, plus 4%, and the middle of the map sits above the middle of the page, at 45%, since the lower part of the page is the title's:
+The picture is chosen from the data, so each city gets its own. Over all road segments of length \(L\), the middle of the traffic is the length-weighted centroid. The main roads' direction comes from the segments of weight 4 and above, with the angles doubled, so that a road and the same road reversed count alike:
 
 $$
-s = 1.04 \max\left(\frac{W}{\Delta x}, \frac{H}{\Delta y}\right)
+\theta = \tfrac12 \operatorname{atan2}\left(\sum L \sin 2\alpha,\ \sum L \cos 2\alpha\right)
+$$
+
+The map is turned so that those roads run up the page at a slant of 0.42 rad, which leads the eye from the name up into the city:
+
+$$
+\tau = \theta - \frac{\pi}{2} + 0.42, \qquad u = \Delta x\cos\tau + \Delta y\sin\tau, \qquad v = -\Delta x\sin\tau + \Delta y\cos\tau
+$$
+
+It's scaled past the page, since being cut off by the page is what makes it a picture and not a plan:
+
+$$
+s = 1.12 \max\left(\frac{W}{u_\text{max} - u_\text{min}},\ \frac{0.67 H}{v_\text{max} - v_\text{min}}\right)
+$$
+
+The centroid goes at \((0.54W,\ 0.36H)\), unless that would leave part of the band with no city in it. So the origin is clamped:
+
+$$
+x_0 \in [W - s u_\text{max},\ -s u_\text{min}], \qquad y_0 \in [0.7H + s v_\text{min},\ 0.03H + s v_\text{max}]
 $$
 
 The layers, in order:
 
-1. A ground, with a vertical gradient `#0c2233` to `#071420`.
-2. Land: buildings, then green, then water, each as one path, so that thousands cost little.
-3. Streets, in two tones. Weights under 3 are the quieter tone.
-4. Arteries on their own sheet: roads of weight 4 or more, and any road in trouble. They're a gradient across the page, `#37d7ff` to `#5ee3bf`, or the colour of their trouble.
-5. The arteries' light: a far blur at opacity 0.5, a near one at 0.5, both added, then the sharp line on top.
-6. Depth of field: the whole page blurred, and laid over itself through a vertical mask, with opacity 1, 0.8, 0, 0, 1, 1 at 0, 10%, 27%, 50%, 68% and 100% of the height.
-7. Two washes of light, added: blue from high on the right, green from low on the left.
-8. Scrims in the ground colour: at the head, 0.82 to 0 over the top 17%. At the foot, 0, 0.1, 0.42, 0.8, 0.97, 1 from 46% down. A radial vignette to 0.72 at the corners.
+1. A dark gradient, `#0b2030` to `#071420`, with two washes of light. One is mint, low on the left, at 0.09. The other, high on the right at 0.3, takes the colour of the simulated hour: blue at night, amber at dawn, cyan by day and rose at dusk, interpolated between 5.2, 7, 9.5, 16.2, 18.4 and 20.6 hours.
+2. Buildings, green and water, each one path at a low opacity.
+3. Streets, brighter where the core reports more vehicles: opacity \(0.2 + 0.42b\), with \(b = \min(1, n / \max(4, L/18))\), so a report at the rush hour looks different from one at dawn.
+4. Places that draw people as small points, and rain cells as a pale blue radial.
+5. Main roads in a gradient across the page, `#5ee3bf` to `#37d7ff` to `#8fe0ff`, and any road in trouble in the colour of its trouble. Both are on their own sheet, so that their light can spread: two blurs added at opacities 0.34 and 0.5, then the line.
+6. All of it dissolved into the dark above the words with a vertical mask, with opacity 0.1, 0.72, 1, 1, 0.5, 0, 0 at 0, 14%, 24%, 48%, 60%, 69% and 100% of the height.
+7. Soft focus: the drawing is split between a sharp copy and a blurred one, using one mask and its complement, with the blurred copy's opacity at 1, 0.85, 0, 0, 1, 1 at 0, 13%, 26%, 42%, 56% and 100%. So nothing doubles where they meet.
+
+The name stands low on the page, at no more than 60 pt, and is set smaller if it doesn't fit. It's hung from the country's line beneath it, so that a smaller name stays as close to it.
+
+The animation paints the same picture at most 460 px wide, without buildings, which takes about 20 ms on the page.
 
 ### Blurring on a worker
 
 `ctx.filter` isn't available everywhere on a worker, so a blur is made of repeated halving and doubling, which only needs `drawImage`. Halving averages 2 × 2 pixels, a box filter, and doubling is a tent filter. Each pair of steps approaches a Gaussian, with a radius of about \(2^n\) pixels for \(n\) steps.
 
-Halving must be exact. If a sheet of width 1654 is halved to 827, then 414, the ratio isn't exactly 2, the sampling points drift against the pixels, and a thin line comes back as a row of beads. So a sheet is padded up to a multiple of \(2^n\) before it starts:
+Halving must be exact. If a sheet of width 2481 is halved to 1241, then 621, the ratio isn't exactly 2, the sampling points drift against the pixels, and a thin line comes back as a row of beads. So a sheet is padded up to a multiple of \(2^n\) before it starts:
 
 $$
 W' = \lceil W / 2^n \rceil 2^n

@@ -139,11 +139,11 @@ An application asks, and the observer decides. It can never change a person's se
 
 ## The report
 
-<img src="docs/assets/screenshots/report-cover.png" alt="The cover of a DSTNS report: the city's map across the whole page, with the city's name, the seed, and when it was generated" width="320" align="right">
+<img src="docs/assets/screenshots/report-cover.png" alt="The cover of a DSTNS report: a dark page with the run's own map softening down toward the city's name, and the seed and when it was generated below" width="320" align="right">
 
 Export a report of any run as a PDF: the summary, traffic, signals, weather, incidents, the network, and how the observer kept up. Statements are labelled by where they come from, whether observed, derived or interpretation, and the report is put together on a worker, so that the interface keeps moving meanwhile.
 
-The cover is the city itself, different for every run.
+The cover is drawn from the run itself: its city, how busy each street is at that moment, and even the hour.
 
 <br clear="right">
 

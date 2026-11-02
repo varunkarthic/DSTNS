@@ -778,6 +778,7 @@ export default function App() {
     day: (history?.history ?? sim.snapshot?.data.congestion.history ?? []).map((point) => point.current),
     topology: sim.topology,
     snapshot: sim.snapshot.data,
+    virtualS: sim.snapshot.clock.virtual_day_seconds,
   };
   const report = useCallback(
     () =>

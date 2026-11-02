@@ -588,13 +588,15 @@ in such a city the bounding box of everything drawn can sit a little off-centre.
 
 **Consequences.** `layers` and `places` in the observer remain the person's own, and they're all that is saved. What is drawn is `shownLayers` and `shownPlaces`. Only keys a person actually changed reach their settings, so changing one thing while an application holds another can't save the application's value as theirs. A browser check compares `localStorage` before and after. Nothing here persists across a restart, which also means an application must ask again after one. Applications that want a camera must be written for being told no.
 
-## 45. The report's cover is the city, and painted
+## 45. The report's cover is a dark page with its own city behind the words
 
-**Problem.** The cover went through a framed survey sheet, then a seed-grown abstract figure. The first had too much detail for a cover, and the second said nothing about the run.
+**Problem.** The cover went through a framed survey sheet, a seed-grown abstract figure, a realistic aerial view behind frosted glass, and a light page. The first had too much detail, the second said nothing about the run, the third was too realistic, and the fourth lost the observer's character.
 
-**Decision.** The real map of the run's district, to every edge of the page, with only its arteries lit, and gradients and out-of-focus areas leading to the title. Blurs need pixels, so it's a raster, painted on a worker at 200 dpi. The words stay vector, so they're selectable and sharp.
+**Decision.** A dark page, in the observer's colours, with the run's own map behind the words as a flat drawing, somewhere between a watermark and an illustration. It's in focus through the upper middle of the page, and softens and dissolves down toward the words. The name stands low on the page, at no more than 60 pt, so that long names fit, with what the run came to and what identifies it below that. The picture is worked out from the run: where its traffic is, which way its main roads run, how many vehicles each street has now, which roads are in trouble, and the hour. It's painted at 300 dpi on a worker, since blur and fades need pixels, and the words stay vector.
 
-**Consequences.** The file is about 300 KB larger. The animation that shows the report being made paints the same cover at a small size with the same code, so that the two can't differ. A blur is made from halving and doubling, as `ctx.filter` isn't available on every worker, and each halving must be exact, or a thin line comes back as beads.
+No image is fetched from outside. The map is already here, so it works offline, matches the simulation exactly, adds no licence beyond OpenStreetMap's, and tells no third party which city is being simulated.
+
+**Consequences.** The file grows by about 800 KB. The animation paints the same picture at a small size, without buildings, so that the two can't differ. A blur is made from halving and doubling, as `ctx.filter` isn't available on every worker, and each halving must be exact, or a thin line comes back as beads.
 
 ## 46. The film's moves are timed
 

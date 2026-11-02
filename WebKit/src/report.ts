@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { LOGO, logoPng } from "./logoAsset";
-import { coverMap, printMap } from "./reportMap";
+import { coverMap } from "./reportCover";
+import { printMap } from "./reportMap";
 import reportFontUrl from "./assets/report-inter.ttf?url";
 import { DEMAND_TYPE_LABEL, placeKind, roadState, roadTitle } from "./mapModel";
 import { DAY_TICKS, PRINT, PT, ReportDocument, lineHeight, wallTicks } from "./pdfLayout";
@@ -155,38 +156,59 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // Cover
   // =========================================================================
-  // A poster: this city to every edge of the page, one name, and only what identifies this report.
-  // The words stay well inside the margins, and a long name or seed is set smaller rather than cut off.
+  // A dark page with this run's own city behind the words, softening and dissolving down the page. The name stands
+  // low on the page over what the run came to and what identifies it. Everything stays inside the margins, and a
+  // long name or seed is set smaller rather than cut off.
   onProgress?.("Drawing the cover", 0.04);
   doc.newPage();
   doc.rect(0, 0, doc.W, doc.H, PRINT.dark, 0);
   if (resources.cover) pdf.addImage(resources.cover, "JPEG", 0, 0, doc.W, doc.H);
-  if (resources.logoLight) pdf.addImage(resources.logoLight, "PNG", doc.M, 15, 6.4 * LOGO.aspect, 6.4);
-  else doc.line("DSTNS", doc.M, 15, 14, PRINT.darkInk);
-  doc.line("SIMULATION REPORT", doc.W - doc.M, 16.4, 7.2, "#9fb4c3", "right");
+  const edge = doc.M;
+  const room = doc.width;
+  if (resources.logoLight) pdf.addImage(resources.logoLight, "PNG", edge, 15, 6.2 * LOGO.aspect, 6.2);
+  else doc.line("DSTNS", edge, 15, 14, PRINT.darkInk);
+  doc.line("SIMULATION REPORT", doc.W - edge, 16.2, 7.2, "#c6d8e3", "right");
   const city = location?.city ?? "Explicit map file";
-  const sized = (text: string, wanted: number, room: number) => Math.min(wanted, (wanted * room) / Math.max(1, doc.textWidth(text, wanted)));
-  const nameSize = sized(city, 58, doc.width);
+  const sized = (text: string, wanted: number, width: number) => Math.min(wanted, (wanted * width) / Math.max(1, doc.textWidth(text, wanted)));
+  const nameSize = sized(city, 60, room);
   // Hung from the line beneath it, so that a smaller name sits as close to its country as a large one.
-  doc.line(city, doc.M, 236 - nameSize * PT * 1.22, nameSize, "#ffffff");
-  doc.line(location?.country ?? "Deterministic Spatiotemporal Transport Network Simulator", doc.M, 236, 13, "#9fb4c3");
-  pdf.setFillColor("#5ee3bf");
-  pdf.roundedRect(doc.M, 246.5, 14, 0.9, 0.45, 0.45, "F");
-  const half = doc.width / 2;
+  const nameTop = 216.5 - nameSize * PT * 1.2;
+  doc.line(location ? "A SIMULATED DAY IN" : "A SIMULATED DAY", edge, nameTop - 4.4, 8, "#5ee3bf");
+  // Set a little tight, as large type wants to be.
+  pdf.setCharSpace(-nameSize * PT * 0.016);
+  doc.line(city, edge - nameSize * PT * 0.03, nameTop, nameSize, "#ffffff");
+  pdf.setCharSpace(0);
+  doc.line(location?.country ?? "Deterministic Spatiotemporal Transport Network Simulator", edge, 216.5, 13, "#b7cbd7");
+
+  const vehiclesNow = snapshot.data.edges.reduce((sum, e) => sum + e.vehicle_count, 0);
+  const headlines: [string, string][] = [
+    [`${Math.round(net.km).toLocaleString()} km`, "OF ROAD"],
+    [vehiclesNow.toLocaleString(), "VEHICLES AT THIS MOMENT"],
+    [`${(peakCongestion?.current ?? snapshot.data.congestion.current).toFixed(0)}%`, "PEAK CONGESTION"],
+    [incidents.length.toLocaleString(), incidents.length === 1 ? "INCIDENT" : "INCIDENTS"],
+  ];
+  headlines.forEach(([value, label], n) => {
+    const x = edge + (n * room) / 4;
+    doc.line(value, x, 230, sized(value, 21, room / 4 - 4), "#ffffff");
+    doc.line(label, x, 240.5, 5.8, "#93acba");
+  });
+  pdf.setDrawColor("#28434f");
+  pdf.setLineWidth(0.2);
+  pdf.line(edge, 247, doc.W - edge, 247);
   const facts: [string, string][] = [
-    ["Seed", seed],
-    ["Generated", now.toLocaleString(undefined, { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })],
-    ["Simulated to", `${tShort(virtual)}, ${pct(virtual / DAY_SECONDS, 0)} of the day`],
-    ["Run", status.run_id],
+    ["SEED", seed],
+    ["GENERATED", now.toLocaleString(undefined, { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })],
+    ["SIMULATED TO", `${tShort(virtual)}, ${pct(virtual / DAY_SECONDS, 0)} of the day`],
+    ["RUN", status.run_id],
   ];
   facts.forEach(([key, value], n) => {
-    const x = doc.M + (n % 2) * half;
-    const y = 252 + Math.floor(n / 2) * 11.5;
-    doc.line(key.toUpperCase(), x, y, 6.2, "#7f96a6");
-    doc.line(value, x, y + 3.5, sized(value, 9, half - 5), "#e6f0f7");
+    const x = edge + (n % 2) * (room / 2);
+    const y = 251 + Math.floor(n / 2) * 11;
+    doc.line(key, x, y, 5.8, "#93acba");
+    doc.line(value, x, y + 3.3, sized(value, 9.5, room / 2 - 5), "#e8f1f6");
   });
-  doc.line("© 2026 Varun Karthic. AGPL-3.0-or-later.", doc.M, 279, 7, "#9fb4c3");
-  doc.line("Map data © OpenStreetMap contributors, ODbL.", doc.W - doc.M, 279, 7, "#7f96a6", "right");
+  doc.line("© 2026 Varun Karthic. AGPL-3.0-or-later.", edge, 281, 6.6, "#93acba");
+  doc.line("Map data © OpenStreetMap contributors, ODbL.", doc.W - edge, 281, 6.6, "#93acba", "right");
 
   // About and contents, on one page. The contents are filled once page numbers are known.
   doc.newPage();
@@ -1077,7 +1099,7 @@ export async function exportReport(input: ReportInput, onProgress: (label: strin
     return { blob: await watchdog(offThread()), name };
   } catch {
     // Without a worker it can still be done here, at the cost of a pause.
-    const [map, cover] = await Promise.all([printMap(input.topology, input.snapshot.data, input.layers).catch(() => null), coverMap(input.topology, input.snapshot.data).catch(() => null)]);
+    const [map, cover] = await Promise.all([printMap(input.topology, input.snapshot.data, input.layers).catch(() => null), coverMap(input.topology, input.snapshot.data, input.snapshot.clock.virtual_day_seconds).catch(() => null)]);
     const { pdf } = await buildReport(input, { ...resources, map, cover }, onProgress);
     return { blob: pdf.output("blob"), name };
   }

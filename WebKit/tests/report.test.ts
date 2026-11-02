@@ -106,6 +106,32 @@ function input(overrides: Partial<ReportInput> = {}): ReportInput {
   };
 }
 
+describe("the cover", () => {
+  it("keeps a very long name and seed inside its margins", async () => {
+    const base = input();
+    const long = "Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch";
+    const topology = { ...base.topology, location: { city: long, country: "United Kingdom of Great Britain and Northern Ireland", anchor_lat: 53, anchor_lon: -4, city_extent_m: 1000, downloaded: true } };
+    const { doc } = await buildReport({ ...base, topology }, { font });
+    const first = Math.min(...doc.boxes.map((b) => b.page));
+    const cover = doc.boxes.filter((b) => b.page === first && b.text);
+    expect(cover.some((b) => b.text === long)).toBe(true);
+    for (const b of cover) {
+      expect(b.x, b.text).toBeGreaterThanOrEqual(doc.M - 2);
+      expect(b.x + b.w, b.text).toBeLessThanOrEqual(doc.W - doc.M + 0.5);
+      expect(b.y + b.h, b.text).toBeLessThanOrEqual(doc.H - 10);
+    }
+  });
+  it("names the things a reader needs, from this run", async () => {
+    const base = input();
+    const { doc } = await buildReport(base, { font });
+    const first = Math.min(...doc.boxes.map((b) => b.page));
+    const text = doc.boxes.filter((b) => b.page === first).map((b) => b.text);
+    for (const label of ["SEED", "GENERATED", "SIMULATED TO", "RUN", "OF ROAD", "VEHICLES AT THIS MOMENT", "PEAK CONGESTION", base.status.run_id]) expect(text).toContain(label);
+    expect(text.join(" ")).toMatch(/Varun Karthic/);
+    expect(text.join(" ")).toMatch(/OpenStreetMap contributors/);
+  });
+});
+
 function verifyLayout(doc: Awaited<ReturnType<typeof buildReport>>["doc"]) {
   const overlaps = overlappingText(doc.boxes);
   expect(overlaps.map(([a, b]) => `p${a.page}: "${a.text}" / "${b.text}"`)).toEqual([]);

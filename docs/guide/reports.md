@@ -29,7 +29,7 @@ report embeds its own font, so it renders identically without network access.
 
 ![The cover of a report](../assets/screenshots/report-cover.png){ width="320" }
 
-The cover is the city itself, painted from the run's own map to every edge of the page, with the city, its country, the seed, when the report was generated, how far the run had got, and the run's ID. The report opens with it and a table of contents, then:
+The cover is drawn from the run itself: the city's name, with its own map behind it showing how busy each street is at that moment, what the run came to, the seed, when the report was generated, how far the run had got, and the run's ID. The report opens with it and a table of contents, then:
 
 | Section | Covers |
 |---|---|
