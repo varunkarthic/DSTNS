@@ -49,8 +49,9 @@ There are four kinds of caller. Everything else on this page follows from the di
 - Only `SHA-256(token)` is stored. The token exists on the server for the length of the request that
   created it, and so it can't be recovered from the store.
 - Comparison is in constant time.
-- Every route under `/api/v1/fabric/apps/{id}/` that changes anything requires
-  `Authorization: Bearer <token>`.
+- An application's own routes under `/api/v1/fabric/apps/{id}/` require
+  `Authorization: Bearer <token>`. The rest of that path that changes anything, such as grants, answers only
+  to the observer and the operator.
 
 The token never appears in an event, a log line, the audit log or a public view of the application.
 

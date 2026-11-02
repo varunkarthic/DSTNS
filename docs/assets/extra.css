@@ -1039,4 +1039,6 @@ html { scrollbar-gutter: stable; }
 .md-typeset table:not([class]) { border-radius: 12px; overflow: hidden; }
 .md-typeset code { border-radius: 6px; }
 .md-typeset img { border-radius: 12px; }
-.md-typeset .MathJax, .md-typeset mjx-container { overflow-x: auto; overflow-y: hidden; }
+.md-typeset mjx-container { overflow-x: auto; overflow-y: hidden; }
+/* Display formulas fit the column, however many terms they have. */
+.md-typeset mjx-container[display="true"] { font-size: 90% !important; }

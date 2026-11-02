@@ -352,7 +352,11 @@ For each layer and place: start from the person's choice; for each application i
 has taken that item back at this revision, or detail is reduced and it would turn on something the person's state has off.
 
 $$
-\text{shown}_k = \text{last}\ \{ a_k : a \in \text{holders},\ \text{released}(a, k) \ne \text{rev}(a),\ \neg(\text{reduced} \wedge a_k \wedge \neg\text{own}_k) \}\ \text{else}\ \text{own}_k
+\text{allowed}(a, k) = \text{released}(a, k) \ne \text{rev}(a)\ \wedge\ \neg(\text{reduced} \wedge a_k \wedge \neg\text{own}_k)
+$$
+
+$$
+\text{shown}_k = \begin{cases} a_k & a = \text{the last holder with } \text{allowed}(a, k) \\ \text{own}_k & \text{if there is none} \end{cases}
 $$
 
 Only keys where \(\text{next}_k \ne \text{shown}_k\) ever reach the person's settings, which is what stops an application's choice from being
@@ -408,7 +412,11 @@ $$
 $$
 
 $$
-p \leftarrow p + \alpha\left(0.17\vec{F} + (\cos\phi,\ 0.7\sin 1.3\phi,\ \sin\phi)(0.025 + 0.07\,\text{seed})\right), \qquad \phi = 40\,\text{seed} + 0.6t
+p \leftarrow p + \alpha\left(0.17\vec{F} + (\cos\phi,\ 0.7\sin 1.3\phi,\ \sin\phi)(0.025 + 0.07\,\text{seed})\right)
+$$
+
+$$
+\phi = 40\,\text{seed} + 0.6t
 $$
 
 And turn around the vertical axis, each a little differently, one way on even scenes and the other on odd ones:
@@ -584,7 +592,11 @@ A point takes the colour of the strongest ring passing it, once that ring is abo
 At the end of the film, each particle flies to a place on a road, nearest the middle first, along a curve. With \(\ell\) its order:
 
 $$
-l = \text{ss}\left(\operatorname{clamp}(1.5 u - 0.5\ell)\right), \qquad \text{ndc} = \operatorname{mix}(\text{ndc}, R, l) + (R - \text{ndc})^\perp \sin(\pi l)(0.1 + 0.14(\text{seed} - 0.5))
+l = \text{ss}\left(\operatorname{clamp}(1.5 u - 0.5\ell)\right)
+$$
+
+$$
+\text{ndc} = \operatorname{mix}(\text{ndc}, R, l) + (R - \text{ndc})^\perp \sin(\pi l)(0.1 + 0.14(\text{seed} - 0.5))
 $$
 
 \(R\) is the road's position, plus a shift so that they stay on their roads while the camera moves. The map fades in under them at \(1.15 + 0.86 \cdot 2.3 = 3.13\) s, and the panels at 650 ms after that.

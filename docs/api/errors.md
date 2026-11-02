@@ -5,7 +5,7 @@ Every error response has the same shape:
 ```json
 {
   "ok": false,
-  "api_version": "1.2",
+  "api_version": "1.4",
   "error": { "code": "INVALID_REQUEST", "message": "tick_rate must be finite and in (0,20]" }
 }
 ```
