@@ -63,12 +63,18 @@ An ID that exists can't be taken by someone who doesn't hold its token:
 exists, token presented and correct      update it
 exists, not unloaded, no valid token     409 APP_ID_CONFLICT
 exists, unloaded, holds explicit grants  409 APP_ID_CONFLICT
-exists, unloaded, no explicit grants     may be claimed afresh
+exists, unloaded, no explicit grants     may be taken up, with none of what it kept or was sent
 does not exist                           new, while under the limit of 64
 ```
 
 The third line matters: otherwise an application that had been granted control could be impersonated the
 moment it left. A person can release such an ID with **Forget** in Settings.
+
+Taking up an ID without its token keeps what a person chose for its settings, and nothing else: storage, queued
+events, timers, subscriptions and stops all start empty. **Keep your token if you want to keep your storage.**
+
+When all 64 places are taken, the oldest application that has gone and holds no explicit grant makes way, so
+that programs registering under new names can't use them up for good.
 
 ### Rotating credentials
 
@@ -152,6 +158,9 @@ The server checks them in this order, and the order is deliberate:
 The nonce is recorded last, so a forgery can't use up a real nonce. Nonces are kept for twice the window, which
 is longer than any timestamp that would still pass step 1.
 
+An application that requires signatures needs them everywhere it uses its token, including registering again. A
+stolen token therefore can't be used to turn signing off.
+
 ### Integrity of responses
 
 Every response under `/api/v1/fabric/` carries:
@@ -166,7 +175,9 @@ A signed request to an application's route also gets:
 X-DSTNS-Response-Signature: HMAC-SHA-256(signing_key, STATUS + "\n" + NONCE + "\n" + DIGEST)
 ```
 
-Including the nonce ties the response to that one request, so an old response can't be replayed in its place.
+Including the nonce ties the response to that one request, so an old response can't be replayed in its place. It's
+given only for a request whose own signature checks out, so nobody without the key can get a signature over a nonce
+of their choosing.
 A digest alone only detects accidents, since anyone who can change the body can change the digest. The signature
 is what proves the response came from this server.
 
@@ -186,6 +197,8 @@ Applications, grants and launch proposals are saved to `fabric-apps.json`.
 
 - The file is written to a temporary file with mode `0600`, then renamed, so a crash can't leave half a file.
 - It's sealed: `integrity = HMAC-SHA-256(key, contents)`.
+- Tokens are stored only as hashes. Signing keys are stored as they are, because checking a signature needs them, so
+  this file's permissions matter.
 - The key is in `fabric-apps.json.key`, mode `0600`, beside it and not inside it.
 - A store that doesn't match is **not trusted**. It's renamed to `fabric-apps.json.rejected`, the server starts
   empty, applications register again, and `GET /api/v1/fabric/security` reports `store.rejected: true`.
@@ -209,7 +222,12 @@ entry.hash     = SHA-256(entry without its hash)
 gives the first bad sequence number. To keep a stronger record, save the `head` somewhere else now and then: a
 later rewrite of anything before it then shows.
 
-The log holds the latest 2,000 entries, in memory. It doesn't survive a restart.
+The log holds the latest 2,000 entries, in memory. It doesn't survive a restart. Parameters over 2 KiB are recorded as
+`{"truncated": true}`, so the record says what was asked without holding everything that was sent.
+
+The chain starts from the oldest entry still held, so entries that have aged out don't count against it, and `verify`
+can't tell you they existed. An application with a control capability that sends thousands of actions can push older
+entries out. If that matters, read the log regularly and keep it elsewhere.
 
 ## Web protections
 
@@ -217,10 +235,12 @@ The log holds the latest 2,000 entries, in memory. It doesn't survive a restart.
 
 | Mechanism | What it stops |
 |---|---|
-| `Host` allow-list while bound to loopback | DNS rebinding, for reads too. `403 HOST_NOT_ALLOWED`. Extra names through `DSTNS_ALLOWED_HOSTS` |
+| `Host` allow-list while bound to loopback | DNS rebinding, for reads too. `421 HOST_NOT_ALLOWED`. Extra names through `DSTNS_ALLOWED_HOSTS` |
 | `Origin` check on anything that changes state | Cross-site request forgery. `403 CROSS_ORIGIN_FORBIDDEN` |
 | CORS granted per request, never `*` | Other pages reading a response |
 | `Cache-Control: no-store` | Responses left in a cache |
+| `frame-ancestors 'none'`, `X-Frame-Options: DENY` | Another site putting the observer in a frame, and tricking a person into clicking Terminate |
+| `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` | A response read as something it isn't, and addresses leaking to other sites |
 
 ### Application pages
 
@@ -241,7 +261,7 @@ A frame is the riskiest thing an application can do, because it's code from else
 ```text
 default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self';
-frame-src http: https:; object-src 'none'; base-uri 'none'
+frame-src http: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'
 ```
 
 `script-src 'self'` means injected markup can't run a script even if it got in. It doesn't get in: application
@@ -278,6 +298,12 @@ choices, never a change to them.
 | It's on the record | Every request is in the audit log |
 | Only real things | Layer names are a closed list, values must be true or false, and numbers must be finite and in range |
 
+## Writing files
+
+Exporting to SUMO writes files on the server. Unless a request has the operator's credential, the directory must be
+under `data/`, with no `..`. Anything else is `403 DIRECTORY_NOT_ALLOWED`. Controlling a simulation doesn't come with
+writing anywhere this user can.
+
 ## Starting programs
 
 The launcher can start applications along with the simulation, and that runs commands on the operator's
@@ -299,6 +325,9 @@ An application can't exhaust the server or the page. A request over a limit is r
 
 | Limit | Value |
 |---|---|
+| Any request body | 16 MiB, or `413` |
+| JSON nesting | 64 levels, or `400`, since a very deep document could otherwise overflow the stack |
+| Moving the view and holding layers | 2 a second, burst of 4, and a refused request also counts |
 | Applications | 64 |
 | Elements per application | 64 |
 | Interface data per application | 4 MiB |
@@ -319,6 +348,9 @@ An application can't exhaust the server or the page. A request over a limit is r
 These are limitations, stated plainly.
 
 - **Reading is open.** Anyone who can reach the port can read the run, the map and the audit log.
+- **The older routes have no credential.** `/api/v1/playback/*` and `/api/v1/control/*` stay open for compatibility, as do
+  `/terminate`, `/api/v1/world/regenerate` and `/api/v1/system/backpressure`. A browser page from elsewhere is still
+  refused, but a local program can use them, without going through capabilities.
 - **The host check stops browsers, not programs.** A program that can reach the port can send `X-DSTNS-Host`. On a
   shared machine, or a server bound beyond loopback, it can act as the observer. Put an authenticating gateway in
   front, as [the deployment security guide](../deployment/security.md) describes, and set `DSTNS_OPERATOR_TOKEN`.
@@ -349,12 +381,13 @@ curl -s -H "$OPERATOR" http://127.0.0.1:8090/api/v1/fabric/audit/verify | jq .da
 # A forged origin is refused
 curl -si -X POST -H 'Origin: https://evil.example' http://127.0.0.1:8090/api/v1/fabric/engine/pause | head -1
 
-# So is a rebinding name
+# So is a rebinding name (421)
 curl -si -H 'Host: evil.example' http://127.0.0.1:8090/health | head -1
 
 # An application's own view of what it holds
 curl -s http://127.0.0.1:8090/api/v1/fabric/apps/com.example.app | jq .data.capabilities
 ```
 
-The same checks run in `tests/api/hardening_smoke.py`, `tests/api/fabric_apps_smoke.py` and
-`tests/api/fabric_platform_smoke.py`.
+The same checks run in `tests/api/hardening_smoke.py`, `tests/api/fabric_apps_smoke.py`,
+`tests/api/fabric_platform_smoke.py` and `tests/api/fabric_direction_smoke.py`. `tests/api/robustness_smoke.py` sends hostile
+values to every route that takes any, and fails on a `500` or a crash.

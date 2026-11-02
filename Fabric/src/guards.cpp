@@ -48,8 +48,13 @@ void ApiServer::install_guards() {
     server_->set_default_headers({
         {"Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Authorization, X-DSTNS-Host, X-DSTNS-Timestamp, X-DSTNS-Nonce, X-DSTNS-Signature"},
         {"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
-        {"Cache-Control", "no-store"}
+        {"Cache-Control", "no-store"},
+        {"X-Content-Type-Options", "nosniff"},
+        {"X-Frame-Options", "DENY"},
+        {"Referrer-Policy", "no-referrer"}
     });
+    // More than anything here legitimately sends: the largest thing an application declares is 4 MiB.
+    server_->set_payload_max_length(16 * 1024 * 1024);
 
     // Only the server's own origin, and origins listed in DSTNS_ALLOWED_ORIGINS,
     // may read responses from a browser. The observer is served by this server,
@@ -70,7 +75,9 @@ void ApiServer::install_guards() {
             res.set_header("X-DSTNS-Content-SHA256", digest);
             if (req.has_header("X-DSTNS-Signature") && req.path.starts_with("/api/v1/fabric/apps/")) {
                 const auto id = req.path.substr(20, req.path.find('/', 20) - 20);
-                const auto signature = registry_->sign_response(id, res.status, req.get_header_value("X-DSTNS-Nonce"), digest);
+                // Only for a request that really was signed with the key. Anyone could otherwise name a nonce and
+                // be handed a signature over it, to pass off one response as the answer to another request.
+                const auto signature = registry_->sign_response(id, res.status, req.method, req.target, req.get_header_value("X-DSTNS-Timestamp"), req.get_header_value("X-DSTNS-Nonce"), req.get_header_value("X-DSTNS-Signature"), req.body, digest);
                 if (!signature.empty()) res.set_header("X-DSTNS-Response-Signature", signature);
             }
         }

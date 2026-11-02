@@ -45,7 +45,11 @@ public:
     void verify_signature(const std::string& id, const std::string& method, const std::string& target, const std::string& timestamp,
                           const std::string& nonce, const std::string& signature, const std::string& body);
     /// Empty if the application is unknown.
-    [[nodiscard]] std::string sign_response(const std::string& id, int status, const std::string& nonce, const std::string& digest);
+    [[nodiscard]] std::string sign_response(const std::string& id, int status, const std::string& method, const std::string& target, const std::string& timestamp, const std::string& nonce, const std::string& signature, const std::string& body, const std::string& digest);
+    /// Whether changing this application's registration has to be signed.
+    [[nodiscard]] bool requires_signature(const std::string& id);
+    /// Moving the view and changing what it shows share one allowance, which a refused request also spends.
+    void spend_direction(const std::string& id);
     /// A new token and signing key. The old ones stop working at once.
     nlohmann::json rotate_credentials(const std::string& id);
     /// Each entry is chained to the one before by a hash, so that a change to any of them shows.
@@ -176,7 +180,6 @@ private:
 
     App& find(const std::string& id);
     void touch(App& app);
-    void spend_direction(App& app);
     void sweep();
     void mark(App& app) {
         app.changed_at = app.ui_all_at = ++revision_;

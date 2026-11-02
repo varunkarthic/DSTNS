@@ -96,7 +96,7 @@ target_link_libraries(dstns_benchmark PRIVATE dstns_core)
 if(DSTNS_BUILD_TESTS)
   enable_testing()
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  foreach(smoke loading termination hardening narration fabric_contract fabric_apps fabric_platform fabric_direction launcher_apps)
+  foreach(smoke loading termination hardening narration fabric_contract fabric_apps fabric_platform fabric_direction robustness docs_coverage launcher_apps)
     add_test(NAME dstns_http_${smoke}
       COMMAND ${CMAKE_COMMAND} -E env "DSTNS_SERVER=$<TARGET_FILE:dstns_server>"
         ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/api/${smoke}_smoke.py")

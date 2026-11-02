@@ -157,3 +157,15 @@ Every change is stored in this browser as a difference from the operator's
 file, so a later edit to `config/ui-config.json` still reaches settings the
 viewer never touched. The launcher environment check reports values in this file that the
 interface would ignore.
+
+## Accessibility
+
+In `config/ui-config.json` under `accessibility`, and in Settings:
+
+| Key | Values | Meaning |
+|---|---|---|
+| `color_vision` | `standard`, `protanopia`, `deuteranopia`, `tritanopia`, `monochrome` | Which palette to use. Applications' colours follow it too |
+| `reduce_transparency` | `true`, `false` | Solid surfaces in place of translucent ones |
+| `advanced` | `true`, `false` | Whether specialist detail is shown |
+
+`schema_version` says which form the file is in. `_comment` and `_enums` are notes for people, and are ignored.

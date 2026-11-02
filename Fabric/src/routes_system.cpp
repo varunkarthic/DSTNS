@@ -6,6 +6,7 @@
 #include "dstns/osm_fetch.hpp"
 #include "dstns/sumo_bridge.hpp"
 #include "support.hpp"
+#include "dstns/webfabric/registry.hpp"
 
 #include <array>
 #include <chrono>
@@ -192,17 +193,27 @@ void ApiServer::routes_system() {
     });
 
     // SUMO Microscopic Export & Simulation
-    server_->Post("/api/v1/export/sumo", [this](const auto& req, auto& r) {
+    // A tool that fails or a directory that can't be written is the environment's doing, and says so.
+    const auto sumo_step = [](const auto& step) {
+        try {
+            step();
+        } catch (const Refusal&) {
+            throw;
+        } catch (const std::runtime_error& e) {
+            throw Refusal(503, "SUMO_FAILED", e.what());
+        }
+    };
+    server_->Post("/api/v1/export/sumo", [this, sumo_step](const auto& req, auto& r) {
         auto j = body(req);
-        std::filesystem::path dir = j.value("directory", "data/sumo_export");
-        send(r, engine_.export_sumo(dir));
+        const auto dir = output_directory(req, j, "data/sumo_export");
+        sumo_step([&] { send(r, engine_.export_sumo(dir)); });
     });
-    server_->Post("/api/v1/system/sumo-simulate", [this](const auto& req, auto& r) {
+    server_->Post("/api/v1/system/sumo-simulate", [this, sumo_step](const auto& req, auto& r) {
         auto j = body(req);
-        std::filesystem::path dir = j.value("directory", "data/sumo_run");
+        const auto dir = output_directory(req, j, "data/sumo_run");
         const auto begin_s = time_value(j.value("begin_s", json(0)));
         const auto end_s = time_value(j.value("end_s", json(3600)));
-        send(r, engine_.sumo_simulate(dir, begin_s, end_s));
+        sumo_step([&] { send(r, engine_.sumo_simulate(dir, begin_s, end_s)); });
     });
 
     auto terminate_handler = [this](const auto&, auto& r) {

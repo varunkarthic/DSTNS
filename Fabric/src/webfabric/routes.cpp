@@ -51,6 +51,10 @@ void ApiServer::routes_apps() {
     };
     server_->Post("/api/v1/fabric/apps", [this, ok, on_network](const auto& req, auto& r) {
         const auto manifest = body(req);
+        // An application that asked for signed requests means all of them: a stolen token must not be able to
+        // turn that off by registering again without it.
+        if (manifest.is_object() && manifest.contains("id") && manifest.at("id").is_string() && !bearer(req).empty() && registry_->requires_signature(manifest.at("id").template get<std::string>()))
+            registry_->verify_signature(manifest.at("id").template get<std::string>(), req.method, req.target, req.get_header_value("X-DSTNS-Timestamp"), req.get_header_value("X-DSTNS-Nonce"), req.get_header_value("X-DSTNS-Signature"), req.body);
         if (manifest.is_object() && manifest.contains("ui") && manifest.at("ui").is_array())
             for (const auto& element : manifest.at("ui")) on_network(element);
         ok(r, registry_->register_app(manifest, bearer(req)), 201);
@@ -292,6 +296,7 @@ void ApiServer::routes_apps() {
     server_->Post(route("/view"), [this, ok, owner, note](const auto& req, auto& r) {
         const auto id = owner(req);
         registry_->require_capability(id, "ui.camera");
+        registry_->spend_direction(id);
         const auto request = body(req);
         try {
             if (request.is_object() && (request.contains("node") || request.contains("edge"))) {
@@ -315,6 +320,7 @@ void ApiServer::routes_apps() {
     server_->Put(route("/presentation"), [this, ok, owner, note](const auto& req, auto& r) {
         const auto id = owner(req);
         registry_->require_capability(id, "ui.layers");
+        registry_->spend_direction(id);
         const auto request = body(req);
         try {
             auto held = registry_->set_presentation(id, request);

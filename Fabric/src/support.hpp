@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <filesystem>
+
 #include "dstns/engine.hpp"
 
 #include <httplib.h>
@@ -33,6 +35,8 @@ httplib::Server::Handler legacy_route(std::string successor, httplib::Server::Ha
 
 /// The observer, or the operator's own tooling, rather than an application.
 bool is_host(const httplib::Request& req);
+bool is_operator(const httplib::Request& req);
+std::filesystem::path output_directory(const httplib::Request& req, const json& j, const char* fallback);
 /// Keyed hash, as lower-case hex.
 std::string hmac_sha256(std::string_view key, std::string_view message);
 bool same_secret(std::string_view a, std::string_view b);

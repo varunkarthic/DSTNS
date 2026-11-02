@@ -42,7 +42,16 @@ flowchart LR
 | `autoFocus.ts`, `focusNotification.ts` | Choosing and framing events |
 | `Dialogs.tsx` | About, confirms, completion, suspension |
 | `Tutorial.tsx`, `tutorialSteps.ts`, `useTutorial.ts` | The guided tour |
-| `report.ts`, `reportModel.ts`, `pdfLayout.ts` | The PDF report, built in the browser |
+| `report.ts`, `reportModel.ts`, `pdfLayout.ts`, `reportWorker.ts` | The PDF report, built on a worker so that the interface keeps moving |
+| `reportCover.ts`, `reportMap.ts` | The cover and the map page, painted from the run's own map; see the [formulas](../design/motion-mathematics.md#the-cover) |
+| `ReportFilm.tsx` | The animation while a report is made |
+| `BootScene.tsx`, `bootScenes.ts`, `Splash.tsx` | The start-up film, and what surrounds it; see the [formulas](../design/motion-mathematics.md#the-film) |
+| `Legends.tsx`, `LayersPopover.tsx`, `placeLegend.ts`, `placeGlyphs.ts` | Roads, Places and Layers panels, and the marks for each kind of place |
+| `MapReadout.tsx`, `mapTiles.ts`, `Viewport.tsx` | Coordinates and scale; drawing the map in cached tiles; what's on screen |
+| `resistance.ts` | How anything with a limit gives when pushed past it |
+| `appearance.ts` | Themes and colour vision palettes |
+| `settingsControls.tsx`, `ShortcutSettings.tsx`, `SettingsDrawer.tsx` | Settings, and changing shortcuts |
+| `useSteadyStatus.ts` | A status that doesn't flicker between states |
 | `uiConfig.ts`, `preferences.tsx` | Operator defaults merged with this browser's preferences |
 | `motion.ts`, `motion.css` | The spring model and shared interaction physics; see the [interface system](../design/interface-system.md) |
 | `webfabric/` | Registered applications: state, slots, sandboxed frames, overlays and settings; see [WebFabric](webfabric.md) |

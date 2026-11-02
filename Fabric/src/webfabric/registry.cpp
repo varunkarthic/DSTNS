@@ -441,13 +441,35 @@ json AppRegistry::register_app(const json& raw, const std::string& presented) {
         }
         returning = true;
     } else if (apps_.size() >= kMaxApps) {
-        throw Refusal(429, "APP_LIMIT_REACHED", "this server holds its maximum of " + std::to_string(kMaxApps) + " applications");
+        // What has gone, and that no person has given anything to, can make way. Otherwise a program that registers
+        // under new names could use up every place for good.
+        auto oldest = apps_.end();
+        for (auto candidate = apps_.begin(); candidate != apps_.end(); ++candidate) {
+            const auto& app = candidate->second;
+            const bool granted = std::any_of(app.granted.begin(), app.granted.end(), [](const std::string& c) { return kExplicit.count(c) > 0; });
+            if (app.state == "unloaded" && !granted && (oldest == apps_.end() || app.last_seen < oldest->second.last_seen)) oldest = candidate;
+        }
+        if (oldest == apps_.end()) throw Refusal(429, "APP_LIMIT_REACHED", "this server holds its maximum of " + std::to_string(kMaxApps) + " applications");
+        ++revision_;
+        forgotten_.emplace_back(revision_, oldest->first);
+        if (forgotten_.size() > 256) forgotten_.pop_front();
+        apps_.erase(oldest);
     }
 
     // Built aside and installed only once valid, so a refused update leaves the
     // application exactly as it was.
     App app = returning ? existing->second : App{};
     app.id = id;
+    // Someone taking up an ID without its token is not the application that had it. They get what a person chose
+    // for it, but not what it kept or was sent.
+    if (returning && (presented.empty() || !same_secret(sha256(presented), app.token_hash))) {
+        app.storage = json::object();
+        app.event_queue.clear();
+        app.timers.clear();
+        app.topics.clear();
+        app.stops.clear();
+        app.nonces.clear();
+    }
     // Only a hash is kept, so the token itself exists only here and with the application.
     auto token = presented;
     if (app.token_hash.empty() || !same_secret(sha256(presented), app.token_hash)) {
@@ -909,7 +931,8 @@ json AppRegistry::set_grants(const std::string& id, const json& capabilities) {
 void AppRegistry::audit(const std::string& id, const std::string& action, const json& params,
                         const std::string& run_id, double virtual_s, const std::string& outcome) {
     std::lock_guard lock(mutex_);
-    json entry = {{"sequence", ++audit_sequence_}, {"app_id", id}, {"action", action}, {"params", params}, {"run_id", run_id},
+    // The record says what was asked, not everything sent: a few bytes for each of 2000 entries is fine, and megabytes are not.
+    json entry = {{"sequence", ++audit_sequence_}, {"app_id", id}, {"action", action}, {"params", params.dump().size() > 2048 ? json{{"truncated", true}} : params}, {"run_id", run_id},
                   {"virtual_s", virtual_s}, {"outcome", outcome}, {"at_ms", wall_ms()}, {"previous", audit_head_}};
     audit_head_ = sha256(entry.dump());
     entry["hash"] = audit_head_;
@@ -1187,10 +1210,19 @@ void AppRegistry::verify_signature(const std::string& id, const std::string& met
     if (!app.nonces.emplace(nonce, at).second) refuse("SIGNATURE_REPLAYED", "this nonce has been used");
 }
 
-std::string AppRegistry::sign_response(const std::string& id, int status, const std::string& nonce, const std::string& digest) {
+std::string AppRegistry::sign_response(const std::string& id, int status, const std::string& method, const std::string& target, const std::string& timestamp, const std::string& nonce, const std::string& signature, const std::string& body, const std::string& digest) {
     std::lock_guard lock(mutex_);
     const auto found = apps_.find(id);
-    return found == apps_.end() ? std::string{} : hmac_sha256(found->second.signing_key, std::to_string(status) + "\n" + nonce + "\n" + digest);
+    if (found == apps_.end()) return {};
+    const auto& key = found->second.signing_key;
+    if (!same_secret(signature, hmac_sha256(key, method + "\n" + target + "\n" + timestamp + "\n" + nonce + "\n" + sha256(body)))) return {};
+    return hmac_sha256(key, std::to_string(status) + "\n" + nonce + "\n" + digest);
+}
+
+bool AppRegistry::requires_signature(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    const auto found = apps_.find(id);
+    return found != apps_.end() && found->second.signatures_required;
 }
 
 json AppRegistry::rotate_credentials(const std::string& id) {
@@ -1250,7 +1282,9 @@ json AppRegistry::launch_proposals() {
 }
 
 // Moving the view and changing what it shows share one allowance: both are things a person sees happen.
-void AppRegistry::spend_direction(App& app) {
+void AppRegistry::spend_direction(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
     const auto now = Clock::now();
     app.view_bucket = std::min(kViewBurst, app.view_bucket + std::chrono::duration<double>(now - app.view_bucket_at).count() * kViewPerSecond);
     app.view_bucket_at = now;
@@ -1265,7 +1299,6 @@ json AppRegistry::request_view(const std::string& id, const json& request) {
     const auto wanted = check_view(request);
     std::lock_guard lock(mutex_);
     auto& app = find(id);
-    spend_direction(app);
     view_requests_.push_back({{"request", ++view_sequence_}, {"app", id}, {"name", app.manifest.value("name", id)}, {"view", wanted}, {"at_ms", wall_ms()}});
     while (view_requests_.size() > kMaxViewRequests) view_requests_.pop_front();
     return {{"request", view_sequence_}};
@@ -1274,7 +1307,7 @@ json AppRegistry::request_view(const std::string& id, const json& request) {
 void AppRegistry::view_outcome(const std::string& id, std::uint64_t request, const std::string& outcome, const std::string& reason) {
     if (outcome != "applied" && outcome != "declined") throw Refusal(400, "INVALID_VIEW", "outcome must be applied or declined");
     std::lock_guard lock(mutex_);
-    push_event(find(id), "view." + outcome, {{"request", request}, {"reason", reason.substr(0, 80)}});
+    push_event(find(id), "view." + outcome, {{"request", request}, {"reason", sanitize_message(reason, 80)}});
 }
 
 json AppRegistry::set_presentation(const std::string& id, const json& request) {
@@ -1293,7 +1326,6 @@ json AppRegistry::set_presentation(const std::string& id, const json& request) {
     }
     std::lock_guard lock(mutex_);
     auto& app = find(id);
-    spend_direction(app);
     app.presentation = held;
     app.presentation_at = ++presentation_revision_;
     return held;
@@ -1314,7 +1346,8 @@ void AppRegistry::set_stops(const std::string& id, const json& nodes) {
     if (!nodes.is_array() || nodes.size() > 4096) throw Refusal(400, "INVALID_STOPS", "stops must be an array of up to 4096 node IDs");
     std::vector<std::uint32_t> stops;
     for (const auto& node : nodes) {
-        if (!node.is_number_unsigned()) throw Refusal(400, "INVALID_STOPS", "a stop is a node ID");
+        // Above 32 bits it would wrap, and name some other junction.
+        if (!node.is_number_unsigned() || node.get<std::uint64_t>() > 0xFFFFFFFFu) throw Refusal(400, "INVALID_STOPS", "a stop is a node ID");
         stops.push_back(node.get<std::uint32_t>());
     }
     std::lock_guard lock(mutex_);

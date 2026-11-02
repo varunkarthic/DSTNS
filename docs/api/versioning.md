@@ -37,6 +37,9 @@ far:
 | Change | Reason | Client action |
 |---|---|---|
 | `GET /terminate` and `GET /api/v1/system/terminate` removed; shutdown is `POST` only | A GET can be triggered by any web page through an image tag | Use `POST` |
+| `directory` on `POST /export/sumo` and `/system/sumo-simulate` must be under `data/` without the operator credential | A client controlling a simulation could otherwise have files written anywhere the server's user can | Use a path under `data/`, or send `X-DSTNS-Operator` |
+| Request bodies are limited to 16 MiB and 64 levels of JSON | A deeply nested request crashed the server, and a large one had no limit | Send less |
+| An application's storage and queued events don't pass to whoever takes up its ID without its token | They could be read by anyone once it had gone | Keep your token |
 | State-changing requests from other browser origins refused with 403 `CROSS_ORIGIN_FORBIDDEN` | Cross-site request forgery | Add trusted origins to `DSTNS_ALLOWED_ORIGINS` |
 | Unknown `Host` names on a loopback server refused with 421 `HOST_NOT_ALLOWED` | DNS rebinding | Add names to `DSTNS_ALLOWED_HOSTS` |
 | Out-of-range IDs, times and counts refused with 400 instead of wrapping | They silently acted on the wrong object | Send values within the documented ranges |

@@ -6,6 +6,9 @@ drift from what is running.
 
 | Page | Covers |
 |---|---|
+| [Every endpoint](endpoints.md) | **Start here for detail.** Each route: who may call it, every field with its limits, a real response, and its errors |
+| [Fabric security](security.md) | Who can do what, what protects it, and what doesn't |
+| [Fabric](fabric-api.md) | Applications: declaring UI, events, settings, directing the view |
 | [API reference](reference.md) | Every route at a glance, the response envelope, places, stops, stepping, seeds, world selection and regeneration |
 | [Playback](playback-api.md) | Start, prepare, status, play, pause, seek, step, stop, reset |
 | [Control](control-api.md) | Speed, day, modules, edge overrides, signals, weather, surges, undo and redo |

@@ -47,7 +47,7 @@ void ApiServer::routes_static() {
                 // served; everything of the observer's own comes from here.
                 r.set_header("Content-Security-Policy",
                              "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
-                             "font-src 'self' data:; connect-src 'self'; frame-src http: https:; object-src 'none'; base-uri 'none'");
+                             "font-src 'self' data:; connect-src 'self'; frame-src http: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
                 r.set_content(content, "text/html; charset=utf-8");
                 return;
             }

@@ -55,16 +55,6 @@ def main():
             # Without its token, nothing.
             assert call("POST", f"{app}/view", {"action": "fit"})[0] == 401
 
-            # Moving the map: closed lists and ranges, and only what is known goes on.
-            for wrong in ({}, {"action": "explode"}, {"action": 1}, {"action": "focus", "x_m": 1}, {"action": "focus", "x_m": "1", "y_m": 2},
-                          {"action": "focus", "x_m": 1e12, "y_m": 0}, {"action": "focus", "x_m": 0, "y_m": 0, "span_m": 1}, {"action": "zoom", "factor": 5},
-                          {"action": "zoom", "factor": 0.1}, {"action": "zoom"}, {"action": "node", "node": -1}, {"action": "edge", "edge": "1"},
-                          {"action": "bounds", "min_x_m": 5, "min_y_m": 0, "max_x_m": 5, "max_y_m": 9}, []):
-                refused = call("POST", f"{app}/view", wrong, token=token)
-                assert refused[0] == 400 and code(refused) == "INVALID_VIEW", (wrong, refused)
-            refused = call("POST", f"{app}/view", {"action": "node", "node": 99999999}, token=token)
-            assert refused[0] == 422 and code(refused) == "NOT_ON_NETWORK", refused
-
             def settled(method, route, sent):
                 for _ in range(40):
                     result = call(method, route, sent, token=token)
@@ -72,6 +62,16 @@ def main():
                         return result
                     time.sleep(0.25)
                 raise AssertionError("never allowed")
+
+            # Moving the map: closed lists and ranges, and only what is known goes on.
+            for wrong in ({}, {"action": "explode"}, {"action": 1}, {"action": "focus", "x_m": 1}, {"action": "focus", "x_m": "1", "y_m": 2},
+                          {"action": "focus", "x_m": 1e12, "y_m": 0}, {"action": "focus", "x_m": 0, "y_m": 0, "span_m": 1}, {"action": "zoom", "factor": 5},
+                          {"action": "zoom", "factor": 0.1}, {"action": "zoom"}, {"action": "node", "node": -1}, {"action": "edge", "edge": "1"},
+                          {"action": "bounds", "min_x_m": 5, "min_y_m": 0, "max_x_m": 5, "max_y_m": 9}, []):
+                refused = settled("POST", f"{app}/view", wrong)
+                assert refused[0] == 400 and code(refused) == "INVALID_VIEW", (wrong, refused)
+            refused = settled("POST", f"{app}/view", {"action": "node", "node": 99999999})
+            assert refused[0] == 422 and code(refused) == "NOT_ON_NETWORK", refused
 
             before = call("GET", "/api/v1/fabric/state")[1]["data"]["view_sequence"]
             asked = settled("POST", f"{app}/view", {"action": "focus", "x_m": 10, "y_m": 20, "span_m": 400, "duration_ms": 1, "script": "x"})

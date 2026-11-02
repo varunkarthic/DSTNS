@@ -5,10 +5,14 @@ info:
   description: 'Deterministic Spatiotemporal Transport Network Simulator runtime API.
 
 
-    Every read view returns the standard envelope (run_id, seed, state_revision, config_revision, clock, data). State-changing
-    requests that carry a browser Origin header must come from the host they are sent to (or an origin in DSTNS_ALLOWED_ORIGINS),
-    otherwise 403 CROSS_ORIGIN_FORBIDDEN. Starting a run requires the operator credential in X-DSTNS-Operator. Documentation:
-    https://dstns.readthedocs.io/'
+    Every read view returns the standard envelope (run_id, seed, state_revision, config_revision, clock,
+    data). State-changing requests that carry a browser Origin header must come from the host they are
+    sent to (or an origin in DSTNS_ALLOWED_ORIGINS), otherwise 403 CROSS_ORIGIN_FORBIDDEN. Starting a
+    run requires the operator credential in X-DSTNS-Operator. Documentation: https://dstns.readthedocs.io/
+
+
+    A request body may be up to 16 MiB, and JSON may nest up to 64 levels. For each route in prose, with
+    real responses, see Every endpoint in the documentation.'
 servers:
 - url: http://127.0.0.1:8090
   description: Local C++ API server
@@ -33,6 +37,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Health'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/status:
     get:
       tags:
@@ -40,6 +47,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/terminate:
     post:
       tags:
@@ -50,6 +60,9 @@ paths:
           $ref: '#/components/responses/Ok'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/playback/status:
     get:
       tags:
@@ -57,9 +70,12 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/status`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/status` instead.
+      security: []
   /api/v1/playback/start:
     post:
       tags:
@@ -68,8 +84,8 @@ paths:
       description: 'CLI operator startup; browser creation is forbidden.
 
 
-        Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/start`
-        instead.'
+        Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header.
+        Use `/api/v1/fabric/engine/start` instead.'
       security:
       - OperatorKey: []
       requestBody:
@@ -92,13 +108,16 @@ paths:
         '409':
           $ref: '#/components/responses/Error'
         '503':
-          description: MAP_FETCH_FAILED. The seed resolved to a real city district whose OpenStreetMap tile is not cached
-            and could not be downloaded (offline, Overpass rate limiting, or an area too sparse to simulate). No scenario
-            is compiled and no substitute map is used. The message names the city, the coordinates and the cause.
+          description: MAP_FETCH_FAILED. The seed resolved to a real city district whose OpenStreetMap
+            tile is not cached and could not be downloaded (offline, Overpass rate limiting, or an area
+            too sparse to simulate). No scenario is compiled and no substitute map is used. The message
+            names the city, the coordinates and the cause.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
   /api/v1/playback/step:
     post:
@@ -106,13 +125,13 @@ paths:
       - Playback
       operationId: stepPlayback
       summary: Advance a fixed amount of virtual time and hold
-      description: 'Advances the model by exactly `seconds` of virtual time using the normal one-second physics, then leaves
-        the run paused. A step that reaches 24:00:00 completes the run. Stepping and seeking to the same time produce identical
-        state.
+      description: 'Advances the model by exactly `seconds` of virtual time using the normal one-second
+        physics, then leaves the run paused. A step that reaches 24:00:00 completes the run. Stepping
+        and seeking to the same time produce identical state.
 
 
-        Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/step`
-        instead.'
+        Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header.
+        Use `/api/v1/fabric/engine/step` instead.'
       requestBody:
         content:
           application/json:
@@ -164,17 +183,20 @@ paths:
                 $ref: '#/components/schemas/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
+      security: []
   /api/v1/world/regenerate:
     post:
       tags:
       - World
       operationId: regenerateWorld
       summary: Replace the world with one from a fresh seed
-      description: Accepted immediately; progress is reported by /api/v1/world/status. The seed comes from the secure generator
-        and every other parameter is copied from the current run, so the caller chooses nothing about the new world. The current
-        world keeps running until the new one is installed and is unchanged if generation fails. The new world starts paused
-        at 00:00:00. Disabled with DSTNS_DISABLE_WORLD_REGENERATION=1.
+      description: Accepted immediately; progress is reported by /api/v1/world/status. The seed comes
+        from the secure generator and every other parameter is copied from the current run, so the caller
+        chooses nothing about the new world. The current world keeps running until the new one is installed
+        and is unchanged if generation fails. The new world starts paused at 00:00:00. Disabled with DSTNS_DISABLE_WORLD_REGENERATION=1.
       requestBody:
         content:
           application/json:
@@ -208,6 +230,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/world/status:
     get:
       tags:
@@ -226,14 +251,17 @@ paths:
                     type: string
                   data:
                     $ref: '#/components/schemas/WorldStatus'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/backpressure:
     get:
       tags:
       - System
       operationId: backpressureStatus
       summary: Current Adaptive Simulation Backpressure state
-      description: Read the backpressure state without reporting anything. Includes the measured snapshot and byte delivery
-        rate. See docs/asb.md.
+      description: Read the backpressure state without reporting anything. Includes the measured snapshot
+        and byte delivery rate. See docs/asb.md.
       responses:
         '200':
           description: Backpressure state
@@ -241,14 +269,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Backpressure'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
     post:
       tags:
       - System
       operationId: reportBackpressure
       summary: Report observer health and receive the resulting governance
-      description: 'The observer reports how far behind it is; the response is the authoritative backpressure state, so one
-        round trip both informs and instructs. Reporting is presentation-side only: it changes the rate at which virtual time
-        advances, never what the simulation computes.'
+      description: 'The observer reports how far behind it is; the response is the authoritative backpressure
+        state, so one round trip both informs and instructs. Reporting is presentation-side only: it changes
+        the rate at which virtual time advances, never what the simulation computes.'
       requestBody:
         required: true
         content:
@@ -279,14 +310,17 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/observer:
     post:
       tags:
       - System
       summary: An open observer reports whether a finishing world should wait for it
-      description: A run that finishes preparing while this is true stays at its first second, with observer_hold true in
-        the playback status, until it is false or 4 seconds pass without a report. A client that never calls this is never
-        waited for.
+      description: A run that finishes preparing while this is true stays at its first second, with observer_hold
+        true in the playback status, until it is false or 4 seconds pass without a report. A client that
+        never calls this is never waited for.
       requestBody:
         content:
           application/json:
@@ -314,6 +348,9 @@ paths:
                         type: boolean
                       lifecycle:
                         type: string
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
     get:
       tags:
       - System
@@ -335,14 +372,17 @@ paths:
                         type: boolean
                       loads:
                         type: integer
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/map-status:
     get:
       tags:
       - System
       operationId: mapStatus
       summary: Progress of a map download in flight
-      description: Observational only. Reports the city, phase and byte progress of a district download so the CLI and the
-        splash screen can show it.
+      description: Observational only. Reports the city, phase and byte progress of a district download
+        so the CLI and the splash screen can show it.
       responses:
         '200':
           description: Download progress, or an inactive report
@@ -374,14 +414,17 @@ paths:
                         description: 0 when Overpass sent no Content-Length.
                       elapsed_s:
                         type: number
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/narrator:
     get:
       tags:
       - System
       operationId: narratorStatus
       summary: Narration model, queue and cache
-      description: Presentation only. Reports the language-model backend (Apple Foundation Models via fm serve, or a Chat
-        Completions endpoint), its queue, guardrail refusals and the narration cache.
+      description: Presentation only. Reports the language-model backend (Apple Foundation Models via
+        fm serve, or a Chat Completions endpoint), its queue, guardrail refusals and the narration cache.
       responses:
         '200':
           description: Narrator status, or {"enabled":false,"state":"off"} without a narrator
@@ -389,14 +432,17 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/ui-config:
     get:
       tags:
       - System
       operationId: uiConfig
       summary: Observer presentation defaults
-      description: Serves config/ui-config.json. Presentation only; see docs/ui-configuration.md. A malformed file yields
-        UI_CONFIG_INVALID and the observer falls back to its built-in defaults.
+      description: Serves config/ui-config.json. Presentation only; see docs/ui-configuration.md. A malformed
+        file yields UI_CONFIG_INVALID and the observer falls back to its built-in defaults.
       responses:
         '200':
           description: Configuration, or an empty object when none is installed
@@ -406,14 +452,17 @@ paths:
                 type: object
         '500':
           $ref: '#/components/responses/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/source:
     get:
       tags:
       - System
       operationId: sourceOffer
       summary: Licence and corresponding-source offer
-      description: GNU AGPL section 13. Because this program is offered over a network, every user interacting with it must
-        be told where to obtain the corresponding source of the version they are running.
+      description: GNU AGPL section 13. Because this program is offered over a network, every user interacting
+        with it must be told where to obtain the corresponding source of the version they are running.
       responses:
         '200':
           description: Programme, version, licence and source offer
@@ -421,6 +470,9 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/playback/pause:
     post:
       tags:
@@ -433,9 +485,23 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/pause`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/pause` instead.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: &id001
+              type: object
+              properties:
+                expected_playback_revision:
+                  type: integer
+                  minimum: 0
+                  description: 'Only act if nobody else has changed playback since. If they have: 409.'
+      security: []
   /api/v1/playback/play:
     post:
       tags:
@@ -448,9 +514,17 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/play`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/play` instead.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: *id001
+      security: []
   /api/v1/playback/stop:
     post:
       tags:
@@ -461,9 +535,12 @@ paths:
           $ref: '#/components/responses/Ok'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/stop`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/stop` instead.
+      security: []
   /api/v1/playback/reset:
     post:
       tags:
@@ -474,9 +551,12 @@ paths:
           $ref: '#/components/responses/Ok'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/reset`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/reset` instead.
+      security: []
   /api/v1/playback/seek:
     post:
       tags:
@@ -504,9 +584,12 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/seek`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/seek` instead.
+      security: []
   /api/v1/control/tick-rate:
     put:
       tags:
@@ -532,9 +615,12 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/tick-rate`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/tick-rate` instead.
+      security: []
   /api/v1/control/day:
     post:
       tags:
@@ -561,9 +647,12 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/day`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/day` instead.
+      security: []
   /api/v1/control/modules/{module}:
     put:
       tags:
@@ -589,9 +678,12 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/modules/{module}`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/modules/{module}` instead.
+      security: []
   /api/v1/control/events/weather:
     post:
       tags:
@@ -610,9 +702,12 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/events/weather`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/events/weather` instead.
+      security: []
   /api/v1/control/events/traffic:
     post:
       tags:
@@ -631,9 +726,12 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/events/traffic`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/events/traffic` instead.
+      security: []
   /api/v1/control/edges/{id}/override:
     post:
       tags:
@@ -656,9 +754,12 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/edges/{id}/override`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/edges/{id}/override` instead.
+      security: []
   /api/v1/control/undo:
     post:
       tags:
@@ -673,9 +774,12 @@ paths:
           $ref: '#/components/responses/Ok'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/undo`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/undo` instead.
+      security: []
   /api/v1/control/redo:
     post:
       tags:
@@ -690,9 +794,12 @@ paths:
           $ref: '#/components/responses/Ok'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/redo`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/redo` instead.
+      security: []
   /api/v1/control/history:
     get:
       tags:
@@ -701,9 +808,12 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/history`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/history` instead.
+      security: []
   /api/v1/view/run:
     get:
       tags:
@@ -711,6 +821,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/manifest:
     get:
       tags:
@@ -719,6 +832,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/topology:
     get:
       tags:
@@ -731,6 +847,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/snapshot:
     get:
       tags:
@@ -743,6 +862,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/nodes:
     get:
       tags:
@@ -753,6 +875,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/edges:
     get:
       tags:
@@ -763,13 +888,17 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/places:
     get:
       tags:
       - View
       summary: Classified places with live demand
-      description: Every mapped place the demand model reasons about, each with its kind, its scheduled baseline, the couplings
-        currently acting on it, and where it sits. Filter with kind; page with offset and limit.
+      description: Every mapped place the demand model reasons about, each with its kind, its scheduled
+        baseline, the couplings currently acting on it, and where it sits. Filter with kind; page with
+        offset and limit.
       parameters:
       - $ref: '#/components/parameters/Offset'
       - $ref: '#/components/parameters/Limit'
@@ -783,38 +912,51 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/place-kinds:
     get:
       tags:
       - View
       summary: The place taxonomy and this world's counts
-      description: Every kind the classifier can produce, whether the demand model speaks for it, and how many of each this
-        world holds.
+      description: Every kind the classifier can produce, whether the demand model speaks for it, and
+        how many of each this world holds.
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/stops:
     get:
       tags:
       - View
       summary: Bus stops, thinned to realistic route spacing
-      description: Equivalent to places with kind=bus_stop. Stops sharing a street are held at least 300 m apart; stops on
-        different streets need only clear 60 m.
+      description: Equivalent to places with kind=bus_stop. Stops sharing a street are held at least 300
+        m apart; stops on different streets need only clear 60 m.
       parameters:
       - $ref: '#/components/parameters/Offset'
       - $ref: '#/components/parameters/Limit'
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/endpoints:
     get:
       tags:
       - System
       summary: Machine-readable index of the API
-      description: Every group and route the server exposes, with one line on what each is for. Also served at /api/v1.
+      description: Every group and route the server exposes, with one line on what each is for. Also served
+        at /api/v1.
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/bus-stops:
     get:
       tags:
@@ -822,6 +964,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/buildings:
     get:
       tags:
@@ -829,6 +974,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/signals:
     get:
       tags:
@@ -836,6 +984,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/weather:
     get:
       tags:
@@ -843,6 +994,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/traffic:
     get:
       tags:
@@ -850,6 +1004,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/events:
     get:
       tags:
@@ -857,6 +1014,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/metrics:
     get:
       tags:
@@ -864,6 +1024,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/stream:
     get:
       tags:
@@ -876,14 +1039,17 @@ paths:
             text/event-stream:
               schema:
                 type: string
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/news:
     get:
       tags:
       - News
       operationId: listNews
-      description: The core's feed. With narration=realistic (the observer's Realistic News) and a narrator attached, items
-        carry an optional `narrative` and the page also has `narrated` (late items for news already delivered) and `narration_sequence`
-        (pass back as since_narration).
+      description: The core's feed. With narration=realistic (the observer's Realistic News) and a narrator
+        attached, items carry an optional `narrative` and the page also has `narrated` (late items for
+        news already delivered) and `narration_sequence` (pass back as since_narration).
       parameters:
       - $ref: '#/components/parameters/SinceNews'
       - $ref: '#/components/parameters/Limit'
@@ -896,7 +1062,8 @@ paths:
           - realistic
       - name: since_narration
         in: query
-        description: The narration_sequence of the previous page; 0 lists every finished narration in the window.
+        description: The narration_sequence of the previous page; 0 lists every finished narration in
+          the window.
         schema:
           type: integer
           minimum: 0
@@ -904,6 +1071,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/news/stream:
     get:
       tags:
@@ -916,6 +1086,9 @@ paths:
             text/event-stream:
               schema:
                 type: string
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/congestion:
     get:
       tags:
@@ -924,6 +1097,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/event-queue:
     get:
       tags:
@@ -970,6 +1146,9 @@ paths:
           $ref: '#/components/responses/Envelope'
         '400':
           $ref: '#/components/responses/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/global:
     get:
       tags:
@@ -977,6 +1156,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/config:
     get:
       tags:
@@ -984,6 +1166,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/incidents:
     get:
       tags:
@@ -991,6 +1176,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1:
     get:
       tags:
@@ -998,8 +1186,11 @@ paths:
       operationId: apiIndex
       summary: Route index generated by the server
       responses:
-        '200': &id001
+        '200': &id002
           $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/health:
     get:
       tags:
@@ -1007,7 +1198,10 @@ paths:
       operationId: systemHealth
       summary: Liveness and lifecycle (same as /health)
       responses:
-        '200': *id001
+        '200': *id002
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/info:
     get:
       tags:
@@ -1015,7 +1209,10 @@ paths:
       operationId: systemInfo
       summary: Version, build and SUMO availability
       responses:
-        '200': *id001
+        '200': *id002
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/playback/prepare:
     post:
       tags:
@@ -1031,16 +1228,18 @@ paths:
             schema:
               $ref: '#/components/schemas/StartRequest'
       responses:
-        '200': *id001
-        '400': &id002
+        '200': *id002
+        '400': &id003
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '409': *id002
-        '503': *id002
+        '409': *id003
+        '503': *id003
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/prepare`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/prepare` instead.
   /api/v1/control/signals/{id}:
     post:
       tags:
@@ -1048,17 +1247,20 @@ paths:
       operationId: toggleSignal
       summary: Toggle a junction between forced north-south and east-west green
       parameters:
-      - &id004
+      - &id005
         $ref: '#/components/parameters/Id'
       responses:
-        '200': *id001
-        '400': *id002
+        '200': *id002
+        '400': *id003
         '403':
           $ref: '#/components/responses/Forbidden'
-        '409': *id002
+        '409': *id003
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/signals/{id}`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/signals/{id}` instead.
+      security: []
   /api/v1/control/events/surge:
     post:
       tags:
@@ -1072,14 +1274,17 @@ paths:
             schema:
               $ref: '#/components/schemas/SurgeRequest'
       responses:
-        '202': *id001
-        '400': *id002
+        '202': *id002
+        '400': *id003
         '403':
           $ref: '#/components/responses/Forbidden'
-        '409': *id002
+        '409': *id003
+        4XX:
+          $ref: '#/components/responses/Error'
       deprecated: true
-      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation` header. Use `/api/v1/fabric/engine/events/surge`
-        instead.
+      description: Legacy. This still works, and its response carries a `legacy` notice with a `Deprecation`
+        header. Use `/api/v1/fabric/engine/events/surge` instead.
+      security: []
   /api/v1/control/transit/route:
     post:
       tags:
@@ -1088,9 +1293,12 @@ paths:
       deprecated: true
       summary: 'Retired: always 410 TRANSIT_API_RETIRED'
       responses:
-        '410': *id002
+        '410': *id003
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/export/sumo:
     post:
       tags:
@@ -1107,11 +1315,14 @@ paths:
                   type: string
                   default: data/sumo_export
       responses:
-        '200': &id003
+        '200': &id004
           $ref: '#/components/responses/Envelope'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '409': *id002
+        '409': *id003
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/sumo-simulate:
     post:
       tags:
@@ -1124,34 +1335,43 @@ paths:
             schema:
               $ref: '#/components/schemas/SumoRequest'
       responses:
-        '200': *id003
-        '400': *id002
+        '200': *id004
+        '400': *id003
         '403':
           $ref: '#/components/responses/Forbidden'
-        '409': *id002
-        '500': *id002
+        '409': *id003
+        '500': *id003
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/nodes/{id}:
     get:
       tags:
       - View
       operationId: node
       parameters:
-      - *id004
+      - *id005
       responses:
-        '200': *id003
-        '400': *id002
-        '404': *id002
+        '200': *id004
+        '400': *id003
+        '404': *id003
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/edges/{id}:
     get:
       tags:
       - View
       operationId: edge
       parameters:
-      - *id004
+      - *id005
       responses:
-        '200': *id003
-        '400': *id002
-        '404': *id002
+        '200': *id004
+        '400': *id003
+        '404': *id003
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/logs/system:
     get:
       tags:
@@ -1159,8 +1379,11 @@ paths:
       operationId: logsSystem
       summary: Tail of the system log (250 lines)
       responses:
-        '200': *id001
-        '400': *id002
+        '200': *id002
+        '400': *id003
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/view/logs/events:
     get:
       tags:
@@ -1168,8 +1391,10 @@ paths:
       operationId: logsEvents
       summary: Operator command journal
       responses:
-        '200': *id001
-        '400': *id002
+        '200': *id002
+        '400': *id003
+        4XX:
+          $ref: '#/components/responses/Error'
       parameters:
       - name: limit
         in: query
@@ -1178,6 +1403,7 @@ paths:
           minimum: 0
           maximum: 1000
           default: 100
+      security: []
   /api/v1/view/logs/api:
     get:
       tags:
@@ -1185,8 +1411,10 @@ paths:
       operationId: logsApi
       summary: API access journal
       responses:
-        '200': *id001
-        '400': *id002
+        '200': *id002
+        '400': *id003
+        4XX:
+          $ref: '#/components/responses/Error'
       parameters:
       - name: limit
         in: query
@@ -1195,6 +1423,7 @@ paths:
           minimum: 0
           maximum: 1000
           default: 100
+      security: []
   /api/v1/fabric/apps:
     get:
       tags:
@@ -1208,6 +1437,9 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
     post:
       tags:
       - Fabric
@@ -1226,6 +1458,9 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/fabric/apps/{id}:
     get:
       tags:
@@ -1245,6 +1480,9 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
     delete:
       tags:
       - Fabric
@@ -1263,13 +1501,20 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/apps/{id}/view:
     post:
       tags:
       - Fabric
       operationId: fabricRequestView
       summary: Ask the map to move
-      description: Needs the token and ui.camera, granted by a person. The observer decides, and answers with a view.applied or view.declined event. 2 a second, burst of 4, shared with presentation changes.
+      description: Needs the token and ui.camera, granted by a person. The observer decides, and answers
+        with a view.applied or view.declined event. 2 a second, burst of 4, shared with presentation changes.
       parameters:
       - name: id
         in: path
@@ -1324,6 +1569,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/view/outcome:
     post:
       tags:
@@ -1363,13 +1612,19 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/apps/{id}/presentation:
     put:
       tags:
       - Fabric
       operationId: fabricHoldPresentation
       summary: Hold layers and places on or off
-      description: Needs the token and ui.layers, granted by a person. Laid over a person's choices and never saved. Replaces what was held.
+      description: Needs the token and ui.layers, granted by a person. Laid over a person's choices and
+        never saved. Replaces what was held.
       parameters:
       - name: id
         in: path
@@ -1398,6 +1653,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
     delete:
       tags:
       - Fabric
@@ -1417,6 +1676,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/heartbeat:
     post:
       tags:
@@ -1436,6 +1699,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/state:
     put:
       tags:
@@ -1461,6 +1728,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/ui:
     put:
       tags:
@@ -1480,6 +1751,39 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              maxItems: 64
+              description: Every element the application declares. Each has an id and a slot. See docs/api/fabric-api.md.
+              items:
+                type: object
+                required:
+                - id
+                - slot
+                properties:
+                  id:
+                    type: string
+                    pattern: ^[a-z0-9][a-z0-9_-]{0,39}$
+                  slot:
+                    type: string
+                    enum:
+                    - header
+                    - status
+                    - panel
+                    - sidebar
+                    - deck
+                    - overlay
+                    - map_control
+                    - indicator
+                    - dialog
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/ui/{element}:
     put:
       tags:
@@ -1510,6 +1814,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
     delete:
       tags:
       - Fabric
@@ -1533,6 +1841,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/notifications:
     post:
       tags:
@@ -1558,6 +1870,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/events:
     get:
       tags:
@@ -1582,6 +1898,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/actions:
     post:
       tags:
@@ -1607,6 +1927,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/apps/{id}/settings:
     get:
       tags:
@@ -1626,6 +1951,12 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
+      - OperatorKey: []
+      - ObserverHost: []
     put:
       tags:
       - Fabric
@@ -1650,6 +1981,12 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
+      - OperatorKey: []
+      - ObserverHost: []
     delete:
       tags:
       - Fabric
@@ -1668,6 +2005,12 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/apps/{id}/grants:
     put:
       tags:
@@ -1693,6 +2036,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/apps/{id}/suspend:
     post:
       tags:
@@ -1712,6 +2060,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/apps/{id}/resume:
     post:
       tags:
@@ -1731,6 +2084,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/apps/{id}/failure:
     post:
       tags:
@@ -1756,6 +2114,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/apps/{id}/control:
     post:
       tags:
@@ -1781,6 +2144,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/stops:
     get:
       tags:
@@ -1800,6 +2167,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
     put:
       tags:
       - Fabric
@@ -1824,6 +2195,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/capabilities:
     get:
       tags:
@@ -1837,6 +2212,9 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/fabric/apps/{id}/ui/batch:
     post:
       tags:
@@ -1862,6 +2240,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/subscriptions:
     put:
       tags:
@@ -1887,6 +2269,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/timers:
     get:
       tags:
@@ -1906,6 +2292,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/timers/{timer}:
     put:
       tags:
@@ -1936,6 +2326,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
     delete:
       tags:
       - Fabric
@@ -1959,6 +2353,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/storage:
     get:
       tags:
@@ -1978,6 +2376,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/storage/{key}:
     get:
       tags:
@@ -2002,6 +2404,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
     put:
       tags:
       - Fabric
@@ -2031,6 +2437,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
     delete:
       tags:
       - Fabric
@@ -2054,6 +2464,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/messages:
     post:
       tags:
@@ -2079,6 +2493,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/health:
     get:
       tags:
@@ -2098,6 +2516,12 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/audit:
     get:
       tags:
@@ -2117,6 +2541,9 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/fabric/state:
     get:
       tags:
@@ -2141,6 +2568,9 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/fabric/engine/status:
     get:
       tags:
@@ -2148,7 +2578,10 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
       operationId: engineGetStatus
+      security: []
   /api/v1/fabric/engine/start:
     post:
       tags:
@@ -2178,13 +2611,16 @@ paths:
         '409':
           $ref: '#/components/responses/Error'
         '503':
-          description: MAP_FETCH_FAILED. The seed resolved to a real city district whose OpenStreetMap tile is not cached
-            and could not be downloaded (offline, Overpass rate limiting, or an area too sparse to simulate). No scenario
-            is compiled and no substitute map is used. The message names the city, the coordinates and the cause.
+          description: MAP_FETCH_FAILED. The seed resolved to a real city district whose OpenStreetMap
+            tile is not cached and could not be downloaded (offline, Overpass rate limiting, or an area
+            too sparse to simulate). No scenario is compiled and no substitute map is used. The message
+            names the city, the coordinates and the cause.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
   /api/v1/fabric/engine/step:
     post:
       tags:
@@ -2244,6 +2680,11 @@ paths:
                 $ref: '#/components/schemas/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/pause:
     post:
       tags:
@@ -2256,8 +2697,18 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: *id001
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/play:
     post:
       tags:
@@ -2270,8 +2721,18 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: *id001
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/stop:
     post:
       tags:
@@ -2282,8 +2743,13 @@ paths:
           $ref: '#/components/responses/Ok'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/reset:
     post:
       tags:
@@ -2294,8 +2760,13 @@ paths:
           $ref: '#/components/responses/Ok'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/seek:
     post:
       tags:
@@ -2323,8 +2794,13 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/tick-rate:
     put:
       tags:
@@ -2350,8 +2826,13 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/day:
     post:
       tags:
@@ -2378,8 +2859,13 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/modules/{module}:
     put:
       tags:
@@ -2405,8 +2891,13 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/events/weather:
     post:
       tags:
@@ -2425,8 +2916,13 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/events/traffic:
     post:
       tags:
@@ -2445,8 +2941,13 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/edges/{id}/override:
     post:
       tags:
@@ -2469,8 +2970,13 @@ paths:
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/undo:
     post:
       tags:
@@ -2485,9 +2991,14 @@ paths:
           $ref: '#/components/responses/Ok'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       operationId: enginePostUndo
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/redo:
     post:
       tags:
@@ -2502,9 +3013,14 @@ paths:
           $ref: '#/components/responses/Ok'
         '403':
           $ref: '#/components/responses/Forbidden'
+        4XX:
+          $ref: '#/components/responses/Error'
       operationId: enginePostRedo
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/history:
     get:
       tags:
@@ -2513,6 +3029,9 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Envelope'
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/fabric/engine/prepare:
     post:
       tags:
@@ -2530,12 +3049,14 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Ok'
-        '400': &id005
+        '400': &id006
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '409': *id005
-        '503': *id005
+        '409': *id006
+        '503': *id006
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
   /api/v1/fabric/engine/signals/{id}:
@@ -2549,13 +3070,18 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Ok'
-        '400': &id006
+        '400': &id007
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '409': *id006
+        '409': *id007
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/engine/events/surge:
     post:
       tags:
@@ -2571,13 +3097,18 @@ paths:
       responses:
         '202':
           $ref: '#/components/responses/Ok'
-        '400': &id007
+        '400': &id008
           $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '409': *id007
+        '409': *id008
+        4XX:
+          $ref: '#/components/responses/Error'
       description: Needs the operator credential, or the observer. An application acts through `/api/v1/fabric/apps/{id}/control`
         instead.
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/security:
     get:
       tags:
@@ -2591,6 +3122,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/audit/verify:
     get:
       tags:
@@ -2604,6 +3140,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/apps/{id}/credentials/rotate:
     post:
       tags:
@@ -2623,6 +3164,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/apps/{id}/launch:
     put:
       tags:
@@ -2648,6 +3193,10 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - AppToken: []
   /api/v1/fabric/launch:
     get:
       tags:
@@ -2661,6 +3210,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/launch/plan:
     put:
       tags:
@@ -2680,6 +3234,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
     delete:
       tags:
       - Fabric security
@@ -2692,6 +3251,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
   /api/v1/fabric/launch/{id}:
     put:
       tags:
@@ -2717,6 +3281,11 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
     delete:
       tags:
       - Fabric security
@@ -2735,12 +3304,315 @@ paths:
             application/json:
               schema:
                 type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
+  /terminate:
+    post:
+      tags:
+      - System
+      operationId: terminateShort
+      summary: Stop the simulation and exit the process
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      description: The same as /api/v1/system/terminate.
+      security: []
+  /stop:
+    post:
+      tags:
+      - Playback
+      operationId: stopShort
+      summary: End the run
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      description: Legacy. Use /api/v1/fabric/engine/stop.
+      deprecated: true
+      security: []
+  /api/v1/topology:
+    get:
+      tags:
+      - View
+      operationId: topologyShort
+      summary: The world
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      description: The same as /api/v1/view/topology.
+      security: []
+  /api/v1/view/network:
+    get:
+      tags:
+      - View
+      operationId: topologyNetwork
+      summary: The world
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      description: The same as /api/v1/view/topology.
+      security: []
+  /api/v1/view/map/full:
+    get:
+      tags:
+      - View
+      operationId: topologyMapFull
+      summary: The world
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      description: The same as /api/v1/view/topology.
+      security: []
+  /api/v1/view/world:
+    get:
+      tags:
+      - View
+      operationId: globalWorld
+      summary: Topology and snapshot
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      description: The same as /api/v1/view/global.
+      security: []
+  /api/v1/view/all:
+    get:
+      tags:
+      - View
+      operationId: globalAll
+      summary: Topology and snapshot
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      description: The same as /api/v1/view/global.
+      security: []
+  /api/v1/view/global.json:
+    get:
+      tags:
+      - View
+      operationId: globalGlobalJson
+      summary: Topology and snapshot
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      description: The same as /api/v1/view/global.
+      security: []
+  /api/v1/places:
+    get:
+      tags:
+      - View
+      operationId: placesShort
+      summary: Classified places
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      description: The same as /api/v1/view/places.
+      security: []
+  /api/v1/control/signals/{id}/toggle:
+    post:
+      tags:
+      - Control
+      operationId: legacyToggleSignal
+      summary: Toggle a signal
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      deprecated: true
+      parameters: &id009
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      security: []
+  /api/v1/control/edges/{id}:
+    put:
+      tags:
+      - Control
+      operationId: legacyPutEdge
+      summary: Override a road
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      deprecated: true
+      parameters: *id009
+      security: []
+  /api/v1/control/modules/{module}/enable:
+    post:
+      tags:
+      - Control
+      operationId: legacyEnableModule
+      summary: Turn a subsystem on
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      deprecated: true
+      parameters:
+      - name: module
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - traffic
+          - signals
+          - buildings
+          - dws
+          - flooding
+          - news
+      security: []
+  /api/v1/control/modules/{module}/disable:
+    post:
+      tags:
+      - Control
+      operationId: legacyDisableModule
+      summary: Turn a subsystem off
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      deprecated: true
+      parameters:
+      - name: module
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - traffic
+          - signals
+          - buildings
+          - dws
+          - flooding
+          - news
+      security: []
+  /api/v1/fabric/engine/signals/{id}/toggle:
+    post:
+      tags:
+      - Fabric engine
+      operationId: engineToggleSignal
+      summary: Toggle a signal
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      parameters: *id009
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
+  /api/v1/fabric/engine/edges/{id}:
+    put:
+      tags:
+      - Fabric engine
+      operationId: enginePutEdge
+      summary: Override a road
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      parameters: *id009
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
+  /api/v1/fabric/engine/modules/{module}/enable:
+    post:
+      tags:
+      - Fabric engine
+      operationId: engineEnableModule
+      summary: Turn a subsystem on
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: module
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - traffic
+          - signals
+          - buildings
+          - dws
+          - flooding
+          - news
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
+  /api/v1/fabric/engine/modules/{module}/disable:
+    post:
+      tags:
+      - Fabric engine
+      operationId: engineDisableModule
+      summary: Turn a subsystem off
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: module
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - traffic
+          - signals
+          - buildings
+          - dws
+          - flooding
+          - news
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
 components:
   securitySchemes:
     OperatorKey:
       type: apiKey
       in: header
       name: X-DSTNS-Operator
+    AppToken:
+      type: http
+      scheme: bearer
+      description: 'An application''s token, from registering. Sign requests too if the application requires
+        it: see docs/api/security.md.'
+    ObserverHost:
+      type: apiKey
+      in: header
+      name: X-DSTNS-Host
+      description: Sent by the observer. A browser page from another origin can't use it, but a local
+        program can.
   parameters:
     Id:
       name: id
@@ -2909,13 +3781,14 @@ components:
           type: string
         seed:
           type: string
-          description: 'The run''s seed as a decimal integer: the number that started it and the name it is known by in the
-            interface, the CLI and reports.'
+          description: 'The run''s seed as a decimal integer: the number that started it and the name
+            it is known by in the interface, the CLI and reports.'
           pattern: ^[0-9]{1,39}$
           example: '17310766248549826767'
         global_seed:
           type: string
-          description: The same value in the core's internal 128-bit hexadecimal form, used for hashing and sub-seed derivation.
+          description: The same value in the core's internal 128-bit hexadecimal form, used for hashing
+            and sub-seed derivation.
           example: '0x0000000000000000f02b5a3a1c2d4e8f'
         state_revision:
           type: integer
@@ -2997,9 +3870,10 @@ components:
             osm_file:
               type: string
               default: auto
-              description: Path to an OSM XML file, or "auto" (the default) to let the seed select a real city district that
-                is downloaded from OpenStreetMap on demand and cached under map.cache_dir. Regenerating the graph with a different
-                seed names a different tile and therefore requires a new download; an identical seed reuses the cache.
+              description: Path to an OSM XML file, or "auto" (the default) to let the seed select a real
+                city district that is downloaded from OpenStreetMap on demand and cached under map.cache_dir.
+                Regenerating the graph with a different seed names a different tile and therefore requires
+                a new download; an identical seed reuses the cache.
             max_nodes:
               type: integer
               minimum: 2

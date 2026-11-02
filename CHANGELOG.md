@@ -14,8 +14,23 @@ only within one version.
 
 **Engine 2.2.0, observer 3.1.0, API contract 1.4.** Results for a seed are unchanged from engine 2.1.0, and
 every existing endpoint behaves as before, 155 recorded calls being replayed to prove it, with one deliberate
-widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
+widening: `tick_rate` now accepts up to 20. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
+
+### Security fixes from an audit of the API
+
+Found by reading every route, and by sending hostile values to all of them. `tests/api/robustness_smoke.py` now does that on every run.
+
+- **Fixed: a deeply nested JSON request crashed the server.** JSON may now nest 64 levels.
+- **Fixed: no limit on the size of a request.** It's now 16 MiB.
+- **Fixed: another site could put the observer in a frame,** and trick someone into clicking its controls. It now sends `frame-ancestors 'none'`, `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy`.
+- **Fixed: anyone could get a response signed.** Sending a made-up signature with a chosen nonce got a real signature over that nonce, which could pass one response off as the answer to another request. Only a request that verifies now gets one.
+- **Fixed: a stolen token could turn signing off,** by registering again without it. Updating an application that requires signatures must now be signed.
+- **Fixed: taking up an ID someone had left handed over what they kept,** including storage and queued events. It now starts empty, and keeps only what a person chose for its settings. **Applications that want to keep their storage must keep their token.**
+- **Fixed: SUMO export wrote wherever a request said.** It's now confined to `data/`, unless the request has the operator's credential. **A deliberate change:** a client passing another directory now gets `403 DIRECTORY_NOT_ALLOWED`.
+- **Fixed: the audit log could be flooded or bloated.** Parameters over 2 KiB are recorded as truncated, and a refused request to direct the view counts against the limit.
+- **Fixed: programs that had gone could use up every place for an application,** and a stop's ID above 32 bits wrapped to another junction.
+- SUMO failing is now `503 SUMO_FAILED`, and not `500`.
 
 ### Applications can direct the view: Fabric 1.4
 

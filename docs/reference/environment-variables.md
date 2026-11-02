@@ -97,3 +97,14 @@ export DSTNS_API_PORT=9000
 !!! note "Secrets"
     `DSTNS_OPERATOR_TOKEN` is a credential. Keep it out of shell history, images
     and repositories; prefer the generated file in the logs directory.
+
+## Standard variables
+
+Not DSTNS's own, but respected by the launcher.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `XDG_CACHE_HOME` | `~/.cache` | Where the launcher's environment and a build outside a synced folder are kept |
+| `XDG_STATE_HOME` | `~/.local/state` | Where the launcher keeps state for a checkout in a synced folder |
+| `COLORTERM`, `WT_SESSION` | | How much colour the terminal can show |
+| `DISPLAY`, `WAYLAND_DISPLAY` | | Whether there's a browser to open |

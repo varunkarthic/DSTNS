@@ -2,11 +2,14 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "support.hpp"
+#include "dstns/webfabric/registry.hpp"
 #include "dstns/rng.hpp"
 
 #include "dstns/utf8.hpp"
 
+#include <algorithm>
 #include <charconv>
+#include <filesystem>
 #include <cmath>
 #include <cstdlib>
 #include <regex>
@@ -125,7 +128,41 @@ bool host_allowed(std::string host) {
 
 json body(const httplib::Request& r) {
     if (r.body.empty()) return json::object();
+    // Reading and writing JSON recurses, so a few hundred thousand opening brackets would otherwise overflow
+    // the stack and take the server with them. Nothing here legitimately nests anywhere near this deep.
+    constexpr int kMaxDepth = 64;
+    int depth = 0;
+    bool quoted = false, escaped = false;
+    for (const char c : r.body) {
+        if (quoted) {
+            if (escaped) escaped = false;
+            else if (c == '\\') escaped = true;
+            else if (c == '"') quoted = false;
+        } else if (c == '"') {
+            quoted = true;
+        } else if (c == '[' || c == '{') {
+            if (++depth > kMaxDepth) throw std::invalid_argument("the request is nested too deeply");
+        } else if (c == ']' || c == '}') {
+            --depth;
+        }
+    }
     return json::parse(r.body);
+}
+
+bool is_operator(const httplib::Request& req) {
+    const char* token = std::getenv("DSTNS_OPERATOR_TOKEN");
+    return token && *token && same_secret(req.get_header_value("X-DSTNS-Operator"), token);
+}
+
+// Where a client may have the server write. The operator may choose anywhere; anyone else gets somewhere under
+// data/, since "control the simulation" must not come to mean "write files anywhere this user can".
+std::filesystem::path output_directory(const httplib::Request& req, const json& j, const char* fallback) {
+    std::filesystem::path chosen = j.value("directory", std::string(fallback));
+    if (is_operator(req)) return chosen;
+    const auto clean = chosen.lexically_normal();
+    if (clean.is_absolute() || clean.empty() || *clean.begin() != "data" || std::find(clean.begin(), clean.end(), "..") != clean.end())
+        throw Refusal(403, "DIRECTORY_NOT_ALLOWED", "only the operator may write outside data/");
+    return clean;
 }
 
 // A numeric path segment as a 32-bit ID. std::stoul followed by a narrowing
@@ -231,8 +268,7 @@ httplib::Server::Handler legacy_route(std::string successor, httplib::Server::Ha
 }
 
 bool is_host(const httplib::Request& req) {
-    const char* token = std::getenv("DSTNS_OPERATOR_TOKEN");
-    if (token && *token && same_secret(req.get_header_value("X-DSTNS-Operator"), token)) return true;
+    if (is_operator(req)) return true;
     // A sandboxed frame has an opaque origin and a page elsewhere fails the check; a custom
     // header also forces a browser to ask first, which is refused.
     if (!req.has_header("X-DSTNS-Host")) return false;
