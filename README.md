@@ -14,7 +14,10 @@ and you watch it, change it, and build on it.
 
 <br>
 
-<img src="docs/assets/screenshots/observer.png" alt="The DSTNS observer, showing a simulated day in a district of a city" width="100%">
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshots/observer-light.png">
+  <img src="docs/assets/screenshots/observer.png" alt="The DSTNS observer, showing a simulated day in a district of a city" width="100%">
+</picture>
 
 </div>
 

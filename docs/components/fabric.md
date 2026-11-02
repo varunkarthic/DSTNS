@@ -1,4 +1,4 @@
-# Fabric
+# Fabric { .dstns-logo-title }
 
 ![Fabric](../assets/brand/fabric-black.png#only-light){ width="150" }
 ![Fabric](../assets/brand/fabric-white.png#only-dark){ width="150" }

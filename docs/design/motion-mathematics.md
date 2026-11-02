@@ -372,6 +372,14 @@ A token bucket on the server: \(b \leftarrow \min(4, b + 2\Delta t)\), a request
 Everything about a scene is calculated in the vertex shader from these, the scene's age and the time, so a frame costs one draw call and
 nothing is uploaded per frame.
 
+| | |
+|---|---|
+| ![Mapped streets](../assets/screenshots/film-streets.png) Mapped streets | ![Signal timing](../assets/screenshots/film-signals.png) Signal timing |
+| ![Travel demand](../assets/screenshots/film-demand.png) Travel demand | ![Rush hour](../assets/screenshots/film-rush-hour.png) Rush hour |
+| ![Road incidents](../assets/screenshots/film-incidents.png) Road incidents | ![Simulated weather](../assets/screenshots/film-weather.png) Simulated weather |
+| ![Cities worldwide](../assets/screenshots/film-cities.png) Cities worldwide | ![Repeatable worlds](../assets/screenshots/film-worlds.png) Repeatable worlds |
+| ![Auto Focus](../assets/screenshots/film-auto-focus.png) Auto Focus | ![WebFabric](../assets/screenshots/film-webfabric.png) WebFabric |
+
 A shader function `live(p, v, m, age)` gives each particle's place, opacity, size, tint and hue in a scene. Each is computed for both
 scenes in a transition, then blended.
 

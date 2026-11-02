@@ -52,7 +52,8 @@ The shortest path from nothing to a running simulation.
    Signals cycle, traffic builds through the morning peak, storms pass over,
    incidents close roads and clear.
 
-![The observer](../assets/screenshots/observer.png){ .screenshot }
+![The observer](../assets/screenshots/observer-light.png#only-light){ .screenshot }
+![The observer](../assets/screenshots/observer.png#only-dark){ .screenshot }
 
 ## Common first commands
 

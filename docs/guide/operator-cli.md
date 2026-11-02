@@ -402,6 +402,8 @@ started. `--narrator` lasts for one invocation; set `narration.mode` (in the
 
 ![Applications in the launcher](../assets/screenshots/launcher-apps.png){ .screenshot }
 
+![Choosing what to start, applications included](../assets/screenshots/launcher-start.png){ .screenshot }
+
 The launcher can start your own programs alongside a simulation. Each application has one or more commands. All but the last must finish successfully, and the last is the application, which stays running.
 
 ```sh

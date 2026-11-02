@@ -35,7 +35,8 @@ doing: **Selecting world**, **Downloading map** (the first time for a city),
 
 ## 2. Read the screen
 
-![The observer](../assets/screenshots/observer.png){ .screenshot }
+![The observer](../assets/screenshots/observer-light.png#only-light){ .screenshot }
+![The observer](../assets/screenshots/observer.png#only-dark){ .screenshot }
 
 | Area | What it shows |
 |---|---|

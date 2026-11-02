@@ -1,4 +1,4 @@
-# WebFabric
+# WebFabric { .dstns-logo-title }
 
 ![WebFabric](../assets/brand/webfabric-black.png#only-light){ width="190" }
 ![WebFabric](../assets/brand/webfabric-white.png#only-dark){ width="190" }
@@ -106,6 +106,8 @@ observer leaves out whatever no longer exists. Roads are directed, so a two-way 
 
 ## Directing the view
 
+![An application's route on the map, chosen and framed by the application](../assets/screenshots/webfabric-direction.png){ .screenshot }
+
 With a person's grant, an application can say where the map looks and how close (`ui.camera`), and hold layers and places on or off (`ui.layers`). Its own routes and paths can choose a `style` (solid, dashed, dotted or flow), a `glow`, and a `color`, which is `auto` or one the observer makes legible.
 
 An application asks, and the observer decides. None of it changes a person's settings, none of it is saved, and it ends when the application does. A person's move comes first, and reduced detail under load can't be undone. See the [API](../api/fabric-api.md#directing-the-view) and [security](../api/security.md#directing-the-view).
@@ -141,6 +143,8 @@ See [what this does not protect](../deployment/security.md#applications).
     in the application's own process, or in a worker inside the frame.
 
 ## Settings
+
+![An application's settings page, in the observer's own design](../assets/screenshots/webfabric-settings.png){ .screenshot }
 
 **Settings → Applications → WebFabric** lists registered applications, with search.
 One application is on screen at a time, so any number stays navigable. Each has its

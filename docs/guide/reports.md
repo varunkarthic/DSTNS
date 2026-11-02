@@ -29,6 +29,12 @@ report embeds its own font, so it renders identically without network access.
 
 ![The cover of a report](../assets/screenshots/report-cover.png){ width="320" }
 
+While it's being made, the map's own roads lift off as particles and land on the cover's, the cover fades in under them, and they go back when the file is saved. The interface carries on behind it, since the work is on a worker.
+
+![The roads lifting off the map](../assets/screenshots/report-making.png){ .screenshot }
+
+![The cover appearing under them](../assets/screenshots/report-making-cover.png){ .screenshot }
+
 The cover is drawn from the run itself: the city's name, with its own map behind it showing how busy each street is at that moment, what the run came to, the seed, when the report was generated, how far the run had got, and the run's ID. The report opens with it and a table of contents, then:
 
 | Section | Covers |

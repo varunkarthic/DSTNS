@@ -8,6 +8,9 @@ changing it.
 Related references: [configuration](observer-configuration.md), [API](../api/reference.md),
 [Adaptive Simulation Backpressure](../concepts/backpressure.md), [testing](../development/testing.md).
 
+![The observer](../assets/screenshots/observer-light.png#only-light){ .screenshot }
+![The observer](../assets/screenshots/observer.png#only-dark){ .screenshot }
+
 ## Contents
 
 1. [Start-up](#start-up)

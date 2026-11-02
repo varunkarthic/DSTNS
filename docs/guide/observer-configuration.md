@@ -4,6 +4,9 @@ Everything the interface starts with lives in `config/ui-config.json`. Every
 value is **presentation only**: nothing in this file changes what the simulation
 computes, and none of it is ever sent to the core.
 
+![Settings](../assets/screenshots/settings-light.png#only-light){ .screenshot }
+![Settings](../assets/screenshots/settings.png#only-dark){ .screenshot }
+
 ## Resolution order
 
 Three layers, innermost first. Each one only overrides what it actually sets.
