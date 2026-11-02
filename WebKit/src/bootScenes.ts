@@ -37,8 +37,8 @@ export const KIND = {
   lane: 9,
   /** One lamp of a signal head. Hue says which road it serves, phase whether it is red, amber or green. */
   lamp: 10,
-  /** Carried by a wave across the sheet. */
-  wave: 11,
+  /** Part of an application above the fabric, arriving at its moment. vx is which application. */
+  orb: 11,
   /** A person on a crossing, walking while the road they cross is held. */
   walker: 12,
   /** A viewfinder, still on screen, tightening each time it locks on. */
@@ -63,16 +63,18 @@ export const KIND = {
   beam: 22,
   /** An application's window arriving from along its vector. The whole part of phase says which application. */
   dock: 24,
-  /** Drawn along its length after phase, on the scene's clock, then with something travelling it. vz is how far along. */
-  sent: 25,
+  /** Part of the fabric, rising and taking the colour of what passes through it. */
+  cloth: 25,
   /** A building of a world that a seed grows. y is its share of the height, signed for which world. vx and vy are its heights under the two seeds, vz how far it is from where they fell. */
   tower: 26,
   /** A ring going out across the seam, from phase on. */
   ripple: 27,
   /** A seed falling to the seam, arriving at phase. vy says from which side. */
   seedfall: 28,
-  /** What a line of code sends to the interface, for a moment. The whole part of phase is when, in tenths of a second. */
-  courier: 29,
+  /** Falling from an application to the fabric. vx is which application. */
+  strand: 6,
+  /** The thread an application adds to the fabric, running out from where it joined. vx is which application. */
+  thread: 29,
 } as const;
 
 /** Added to a kind: it belongs to the world Auto Focus is flying over, and moves with it. */
@@ -717,6 +719,12 @@ function globe(): Float32Array {
   }, 16);
 }
 
+/** Where each application joins the fabric, x then z, and when. Shared with the shader. */
+export const JOINS: readonly (readonly [number, number, number])[] = [[-1.3, -0.52, 0.85], [0.42, -0.98, 1.95], [1.42, -0.22, 3.05], [-0.28, 0.02, 4.15]];
+/** How high they stand over it. */
+export const ORB_HEIGHT = 0.82;
+export const ORB_HUES: readonly number[] = [HUE.warm, HUE.ok, HUE.danger, HUE.ramp];
+
 /** When the two seeds reach the seam, and how high that seam is. Shared with the shader. */
 export const SEEDS_AT: readonly [number, number] = [0.62, 3.5];
 export const SEAM = 0.1;
@@ -872,158 +880,41 @@ function viewfinder(): Float32Array {
 }
 
 /**
- * What an application is, seen at once: an open book, with its code on one page and the interface on
- * the other. As each coloured line is typed, a stream of that colour goes across, and the thing that
- * line declares builds itself in the interface: a route on the map, a gauge, a chart, a notification.
- * The colours tie each line to what it made, so that the point needs no words: you write a few lines,
- * and they become part of the interface.
+ * What WebFabric is, without drawing any of it. A fabric of fine threads lies rippling, and it is the
+ * simulation. One at a time, separate points of colour arrive above it and let a strand fall. Where it
+ * touches, a ring of that colour runs out across the whole cloth and a thread of that colour is woven
+ * into it. Things from outside become part of one thing, and each can be felt all over.
  */
 function fabric(): Float32Array {
-  type Seg = [number, number, number, number];
-  // The two pages, meeting at a hinge, each swung towards the viewer. u and v run from 0 to 1 across a page.
-  const hinge = -0.58;
-  const code = (u: number, v: number): [number, number, number] => {
-    const x = hinge - 0.1 - (1 - u) * 1.22;
-    return [x, -0.46 + v * 1.42, (hinge - 0.1 - x) * 0.3];
-  };
-  const screen = (u: number, v: number): [number, number, number] => {
-    const x = hinge + 0.1 + u * 2.38;
-    return [x, -0.46 + v * 1.42, (x - hinge - 0.1) * 0.1];
-  };
-  const rounded = (x0: number, y0: number, x1: number, y1: number, rx: number, ry: number): Seg[] => {
-    const out: Seg[] = [[x0 + rx, y1, x1 - rx, y1], [x1, y1 - ry, x1, y0 + ry], [x1 - rx, y0, x0 + rx, y0], [x0, y0 + ry, x0, y1 - ry]];
-    for (const [cx, cy, start] of [[x1 - rx, y1 - ry, 0], [x0 + rx, y1 - ry, Math.PI / 2], [x0 + rx, y0 + ry, Math.PI], [x1 - rx, y0 + ry, Math.PI * 1.5]] as const) {
-      for (let n = 0; n < 6; n++) {
-        const [a, c] = [start + (n / 6) * (Math.PI / 2), start + ((n + 1) / 6) * (Math.PI / 2)];
-        out.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, cx + Math.cos(c) * rx, cy + Math.sin(c) * ry]);
-      }
-    }
-    return out;
-  };
-  const along = (segs: Seg[], value: number): [number, number] => {
-    const lengths = segs.map(([a, b, c, d]) => Math.hypot(c - a, d - b));
-    let at = value * lengths.reduce((sum, length) => sum + length, 0);
-    for (let n = 0; n < segs.length; n++) {
-      if (at <= lengths[n] || n === segs.length - 1) {
-        const t = Math.min(1, at / (lengths[n] || 1));
-        return [segs[n][0] + (segs[n][2] - segs[n][0]) * t, segs[n][1] + (segs[n][3] - segs[n][1]) * t];
-      }
-      at -= lengths[n];
-    }
-    return [0, 0];
-  };
-  const seq = sequence(2024);
-  // The interface: a window, its tools, map, telemetry and controls, drawn as they are.
-  const panes: Seg[][] = [rounded(0, 0, 1, 1, 0.04, 0.066), rounded(0.02, 0.26, 0.07, 0.86, 0.025, 0.04), rounded(0.68, 0.17, 0.98, 0.9, 0.03, 0.05), rounded(0.09, 0.03, 0.98, 0.13, 0.03, 0.05)];
-  const map = { u0: 0.09, u1: 0.66, v0: 0.17, v1: 0.9 };
-  const streets: Seg[] = [];
-  for (let n = 0; n < 7; n++) {
-    const v = map.v0 + ((n + 0.5 + (seq() - 0.5) * 0.5) / 7) * (map.v1 - map.v0);
-    streets.push([map.u0, v, map.u1, v + (seq() - 0.5) * 0.05]);
-  }
-  for (let n = 0; n < 8; n++) {
-    const u = map.u0 + ((n + 0.5 + (seq() - 0.5) * 0.5) / 8) * (map.u1 - map.u0);
-    streets.push([u, map.v0, u + (seq() - 0.5) * 0.05, map.v1]);
-  }
-  // The lines of code, indented as code is. The bright ones are the four that declare something.
-  const lines: { u: number; v: number; length: number; which: number }[] = [
-    [0.1, 0.32, -1], [0.14, 0.5, -1], [0.14, 0.64, 0], [0.14, 0.4, -1], [0.14, 0.58, 1], [0.14, 0.36, -1], [0.14, 0.6, 2], [0.14, 0.46, -1], [0.14, 0.54, 3], [0.1, 0.2, -1],
-  ].map(([u, length, which], n) => ({ u, v: 0.84 - n * 0.078, length, which }));
-  // When each declared thing is typed, and when what it makes begins to appear.
-  const typed = [0.35, 1.45, 2.55, 3.65];
-  const made = typed.map((t) => t + 0.95);
-  const HUES = [HUE.warm, HUE.ok, HUE.ramp, HUE.danger];
-  // What each makes: the place on the interface its stream goes to.
-  const route: Seg[] = [[0.13, 0.32, 0.23, 0.36], [0.23, 0.36, 0.28, 0.6], [0.28, 0.6, 0.46, 0.63], [0.46, 0.63, 0.5, 0.8], [0.5, 0.8, 0.62, 0.82]];
-  const gauge = { u: 0.83, v: 0.62, ru: 0.095, rv: 0.13 };
-  const chart = { u0: 0.71, u1: 0.95, v0: 0.21, h: 0.2 };
-  const notice = rounded(0.12, 0.2, 0.42, 0.27, 0.03, 0.035);
-  const destinations: [number, number][] = [[0.13, 0.32], [gauge.u, gauge.v], [(chart.u0 + chart.u1) / 2, chart.v0 + 0.08], [0.27, 0.235]];
-  const still = { v: [0, 0, 0] as [number, number, number], kind: KIND.dock, phase: -1 };
-  return formation((put, rnd) => {
+  const rows = 26;
+  const columns = 34;
+  const [left, right, back, front] = [-2.7, 2.7, -1.75, 0.86];
+  return formation((put, random) => {
     for (let i = 0; i < COUNT; i++) {
       const kind = i % 50;
-      if (kind < 5) {
-        // The interface's panes.
-        const pane = panes[Math.floor(rnd() * panes.length)];
-        const [u, v] = along(pane, rnd());
-        const [x, y, z] = screen(u, v);
-        put(i, x, y, z, { ...still, tint: 0.62 });
-      } else if (kind < 7) {
-        // Its header and what is in its panes.
-        const part = rnd();
-        let [u, v, tint] = [0, 0, 0.4];
-        if (part < 0.3) [u, v, tint] = [0.03 + rnd() * 0.1, 0.95 + (rnd() - 0.5) * 0.02, 0.85];
-        else if (part < 0.5) [u, v, tint] = [0.045 + (rnd() - 0.5) * 0.02, 0.33 + Math.floor(rnd() * 5) * 0.105 + (rnd() - 0.5) * 0.02, 0.55];
-        else if (part < 0.8) [u, v, tint] = [0.71 + rnd() * 0.24, 0.85 - Math.floor(rnd() * 3) * 0.045, 0.4];
-        else [u, v, tint] = [0.14 + rnd() * 0.8, 0.08 + (rnd() - 0.5) * 0.008, 0.45];
-        const [x, y, z] = screen(u, v);
-        put(i, x, y, z, { ...still, tint });
-      } else if (kind < 12) {
-        // The map's streets.
-        const [u, v] = along([streets[Math.floor(rnd() * streets.length)]], rnd());
-        const [x, y, z] = screen(u, v);
-        put(i, x, y, z, { ...still, tint: 0.22 });
-      } else if (kind < 16) {
-        // The code's window, and three small dots at its corner.
-        const part = rnd();
-        if (part < 0.8) {
-          const [u, v] = along(rounded(0, 0, 1, 1, 0.07, 0.066), rnd());
-          const [x, y, z] = code(u, v);
-          put(i, x, y, z, { ...still, tint: 0.62 });
-        } else {
-          const n = Math.floor(rnd() * 3);
-          const a = rnd() * TAU;
-          const r = Math.sqrt(rnd());
-          const [x, y, z] = code(0.07 + n * 0.05 + Math.cos(a) * r * 0.014, 0.945 + Math.sin(a) * r * 0.012);
-          put(i, x, y, z, { ...still, tint: 0.5 });
-        }
-      } else if (kind < 19) {
-        // Its plain lines, there from the start.
-        const line = lines.filter((l) => l.which < 0)[Math.floor(rnd() * 6)];
-        const [x, y, z] = code(line.u + rnd() * line.length, line.v + (rnd() - 0.5) * 0.016);
-        put(i, x, y, z, { ...still, tint: 0.3 });
-      } else if (kind < 25) {
-        // The four that declare something, typed one after another.
-        const line = lines.filter((l) => l.which >= 0)[Math.floor(rnd() * 4)];
-        const at = rnd();
-        const [x, y, z] = code(line.u + at * line.length, line.v + (rnd() - 0.5) * 0.018);
-        put(i, x, y, z, { v: [0, 0, at * 0.55], kind: KIND.sent, phase: typed[line.which], tint: 1, hue: HUES[line.which] });
-      } else if (kind < 33) {
-        // What goes across, each in its colour, arcing from its line to what it makes.
-        const which = Math.floor(rnd() * 4);
-        const line = lines.filter((l) => l.which === which)[0];
-        const [ax, ay, az] = code(line.u + line.length, line.v);
-        const [bx, by, bz] = screen(destinations[which][0], destinations[which][1]);
-        const off = (rnd() - 0.5) * 0.03;
-        put(i, ax + off, ay + off, az, { v: [bx - ax, by - ay, bz - az], kind: KIND.courier, phase: Math.round((typed[which] + 0.4) * 10) + rnd() * 0.999, tint: 1, hue: HUES[which] });
-      } else if (kind < 39) {
-        // The route, drawn along the streets, with something driving it.
-        const at = rnd();
-        const [u, v] = along(route, at);
-        const [x, y, z] = screen(u + (rnd() - 0.5) * 0.006, v + (rnd() - 0.5) * 0.009);
-        put(i, x, y, z + 0.008, { v: [0, 0, at], kind: KIND.sent, phase: made[0], tint: 0.9, hue: HUES[0] });
-      } else if (kind < 43) {
-        // The gauge: a track, then its arc swinging round.
-        const at = rnd();
-        const a = Math.PI * (1 - at);
-        const track = rnd() < 0.3;
-        const thick = 1 + (rnd() - 0.5) * 0.09;
-        const [x, y, z] = screen(gauge.u + Math.cos(a) * gauge.ru * thick, gauge.v + Math.sin(a) * gauge.rv * thick);
-        if (track) put(i, x, y, z, { ...still, tint: 0.2 });
-        else put(i, x, y, z + 0.006, { v: [0, 0, Math.min(1, at / 0.72)], kind: KIND.sent, phase: at > 0.72 ? 99 : made[1], tint: 1, hue: HUES[1] });
-      } else if (kind < 47) {
-        // The chart, its bars rising one after another.
-        const n = Math.floor(rnd() * 9);
-        const tall = [0.3, 0.5, 0.82, 0.58, 1, 0.72, 0.44, 0.62, 0.36][n];
-        const up = rnd();
-        const [x, y, z] = screen(chart.u0 + (n + 0.18 + rnd() * 0.64) * ((chart.u1 - chart.u0) / 9), chart.v0 + up * tall * chart.h);
-        put(i, x, y, z + 0.006, { v: [0, 0, n / 9 * 0.6 + up * 0.3], kind: KIND.sent, phase: made[2], tint: 0.95, hue: HUES[2] });
+      const app = Math.floor(random() * JOINS.length);
+      const [jx, jz] = JOINS[app];
+      if (kind < 24) {
+        // The threads that run across.
+        const z = back + ((Math.floor(random() * rows) + 0.5) / rows) * (front - back);
+        put(i, left + random() * (right - left), 0, z, { kind: KIND.cloth, tint: 0.34 });
+      } else if (kind < 34) {
+        // And those that run through them, fainter.
+        const x = left + ((Math.floor(random() * columns) + 0.5) / columns) * (right - left);
+        put(i, x, 0, back + random() * (front - back), { kind: KIND.cloth, tint: 0.14 });
+      } else if (kind < 41) {
+        // The thread each adds, along the row it fell on.
+        put(i, left + random() * (right - left), 0, jz, { v: [app, 0, 0], kind: KIND.thread, tint: 1, hue: ORB_HUES[app] });
+      } else if (kind < 46) {
+        // Each is a small, dense point of light.
+        const a = random() * TAU;
+        const u = random() * 2 - 1;
+        const r = Math.pow(random(), 1.5) * 0.07;
+        const s_ = Math.sqrt(1 - u * u);
+        put(i, Math.cos(a) * s_ * r, u * r, Math.sin(a) * s_ * r, { v: [app, 0, 0], kind: KIND.orb, tint: 1, hue: ORB_HUES[app] });
       } else {
-        // The notification, rising into place on the map.
-        const [u, v] = along(notice, rnd());
-        const [x, y, z] = screen(u, v);
-        put(i, x, y, z + 0.01, { v: [0, -0.16, 0], kind: KIND.dock, phase: made[3], tint: 1, hue: HUES[3] });
+        // And what falls from it.
+        put(i, (random() - 0.5) * 0.016, 0, (random() - 0.5) * 0.016, { v: [app, jx, jz], kind: KIND.strand, tint: 1, hue: ORB_HUES[app] });
       }
     }
   }, 17);

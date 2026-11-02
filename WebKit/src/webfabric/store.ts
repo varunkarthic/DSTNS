@@ -224,7 +224,13 @@ export interface FabricNotification {
   body: string;
 }
 
+/** What the launcher is starting, while the simulation waits for it. */
+export interface LaunchPlan {
+  apps: { id: string; name: string; state: "waiting" | "preparing" | "starting" | "ready" | "failed" | "stopped"; detail?: string }[];
+}
+
 interface StatePayload {
+  launch_plan?: LaunchPlan | null;
   revision: number;
   notification_sequence: number;
   notifications: FabricNotification[];
@@ -314,6 +320,7 @@ class FabricStore {
   private noteListeners = new Set<(notes: FabricNotification[]) => void>();
   private sim: SimSummary | null = null;
   private simListeners = new Set<(sim: SimSummary) => void>();
+  private plan: LaunchPlan | null = null;
   private openPanel: string | null = null;
   private picking: { appId: string; element: string } | null = null;
 
@@ -325,6 +332,7 @@ class FabricStore {
   };
   getApps = () => this.apps;
   getOpenPanel = () => this.openPanel;
+  getPlan = () => this.plan;
 
   private emit() {
     for (const listener of this.listeners) listener();
@@ -344,6 +352,11 @@ class FabricStore {
   /** Apply one state response. Separate from polling so it can be tested alone. */
   apply(state: StatePayload) {
     this.revision = state.revision;
+    const plan = state.launch_plan ?? null;
+    if (JSON.stringify(plan) !== JSON.stringify(this.plan)) {
+      this.plan = plan;
+      this.emit();
+    }
     if (state.notifications?.length) {
       this.cursor = state.notifications[state.notifications.length - 1].sequence;
       for (const listener of this.noteListeners) listener(state.notifications);
@@ -471,6 +484,10 @@ export const fabric = new FabricStore();
 
 export function useFabricApps(): FabricApp[] {
   return useSyncExternalStore(fabric.subscribe, fabric.getApps);
+}
+
+export function useLaunchPlan(): LaunchPlan | null {
+  return useSyncExternalStore(fabric.subscribe, fabric.getPlan);
 }
 
 export function usePicking() {

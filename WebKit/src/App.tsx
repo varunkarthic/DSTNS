@@ -12,7 +12,7 @@ import { Floating } from "./Popover";
 import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
-import { BootFailure, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
+import { BootFailure, launchStage, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
 import { filmAvailable, mapCarry, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS } from "./BootScene";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
@@ -29,6 +29,7 @@ import {
 import type { CompletionSummary } from "./Dialogs";
 import { Tooltip } from "./Tooltip";
 import { ReportFilm } from "./ReportFilm";
+import type { ReportPreview } from "./ReportFilm";
 import { useISDNotifications } from "./ISDHandler";
 import { resolveBindings, useShortcuts } from "./shortcuts";
 import { useSteadyStatus } from "./useSteadyStatus";
@@ -51,7 +52,7 @@ import type { MapReadoutHandle } from "./MapReadout";
 import { fabric, useFabricNotifications } from "./webfabric/store";
 import { FabricDialog, FabricDockItems, FabricHeader, FabricIndicators, FabricPanel, FabricSidebar, FabricStatus } from "./webfabric/Slots";
 import { FabricOverlay } from "./webfabric/Overlay";
-import { useFabricApps } from "./webfabric/store";
+import { useFabricApps, useLaunchPlan } from "./webfabric/store";
 import type { FabricOverlayHandle } from "./webfabric/Overlay";
 import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
 import type { UiConfig, AutoFocusStrategy } from "./uiConfig";
@@ -67,7 +68,7 @@ import {
 import type { UiNotification } from "./notificationModel";
 import { focusNotification } from "./focusNotification";
 import { TelemetryRecorder, runtimeStatus, sampleFrom } from "./telemetryRecorder";
-import { DAY_SECONDS, formatDuration } from "./timeFormat";
+import { DAY_SECONDS, formatDuration, formatSimulationTime } from "./timeFormat";
 import type { Congestion, Layers, MapFeature, NarratorStatus, News, PlaceVisibility, WorldStatus } from "./types";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
@@ -739,6 +740,21 @@ export default function App() {
     return view && box && sim.topology ? landingPoints(sim.topology.edges.map((edge) => edge.geometry), view, box, window.innerWidth, window.innerHeight, 12000) : null;
   }, [sim.topology]);
   const reportButton = useCallback(() => document.querySelector("[data-report-button]")?.getBoundingClientRect() ?? null, []);
+  const reportPreview: ReportPreview | null = sim.topology && sim.snapshot && {
+    city: sim.topology?.location?.city || "Explicit map file",
+    country: sim.topology?.location?.country || "",
+    seed: sim.status?.seed || sim.status?.global_seed || "",
+    generated: new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }),
+    figures: [
+      { label: "Time", value: formatSimulationTime(sim.snapshot?.clock.virtual_day_seconds ?? 0, hour12, { seconds: false }), tone: "#0f1d27" },
+      { label: "Vehicles", value: (sim.snapshot?.data.edges.reduce((sum, edge) => sum + edge.vehicle_count, 0) ?? 0).toLocaleString(), tone: "#0a7f9e" },
+      { label: "Roads", value: (sim.topology?.edges.length ?? 0).toLocaleString(), tone: "#0d8f6b" },
+      { label: "Congestion", value: `${(sim.snapshot?.data.congestion.current ?? 0).toFixed(0)}%`, tone: "#b86e00" },
+    ],
+    day: (history?.history ?? sim.snapshot?.data.congestion.history ?? []).map((point) => point.current),
+    topology: sim.topology,
+    snapshot: sim.snapshot.data,
+  };
   const report = useCallback(
     () =>
       action(async () => {
@@ -945,7 +961,9 @@ export default function App() {
   // ---- Derived presentation ---------------------------------------------------
   const systemError = sim.error || (sim.stale && !catchingUp && !document.hidden ? "Simulation data is stale. Reconnecting." : "") || actionError;
   const asbInfo = describeAsb(asb);
-  const splashStage = splashStageFor(mapStatus as never, lifecycle, sim.stage, !!sim.topology, !!sim.status);
+  const launchPlan = useLaunchPlan();
+  const coreStage = splashStageFor(mapStatus as never, lifecycle, sim.stage, !!sim.topology, !!sim.status);
+  const splashStage = launchPlan?.apps.length && coreStage?.waiting ? launchStage(launchPlan) : coreStage;
   // The opening plays once, for a page opened ahead of its world. Reloading a run goes straight in.
   const firstLifecycle = useRef<string | null>(null);
   if (firstLifecycle.current === null && sim.status) firstLifecycle.current = lifecycle;
@@ -1336,7 +1354,7 @@ export default function App() {
               reduceMotion={reduceMotion}
             />
           )}
-          {reportFilm && <ReportFilm {...reportFilm} roads={reportRoads} target={reportButton} reduceMotion={reduceMotion} onDone={saveReport} />}
+          {reportFilm && reportPreview && <ReportFilm {...reportFilm} preview={reportPreview} roads={reportRoads} target={reportButton} reduceMotion={reduceMotion} onDone={saveReport} />}
           {(shutDown || serverGone) && <ShutdownSurface reduceMotion={reduceMotion} landing={landOnRoads} lost={serverGone && !shutDown} />}
 
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} narratorBadge={narratorBadge(narrator)} />}

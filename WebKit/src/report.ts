@@ -2,10 +2,10 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { LOGO, logoPng } from "./logoAsset";
-import { printMap } from "./reportMap";
+import { coverMap, printMap } from "./reportMap";
 import reportFontUrl from "./assets/report-inter.ttf?url";
 import { DEMAND_TYPE_LABEL, placeKind, roadState, roadTitle } from "./mapModel";
-import { DAY_TICKS, PRINT, ReportDocument, lineHeight, wallTicks } from "./pdfLayout";
+import { DAY_TICKS, PRINT, PT, ReportDocument, lineHeight, wallTicks } from "./pdfLayout";
 import type { Column, Series } from "./pdfLayout";
 import {
   bytesTransferred,
@@ -55,6 +55,8 @@ export interface ReportResources {
   logoLight?: string;
   logoDark?: string;
   map?: { dataUrl: string; aspect: number } | null;
+  /** The city, to the edges of the page, as a JPEG. */
+  cover?: string | null;
   coreVersion?: string;
   now?: Date;
   platform?: string[];
@@ -88,106 +90,6 @@ const MODULE_NAMES: Record<string, string> = {
 const pct = (v: number, digits = 0) => `${(v * 100).toFixed(digits)}%`;
 const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`);
 const title = (s: string) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-
-/**
- * The district as the run left it, as a surveyor's sheet would show it: all of it, inside a frame with
- * nothing cut off, on a grid of real distances, with its coordinates on the frame, a scale, north, and
- * a key to the colours. Land and water lie underneath, every building is a fleck, and each road has the
- * colour of its state at the moment of the report. The frame gives the page its authority; the map is
- * real data, so it is different on every report.
- */
-function coverPlate(pdf: InstanceType<typeof import("jspdf").jsPDF>, doc: ReportDocument, topology: Topology, states: Map<number, Snapshot["edges"][number]>, snapshot: Snapshot, plate: { x: number; y: number; w: number; h: number }) {
-  const edges = topology.edges.filter((e) => !e.synthetic_reverse && e.geometry.length > 1);
-  let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
-  for (const edge of edges) {
-    for (const p of edge.geometry) {
-      minX = Math.min(minX, p.x_m);
-      maxX = Math.max(maxX, p.x_m);
-      minY = Math.min(minY, p.y_m);
-      maxY = Math.max(maxY, p.y_m);
-    }
-  }
-  if (!edges.length || maxX <= minX || maxY <= minY) return;
-  const inset = 7;
-  const scale = Math.min((plate.w - inset * 2) / (maxX - minX), (plate.h - inset * 2) / (maxY - minY));
-  const left = plate.x + (plate.w - (maxX - minX) * scale) / 2;
-  const top = plate.y + (plate.h - (maxY - minY) * scale) / 2;
-  const X = (x: number) => left + (x - minX) * scale;
-  const Y = (y: number) => top + (maxY - y) * scale;
-  const inside = (x: number, y: number) => x > plate.x + 0.6 && x < plate.x + plate.w - 0.6 && y > plate.y + 0.6 && y < plate.y + plate.h - 0.6;
-  const steps = (points: { x_m: number; y_m: number }[]) => {
-    let previous = points[0];
-    return points.slice(1).map((p) => {
-      const step = [(p.x_m - previous.x_m) * scale, -(p.y_m - previous.y_m) * scale];
-      previous = p;
-      return step;
-    });
-  };
-  // A grid of real distances, chosen so that there are about six lines across.
-  const spacing = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000].find((m) => (maxX - minX) / m <= 7) ?? 10000;
-  pdf.setDrawColor("#10293a");
-  pdf.setLineWidth(0.12);
-  for (let x = Math.ceil((minX - inset / scale) / spacing) * spacing; X(x) < plate.x + plate.w; x += spacing) if (X(x) > plate.x) pdf.line(X(x), plate.y, X(x), plate.y + plate.h);
-  for (let y = Math.ceil((minY - inset / scale) / spacing) * spacing; Y(y) > plate.y; y += spacing) if (Y(y) < plate.y + plate.h) pdf.line(plate.x, Y(y), plate.x + plate.w, Y(y));
-  // Water and green, only where the whole of it is on the sheet, then buildings as flecks.
-  for (const feature of topology.features) {
-    if (!feature.polygon || feature.geometry.length < 3) continue;
-    const green = ["park", "grass", "forest", "recreation_ground"].includes(feature.category);
-    const water = ["water", "river", "lake", "riverbank", "wetland"].includes(feature.category);
-    if ((!green && !water) || !feature.geometry.every((p) => inside(X(p.x_m), Y(p.y_m)))) continue;
-    pdf.setFillColor(green ? "#0f2d2a" : "#0e2c3e");
-    pdf.lines(steps(feature.geometry), X(feature.geometry[0].x_m), Y(feature.geometry[0].y_m), [1, 1], "F", true);
-  }
-  pdf.setFillColor("#1c3a49");
-  let flecks = 0;
-  for (const feature of topology.features) {
-    if (!feature.polygon || feature.category !== "building" || !inside(X(feature.position.x_m), Y(feature.position.y_m))) continue;
-    if (++flecks > 16000) break;
-    pdf.rect(X(feature.position.x_m) - 0.09, Y(feature.position.y_m) - 0.09, 0.18, 0.18, "F");
-  }
-  // Minor roads under major ones, so that the arteries read as lines through the city.
-  const widths: Record<string, number> = { motorway: 0.62, trunk: 0.58, primary: 0.5, secondary: 0.38, tertiary: 0.27, residential: 0.14, service: 0.09 };
-  const colours: Record<string, string> = { clear: "#35c8a0", moderate: "#f0aa2e", severe: "#ef5a64", blocked: "#ef5a64", flooded: "#4f93e6" };
-  const counts: Record<string, number> = { clear: 0, moderate: 0, severe: 0, blocked: 0, flooded: 0 };
-  for (const edge of [...edges].sort((a, b) => (widths[a.road_class] ?? 0.13) - (widths[b.road_class] ?? 0.13))) {
-    const weight = widths[edge.road_class] ?? 0.13;
-    const state = roadState(states.get(edge.id));
-    counts[state] = (counts[state] ?? 0) + 1;
-    // A quiet side street stays quiet: only a road in trouble speaks up at that size.
-    pdf.setDrawColor(state === "clear" && weight < 0.25 ? "#22665f" : colours[state] ?? colours.clear);
-    pdf.setLineWidth(weight);
-    pdf.lines(steps(edge.geometry), X(edge.geometry[0].x_m), Y(edge.geometry[0].y_m), [1, 1], "S", false);
-  }
-  // Signals, as points of light on the roads they control.
-  pdf.setFillColor("#ffffff");
-  for (const signal of snapshot.signals) {
-    const node = topology.nodes[signal.junction_id];
-    if (node) pdf.circle(X(node.position.x_m), Y(node.position.y_m), 0.4, "F");
-  }
-  // The frame, with ticks along it where the grid lines meet it.
-  pdf.setDrawColor("#2c4a5e");
-  pdf.setLineWidth(0.3);
-  pdf.roundedRect(plate.x, plate.y, plate.w, plate.h, 2.4, 2.4, "S");
-  // Its coordinates, at two opposite corners, which is all a sheet needs to be placed.
-  const b = topology.bounds;
-  doc.line(`${b.max_lat.toFixed(4)}° N  ${b.min_lon.toFixed(4)}° E`, plate.x + 3, plate.y + 2.6, 5.8, "#6d8798");
-  doc.line(`${b.min_lat.toFixed(4)}° N  ${b.max_lon.toFixed(4)}° E`, plate.x + plate.w - 3, plate.y + plate.h - 5, 5.8, "#6d8798", "right");
-  // North.
-  const [nx, ny] = [plate.x + plate.w - 7, plate.y + 8];
-  pdf.setFillColor("#9fb4c3");
-  pdf.triangle(nx, ny - 3, nx - 1.5, ny + 1.6, nx + 1.5, ny + 1.6, "F");
-  doc.line("N", nx, ny + 2.2, 5.8, "#9fb4c3", "center");
-  // The scale: a bar of a round distance, in alternating lengths.
-  const metres = [100, 200, 500, 1000, 2000, 5000].find((m) => m * scale >= 20) ?? 5000;
-  const [sx, sy, bar] = [plate.x + 4, plate.y + plate.h - 5.4, metres * scale];
-  pdf.setFillColor("#9fb4c3");
-  pdf.rect(sx, sy, bar / 2, 0.8, "F");
-  pdf.setDrawColor("#9fb4c3");
-  pdf.setLineWidth(0.15);
-  pdf.rect(sx, sy, bar, 0.8, "S");
-  doc.line(metres >= 1000 ? `${metres / 1000} km` : `${metres} m`, sx + bar + 1.8, sy - 0.8, 5.8, "#9fb4c3");
-  return counts;
-}
 
 export async function buildReport(input: ReportInput, resources: ReportResources = {}, onProgress?: (label: string, share: number) => void) {
   const { jsPDF } = await import("jspdf");
@@ -253,62 +155,38 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   // Cover
   // =========================================================================
-  // A survey sheet. The plate holds all of the district and takes the upper two thirds; its name
-  // stands beneath it, large, and under that a title block ruled like the corner of a drawing,
-  // so the page reads from the picture, to the place, to the particulars, to whose work it is.
+  // A poster: this city to every edge of the page, one name, and only what identifies this report.
+  // The words stay well inside the margins, and a long name or seed is set smaller rather than cut off.
   onProgress?.("Drawing the cover", 0.04);
   doc.newPage();
   doc.rect(0, 0, doc.W, doc.H, PRINT.dark, 0);
-  if (resources.logoLight) pdf.addImage(resources.logoLight, "PNG", doc.M, 14, 6.6 * LOGO.aspect, 6.6);
-  else doc.line("DSTNS", doc.M, 14, 14, PRINT.darkInk);
-  doc.line("SIMULATION REPORT", doc.W - doc.M, 15.6, 7.2, "#6fd7f2", "right");
-  const plate = { x: doc.M, y: 26, w: doc.width, h: 176 };
-  const counts = coverPlate(pdf, doc, topology, new Map(snapshot.data.edges.map((e) => [e.id, e])), snapshot.data, plate);
-  // The key to the plate's colours, along its foot, giving how many roads are in each state.
-  const key: [string, string, number][] = [["Clear", "#35c8a0", counts?.clear ?? 0], ["Moderate", "#f0aa2e", counts?.moderate ?? 0], ["Severe", "#ef5a64", (counts?.severe ?? 0) + (counts?.blocked ?? 0)], ["Flooded", "#4f93e6", counts?.flooded ?? 0]];
-  let keyX = doc.M + 1;
-  for (const [name, colour, count] of key) {
-    pdf.setFillColor(colour);
-    pdf.roundedRect(keyX, 205.2, 5, 1.1, 0.55, 0.55, "F");
-    const words = `${name} ${count.toLocaleString()}`;
-    doc.line(words, keyX + 6.4, 204, 6.4, "#9fb4c3");
-    keyX += 6.4 + doc.textWidth(words, 6.4) + 6;
-  }
-  doc.line("Signal", doc.W - doc.M - 1, 204, 6.4, "#9fb4c3", "right");
-  pdf.setFillColor("#ffffff");
-  pdf.circle(doc.W - doc.M - 1 - doc.textWidth("Signal", 6.4) - 2, 205.7, 0.55, "F");
+  if (resources.cover) pdf.addImage(resources.cover, "JPEG", 0, 0, doc.W, doc.H);
+  if (resources.logoLight) pdf.addImage(resources.logoLight, "PNG", doc.M, 15, 6.4 * LOGO.aspect, 6.4);
+  else doc.line("DSTNS", doc.M, 15, 14, PRINT.darkInk);
+  doc.line("SIMULATION REPORT", doc.W - doc.M, 16.4, 7.2, "#9fb4c3", "right");
   const city = location?.city ?? "Explicit map file";
-  doc.line(city, doc.M, 212, doc.textWidth(city, 34) > doc.width ? 24 : 34, "#ffffff");
-  doc.line(location?.country ? `${location.country} · Deterministic Spatiotemporal Transport Network Simulator` : "Deterministic Spatiotemporal Transport Network Simulator", doc.M, 228, 9, "#9fb4c3");
-  // The title block. Nothing here is shortened: a long seed takes the whole row it needs.
-  const cell = doc.width / 4;
+  const sized = (text: string, wanted: number, room: number) => Math.min(wanted, (wanted * room) / Math.max(1, doc.textWidth(text, wanted)));
+  const nameSize = sized(city, 58, doc.width);
+  // Hung from the line beneath it, so that a smaller name sits as close to its country as a large one.
+  doc.line(city, doc.M, 236 - nameSize * PT * 1.22, nameSize, "#ffffff");
+  doc.line(location?.country ?? "Deterministic Spatiotemporal Transport Network Simulator", doc.M, 236, 13, "#9fb4c3");
+  pdf.setFillColor("#5ee3bf");
+  pdf.roundedRect(doc.M, 246.5, 14, 0.9, 0.45, 0.45, "F");
+  const half = doc.width / 2;
   const facts: [string, string][] = [
+    ["Seed", seed],
+    ["Generated", now.toLocaleString(undefined, { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })],
     ["Simulated to", `${tShort(virtual)}, ${pct(virtual / DAY_SECONDS, 0)} of the day`],
-    ["State", title(lifecycle.toLowerCase())],
-    ["Network", `${net.nodes.toLocaleString()} junctions`],
-    ["Length", `${net.km.toFixed(1)} km of road`],
     ["Run", status.run_id],
-    ["Day", status.data.day === 1 ? "Weekend" : "Weekday"],
-    ["Generated", now.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })],
-    ["Interface", input.uiVersion],
   ];
-  const rows = [235, 247.4];
-  pdf.setDrawColor("#22394a");
-  pdf.setLineWidth(0.25);
-  pdf.roundedRect(doc.M, rows[0], doc.width, 37.2, 2.4, 2.4, "S");
-  for (const y of [rows[1], rows[1] + 12.4]) pdf.line(doc.M, y, doc.W - doc.M, y);
-  for (let n = 1; n < 4; n++) pdf.line(doc.M + n * cell, rows[0], doc.M + n * cell, rows[1] + 12.4);
-  facts.forEach(([k, v], i) => {
-    const x = doc.M + (i % 4) * cell + 3;
-    const y = rows[Math.floor(i / 4)] + 2.4;
-    doc.line(k.toUpperCase(), x, y, 5.8, "#7f96a6");
-    doc.line(v, x, y + 3.2, doc.textWidth(v, 8.2) > cell - 5 ? 6.6 : 8.2, "#e6f0f7");
+  facts.forEach(([key, value], n) => {
+    const x = doc.M + (n % 2) * half;
+    const y = 252 + Math.floor(n / 2) * 11.5;
+    doc.line(key.toUpperCase(), x, y, 6.2, "#7f96a6");
+    doc.line(value, x, y + 3.5, sized(value, 9, half - 5), "#e6f0f7");
   });
-  doc.line("SEED", doc.M + 3, rows[1] + 14.8, 5.8, "#7f96a6");
-  doc.line(seed, doc.M + 3, rows[1] + 18, 8.2, "#e6f0f7");
-  doc.line("© 2026 Varun Karthic. Designed and built by Varun Karthic.", doc.M, 277, 7.4, "#c9d6df");
-  doc.line("AGPL-3.0-or-later", doc.W - doc.M, 277, 7.4, "#9fb4c3", "right");
-  doc.line("Map data © OpenStreetMap contributors, available under the Open Database License (ODbL).", doc.M, 281.4, 6.6, "#7f96a6");
+  doc.line("© 2026 Varun Karthic. AGPL-3.0-or-later.", doc.M, 279, 7, "#9fb4c3");
+  doc.line("Map data © OpenStreetMap contributors, ODbL.", doc.W - doc.M, 279, 7, "#7f96a6", "right");
 
   // About and contents, on one page. The contents are filled once page numbers are known.
   doc.newPage();
@@ -1199,8 +1077,8 @@ export async function exportReport(input: ReportInput, onProgress: (label: strin
     return { blob: await watchdog(offThread()), name };
   } catch {
     // Without a worker it can still be done here, at the cost of a pause.
-    const map = await printMap(input.topology, input.snapshot.data, input.layers).catch(() => null);
-    const { pdf } = await buildReport(input, { ...resources, map }, onProgress);
+    const [map, cover] = await Promise.all([printMap(input.topology, input.snapshot.data, input.layers).catch(() => null), coverMap(input.topology, input.snapshot.data).catch(() => null)]);
+    const { pdf } = await buildReport(input, { ...resources, map, cover }, onProgress);
     return { blob: pdf.output("blob"), name };
   }
 }

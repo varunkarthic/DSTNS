@@ -47,7 +47,7 @@ export interface LayoutBox {
   text?: string;
 }
 
-const PT = 0.3528; // millimetres per point
+export const PT = 0.3528; // millimetres per point
 export const lineHeight = (size: number) => size * PT * 1.32;
 
 export type Provenance = "Observed" | "Derived" | "Interpretation";

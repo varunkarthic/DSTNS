@@ -17,9 +17,25 @@ behaves as before, 155 recorded calls being replayed to prove it, with one delib
 `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.3`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### The report and the film
+
+- **A new cover for the report.** The city itself, to every edge of the page, with its arteries lit, the head and foot of the page out of focus, and its foot falling into the dark that the title stands on. Only what identifies the report is on it: the city, country, seed, when it was generated, how far the simulation had run, and the run. A long name or seed is set smaller and is not cut off.
+- **Putting the report together now looks like it.** The interface blurs, and the real pages form one at a time under a moving line: the cover, then the summary, the traffic chart and the map, all from this run. Streams of particles feed the line, finished pages stack into a deck, and the deck goes back into the button. It runs at full frame rate, with the work on a worker.
+- **The WebFabric scene has been redrawn, and is abstract now.** A rippling fabric of fine threads is the simulation. One at a time, points of colour arrive above it and let a strand fall. Where each touches, a ring of its colour spreads through the whole cloth and a thread of it is woven in.
+- **Particles cross between scenes as one body.** A timed move, with no sudden start or stop in speed or in the change of speed, in place of a spring. A front crosses each scene from a direction of its own, a shared current carries them, and they dim a little while in flight, so that the crossing is a veil and not a blaze.
+- **The camera moves more deliberately.** One move over 2.5 seconds, again with no jolt at either end, drawing back a little on the way. Its slow drift comes in only after it has arrived. Fixed: a jump in distance of up to 5% at each change of scene.
+
 ### A tab in the background is not a failing tab
 
 - **Fixed: coming back to the simulation found it suspended.** Opening the report in a new tab and returning a while later found ASB at 100% and the interface suspended. A hidden page draws nothing and has its timers throttled, which looked exactly like one failing to keep up. The page now says it is away, nothing it reports meanwhile counts against it, and on its return it has a moment to catch up with a note saying so. Failing while visible is still acted on.
+
+### The launcher starts your applications too
+
+- **Applications start alongside a simulation.** Set one or more commands for each with `./launcher apps add`, or in the terminal interface, and choose which to start with `--apps`, with a switch for each when starting a run, or by setting it to start every time.
+- **The simulation waits for them.** The engine comes up, the observer opens, the applications start, and only when all are ready does the simulation start and the observer go on to the dashboard. The observer says what it is waiting for. A required application that fails stops the run, with the reason; an optional one does not.
+- **They are looked after.** Each has its own process group and log, can restart with a growing wait, and stops with the launcher. There is no shell, and an application is never given the operator's credential.
+- **The launcher is made of modules.** A module adds commands and dashboard pages, and the command line, its help and the dashboard are built from what they add. `./launcher apps` and `./launcher fabric` are the first.
+- **The terminal interface has been redesigned** to match the observer: its colours, one rounded card for one thing, a summary across the top of the dashboard, keys that look like keys, and forms without wasted lines.
 
 ### The engine moves under Fabric, and Fabric is secured
 

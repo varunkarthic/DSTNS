@@ -8,6 +8,7 @@ import { filmAvailable } from "./BootScene";
 import { LoadingSurface } from "./LoadingSurface";
 import type { BootPhase } from "./LoadingSurface";
 import { Mark } from "./Logo";
+import type { LaunchPlan } from "./webfabric/store";
 
 /**
  * Start-up screen.
@@ -116,6 +117,18 @@ export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabl
 }
 
 export const LICENCE = "Deterministic Spatiotemporal Transport Network Simulator · © 2026 Varun Karthic · AGPL-3.0-or-later · Map data © OpenStreetMap contributors (ODbL)";
+
+/** While the launcher starts applications, the simulation waits for them, and this says so. */
+export function launchStage(plan: LaunchPlan): SplashStage {
+  const ready = plan.apps.filter((app) => app.state === "ready");
+  const next = plan.apps.find((app) => app.state !== "ready" && app.state !== "failed");
+  return {
+    step: 1,
+    waiting: true,
+    label: "Starting applications",
+    detail: next ? `${next.name}. ${ready.length} of ${plan.apps.length} ready.` : `${ready.length} of ${plan.apps.length} ready.`,
+  };
+}
 
 export function Splash({
   stage,
