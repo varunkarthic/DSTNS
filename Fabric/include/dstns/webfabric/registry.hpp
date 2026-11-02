@@ -34,12 +34,24 @@ public:
 /// that state and renders it, so an application never touches the page itself.
 /// Thread-safe. Identity, grants and settings survive a restart; everything an
 /// application declares at run time it declares again when it returns.
+/// What the operator has turned on and off for this server, read once from the environment at start. The
+/// launcher sets these from its settings; see docs/reference/environment-variables.md.
+struct Switches {
+    bool applications = true;          // DSTNS_FABRIC_APPS: applications may register at all
+    bool legacy_api = true;            // DSTNS_LEGACY_API: the older /playback and /control routes answer
+    bool launch_proposals = true;      // DSTNS_LAUNCH_PROPOSALS: applications may propose how to start them
+    bool require_signatures = false;   // DSTNS_REQUIRE_SIGNATURES: every application must sign its requests
+    std::set<std::string> disabled;    // DSTNS_DISABLED_CAPABILITIES: capabilities nobody may be granted
+    nlohmann::json presentation = nlohmann::json::object();  // DSTNS_PRESENTATION: how the observer presents itself
+};
+const Switches& switches();
+
 class AppRegistry {
 public:
     explicit AppRegistry(std::filesystem::path store);
 
     /// `presented` is the bearer token, if any: it proves ownership of an ID.
-    nlohmann::json register_app(const nlohmann::json& manifest, const std::string& presented);
+    nlohmann::json register_app(const nlohmann::json& manifest, const std::string& presented, const std::string& launch_key = {});
     void authenticate(const std::string& id, const std::string& token);
     /// A signed request's signature, freshness and nonce. Refused if unsigned and the application requires signing.
     void verify_signature(const std::string& id, const std::string& method, const std::string& target, const std::string& timestamp,
@@ -70,6 +82,11 @@ public:
     [[nodiscard]] nlohmann::json describe(const std::string& id);
     /// The observer's view. Unchanged since `since` answers without the apps.
     [[nodiscard]] nlohmann::json state(std::uint64_t since, std::uint64_t notifications_since, std::uint64_t view_since = 0);
+    /// A person asks for an application to start again: its link ends, and it connects anew with a new token.
+    [[nodiscard]] nlohmann::json reload(const std::string& id);
+    /// The launcher's one-time key for an application it is starting, as a SHA-256 hash. Presenting the key when
+    /// registering is proof of being that application, so it keeps what a person granted it.
+    void set_launch_key(const std::string& id, const std::string& key_hash);
     /// An application asking the map to move. It only asks: the observer decides, and says what it did.
     [[nodiscard]] nlohmann::json request_view(const std::string& id, const nlohmann::json& request);
     void view_outcome(const std::string& id, std::uint64_t request, const std::string& outcome, const std::string& reason);
@@ -199,6 +216,9 @@ private:
     nlohmann::json launch_ = nlohmann::json::object();
     nlohmann::json launch_plan_ = nullptr;
     std::deque<nlohmann::json> view_requests_;
+    std::map<std::string, std::string> launch_keys_;
+    std::deque<nlohmann::json> reloads_;
+    std::uint64_t reload_sequence_{};
     std::uint64_t view_sequence_{};
     std::uint64_t presentation_revision_{};
     std::mutex mutex_;

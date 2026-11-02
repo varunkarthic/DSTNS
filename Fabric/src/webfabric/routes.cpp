@@ -57,7 +57,7 @@ void ApiServer::routes_apps() {
             registry_->verify_signature(manifest.at("id").template get<std::string>(), req.method, req.target, req.get_header_value("X-DSTNS-Timestamp"), req.get_header_value("X-DSTNS-Nonce"), req.get_header_value("X-DSTNS-Signature"), req.body);
         if (manifest.is_object() && manifest.contains("ui") && manifest.at("ui").is_array())
             for (const auto& element : manifest.at("ui")) on_network(element);
-        ok(r, registry_->register_app(manifest, bearer(req)), 201);
+        ok(r, registry_->register_app(manifest, bearer(req), req.get_header_value("X-DSTNS-Launch-Key")), 201);
     });
     server_->Get(route(""), [this, ok](const auto& req, auto& r) { ok(r, registry_->describe(req.matches[1])); });
     server_->Delete(route(""), [this, ok, owner](const auto& req, auto& r) {
@@ -143,6 +143,17 @@ void ApiServer::routes_apps() {
     server_->Delete("/api/v1/fabric/launch/plan", [this, ok](const auto& req, auto& r) {
         require_host(req);
         registry_->set_launch_plan(nullptr);
+        ok(r, json::object());
+    });
+    // Starting again: the application's link ends, and it connects anew. See AppRegistry::reload.
+    server_->Post(route("/reload"), [this, ok](const auto& req, auto& r) {
+        require_host(req);
+        ok(r, registry_->reload(req.matches[1]));
+    });
+    // The launcher's one-time key for a process it is starting, so that process can prove to be the application.
+    server_->Put(R"(/api/v1/fabric/launch/([a-z0-9.-]+)/key)", [this, ok](const auto& req, auto& r) {
+        require_host(req);
+        registry_->set_launch_key(req.matches[1], body(req).at("key_sha256").template get<std::string>());
         ok(r, json::object());
     });
     server_->Get("/api/v1/fabric/launch", [this, ok](const auto& req, auto& r) {

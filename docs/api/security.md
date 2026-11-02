@@ -298,6 +298,34 @@ choices, never a change to them.
 | It's on the record | Every request is in the audit log |
 | Only real things | Layer names are a closed list, values must be true or false, and numbers must be finite and in range |
 
+## What the operator can turn off
+
+Each of these is read once, when the server starts. The launcher sets them from its settings, and
+`GET /api/v1/system/features` says what they are.
+
+| Variable | Default | Turned off |
+|---|---|---|
+| `DSTNS_FABRIC_APPS` | on | Applications can't register, and nothing under `/api/v1/fabric/apps` changes: `403 APPLICATIONS_DISABLED` |
+| `DSTNS_LEGACY_API` | on | `/api/v1/playback/*`, `/api/v1/control/*` and `/stop` answer `410 LEGACY_API_DISABLED`. This closes the routes [without a credential](#what-is-not-protected) |
+| `DSTNS_LAUNCH_PROPOSALS` | on | An application can't propose how to start it: `403 LAUNCH_PROPOSALS_DISABLED`. The operator still can |
+| `DSTNS_REQUIRE_SIGNATURES` | off | When on, every application must sign every request |
+| `DSTNS_DISABLED_CAPABILITIES` | none | A comma-separated list of capabilities nobody may be granted: `403 CAPABILITY_DISABLED` |
+
+## Reloading an application
+
+A person can reload an application from the observer. Its link ends at once: the token and the signing
+key stop working, and what it declared, queued, timed and held is cleared.
+
+What happens next depends on whether anyone can prove to be it:
+
+- **The launcher started it.** Before starting a process, the launcher gives the server the SHA-256 hash of a
+  random one-time key, and gives the process the key itself in `DSTNS_FABRIC_LAUNCH_KEY`. On reload the launcher
+  starts it again with a new key. The process registers presenting the key in `X-DSTNS-Launch-Key`, gets a new
+  token, and keeps what a person granted it, its settings and its storage. A key works once, and only the
+  observer or the operator can set one.
+- **Anything else.** Nobody can prove to be it. Its explicit grants are dropped, it registers again as new, and a
+  person grants again whatever needs a person. Nobody can take over its grants in between.
+
 ## Writing files
 
 Exporting to SUMO writes files on the server. Unless a request has the operator's credential, the directory must be

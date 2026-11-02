@@ -3596,6 +3596,63 @@ paths:
       security:
       - OperatorKey: []
       - ObserverHost: []
+  /api/v1/system/features:
+    get:
+      tags:
+      - System
+      operationId: features
+      summary: What the operator has turned on and off, and how the observer presents itself
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+  /api/v1/fabric/apps/{id}/reload:
+    post:
+      tags:
+      - Fabric
+      operationId: fabricReload
+      summary: End an application's link, so that it connects again anew
+      parameters: &id010
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      security: &id011
+      - OperatorKey: []
+      - ObserverHost: []
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
+  /api/v1/fabric/launch/{id}/key:
+    put:
+      tags:
+      - Fabric
+      operationId: fabricLaunchKey
+      summary: The launcher's one-time key for an application it is starting
+      parameters: *id010
+      security: *id011
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - key_sha256
+              properties:
+                key_sha256:
+                  type: string
+                  pattern: ^[0-9a-f]{64}$
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        4XX:
+          $ref: '#/components/responses/Error'
 components:
   securitySchemes:
     OperatorKey:

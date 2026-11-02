@@ -96,6 +96,7 @@ void ApiServer::routes_system() {
                 {{"GET","/api/v1/system/observer","Observer page-load count"}},
                 {{"POST","/api/v1/system/observer","An open observer reports whether a world should wait for it"}},
                 {{"GET","/api/v1/system/narrator","Narration model, queue and cache"}},
+                {{"GET","/api/v1/system/features","What the operator has turned on and off, and how the observer presents itself"}},
                 {{"POST","/api/v1/system/terminate","Stop the simulation and exit the process"}}}),
             group("playback","Moving through simulated time",{
                 {{"GET","/api/v1/playback/status","Clock, rate and lifecycle"}},
@@ -177,6 +178,8 @@ void ApiServer::routes_system() {
                 {{"POST","/api/v1/fabric/apps/{id}/credentials/rotate","Replace the application's token and signing key"}},
                 {{"PUT","/api/v1/fabric/apps/{id}/launch","Propose how the launcher should start this application"}},
                 {{"GET","/api/v1/fabric/launch","Launch proposals waiting for a person"}},
+                {{"POST","/api/v1/fabric/apps/{id}/reload","End the application's link, so that it connects again anew"}},
+                {{"PUT","/api/v1/fabric/launch/{id}/key","The launcher's one-time key for an application it is starting"}},
                 {{"PUT","/api/v1/fabric/launch/{id}","Propose how the launcher should start an application"}},
                 {{"PUT","/api/v1/fabric/launch/plan","What the launcher is starting, for the observer"}},
                 {{"GET","/api/v1/fabric/security","What is protecting what"}},
@@ -330,6 +333,20 @@ void ApiServer::routes_system() {
         send(r, engine_.backpressure());
     });
 
+    // What the operator has turned on and off, and how the observer should present itself. Read-only, and set
+    // only by whoever starts the server: see docs/reference/environment-variables.md.
+    server_->Get("/api/v1/system/features", [](const auto&, auto& r) {
+        const auto& on = switches();
+        const char* regeneration = std::getenv("DSTNS_DISABLE_WORLD_REGENERATION");
+        auto presentation = json{{"webfabric", true}, {"force_animate", true}, {"fast_boot", false}, {"demo", false}, {"music", false}, {"fullscreen", false}, {"music_volume", 0.6}};
+        presentation.update(on.presentation);
+        // Fast Boot exists to skip the wait, so the film is not made to play to its end.
+        if (presentation.value("fast_boot", false)) presentation["force_animate"] = false;
+        send(r, {{"api_version", kApiVersion}, {"data", {
+            {"applications", on.applications}, {"legacy_api", on.legacy_api}, {"launch_proposals", on.launch_proposals},
+            {"require_signatures", on.require_signatures}, {"disabled_capabilities", on.disabled},
+            {"world_regeneration", !(regeneration && std::string(regeneration) == "1")}, {"presentation", presentation}}}});
+    });
     server_->Get("/api/v1/system/narrator", [this](const auto&, auto& r) {
         send(r, {{"ok", true}, {"data", engine_.narrator_status()}});
     });

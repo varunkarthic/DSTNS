@@ -126,6 +126,22 @@ void validate_settings(const json& settings) {
     if (settings.contains("migrations") && !settings.at("migrations").is_object()) bad("settings.migrations must be an object");
 }
 
+bool environment_flag(const char* name, bool fallback) {
+    const char* value = std::getenv(name);
+    if (!value || !*value) return fallback;
+    const std::string text = lower(value);
+    return !(text == "0" || text == "false" || text == "off" || text == "no");
+}
+
+// What a manifest may say about a web interface of the application's own: opened in a tab of its own, never in the page.
+void check_web(const json& web) {
+    if (!web.is_object()) bad("manifest.web must be an object");
+    const auto url = web.value("url", json(nullptr));
+    if (!url.is_string() || !(url.get<std::string>().starts_with("http://") || url.get<std::string>().starts_with("https://")) || url.get<std::string>().size() > 2000)
+        bad("manifest.web.url must be an http or https URL");
+    text_field(web, "label", 40, false, "manifest.web");
+}
+
 json validate_manifest(const json& manifest) {
     if (!manifest.is_object()) bad("the manifest must be an object");
     if (manifest.value("manifest_version", kManifestVersion) != kManifestVersion)
@@ -163,6 +179,7 @@ json validate_manifest(const json& manifest) {
     }
     if (manifest.contains("security") && !(manifest.at("security").is_object() && manifest.at("security").value("require_signatures", json(false)).is_boolean()))
         bad("manifest.security.require_signatures must be true or false");
+    if (manifest.contains("web")) check_web(manifest.at("web"));
     return manifest;
 }
 
@@ -307,6 +324,42 @@ std::int64_t wall_ms() {
 }
 } // namespace
 
+const Switches& switches() {
+    static const Switches loaded = [] {
+        Switches out;
+        out.applications = environment_flag("DSTNS_FABRIC_APPS", true);
+        out.legacy_api = environment_flag("DSTNS_LEGACY_API", true);
+        out.launch_proposals = environment_flag("DSTNS_LAUNCH_PROPOSALS", true);
+        out.require_signatures = environment_flag("DSTNS_REQUIRE_SIGNATURES", false);
+        if (const char* list = std::getenv("DSTNS_DISABLED_CAPABILITIES")) {
+            std::string text = list;
+            for (std::size_t start = 0; start <= text.size();) {
+                const auto comma = text.find(',', start);
+                auto item = text.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+                item.erase(0, item.find_first_not_of(' '));
+                item.erase(item.find_last_not_of(' ') + 1);
+                if (kAutomatic.count(item) || kExplicit.count(item)) out.disabled.insert(item);
+                if (comma == std::string::npos) break;
+                start = comma + 1;
+            }
+        }
+        // Only what is known, and only of the right kind, reaches the observer.
+        if (const char* text = std::getenv("DSTNS_PRESENTATION"); text && *text) {
+            try {
+                const auto given = json::parse(text);
+                for (const char* key : {"webfabric", "force_animate", "fast_boot", "demo", "music", "fullscreen"})
+                    if (given.is_object() && given.contains(key) && given.at(key).is_boolean()) out.presentation[key] = given.at(key);
+                if (given.is_object() && given.contains("music_volume") && given.at("music_volume").is_number())
+                    out.presentation["music_volume"] = std::clamp(given.at("music_volume").get<double>(), 0.0, 1.0);
+            } catch (const json::exception&) {
+                // A malformed setting leaves the defaults, rather than stopping the server.
+            }
+        }
+        return out;
+    }();
+    return loaded;
+}
+
 AppRegistry::AppRegistry(std::filesystem::path store) : store_(std::move(store)) {
     std::ifstream in(store_);
     if (!in) return;
@@ -422,16 +475,21 @@ void AppRegistry::sweep() {
     }
 }
 
-json AppRegistry::register_app(const json& raw, const std::string& presented) {
+json AppRegistry::register_app(const json& raw, const std::string& presented, const std::string& launch_key) {
+    if (!switches().applications) throw Refusal(403, "APPLICATIONS_DISABLED", "the operator has turned applications off on this server");
     const auto manifest = validate_manifest(raw);
     const auto id = manifest.at("id").get<std::string>();
     std::lock_guard lock(mutex_);
     sweep();
     const auto existing = apps_.find(id);
     bool returning = false;
+    // The launcher started this very process, and gave it this key for the purpose. Used once.
+    const auto key = launch_keys_.find(id);
+    const bool launched = !launch_key.empty() && key != launch_keys_.end() && same_secret(sha256(launch_key), key->second);
+    if (launched) launch_keys_.erase(key);
     if (existing != apps_.end()) {
         auto& previous = existing->second;
-        const bool owner = !presented.empty() && same_secret(sha256(presented), previous.token_hash);
+        const bool owner = launched || (!presented.empty() && same_secret(sha256(presented), previous.token_hash));
         if (!owner) {
             if (previous.state != "unloaded")
                 throw Refusal(409, "APP_ID_CONFLICT", "an application with the ID " + id + " is already registered; present its token to update it");
@@ -462,7 +520,7 @@ json AppRegistry::register_app(const json& raw, const std::string& presented) {
     app.id = id;
     // Someone taking up an ID without its token is not the application that had it. They get what a person chose
     // for it, but not what it kept or was sent.
-    if (returning && (presented.empty() || !same_secret(sha256(presented), app.token_hash))) {
+    if (returning && !launched && (presented.empty() || !same_secret(sha256(presented), app.token_hash))) {
         app.storage = json::object();
         app.event_queue.clear();
         app.timers.clear();
@@ -484,10 +542,11 @@ json AppRegistry::register_app(const json& raw, const std::string& presented) {
     const auto new_origins = manifest.value("frame_origins", std::set<std::string>{});
     const bool widened = returning && !std::includes(old_origins.begin(), old_origins.end(), new_origins.begin(), new_origins.end());
     for (const auto& capability : requested) {
+        if (switches().disabled.count(capability)) continue;
         if (kAutomatic.count(capability) || (returning && app.granted.count(capability) && !(capability == "ui.frames" && widened))) kept.insert(capability);
     }
     app.granted = std::move(kept);
-    app.signatures_required = manifest.contains("security") && manifest.at("security").value("require_signatures", false);
+    app.signatures_required = switches().require_signatures || (manifest.contains("security") && manifest.at("security").value("require_signatures", false));
     app.manifest = manifest;
     app.lease_s = manifest.value("lease_s", 60.0);
     app.elements = json::array();
@@ -541,6 +600,37 @@ void AppRegistry::adopt_settings(App& app) {
     if (from > 0 && from != version) push_event(app, "settings.migrated", {{"from", from}, {"to", version}, {"values", app.values}});
 }
 
+namespace {
+// Widgets are drawn by the observer's own components, so most of what they say is only text. What could lead
+// somewhere is checked: a link opens in a tab of its own, and only over http or https. Where a widget sits on the
+// panel's grid is checked too, so that a layout can't ask for what the grid hasn't got.
+void check_widgets(const json& widgets, int depth) {
+    if (!widgets.is_array()) throw Refusal(400, "INVALID_ELEMENT", "widgets must be an array");
+    if (depth > 3) throw Refusal(400, "INVALID_ELEMENT", "widgets may be nested 3 deep");
+    for (const auto& widget : widgets) {
+        if (!widget.is_object()) throw Refusal(400, "INVALID_ELEMENT", "a widget must be an object");
+        const auto type = widget.value("type", json(nullptr));
+        if (!type.is_string()) throw Refusal(400, "INVALID_ELEMENT", "a widget needs a type");
+        if (type == "link") {
+            const auto url = widget.value("url", json(nullptr));
+            if (!url.is_string() || !(url.get<std::string>().starts_with("http://") || url.get<std::string>().starts_with("https://")) || url.get<std::string>().size() > 2000)
+                throw Refusal(400, "INVALID_ELEMENT", "a link needs an http or https url");
+        }
+        if (widget.contains("area")) {
+            const auto& area = widget.at("area");
+            if (!area.is_object()) throw Refusal(400, "INVALID_ELEMENT", "area must be an object");
+            for (const char* key : {"column", "row", "width", "height"})
+                if (area.contains(key) && !(area.at(key).is_number_unsigned() && area.at(key).get<int>() >= 1 && area.at(key).get<int>() <= 12))
+                    throw Refusal(400, "INVALID_ELEMENT", std::string("area.") + key + " must be 1 to 12");
+        }
+        if (widget.contains("tabs") && widget.at("tabs").is_array())
+            for (const auto& tab : widget.at("tabs"))
+                if (tab.is_object() && tab.contains("widgets")) check_widgets(tab.at("widgets"), depth + 1);
+        if (widget.contains("widgets")) check_widgets(widget.at("widgets"), depth + 1);
+    }
+}
+} // namespace
+
 void AppRegistry::check_element(const App& app, const json& element) const {
     if (!element.is_object()) throw Refusal(400, "INVALID_ELEMENT", "a UI element must be an object");
     const auto id = element.value("id", json(nullptr));
@@ -553,6 +643,12 @@ void AppRegistry::check_element(const App& app, const json& element) const {
     }
     const auto capability = kSlotCapability.find(slot);
     if (capability == kSlotCapability.end()) throw Refusal(400, "INVALID_ELEMENT", "unknown UI slot: " + slot);
+    if (element.contains("layout")) {
+        const auto& layout = element.at("layout");
+        const auto columns = layout.is_object() ? layout.value("columns", json(6)) : json(nullptr);
+        if (!columns.is_number_unsigned() || columns.get<int>() < 1 || columns.get<int>() > 12) throw Refusal(400, "INVALID_ELEMENT", "layout.columns must be 1 to 12");
+    }
+    if (element.contains("widgets")) check_widgets(element.at("widgets"), 0);
     if (element.contains("tone") && (!element.at("tone").is_string() || !kTones.count(element.at("tone").get<std::string>())))
         throw Refusal(400, "INVALID_ELEMENT", "tone must be neutral, accent, ok, warn or danger; applications do not choose colours");
     // A declared URL is only ever loaded into a sandboxed frame, and only over http(s).
@@ -598,6 +694,10 @@ void AppRegistry::authenticate(const std::string& id, const std::string& token) 
 void AppRegistry::require_capability(const std::string& id, const std::string& capability) {
     std::lock_guard lock(mutex_);
     auto& app = find(id);
+    if (switches().disabled.count(capability)) {
+        ++app.refused;
+        throw Refusal(403, "CAPABILITY_DISABLED", "the operator has turned " + capability + " off on this server");
+    }
     if (!app.granted.count(capability)) {
         ++app.refused;
         throw Refusal(403, "CAPABILITY_NOT_GRANTED", "this application has not been granted " + capability);
@@ -616,7 +716,8 @@ json AppRegistry::public_view(const App& app, bool with_ui) const {
                  {"state", app.state}, {"detail", app.detail}, {"user_suspended", app.user_suspended}, {"order", app.order},
                  {"capabilities", {{"requested", std::move(requested)}, {"granted", app.granted}, {"pending", std::move(pending)}}},
                  {"settings", app.manifest.value("settings", json(nullptr))},
-                 {"security", {{"signatures_required", app.signatures_required}, {"frame_origins", app.manifest.value("frame_origins", json::array())}}}};
+                 {"security", {{"signatures_required", app.signatures_required}, {"frame_origins", app.manifest.value("frame_origins", json::array())}}},
+                 {"web", app.manifest.value("web", json(nullptr))}};
     if (view["settings"].is_object()) view["settings"].erase("migrations");
     if (with_ui) {
         auto shown = json::array();
@@ -675,7 +776,8 @@ json AppRegistry::state(std::uint64_t since, std::uint64_t notifications_since, 
     for (const auto* app : holders)
         held.push_back({{"app", app->id}, {"name", app->manifest.value("name", app->id)}, {"revision", app->presentation_at}, {"layers", app->presentation.at("layers")}, {"places", app->presentation.at("places")}});
     json out = {{"revision", revision_}, {"notification_sequence", notification_sequence_}, {"notifications", std::move(recent)}, {"launch_plan", launch_plan_},
-                {"view_sequence", view_sequence_}, {"view_requests", std::move(views)}, {"presentation", std::move(held)}};
+                {"view_sequence", view_sequence_}, {"view_requests", std::move(views)}, {"presentation", std::move(held)},
+                {"reload_sequence", reload_sequence_}, {"reloads", json(reloads_)}};
     if (since == revision_) {
         out["unchanged"] = true;
         return out;
@@ -918,6 +1020,7 @@ json AppRegistry::set_grants(const std::string& id, const json& capabilities) {
     for (const auto& capability : capabilities) {
         const auto name = capability.get<std::string>();
         if (!requested.count(name)) throw Refusal(400, "CAPABILITY_NOT_REQUESTED", "the application did not ask for " + name);
+        if (switches().disabled.count(name)) throw Refusal(403, "CAPABILITY_DISABLED", "the operator has turned " + name + " off on this server");
         granted.insert(name);
     }
     app.granted = std::move(granted);
@@ -973,6 +1076,8 @@ json AppRegistry::discovery() {
         {"slots", std::move(slots)},
         {"widgets", {"text", "heading", "note", "stat", "stats", "keyvalues", "table", "gauge", "bars", "progress", "sparkline", "route", "chips", "list", "legend", "tabs", "input", "button", "toggle", "select", "slider"}},
         {"overlay_features", {"route", "path", "marker", "circle", "polygon", "line", "label", "heatmap"}},
+        {"layout", {{"columns", {{"min", 1}, {"max", 12}, {"default", 6}}}, {"area", {"column", "row", "width", "height"}}}},
+        {"switches", {{"applications", switches().applications}, {"launch_proposals", switches().launch_proposals}, {"require_signatures", switches().require_signatures}, {"disabled_capabilities", switches().disabled}}},
         {"path_styles", {"solid", "dashed", "dotted", "flow"}},
         {"view_actions", {"focus", "node", "edge", "bounds", "zoom", "fit"}},
         {"layers", kLayers},
@@ -1254,6 +1359,8 @@ json AppRegistry::security() {
 }
 
 json AppRegistry::propose_launch(const std::string& id, const json& spec, const std::string& proposed_by) {
+    if (proposed_by == "application" && !switches().launch_proposals)
+        throw Refusal(403, "LAUNCH_PROPOSALS_DISABLED", "the operator has turned launch proposals off on this server");
     const auto refuse = [](const std::string& message) { throw Refusal(400, "INVALID_LAUNCH", message); };
     if (!std::regex_match(id, kAppId) || id.size() < 3 || id.size() > 64) refuse("the ID must be 3 to 64 lower-case letters, digits, dots and hyphens");
     if (!spec.is_object() || !spec.contains("commands") || !spec.at("commands").is_array() || spec.at("commands").empty() || spec.at("commands").size() > kMaxLaunchCommands)
@@ -1335,6 +1442,45 @@ void AppRegistry::clear_presentation(const std::string& id) {
     std::lock_guard lock(mutex_);
     auto& app = find(id);
     app.presentation = nullptr;
+}
+
+void AppRegistry::set_launch_key(const std::string& id, const std::string& key_hash) {
+    static const std::regex kHash("[0-9a-f]{64}");
+    if (!std::regex_match(id, kAppId) || !std::regex_match(key_hash, kHash)) throw Refusal(400, "INVALID_LAUNCH", "a launch key is an application ID and a SHA-256 hash");
+    std::lock_guard lock(mutex_);
+    launch_keys_[id] = key_hash;
+    while (launch_keys_.size() > kMaxApps * 2) launch_keys_.erase(launch_keys_.begin());
+}
+
+json AppRegistry::reload(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    // The link ends now: nothing the old process holds works any more.
+    app.token_hash = sha256(Seed128::secure().hex());
+    app.signing_key = Seed128::secure().hex() + Seed128::secure().hex();
+    app.nonces.clear();
+    app.elements = json::array();
+    app.event_queue.clear();
+    app.timers.clear();
+    app.topics.clear();
+    app.stops.clear();
+    app.presentation = nullptr;
+    // Started by the launcher, it comes back with a key the launcher gives it, and keeps what a person granted.
+    // Otherwise nobody can prove to be it, so it starts again as new, and asks again for anything a person gives.
+    bool managed = false;
+    if (launch_plan_.is_object() && launch_plan_.contains("apps") && launch_plan_.at("apps").is_array())
+        for (const auto& entry : launch_plan_.at("apps"))
+            managed = managed || (entry.is_object() && entry.value("id", std::string{}) == id);
+    if (!managed)
+        for (auto capability = app.granted.begin(); capability != app.granted.end();)
+            capability = kExplicit.count(*capability) ? app.granted.erase(capability) : std::next(capability);
+    app.state = managed ? "reloading" : "unloaded";
+    app.detail = "Reloading.";
+    reloads_.push_back({{"sequence", ++reload_sequence_}, {"app", id}, {"at_ms", wall_ms()}});
+    while (reloads_.size() > 64) reloads_.pop_front();
+    mark(app);
+    persist();
+    return {{"reloading", true}, {"managed", managed}, {"sequence", reload_sequence_}};
 }
 
 void AppRegistry::set_launch_plan(const json& plan) {

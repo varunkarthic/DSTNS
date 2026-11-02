@@ -269,14 +269,14 @@ Response `200`, from a real run:
 
 ```json
 {
-  "from_seconds": 28822,
+  "from_seconds": 28823,
   "lifecycle": "PAUSED",
   "ok": true,
   "playback_revision": 9,
-  "simulated_seconds": 28882,
-  "state_revision": 28882,
+  "simulated_seconds": 28883,
+  "state_revision": 28883,
   "stepped_seconds": 60,
-  "target_time": "08:01:22"
+  "target_time": "08:01:23"
 }
 ```
 
@@ -423,10 +423,10 @@ Response `202`, from a real run:
 {
   "command_id": 4,
   "delayed_by_dws_gate": false,
-  "effective_start_playback_s": 1203.4166666666667,
+  "effective_start_playback_s": 1203.4583333333333,
   "event_id": 1000000,
   "ok": true,
-  "requested_start_playback_s": 1203.4166666666667,
+  "requested_start_playback_s": 1203.4583333333333,
   "status": "scheduled"
 }
 ```
@@ -464,7 +464,7 @@ Response `202`, from a real run:
   "command_id": 5,
   "edge_id": 3,
   "ok": true,
-  "state_revision": 28883
+  "state_revision": 28884
 }
 ```
 
@@ -496,12 +496,12 @@ Response `202`, from a real run:
 
 ```json
 {
-  "end_time": "08:16:22",
+  "end_time": "08:16:23",
   "factor": 2.0,
   "node_id": 5,
   "ok": true,
   "radius_m": 300.0,
-  "start_time": "08:01:22",
+  "start_time": "08:01:23",
   "surge_id": 1000001
 }
 ```
@@ -534,7 +534,7 @@ Response `200`, from a real run:
   "command_id": 6,
   "edge_id": 3,
   "ok": true,
-  "state_revision": 28884
+  "state_revision": 28885
 }
 ```
 
@@ -594,11 +594,11 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
@@ -608,14 +608,14 @@ Response `200`, from a real run:
         "status": "applied",
         "type": "tick_rate",
         "undoable": true,
-        "virtual_day_s": 28882
+        "virtual_day_s": 28883
       },
       {
         "command_id": 2,
         "status": "applied",
         "type": "day",
         "undoable": true,
-        "virtual_day_s": 28882
+        "virtual_day_s": 28883
       },
       "… and 4 more"
     ],
@@ -626,7 +626,7 @@ Response `200`, from a real run:
   "ok": true,
   "run_id": "run_f104c50a105b",
   "seed": "10775",
-  "state_revision": 28885
+  "state_revision": 28886
 }
 ```
 
@@ -649,11 +649,11 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
@@ -707,11 +707,11 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
@@ -728,7 +728,7 @@ Response `200`, from a real run:
         "from_node": 527,
         "incident_id": 1,
         "node_id": 527,
-        "remaining_s": 732,
+        "remaining_s": 731,
         "road_class": "residential",
         "speed_multiplier": 0.55,
         "start_virtual_s": 28048,
@@ -739,7 +739,7 @@ Response `200`, from a real run:
     ],
     "active_surges": [
       {
-        "end_s": 29782,
+        "end_s": 29783,
         "factor": 1.0,
         "id": 1000001,
         "label": "Commercial Demand Surge",
@@ -778,11 +778,11 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
@@ -843,11 +843,11 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
@@ -874,12 +874,12 @@ Response `200`, from a real run:
         },
         "to": 459,
         "traffic": {
-          "congestion": 0.140705456685409,
-          "demand_vph": 3347.5790379346618,
-          "effective_capacity_vph": 3198.989447417097,
-          "effective_speed_mps": 16.665174348251906,
+          "congestion": 0.14070502374586014,
+          "demand_vph": 3347.728691200593,
+          "effective_capacity_vph": 3198.9925823138547,
+          "effective_speed_mps": 16.6651893182003,
           "halting_count": 0,
-          "mean_speed_mps": 13.390634870137355,
+          "mean_speed_mps": 13.390646898641155,
           "occupancy": 0.15114612478631495,
           "vehicle_count": 3
         },
@@ -909,11 +909,11 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
@@ -967,11 +967,11 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
@@ -998,7 +998,7 @@ Response `200`, from a real run:
   "ok": true,
   "run_id": "run_f104c50a105b",
   "seed": "10775",
-  "state_revision": 28885
+  "state_revision": 28886
 }
 ```
 
@@ -1030,17 +1030,17 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
-    "average": 29.453968863083585,
-    "current": 30.211125510363047,
-    "delta": 0.7571566472794622,
+    "average": 29.454953074222576,
+    "current": 30.340251084874197,
+    "delta": 0.8852980106516206,
     "ema_tau_virtual_s": 900,
     "history": [
       {
@@ -1062,7 +1062,7 @@ Response `200`, from a real run:
   "ok": true,
   "run_id": "run_f104c50a105b",
   "seed": "10775",
-  "state_revision": 28885
+  "state_revision": 28886
 }
 ```
 
@@ -1087,11 +1087,11 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
@@ -1112,7 +1112,7 @@ Response `200`, from a real run:
   "ok": true,
   "run_id": "run_f104c50a105b",
   "seed": "10775",
-  "state_revision": 28885
+  "state_revision": 28886
 }
 ```
 
@@ -1140,26 +1140,26 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
-    "executed_count": 112545,
+    "executed_count": 112549,
     "history_retention": 2000,
     "items": [
       {
         "category": "signals",
-        "description": "Signal 9 → B amber",
-        "entity": 3,
-        "id": 123753,
-        "phase": 4,
+        "description": "Signal 20 → A amber",
+        "entity": 9,
+        "id": 123833,
+        "phase": 1,
         "status": "scheduled",
         "value": 0.0,
-        "virtual_s": 28883
+        "virtual_s": 28884
       }
     ],
     "limit": 1,
@@ -1171,7 +1171,7 @@ Response `200`, from a real run:
   "ok": true,
   "run_id": "run_f104c50a105b",
   "seed": "10775",
-  "state_revision": 28885
+  "state_revision": 28886
 }
 ```
 
@@ -1199,11 +1199,11 @@ Response `200`, from a real run:
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
     "playback_state": "PAUSED",
-    "simulated_current_time": "08:01:22",
-    "simulation_percentage": 0.3342824074074074,
+    "simulated_current_time": "08:01:23",
+    "simulation_percentage": 0.3342939814814815,
     "target_virtual_rate": 24.0,
     "tick_rate": 1.0,
-    "virtual_day_seconds": 28882
+    "virtual_day_seconds": 28883
   },
   "config_revision": 5,
   "data": {
@@ -1227,7 +1227,7 @@ Response `200`, from a real run:
   "ok": true,
   "run_id": "run_f104c50a105b",
   "seed": "10775",
-  "state_revision": 28885
+  "state_revision": 28886
 }
 ```
 
@@ -1394,7 +1394,7 @@ Response `200`, from a real run:
   "requested_tick_rate": 1.0,
   "score": 0.0,
   "state": "NORMAL",
-  "state_for_s": 11.41978475,
+  "state_for_s": 10.058781291,
   "stressed_for_s": 0.0,
   "synced": true,
   "thresholds": {
@@ -1406,8 +1406,8 @@ Response `200`, from a real run:
     "synced": 0.35
   },
   "throughput": {
-    "bytes_per_s": 25186735.86981959,
-    "snapshots_per_s": 17.32967099619619
+    "bytes_per_s": 24390252.904416285,
+    "snapshots_per_s": 16.77641236421584
   }
 }
 ```
@@ -1467,7 +1467,7 @@ Response `200`, from a real run:
   "data": {
     "backend": {
       "command": "/usr/bin/fm serve",
-      "endpoint": "unix:/var/folders/vq/tb738dm976z76f7ngp9r_lhh0000gn/T/dstns-fm-76788.sock",
+      "endpoint": "unix:/var/folders/vq/tb738dm976z76f7ngp9r_lhh0000gn/T/dstns-fm-96864.sock",
       "kind": "apple-foundation-models",
       "model": "system",
       "on_device": true
@@ -1479,7 +1479,7 @@ Response `200`, from a real run:
       "path": "logs/narrations.db",
       "persistent": true
     },
-    "cache_hits": 0,
+    "cache_hits": 1,
     "completed": 3,
     "dropped": 0,
     "enabled": true,
@@ -1487,17 +1487,51 @@ Response `200`, from a real run:
     "in_flight": 2,
     "last_error": "",
     "latency_ms": {
-      "max": 7364.833459,
-      "mean": 5721.823292000001
+      "max": 6751.848916,
+      "mean": 5317.451930333333
     },
-    "live_queue": 131,
-    "prefetch_queue": 17,
+    "live_queue": 130,
+    "prefetch_queue": 18,
     "queue": 148,
     "refused": 0,
     "requested": 282,
     "role": "presentation only: narrations never feed back into the simulation, and the API serves them…",
     "sequence": 3,
     "state": "ready"
+  },
+  "ok": true
+}
+```
+
+### `GET /api/v1/system/features`
+
+What the operator has turned on and off for this server, and how the observer should present itself. It's set by whoever starts the server, through the launcher's settings or [environment variables](../reference/environment-variables.md#fabric-and-presentation), and nothing can change it while the server runs.
+
+`presentation` holds `webfabric`, `force_animate`, `fast_boot`, `demo`, `music`, `fullscreen` and `music_volume`. With `fast_boot`, `force_animate` is always false.
+
+**Who:** Anyone who can reach the port.
+
+Response `200`, from a real run:
+
+```json
+{
+  "api_version": "1.4",
+  "data": {
+    "applications": true,
+    "disabled_capabilities": [],
+    "launch_proposals": true,
+    "legacy_api": true,
+    "presentation": {
+      "demo": false,
+      "fast_boot": false,
+      "force_animate": true,
+      "fullscreen": false,
+      "music": false,
+      "music_volume": 0.6,
+      "webfabric": true
+    },
+    "require_signatures": false,
+    "world_regeneration": true
   },
   "ok": true
 }
@@ -1593,7 +1627,7 @@ Every route that takes a token can answer `401 APP_TOKEN_INVALID` and `404 APP_N
 
 Registers from a manifest. It answers with a **token and a signing key, shown only this once**. Registering again with the token updates it. An ID that has gone can be taken up without the token unless a person gave it something, but the newcomer gets none of what the old one kept or was sent.
 
-**Who:** Anyone who can reach the port. To update a registered application, its token.
+**Who:** Anyone who can reach the port. To update a registered application, its token. A process the launcher started may present `X-DSTNS-Launch-Key` in place of the token.
 
 Body:
 
@@ -1611,6 +1645,8 @@ Body:
 | `settings` | object | No | Up to 128 fields | Its settings page |
 | `frame_origins` | array | No | Up to 16 origins | The only places its pages may come from |
 | `security.require_signatures` | boolean | No |  | Refuse unsigned requests from now on |
+| `web.url` | string | No | http or https, up to 2000 | Its own web interface. The observer offers a button that opens it in a new tab |
+| `web.label` | string | No | Up to 40 | What the button says |
 
 ```json
 {
@@ -1674,7 +1710,8 @@ Response `201`, from a real run:
       "state": "registered",
       "ui": [],
       "user_suspended": false,
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "web": null
     },
     "signing_key": "(shown once)",
     "token": "(shown once)"
@@ -1729,7 +1766,8 @@ Response `200`, from a real run:
         "settings": null,
         "state": "registered",
         "user_suspended": false,
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "web": null
       }
     ]
   },
@@ -1781,7 +1819,8 @@ Response `200`, from a real run:
     "state": "registered",
     "ui": [],
     "user_suspended": false,
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "web": null
   },
   "ok": true
 }
@@ -1859,7 +1898,7 @@ Response `200`, from a real run:
       "sequence": 0
     },
     "id": "org.example.planner",
-    "last_seen_s": 1.8583e-05,
+    "last_seen_s": 2.91e-07,
     "lease_lapses": 0,
     "lease_s": 60.0,
     "messages": {
@@ -1880,7 +1919,7 @@ Response `200`, from a real run:
       "bytes": 2,
       "elements": 0
     },
-    "uptime_s": 0.002734833
+    "uptime_s": 0.00236225
   },
   "ok": true
 }
@@ -1922,7 +1961,7 @@ Response `200`, from a real run:
 {
   "api_version": "1.4",
   "data": {
-    "at_ms": 1793588818531,
+    "at_ms": 1793606530845,
     "id": "org.example.planner",
     "proposed_by": "application",
     "spec": {
@@ -2160,7 +2199,7 @@ Response `200`, from a real run:
     "dropped": 0,
     "items": [
       {
-        "at_ms": 1793588818532,
+        "at_ms": 1793606530845,
         "data": {
           "granted": [
             "apps.messages",
@@ -2255,7 +2294,7 @@ Errors: `400 INVALID_TIMER`; `404 TIMER_NOT_FOUND`; `413 TOO_MANY_TIMERS` beyond
 
 ### `PUT /api/v1/fabric/apps/{id}/storage/{key}`
 
-Keeps a value across restarts of either side. `GET .../storage/{key}` reads it, `DELETE` removes it, and `GET .../storage` lists keys. **Not encrypted, so don't put secrets here.**
+Keeps a value across restarts of either side. The whole body is the value. `GET .../storage/{key}` reads it, `DELETE` removes it, and `GET .../storage` lists keys. **Not encrypted, so don't put secrets here.**
 
 **Who:** The application: `Authorization: Bearer <token>`, and signed if it requires it. **Capability:** `storage`.
 
@@ -2344,23 +2383,23 @@ Response `200`, from a real run:
   "data": {
     "items": [
       {
-        "baseline": 1.5425211622552664,
+        "baseline": 1.5425745058719866,
         "generators": 24,
-        "multiplier": 1.5425211622552664,
+        "multiplier": 1.5425745058719866,
         "node": 5,
         "x_m": 790.9237533390755,
         "y_m": -149.14392985573926
       },
       {
-        "baseline": 1.5425211622552664,
+        "baseline": 1.5425745058719866,
         "generators": 24,
-        "multiplier": 1.5504079891608955,
+        "multiplier": 1.5504616055206302,
         "node": 6,
         "x_m": 642.6204257756148,
         "y_m": 52.26734614402744
       }
     ],
-    "virtual_s": 28882
+    "virtual_s": 28883
   },
   "ok": true
 }
@@ -2563,12 +2602,12 @@ Response `200`, from a real run:
           }
         ],
         "user_suspended": false,
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "web": null
       }
     ],
     "full": true,
     "launch_plan": null,
-    "notification_sequence": 1,
   … (shortened)
 ```
 
@@ -2601,6 +2640,18 @@ Response `200`, from a real run:
       "events",
       "… and 10 more"
     ],
+    "layout": {
+      "area": [
+        "column",
+        "row",
+        "… and 2 more"
+      ],
+      "columns": {
+        "default": 6,
+        "max": 12,
+        "min": 1
+      }
+    },
     "limits": {
       "apps": 64,
       "elements": 64,
@@ -2615,18 +2666,6 @@ Response `200`, from a real run:
     "manifest_version": 1,
     "motions": [
       "none",
-      "fade",
-      "… and 5 more"
-    ],
-    "overlay_features": [
-      "route",
-      "path",
-      "… and 6 more"
-    ],
-    "path_styles": [
-      "solid",
-      "dashed",
-      "… and 2 more"
   … (shortened)
 ```
 
@@ -2652,8 +2691,8 @@ Response `200`, from a real run:
       {
         "action": "presentation",
         "app_id": "org.example.planner",
-        "at_ms": 1793588818534,
-        "hash": "16bf93a27f60a9bfe16734925e62e2bbe857521a12bd0c14aed11ee1de0ed052",
+        "at_ms": 1793606530848,
+        "hash": "21268eb184ae63ce2e617835aa3c066fb4e1bd6974bffb9a2a6335205ea2eec8",
         "outcome": "held",
         "params": {
           "layers": {
@@ -2664,22 +2703,22 @@ Response `200`, from a real run:
             "school": false
           }
         },
-        "previous": "a2281b26f1d036184436a2429717ed62be3969ecfd9c56707bf9dba03ff3bdc3",
+        "previous": "944459d5e0a6f301b45e63f72cd280303982d3f71eda89c5b789dc4518b285ab",
         "run_id": "run_f104c50a105b",
         "sequence": 2,
-        "virtual_s": 28882.0
+        "virtual_s": 28883.0
       },
       {
         "action": "pause",
         "app_id": "org.example.planner",
-        "at_ms": 1793588818537,
-        "hash": "a68022b051d160e8ce6f5b2f07ffbeac5a12ade684806db6262f49110afa21a9",
+        "at_ms": 1793606530850,
+        "hash": "d79998ebd35cc9ee61bb945de43fe3d9c7ea8b5184a18cdf22dae10026820bf3",
         "outcome": "ok",
         "params": {},
-        "previous": "16bf93a27f60a9bfe16734925e62e2bbe857521a12bd0c14aed11ee1de0ed052",
+        "previous": "21268eb184ae63ce2e617835aa3c066fb4e1bd6974bffb9a2a6335205ea2eec8",
         "run_id": "run_f104c50a105b",
         "sequence": 3,
-        "virtual_s": 28882.0
+        "virtual_s": 28883.0
       }
     ]
   },
@@ -2700,7 +2739,7 @@ Response `200`, from a real run:
   "api_version": "1.4",
   "data": {
     "checked": 3,
-    "head": "a68022b051d160e8ce6f5b2f07ffbeac5a12ade684806db6262f49110afa21a9",
+    "head": "d79998ebd35cc9ee61bb945de43fe3d9c7ea8b5184a18cdf22dae10026820bf3",
     "intact": true
   },
   "ok": true
@@ -2725,10 +2764,10 @@ Response `200`, from a real run:
     },
     "audit": {
       "entries": 3,
-      "head": "a68022b051d160e8ce6f5b2f07ffbeac5a12ade684806db6262f49110afa21a9",
+      "head": "d79998ebd35cc9ee61bb945de43fe3d9c7ea8b5184a18cdf22dae10026820bf3",
       "verification": {
         "checked": 3,
-        "head": "a68022b051d160e8ce6f5b2f07ffbeac5a12ade684806db6262f49110afa21a9",
+        "head": "d79998ebd35cc9ee61bb945de43fe3d9c7ea8b5184a18cdf22dae10026820bf3",
         "intact": true
       }
     },
@@ -2746,6 +2785,26 @@ Response `200`, from a real run:
 }
 ```
 
+### `POST /api/v1/fabric/apps/{id}/reload`
+
+Starts an application again. Its link ends at once: the token and signing key stop working, and what it declared, queued, timed and held is cleared. If the launcher started it, the launcher starts it again, and it comes back with the launcher's one-time key, keeping its grants, settings and storage. Otherwise nobody can prove to be it, so it registers again as new, and a person grants again whatever needs a person.
+
+**Who:** The observer or the operator.
+
+### `PUT /api/v1/fabric/launch/{id}/key`
+
+The launcher's one-time key for a process it's about to start, as a SHA-256 hash. The process presents the key itself, in `X-DSTNS-Launch-Key`, when it registers, which proves it's that application. Each key works once.
+
+**Who:** The observer or the operator.
+
+Body:
+
+| Field | Type | Required | Limits and default | Meaning |
+|---|---|---|---|---|
+| `key_sha256` | string | Yes | 64 hex characters |  |
+
+Errors: `400 INVALID_LAUNCH`.
+
 ### `GET /api/v1/fabric/launch`
 
 Launch proposals waiting for a person. `PUT .../launch/{id}` and `DELETE .../launch/{id}` add and withdraw one. `PUT` and `DELETE .../launch/plan` say what the launcher is starting, for the observer to show.
@@ -2760,7 +2819,7 @@ Response `200`, from a real run:
   "data": {
     "items": [
       {
-        "at_ms": 1793588818531,
+        "at_ms": 1793606530845,
         "id": "org.example.planner",
         "proposed_by": "application",
         "spec": {

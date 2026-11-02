@@ -75,6 +75,8 @@ of failure always looks the same whichever route raised it.
 | `APP_NOT_FOUND`, `ELEMENT_NOT_FOUND`, `KEY_NOT_FOUND`, `TIMER_NOT_FOUND`, `PROPOSAL_NOT_FOUND` | 404 | No such thing |
 | `APP_ID_CONFLICT` | 409 | That ID is in use, or holds grants, and no token was presented |
 | `APP_NOT_ACTIVE`, `APP_SUSPENDED` | 409 | It's been suspended, has failed or has gone |
+| `CAPABILITY_DISABLED`, `APPLICATIONS_DISABLED`, `LAUNCH_PROPOSALS_DISABLED` | 403 | The operator has turned that off on this server |
+| `LEGACY_API_DISABLED` | 410 | The operator has turned the older routes off. Use `/api/v1/fabric/engine` |
 | `UI_TOO_LARGE`, `STORAGE_FULL`, `TOO_MANY_TIMERS`, `MESSAGE_TOO_LARGE` | 413 | Over a [limit](security.md#limits) |
 | `APP_INCOMPATIBLE` | 422 | The manifest needs a version this server doesn't provide |
 | `NOT_ON_NETWORK` | 422 | A junction or road that isn't in this world, or nodes that aren't joined by a road |

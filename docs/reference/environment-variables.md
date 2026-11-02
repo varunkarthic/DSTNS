@@ -98,6 +98,21 @@ export DSTNS_API_PORT=9000
     `DSTNS_OPERATOR_TOKEN` is a credential. Keep it out of shell history, images
     and repositories; prefer the generated file in the logs directory.
 
+## Fabric and presentation
+
+Read by the server when it starts. The launcher sets them from its settings; see
+[What the operator can turn off](../api/security.md#what-the-operator-can-turn-off).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DSTNS_FABRIC_APPS` | `1` | `0` stops applications from registering |
+| `DSTNS_LEGACY_API` | `1` | `0` turns the older `/playback` and `/control` routes off |
+| `DSTNS_LAUNCH_PROPOSALS` | `1` | `0` stops applications proposing how to start them |
+| `DSTNS_REQUIRE_SIGNATURES` | `0` | `1` makes every application sign its requests |
+| `DSTNS_DISABLED_CAPABILITIES` | empty | Comma-separated capabilities nobody may be granted |
+| `DSTNS_PRESENTATION` | `{}` | JSON for the observer: `webfabric`, `force_animate`, `fast_boot`, `demo`, `music`, `fullscreen` (true or false), and `music_volume` (0 to 1). Anything else is ignored |
+| `DSTNS_FABRIC_LAUNCH_KEY` | | Given by the launcher to an application it starts, to present when it registers |
+
 ## Standard variables
 
 Not DSTNS's own, but respected by the launcher.

@@ -30,6 +30,16 @@ void ApiServer::install_guards() {
             send(r,{{"error",{{"code","CROSS_ORIGIN_FORBIDDEN"},{"message","State-changing requests must come from the observer's own origin."}}}},403);
             return httplib::Server::HandlerResponse::Handled;
         }
+        // What the operator has turned off answers as such, saying what to use instead.
+        const auto& on = fabric::switches();
+        if (!on.legacy_api && (req.path.starts_with("/api/v1/playback/") || req.path.starts_with("/api/v1/control/") || req.path == "/stop")) {
+            send(r,{{"ok",false},{"error",{{"code","LEGACY_API_DISABLED"},{"message","The operator has turned the legacy API off. Use the Fabric API at /api/v1/fabric/engine."}}}},410);
+            return httplib::Server::HandlerResponse::Handled;
+        }
+        if (!on.applications && req.path.starts_with("/api/v1/fabric/apps") && req.method != "GET" && req.method != "HEAD" && req.method != "OPTIONS") {
+            send(r,{{"ok",false},{"error",{{"code","APPLICATIONS_DISABLED"},{"message","The operator has turned applications off on this server."}}}},403);
+            return httplib::Server::HandlerResponse::Handled;
+        }
         // The engine, through Fabric, answers only to those it belongs to. Reading is open, as reading
         // the view is; an application acts through its own capability-checked route, and is recorded.
         if (req.path.starts_with(kEngineBase) && req.method != "GET" && req.method != "HEAD" && req.method != "OPTIONS" && !is_host(req)) {
@@ -46,7 +56,7 @@ void ApiServer::install_guards() {
     // CORS is granted per request, below, not to everyone: "*" would let any
     // web page the operator visits read the run from a local server.
     server_->set_default_headers({
-        {"Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Authorization, X-DSTNS-Host, X-DSTNS-Timestamp, X-DSTNS-Nonce, X-DSTNS-Signature"},
+        {"Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Authorization, X-DSTNS-Host, X-DSTNS-Timestamp, X-DSTNS-Nonce, X-DSTNS-Signature, X-DSTNS-Launch-Key"},
         {"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
         {"Cache-Control", "no-store"},
         {"X-Content-Type-Options", "nosniff"},
