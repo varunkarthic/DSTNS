@@ -41,7 +41,7 @@ export interface FabricLegendItem {
 }
 
 export interface FabricWidget {
-  type: "route" | "sparkline" | "table" | "gauge" | "bars" | "keyvalues" | "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input";
+  type: "route" | "sparkline" | "table" | "gauge" | "bars" | "keyvalues" | "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input" | "metric" | "card" | "chart" | "link" | "divider" | "status" | "timeline";
   id?: string;
   /** For a route: its stops in order. */
   stops?: { id?: string; label: string; caption?: string; state?: "passed" | "current" | "next" }[];
@@ -69,6 +69,21 @@ export interface FabricWidget {
   max?: number;
   step?: number;
   options?: { value: string | number; label: string }[];
+  /** Where it sits on its panel's grid, in columns and rows from 1. Absent: the whole width, in order. */
+  area?: { column?: number; row?: number; width?: number; height?: number };
+  /** A link: where it opens, in a new tab. */
+  url?: string;
+  /** A metric: the change, and what it is measured in. */
+  delta?: string | number;
+  unit?: string;
+  /** A chart: lines or bars, with their figures oldest first. */
+  kind?: "line" | "area" | "bars";
+  lines?: { label?: string; points: number[]; series?: number }[];
+  /** A card: what is inside it. */
+  widgets?: FabricWidget[];
+  /** A status: one of the tones' states. A timeline: its events. */
+  state?: "ok" | "warn" | "danger" | "neutral" | "busy";
+  events?: { time?: string; label: string; caption?: string; tone?: Tone }[];
 }
 
 export interface FabricSecurity {
@@ -178,6 +193,8 @@ export interface FabricElement {
   /** How it arrives: a provided motion, or a spring within the guidelines. */
   motion?: "none" | "fade" | "rise" | "slide" | "scale" | "pop" | "drop" | { stiffness: number; damping: number };
   actions?: { id: string; label: string; tone?: Tone }[];
+  /** How a panel lays out its widgets: a grid this many columns wide. */
+  layout?: { columns?: number };
 }
 
 export type SettingsFieldType = "toggle" | "slider" | "number" | "select" | "text";
@@ -211,6 +228,8 @@ export interface FabricApp {
   user_suspended: boolean;
   /** Absent from an older server. */
   security?: { signatures_required: boolean; frame_origins: string[] };
+  /** A web interface of its own, which opens in a new tab. */
+  web?: { url: string; label?: string } | null;
   order: number;
   capabilities: { requested: string[]; granted: string[]; pending: string[] };
   settings: SettingsSchema | null;
@@ -232,7 +251,7 @@ export interface FabricNotification {
 
 /** What the launcher is starting, while the simulation waits for it. */
 export interface LaunchPlan {
-  apps: { id: string; name: string; state: "waiting" | "preparing" | "starting" | "ready" | "failed" | "stopped"; detail?: string }[];
+  apps: { id: string; name: string; state: "waiting" | "preparing" | "starting" | "ready" | "failed" | "stopped"; detail?: string ; web_url?: string; web_label?: string }[];
 }
 
 interface StatePayload {
@@ -398,7 +417,12 @@ class FabricStore {
       const next = mergeApps(this.apps, state.full === false ? applyDelta(this.apps, state.apps, state.removed) : state.apps);
       if (next !== this.apps) {
         this.apps = next;
-        if (this.openPanel && !this.findPanel(this.openPanel)) this.openPanel = null;
+        // A panel whose application has gone is closed, but only once it has had time to leave: see FabricPanel.
+        const open = this.openPanel;
+        if (open && !this.findPanel(open))
+          setTimeout(() => {
+            if (this.openPanel === open && !this.findPanel(open)) this.setOpenPanel(null);
+          }, 420);
         this.emit();
       }
     }
@@ -483,6 +507,17 @@ class FabricStore {
     await call(`/apps/${appId}/grants`, { method: "PUT", body: JSON.stringify({ capabilities }) });
     await this.refresh();
   }
+  /** Its link ends, and it connects again anew: the launcher starts it again, if the launcher started it. */
+  reload(appId: string) {
+    return call(`/apps/${encodeURIComponent(appId)}/reload`, { method: "POST", body: "{}" });
+  }
+
+  /** Several at once, as a person chose them. Each that fails is reported, and the rest still happen. */
+  async suspendMany(appIds: readonly string[], suspended: boolean) {
+    const results = await Promise.allSettled(appIds.map((id) => this.suspend(id, suspended)));
+    return results.filter((result) => result.status === "rejected").length;
+  }
+
   async suspend(appId: string, suspended: boolean) {
     await call(`/apps/${appId}/${suspended ? "suspend" : "resume"}`, { method: "POST", body: "{}" });
     await this.refresh();
@@ -598,4 +633,12 @@ export function useFabricNotifications(dwellMs: number, virtual: number) {
     notes: useMemo(() => items.map((item) => item.note), [items]),
     dismiss: (id: string) => setItems((old) => old.filter((item) => item.note.id !== id)),
   };
+}
+
+/** Where an application's own web interface is: what it declared, or what the launcher was told. Only http(s). */
+export function webOf(app: FabricApp, plan: LaunchPlan | null): { url: string; label: string } | null {
+  const planned = plan?.apps.find((entry) => entry.id === app.id);
+  const url = app.web?.url ?? planned?.web_url;
+  if (!url || !/^https?:\/\//.test(url)) return null;
+  return { url, label: app.web?.label ?? planned?.web_label ?? `Open ${app.name}` };
 }

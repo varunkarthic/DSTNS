@@ -7,6 +7,7 @@ import { BrandLogo } from "./BrandLogo";
 import { Icon, categoryIcon } from "./Icons";
 import type { IconName } from "./Icons";
 import { FabricDeck } from "./webfabric/Slots";
+import { useFeatures } from "./features";
 import { useSlot } from "./webfabric/store";
 import { Select } from "./Popover";
 import { Tooltip } from "./Tooltip";
@@ -651,7 +652,9 @@ function Tabs({ tab, tabs, onTab, counts, idPrefix }: { tab: TelemetryTab; tabs:
 function TelemetryDeckImpl(props: Props) {
   const { snapshot, topology, runtime, compact, history } = props;
   const deckApps = useSlot("deck").items.length > 0;
-  const tabs = useMemo(() => [...TABS, APPS_TAB], []);
+  // Off, the operator has said applications are not to be shown: no tab, and no way in.
+  const webfabricOn = useFeatures().presentation.webfabric;
+  const tabs = useMemo(() => (webfabricOn ? [...TABS, APPS_TAB] : TABS), [webfabricOn]);
   const [chosenTab, setTab] = useState<TelemetryTab>(() => {
     try {
       const saved = localStorage.getItem("dstns.telemetry-tab.v1") as TelemetryTab | null;
@@ -770,7 +773,7 @@ function TelemetryDeckImpl(props: Props) {
             <Icon name="panelExpand" size={16} />
           </button>
         </Tooltip>
-        <Tooltip label="WebFabric" detail={deckApps ? "What your applications are showing." : "Applications you connect appear here."} side={["left", "bottom"]}>
+        {webfabricOn && <Tooltip label="WebFabric" detail={deckApps ? "What your applications are showing." : "Applications you connect appear here."} side={["left", "bottom"]}>
           <button
             type="button"
             className={`strip-fabric${panel === "apps" ? " active" : ""}`}
@@ -781,7 +784,7 @@ function TelemetryDeckImpl(props: Props) {
             <span aria-hidden="true"><BrandLogo name="webfabric-mark" height={12} /></span>
             {deckApps && <i className="strip-fabric-live" aria-hidden="true" />}
           </button>
-        </Tooltip>
+        </Tooltip>}
         <span className="strip-rule" aria-hidden="true" />
         <Tooltip label="Network overview" detail="Roads, vehicles, congestion and weather." side={["left", "bottom"]}>
           <button type="button" className={`strip-overview${panel === "overview" ? " active" : ""}`}

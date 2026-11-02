@@ -156,8 +156,10 @@ describe("slots", () => {
     act(() => fabric.setOpenPanel("org.x.a/p"));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     load([]);
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(fabric.getOpenPanel()).toBeNull();
+    // It leaves first, rather than vanishing, and is then closed.
+    expect(screen.getByRole("dialog")).toHaveClass("fabric-leaving");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(fabric.getOpenPanel()).toBeNull());
   });
 
   it("holds a dialog while the observer is busy, shows one at a time, and does not reopen an answered one", async () => {

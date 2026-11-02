@@ -104,6 +104,18 @@ Fabric checks what it can when the UI is declared. A shape or range it does not 
 from one junction to the next, is refused with `422 NOT_ON_NETWORK`. If the world is replaced afterwards, the
 observer leaves out whatever no longer exists. Roads are directed, so a two-way street is two edges.
 
+## Several applications
+
+Where several applications share a place, such as the deck or the sidebar, a list at the top chooses which one is
+shown. Beside it are the application's own web interface, if it has one, **Reload** and **Turn off**.
+
+- **Reload** ends the application's connection at once. If the launcher started it, the launcher starts it again, and
+  it comes back with a new token and keeps what you granted it.
+- **Turn off** suspends it. Its elements leave the interface, and an open panel of its own leaves gracefully rather
+  than vanishing. In Settings, select any number of applications to turn off or on together, or all of them at once.
+
+If the operator has turned WebFabric off, nothing of any application appears, and the Apps tab is gone.
+
 ## Directing the view
 
 ![An application's route on the map, chosen and framed by the application](../assets/screenshots/webfabric-direction.png){ .screenshot }

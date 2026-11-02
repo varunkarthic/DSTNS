@@ -512,6 +512,89 @@ try {
     checkingIn.delete("org.mock.director");
   });
 
+  await test("several applications share the canvas: chosen from a list, placed on a grid, and leaving gracefully", async () => {
+    const host = { "X-DSTNS-Operator": operator };
+    const register = async (id, name, extra = {}) => {
+      const made = await call("POST", "/api/v1/fabric/apps", { id, name, version: "1.0.0", capabilities: ["ui.deck", "ui.panels", "ui.map-controls"], ...extra });
+      checkingIn.set(id, made.body.data.token);
+      return made.body.data.token;
+    };
+    const first = await register("org.mock.canvas-a", "Canvas A", { web: { url: "https://example.org/a", label: "Open Canvas A" } });
+    const second = await register("org.mock.canvas-b", "Canvas B");
+    await call("PUT", "/api/v1/fabric/apps/org.mock.canvas-a/ui", [
+      { id: "board", slot: "deck", title: "Board", layout: { columns: 6 }, widgets: [
+        { type: "metric", label: "Buses", value: "12", delta: "+2", area: { column: 1, width: 3 } },
+        { type: "metric", label: "Late", value: "1", delta: "-1", area: { column: 4, width: 3 } },
+        { type: "chart", label: "Load", kind: "area", lines: [{ label: "Today", points: [1, 3, 2, 5, 4] }] },
+        { type: "timeline", events: [{ time: "08:00", label: "First bus" }, { time: "08:20", label: "Second" }] },
+        { type: "link", label: "Read more", url: "https://example.org/docs" },
+        { type: "status", label: "Planner running", state: "ok" },
+      ] },
+      { id: "open", slot: "map_control", label: "Canvas A", icon: "gauge", opens: "panel" },
+      { id: "panel", slot: "panel", title: "Canvas A panel", widgets: [{ type: "card", label: "A card", text: "Inside it" }] },
+    ], first);
+    await call("PUT", "/api/v1/fabric/apps/org.mock.canvas-b/ui", [{ id: "board", slot: "deck", title: "Other", widgets: [{ type: "text", text: "Canvas B here" }] }], second);
+    await page.getByRole("tab", { name: /^Apps/ }).click();
+    const deck = page.locator(".fabric-deck");
+    await deck.waitFor();
+    // Chosen from a list, since there are several.
+    const chooser = deck.getByRole("button", { name: /Application/ }).first();
+    await chooser.waitFor({ timeout: 8000 });
+    await chooser.click();
+    await page.getByRole("option", { name: /Canvas A/ }).click();
+    await deck.getByText("Buses").waitFor();
+    // Placed on its grid, side by side.
+    const [left, right] = await deck.locator(".fabric-metric").evaluateAll((els) => els.map((el) => el.getBoundingClientRect().left));
+    assert.ok(right > left + 40, `two metrics side by side: ${left} ${right}`);
+    assert.equal(await deck.locator(".fabric-grid").first().evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length), 6);
+    assert.equal(await deck.locator(".fabric-link").getAttribute("target"), "_blank");
+    assert.equal(await deck.locator(".fabric-link").getAttribute("rel"), "noopener noreferrer");
+    // Its own web interface, offered, and opened in a tab of its own.
+    const [tab] = await Promise.all([page.context().waitForEvent("page"), deck.getByRole("button", { name: "Open Canvas A, Canvas A" }).click()]);
+    assert.match(tab.url(), /example\.org\/a/);
+    await tab.close();
+    await page.screenshot({ path: path.join(out, "canvas.png") });
+
+    // Its panel open, and the application turned off: the panel leaves rather than vanishing.
+    await page.getByRole("button", { name: "Canvas A, Canvas A", exact: true }).click();
+    const panel = page.locator(".fabric-panel");
+    await panel.waitFor();
+    await panel.getByRole("button", { name: "Turn off, Canvas A" }).click();
+    await until(async () => (await page.locator(".fabric-panel.fabric-leaving").count()) > 0, "the panel leaving");
+    await panel.waitFor({ state: "detached", timeout: 3000 });
+    // And the deck hands over to the one that is left.
+    await deck.getByText("Canvas B here").waitFor({ timeout: 6000 });
+    assert.equal((await call("GET", "/api/v1/fabric/apps/org.mock.canvas-a")).body.data.user_suspended, true);
+
+    // Several at once, from Settings.
+    await call("POST", "/api/v1/fabric/apps/org.mock.canvas-a/resume", {}, null, host);
+    await page.locator("[data-settings-trigger]").click();
+    await page.locator(".settings-drawer.open").waitFor();
+    // Settings opens where it was left, so go back to the list of applications.
+    const pick = page.getByRole("checkbox", { name: "Select Canvas A" });
+    for (let n = 0; n < 4 && !(await pick.isVisible()); n++) {
+      if (await page.locator(".settings-nav").isVisible()) await page.locator(".settings-nav").click();
+      else if (await page.locator(".settings-back").first().isVisible()) await page.locator(".settings-back").first().click();
+      await wait(400);
+    }
+    await pick.check();
+    await page.getByRole("checkbox", { name: "Select Canvas B" }).check();
+    await page.getByRole("button", { name: "Turn off selected" }).click();
+    await until(async () => {
+      const [a, b] = await Promise.all(["a", "b"].map(async (x) => (await call("GET", `/api/v1/fabric/apps/org.mock.canvas-${x}`)).body.data.user_suspended));
+      return a && b;
+    }, "both turned off");
+    await page.getByRole("button", { name: "Turn on all" }).click();
+    await until(async () => (await call("GET", "/api/v1/fabric/apps/org.mock.canvas-b")).body.data.user_suspended === false, "turned on again");
+    await page.keyboard.press("Escape");
+    // Reloading ends its link at once.
+    await page.getByRole("tab", { name: /^Apps/ }).click();
+    await call("POST", "/api/v1/fabric/apps/org.mock.canvas-a/reload", {}, null, host);
+    assert.equal((await call("POST", "/api/v1/fabric/apps/org.mock.canvas-a/heartbeat", {}, first)).code, 401);
+    for (const id of ["org.mock.canvas-a", "org.mock.canvas-b"]) checkingIn.delete(id);
+    await call("DELETE", "/api/v1/fabric/apps/org.mock.canvas-b", {}, second);
+  });
+
   await test("a report still exports under the Content Security Policy", async () => {
     const download = page.waitForEvent("download", { timeout: 40000 });
     await page.getByRole("button", { name: "Export Report" }).click();

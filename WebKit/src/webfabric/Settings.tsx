@@ -6,7 +6,7 @@ import { Icon } from "../Icons";
 import { Row, Section, Segmented, Switch } from "../settingsControls";
 import { BrandLogo } from "../BrandLogo";
 import { Select } from "../Popover";
-import { fabric, useFabricApps } from "./store";
+import { fabric, useFabricApps, useLaunchPlan, webOf } from "./store";
 import type { AppState, FabricApp, FabricHealth, FabricSecurity, SettingsField } from "./store";
 import { formatBytes } from "../units";
 
@@ -193,6 +193,7 @@ function AppPermissions({ app }: { app: FabricApp }) {
 }
 
 function AppDetails({ app, onForgotten }: { app: FabricApp; onForgotten: () => void }) {
+  const web = webOf(app, useLaunchPlan());
   const [audit, setAudit] = useState<{ action: string; outcome: string; sequence: number }[]>([]);
   const [error, setError] = useState("");
   const [health, setHealth] = useState<FabricHealth | null>(null);
@@ -251,10 +252,22 @@ function AppDetails({ app, onForgotten }: { app: FabricApp; onForgotten: () => v
       )}
       {error && <p className="fabric-error" role="alert">{error}</p>}
       <div className="fabric-buttons">
-        {app.state !== "unloaded" && (
-          <button type="button" className="btn" onClick={() => void act(fabric.suspend(app.id, !app.user_suspended))}>
-            {app.user_suspended ? "Resume" : "Suspend"}
+        {web && (
+          <button type="button" className="btn" onClick={() => void window.open(web.url, "_blank", "noopener,noreferrer")}>
+            <Icon name="external" size={14} />
+            {web.label}
           </button>
+        )}
+        {app.state !== "unloaded" && (
+          <>
+            <button type="button" className="btn" onClick={() => void act(fabric.reload(app.id))}>
+              <Icon name="reset" size={14} />
+              Reload
+            </button>
+            <button type="button" className="btn" onClick={() => void act(fabric.suspend(app.id, !app.user_suspended))}>
+              {app.user_suspended ? "Resume" : "Suspend"}
+            </button>
+          </>
         )}
         <button type="button" className="btn danger" onClick={() => void act(fabric.forget(app.id).then(onForgotten))}>
           Forget application
@@ -281,10 +294,11 @@ function StateChip({ state }: { state: AppState }) {
   );
 }
 
-function AppCard({ app, onOpen }: { app: FabricApp; onOpen: () => void }) {
+function AppCard({ app, onOpen, picked, onPick }: { app: FabricApp; onOpen: () => void; picked: boolean; onPick: (on: boolean) => void }) {
   const waiting = app.capabilities.pending.length;
   return (
-    <li>
+    <li className={picked ? "picked" : undefined}>
+      <input type="checkbox" className="fabric-pick" checked={picked} aria-label={`Select ${app.name}`} onChange={(e) => onPick(e.target.checked)} />
       <button type="button" aria-label={app.name} onClick={onOpen}>
         <AppTile app={app} />
         <span className="fabric-app-text">
@@ -337,6 +351,23 @@ export function WebFabricSettings({ onBack }: { onBack: () => void }) {
   const waiting = shown.filter(isWaiting);
   const others = shown.filter((item) => !isWaiting(item));
   const active = apps.filter((item) => item.state === "active").length;
+  // Several at once: those picked, or all of them.
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [bulk, setBulk] = useState("");
+  const pick = (id: string, on: boolean) => setPicked((old) => {
+    const next = new Set(old);
+    if (on) next.add(id);
+    else next.delete(id);
+    return next;
+  });
+  const turn = async (on: boolean) => {
+    const ids = (picked.size ? apps.filter((item) => picked.has(item.id)) : apps).filter((item) => item.state !== "unloaded" && item.user_suspended === on).map((item) => item.id);
+    if (!ids.length) return;
+    setBulk(on ? "Turning on" : "Turning off");
+    const failed = await fabric.suspendMany(ids, !on);
+    setBulk(failed ? `${failed} of ${ids.length} could not be changed` : "");
+    setPicked(new Set());
+  };
 
   if (app) {
     return (
@@ -400,11 +431,19 @@ export function WebFabricSettings({ onBack }: { onBack: () => void }) {
         </div>
       )}
       {apps.length > 0 && shown.length === 0 && <p className="settings-note">No application matches “{query.trim()}”.</p>}
+      {apps.length > 0 && (
+        <div className="fabric-bulk" role="group" aria-label="Turn several on or off">
+          <span>{bulk || (picked.size ? `${picked.size} selected` : "All applications")}</span>
+          <button type="button" className="btn" onClick={() => void turn(false)}>{picked.size ? "Turn off selected" : "Turn off all"}</button>
+          <button type="button" className="btn" onClick={() => void turn(true)}>{picked.size ? "Turn on selected" : "Turn on all"}</button>
+          {picked.size > 0 && <button type="button" className="btn ghost" onClick={() => setPicked(new Set())}>Clear</button>}
+        </div>
+      )}
       {waiting.length > 0 && (
         <section className="fabric-group">
           <h4>Waiting for permission</h4>
           <ul className="fabric-apps">
-            {waiting.map((item) => <AppCard key={item.id} app={item} onOpen={() => open(item, "permissions")} />)}
+            {waiting.map((item) => <AppCard key={item.id} app={item} onOpen={() => open(item, "permissions")} picked={picked.has(item.id)} onPick={(on) => pick(item.id, on)} />)}
           </ul>
         </section>
       )}
@@ -412,7 +451,7 @@ export function WebFabricSettings({ onBack }: { onBack: () => void }) {
         <section className="fabric-group">
           {waiting.length > 0 && <h4>Applications</h4>}
           <ul className="fabric-apps">
-            {others.map((item) => <AppCard key={item.id} app={item} onOpen={() => open(item, "settings")} />)}
+            {others.map((item) => <AppCard key={item.id} app={item} onOpen={() => open(item, "settings")} picked={picked.has(item.id)} onPick={(on) => pick(item.id, on)} />)}
           </ul>
         </section>
       )}

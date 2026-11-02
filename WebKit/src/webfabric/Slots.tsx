@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { Component, memo, useEffect, useRef, useState } from "react";
+import { Component, memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { Icon } from "../Icons";
 import { BrandLogo } from "../BrandLogo";
@@ -11,8 +11,8 @@ import { Switch } from "../settingsControls";
 import { Select } from "../Popover";
 import { settleTime, Spring, springEasing, SPRINGS } from "../motion";
 import { AppFrame } from "./AppFrame";
-import { fabric, useFabricApps, useOpenPanel, usePicking, useSlot } from "./store";
-import type { FabricApp, FabricElement, FabricRow, FabricWidget, Tone } from "./store";
+import { fabric, useFabricApps, useLaunchPlan, useOpenPanel, usePicking, useSlot, webOf } from "./store";
+import type { FabricApp, FabricElement, FabricRow, FabricWidget, SlotItem, Tone } from "./store";
 
 /**
  * Where applications' declared UI appears. Each slot belongs to the observer: it
@@ -65,12 +65,12 @@ const HeaderItem = memo(function HeaderItem({ app, element }: { app: FabricApp; 
 });
 
 export function FabricHeader() {
-  const { items } = useSlot("header");
+  const items = useLeavingList(useSlot("header").items);
   return (
     <>
-      {items.map(({ app, element }) => (
+      {items.map(({ app, element, leaving }) => (
         <AppBoundary key={`${app.id}/${element.id}`} app={app}>
-          <HeaderItem app={app} element={element} />
+          <span className={leaving ? "fabric-leaving" : "fabric-lives"}><HeaderItem app={app} element={element} /></span>
         </AppBoundary>
       ))}
     </>
@@ -89,14 +89,14 @@ const DockItem = memo(function DockItem({ app, element }: { app: FabricApp; elem
 });
 
 export function FabricDockItems() {
-  const { items } = useSlot("map_control");
+  const items = useLeavingList(useSlot("map_control").items);
   if (!items.length) return null;
   return (
     <>
       <div className="divider" aria-hidden="true" />
-      {items.map(({ app, element }) => (
+      {items.map(({ app, element, leaving }) => (
         <AppBoundary key={`${app.id}/${element.id}`} app={app}>
-          <DockItem app={app} element={element} />
+          <span className={leaving ? "fabric-leaving" : "fabric-lives"}><DockItem app={app} element={element} /></span>
         </AppBoundary>
       ))}
     </>
@@ -114,13 +114,15 @@ const StatusItem = memo(function StatusItem({ app, element }: { app: FabricApp; 
 });
 
 export function FabricStatus() {
-  const { items, overflow } = useSlot("status");
+  const slot = useSlot("status");
+  const { overflow } = slot;
+  const items = useLeavingList(slot.items);
   if (!items.length) return null;
   return (
     <div className="fabric-status" role="status" aria-label="Application status">
-      {items.map(({ app, element }) => (
+      {items.map(({ app, element, leaving }) => (
         <AppBoundary key={`${app.id}/${element.id}`} app={app}>
-          <StatusItem app={app} element={element} />
+          <div className={leaving ? "fabric-leaving" : "fabric-lives"}><StatusItem app={app} element={element} /></div>
         </AppBoundary>
       ))}
       {overflow.length > 0 && <div className="fabric-status-item more">+{overflow.length} more</div>}
@@ -238,11 +240,247 @@ function FabricSparkline({ widget }: { widget: FabricWidget }) {
   );
 }
 
+
+// ---------------------------------------------------------------------------------------------------------------
+// Coming and going. Whatever an application puts on screen arrives with its motion, and leaves the same way:
+// suspended, turned off or gone, it fades and settles out over LEAVE_MS rather than vanishing, and what replaces
+// it comes in after.
+// ---------------------------------------------------------------------------------------------------------------
+export const LEAVE_MS = 320;
+const keyOf = ({ app, element }: SlotItem) => `${app.id}/${element.id}`;
+
+/** One of several, chosen by a person, which leaves gracefully when it goes and hands over to the next. */
+function useChoice(items: SlotItem[]) {
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState<SlotItem | null>(null);
+  const last = useRef<SlotItem | null>(null);
+  const current = items.find((item) => keyOf(item) === chosen) ?? (chosen === null ? items[0] : undefined);
+  const currentKey = current ? keyOf(current) : null;
+  useEffect(() => {
+    if (current) {
+      last.current = current;
+      // Pinned, so that its going can be noticed, rather than the next one quietly taking its place.
+      if (chosen === null) setChosen(keyOf(current));
+      return;
+    }
+    const gone = last.current;
+    if (!gone) {
+      if (chosen !== null) setChosen(null);
+      return;
+    }
+    setLeaving(gone);
+    const timer = setTimeout(() => {
+      last.current = null;
+      setLeaving(null);
+      setChosen(null);
+    }, LEAVE_MS);
+    return () => clearTimeout(timer);
+    // On what is chosen, not on every update of it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentKey, chosen]);
+  return { current: current ?? leaving ?? undefined, leaving: !current && !!leaving, choose: setChosen };
+}
+
+/** A list in which what goes, goes gracefully. */
+function useLeavingList(items: SlotItem[]): (SlotItem & { leaving?: boolean })[] {
+  const [gone, setGone] = useState<SlotItem[]>([]);
+  const previous = useRef<SlotItem[]>(items);
+  const now = items.map(keyOf).join(",");
+  useEffect(() => {
+    const present = new Set(items.map(keyOf));
+    const left = previous.current.filter((item) => !present.has(keyOf(item)));
+    previous.current = items;
+    if (!left.length) return;
+    setGone((old) => [...old.filter((item) => !present.has(keyOf(item))), ...left]);
+    const timer = setTimeout(() => setGone((old) => old.filter((item) => !left.includes(item))), LEAVE_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now]);
+  return [...items, ...gone.map((item) => ({ ...item, leaving: true }))];
+}
+
+/** Which application, when there is more than one, and what can be done with it. */
+function AppBar({ items, current, onChoose }: { items: SlotItem[]; current: SlotItem; onChoose: (key: string) => void }) {
+  const { app } = current;
+  const perApp = new Map<string, number>();
+  for (const item of items) perApp.set(item.app.id, (perApp.get(item.app.id) ?? 0) + 1);
+  const options = items.map((item) => ({
+    value: keyOf(item),
+    label: (perApp.get(item.app.id) ?? 0) > 1 ? `${item.app.name} · ${text(item.element.title) || item.element.id}` : item.app.name,
+  }));
+  return (
+    <div className="fabric-appbar">
+      {items.length > 1 ? (
+        <Select label="Application" className="fabric-app-select" value={keyOf(current)} options={options} onChange={onChoose} />
+      ) : (
+        <strong className="fabric-app-name">{app.name}</strong>
+      )}
+      <AppActions app={app} />
+    </div>
+  );
+}
+
+/** Open its own web interface, start it again, or turn it off. */
+export function AppActions({ app, labelled = false }: { app: FabricApp; labelled?: boolean }) {
+  const plan = useLaunchPlan();
+  const web = webOf(app, plan);
+  const [busy, setBusy] = useState(false);
+  const act = useCallback(async (work: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await work();
+    } catch {
+      /* The state poll shows what happened. */
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+  const button = (icon: string, label: string, detail: string, onClick: () => void) => (
+    <Tooltip label={label} detail={detail} side={["bottom"]}>
+      <button type="button" className={labelled ? "btn" : "icon-btn"} aria-label={`${label}, ${app.name}`} disabled={busy} onClick={onClick}>
+        <Icon name={icon} size={labelled ? 14 : 15} />
+        {labelled && <span>{label}</span>}
+      </button>
+    </Tooltip>
+  );
+  return (
+    <div className="fabric-app-actions">
+      {web && button("external", web.label, "In a new tab", () => void window.open(web.url, "_blank", "noopener,noreferrer"))}
+      {button("reset", "Reload", "Its connection ends, and it connects again anew", () => void act(() => fabric.reload(app.id)))}
+      {button("power", "Turn off", "It leaves the interface until you turn it on in Settings", () => void act(() => fabric.suspend(app.id, true)))}
+    </div>
+  );
+}
+
+/** Widgets as a canvas: a grid a panel chooses the width of, on which each widget can take its own place. */
+function WidgetGrid({ app, element, widgets }: { app: FabricApp; element: FabricElement; widgets: readonly FabricWidget[] }) {
+  const placed = widgets.some((widget) => widget.area);
+  const columns = Math.max(1, Math.min(12, Math.trunc(element.layout?.columns ?? (placed ? 6 : 1))));
+  return (
+    <div className="fabric-grid" style={{ ["--columns" as string]: String(columns) }}>
+      {widgets.map((widget, index) => (
+        <div key={widget.id ?? index} className="fabric-cell" style={cellStyle(widget.area, columns)}>
+          <Widget app={app} element={element} widget={widget} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function cellStyle(area: FabricWidget["area"], columns: number): Record<string, string> {
+  const span = (value: number | undefined, fallback: number) => Math.max(1, Math.min(columns, Math.trunc(value ?? fallback)));
+  const style: Record<string, string> = {};
+  const width = span(area?.width, columns);
+  style.gridColumn = area?.column ? `${Math.min(columns, Math.max(1, Math.trunc(area.column)))} / span ${width}` : `span ${width}`;
+  const height = Math.max(1, Math.min(12, Math.trunc(area?.height ?? 1)));
+  if (area?.row) style.gridRow = `${Math.max(1, Math.trunc(area.row))} / span ${height}`;
+  else if (height > 1) style.gridRow = `span ${height}`;
+  return style;
+}
+
+/** Only http and https, and only ever in a tab of its own: an application's link never navigates the observer. */
+const safeUrl = (url: unknown) => (typeof url === "string" && /^https?:\/\//i.test(url) ? url : null);
+
+function FabricChart({ widget }: { widget: FabricWidget }) {
+  const lines = (Array.isArray(widget.lines) ? widget.lines : []).slice(0, 6).map((line) => ({
+    ...line,
+    points: (Array.isArray(line.points) ? line.points : []).filter((v) => typeof v === "number" && Number.isFinite(v)).slice(-240),
+  }));
+  const all = lines.flatMap((line) => line.points);
+  if (!all.length) return null;
+  const low = Math.min(0, ...all);
+  const span = Math.max(...all) - low || 1;
+  const y = (v: number) => 38 - ((v - low) / span) * 36;
+  return (
+    <figure className="fabric-chart">
+      {text(widget.label) && <figcaption>{text(widget.label)}</figcaption>}
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label={text(widget.label) || "Chart"}>
+        {lines.map((line, index) => {
+          const style = seriesStyle(line.series ?? index);
+          if (widget.kind === "bars") {
+            const width = 100 / Math.max(1, line.points.length) / Math.max(1, lines.length);
+            return (
+              <g key={index} style={style}>
+                {line.points.map((v, i) => <rect key={i} className="bar" x={i * width * lines.length + index * width} y={y(v)} width={width * 0.8} height={38 - y(v)} />)}
+              </g>
+            );
+          }
+          const path = line.points.map((v, i) => `${(i / Math.max(1, line.points.length - 1)) * 100} ${y(v)}`).join(" L");
+          return (
+            <g key={index} style={style}>
+              {widget.kind === "area" && <path className="area" d={`M0 38 L${path} L100 38 Z`} />}
+              <path className="line" d={`M${path}`} vectorEffect="non-scaling-stroke" />
+            </g>
+          );
+        })}
+      </svg>
+      {lines.some((line) => line.label) && (
+        <ul className="fabric-chart-key">
+          {lines.map((line, index) => line.label && <li key={index} style={seriesStyle(line.series ?? index)}>{text(line.label)}</li>)}
+        </ul>
+      )}
+    </figure>
+  );
+}
+
 function Widget({ app, element, widget }: { app: FabricApp; element: FabricElement; widget: FabricWidget }) {
   const name = widget.id ?? element.id;
   const send = (action: string, value?: unknown) => void fabric.action(app.id, name, action, value).catch(() => undefined);
   const label = text(widget.label);
   switch (widget.type) {
+    case "metric": {
+      const delta = text(widget.delta);
+      const falling = delta.startsWith("-") || delta.startsWith("−");
+      return (
+        <div className={`fabric-metric${toneClass(widget.tone)}`}>
+          <span>{label}</span>
+          <strong className="mono">{text(widget.value)}{widget.unit && <small>{text(widget.unit)}</small>}</strong>
+          {delta && <em className={falling ? "down" : "up"}>{delta}</em>}
+          {widget.caption && <small>{text(widget.caption)}</small>}
+        </div>
+      );
+    }
+    case "card":
+      return (
+        <section className={`fabric-card${toneClass(widget.tone)}`}>
+          {label && <h4>{label}</h4>}
+          {widget.text && <p>{text(widget.text)}</p>}
+          {Array.isArray(widget.widgets) && widget.widgets.length > 0 && <WidgetGrid app={app} element={{ ...element, layout: { columns: 1 } }} widgets={widget.widgets} />}
+        </section>
+      );
+    case "chart":
+      return <FabricChart widget={widget} />;
+    case "link": {
+      const url = safeUrl(widget.url);
+      return url ? (
+        <a className={`btn fabric-link${toneClass(widget.tone)}`} href={url} target="_blank" rel="noopener noreferrer">
+          <span>{label || url}</span>
+          <Icon name="external" size={14} />
+        </a>
+      ) : null;
+    }
+    case "divider":
+      return <hr className="fabric-divider" />;
+    case "status":
+      return (
+        <div className={`fabric-status-line state-${["ok", "warn", "danger", "busy"].includes(String(widget.state)) ? widget.state : "neutral"}`}>
+          <i aria-hidden="true" />
+          <span>{label}</span>
+          {widget.caption && <small>{text(widget.caption)}</small>}
+        </div>
+      );
+    case "timeline":
+      return (
+        <ol className="fabric-timeline" aria-label={label || undefined}>
+          {(Array.isArray(widget.events) ? widget.events : []).slice(0, 50).map((event, index) => (
+            <li key={index} className={toneClass(event.tone).trim()}>
+              {event.time && <time className="mono">{text(event.time)}</time>}
+              <span>{text(event.label)}</span>
+              {event.caption && <small>{text(event.caption)}</small>}
+            </li>
+          ))}
+        </ol>
+      );
     case "text":
       return <p className="fabric-text">{text(widget.text) || text(widget.value)}</p>;
     case "heading":
@@ -427,6 +665,21 @@ export function FabricPanel() {
   const [appId, elementId] = open?.split("/") ?? [];
   const app = apps.find((item) => item.id === appId);
   const element = app?.ui.find((item) => item.id === elementId && item.slot === "panel");
+  // What was open, kept while it leaves: an application turned off while a person is looking at it goes gracefully.
+  const last = useRef<{ key: string; app: FabricApp; element: FabricElement } | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  if (open && app && element) last.current = { key: open, app, element };
+  useEffect(() => {
+    // Only what was this panel, shown: a panel asked for that has not appeared yet is not leaving.
+    if (!open || (app && element) || last.current?.key !== open) return;
+    setLeaving(true);
+    const timer = setTimeout(() => {
+      setLeaving(false);
+      last.current = null;
+      fabric.setOpenPanel(null);
+    }, LEAVE_MS);
+    return () => clearTimeout(timer);
+  }, [open, app, element]);
   useEffect(() => {
     if (!open) return;
     closeRef.current?.focus();
@@ -436,26 +689,26 @@ export function FabricPanel() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
-  if (!app || !element) return null;
+  const shown = app && element ? { app, element } : open && leaving && last.current?.key === open ? last.current : null;
+  if (!shown) return null;
   return (
-    <AppBoundary key={open} app={app}>
-      <aside className="fabric-panel" {...motionProps(element)} role="dialog" aria-label={`${text(element.title) || element.id}, ${app.name}`}>
+    <AppBoundary key={open} app={shown.app}>
+      <aside className={`fabric-panel${leaving ? " fabric-leaving" : ""}`} {...motionProps(shown.element)} role="dialog" aria-label={`${text(shown.element.title) || shown.element.id}, ${shown.app.name}`}>
         <header>
           <div>
-            <h2>{text(element.title) || element.id}</h2>
-            <small>{app.name}</small>
+            <h2>{text(shown.element.title) || shown.element.id}</h2>
+            <small>{shown.app.name}</small>
           </div>
+          <AppActions app={shown.app} />
           <button ref={closeRef} type="button" className="icon-btn" aria-label="Close panel" onClick={() => fabric.setOpenPanel(null)}>
             <Icon name="close" size={16} />
           </button>
         </header>
-        {element.frame ? (
-          <AppFrame app={app} element={element} />
+        {shown.element.frame ? (
+          <AppFrame app={shown.app} element={shown.element} />
         ) : (
           <div className="fabric-panel-body scroll-region" tabIndex={0}>
-            {(Array.isArray(element.widgets) ? element.widgets : []).map((widget, index) => (
-              <Widget key={widget.id ?? index} app={app} element={element} widget={widget} />
-            ))}
+            <WidgetGrid app={shown.app} element={shown.element} widgets={Array.isArray(shown.element.widgets) ? shown.element.widgets : []} />
           </div>
         )}
       </aside>
@@ -466,9 +719,7 @@ export function FabricPanel() {
 /** An application's content on the right, as a tab of the telemetry deck. */
 export function FabricDeck() {
   const { items } = useSlot("deck");
-  const [activeKey, setActiveKey] = useState<string | null>(null);
-  const key = ({ app, element }: { app: FabricApp; element: FabricElement }) => `${app.id}/${element.id}`;
-  const current = items.find((item) => key(item) === activeKey) ?? items[0];
+  const { current, leaving, choose } = useChoice(items);
   if (!current)
     return (
       <div className="fabric-empty">
@@ -482,21 +733,14 @@ export function FabricDeck() {
     <div className="fabric-deck" {...motionProps(element)}>
       <header className="fabric-deck-head">
         <BrandLogo name="webfabric" height={14} />
-        <small>{app.name}</small>
       </header>
-      {items.length > 1 && (
-        <div className="fabric-sidebar-apps" role="tablist" aria-label="Applications">
-          {items.map((item) => (
-            <button key={key(item)} type="button" role="tab" aria-selected={item === current} onClick={() => setActiveKey(key(item))}>
-              {text(item.element.title) || item.app.name}
-            </button>
-          ))}
-        </div>
-      )}
-      <AppBoundary key={key(current)} app={app}>
-        {element.title && <h3 className="fabric-heading">{text(element.title)}</h3>}
-        {element.frame ? <AppFrame app={app} element={element} /> : (Array.isArray(element.widgets) ? element.widgets : []).map((widget, index) => <Widget key={widget.id ?? index} app={app} element={element} widget={widget} />)}
-      </AppBoundary>
+      <AppBar items={items.length ? items : [current]} current={current} onChoose={choose} />
+      <div key={keyOf(current)} className={leaving ? "fabric-leaving" : "fabric-arriving"}>
+        <AppBoundary app={app}>
+          {element.title && <h3 className="fabric-heading">{text(element.title)}</h3>}
+          {element.frame ? <AppFrame app={app} element={element} /> : <WidgetGrid app={app} element={element} widgets={Array.isArray(element.widgets) ? element.widgets : []} />}
+        </AppBoundary>
+      </div>
     </div>
   );
 }
@@ -510,13 +754,12 @@ const SIDEBAR_WIDTH = 372;
  */
 export function FabricSidebar({ onInset, reduceMotion }: { onInset: (width: number) => void; reduceMotion: boolean }) {
   const { items } = useSlot("sidebar");
-  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const { current, leaving, choose } = useChoice(items);
   const [collapsed, setCollapsed] = useState(false);
   const panel = useRef<HTMLElement>(null);
   const picking = usePicking();
-  const key = ({ app, element }: { app: FabricApp; element: FabricElement }) => `${app.id}/${element.id}`;
-  const current = items.find((item) => key(item) === activeKey) ?? items[0];
-  const present = !!current;
+  // Leaving with nothing to follow it, it slides away as when it is put away.
+  const present = !!current && !(leaving && items.length === 0);
   // An attribute, because the shell's class belongs to React.
   useEffect(() => {
     const shell = document.querySelector(".app-shell");
@@ -533,8 +776,9 @@ export function FabricSidebar({ onInset, reduceMotion }: { onInset: (width: numb
     if (!panel.current) return;
     const element = panel.current;
     spring.current ??= new Spring(hidden, SPRINGS.expressiveDefault, (x) => element.style.setProperty("--sidebar-x", `${x.toFixed(2)}px`), 0.2);
-    if (reduceMotion) spring.current.jump(collapsed ? hidden : 0);
-    else spring.current.set(collapsed ? hidden : 0);
+    const away = collapsed || !present;
+    if (reduceMotion) spring.current.jump(away ? hidden : 0);
+    else spring.current.set(away ? hidden : 0);
   }, [collapsed, reduceMotion, present, hidden]);
   useEffect(() => {
     if (!picking) return;
@@ -561,26 +805,18 @@ export function FabricSidebar({ onInset, reduceMotion }: { onInset: (width: numb
             <Icon name="panelCollapse" size={16} className="flip" />
           </button>
         </header>
-        {items.length > 1 && (
-          <div className="fabric-sidebar-apps" role="tablist" aria-label="Applications">
-            {items.map((item) => (
-              <button key={key(item)} type="button" role="tab" aria-selected={item === current} onClick={() => setActiveKey(key(item))}>
-                {item.app.name}
-              </button>
-            ))}
-          </div>
-        )}
-        <AppBoundary key={key(current)} app={app}>
-          {element.frame ? (
-            <AppFrame app={app} element={element} />
-          ) : (
-            <div className="fabric-panel-body scroll-region" tabIndex={0}>
-              {(Array.isArray(element.widgets) ? element.widgets : []).map((widget, index) => (
-                <Widget key={widget.id ?? index} app={app} element={element} widget={widget} />
-              ))}
-            </div>
-          )}
-        </AppBoundary>
+        <AppBar items={items.length ? items : [current]} current={current} onChoose={choose} />
+        <div key={keyOf(current)} className={`fabric-sidebar-body ${leaving ? "fabric-leaving" : "fabric-arriving"}`}>
+          <AppBoundary app={app}>
+            {element.frame ? (
+              <AppFrame app={app} element={element} />
+            ) : (
+              <div className="fabric-panel-body scroll-region" tabIndex={0}>
+                <WidgetGrid app={app} element={element} widgets={Array.isArray(element.widgets) ? element.widgets : []} />
+              </div>
+            )}
+          </AppBoundary>
+        </div>
       </aside>
       {collapsed && (
         <button type="button" className="fabric-sidebar-tab" aria-label={`Open ${app.name}`} onClick={() => setCollapsed(false)}>

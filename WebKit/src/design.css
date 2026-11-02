@@ -2847,3 +2847,64 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .fabric-health > div { padding: 10px 14px; box-shadow: inset 1px 0 0 var(--well-line), inset 0 1px 0 var(--well-line); }
 .fabric-health dt { font-size: 11px; color: var(--text-dim); }
 .fabric-health dd { margin: 2px 0 0; font-size: 13.5px; color: var(--text); }
+
+/* ---- WebFabric: which application, a canvas for its widgets, and coming and going. See Slots.tsx. -------- */
+.fabric-appbar { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fabric-app-select { flex: 1; min-width: 0; }
+.fabric-app-name { flex: 1; min-width: 0; overflow: hidden; font-size: 13px; font-weight: 550; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
+.fabric-app-actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.fabric-panel > header .fabric-app-actions { margin-left: auto; }
+.fabric-grid { display: grid; grid-template-columns: repeat(var(--columns, 1), minmax(0, 1fr)); grid-auto-flow: row dense; gap: 10px; align-items: start; }
+.fabric-cell { min-width: 0; }
+.fabric-cell > * { margin: 0; }
+.fabric-arriving { animation: fabric-arrive var(--motion-reveal-ms, 300ms) var(--motion-reveal, ease-out) both; }
+.fabric-leaving { pointer-events: none; animation: fabric-leave 320ms cubic-bezier(0.4, 0, 0.6, 1) both; }
+.fabric-lives { display: contents; }
+.fabric-leaving.fabric-panel { animation-name: fabric-panel-leave; }
+@keyframes fabric-arrive { from { opacity: 0; transform: translateY(6px); } }
+@keyframes fabric-leave { to { opacity: 0; transform: translateY(6px) scale(0.985); filter: blur(3px); } }
+@keyframes fabric-panel-leave { to { opacity: 0; transform: translateY(10px) scale(0.97); filter: blur(4px); } }
+.reduce-motion :is(.fabric-arriving, .fabric-leaving) { animation-duration: 1ms; }
+
+.fabric-metric { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); }
+.fabric-metric > span { font-size: 11px; color: var(--text-dim); }
+.fabric-metric strong { font-size: 22px; font-weight: 500; color: var(--tone, var(--text)); }
+.fabric-metric strong small { margin-left: 3px; font-size: 12px; color: var(--text-faint); }
+.fabric-metric em { font-size: 11.5px; font-style: normal; color: var(--ok); }
+.fabric-metric em.down { color: var(--danger); }
+.fabric-metric > small { font-size: 11px; color: var(--text-faint); }
+.fabric-card { display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line), inset 3px 0 0 var(--tone, transparent); }
+.fabric-card h4 { margin: 0; font-size: 12.5px; font-weight: 550; color: var(--text); }
+.fabric-card p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+.fabric-chart { display: grid; gap: 6px; margin: 0; padding: 12px 14px; border-radius: var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); }
+.fabric-chart figcaption { font-size: 11px; color: var(--text-dim); }
+.fabric-chart svg { width: 100%; height: 76px; overflow: visible; }
+.fabric-chart .line { fill: none; stroke: var(--tone, var(--accent)); stroke-width: 1.6; stroke-linejoin: round; }
+.fabric-chart .area { fill: var(--tone, var(--accent)); opacity: 0.14; }
+.fabric-chart .bar { fill: var(--tone, var(--accent)); opacity: 0.8; }
+.fabric-chart-key { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; font-size: 11px; color: var(--text-dim); }
+.fabric-chart-key li::before { content: ""; display: inline-block; width: 10px; height: 2px; margin-right: 6px; vertical-align: middle; border-radius: 1px; background: var(--tone, var(--accent)); }
+.fabric-link { justify-content: space-between; width: 100%; text-decoration: none; }
+.fabric-divider { height: 1px; margin: 2px 0; border: 0; background: var(--well-line); }
+.fabric-status-line { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 8px; font-size: 12.5px; color: var(--text); }
+.fabric-status-line i { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); }
+.fabric-status-line small { grid-column: 2; font-size: 11px; color: var(--text-dim); }
+.fabric-status-line.state-ok i { background: var(--ok); }
+.fabric-status-line.state-warn i { background: var(--warn); }
+.fabric-status-line.state-danger i { background: var(--danger); }
+.fabric-status-line.state-busy i { background: var(--accent); animation: fabric-busy 1.4s ease-in-out infinite; }
+@keyframes fabric-busy { 50% { opacity: 0.35; } }
+.fabric-timeline { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.fabric-timeline li { position: relative; display: grid; grid-template-columns: 52px 1fr; gap: 0 10px; padding: 6px 0 6px 14px; font-size: 12.5px; color: var(--text); }
+.fabric-timeline li::before { content: ""; position: absolute; left: 0; top: 12px; width: 7px; height: 7px; border-radius: 50%; background: var(--tone, var(--accent)); }
+.fabric-timeline li + li::after { content: ""; position: absolute; left: 3px; top: -6px; height: 16px; width: 1px; background: var(--well-line); }
+.fabric-timeline time { font-size: 11px; color: var(--text-dim); }
+.fabric-timeline small { grid-column: 2; font-size: 11px; color: var(--text-dim); }
+.fabric-timeline li:not(:has(time)) { grid-template-columns: 1fr; }
+.fabric-timeline li:not(:has(time)) small { grid-column: 1; }
+.fabric-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 10px; font-size: 12px; color: var(--text-dim); }
+.fabric-bulk > span { flex: 1; min-width: 120px; }
+.fabric-apps li { position: relative; }
+.fabric-pick { position: absolute; left: 10px; top: 50%; z-index: 1; width: 15px; height: 15px; margin: -7.5px 0 0; accent-color: var(--accent); cursor: pointer; }
+.fabric-apps li > button { padding-left: 34px; }
+.fabric-apps li.picked > button { background: rgb(var(--accent-rgb) / 8%); }

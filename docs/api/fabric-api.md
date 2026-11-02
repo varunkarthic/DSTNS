@@ -78,6 +78,28 @@ a point with an `id` glides to each new position.
 
 Any element may also set `motion`; see [Motion](../components/webfabric.md#motion).
 
+**A canvas.** A panel, sidebar or deck lays out its widgets on a grid. `layout: {"columns": N}` sets how many columns,
+from 1 to 12, and each widget may say where it goes with `area: {"column", "row", "width", "height"}`, each 1 to 12. A
+widget without an area takes the whole width, in order. Without a layout, a panel with placed widgets has 6 columns.
+
+**More components:** `metric` (`label`, `value`, `unit`, `delta`, `caption`, `tone`); `card` (`label`, `text`, `tone`, and
+`widgets` inside it); `chart` (`label`, `kind` of `line`, `area` or `bars`, and `lines`: `label`, `points`, `series`);
+`link` (`label`, `url`, http or https only, opened in a new tab); `divider`; `status` (`label`, `caption`, `state` of
+`ok`, `warn`, `danger`, `busy` or `neutral`); and `timeline` (`events`: `time`, `label`, `caption`, `tone`).
+
+```json
+{"id": "board", "slot": "deck", "title": "Fleet", "layout": {"columns": 6}, "widgets": [
+  {"type": "metric", "label": "Buses", "value": "12", "delta": "+2", "area": {"column": 1, "width": 3}},
+  {"type": "metric", "label": "Late", "value": "1", "delta": "-1", "area": {"column": 4, "width": 3}},
+  {"type": "chart", "label": "Load", "kind": "area", "lines": [{"label": "Today", "points": [1, 3, 2, 5, 4]}]},
+  {"type": "link", "label": "Timetable", "url": "https://example.org/timetable"}
+]}
+```
+
+**A web interface of its own.** `"web": {"url": "http://127.0.0.1:5173/", "label": "Open planner"}` in the manifest puts
+a button beside the application's name, which opens it in a new tab. The launcher can say the same for an application it
+starts.
+
 ## Bus stops
 
 | Route | Who | |

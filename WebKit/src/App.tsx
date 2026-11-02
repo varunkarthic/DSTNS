@@ -53,6 +53,7 @@ import { fabric, useFabricNotifications } from "./webfabric/store";
 import { FabricDialog, FabricDockItems, FabricHeader, FabricIndicators, FabricPanel, FabricSidebar, FabricStatus } from "./webfabric/Slots";
 import { FabricOverlay } from "./webfabric/Overlay";
 import { useFabricApps, useHeld, useLaunchPlan } from "./webfabric/store";
+import { useFeatures } from "./features";
 import { heldOver, PERSON_HOLDS_CAMERA_MS, releaseKey, viewDeclined, viewTarget } from "./webfabric/direction";
 import type { FabricOverlayHandle } from "./webfabric/Overlay";
 import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
@@ -540,6 +541,8 @@ export default function App() {
   }, [sim.snapshot]);
   const [sidebarInset, setSidebarInset] = useState(0);
   const overlay = useRef<FabricOverlayHandle>(null);
+  const features = useFeatures();
+  const webfabricOn = features.presentation.webfabric;
   const mapView = useRef<MapTransform | null>(null);
   const landedAt = useRef<MapTransform | null>(null);
   const onMapTransform = useCallback<NonNullable<ComponentProps<typeof NetworkMap>["onTransform"]>>((view) => {
@@ -1153,7 +1156,7 @@ export default function App() {
             )}
           </div>
           <div className="header-actions" data-tutorial="help">
-            {interactive && <FabricHeader />}
+            {interactive && webfabricOn && <FabricHeader />}
             {configLoaded && config.tutorial.enabled && (
               <Tooltip label="Tutorial" side={["bottom"]}>
                 <button
@@ -1201,10 +1204,10 @@ export default function App() {
               leftInset={sidebarInset}
               onMapPick={fabric.deliverPick}
             />
-            <FabricOverlay ref={overlay} topology={sim.topology} snapshot={sim.snapshot?.data ?? null} />
+            {webfabricOn && <FabricOverlay ref={overlay} topology={sim.topology} snapshot={sim.snapshot?.data ?? null} />}
           </div>
 
-          {interactive && (
+          {interactive && webfabricOn && (
             <>
               <FabricSidebar onInset={setSidebarInset} reduceMotion={reduceMotion} />
               <FabricStatus />
@@ -1233,7 +1236,7 @@ export default function App() {
             city={location?.city}
             onPickPlace={focusOnPlace}
             disabled={suspended}
-            extra={interactive ? <FabricDockItems /> : undefined}
+            extra={interactive && webfabricOn ? <FabricDockItems /> : undefined}
           />
 
           <SettingsDrawer
@@ -1502,7 +1505,7 @@ export default function App() {
             />
           )}
 
-          <FabricDialog blocked={!interactive || !!dialog || tutorial.active || settingsOpen} />
+          {webfabricOn && <FabricDialog blocked={!interactive || !!dialog || tutorial.active || settingsOpen} />}
 
           {world.active && (
             <WorldGenerationOverlay
