@@ -22,7 +22,7 @@ needed on Apple silicon.
 |---|---|
 | `stable`, `latest` | Tested main-branch builds and exact version releases |
 | `main` | Most recently published main-branch build |
-| `2.1.0`, `v2.1.0` | Published by the Git tag `v2.1.0`, which must match CMake's engine version |
+| `2.2.0`, `v2.2.0` | Published by the Git tag `v2.2.0`, which must match CMake's engine version |
 | `2.1`, `2` | Moving minor/major aliases of a version release |
 | `sha-<7 characters>`, `sha-<full commit>` | Source revision of a published build |
 | `edge`, branch name | Manual builds from other branches; do not advance stable |
@@ -30,7 +30,7 @@ needed on Apple silicon.
 
 Tags can move on a rebuild. For an exact experiment, record and use
 `ghcr.io/varunkarthic/dstns@sha256:<index-digest>`. The engine version remains
-**2.1.0**, the observer package is **3.0.0**, and the API contract is **1.1**.
+**2.2.0**, the observer package is **3.1.0**, and the API contract is **1.4**.
 The developer and image vendor are **Varun Karthic**
 ([varunkarthic](https://github.com/varunkarthic)).
 
@@ -64,7 +64,7 @@ report channel `local` and unknown revision/time unless supplied explicitly.
 # Published stable is the default; no local build takes place.
 docker compose up -d --pull always
 # Pin a version (after its release is published), SHA tag, or digest.
-DSTNS_IMAGE=ghcr.io/varunkarthic/dstns:2.1.0 docker compose up -d --pull always
+DSTNS_IMAGE=ghcr.io/varunkarthic/dstns:2.2.0 docker compose up -d --pull always
 # Explicit local build, tagged dstns:local.
 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 # The published standard image does not include optional SUMO.
@@ -77,8 +77,8 @@ Push the code to `main` to build and promote `stable`, `latest`, `main` and SHA
 tags after all checks pass. To publish the semantic version aliases as well:
 
 ```bash
-git tag v2.1.0
-git push origin v2.1.0
+git tag v2.2.0
+git push origin v2.2.0
 ```
 
 Change the engine version in `CMakeLists.txt` and the Dockerfile's `VERSION`
@@ -159,7 +159,7 @@ Build arguments:
 |---|---|---|
 | `WITH_SUMO` | `0` | `1` installs Debian's `sumo` package (SUMO 1.15; the image grows to about 1.1 GB) |
 | `DEBIAN_RELEASE` | `bookworm` | Debian release for every stage |
-| `VERSION` | `2.1.0` | Must match the engine version in CMake |
+| `VERSION` | `2.2.0` | Must match the engine version in CMake |
 | `REVISION` | `unknown` | Full source commit, set by CI |
 | `BUILD_DATE` | `unknown` | UTC RFC 3339 build time, set by CI |
 | `RELEASE_CHANNEL` | `local` | `stable`, `edge` or `local` identity |
@@ -167,7 +167,7 @@ Build arguments:
 ```bash
 docker build -t dstns .
 docker build -t dstns:sumo --build-arg WITH_SUMO=1 .
-docker buildx build --platform linux/amd64,linux/arm64 -t registry.example.org/dstns:2.1.0 --push .
+docker buildx build --platform linux/amd64,linux/arm64 -t registry.example.org/dstns:2.2.0 --push .
 ```
 
 ## What happens at start

@@ -283,7 +283,55 @@ void ApiServer::routes_apps() {
         const char* v = std::getenv("DSTNS_DISABLE_WORLD_REGENERATION");
         return v && std::string(v) == "1";
     }();
-    server_->Post(route("/control"), [this, owner, regeneration_disabled](const auto& req, auto& r) {
+    // Recorded, so that what directed the view can be seen afterwards as well as what changed the simulation.
+    const auto note = [this](const std::string& id, const std::string& action, const json& params, const std::string& outcome) {
+        const auto status = engine_.status();
+        registry_->audit(id, action, params, status.value("run_id", std::string{}), status.contains("clock") ? status.at("clock").value("virtual_day_seconds", 0.0) : 0.0, outcome);
+    };
+    // Directing the view. An application asks, and the observer decides, under its own rules: see docs/api/security.md.
+    server_->Post(route("/view"), [this, ok, owner, note](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->require_capability(id, "ui.camera");
+        const auto request = body(req);
+        try {
+            if (request.is_object() && (request.contains("node") || request.contains("edge"))) {
+                const auto problem = engine_.network_problem(json::array({request}));
+                if (!problem.empty()) throw Refusal(422, "NOT_ON_NETWORK", problem);
+            }
+            auto asked = registry_->request_view(id, request);
+            note(id, "view", request, "asked");
+            ok(r, asked, 202);
+        } catch (const Refusal& e) {
+            note(id, "view", request, std::string("refused: ") + e.code);
+            throw;
+        }
+    });
+    server_->Post(route("/view/outcome"), [this, ok](const auto& req, auto& r) {
+        require_host(req);
+        const auto j = body(req);
+        registry_->view_outcome(req.matches[1], j.at("request").template get<std::uint64_t>(), j.at("outcome").template get<std::string>(), j.value("reason", std::string{}));
+        ok(r, json::object());
+    });
+    server_->Put(route("/presentation"), [this, ok, owner, note](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->require_capability(id, "ui.layers");
+        const auto request = body(req);
+        try {
+            auto held = registry_->set_presentation(id, request);
+            note(id, "presentation", held, "held");
+            ok(r, held);
+        } catch (const Refusal& e) {
+            note(id, "presentation", request, std::string("refused: ") + e.code);
+            throw;
+        }
+    });
+    server_->Delete(route("/presentation"), [this, ok, owner, note](const auto& req, auto& r) {
+        const auto id = owner(req);
+        registry_->clear_presentation(id);
+        note(id, "presentation", json::object(), "released");
+        ok(r, json::object());
+    });
+    server_->Post(route("/control"), [this, owner, note, regeneration_disabled](const auto& req, auto& r) {
         const auto id = owner(req);
         const auto request = body(req);
         const auto action = request.at("action").template get<std::string>();
@@ -294,9 +342,7 @@ void ApiServer::routes_apps() {
         if (action == "regenerate" && regeneration_disabled)
             throw Refusal(403, "WORLD_REGENERATION_DISABLED", "World regeneration is disabled by the operator.");
         const auto record = [&](const std::string& outcome) {
-            const auto status = engine_.status();
-            registry_->audit(id, action, params, status.value("run_id", std::string{}),
-                             status.contains("clock") ? status.at("clock").value("virtual_day_seconds", 0.0) : 0.0, outcome);
+            note(id, action, params, outcome);
             logger_.system("INFO", "fabric", id + " " + action + " " + outcome);
         };
         try {
@@ -314,7 +360,7 @@ void ApiServer::routes_apps() {
 
     // The observer's one poll for everything applications have declared.
     server_->Get("/api/v1/fabric/state", [this, ok](const auto& req, auto& r) {
-        ok(r, registry_->state(unsigned_parameter(req, "since", 0), unsigned_parameter(req, "notifications_since", 0)));
+        ok(r, registry_->state(unsigned_parameter(req, "since", 0), unsigned_parameter(req, "notifications_since", 0), unsigned_parameter(req, "view_since", 0)));
     });
 }
 } // namespace dstns

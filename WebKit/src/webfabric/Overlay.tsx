@@ -2,10 +2,12 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { appearance } from "../appearance";
 import type { MapTransform } from "../NetworkMap";
 import { animate, SPRINGS, stepSpring } from "../motion";
 import type { SpringPreset } from "../motion";
 import type { Snapshot, Topology } from "../types";
+import { autoSeries, dashOf, legibleColour } from "./direction";
 import { along, DriveRun, networkOf, PathRun, placeFeature, trackOf } from "./spatial";
 import type { AnyRun } from "./spatial";
 import { useSlot } from "./store";
@@ -127,13 +129,14 @@ function drawPath(ctx: CanvasRenderingContext2D, feature: OverlayFeature, run: A
   };
   ctx.strokeStyle = colour;
   ctx.lineWidth = typeof feature.width === "number" ? Math.min(12, Math.max(0.5, feature.width)) : 3;
-  ctx.setLineDash([]);
+  ctx.setLineDash(dashOf(feature.style, feature.dash));
   if (feature.trail !== false) {
     ctx.globalAlpha = 0.28;
     line(track.points);
     ctx.globalAlpha = 1;
   }
   if (feature.reveal !== false) line(track.points.slice(0, spot.index + 1), [spot.x, spot.y]);
+  ctx.setLineDash([]);
   const shape = feature.shape ?? "bus";
   const size = Math.min(14, feature.size ?? 5);
   if (run instanceof DriveRun) {
@@ -164,6 +167,8 @@ export function paintOverlay(ctx: CanvasRenderingContext2D, features: OverlayFea
   const X = (x: number) => view.x + x * view.scale;
   const Y = (y: number) => view.y - y * view.scale;
   ctx.font = "11px Inter, sans-serif";
+  // Dashes that run along a line, at a fixed speed on screen, and still when motion is reduced.
+  const flowing = document.querySelector(".reduce-motion") ? 0 : -performance.now() * 0.04;
   for (const feature of features) {
     const c = colour(feature);
     ctx.strokeStyle = c;
@@ -171,7 +176,10 @@ export function paintOverlay(ctx: CanvasRenderingContext2D, features: OverlayFea
     ctx.lineWidth = typeof feature.width === "number" ? Math.min(12, Math.max(0.5, feature.width)) : 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.setLineDash(feature.dash ? [5, 6] : []);
+    ctx.setLineDash(dashOf(feature.style, feature.dash));
+    ctx.lineDashOffset = feature.style === "flow" ? flowing : 0;
+    ctx.shadowColor = c;
+    ctx.shadowBlur = feature.glow ? 12 : 0;
     if (feature.type === "path") {
       const run = runFor?.(feature);
       if (run) drawPath(ctx, feature, run, X, Y, c, surface, ink, brakeLight);
@@ -208,6 +216,8 @@ export function paintOverlay(ctx: CanvasRenderingContext2D, features: OverlayFea
       if (feature.label) ctx.fillText(String(feature.label).slice(0, 60), X(mx) + radius + 4, Y(my) + 4);
     }
   }
+  ctx.shadowBlur = 0;
+  ctx.lineDashOffset = 0;
   ctx.setLineDash([]);
 }
 
@@ -218,7 +228,7 @@ export const FabricOverlay = forwardRef<FabricOverlayHandle, { topology: Topolog
   const features = useRef<OverlayFeature[]>([]);
   const network = useMemo(() => networkOf(topology), [topology]);
   features.current = useMemo(
-    () => items.flatMap((item) => (Array.isArray(item.element.features) ? item.element.features : [])).map((f) => placeFeature(f, network)).filter((f): f is OverlayFeature => !!f),
+    () => items.flatMap((item) => (Array.isArray(item.element.features) ? item.element.features : []).map((f) => (f.color === "auto" ? { ...f, series: autoSeries(item.app.id, f.id ?? item.element.id) } : f))).map((f) => placeFeature(f, network)).filter((f): f is OverlayFeature => !!f),
     [items, network],
   );
   const runs = useRef(new Map<string, { key: string; run: AnyRun }>());
@@ -253,7 +263,7 @@ export const FabricOverlay = forwardRef<FabricOverlayHandle, { topology: Topolog
       context,
       features.current,
       view.current,
-      (feature) => (typeof feature.series === "number" ? token(`--series-${Math.abs(Math.trunc(feature.series)) % 8}`) : token(TONE_TOKENS[feature.tone ?? "accent"] ?? TONE_TOKENS.accent)) || "#37d7ff",
+      (feature) => (feature.color?.startsWith("#") ? legibleColour(feature.color, appearance.land.land, (document.documentElement.dataset.vision ?? "standard") !== "standard" ? appearance.meaning.series : undefined) : typeof feature.series === "number" ? token(`--series-${Math.abs(Math.trunc(feature.series)) % 8}`) : token(TONE_TOKENS[feature.tone ?? "accent"] ?? TONE_TOKENS.accent)) || "#37d7ff",
       (feature) => {
         const glider = feature.id ? gliders.current.get(feature.id) : undefined;
         return glider ? [glider.x, glider.y] : null;
@@ -299,9 +309,10 @@ export const FabricOverlay = forwardRef<FabricOverlayHandle, { topology: Topolog
     const live = new Set(named.map((f) => f.id));
     for (const key of gliders.current.keys()) if (!live.has(key)) gliders.current.delete(key);
     for (const f of named) if (!gliders.current.has(f.id)) gliders.current.set(f.id, { x: f.x_m, y: f.y_m, vx: 0, vy: 0 });
-    if (motion.current || (!named.length && !runs.current.size)) return;
+    const flow = features.current.some((f) => f.style === "flow");
+    if (motion.current || (!named.length && !runs.current.size && !flow)) return;
     motion.current = animate((dt) => {
-      let moving = false;
+      let moving = features.current.some((f) => f.style === "flow");
       for (const f of features.current) {
         if (f.type !== "path" || !f.id) continue;
         const run = runs.current.get(f.id)?.run;

@@ -39,10 +39,10 @@ Compose pulls `ghcr.io/varunkarthic/dstns:stable` by default. Set `DSTNS_IMAGE` 
 select another tag or an immutable digest. For example:
 
 ```bash
-DSTNS_IMAGE=ghcr.io/varunkarthic/dstns:2.1.0 docker compose up -d --pull always
+DSTNS_IMAGE=ghcr.io/varunkarthic/dstns:2.2.0 docker compose up -d --pull always
 ```
 
-Version tags become available when the corresponding `v2.1.0` release tag is
+Version tags become available when the corresponding `v2.2.0` release tag is
 published. See [tags and build identity](../deployment/docker.md#tags-and-build-identity).
 
 To build local source instead:

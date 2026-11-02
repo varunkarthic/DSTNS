@@ -202,6 +202,7 @@ nav:
           - News: api/news-api.md
           - System: api/system-api.md
           - Fabric: api/fabric-api.md
+          - Fabric security: api/security.md
           - Streaming: api/streaming.md
       - Contract:
           - Lifecycle: api/lifecycle.md
@@ -262,6 +263,7 @@ nav:
           - Design decisions: design/decisions.md
           - Interface system: design/interface-system.md
           - Mathematical foundation: design/mathematical-foundation.md
+          - Motion and graphics mathematics: design/motion-mathematics.md
           - System architecture: design/system-architecture-spec.md
           - API, runtime and events: design/api-runtime-event-spec.md
       - Development:

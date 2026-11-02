@@ -75,6 +75,8 @@ Scripted commands never install anything.
 
 ## The terminal interface
 
+![The launcher's dashboard](../assets/screenshots/launcher.png){ .screenshot }
+
 ```mermaid
 flowchart LR
     Splash["Splash and startup checks"] -->|"all required checks pass"| Dash["Dashboard"]
@@ -397,6 +399,8 @@ started. `--narrator` lasts for one invocation; set `narration.mode` (in the
 | `--yes`, `-y` | Do not ask for confirmation (`reset`) |
 
 ## Applications
+
+![Applications in the launcher](../assets/screenshots/launcher-apps.png){ .screenshot }
 
 The launcher can start your own programs alongside a simulation. Each application has one or more commands. All but the last must finish successfully, and the last is the application, which stays running.
 

@@ -232,7 +232,7 @@ try {
     });
     const first = await until(frame, "the overlay");
     // A convoy may be waiting at a red signal, so it gets long enough for the lights to change.
-    await until(async () => (await frame()).hash !== first.hash, "it moves by itself, with nothing more sent");
+    await until(async () => (await frame()).hash !== first.hash, "it moves by itself, with nothing more sent", 60000);
     assert.equal((await call("DELETE", "/api/v1/fabric/apps/org.mock.planner/ui/drawn", undefined, planner)).code, 200);
   });
 
@@ -272,7 +272,8 @@ try {
     assert.equal(await page.locator(".fabric-frame iframe").getAttribute("sandbox"), "allow-scripts");
     const events = await until(async () => {
       const items = (await call("GET", "/api/v1/fabric/apps/org.mock.hostile/events", undefined, hostile)).body.data.items.filter((e) => e.type === "ui.action");
-      return items.some((e) => e.data.action === "report") && items.some((e) => e.data.value?.id === 8) ? items : null;
+      // Request 8 is refused at once and 7 needs a request of its own, so either may come first.
+      return items.some((e) => e.data.action === "report") && items.some((e) => e.data.value?.id === 7) && items.some((e) => e.data.value?.id === 8) ? items : null;
     }, "the frame's report");
     const report = events.find((e) => e.data.action === "report").data.value;
     for (const attempt of ["parentDom", "parentLocation", "cookie", "storage", "terminate", "readStatus", "grant"]) {
@@ -385,6 +386,130 @@ try {
     assert.ok(metrics.fps > 50, `${metrics.fps.toFixed(1)} fps`);
     assert.ok(metrics.p95 < 25, `p95 ${metrics.p95.toFixed(1)} ms`);
     assert.ok(rendered, "still rendering");
+  });
+
+  await test("an application directs the view, and nothing of a person's changes", async () => {
+    const host = { "X-DSTNS-Operator": operator };
+    const capabilities = ["ui.camera", "ui.layers", "ui.overlays"];
+    const token = (await call("POST", "/api/v1/fabric/apps", { id: "org.mock.director", name: "Director", version: "1.0.0", capabilities })).body.data.token;
+    checkingIn.set("org.mock.director", token);
+    const app = "/api/v1/fabric/apps/org.mock.director";
+    assert.equal((await call("POST", `${app}/view`, { action: "fit" }, token)).code, 403, "not without a person's grant");
+    assert.equal((await call("PUT", `${app}/presentation`, { layers: { weather: false } }, token)).code, 403, "not without a person's grant");
+    assert.equal((await call("PUT", `${app}/grants`, { capabilities }, null, host)).code, 200);
+    const saved = () => page.evaluate(() => JSON.stringify(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])));
+    const before = await saved();
+
+    const scale = () => page.locator(".map-scale-mark").evaluate((el) => `${el.textContent}/${el.querySelector("i, span, b")?.getAttribute("style") ?? el.getAttribute("style") ?? ""}`);
+    const outcome = async (request) =>
+      until(async () => (await call("GET", `${app}/events`, undefined, token)).body.data.items.find((e) => e.type.startsWith("view.") && e.data.request === request), `an outcome for request ${request}`);
+    const ask = async (view) => outcome((await call("POST", `${app}/view`, view, token)).body.data.request);
+    // Earlier checks may have moved the map themselves.
+    const askUntilApplied = async (view) => {
+      for (let n = 0; n < 12; n++) {
+        const told = await ask(view);
+        if (told.type === "view.applied") return told;
+        assert.equal(told.data.reason, "person_moved_the_map");
+        await wait(1000);
+      }
+      throw new Error("never applied");
+    };
+
+    await page.locator(".map-scale-mark").waitFor();
+    const topology = (await call("GET", "/api/v1/view/topology")).body;
+    const node = (topology.data ?? topology).nodes[20].id;
+    const start = await scale();
+    await askUntilApplied({ action: "node", node, span_m: 300 });
+    const close = await until(async () => {
+      const now = await scale();
+      return now !== start && now;
+    }, "the map moving as asked");
+    await wait(1200);
+    const settled = await scale();
+    await askUntilApplied({ action: "zoom", factor: 0.5 });
+    await until(async () => (await scale()) !== settled, "zooming as asked");
+    assert.ok(close, "it moved");
+    await wait(1200);
+
+    // A person's move comes first, and the application is told.
+    const map = page.locator(".map-canvas-wrap, .network-map, canvas").first();
+    const box = await map.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, -240);
+    await wait(900);
+    const theirs = await scale();
+    const told = await ask({ action: "fit" });
+    assert.equal(told.type, "view.declined");
+    assert.equal(told.data.reason, "person_moved_the_map");
+    await wait(600);
+    assert.equal(await scale(), theirs, "and the map stays where the person put it");
+    await page.mouse.move(box.x + 4, box.y + box.height - 4);
+
+    // Holding layers: shown, named, and taken back. None of it is the person's setting.
+    await page.locator("[data-layers-trigger]").click();
+    const weather = page.getByRole("switch", { name: "Weather" });
+    const signals = page.getByRole("switch", { name: "Signals" });
+    await weather.waitFor();
+    assert.equal(await weather.getAttribute("aria-checked"), "true");
+    assert.equal((await call("PUT", `${app}/presentation`, { layers: { weather: false, signals: false } }, token)).code, 200);
+    await until(async () => (await weather.getAttribute("aria-checked")) === "false", "the layer held off");
+    await page.getByText("Held by Director").first().waitFor();
+    await page.screenshot({ path: path.join(out, "layers-held.png") });
+    assert.equal(await saved(), before, "holding a layer writes nothing");
+    await page.getByRole("button", { name: "Use my choice for Weather" }).click();
+    await until(async () => (await weather.getAttribute("aria-checked")) === "true", "the person's own choice back");
+    assert.equal(await signals.getAttribute("aria-checked"), "false", "only that one was taken back");
+    assert.equal(await saved(), before, "taking one back writes nothing either");
+
+    // Changing something while an application holds another saves only what the person changed.
+    await call("PUT", `${app}/presentation`, { layers: { weather: false, signals: false } }, token);
+    await until(async () => (await weather.getAttribute("aria-checked")) === "false", "held again, having asked again");
+    const vehicles = page.getByRole("switch", { name: "Flow markers" });
+    const flipped = (await vehicles.getAttribute("aria-checked")) !== "true";
+    await vehicles.click();
+    await until(async () => (await saved()) !== before, "the person's own change saved");
+    const config = JSON.parse(await page.evaluate(() => localStorage.getItem("dstns.ui-config.v1")));
+    assert.equal(config.layers.vehicles, flipped, "what they changed");
+    // Only what differs from the defaults is kept, so these are absent, or still the person's own.
+    assert.notEqual(config.layers.weather, false, "not what an application was holding");
+    assert.notEqual(config.layers.signals, false, "not what an application was holding");
+    await vehicles.click();
+
+    // Gone with the application.
+    await call("POST", `${app}/suspend`, {}, null, host);
+    await until(async () => (await weather.getAttribute("aria-checked")) === "true" && (await signals.getAttribute("aria-checked")) === "true", "released on suspending");
+    await call("POST", `${app}/resume`, {}, null, host);
+    assert.equal((await call("PUT", `${app}/presentation`, { layers: { signals: false } }, token)).code, 200);
+    await until(async () => (await signals.getAttribute("aria-checked")) === "false", "held again");
+    await call("PUT", `${app}/grants`, { capabilities: ["ui.camera", "ui.overlays"] }, null, host);
+    await until(async () => (await signals.getAttribute("aria-checked")) === "true", "released on revoking");
+    await page.keyboard.press("Escape");
+
+    // Its own marks are drawn, and a flowing line moves. How a colour is made legible is in direction.test.ts.
+    const road = (topology.data ?? topology).edges.find((e) => e.geometry.length > 1);
+    assert.equal((await call("PUT", `${app}/ui/line`, { id: "line", slot: "overlay", features: [
+      { type: "route", id: "a", nodes: [road.from, road.to], color: "#07131e", style: "flow", glow: true, width: 8 },
+      { type: "route", id: "b", nodes: [road.from, road.to], color: "auto", style: "dotted", width: 4 },
+    ] }, token)).code, 200);
+    await askUntilApplied({ action: "edge", edge: road.id, span_m: 200 }).catch(() => undefined);
+    const pixels = () => page.locator(".fabric-overlay").evaluate((c) => {
+      const { data } = c.getContext("2d").getImageData(0, 0, c.width, c.height);
+      let [drawn, sum] = [0, 0];
+      for (let i = 0; i < data.length; i += 16) {
+        if (data[i + 3] < 200) continue;
+        drawn++;
+        sum = (sum + data[i] * (i % 251)) % 1000003;
+      }
+      return { drawn, sum };
+    });
+    const first = await until(async () => {
+      const now = await pixels();
+      return now.drawn > 20 && now;
+    }, "the line drawn");
+    await until(async () => (await pixels()).sum !== first.sum, "the line flowing");
+    await page.screenshot({ path: path.join(out, "direction.png") });
+    await call("DELETE", app, {}, token);
+    checkingIn.delete("org.mock.director");
   });
 
   await test("a report still exports under the Content Security Policy", async () => {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import type { Held, ViewRequest } from "./direction";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { UiNotification } from "../notificationModel";
 
@@ -102,6 +103,11 @@ export interface OverlayFeature {
   /** A point with an ID glides to its new position instead of jumping. */
   id?: string;
   series?: number;
+  /** "auto", or a colour the observer makes legible. */
+  color?: string;
+  /** How a route or path's line is drawn. */
+  style?: "solid" | "dashed" | "dotted" | "flow";
+  glow?: boolean;
   width?: number;
   dash?: boolean;
   hollow?: boolean;
@@ -231,6 +237,9 @@ export interface LaunchPlan {
 
 interface StatePayload {
   launch_plan?: LaunchPlan | null;
+  view_sequence?: number;
+  view_requests?: ViewRequest[];
+  presentation?: Held[];
   revision: number;
   notification_sequence: number;
   notifications: FabricNotification[];
@@ -321,6 +330,9 @@ class FabricStore {
   private sim: SimSummary | null = null;
   private simListeners = new Set<(sim: SimSummary) => void>();
   private plan: LaunchPlan | null = null;
+  private held: Held[] = [];
+  private viewCursor: number | null = null;
+  private viewListeners = new Set<(requests: ViewRequest[]) => void>();
   private openPanel: string | null = null;
   private picking: { appId: string; element: string } | null = null;
 
@@ -333,6 +345,14 @@ class FabricStore {
   getApps = () => this.apps;
   getOpenPanel = () => this.openPanel;
   getPlan = () => this.plan;
+  getHeld = () => this.held;
+  /** Requests to move the map, as they arrive. Nothing asked before this page was open is passed on. */
+  onView = (listener: (requests: ViewRequest[]) => void) => {
+    this.viewListeners.add(listener);
+    return () => {
+      this.viewListeners.delete(listener);
+    };
+  };
 
   private emit() {
     for (const listener of this.listeners) listener();
@@ -357,6 +377,17 @@ class FabricStore {
       this.plan = plan;
       this.emit();
     }
+    const held = state.presentation ?? [];
+    if (JSON.stringify(held) !== JSON.stringify(this.held)) {
+      this.held = held;
+      this.emit();
+    }
+    if (typeof state.view_sequence === "number") {
+      const known = this.viewCursor;
+      this.viewCursor = state.view_sequence;
+      const fresh = known === null || state.view_sequence < known ? [] : (state.view_requests ?? []).filter((item) => item.request > known);
+      if (fresh.length) for (const listener of this.viewListeners) listener(fresh);
+    }
     if (state.notifications?.length) {
       this.cursor = state.notifications[state.notifications.length - 1].sequence;
       for (const listener of this.noteListeners) listener(state.notifications);
@@ -376,7 +407,7 @@ class FabricStore {
   private async poll() {
     let delay = 1000;
     try {
-      const state = await call<StatePayload>(`/state?since=${this.revision}&notifications_since=${this.cursor}`);
+      const state = await call<StatePayload>(`/state?since=${this.revision}&notifications_since=${this.cursor}&view_since=${this.viewCursor ?? 0}`);
       if (!this.started) return;
       this.apply(state);
     } catch {
@@ -468,6 +499,11 @@ class FabricStore {
     await call(`/apps/${appId}`, { method: "DELETE" });
     await this.refresh();
   }
+  /** What became of a request to move the map. The application hears it as an event. */
+  reportView(appId: string, request: number, outcome: "applied" | "declined", reason = "") {
+    return call(`/apps/${encodeURIComponent(appId)}/view/outcome`, { method: "POST", body: JSON.stringify({ request, outcome, reason }) }).catch(() => undefined);
+  }
+
   failure(appId: string, detail: string) {
     return call(`/apps/${appId}/failure`, { method: "POST", body: JSON.stringify({ detail }) }).catch(() => undefined);
   }
@@ -484,6 +520,10 @@ export const fabric = new FabricStore();
 
 export function useFabricApps(): FabricApp[] {
   return useSyncExternalStore(fabric.subscribe, fabric.getApps);
+}
+
+export function useHeld(): Held[] {
+  return useSyncExternalStore(fabric.subscribe, fabric.getHeld);
 }
 
 export function useLaunchPlan(): LaunchPlan | null {

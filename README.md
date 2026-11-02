@@ -2,577 +2,171 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/wordmark-light.svg">
-  <img alt="DSTNS" src="docs/assets/wordmark-dark.svg" width="320">
+  <img alt="DSTNS" src="docs/assets/wordmark-dark.svg" width="300">
 </picture>
 
-### Deterministic Spatiotemporal Transport Network Simulator
+<br><br>
 
-**DSTNS selects a city district from OpenStreetMap using a seed and simulates a
-virtual day of traffic, signals, demand, weather, flooding and incidents on one
-authoritative clock.** Reproducible results require the same seed, configuration,
-map bytes and compatible build; see [Reproducible experiments](#reproducible-experiments).
+**Deterministic Spatiotemporal Transport Network Simulator**
 
-[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-3DA639?logo=gnu&logoColor=white)](LICENSE)
-[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](https://dstns.readthedocs.io/development/building/)
-[![CMake 3.22+](https://img.shields.io/badge/CMake-3.22%2B-064F8C?logo=cmake&logoColor=white)](https://dstns.readthedocs.io/getting-started/installation/)
-[![Docker: amd64 | arm64](https://img.shields.io/badge/Docker-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)](https://dstns.readthedocs.io/getting-started/docker/)
-[![Platforms: Linux | macOS](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-555555?logo=linux&logoColor=white)](https://dstns.readthedocs.io/getting-started/requirements/)
-[![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://dstns.readthedocs.io/components/WebKit/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://dstns.readthedocs.io/components/WebKit/)
-[![OpenStreetMap](https://img.shields.io/badge/maps-OpenStreetMap-7EBC6F?logo=openstreetmap&logoColor=white)](https://dstns.readthedocs.io/concepts/osm-map-generation/)
-[![Eclipse SUMO: optional](https://img.shields.io/badge/Eclipse%20SUMO-optional-1E3A5F?logo=eclipseide&logoColor=white)](https://dstns.readthedocs.io/components/sumo-adapter/)
+A seed chooses a real district of a real city. DSTNS simulates a whole day there,<br>
+and you watch it, change it, and build on it.
 
-[**Documentation**](https://dstns.readthedocs.io/) ·
-[Quick start](#quick-start) ·
-[Docker](#run-with-docker) ·
-[From source](#run-from-source) ·
-[API](https://dstns.readthedocs.io/api/) ·
-[Troubleshooting](https://dstns.readthedocs.io/troubleshooting/)
+<br>
 
-<img src="docs/assets/screenshots/observer.png" alt="The DSTNS observer watching a district of Christchurch" width="100%">
+<img src="docs/assets/screenshots/observer.png" alt="The DSTNS observer, showing a simulated day in a district of a city" width="100%">
 
 </div>
 
----
+<br>
 
-## Contents
+## What it is
 
-- [Highlights](#highlights)
-- [Scope and intended use](#scope-and-intended-use)
-- [Quick start](#quick-start)
-- [How it works](#how-it-works)
-- [Run with Docker](#run-with-docker)
-- [Run from source](#run-from-source)
-- [Using the observer](#using-the-observer)
-- [Using the API](#using-the-api)
-- [Configuration](#configuration)
-- [Reproducible experiments](#reproducible-experiments)
-- [Operations and security](#operations-and-security)
-- [Testing](#testing)
-- [Project layout](#project-layout)
-- [Documentation](#documentation)
-- [Troubleshooting](#troubleshooting)
-- [Project status and use](#project-status-and-use)
-- [License](#license)
+Give DSTNS a number. It resolves to one of 181 cities on every inhabited continent and a district inside it, downloads that district's streets from OpenStreetMap, and builds a day of traffic, signals, demand, weather, flooding and incidents on one clock.
 
-## Highlights
+The same seed, configuration, map and build give the same day, on any machine. You can pause it, step it, seek back through it, and export a report of what happened.
 
-| Capability | Description |
-|---|---|
-| **Seed-based geographic selection** | A seed resolves to one of **181 cities** on every inhabited continent and a district inside it. The road network is downloaded from OpenStreetMap once and cached. |
-| **Deterministic simulation** | SHA-256 sub-seeds per subsystem, counter-based random numbers, fixed one-second physics, checkpoint replay. Matching inputs and compatible builds produce matching scenario and runtime state. |
-| **Integrated traffic and environmental models** | Signals snapped to real junctions and coordinated in green waves; place-driven weekday and weekend demand; storms with Wendland C² rain fields; flooding that closes roads; at least four incidents a day. |
-| **Checkpoint replay** | Pause, step, seek backwards and forwards through the day; undo and redo operator controls. |
-| **Browser observer** | Live map, telemetry, notifications, Auto Focus, place search with filters, changeable keyboard shortcuts, light and dark themes, colour-vision palettes, a guided tutorial and a PDF report, kept in step by adaptive backpressure. |
-| **HTTP API** | Every view and control over JSON, a self-describing route index, and an [OpenAPI 3.1 description](https://dstns.readthedocs.io/api/openapi/). |
-| **Container deployment** | A multi-architecture image (about 234 MB) that starts a simulation with one command; optional TLS gateway and SUMO. |
-| **SUMO integration** | Export any world to Eclipse SUMO and run it microscopically as a batch job. |
-| **Natural-language narration** | Incidents, storms and floods worded in plain language by Apple's on-device Foundation Model (or any Chat Completions endpoint), checked against the facts and never read back by the simulation. [Read more](docs/guide/narration.md). |
+<table>
+<tr>
+<td width="50%" valign="top">
 
-> [!NOTE]
-> The live model is **aggregate** — flows and queues per directed road segment,
-> not individual vehicles — which is what makes a whole day of a 3,000-junction
-> district efficient enough for interactive seeking and replay.
+**The simulation**
 
-## Scope and intended use
+Signals snapped to real junctions and coordinated in green waves. Demand from the schools, offices and homes that are really there, different on a weekday and at a weekend. Storms that cross the district and flood its low roads. Collisions whose queues spread back up the road.
 
-DSTNS supports transport-model experimentation, algorithm integration, teaching,
-and repeatable demonstrations. The live engine models aggregate flows and queues
-on directed road segments. SUMO provides a separate microscopic export and
-validation workflow; it does not drive the live observer.
+Flows and queues per road are what make a whole day of a 3,000-junction district fast enough to seek through. For individual vehicles, any world exports to Eclipse SUMO.
 
-A seed alone is insufficient to reproduce an old experiment if upstream map data
-or model code has changed. Retain the map, resolved configuration, source revision
-and operator actions alongside the seed. The model is a research and development
-tool; it has no documented calibration or certification for operational traffic
-control. See [Reproducibility](https://dstns.readthedocs.io/concepts/reproducibility/) for the exact
-inputs and floating-point limitations.
+</td>
+<td width="50%" valign="top">
 
-## Quick start
+**The observer**
 
-**With Docker** (nothing else to install):
+A live map with telemetry, notifications and an Auto Focus camera that follows what matters. Place search, changeable shortcuts, light and dark themes, and palettes for colour vision.
 
-```bash
-# The public image does not require a GitHub login.
-docker pull ghcr.io/varunkarthic/dstns:stable
-docker run -d --name dstns --restart unless-stopped \
-  -p 127.0.0.1:8090:8090 \
-  -v dstns-maps:/app/data/maps \
-  -v dstns-logs:/app/logs \
-  -e DSTNS_SEED=382923 \
-  ghcr.io/varunkarthic/dstns:stable
-```
+It's built on one physical model of motion, so that everything can be interrupted and nothing jumps. It keeps up with the simulation by itself, and tells you when it can't.
 
-Open **<http://localhost:8090>**. The container starts the server and a
-simulation automatically; the first run downloads its city map from
-OpenStreetMap, so the container needs internet access. The map cache and logs
-survive container restarts in the named volumes. Change or omit
-`DSTNS_SEED=382923` to choose another repeatable seed or get a fresh random seed
-(`auto`, the default).
+</td>
+</tr>
+</table>
 
-Useful commands:
+## Start
 
-```bash
-docker logs -f dstns  # follow startup and run progress
-docker exec dstns dstns-run --status  # inspect the current run
-docker exec dstns dstns-run --seed 42 --day-type weekend --speed 2
-docker stop dstns  # stop; keep cached maps and logs
-docker start dstns  # restart with a fresh run
-docker rm -f dstns  # remove the container; volumes remain
-docker volume rm dstns-maps dstns-logs  # optional: also delete saved data
-```
-
-The image includes an offline district if the host cannot reach OpenStreetMap.
-Stop the existing container first if it is using port 8090, then run:
-
-```bash
-docker run --rm -p 127.0.0.1:8090:8090 \
-  -e DSTNS_OSM_FILE=/app/data/fixtures/real_network.osm.xml \
-  ghcr.io/varunkarthic/dstns:stable
-```
-
-The GHCR package publishes both **linux/amd64** and **linux/arm64** images;
-Docker selects the matching image automatically, including on Apple silicon.
-If the package page also lists **`unknown/unknown`**, that row is build
-provenance/SBOM metadata attached to the multi-platform release, not another
-CPU architecture or an image to run. Use a normal image tag in `docker pull`;
-Docker ignores those metadata entries when selecting the runnable image.
-
-**From source** (macOS or Linux):
+From source, on macOS or Linux:
 
 ```bash
 git clone https://github.com/varunkarthic/DSTNS.git && cd DSTNS
 ./launcher
 ```
 
-For a source installation, choose **Start simulation** after the environment checks,
-or use `./launcher start` to start directly. Then open the observer URL shown by
-the launcher (normally **<http://localhost:8090>**). The observer narrates the seed resolving
-to a city, the map downloading (20–60 s the first time for a city) and the
-world being built, then the day starts.
-
-## How it works
-
-```mermaid
-flowchart LR
-    Seed(["Seed<br/>382923"]) --> Place["City + district<br/>(181-city catalogue)"]
-    Place --> OSM[("OpenStreetMap<br/>Overpass API")]
-    OSM --> Graph["Road graph<br/>true metres, canonical IDs"]
-    Seed --> Sched["Signals · demand ·<br/>weather · incidents"]
-    Graph --> Engine["SimulationEngine<br/>1-second physics"]
-    Sched --> Engine
-    Engine --> API["HTTP API"]
-    API --> Observer["Observer<br/>(browser)"]
-    API --> You["Your scripts"]
-    CLI["Operator CLI"] -- "start (credential)" --> API
-```
-
-| Part | What it is |
-|---|---|
-| **Core** (`dstns_server`) | C++20. Compiles a scenario from a seed, runs the virtual day, serves the API and the observer on one port. |
-| **Operator CLI** (`./launcher`) | Python 3, with a Textual terminal interface and compatibility mode. Builds what changed, starts and supervises the server, starts runs, saved seeds, logs, tests. |
-| **Observer** (`WebKit/`) | React 19. Watches a run in the browser: map, telemetry, playback, reports. |
-
-Read [Architecture](https://dstns.readthedocs.io/concepts/architecture/) for the full picture.
-
-## Run with Docker
-
-### Requirements
-
-- Docker Engine 24+ or Docker Desktop, with Compose v2.
-- About 1 GB free memory, 250 MB for the image, up to 50 MB per downloaded city.
-
-### Start
-
-Pull the published image directly, with no repository checkout or compiler:
+Or with Docker, with nothing else to install:
 
 ```bash
-docker pull ghcr.io/varunkarthic/dstns:stable
+docker run -d --name dstns -p 127.0.0.1:8090:8090 \
+  -v dstns-maps:/app/data/maps -v dstns-logs:/app/logs \
+  -e DSTNS_SEED=382923 ghcr.io/varunkarthic/dstns:stable
 ```
 
-Use `stable` for the latest build that passed CI, or select a version tag such
-as `2.1.0` after its release is published. The `2` and `2.1` tags are moving
-major/minor aliases; pin an image-index digest when an experiment needs an
-immutable image. The command automatically selects **AMD64 or ARM64**, including
-Apple silicon. A package-page `unknown/unknown` row is attached SBOM/provenance
-metadata, not a third runnable platform.
-Use the `docker run` command in [Quick start](#quick-start), or clone this repository
-and use Compose (which defaults to the same GHCR `stable` image):
+Then open `http://localhost:8090`. The first run downloads its city, which takes up to a minute.
+
+To build from source you need a C++20 compiler, CMake 3.22, SQLite and zlib headers, Node 20 and Python 3.10. On Windows, use WSL 2.
+
+## The launcher
+
+<img src="docs/assets/screenshots/launcher.png" alt="The DSTNS launcher's dashboard in a terminal" width="100%">
+
+The launcher checks your environment, builds what's needed, and runs everything from one place, in its terminal interface or with a single command:
 
 ```bash
-docker compose up --pull always            # foreground; Ctrl-C to stop
-docker compose up -d --pull always         # background
-docker compose logs -f               # follow the log
-```
-
-`stable` and `latest` follow builds that pass CI and native container checks on both
-architectures. Version releases also publish `2.1.0`, `v2.1.0`, `2.1` and `2`;
-every build has short and full `sha-…` tags. Pin a digest for reproducible runs.
-The engine is **2.1.0**, the observer is **3.0.0**, and the developer is
-**[Varun Karthic](https://github.com/varunkarthic)**. Image labels,
-`/app/build-info.json`, `dstns_server --version` and `/api/v1/system/info` record
-build provenance. See the [image tag policy](docs/deployment/docker.md#tags-and-build-identity).
-
-To build your checkout locally:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
-```
-
-The container starts the server, then a run, and the observer is at
-**<http://localhost:8090>**.
-
-```mermaid
-sequenceDiagram
-    participant You
-    participant C as dstns container
-    participant OSM as OpenStreetMap
-    You->>C: docker compose up
-    C->>C: server healthy
-    C->>C: dstns-run starts a run from DSTNS_* settings
-    C->>OSM: download the seed's city (first time only)
-    C-->>You: http://localhost:8090 — the day is running
-```
-
-### Choose the run
-
-```bash
-DSTNS_SEED=382923 DSTNS_DAY_TYPE=weekend DSTNS_SPEED=2 docker compose up
-```
-
-or put the same settings in a `.env` file next to `docker-compose.yml`:
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `DSTNS_SEED` | `auto` | The seed; `auto` draws a fresh one |
-| `DSTNS_DAY_TYPE` | `weekday` | `weekday` or `weekend` |
-| `DSTNS_SPEED` | `1` | Speed, more than 0 and at most 5 |
-| `DSTNS_DURATION` | `3600` | Wall-clock seconds per virtual day at 1× (60–3600) |
-| `DSTNS_OSM_FILE` | `auto` | `auto` lets the seed choose a city; or a path in the container |
-| `DSTNS_HOST_PORT` | `8090` | Port on your machine |
-| `DSTNS_AUTOSTART` | `1` | `0` starts the server with no run |
-
-All variables: [Docker deployment](https://dstns.readthedocs.io/deployment/docker/#environment-variables).
-
-### Common tasks
-
-```bash
-docker compose exec dstns dstns-run --seed 42                     # start another run, no restart
-docker compose exec dstns dstns-run --seed 42 --day-type weekend --speed 3
-docker compose exec dstns dstns-run --status                      # what is running
-DSTNS_OSM_FILE=/app/data/fixtures/real_network.osm.xml docker compose up   # offline, bundled map
-docker compose --profile tls up --build gateway                           # also HTTPS on :8443
-DSTNS_WITH_SUMO=1 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build                       # include Eclipse SUMO
-docker compose down                                               # stop (keeps cached maps)
-docker compose down --volumes                                     # stop and delete maps and logs
-```
-
-> [!TIP]
-> No internet? The image includes a recorded real district (1,196 junctions):
-> set `DSTNS_OSM_FILE=/app/data/fixtures/real_network.osm.xml`.
-
-## Run from source
-
-### Requirements
-
-| Tool | Version |
-|---|---|
-| C++ compiler | GCC 12+, Clang 15+ or Apple Clang 15+ |
-| CMake | 3.22+ |
-| SQLite 3 and zlib | development headers |
-| Node.js / npm | 20+ / 9+ |
-| Python | 3.10+ |
-| Eclipse SUMO | optional |
-
-<details>
-<summary><b>Installing them</b></summary>
-
-**macOS**
-
-```bash
-xcode-select --install
-brew install cmake node python
-```
-
-**Ubuntu / Debian**
-
-```bash
-sudo apt-get install -y build-essential cmake git python3 libsqlite3-dev zlib1g-dev
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
-```
-
-**Windows**: use WSL 2 with Ubuntu, then follow the Ubuntu steps.
-
-</details>
-
-### Start
-
-```bash
-./launcher                                   # environment checks and interactive dashboard
-./launcher start --seed 382923               # a particular seed
-./launcher start --seed 382923 --day-type weekend
-./launcher start --speed 3 --duration 1800
+./launcher start --seed 382923 --day-type weekend --speed 3
 ./launcher start --osm-file data/fixtures/real_network.osm.xml   # offline
-./launcher start --seed 42 --save-seed demo  # save the configuration
-./launcher start --saved-seed demo           # replay it exactly
-./launcher seeds list
-./launcher console                           # interactive dashboard
-./launcher logs                              # inspect logs
-./launcher test                              # run the test suites
+./launcher start --seed 42 --save-seed demo                      # keep it
+./launcher start --saved-seed demo                               # replay it
 ```
 
-Build and map-fetch times depend on hardware, network access and cache state;
-the timings above are indicative. The first build typically takes a few minutes;
-later starts can take seconds. Interactive startup checks the environment and
-explains failures; every run validates its configuration. The terminal interface
-installs into `.venv-launcher/` on first use. Its SVG-derived terminal wordmark
-stays visible for at least three seconds while startup checks run. It shows
-activity while checks, builds
-and world preparation run, with download percentages only when a byte total is
-available. Use `--no-animation` for static activity labels, `--no-splash` to skip
-the opening wordmark, or `--no-tui` for plain output. See the
-[launcher guide](https://dstns.readthedocs.io/guide/operator-cli/) for all modes and controls.
-
-### Build by hand
+It starts your own programs along with the simulation. Give each one its commands, and choose which to bring up when a run starts. The engine comes up, the observer opens, your applications start, and only when all of them are ready does the day begin.
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=ON
-cmake --build build -j
-npm ci --prefix WebKit && npm run build --prefix WebKit
-./build/dstns_server --port 8090          # then: ./launcher start --seed 382923
+./launcher apps add planner --command "python3 planner.py" --ready fabric
+./launcher start --apps planner
 ```
 
-The CMake commands configure and compile a release build with tests enabled.
-`npm ci` installs the observer from its lockfile, and `npm run build` type-checks
-and bundles it. The last command runs the server in the foreground; run the
-launcher in another terminal to submit a simulation. Server availability alone
-does not mean a run has started.
+<br>
 
-Full details: [Installation](https://dstns.readthedocs.io/getting-started/installation/) and
-[Building from source](https://dstns.readthedocs.io/development/building/).
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/fabric-white.png">
+  <img alt="Fabric" src="docs/assets/brand/fabric-black.png" height="44">
+</picture>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/webfabric-white.png">
+  <img alt="WebFabric" src="docs/assets/brand/webfabric-black.png" height="44">
+</picture>
+</div>
 
-## Using the observer
-
-| Do | Control |
-|---|---|
-| Play, pause | Play and Pause buttons in the bottom bar, or `Space` |
-| Faster or slower | 0.25× to 10× on the speed slider, or `[` and `]` |
-| Jump 15 minutes back or forward | Back and Forward (`J`, `L`). Moving backward uses checkpoint replay |
-| Step one minute | Step (`K`) |
-| Start the day over | Restart button |
-| A different city | **Generate a new world**, next to the seed |
-| Follow events automatically | **Auto Focus** in the sidebar (`A`). Double-click it for the order |
-| Find a place | **Search** in the sidebar (`/`), with filters such as Modelled, Health and Transport |
-| Layers and legends | **Roads**, **Places** and **Layers** in the lower bar |
-| Change shortcuts, theme and more | **Settings** (`,`). Appearance follows your device by default |
-| A PDF of the day | **Export Report** |
-| Learn the interface | **Tutorial** |
-
-Generating a new world plays as one continuous animation, from the old map's roads to the new one's, and takes at least
-about 11 seconds.
-
-The observer needs a window of at least **1280 × 640**. Below that it says so rather than squeezing the interface.
-
-When the world is ready, the start-up film plays through once before handing over to the map, so a first start takes
-about 45 seconds. To open with this browser's settings forgotten, use `./launcher start --default-settings`, or turn on
-**Open with default settings** under Configuration.
-
-Walkthrough: [Your first simulation](https://dstns.readthedocs.io/getting-started/first-simulation/).
-Reference: [Observer interface](https://dstns.readthedocs.io/guide/observer-interface/).
-
-## Using the API
-
-Everything the observer does is an HTTP call:
-
-```bash
-curl -s localhost:8090/api/v1/playback/status | python3 -m json.tool | head
-curl -s -X POST localhost:8090/api/v1/playback/seek -d '{"target_time":"17:30:00"}'
-curl -s localhost:8090/api/v1/view/traffic
-curl -s -X PUT localhost:8090/api/v1/control/edges/412 -d '{"closed":true}'
-curl -s -X POST localhost:8090/api/v1/control/undo -d '{"count":1}'
-curl -s localhost:8090/api/v1            # the server's own route index
-```
-
-| Group | Routes |
-|---|---|
-| Playback | start, prepare, status, play, pause, seek, step, stop, reset |
-| View | topology, snapshot, nodes, edges, places, signals, congestion, event queue, … |
-| Control | speed, day, modules, road overrides, signals, rain, surges, undo/redo |
-| System | health, info, map status, backpressure, terminate |
-
-These requests inspect playback, seek to a virtual time, read traffic, override
-a road and undo the most recent control. Edge `412` is illustrative: obtain a
-valid ID from `/api/v1/view/topology` for the current run. A seek may continue
-playback when the run is already running; pause first when collecting a fixed-time
-snapshot. See the [explained curl examples](https://dstns.readthedocs.io/api/examples/) for preconditions,
-error handling and operator credentials.
-
-Guide: [API](https://dstns.readthedocs.io/api/) · Reference: [routes](https://dstns.readthedocs.io/api/reference/) ·
-[OpenAPI](https://dstns.readthedocs.io/api/openapi/) · [Errors](https://dstns.readthedocs.io/api/errors/)
-
-> [!IMPORTANT]
-> There are no user accounts: anyone who can reach the port can watch and
-> control the run. Starting or preparing a run requires the operator credential
-> in `logs/operator.token`, used by the CLI and authorized local scripts. The browser origin guard rejects unapproved cross-origin writes, but is
-> not user authentication. The server and Compose both bind to loopback
-> (`127.0.0.1`) by default. Remote deployments need access control as well as TLS;
-> the bundled gateway supplies encryption, not authentication. See [Security](https://dstns.readthedocs.io/deployment/security/) and
-> the [security policy](SECURITY.md).
-
-## Configuration
-
-| File / flag | Controls |
-|---|---|
-| `config/defaults.json` | Run defaults: duration, speed, day, modules, map limits, port |
-| `config/ui-config.json` | The observer's starting state: time format, layers, Auto Focus, notifications |
-| `./launcher start --…` | Per-run seed, day type, speed, duration, map |
-| `dstns_server --…` | Host, port, logs and map directories, map cache policy |
-| `DSTNS_*` environment | Operator token, allowed origins, regeneration, Overpass endpoints, Docker run settings |
-
-Every setting: [Configuration](https://dstns.readthedocs.io/guide/configuration/).
-
-## Reproducible experiments
-
-Start with the bundled map to remove the network download from the experiment:
-
-```bash
-./launcher start --seed 382923 --day-type weekday \
-  --osm-file data/fixtures/real_network.osm.xml --no-open
-```
-
-The launcher builds and starts the server, selects the specified map and submits
-an authenticated start request. Map paths are resolved on the server. Wait until
-`/api/v1/playback/status` reports `RUNNING`; an accepted start request only means
-preparation has begun.
-
-In another terminal, collect the run's provenance:
-
-```bash
-mkdir -p artifacts/experiment-382923
-curl --fail --silent --show-error http://127.0.0.1:8090/api/v1/view/manifest \
-  -o artifacts/experiment-382923/manifest.json
-git rev-parse HEAD > artifacts/experiment-382923/revision.txt
-./build/dstns_replay_verify 382923
-```
-
-The manifest describes the active scenario and its hashes. The revision identifies
-the source checkout. The replay verifier is an independent deterministic test using
-its own grid and OSM fixtures; it does not certify the currently running session.
-Retain the input map and configuration separately. Do not include
-`logs/operator.token` in experiment artifacts.
-
-For a complete script that starts, waits, pauses, seeks and saves a snapshot,
-see the [Python API walkthrough](https://dstns.readthedocs.io/api/client-walkthrough/).
-
-## Operations and security
-
-| Responsibility | Guidance |
-|---|---|
-| Report a suspected vulnerability | [Security policy](SECURITY.md): supported versions, confidential reporting, triage and disclosure |
-| Restrict access to the API | [Deployment security](https://dstns.readthedocs.io/deployment/security/): trust boundaries, credentials, origins and proxy requirements |
-| Verify a deployment and recover from failure | [Operations runbook](https://dstns.readthedocs.io/deployment/operations/): readiness, backups, updates and recovery |
-
-DSTNS runs one shared simulation per server. Every client with network access can
-control that simulation through endpoints other than the credential-protected
-start and prepare routes, so the server **binds to `127.0.0.1` by default** and
-refuses cross-site, DNS-rebinding and cross-origin-read attempts from browsers.
-Expose it to a network only behind an authenticating proxy, and give access only
-to trusted operators who are permitted to change the run.
-
-## Testing
-
-```bash
-./scripts/test.sh                                   # core, observer, API and selected CLI suites
-ctest --test-dir build --output-on-failure          # native and registered HTTP suites
-npm test --prefix WebKit                         # observer unit and component tests
-python3 tests/api/api_smoke.py --server build/dstns_server
-./build/dstns_replay_verify 382923                  # reproducibility check
-./build/dstns_benchmark --quick                     # performance under load (see docs/deployment/performance.md)
-```
-
-The commands above cover different layers: CTest validates registered native and
-HTTP suites, Vitest checks observer behavior, and the API smoke test starts an
-isolated server. Check the exit status of each command. Test counts can change;
-the output from the current checkout is authoritative.
-
-CI runs the native, HTTP, observer, documentation and Docker builds on every
-push. Details: [Testing](https://dstns.readthedocs.io/development/testing/).
+<br>
 
 ## Fabric and WebFabric
 
-Other programs can build on DSTNS. **Fabric** is the layer through which everything
-reaches the core, and **WebFabric** lets independent applications appear in the
-observer. There is nothing to install: an application calls the API, registers itself,
-and declares its status lines, panels, map overlays and settings as data. It can place
-markers on junctions and vehicles on roads, and animate them along real routes, without
-sending anything per frame. Applications run side by side, ask for what they need, and
-act on the simulation only with permission. See [WebFabric](docs/components/webfabric.md) and
-[Building applications](docs/development/webfabric-apps.md).
+**Fabric** is the layer everything reaches the engine through: 124 documented routes over HTTP and JSON, described in OpenAPI 3.1. **WebFabric** lets your own programs become part of the observer. There's nothing to install. A program registers itself and declares what it wants to show as data, and the observer draws it in its own design.
 
-## Project layout
+```python
+token = post("/api/v1/fabric/apps", {
+    "id": "org.example.planner", "name": "Planner", "version": "1.0.0",
+    "capabilities": ["ui.panels", "ui.overlays", "ui.camera", "ui.layers"],
+})["data"]["token"]
 
-```text
-Core/                 the C++ core: engine, scenario, OSM, events, backpressure, server entry point
-Fabric/               the HTTP API over the core, and the application registry
-WebKit/               the observer (React, Vite, Vitest)
-dstns_launcher/       the Python launcher, terminal interface and shared service core
-tests/                native, HTTP and CLI suites, fixtures
-tools/                scenario export, replay verification, road index, benchmark
-docker/               entrypoint, dstns-run, TLS gateway
-config/               defaults.json, ui-config.json
-docs/                 documentation (MkDocs, published on Read the Docs)
+# A line along real roads, in a colour of its own, with vehicles that obey the signals.
+put("/api/v1/fabric/apps/org.example.planner/ui/line", {"slot": "overlay", "features": [
+    {"type": "path", "id": "bus-1", "nodes": route, "color": "auto", "style": "flow", "glow": True,
+     "drive": True, "count": 3, "speed_mps": 12, "loop": True},
+]})
+
+# Show a junction, and bring up the traffic layer, once a person has allowed it.
+post("/api/v1/fabric/apps/org.example.planner/view", {"action": "node", "node": 42, "span_m": 800})
+put("/api/v1/fabric/apps/org.example.planner/presentation", {"layers": {"traffic": True}})
 ```
+
+| An application can | |
+|---|---|
+| **Add to the interface** | Status lines, panels, a sidebar, map controls, notifications, dialogs, and its own page in a sandbox |
+| **Draw on the map** | Markers on junctions, vehicles on roads, and paths that animate along real routes with nothing sent per frame |
+| **Direct the view** | Say where the map looks and how close, and hold layers and places on or off |
+| **Follow the simulation** | Events, timers on the simulation's clock, its own storage, and messages to other applications |
+| **Act on it** | Playback, events and the world, each only with a person's permission, and each on the record |
+
+An application asks, and the observer decides. It can never change a person's settings: what it asks for is laid over their choices, a person's own move comes first, and it all ends when the application does. Tokens are hashed, requests can be signed, the audit log is a hash chain, and pages run in a sandbox with no way into the observer.
+
+## The report
+
+<img src="docs/assets/screenshots/report-cover.png" alt="The cover of a DSTNS report: the city's map across the whole page, with the city's name, the seed, and when it was generated" width="320" align="right">
+
+Export a report of any run as a PDF: the summary, traffic, signals, weather, incidents, the network, and how the observer kept up. Statements are labelled by where they come from, whether observed, derived or interpretation, and the report is put together on a worker, so that the interface keeps moving meanwhile.
+
+The cover is the city itself, different for every run.
+
+<br clear="right">
+
+## Repeatable, within limits
+
+The same seed, resolved configuration, map bytes and compatible build give the same results. A seed alone won't reproduce an old experiment if the map upstream or the model has changed, so keep those alongside it. The limits, floating point among them, are documented.
+
+DSTNS is for research, teaching, algorithm integration and demonstrations. It has no calibration or certification for controlling real traffic.
+
+## Security
+
+DSTNS is a single-operator tool. It listens on loopback, refuses cross-site and DNS-rebinding requests, and has no user accounts, so anyone who can reach the port can read the run. To expose it beyond one machine, put an authenticating gateway in front of it. Report a suspected vulnerability privately, as described in [SECURITY.md](SECURITY.md).
 
 ## Documentation
 
-**<https://dstns.readthedocs.io/>** — or browse the sections below:
+The full documentation is at **[dstns.readthedocs.io](https://dstns.readthedocs.io/)**. It covers the model and its mathematics, every API route, building applications, deployment, and the formulas behind every animation.
 
-| Start here | Understand it | Integrate and run it |
-|---|---|---|
-| [Quick start](https://dstns.readthedocs.io/getting-started/quick-start/) | [Architecture](https://dstns.readthedocs.io/concepts/architecture/) | [API guide](https://dstns.readthedocs.io/api/) |
-| [Installation](https://dstns.readthedocs.io/getting-started/installation/) | [Simulation engine](https://dstns.readthedocs.io/concepts/simulation-engine/) | [Docker deployment](https://dstns.readthedocs.io/deployment/docker/) |
-| [Run with Docker](https://dstns.readthedocs.io/getting-started/docker/) | [Mathematical model](https://dstns.readthedocs.io/concepts/mathematical-model/) | [Security](https://dstns.readthedocs.io/deployment/security/) |
-| [Your first simulation](https://dstns.readthedocs.io/getting-started/first-simulation/) | [Seeds and places](https://dstns.readthedocs.io/guide/seeds-and-places/) | [Configuration](https://dstns.readthedocs.io/guide/configuration/) |
-| [Operator CLI](https://dstns.readthedocs.io/guide/operator-cli/) | [Reproducibility](https://dstns.readthedocs.io/concepts/reproducibility/) | [Troubleshooting](https://dstns.readthedocs.io/troubleshooting/) |
+## Versions
 
-Preview the site locally:
+Engine **2.2.0**, observer **3.1.0**, API contract **1.4**. `./build/dstns_server --version` and `/api/v1/system/info` report what's running, and the changelog is in [CHANGELOG.md](CHANGELOG.md).
 
-```bash
-python3 -m venv .venv-docs && .venv-docs/bin/pip install -r docs/requirements.txt
-.venv-docs/bin/mkdocs serve        # http://127.0.0.1:8000
-```
+## Licence
 
-## Troubleshooting
+Copyright © 2026 Varun Karthic. DSTNS is free software under the [GNU Affero General Public License v3.0 or later](LICENSE). If you offer a modified DSTNS over a network, you must offer its source to its users. It's provided as is, and it doesn't take outside contributions.
 
-| Symptom | Fix |
-|---|---|
-| `MAP_FETCH_FAILED` | No route to OpenStreetMap: check the network, set `DSTNS_OVERPASS_ENDPOINTS`, or run a cached / bundled map with `--osm-file` |
-| Port 8090 in use | The CLI picks the next free port; with Docker set `DSTNS_HOST_PORT` |
-| Observer shows **DEGRADED** | The browser is behind; DSTNS slows itself to match and recovers on its own |
-| `CROSS_ORIGIN_FORBIDDEN` | A page on another origin tried to change state; allow it with `DSTNS_ALLOWED_ORIGINS` |
-| Build fails after a system update | `cmake --fresh -S . -B build -DCMAKE_BUILD_TYPE=Release` |
-| SUMO reported unavailable | `sumo --version` must work; reinstall or rebuild SUMO |
-
-More: [Troubleshooting](https://dstns.readthedocs.io/troubleshooting/) and [FAQ](https://dstns.readthedocs.io/faq/).
-
-## Project status and use
-
-DSTNS is developed independently by one person and released for public use. The
-repository is published so that you can run it, read it, and build on your own copy
-under the [AGPL-3.0-or-later](LICENSE) licence. It does not take outside contributions,
-bug reports or feature requests, and it is provided as is.
-
-If you fork or redistribute it, keep the licence and copyright notices, and see
-[Building from source](https://dstns.readthedocs.io/development/building/) and
-[Testing](https://dstns.readthedocs.io/development/testing/) for how to build and verify your copy. A
-suspected security vulnerability should be reported **privately**, as described in
-[SECURITY.md](SECURITY.md); never in a public issue.
-
-## License
-
-Copyright © 2026 Varun Karthic. DSTNS is free software under the
-[GNU Affero General Public License v3.0 or later](LICENSE). If you offer a
-modified DSTNS over a network, you must offer its source to its users.
-
-Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright),
-ODbL 1.0. See [License](https://dstns.readthedocs.io/license/) for third-party components.
+Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL 1.0. Third-party components and their licences are listed in the documentation.

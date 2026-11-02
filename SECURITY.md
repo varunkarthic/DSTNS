@@ -96,6 +96,9 @@ means:
 
 ## Security model in brief
 
+The protections around applications, the Fabric API and WebFabric are described in full in
+[Fabric and WebFabric security](docs/api/security.md).
+
 DSTNS is a **single-operator** tool. It has no user accounts, roles or tenant
 isolation. The protections it provides are:
 

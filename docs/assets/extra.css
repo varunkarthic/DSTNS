@@ -1026,3 +1026,17 @@
 html:has(#__search:checked) { overflow: hidden; }
 html { scrollbar-gutter: stable; }
 .md-search__scrollwrap { overscroll-behavior: contain; }
+
+/* --------------------------------------------------------------------------
+   The observer's shapes: the same ladder of radii, one-line controls as
+   stadiums, and a thing inside another following its curve.
+   -------------------------------------------------------------------------- */
+.md-typeset .md-button { border-radius: 999px; }
+.md-typeset .grid.cards > ul > li { border-radius: 18px; }
+.md-typeset pre > code { border-radius: 12px; }
+.md-typeset .highlight { border-radius: 12px; }
+.md-typeset .admonition, .md-typeset details { border-radius: 12px; }
+.md-typeset table:not([class]) { border-radius: 12px; overflow: hidden; }
+.md-typeset code { border-radius: 6px; }
+.md-typeset img { border-radius: 12px; }
+.md-typeset .MathJax, .md-typeset mjx-container { overflow-x: auto; overflow-y: hidden; }

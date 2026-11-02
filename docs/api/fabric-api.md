@@ -129,6 +129,87 @@ and recorded, whether it succeeds or not.
 virtual second and outcome. It holds the most recent 2000, in memory, for this
 process; each is also written to the system log.
 
+## Directing the view
+
+An application can ask the map to move, and hold layers and places on or off. Both need a person's grant, and
+both are requests: **an application asks, and the observer decides.** Nothing here changes a person's settings,
+is ever saved, or outlives the application. [Fabric security](security.md#directing-the-view) lists what is
+guaranteed.
+
+### Moving the map
+
+`POST /fabric/apps/{id}/view` with the token and `ui.camera`. It answers `202` with the number of the request,
+since the observer hasn't seen it yet.
+
+| `action` | Fields | What it does |
+|---|---|---|
+| `focus` | `x_m`, `y_m`, optional `span_m` | Centres on a point. `span_m` is how many metres to show across |
+| `node` | `node`, optional `span_m` | Centres on a junction |
+| `edge` | `edge`, optional `span_m` | Centres on a road |
+| `bounds` | `min_x_m`, `min_y_m`, `max_x_m`, `max_y_m` | Fits an area |
+| `zoom` | `factor`, from 0.25 to 4 | Zooms about the centre. Above 1 is closer |
+| `fit` | | Shows the whole network |
+
+```bash
+curl -X POST "$API/fabric/apps/$ID/view" -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"action": "node", "node": 42, "span_m": 800}'
+```
+
+The observer moves with the map's own springs, within its own zoom limits, and jumps if reduced motion is on.
+What happened arrives as an event, with the number of the request:
+
+| Event | `reason` | Meaning |
+|---|---|---|
+| `view.applied` | | The map moved |
+| `view.declined` | `person_moved_the_map` | A person moved the map in the last 8 seconds |
+| `view.declined` | `tutorial`, `dialog`, `arriving`, `suspended` | Something on screen comes first |
+| `view.declined` | `no_position` | The observer couldn't place it |
+
+A request not seen within 5 seconds is dropped with no event, as is every request while no observer is open.
+Moving the view and changing what it shows share one allowance, 2 a second with a burst of 4. Beyond that:
+`429 RATE_LIMITED`.
+
+### Holding layers and places
+
+`PUT /fabric/apps/{id}/presentation` with the token and `ui.layers`. It replaces all that the application held.
+`DELETE` lets go of it.
+
+```json
+{"layers": {"weather": false, "vehicles": true}, "places": {"school": false}}
+```
+
+Layers: `traffic`, `weather`, `flooding`, `events`, `buildings`, `signals`, `roads`, `vehicles`, `incidents`, `labels`,
+`place_names` and `other_places`. Places are by their kind. Anything else, or a value that isn't `true` or `false`, is
+`400 INVALID_PRESENTATION`.
+
+What's drawn is worked out in this order, with each step overruling those above it:
+
+1. What the person chose.
+2. What applications hold, in the order they registered, so the last one wins and the result is always the same.
+3. A person changing that same thing, for as long as the application doesn't ask again.
+4. Reduced detail under load: nothing is turned on that the person's own state has off.
+
+The Layers panel names the application holding a layer and offers a way back. All of it ends when the application
+leaves, is suspended, stops checking in or loses the grant.
+
+### Paths and colour
+
+These only affect an application's own marks, so `ui.overlays` is enough.
+
+| Field | On | Values |
+|---|---|---|
+| `color` | Any feature | `"auto"`, or `"#RRGGBB"` |
+| `style` | `route`, `path` | `solid`, `dashed`, `dotted`, or `flow`, where dashes run along the line |
+| `glow` | `route`, `path` | `true` for a soft light around the line |
+
+Together with `draw_s`, `speed_mps`, `reveal`, `trail`, `loop`, `bounce`, `spring` and the rest, that decides how a
+path is drawn and how it moves.
+
+`"auto"` is a colour from the palette, always the same for the same application and feature ID. A named colour is
+adjusted before it's drawn: it moves toward white or black, by as little as it takes, until it reaches a contrast of
+3:1 with the map in the current theme. With a colour vision mode on, it becomes the nearest colour of that mode's
+palette. `flow` stands still under reduced motion.
+
 ## What the simulation tells an application
 
 An application can follow the simulation without polling the view API. Choose what arrives in `GET /api/v1/fabric/apps/{id}/events`, which needs `sim.read`:
@@ -227,6 +308,8 @@ X-DSTNS-Successor: /api/v1/fabric/engine/pause
 They will not gain new features, and do not ask for the authorization above. No date has been set for removing them.
 
 ## Security
+
+The whole of it, with what each protection does and doesn't do, is in [Fabric and WebFabric security](security.md).
 
 | What | How |
 | --- | --- |

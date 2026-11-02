@@ -37,6 +37,8 @@ export const CAPABILITY_LABEL: Record<string, { label: string; hint: string; sen
   "ui.indicators": { label: "Edge indicators", hint: "Mark the edges of the map." },
   "ui.dialogs": { label: "Dialogs", hint: "Interrupt you with a dialog.", sensitive: true },
   "ui.frames": { label: "Its own pages", hint: "Show its own web page, in a sandbox, in a panel.", sensitive: true },
+  "ui.camera": { label: "Move the map", hint: "Ask the map to move and zoom. Your own move always comes first.", sensitive: true },
+  "ui.layers": { label: "Layers and places", hint: "Turn layers and places on or off for a while. Your own settings are not changed.", sensitive: true },
   settings: { label: "Its settings", hint: "Read and change its own settings." },
   "sim.read": { label: "Read the simulation", hint: "Follow the clock and congestion in its panels." },
   "control.playback": { label: "Control playback", hint: "Pause, seek, step and change speed.", sensitive: true },

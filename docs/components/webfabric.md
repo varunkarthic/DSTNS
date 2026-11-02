@@ -9,6 +9,8 @@ declares what it wants on screen as data, and the observer draws it. Source:
 `WebKit/src/webfabric/`. To write one, see
 [Building applications](../development/webfabric-apps.md).
 
+![The start-up film's scene for WebFabric: points of colour above a rippling cloth of threads](../assets/screenshots/film-webfabric.png){ .screenshot }
+
 ## How it works
 
 ```text
@@ -101,6 +103,12 @@ Fabric checks what it can when the UI is declared. A shape or range it does not 
 `400 INVALID_ELEMENT`. A node or edge the loaded world does not have, or a `nodes` sequence with no road
 from one junction to the next, is refused with `422 NOT_ON_NETWORK`. If the world is replaced afterwards, the
 observer leaves out whatever no longer exists. Roads are directed, so a two-way street is two edges.
+
+## Directing the view
+
+With a person's grant, an application can say where the map looks and how close (`ui.camera`), and hold layers and places on or off (`ui.layers`). Its own routes and paths can choose a `style` (solid, dashed, dotted or flow), a `glow`, and a `color`, which is `auto` or one the observer makes legible.
+
+An application asks, and the observer decides. None of it changes a person's settings, none of it is saved, and it ends when the application does. A person's move comes first, and reduced detail under load can't be undone. See the [API](../api/fabric-api.md#directing-the-view) and [security](../api/security.md#directing-the-view).
 
 ## Widgets of its own
 

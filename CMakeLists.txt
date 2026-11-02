@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 2.1.0 LANGUAGES CXX)
+project(dstns VERSION 2.2.0 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -96,7 +96,7 @@ target_link_libraries(dstns_benchmark PRIVATE dstns_core)
 if(DSTNS_BUILD_TESTS)
   enable_testing()
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  foreach(smoke loading termination hardening narration fabric_contract fabric_apps fabric_platform launcher_apps)
+  foreach(smoke loading termination hardening narration fabric_contract fabric_apps fabric_platform fabric_direction launcher_apps)
     add_test(NAME dstns_http_${smoke}
       COMMAND ${CMAKE_COMMAND} -E env "DSTNS_SERVER=$<TARGET_FILE:dstns_server>"
         ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/api/${smoke}_smoke.py")

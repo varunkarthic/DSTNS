@@ -12,10 +12,21 @@ only within one version.
 
 ## [Unreleased]
 
-**Observer 3.1.0, API contract 1.3.** The engine stays at 2.1.0, and every existing endpoint
-behaves as before, 155 recorded calls being replayed to prove it, with one deliberate widening:
-`tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
-responses reads `1.3`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
+**Engine 2.2.0, observer 3.1.0, API contract 1.4.** Results for a seed are unchanged from engine 2.1.0, and
+every existing endpoint behaves as before, 155 recorded calls being replayed to prove it, with one deliberate
+widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
+responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
+
+### Applications can direct the view: Fabric 1.4
+
+An application asks, and the observer decides. Nothing here changes a person's settings, is saved, or outlives
+the application. All of it is additive, and every recorded call behaves as it did.
+
+- **Where the map looks.** With `ui.camera`, granted by a person: `POST .../view` to centre on a point, a junction or a road, fit an area, zoom in or out, or show the whole network, with `span_m` for how much to show. It moves with the map's own springs and within its own limits. A person who has just moved the map keeps it for 8 seconds, and the tutorial, dialogs and arrival come first. The application is told what became of each request.
+- **What the map shows.** With `ui.layers`, granted by a person: `PUT .../presentation` holds layers and kinds of place on or off. It's laid over a person's choices, and is not one of them. The Layers and Places panels name who holds what and offer a way back, a person's own change wins, and reduced detail under load can't be undone by an application. It ends when the application leaves, is suspended, stops checking in or loses the grant.
+- **How a path looks.** `style` is solid, dashed, dotted or flow, where dashes run along the line. `glow` adds a soft light. `color` is `auto`, a stable colour from the palette, or `#RRGGBB`, which is moved until it can be seen on the map in the current theme and gives way to a colour vision mode.
+- **All of it is limited and on the record:** 2 a second with a burst of 4, closed lists and ranges, and each request in the audit log, refusals too.
+- **A security guide.** [Fabric and WebFabric security](docs/api/security.md) sets out who can do what, what each protection does and doesn't do, and how to check it.
 
 ### The report and the film
 

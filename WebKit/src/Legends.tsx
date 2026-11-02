@@ -111,6 +111,8 @@ export function PlaceLegend({
   onTogglePlace,
   onShowAll,
   onResetPlaces,
+  heldBy = {},
+  onRelease,
 }: {
   features: readonly MapFeature[];
   demand: readonly DemandState[] | undefined;
@@ -123,6 +125,9 @@ export function PlaceLegend({
   onTogglePlace: (kind: string, on: boolean) => void;
   onShowAll: (kinds: string[]) => void;
   onResetPlaces: () => void;
+  /** Which application is holding a kind of place, by kind. */
+  heldBy?: Record<string, string>;
+  onRelease?: (kind: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -144,6 +149,7 @@ export function PlaceLegend({
         <PlaceGlyph kind={e.id} icon={e.icon} />
         <span className="place-row-text">
           <span className="place-row-name">{e.label}</span>
+          {heldBy[e.id] && <small className="layer-held">Held by {heldBy[e.id]}</small>}
           {e.peak !== null && (
             <span className="place-row-demand" title={demandDetail(e)}>
               <DemandBar entry={e} />
@@ -151,7 +157,11 @@ export function PlaceLegend({
             </span>
           )}
         </span>
-        <span className="place-row-count mono">{e.count.toLocaleString()}</span>
+        {heldBy[e.id] ? (
+          <button type="button" className="layer-take-back" aria-label={`Use my choice for ${e.label}`} onClick={() => onRelease?.(e.id)}>Use mine</button>
+        ) : (
+          <span className="place-row-count mono">{e.count.toLocaleString()}</span>
+        )}
         <button
           type="button"
           role="switch"

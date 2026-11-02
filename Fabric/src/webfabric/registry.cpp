@@ -25,6 +25,9 @@ constexpr std::size_t kMaxApps = 64, kMaxElements = 64, kMaxUiBytes = 4 * 1024 *
 constexpr double kNotificationBurst = 40, kNotificationsPerSecond = 20;
 constexpr std::int64_t kSignatureWindowS = 60;
 constexpr std::size_t kMaxLaunchCommands = 8, kMaxCommandBytes = 1024, kMaxProposals = 64;
+constexpr std::size_t kMaxViewRequests = 32, kMaxHeldPlaces = 64;
+constexpr double kViewBurst = 4, kViewPerSecond = 2;
+constexpr std::int64_t kViewFreshMs = 5000;
 constexpr int kManifestVersion = 1, kApiMajor = 1;
 
 // Requested and granted without asking: they only add to the application's own
@@ -32,11 +35,13 @@ constexpr int kManifestVersion = 1, kApiMajor = 1;
 // code in the page, or changes the simulation, so a person grants it.
 const std::set<std::string> kAutomatic = {"ui.header", "ui.status", "ui.panels", "ui.sidebar", "ui.deck", "ui.notifications", "ui.overlays",
                                           "ui.map-controls", "ui.indicators", "settings", "sim.read", "storage", "apps.messages"};
-const std::set<std::string> kExplicit = {"ui.dialogs", "ui.frames", "control.playback", "control.events", "control.world"};
+const std::set<std::string> kExplicit = {"ui.dialogs", "ui.frames", "ui.camera", "ui.layers", "control.playback", "control.events", "control.world"};
 const std::map<std::string, std::string> kSlotCapability = {
     {"header", "ui.header"}, {"status", "ui.status"}, {"panel", "ui.panels"}, {"sidebar", "ui.sidebar"}, {"deck", "ui.deck"}, {"overlay", "ui.overlays"},
     {"map_control", "ui.map-controls"}, {"indicator", "ui.indicators"}, {"dialog", "ui.dialogs"}};
 const std::set<std::string> kTones = {"neutral", "accent", "ok", "warn", "danger"};
+// What an application may hold on or off: the same layers a person has, and no others.
+const std::set<std::string> kLayers = {"traffic", "weather", "flooding", "events", "buildings", "signals", "roads", "vehicles", "incidents", "labels", "place_names", "other_places"};
 const std::set<std::string> kReportedStates = {"initialized", "active", "failed"};
 const std::regex kAppId("[a-z0-9]+([.-][a-z0-9]+)*");
 const std::regex kKey("[a-z0-9][a-z0-9_-]{0,39}");
@@ -187,6 +192,10 @@ void check_motion(const json& motion) {
 void check_feature(const json& feature) {
     const auto refuse = [](const std::string& message) { throw Refusal(400, "INVALID_ELEMENT", message); };
     if (!feature.is_object()) refuse("an overlay feature must be an object");
+    // A colour is only ever a request: the observer makes it legible, and keeps to a person's colour vision setting.
+    static const std::regex kColour("auto|#[0-9a-fA-F]{6}");
+    if (feature.contains("color") && (!feature.at("color").is_string() || !std::regex_match(feature.at("color").get<std::string>(), kColour)))
+        refuse("color must be \"auto\" or #RRGGBB");
     const auto type = feature.value("type", std::string{});
     if (type != "marker" && type != "entity" && type != "route" && type != "path") return;
     const auto number_in = [&](const char* key, double low, double high) {
@@ -216,6 +225,8 @@ void check_feature(const json& feature) {
         for (const auto& node : feature.at("nodes"))
             if (!node.is_number_unsigned()) refuse("nodes must be node IDs");
         number_in("draw_s", 0.05, 600);
+        one_of("style", {"solid", "dashed", "dotted", "flow"});
+        if (feature.contains("glow") && !feature.at("glow").is_boolean()) refuse("glow must be true or false");
     }
     if (type == "path") {
         if (!feature.contains("id") || !feature.at("id").is_string()) refuse("a path needs an id");
@@ -238,6 +249,49 @@ void check_feature(const json& feature) {
             }
         }
     }
+}
+
+// What is asked of the map, reduced to what is known and in range. Nothing else reaches the observer.
+json check_view(const json& request) {
+    const auto refuse = [](const std::string& message) { throw Refusal(400, "INVALID_VIEW", message); };
+    if (!request.is_object() || !request.contains("action") || !request.at("action").is_string()) refuse("a view request needs an action");
+    const auto action = request.at("action").get<std::string>();
+    json out = {{"action", action}};
+    const auto number = [&](const char* key, double low, double high) {
+        if (!request.contains(key) || !request.at(key).is_number() || !(request.at(key).get<double>() >= low && request.at(key).get<double>() <= high))
+            refuse(std::string(key) + " must be a number in [" + std::to_string(low) + ", " + std::to_string(high) + "]");
+        out[key] = request.at(key);
+    };
+    const auto id = [&](const char* key) {
+        if (!request.contains(key) || !request.at(key).is_number_unsigned()) refuse(std::string(key) + " must be an ID");
+        out[key] = request.at(key);
+    };
+    const auto span = [&] {
+        if (request.contains("span_m")) number("span_m", 10, 10000000);
+    };
+    constexpr double kFar = 100000000;
+    if (action == "focus") {
+        number("x_m", -kFar, kFar);
+        number("y_m", -kFar, kFar);
+        span();
+    } else if (action == "node") {
+        id("node");
+        span();
+    } else if (action == "edge") {
+        id("edge");
+        span();
+    } else if (action == "bounds") {
+        number("min_x_m", -kFar, kFar);
+        number("min_y_m", -kFar, kFar);
+        number("max_x_m", -kFar, kFar);
+        number("max_y_m", -kFar, kFar);
+        if (out.at("max_x_m").get<double>() <= out.at("min_x_m").get<double>() || out.at("max_y_m").get<double>() <= out.at("min_y_m").get<double>()) refuse("bounds must have an area");
+    } else if (action == "zoom") {
+        number("factor", 0.25, 4);
+    } else if (action != "fit") {
+        refuse("action must be focus, node, edge, bounds, zoom or fit");
+    }
+    return out;
 }
 
 json schema_fields(const json& manifest) {
@@ -355,12 +409,14 @@ void AppRegistry::sweep() {
             app.detail = "The application stopped responding.";
             app.lease_lapsed = false;
             app.elements = json::array();
+            app.presentation = nullptr;
             mark(app);
         } else if (silent > app.lease_s && !app.lease_lapsed) {
             app.lease_lapsed = true;
             ++app.lapses;
             app.state = "suspended";
             app.detail = "The application has not checked in.";
+            app.presentation = nullptr;
             mark(app);
         }
     }
@@ -416,7 +472,8 @@ json AppRegistry::register_app(const json& raw, const std::string& presented) {
     app.state = app.user_suspended ? "suspended" : "registered";
     app.detail.clear();
     app.lease_lapsed = false;
-    app.last_seen = app.bucket_at = app.registered_at = Clock::now();
+    app.presentation = nullptr;
+    app.last_seen = app.bucket_at = app.view_bucket_at = app.registered_at = Clock::now();
     app.bucket = kNotificationBurst;
     if (!returning) app.order = next_order_++;
     adopt_settings(app);
@@ -569,7 +626,7 @@ json AppRegistry::describe(const std::string& id) {
     return public_view(find(id), true);
 }
 
-json AppRegistry::state(std::uint64_t since, std::uint64_t notifications_since) {
+json AppRegistry::state(std::uint64_t since, std::uint64_t notifications_since, std::uint64_t view_since) {
     std::lock_guard lock(mutex_);
     sweep();
     auto recent = json::array();
@@ -578,7 +635,25 @@ json AppRegistry::state(std::uint64_t since, std::uint64_t notifications_since) 
         recent.push_back(item);
         if (recent.size() >= kMaxPage) break;
     }
-    json out = {{"revision", revision_}, {"notification_sequence", notification_sequence_}, {"notifications", std::move(recent)}, {"launch_plan", launch_plan_}};
+    // Only what is still fresh, from an application still allowed to ask: an observer coming back must not
+    // be thrown around by what was asked while it was away.
+    const auto live = [](const App& app) { return app.state != "suspended" && app.state != "unloaded" && app.state != "failed"; };
+    auto views = json::array();
+    const auto at = wall_ms();
+    for (const auto& item : view_requests_) {
+        if (item.at("request").get<std::uint64_t>() <= view_since || at - item.at("at_ms").get<std::int64_t>() > kViewFreshMs) continue;
+        const auto asker = apps_.find(item.at("app").get<std::string>());
+        if (asker != apps_.end() && live(asker->second) && asker->second.granted.count("ui.camera")) views.push_back(item);
+    }
+    auto held = json::array();
+    std::vector<const App*> holders;
+    for (const auto& [id, app] : apps_)
+        if (!app.presentation.is_null() && live(app) && app.granted.count("ui.layers")) holders.push_back(&app);
+    std::sort(holders.begin(), holders.end(), [](const App* a, const App* b) { return a->order < b->order; });
+    for (const auto* app : holders)
+        held.push_back({{"app", app->id}, {"name", app->manifest.value("name", app->id)}, {"revision", app->presentation_at}, {"layers", app->presentation.at("layers")}, {"places", app->presentation.at("places")}});
+    json out = {{"revision", revision_}, {"notification_sequence", notification_sequence_}, {"notifications", std::move(recent)}, {"launch_plan", launch_plan_},
+                {"view_sequence", view_sequence_}, {"view_requests", std::move(views)}, {"presentation", std::move(held)}};
     if (since == revision_) {
         out["unchanged"] = true;
         return out;
@@ -627,6 +702,7 @@ void AppRegistry::remove(const std::string& id, bool forget) {
         app.state = "unloaded";
         app.detail = "The application unregistered itself.";
         app.elements = json::array();
+        app.presentation = nullptr;
         app.lease_lapsed = false;
         mark(app);
     }
@@ -661,6 +737,7 @@ void AppRegistry::suspend(const std::string& id, bool suspended) {
     app.user_suspended = suspended;
     app.state = suspended ? "suspended" : "active";
     app.detail = suspended ? "Suspended from Settings." : "";
+    if (suspended) app.presentation = nullptr;
     push_event(app, suspended ? "app.suspended" : "app.resumed", json::object());
     mark(app);
     persist();
@@ -822,6 +899,7 @@ json AppRegistry::set_grants(const std::string& id, const json& capabilities) {
         granted.insert(name);
     }
     app.granted = std::move(granted);
+    if (!app.granted.count("ui.layers")) app.presentation = nullptr;
     push_event(app, "capabilities.changed", {{"granted", app.granted}});
     mark(app);
     persist();
@@ -872,6 +950,9 @@ json AppRegistry::discovery() {
         {"slots", std::move(slots)},
         {"widgets", {"text", "heading", "note", "stat", "stats", "keyvalues", "table", "gauge", "bars", "progress", "sparkline", "route", "chips", "list", "legend", "tabs", "input", "button", "toggle", "select", "slider"}},
         {"overlay_features", {"route", "path", "marker", "circle", "polygon", "line", "label", "heatmap"}},
+        {"path_styles", {"solid", "dashed", "dotted", "flow"}},
+        {"view_actions", {"focus", "node", "edge", "bounds", "zoom", "fit"}},
+        {"layers", kLayers},
         {"motions", {"none", "fade", "rise", "slide", "scale", "pop", "drop"}},
         {"tones", kTones},
         {"topics", {"lifecycle", "world", "news", "news.<category>"}},
@@ -1166,6 +1247,62 @@ json AppRegistry::launch_proposals() {
     auto items = json::array();
     for (const auto& [id, proposal] : launch_.items()) items.push_back(proposal);
     return {{"items", std::move(items)}};
+}
+
+// Moving the view and changing what it shows share one allowance: both are things a person sees happen.
+void AppRegistry::spend_direction(App& app) {
+    const auto now = Clock::now();
+    app.view_bucket = std::min(kViewBurst, app.view_bucket + std::chrono::duration<double>(now - app.view_bucket_at).count() * kViewPerSecond);
+    app.view_bucket_at = now;
+    if (app.view_bucket < 1) {
+        ++app.rate_limited;
+        throw Refusal(429, "RATE_LIMITED", "too many changes to the view; send fewer");
+    }
+    app.view_bucket -= 1;
+}
+
+json AppRegistry::request_view(const std::string& id, const json& request) {
+    const auto wanted = check_view(request);
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    spend_direction(app);
+    view_requests_.push_back({{"request", ++view_sequence_}, {"app", id}, {"name", app.manifest.value("name", id)}, {"view", wanted}, {"at_ms", wall_ms()}});
+    while (view_requests_.size() > kMaxViewRequests) view_requests_.pop_front();
+    return {{"request", view_sequence_}};
+}
+
+void AppRegistry::view_outcome(const std::string& id, std::uint64_t request, const std::string& outcome, const std::string& reason) {
+    if (outcome != "applied" && outcome != "declined") throw Refusal(400, "INVALID_VIEW", "outcome must be applied or declined");
+    std::lock_guard lock(mutex_);
+    push_event(find(id), "view." + outcome, {{"request", request}, {"reason", reason.substr(0, 80)}});
+}
+
+json AppRegistry::set_presentation(const std::string& id, const json& request) {
+    const auto refuse = [](const std::string& message) { throw Refusal(400, "INVALID_PRESENTATION", message); };
+    if (!request.is_object()) refuse("a presentation must be an object");
+    json held = {{"layers", json::object()}, {"places", json::object()}};
+    for (const auto& [key, value] : request.items()) {
+        if ((key != "layers" && key != "places") || !value.is_object()) refuse("a presentation has layers and places, each an object");
+        if (key == "places" && value.size() > kMaxHeldPlaces) refuse("at most " + std::to_string(kMaxHeldPlaces) + " places");
+        for (const auto& [name, on] : value.items()) {
+            if (key == "layers" && !kLayers.count(name)) refuse("unknown layer: " + name);
+            if (key == "places" && !std::regex_match(name, kKey)) refuse("unknown place kind: " + name);
+            if (!on.is_boolean()) refuse(name + " must be true or false");
+            held[key][name] = on;
+        }
+    }
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    spend_direction(app);
+    app.presentation = held;
+    app.presentation_at = ++presentation_revision_;
+    return held;
+}
+
+void AppRegistry::clear_presentation(const std::string& id) {
+    std::lock_guard lock(mutex_);
+    auto& app = find(id);
+    app.presentation = nullptr;
 }
 
 void AppRegistry::set_launch_plan(const json& plan) {

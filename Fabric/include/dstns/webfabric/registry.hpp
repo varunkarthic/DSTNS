@@ -65,7 +65,13 @@ public:
     [[nodiscard]] nlohmann::json list();
     [[nodiscard]] nlohmann::json describe(const std::string& id);
     /// The observer's view. Unchanged since `since` answers without the apps.
-    [[nodiscard]] nlohmann::json state(std::uint64_t since, std::uint64_t notifications_since);
+    [[nodiscard]] nlohmann::json state(std::uint64_t since, std::uint64_t notifications_since, std::uint64_t view_since = 0);
+    /// An application asking the map to move. It only asks: the observer decides, and says what it did.
+    [[nodiscard]] nlohmann::json request_view(const std::string& id, const nlohmann::json& request);
+    void view_outcome(const std::string& id, std::uint64_t request, const std::string& outcome, const std::string& reason);
+    /// Layers and places an application holds on or off. Held apart from a person's settings, and never saved.
+    [[nodiscard]] nlohmann::json set_presentation(const std::string& id, const nlohmann::json& request);
+    void clear_presentation(const std::string& id);
 
     void remove(const std::string& id, bool forget);
     void heartbeat(const std::string& id);
@@ -161,11 +167,16 @@ private:
         double seen_virtual{-1};
         nlohmann::json storage = nlohmann::json::object();
         Clock::time_point registered_at{};
+        nlohmann::json presentation = nullptr;
+        std::uint64_t presentation_at{};
+        double view_bucket{4};
+        Clock::time_point view_bucket_at{};
         std::uint64_t requests{}, refused{}, rate_limited{}, lapses{}, messages_sent{}, messages_received{}, dropped_events{};
     };
 
     App& find(const std::string& id);
     void touch(App& app);
+    void spend_direction(App& app);
     void sweep();
     void mark(App& app) {
         app.changed_at = app.ui_all_at = ++revision_;
@@ -184,6 +195,9 @@ private:
     bool store_rejected_{};
     nlohmann::json launch_ = nlohmann::json::object();
     nlohmann::json launch_plan_ = nullptr;
+    std::deque<nlohmann::json> view_requests_;
+    std::uint64_t view_sequence_{};
+    std::uint64_t presentation_revision_{};
     std::mutex mutex_;
     std::map<std::string, App> apps_;
     std::deque<nlohmann::json> notifications_;

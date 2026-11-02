@@ -42,7 +42,7 @@ machine.
 
 <div class="dstns-shot" markdown>
 
-![The DSTNS observer showing a district of Christchurch, with the road network coloured by congestion, a telemetry panel and playback controls](assets/screenshots/observer.png){ .screenshot }
+![The DSTNS observer showing a district of Dhaka, with the road network coloured by congestion, a telemetry panel and playback controls](assets/screenshots/observer.png){ .screenshot }
 
 </div>
 

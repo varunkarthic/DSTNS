@@ -525,11 +525,11 @@ said little.
 **Decision.** Each scene has its own subject and its own motion while it holds: a city's streets drawn outward, one junction whose
 cars queue and release on red and green, trips queueing at the doors of what draws them, a ridgeline of the day's traffic, a queue
 growing back from a collision, a storm, a globe, a skyline and its exact mirror image rising from two seeds, a viewfinder locking on, and
-an open book of code whose coloured lines build what they declare in the interface beside it. Particles form no words or
+a rippling cloth of threads into which applications weave themselves as points of colour. Particles form no words or
 numbers except the name, and a test fails if a scene draws text. All of it moves in the vertex shader, so a scene costs the page one
 draw call. Colour blending is partly opaque, so crowded points keep their colour: additive light turned every signal white.
 
-**Consequences.** A test compares how particles are spread between scenes and fails if two grow alike. The film takes about 55
+**Consequences.** A test compares how particles are spread between scenes and fails if two grow alike. The film takes about 62
 seconds, which is what a mock application in a test has to outlast.
 
 ## 40. The markers on the map drive
@@ -579,3 +579,27 @@ in such a city the bounding box of everything drawn can sit a little off-centre.
 **Decision.** A ladder set by nesting: a panel is 26, a card 8 px inside it 18, a tile 6 px inside that 12, a chip 4 px inside that 8. A control a line tall is a stadium, sized so that it also fits the ladder: a 36 px field 8 px inside a panel has an 18 px end. Round things sit centred in a stadium's end. Lists are one card with divider lines that start where the text does, and a row lights up to the card's own edge. The tutorial's outline takes its curve from the part of its target that is actually drawn, not from what the anchor declares.
 
 **Consequences.** Panels have 8 px of padding, so that their cards are concentric, and their text is inset by the cards. A panel too tall to be a stadium is not one. A scroller holds its own blurred edges on a scroll timeline, so they cost no script.
+
+## 44. An application asks, and the observer decides
+
+**Problem.** An application should be able to direct what is on screen: where the map looks and how close, which layers and places show, how its paths animate and in what colour. But it runs alongside a person who has their own settings, and those settings can never become an application's to change.
+
+**Decision.** What an application asks for is a request, and it is held apart from a person's settings. Moving the map and holding layers each need a person's grant. Effective layers are worked out in one place, in this order: the person's choice, what applications hold (the later application winning), a person changing that same thing, and reduced detail under load. Moving the map is refused for 8 seconds after a person's own move, and during the tutorial, dialogs and the arrival. It uses the map's own springs and limits, with no duration of the application's. The server keeps only closed lists and ranges, and limits requests to 2 a second with a burst of 4. Colour is adjusted by the observer: to 3:1 on the current map, and to the palette under a colour vision mode.
+
+**Consequences.** `layers` and `places` in the observer remain the person's own, and they're all that is saved. What is drawn is `shownLayers` and `shownPlaces`. Only keys a person actually changed reach their settings, so changing one thing while an application holds another can't save the application's value as theirs. A browser check compares `localStorage` before and after. Nothing here persists across a restart, which also means an application must ask again after one. Applications that want a camera must be written for being told no.
+
+## 45. The report's cover is the city, and painted
+
+**Problem.** The cover went through a framed survey sheet, then a seed-grown abstract figure. The first had too much detail for a cover, and the second said nothing about the run.
+
+**Decision.** The real map of the run's district, to every edge of the page, with only its arteries lit, and gradients and out-of-focus areas leading to the title. Blurs need pixels, so it's a raster, painted on a worker at 200 dpi. The words stay vector, so they're selectable and sharp.
+
+**Consequences.** The file is about 300 KB larger. The animation that shows the report being made paints the same cover at a small size with the same code, so that the two can't differ. A blur is made from halving and doubling, as `ctx.filter` isn't available on every worker, and each halving must be exact, or a thin line comes back as beads.
+
+## 46. The film's moves are timed
+
+**Problem.** Scene changes ran on springs. A spring starts with a jolt in acceleration and, with particles leaving at different moments, the crossing looked like a burst. The camera's slow push also reset at each change of scene, causing a jump of up to 5% in distance.
+
+**Decision.** Scene changes and camera moves use smootherstep, which has zero speed and zero acceleration at both ends. A particle's departure is set by a front whose direction differs from scene to scene. Offsets from the straight line are scaled by \(\sin^2\), so they add no speed at either end. The push is folded into the starting distance, and both it and the slow drift begin only after the camera has arrived. Only the end's burst is still a spring, as it should feel like a burst.
+
+**Consequences.** A crossing takes 1.95 s and the camera's move 2.5 s, so every hold grew by about 0.4 s. The film has no springs left that a person can notice, other than the pointer's. The formulas are in [Motion and graphics mathematics](motion-mathematics.md).

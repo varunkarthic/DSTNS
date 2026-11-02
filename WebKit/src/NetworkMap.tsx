@@ -100,7 +100,7 @@ type Props = {
    * `bounds` (metres, y north) frames an event's footprint; a point with a
    * scale centres on it.
    */
-  focus?: { whole?: boolean; bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number } | null;
+  focus?: { whole?: boolean; zoomBy?: number; span_m?: number; bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number } | null;
   /** True until the panels arrive: the network waits in the middle of the window. */
   arriving?: boolean;
   /** A person moved the camera, so nothing else should. */
@@ -974,9 +974,18 @@ function NetworkMap({
       glideTo(viewForBounds(focus.bounds, focus.padding ?? 0.18));
       return;
     }
-    if (focus.x_m === undefined || focus.y_m === undefined) return;
     const layout = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
-    const scale = focus.scale ?? viewRef.current.scale;
+    // What an application asks for stays within what a person could reach with a gesture.
+    const within = (asked: number) => Math.min(8, Math.max(fitScale.current ? fitScale.current * ZOOM_REST : 0.025, asked));
+    if (focus.zoomBy) {
+      const from = viewRef.current;
+      const scale = within(from.scale * focus.zoomBy);
+      const ratio = scale / from.scale;
+      glideTo({ scale, x: layout.centerX - (layout.centerX - from.x) * ratio, y: layout.centerY - (layout.centerY - from.y) * ratio });
+      return;
+    }
+    if (focus.x_m === undefined || focus.y_m === undefined) return;
+    const scale = focus.span_m ? within(size.w / focus.span_m) : focus.scale ?? viewRef.current.scale;
     glideTo({ scale, x: layout.centerX - focus.x_m * scale, y: layout.centerY + focus.y_m * scale });
     // Only a new token starts a glide; view changes during it must not restart it.
     // eslint-disable-next-line react-hooks/exhaustive-deps

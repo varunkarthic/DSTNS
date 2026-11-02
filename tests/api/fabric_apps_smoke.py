@@ -353,7 +353,7 @@ def main():
             assert call("GET", "/health")[0] == 200
             groups = call("GET", "/api/v1/system/endpoints")[1]["groups"]
             assert any(g["group"] == "fabric" for g in groups)
-            assert call("GET", "/api/v1/system/source")[1]["api_version"] == "1.3"
+            assert call("GET", "/api/v1/system/source")[1]["api_version"] == "1.4"
         finally:
             server.stop()
     print("fabric apps ok")

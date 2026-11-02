@@ -52,7 +52,8 @@ import type { MapReadoutHandle } from "./MapReadout";
 import { fabric, useFabricNotifications } from "./webfabric/store";
 import { FabricDialog, FabricDockItems, FabricHeader, FabricIndicators, FabricPanel, FabricSidebar, FabricStatus } from "./webfabric/Slots";
 import { FabricOverlay } from "./webfabric/Overlay";
-import { useFabricApps, useLaunchPlan } from "./webfabric/store";
+import { useFabricApps, useHeld, useLaunchPlan } from "./webfabric/store";
+import { heldOver, PERSON_HOLDS_CAMERA_MS, releaseKey, viewDeclined, viewTarget } from "./webfabric/direction";
 import type { FabricOverlayHandle } from "./webfabric/Overlay";
 import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
 import type { UiConfig, AutoFocusStrategy } from "./uiConfig";
@@ -89,7 +90,7 @@ import "./motion.css";
 import "./webfabric.css";
 import "./design.css";
 
-export const VERSION = "3.0.0";
+export const VERSION = "3.1.0";
 
 const DECK_KEY = "dstns.telemetry-mode.v1";
 
@@ -112,7 +113,7 @@ type DialogKind = "about" | "reset" | "terminate" | "auto-focus" | "regenerate" 
 
 const NO_FEATURES: MapFeature[] = [];
 
-type FocusRequest = { bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number };
+type FocusRequest = { whole?: boolean; zoomBy?: number; span_m?: number; bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number };
 
 interface WorldJob {
   active: boolean;
@@ -267,6 +268,17 @@ export default function App() {
   const [mapStatus, setMapStatus] = useState<Record<string, unknown> | null>(null);
   const [shutDown, setShutDown] = useState(false);
   const [manualFocus, setManualFocus] = useState<FocusRequest | null>(null);
+  const [appFocus, setAppFocus] = useState<FocusRequest | null>(null);
+  const personMovedAt = useRef(-Infinity);
+  useEffect(() => {
+    if (manualFocus) personMovedAt.current = performance.now();
+  }, [manualFocus]);
+  // It has its moment, and then whatever else was going to happen goes on happening.
+  useEffect(() => {
+    if (!appFocus) return;
+    const timer = setTimeout(() => setAppFocus(null), PERSON_HOLDS_CAMERA_MS);
+    return () => clearTimeout(timer);
+  }, [appFocus]);
   const [world, setWorld] = useState<WorldJob>(NO_WORLD_JOB);
   const [regenerationEnabled, setRegenerationEnabled] = useState(true);
   const [completion, setCompletion] = useState<CompletionSummary | null>(null);
@@ -391,6 +403,18 @@ export default function App() {
       weather: false,
     }));
   }, []);
+  // What applications hold is laid over a person's layers and places, and is never one of them: `layers` and
+  // `places` stay theirs, and are all that is saved. What is drawn is `shownLayers` and `shownPlaces`.
+  const held = useHeld();
+  const [released, setReleased] = useState<ReadonlyMap<string, number>>(new Map());
+  const { shown: shownLayers, holders: layerHolders } = useMemo(() => heldOver(layers, held, "layers", released, reducedDetail), [layers, held, released, reducedDetail]);
+  const { shown: shownPlaces, holders: placeHolders } = useMemo(() => heldOver(places, held, "places", released, false, true), [places, held, released]);
+  const release = (field: "layers" | "places", keys: readonly string[]) =>
+    setReleased((current) => {
+      const next = new Map(current);
+      for (const app of held) for (const key of keys) if (key in app[field]) next.set(releaseKey(app.app, field, key), app.revision);
+      return next;
+    });
   const beforeAsbLayers = useRef<Layers | null>(null);
   const seenReset = useRef(resetToken);
   useEffect(() => {
@@ -778,7 +802,7 @@ export default function App() {
               telemetry: recorder.current.export(),
               hour12,
               uiVersion: VERSION,
-              layers,
+              layers: shownLayers,
             },
             (label, share) => setReportFilm((film) => film && { ...film, label, share }),
           );
@@ -791,7 +815,7 @@ export default function App() {
           throw new Error(`Report generation failed. ${message}`);
         }
       }),
-    [action, sim.status, sim.snapshot, sim.topology, sim.news, history, asb, hour12, layers, logControl],
+    [action, sim.status, sim.snapshot, sim.topology, sim.news, history, asb, hour12, shownLayers, logControl],
   );
 
   const setMotion = (next: boolean) => {
@@ -808,9 +832,23 @@ export default function App() {
     setPlaces(next);
     persist({ places: next });
   };
-  const togglePlace = (kind: string, on: boolean) => changePlaces({ ...places, [kind]: on });
+  // Only what the person changed becomes theirs. Whatever else an application is holding is left out of it.
+  const changeShownLayers = (next: Layers) => {
+    const changed = (Object.keys(next) as (keyof Layers)[]).filter((key) => next[key] !== shownLayers[key]);
+    release("layers", changed);
+    changeLayers({ ...layers, ...Object.fromEntries(changed.map((key) => [key, next[key]])) });
+  };
+  const changeShownPlaces = (next: PlaceVisibility) => {
+    const changed = Object.keys(next).filter((key) => next[key] !== shownPlaces[key]);
+    release("places", changed);
+    changePlaces({ ...places, ...Object.fromEntries(changed.map((key) => [key, next[key]])) });
+  };
+  const togglePlace = (kind: string, on: boolean) => changeShownPlaces({ ...shownPlaces, [kind]: on });
   /** Back to the kinds shown out of the box, forgetting every per-kind choice. */
-  const resetPlaces = () => changePlaces({ ...operatorConfig.places });
+  const resetPlaces = () => {
+    release("places", Object.keys(placeHolders));
+    changePlaces({ ...operatorConfig.places });
+  };
   const resetAllPreferences = () => {
     clearOverrides();
     setConfig(operatorConfig);
@@ -827,9 +865,32 @@ export default function App() {
     } catch { /* Session preferences still reset when storage is unavailable. */ }
     setPreferencesEpoch((n) => n + 1);
   };
+  // An application asks to move the map, and this decides. It says what it did either way.
+  const viewContext = useRef({ busy: null as string | null, world: sim.topology });
+  useEffect(
+    () =>
+      fabric.onView((requests) => {
+        for (const { request, app, view } of requests) {
+          const { busy, world } = viewContext.current;
+          const declined = viewDeclined(performance.now(), personMovedAt.current, busy);
+          const target = declined ? null : viewTarget(view, world);
+          if (!target) {
+            void fabric.reportView(app, request, "declined", declined ?? "no_position");
+            continue;
+          }
+          focusToken.current += 1;
+          setManualFocus(null);
+          setAppFocus({ ...target, token: focusToken.current });
+          void fabric.reportView(app, request, "applied");
+        }
+      }),
+    [],
+  );
   const takeCamera = useCallback(() => {
+    personMovedAt.current = performance.now();
     setAutoFocus(false);
     setManualFocus(null);
+    setAppFocus(null);
   }, []);
   const toggleAutoFocus = (on: boolean) => {
     setAutoFocus(on);
@@ -1007,6 +1068,7 @@ export default function App() {
   if (bootFailure) lastFailure.current = bootFailure;
   const failure = usePresence(!!bootFailure, MOTION_MS.boot);
   const arrival = useArrival(!!(showSplash || bootFailure || shutDown || (world.active && !world.closing)), reduceMotion || !filmAvailable(), returning);
+  viewContext.current = { busy: suspended ? "suspended" : tutorial.busy ? "tutorial" : dialog ? "dialog" : arrival !== "all" ? "arriving" : null, world: sim.topology };
   // While the start-up is on screen, a world that finishes waits for it. A hidden tab is not
   // watching, and a closed one stops saying so, and the engine then carries on by itself.
   const waitingForFilm = opening === true && arrival !== "all" && !bootFailure && !shutDown;
@@ -1128,13 +1190,13 @@ export default function App() {
             <NetworkMap
               topology={sim.topology}
               snapshot={sim.snapshot?.data ?? null}
-              layers={layers}
-              places={places}
+              layers={shownLayers}
+              places={shownPlaces}
               reduceMotion={mapStill}
               running={valid && lifecycle === "RUNNING" && !suspended}
               virtualTime={virtual}
               tickRate={clock?.tick_rate ?? 1}
-              focus={tutorial.busy || arrival !== "all" ? null : manualFocus ?? autoFocusRequest}
+              focus={tutorial.busy || arrival !== "all" ? null : manualFocus ?? appFocus ?? autoFocusRequest}
               arriving={arrival !== "all"}
               onCameraTaken={takeCamera}
               controls={mapControls}
@@ -1267,12 +1329,14 @@ export default function App() {
                 <PlaceLegend
                   features={sim.topology?.features ?? NO_FEATURES}
                   demand={sim.snapshot?.data.demand}
-                  visible={layers.buildings}
-                  showOther={layers.other_places}
-                  onShowOther={(on) => changeLayers({ ...layers, other_places: on })}
-                  places={places}
+                  visible={shownLayers.buildings}
+                  showOther={shownLayers.other_places}
+                  onShowOther={(on) => changeShownLayers({ ...shownLayers, other_places: on })}
+                  places={shownPlaces}
+                  heldBy={placeHolders}
+                  onRelease={(kind) => release("places", [kind])}
                   onTogglePlace={togglePlace}
-                  onShowAll={(kinds) => changePlaces({ ...places, ...Object.fromEntries(kinds.map((kind) => [kind, true])) })}
+                  onShowAll={(kinds) => changeShownPlaces({ ...shownPlaces, ...Object.fromEntries(kinds.map((kind) => [kind, true])) })}
                   onResetPlaces={resetPlaces}
                 />
                 <button
@@ -1289,9 +1353,11 @@ export default function App() {
                 </button>
                 <Floating anchor={layersTrigger} open={layersOpen} preferred={["top"]} className="layers-menu">
                   <LayersPopover
-                    layers={layers}
+                    layers={shownLayers}
                     defaults={operatorConfig.layers}
-                    onChange={changeLayers}
+                    onChange={changeShownLayers}
+                    heldBy={layerHolders}
+                    onRelease={(key) => release("layers", [key])}
                     onClose={() => setLayersOpen(false)}
                     topology={sim.topology}
                     snapshot={sim.snapshot?.data ?? null}

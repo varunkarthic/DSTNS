@@ -17,6 +17,9 @@ type Props = {
   /** The operator's configured defaults, which Reset returns to. */
   defaults: Layers;
   onChange: (layers: Layers) => void;
+  /** Which application is holding a layer, by layer. */
+  heldBy?: Record<string, string>;
+  onRelease?: (key: string) => void;
   onClose: () => void;
   topology: Topology | null;
   snapshot: Snapshot | null;
@@ -24,7 +27,7 @@ type Props = {
 
 type Item = { key: keyof Layers; label: string; icon: IconName; count?: string };
 
-export function LayersPopover({ layers, defaults, onChange, onClose, topology, snapshot }: Props) {
+export function LayersPopover({ layers, defaults, onChange, heldBy = {}, onRelease, onClose, topology, snapshot }: Props) {
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -119,8 +122,15 @@ export function LayersPopover({ layers, defaults, onChange, onClose, topology, s
           {group.items.map((item) => (
             <div className={`layer-row${layers[item.key] ? " on" : ""}`} key={item.key}>
               <Icon name={item.icon} size={16} />
-              <span className="layer-name">{item.label}</span>
-              {item.count !== undefined && <span className="layer-count mono">{item.count}</span>}
+              <span className="layer-name">
+                {item.label}
+                {heldBy[item.key] && <small className="layer-held">Held by {heldBy[item.key]}</small>}
+              </span>
+              {heldBy[item.key] ? (
+                <button type="button" className="layer-take-back" aria-label={`Use my choice for ${item.label}`} onClick={() => onRelease?.(item.key)}>Use mine</button>
+              ) : (
+                item.count !== undefined && <span className="layer-count mono">{item.count}</span>
+              )}
               <button
                 type="button"
                 role="switch"

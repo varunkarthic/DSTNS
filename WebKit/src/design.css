@@ -1574,6 +1574,9 @@ html, body, #root {
 .layer-row.on > .icon { color: var(--accent); }
 .layer-name { flex: 1; min-width: 0; font-size: 12.5px; }
 .layer-count { font-size: 11px; color: var(--text-faint); }
+.layer-held { display: block; margin-top: 1px; font-size: 10.5px; color: var(--accent); }
+.layer-take-back { flex: none; padding: 2px 8px; border: 0; border-radius: var(--r-pill); background: var(--hover); color: var(--text-dim); font: inherit; font-size: 11px; cursor: pointer; }
+.layer-take-back:hover { color: var(--text); }
 .layers-note { margin: 0; padding: 10px 16px; font-size: 11px; color: var(--text-faint); border-top: 1px solid var(--well-line); }
 
 /* The custom dropdown. */

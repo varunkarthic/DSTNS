@@ -57,6 +57,8 @@ and anything that depends on them stays hidden until then (`blocked_ui`).
 | `sim.read` | The simulation summary in your frames | Automatically |
 | `ui.dialogs` | Interrupting with a dialog | By a person |
 | `ui.frames` | Showing your own page in a sandboxed frame | By a person |
+| `ui.camera` | Asking the map to move: where, and how close | By a person |
+| `ui.layers` | Holding layers and places on or off | By a person |
 | `control.playback` | Pause, resume, seek, step, speed, reset | By a person |
 | `control.events` | Injecting events and overrides, which **changes results** | By a person |
 | `control.world` | Replacing the world | By a person |
@@ -115,6 +117,31 @@ addEventListener("message", ({ data }) => {
   if (data.type === "error") console.warn(data.code, data.message);
 });
 ```
+
+## Directing the view
+
+With a person's grant, an application can direct what's on screen: show a junction, fit a route, turn on the traffic
+layer for a moment, hide the schools. It can't change anyone's settings. It asks, and the observer decides.
+
+```python
+# Needs "ui.camera" and "ui.layers" in the manifest, and a person's grant.
+call("POST", f"/fabric/apps/{app}/view", {"action": "node", "node": 42, "span_m": 800})
+call("POST", f"/fabric/apps/{app}/view", {"action": "zoom", "factor": 0.5})
+
+call("PUT", f"/fabric/apps/{app}/presentation", {"layers": {"traffic": True, "weather": False}, "places": {"school": False}})
+call("DELETE", f"/fabric/apps/{app}/presentation")
+```
+
+Your own routes and paths can choose how they look, with no further grant:
+
+```python
+{"type": "path", "id": "line-1", "nodes": line, "color": "auto", "style": "flow", "glow": True, "speed_mps": 18, "trail": True}
+```
+
+Write for being told no. A person who has just moved the map keeps it for 8 seconds, and you'll get
+`view.declined` with the reason. Asking again and again won't help, and running out of the allowance gets a `429`.
+Move the view when something has happened that's worth moving it for, and say why in a status or a note.
+The [API reference](../api/fabric-api.md#directing-the-view) has the whole of it.
 
 ## A planner beside the map
 
