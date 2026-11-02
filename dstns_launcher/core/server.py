@@ -90,11 +90,19 @@ def active_port(paths: Paths = PATHS, extra: list[int] | None = None) -> int | N
     return None
 
 
+def switches(config: dict, paths: Paths = PATHS, *, demo: bool = False) -> dict[str, str]:
+    """What the launcher's settings tell a server as it starts. See configuration.server_switches."""
+    env = configuration.server_switches(config, demo=demo)
+    if configuration.setting(config, "startup.fast_boot"):
+        env["DSTNS_FASTBOOT_DIR"] = str(paths.fastboot)
+    return env
+
+
 def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True,
-          cancel: threading.Event | None = None) -> ServerHandle:
+          cancel: threading.Event | None = None, demo: bool = False, config: dict | None = None) -> ServerHandle:
     """Attach to a healthy current server, or build and start one."""
     check_cancelled(cancel)
-    config = configuration.load(paths)
+    config = config or configuration.load(paths)
     port = configured_port(paths)
     host = config["api"].get("host") or "127.0.0.1"
     paths.logs.mkdir(parents=True, exist_ok=True)
@@ -109,6 +117,17 @@ def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True,
             _write_active(paths, port)
             reporter.message(Level.INFO, "Attached to the running DSTNS server",
                              f"port {port} · {(existing or {}).get('lifecycle', 'READY')}")
+            # Its settings were decided when it started too. Say so if they are not what is set now.
+            features = (api.call(port, "/api/v1/system/features", timeout=3, paths=paths).body or {}).get("data") or {}
+            wanted = configuration.presentation(config, demo=demo)
+            if features and features.get("presentation", {}).get("demo") != wanted["demo"]:
+                raise SimulationStartError("A server is already running, started for something else.",
+                                           remedy="Stop it with ./launcher stop, then try again.")
+            if features and (features.get("applications") != bool(configuration.setting(config, "fabric.applications"))
+                             or features.get("legacy_api") != bool(configuration.setting(config, "fabric.legacy_api"))
+                             or features.get("presentation", {}).get("fast_boot") != wanted["fast_boot"]):
+                reporter.message(Level.WARNING, "The running server was started with other settings",
+                                 "They apply from its next start: ./launcher stop, then start again.")
             # Its narration was decided when it started; report it as it is.
             reporter.message(Level.INFO, f"{narration.BRAND} on the running server",
                              narration.describe_server(narration.server_status(port, paths))[1])
@@ -129,7 +148,7 @@ def start(reporter: Reporter, paths: Paths = PATHS, *, build_first: bool = True,
     try:
         child = subprocess.Popen(command, cwd=paths.root, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True, errors="replace", bufsize=1,
-                                 env={**os.environ, **paths.server_environment()})
+                                 env={**os.environ, **paths.server_environment(), **switches(config, paths, demo=demo)})
     except OSError as exc:
         raise SimulationStartError("The DSTNS server could not be started.",
                                    remedy="Build it with ./launcher test unit, or run cmake --build build.") from exc
@@ -181,7 +200,7 @@ def run_foreground(paths: Paths = PATHS) -> int:
     print(choice.summary() + (f"\n  {choice.remedy}" if choice.fell_back and choice.remedy else ""))
     return subprocess.call([str(paths.server), "--host", host, "--port", str(port), "--logs", str(paths.logs), "--maps", str(_maps(paths)),
                             "--narrator", choice.server_argument], cwd=paths.root,
-                           env={**os.environ, **paths.server_environment()})
+                           env={**os.environ, **paths.server_environment(), **switches(configuration.load(paths), paths)})
 
 
 def shut_down(handle: ServerHandle, *, wait: float = 10.0) -> bool:

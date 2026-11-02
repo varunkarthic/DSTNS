@@ -34,6 +34,10 @@ def main():
 
     def call(method, route, data=None):
         request = urllib.request.Request(url + route, method=method, data=None if data is None else json.dumps(data).encode(), headers={"Content-Type": "application/json"})
+        # Started by the launcher, it proves to be this application with the launcher's one-time key, so it
+        # keeps what a person granted it even after being reloaded.
+        if route == "/api/v1/fabric/apps" and os.environ.get("DSTNS_FABRIC_LAUNCH_KEY"):
+            request.add_header("X-DSTNS-Launch-Key", os.environ["DSTNS_FABRIC_LAUNCH_KEY"])
         if token[0]:
             request.add_header("Authorization", f"Bearer {token[0]}")
         with urllib.request.urlopen(request, timeout=10) as response:

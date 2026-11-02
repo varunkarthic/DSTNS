@@ -65,3 +65,13 @@ def audit(port: int, limit: int = 50, paths: Paths = PATHS) -> list[dict[str, An
 
 def capabilities(port: int, paths: Paths = PATHS) -> dict[str, Any] | None:
     return _data(api.call(port, f"{BASE}/capabilities", timeout=5, paths=paths))
+
+
+def set_launch_key(port: int, app_id: str, key_sha256: str, paths: Paths = PATHS) -> api.Response:
+    return api.call(port, f"{BASE}/launch/{app_id}/key", "PUT", {"key_sha256": key_sha256}, timeout=3, paths=paths)
+
+
+def reloads(port: int, paths: Paths = PATHS) -> list[dict[str, Any]]:
+    """Applications a person has asked to reload, most recent last. Asked as of a revision far ahead, so that the
+    answer carries none of the applications themselves."""
+    return (_data(api.call(port, f"{BASE}/state?since=18446744073709551615&notifications_since=18446744073709551615", timeout=3, paths=paths)) or {}).get("reloads", [])

@@ -18,7 +18,7 @@ from . import configuration
 from .configuration import RunOptions
 from .errors import ConfigurationError, SimulationStartError
 from .process import check_cancelled
-from .paths import PATHS, Paths
+from .paths import PATHS, Paths, local_cache_dir
 from .reporting import Level, Reporter
 from .server import ServerHandle
 from .simulation import World
@@ -86,7 +86,7 @@ class Session:
         address = self._observer_address(handle.url, options)
         loaded = False
         if open_browser and not observing:
-            simulation.open_in_browser(address)
+            self.open_observer(address)
             loaded = simulation.wait_for_observer(handle.port, 12, self.paths, cancel=cancel)
             reporter.message(Level.INFO, "Observer open" if loaded else "Observer opening",
                              f"{handle.url} · preparing the world")
@@ -117,8 +117,14 @@ class Session:
                 narration.confirm(handle.port, reporter, self.paths, cancel=cancel)
         reporter.message(Level.INFO, "Observer ready", handle.url)
         if open_browser and observing:
-            simulation.open_in_browser(address)
+            self.open_observer(address)
         return self.world
+
+    def open_observer(self, address: str, *, demo: bool = False, config: dict | None = None) -> bool:
+        """In a window of its own when it should be full screen or play music; otherwise as usual."""
+        config = config or configuration.load(self.paths)
+        shown = configuration.presentation(config, demo=demo)
+        return simulation.open_presentation(address, fullscreen=shown["fullscreen"], sound=shown["music"], profile=local_cache_dir() / "browser")
 
     def _observer_address(self, url: str, options: RunOptions) -> str:
         """The page to open: asked to forget this browser's settings, if so configured."""

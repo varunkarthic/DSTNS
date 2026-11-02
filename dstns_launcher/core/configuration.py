@@ -238,7 +238,105 @@ FIELDS: tuple[Field, ...] = (
           default="auto", extra=_narration_mode),
 )
 
+def _volume(value: Any, config: dict[str, Any]) -> str:
+    return "" if _is_number(value) and 0 <= value <= 1 else "Use a number from 0 to 1."
+
+
+# Each a switch for one feature. They reach the server as environment variables when it starts (see
+# server_switches), so a change takes effect at the next start of the server, and the observer reads them back
+# from GET /api/v1/system/features.
+FEATURES: tuple[Field, ...] = (
+    Field("fabric.applications", "Applications", "Fabric", Kind.BOOLEAN,
+          "Programs may connect through the Fabric API. Off, nothing can register.", default=True),
+    Field("fabric.legacy_api", "Legacy API", "Fabric", Kind.BOOLEAN,
+          "The older /playback and /control routes still answer. They have no credential, so turning them off closes "
+          "them to local programs.", default=True),
+    Field("fabric.launch_proposals", "Launch proposals", "Fabric", Kind.BOOLEAN,
+          "Applications may propose how the launcher should start them. Nothing runs until you approve one.", default=True),
+    Field("fabric.require_signatures", "Require signed requests", "Fabric", Kind.BOOLEAN,
+          "Every application must sign every request, not only those that ask to.", default=False),
+    Field("fabric.world_regeneration", "New worlds from the observer", "Fabric", Kind.BOOLEAN,
+          "The observer may ask for a new world from a fresh seed.", default=True),
+    Field("fabric.allow_frames", "Applications' own pages", "Fabric", Kind.BOOLEAN,
+          "Applications may show a page of their own in a sandboxed panel, once you allow it.", default=True),
+    Field("fabric.allow_dialogs", "Applications' dialogs", "Fabric", Kind.BOOLEAN,
+          "Applications may interrupt with a dialog, once you allow it.", default=True),
+    Field("fabric.allow_camera", "Applications moving the map", "Fabric", Kind.BOOLEAN,
+          "Applications may ask the map to move, once you allow it.", default=True),
+    Field("fabric.allow_layers", "Applications holding layers", "Fabric", Kind.BOOLEAN,
+          "Applications may hold layers and places on or off, once you allow it.", default=True),
+    Field("fabric.allow_control", "Applications controlling the simulation", "Fabric", Kind.BOOLEAN,
+          "Applications may pause, change and replace the simulation, once you allow it.", default=True),
+    Field("fabric.allow_notifications", "Applications' notifications", "Fabric", Kind.BOOLEAN,
+          "Applications may send notifications.", default=True),
+    Field("fabric.allow_messages", "Messages between applications", "Fabric", Kind.BOOLEAN,
+          "Applications may send each other messages.", default=True),
+    Field("fabric.allow_storage", "Applications' storage", "Fabric", Kind.BOOLEAN,
+          "Applications may keep values across restarts.", default=True),
+    Field("webfabric.enabled", "WebFabric", "WebFabric", Kind.BOOLEAN,
+          "Applications appear in the observer. Off, they can still connect, but nothing of theirs is shown.", default=True),
+    Field("startup.fast_boot", "Fast Boot", "Startup", Kind.BOOLEAN,
+          "Use maps downloaded in advance with ./launcher fastboot download, so that a world is ready in seconds, and "
+          "don't make the start-up film play to its end.", default=False),
+    Field("startup.force_animate", "Play the whole film", "Startup", Kind.BOOLEAN,
+          "The start-up film plays to its end before the map, even when the world is ready sooner. Fast Boot turns this "
+          "off.", default=True),
+    Field("presentation.music", "Music", "Presentation", Kind.BOOLEAN,
+          "Original music while the start-up film plays, with a button to mute it.", default=False),
+    Field("presentation.fullscreen", "Full screen", "Presentation", Kind.BOOLEAN,
+          "Open the observer full screen.", default=False),
+    Field("presentation.music_volume", "Music volume", "Presentation", Kind.NUMBER,
+          "From 0 to 1.", minimum=0, maximum=1, default=0.6, extra=_volume),
+    Field("demo.music", "Music in Demo Mode", "Demo", Kind.BOOLEAN,
+          "Demo Mode plays its music. ./launcher demo starts it.", default=True),
+    Field("demo.fullscreen", "Full screen in Demo Mode", "Demo", Kind.BOOLEAN,
+          "Demo Mode opens full screen.", default=True),
+)
+FIELDS = FIELDS + FEATURES
+
 CATEGORIES: tuple[str, ...] = tuple(dict.fromkeys(field.category for field in FIELDS))
+
+# Which switch turns off which capabilities.
+_CAPABILITIES = {
+    "fabric.allow_frames": ("ui.frames",), "fabric.allow_dialogs": ("ui.dialogs",), "fabric.allow_camera": ("ui.camera",),
+    "fabric.allow_layers": ("ui.layers",), "fabric.allow_control": ("control.playback", "control.events", "control.world"),
+    "fabric.allow_notifications": ("ui.notifications",), "fabric.allow_messages": ("apps.messages",), "fabric.allow_storage": ("storage",),
+}
+
+
+def setting(config: dict[str, Any], key: str) -> Any:
+    return next(field for field in FIELDS if field.key == key).get(config)
+
+
+def presentation(config: dict[str, Any], *, demo: bool = False) -> dict[str, Any]:
+    """How the observer should present itself, as the server will tell it."""
+    fast = bool(setting(config, "startup.fast_boot"))
+    return {
+        "webfabric": bool(setting(config, "webfabric.enabled")),
+        "fast_boot": fast,
+        "force_animate": bool(setting(config, "startup.force_animate")) and not fast,
+        "demo": demo,
+        "music": bool(setting(config, "demo.music" if demo else "presentation.music")),
+        "fullscreen": bool(setting(config, "demo.fullscreen" if demo else "presentation.fullscreen")),
+        "music_volume": float(setting(config, "presentation.music_volume")),
+    }
+
+
+def server_switches(config: dict[str, Any], *, demo: bool = False) -> dict[str, str]:
+    """The environment that carries these settings to a server as it starts."""
+    flag = lambda key: "1" if setting(config, key) else "0"  # noqa: E731
+    disabled = sorted(capability for key, names in _CAPABILITIES.items() if not setting(config, key) for capability in names)
+    env = {
+        "DSTNS_FABRIC_APPS": flag("fabric.applications"),
+        "DSTNS_LEGACY_API": flag("fabric.legacy_api"),
+        "DSTNS_LAUNCH_PROPOSALS": flag("fabric.launch_proposals"),
+        "DSTNS_REQUIRE_SIGNATURES": flag("fabric.require_signatures"),
+        "DSTNS_DISABLED_CAPABILITIES": ",".join(disabled),
+        "DSTNS_PRESENTATION": json.dumps(presentation(config, demo=demo)),
+    }
+    if not setting(config, "fabric.world_regeneration"):
+        env["DSTNS_DISABLE_WORLD_REGENERATION"] = "1"
+    return env
 
 
 def check_field(field: Field, value: Any, config: dict[str, Any]) -> str:

@@ -48,6 +48,9 @@ class App:
     # Permissions this person has already decided to give it, and the settings it should start with.
     grants: list[str] = field(default_factory=list)
     settings: dict[str, Any] = field(default_factory=dict)
+    # A web interface of its own: the observer offers a button that opens it in a new tab.
+    web_url: str = ""
+    web_label: str = ""
 
     @property
     def title(self) -> str:
@@ -72,6 +75,10 @@ def validate(app: App) -> App:
         raise ConfigurationError(f"{app.id}: the timeout must be 1 to 600 seconds.")
     if app.restart not in RESTARTS:
         raise ConfigurationError(f'"{app.restart}" is not a restart policy.', remedy="Use never or on-failure.")
+    if app.web_url and (not re.match(r"^https?://\S+$", app.web_url) or len(app.web_url) > 2000):
+        raise ConfigurationError(f"{app.id}: the web address must be an http or https URL.", remedy="For example http://127.0.0.1:5173/")
+    if len(app.web_label) > 40:
+        raise ConfigurationError(f"{app.id}: the web button's label is at most 40 characters.")
     for name in app.env:
         if not _ENV.match(name) or name in RESERVED_ENV:
             raise ConfigurationError(f"{name} cannot be set for an application.", remedy=f"{', '.join(sorted(RESERVED_ENV))} are the launcher's." if name in RESERVED_ENV else "")

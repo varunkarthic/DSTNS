@@ -167,6 +167,11 @@ class Paths:
             return self.local_workspace / "maps"
         return (self.root / configured).resolve()
 
+    @property
+    def fastboot(self) -> Path:
+        """Where Fast Boot keeps every city, compressed. Apart from the map cache, which is pruned."""
+        return self.map_cache() / "fastboot"
+
     def server_environment(self) -> dict[str, str]:
         """What the server needs besides its arguments: where the observer is, when not in the checkout."""
         if self.ui_dist != self.ui_engine / "dist":

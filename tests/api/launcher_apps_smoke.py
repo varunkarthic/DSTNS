@@ -83,7 +83,21 @@ def main():
             lifecycle, states = order[0]
             assert states == {APP: "active", SLOW: "active"}, f"it started with {states}"
             assert seen_plan, "the observer was told what was being started"
-            assert get("/api/v1/fabric/state?since=0")[1]["data"]["launch_plan"] is None, "and told when it was over"
+            # The plan stays while they run, which is how a reloaded application comes back as itself.
+            running = get("/api/v1/fabric/state?since=0")[1]["data"]["launch_plan"]
+            assert running and {entry["state"] for entry in running["apps"]} == {"ready"}, running
+
+            # A person reloads one: its link ends, the launcher starts it again, and it comes back as itself.
+            post = lambda route: urllib.request.urlopen(urllib.request.Request(base + route, method="POST", data=b"{}", headers={"Content-Type": "application/json", **operator}), timeout=5)  # noqa: E731
+            assert json.load(post(f"/api/v1/fabric/apps/{APP}/reload"))["data"]["managed"] is True
+            back = None
+            for _ in range(150):
+                health = get(f"/api/v1/fabric/apps/{APP}/health", operator)[1].get("data") or {}
+                if health.get("state") == "active" and (health.get("uptime_s") or 99) < 30:
+                    back = health
+                    break
+                time.sleep(0.1)
+            assert back, "it came back after being reloaded"
 
             # The launcher can see them, and the application is really running under it.
             status = launcher("apps", "status").stdout
@@ -95,7 +109,7 @@ def main():
         finally:
             os.killpg(process.pid, signal.SIGTERM)
             output, _ = process.communicate(timeout=20)
-        assert "Hello ready" in output and "Slow ready" in output, output
+        assert "Hello ready" in output and "Slow ready" in output and "Reloading Hello" in output, output
         # They went with the launcher, whose server has stopped.
         for _ in range(40):
             if get("/health")[0] == 0:

@@ -68,5 +68,36 @@
     "level": "INFO",
     "system_log": "logs/system.log",
     "database": "logs/runtime.db"
+  },
+  "fabric": {
+    "applications": true,
+    "legacy_api": true,
+    "launch_proposals": true,
+    "require_signatures": false,
+    "world_regeneration": true,
+    "allow_frames": true,
+    "allow_dialogs": true,
+    "allow_camera": true,
+    "allow_layers": true,
+    "allow_control": true,
+    "allow_notifications": true,
+    "allow_messages": true,
+    "allow_storage": true
+  },
+  "webfabric": {
+    "enabled": true
+  },
+  "startup": {
+    "fast_boot": false,
+    "force_animate": true
+  },
+  "presentation": {
+    "music": false,
+    "fullscreen": false,
+    "music_volume": 0.6
+  },
+  "demo": {
+    "music": true,
+    "fullscreen": true
   }
 }

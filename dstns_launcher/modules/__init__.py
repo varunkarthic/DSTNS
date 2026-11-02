@@ -53,9 +53,9 @@ class Module:
 
 def modules() -> list[Module]:
     """Imported here, so that a command that needs none of them starts quickly."""
-    from . import apps, fabric
+    from . import apps, fabric, presentation
 
-    return [apps.MODULE, fabric.MODULE]
+    return [apps.MODULE, fabric.MODULE, presentation.MODULE]
 
 
 def find_command(name: str | None) -> Command | None:

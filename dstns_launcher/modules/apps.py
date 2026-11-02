@@ -36,6 +36,8 @@ def parser() -> argparse.ArgumentParser:
         sub.add_argument("--required", action=argparse.BooleanOptionalAction, default=None, help="Stop the simulation from starting if this fails")
         sub.add_argument("--autostart", action=argparse.BooleanOptionalAction, default=None, help="Start with every simulation unless told otherwise")
         sub.add_argument("--grant", action="append", metavar="CAPABILITY", default=[], help="A permission to give it when it registers")
+        sub.add_argument("--web", dest="web_url", metavar="URL", help="Its own web interface: the observer offers a button that opens it")
+        sub.add_argument("--web-label", help="What that button says (default: Open NAME)")
         sub.add_argument("--setting", action="append", metavar="KEY=VALUE", default=[], help="A setting to give it when it registers. The value is read as JSON if it can be")
 
     lister = actions.add_parser("list", help="Show them all")
@@ -48,8 +50,10 @@ def parser() -> argparse.ArgumentParser:
     shower.add_argument("id")
     shower.add_argument("--json", action="store_true")
     actions.add_parser("remove", help="Remove one").add_argument("id")
-    runner = actions.add_parser("run", help="Start these and look after them until Ctrl+C. Needs a running server")
-    runner.add_argument("ids", nargs="+", metavar="ID")
+    runner = actions.add_parser("run", help="Start these and look after them until Ctrl+C, with no simulation. Starts a server if none is running")
+    runner.add_argument("ids", nargs="*", metavar="ID", help="Which; with none, those set to start by themselves")
+    starter = actions.add_parser("start", help="The same as run")
+    starter.add_argument("ids", nargs="*", metavar="ID")
     actions.add_parser("status", help="What the server knows of each")
     logs = actions.add_parser("logs", help="An application's output")
     logs.add_argument("id")
@@ -83,7 +87,8 @@ def _value(text: str):
 
 def _apply(app: catalogue.App, options: argparse.Namespace) -> catalogue.App:
     for field, value in (("commands", options.command), ("name", options.name), ("cwd", options.cwd), ("ready", options.ready),
-                         ("timeout_s", options.timeout), ("restart", options.restart), ("required", options.required), ("autostart", options.autostart)):
+                         ("timeout_s", options.timeout), ("restart", options.restart), ("required", options.required), ("autostart", options.autostart),
+                         ("web_url", options.web_url), ("web_label", options.web_label)):
         if value is not None:
             setattr(app, field, value)
     app.env.update(_pairs(options.env, "an environment variable"))
@@ -103,6 +108,7 @@ def _summary(app: catalogue.App) -> list[tuple[str, object]]:
         *([("Environment", ", ".join(f"{k}={v}" for k, v in app.env.items()))] if app.env else []),
         *([("Permissions", ", ".join(app.grants))] if app.grants else []),
         *([("Settings", json.dumps(app.settings))] if app.settings else []),
+        *([("Web interface", f"{app.web_url} ({app.web_label or 'Open ' + app.title})")] if app.web_url else []),
     ]
 
 
@@ -186,7 +192,7 @@ def run(context: Context) -> int:
         return EXIT_OK
     if action == "status":
         return _status(context)
-    if action == "run":
+    if action in ("run", "start"):
         return _run(context, options.ids)
     if action == "proposals":
         items = fabric.proposals(_port())
@@ -233,9 +239,19 @@ def _status(context: Context) -> int:
 
 
 def _run(context: Context, ids: list[str]) -> int:
+    """Applications on their own, with no simulation. The server they talk to is started if none is running, and
+    stopped again at the end if it was started here."""
     out = context.out
-    apps = [catalogue.get(app_id) for app_id in ids]
-    supervisor = Supervisor(_port(), context.reporter)
+    apps = [catalogue.get(app_id) for app_id in ids] if ids else [app for app in catalogue.load().values() if app.autostart]
+    if not apps:
+        raise ConfigurationError("No applications to start.", remedy="Name them, as in ./launcher apps run ID, or set one to start by itself.")
+    port = server.active_port()
+    handle = None
+    if port is None:
+        handle = server.start(context.reporter)
+        port = handle.port
+        out.message(Level.INFO, "No simulation is running", f"the server is at {handle.url}, waiting for one")
+    supervisor = Supervisor(port, context.reporter)
     finished = threading.Event()
     previous = signal.signal(signal.SIGTERM, lambda *_: finished.set())
     try:
@@ -256,6 +272,8 @@ def _run(context: Context, ids: list[str]) -> int:
         signal.signal(signal.SIGTERM, previous)
         supervisor.stop_all()
         time.sleep(0.2)
+        if handle is not None and handle.managed:
+            server.shut_down(handle)
     out.message(Level.INFO, "Stopped")
     return EXIT_OK
 
@@ -303,6 +321,6 @@ def _describe(app) -> tuple[str, list, str]:
 
 MODULE = Module(
     name="apps",
-    commands=(Command("apps", "apps [list|add|set|show|remove|run|status|logs|doctor|proposals|approve|reject]", "The applications this launcher can start alongside a simulation", run),),
+    commands=(Command("apps", "apps [list|add|set|show|remove|run|start|status|logs|doctor|proposals|approve|reject]", "The applications this launcher can start alongside a simulation", run),),
     pages=(Page("apps", "Applications", _opens_page, _describe),),
 )

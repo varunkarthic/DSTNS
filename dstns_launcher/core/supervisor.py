@@ -9,8 +9,10 @@ operator's credential is not passed on: an application proves who it is with its
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
+import secrets
 import re
 import shlex
 import signal
@@ -63,6 +65,9 @@ class Running:
     log: Path | None = None
     stop: threading.Event = field(default_factory=threading.Event)
     settled: threading.Event = field(default_factory=threading.Event)
+    # A person asked for it to start again: the next exit is that, not a failure.
+    reloading: threading.Event = field(default_factory=threading.Event)
+    launch_key: str = ""
     thread: threading.Thread | None = None
 
 
@@ -87,6 +92,8 @@ class Supervisor:
         self.running: dict[str, Running] = {}
         self._lock = threading.Lock()
         self.publish_plan = False
+        self._watcher: threading.Thread | None = None
+        self._reloads_seen = -1
 
     # -- what is going on --------------------------------------------------------
     def states(self) -> list[Running]:
@@ -96,7 +103,9 @@ class Supervisor:
     def _changed(self) -> None:
         if not self.publish_plan:
             return
-        plan = {"apps": [{"id": r.app.id, "name": r.app.title, "state": r.phase.value, "detail": r.detail} for r in self.states()]}
+        plan = {"apps": [{"id": r.app.id, "name": r.app.title, "state": r.phase.value, "detail": r.detail,
+                          **({"web_url": r.app.web_url, "web_label": r.app.web_label or f"Open {r.app.title}"} if r.app.web_url else {})}
+                         for r in self.states()]}
         fabric.set_plan(self.port, plan, self.paths)
 
     def _set(self, running: Running, phase: Phase, detail: str = "") -> None:
@@ -126,12 +135,16 @@ class Supervisor:
                 self.stop_all()
                 raise AppStartError(f"{needed[0].app.title} is required, and did not start: {needed[0].detail}",
                                     remedy=f"Its log is at {needed[0].log}. Run ./launcher apps doctor {needed[0].app.id} to check it.")
-        finally:
+        except BaseException:
             self.publish_plan = False
             fabric.set_plan(self.port, None, self.paths)
+            raise
+        # The plan stays while they run: it is how the server knows which applications the launcher looks after,
+        # so that one a person reloads can come back as itself, and where each one's web interface is.
 
     def start(self, app: App) -> Running:
         """Start one, in the background. Its thread looks after it from then on."""
+        self.publish_plan = True
         with self._lock:
             current = self.running.get(app.id)
             if current and current.process and current.process.poll() is None:
@@ -142,23 +155,50 @@ class Supervisor:
             self.running[app.id] = running
         running.thread = threading.Thread(target=self._look_after, args=(running,), daemon=True, name=f"app-{app.id}")
         running.thread.start()
+        if self._watcher is None:
+            self._watcher = threading.Thread(target=self._watch_reloads, daemon=True, name="app-reloads")
+            self._watcher.start()
         return running
 
-    def _environment(self, app: App) -> dict[str, str]:
-        env = {key: value for key, value in os.environ.items() if key != "DSTNS_OPERATOR_TOKEN"}
+    def _watch_reloads(self) -> None:
+        """A person reloads an application in the observer: its link ends, and this starts it again."""
+        while not self.cancel.wait(0.5):
+            try:
+                asked = fabric.reloads(self.port, self.paths)
+            except Exception:  # noqa: BLE001 - a server that is going away is not this thread's to report
+                continue
+            if self._reloads_seen < 0:
+                self._reloads_seen = max((item.get("sequence", 0) for item in asked), default=0)
+                continue
+            for item in asked:
+                if item.get("sequence", 0) <= self._reloads_seen:
+                    continue
+                self._reloads_seen = item["sequence"]
+                running = self.running.get(item.get("app", ""))
+                if running and running.process and running.process.poll() is None:
+                    self.reporter.message(Level.INFO, f"Reloading {running.app.title}")
+                    running.reloading.set()
+                    self._kill(running.process)
+            if self.running and all(r.phase in (Phase.STOPPED, Phase.FAILED) for r in self.states()):
+                return
+
+    def _environment(self, app: App, launch_key: str = "") -> dict[str, str]:
+        env = {key: value for key, value in os.environ.items() if key not in ("DSTNS_OPERATOR_TOKEN", "DSTNS_FABRIC_LAUNCH_KEY")}
         env.update(app.env)
         env.update(DSTNS_URL=self._values(app)["url"], DSTNS_PORT=str(self.port), DSTNS_APP_ID=app.id, PYTHONUNBUFFERED="1")
+        if launch_key:
+            env["DSTNS_FABRIC_LAUNCH_KEY"] = launch_key
         return env
 
     def _values(self, app: App) -> dict[str, str]:
         return {"url": f"http://127.0.0.1:{self.port}", "port": str(self.port), "id": app.id, "root": str(self.paths.root)}
 
-    def _spawn(self, running: Running, command: str) -> subprocess.Popen:
+    def _spawn(self, running: Running, command: str, launch_key: str = "") -> subprocess.Popen:
         app = running.app
         with open(running.log, "ab", buffering=0) as log:
             log.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} {command}\n".encode())
             # A process group of its own, so that what it starts is stopped with it.
-            return subprocess.Popen(expand(command, self._values(app)), cwd=self.paths.root / app.cwd, env=self._environment(app),
+            return subprocess.Popen(expand(command, self._values(app)), cwd=self.paths.root / app.cwd, env=self._environment(app, launch_key),
                                     stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
 
     def _look_after(self, running: Running) -> None:
@@ -192,7 +232,10 @@ class Supervisor:
         while not running.stop.is_set() and not self.cancel.is_set():
             self._set(running, Phase.STARTING)
             began = time.monotonic()
-            process = running.process = self._spawn(running, command)
+            # A key for this process alone, so that it can prove to the server to be this application.
+            running.launch_key = secrets.token_hex(32)
+            fabric.set_launch_key(self.port, app.id, hashlib.sha256(running.launch_key.encode()).hexdigest(), self.paths)
+            process = running.process = self._spawn(running, command, running.launch_key)
             problem = self._wait_ready(running, process)
             if problem is None:
                 self._set(running, Phase.READY)
@@ -203,6 +246,11 @@ class Supervisor:
             if running.stop.is_set() or self.cancel.is_set():
                 self._kill(process)
                 return self._set(running, Phase.STOPPED)
+            if running.reloading.is_set():
+                running.reloading.clear()
+                self._kill(process)
+                self._set(running, Phase.STARTING, "Reloading.")
+                continue
             status = process.poll()
             if problem is None and status == 0:
                 return self._set(running, Phase.STOPPED, "It finished by itself.")
@@ -307,5 +355,9 @@ class Supervisor:
             running.thread.join(timeout=2)
 
     def stop_all(self) -> None:
+        # First, so that an application's thread finishing late can't publish the plan again after it is cleared.
+        published, self.publish_plan = self.publish_plan, False
         for app_id in list(self.running):
             self.stop(app_id)
+        if published:
+            fabric.set_plan(self.port, None, self.paths)

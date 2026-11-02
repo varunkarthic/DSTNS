@@ -106,7 +106,14 @@ class Supervision(unittest.TestCase):
         # And the observer was told along the way, and told when it was over.
         plans = [body for method, path, body in self.server.requests if path.endswith("/launch/plan")]
         self.assertTrue(any(body and body["apps"][0]["state"] == "starting" for body in plans), plans)
+        # It stays while they run, so that the server knows which ones the launcher looks after, and goes when they stop.
+        self.assertEqual([method for method, path, _ in self.server.requests if path.endswith("/launch/plan")][-1], "PUT")
+        self.supervisor.stop_all()
         self.assertEqual([method for method, path, _ in self.server.requests if path.endswith("/launch/plan")][-1], "DELETE")
+        # Each process was given a one-time key, and the server only its hash.
+        keys = [(path, body) for method, path, body in self.server.requests if path.endswith("/key")]
+        self.assertEqual(len({path for path, _ in keys}), 2, keys)
+        self.assertTrue(keys and all(len(body["key_sha256"]) == 64 for _, body in keys), keys)
 
     def test_commands_run_in_order_and_the_last_stays(self) -> None:
         mark = self.workspace.paths.root / "prepared"
@@ -342,3 +349,45 @@ class CommandLine(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Settings(unittest.TestCase):
+    """Every feature's setting reaches the server as it starts."""
+
+    def test_switches(self) -> None:
+        from dstns_launcher.core import configuration
+
+        config = {"fabric": {"applications": False, "legacy_api": False, "allow_control": False, "allow_frames": False, "world_regeneration": False},
+                  "startup": {"fast_boot": True, "force_animate": True}, "presentation": {"music": True, "music_volume": 0.3}, "demo": {"fullscreen": False}}
+        env = configuration.server_switches(config)
+        self.assertEqual(env["DSTNS_FABRIC_APPS"], "0")
+        self.assertEqual(env["DSTNS_LEGACY_API"], "0")
+        self.assertEqual(env["DSTNS_LAUNCH_PROPOSALS"], "1")
+        self.assertEqual(env["DSTNS_DISABLED_CAPABILITIES"], "control.events,control.playback,control.world,ui.frames")
+        self.assertEqual(env["DSTNS_DISABLE_WORLD_REGENERATION"], "1")
+        shown = json.loads(env["DSTNS_PRESENTATION"])
+        self.assertTrue(shown["fast_boot"])
+        self.assertFalse(shown["force_animate"], "Fast Boot turns off playing the whole film")
+        self.assertTrue(shown["music"])
+        self.assertEqual(shown["music_volume"], 0.3)
+        self.assertFalse(shown["demo"])
+        demo = json.loads(configuration.server_switches(config, demo=True)["DSTNS_PRESENTATION"])
+        self.assertTrue(demo["demo"] and demo["music"] and not demo["fullscreen"], demo)
+
+    def test_defaults_change_nothing(self) -> None:
+        from dstns_launcher.core import configuration
+
+        env = configuration.server_switches({})
+        self.assertEqual((env["DSTNS_FABRIC_APPS"], env["DSTNS_LEGACY_API"], env["DSTNS_DISABLED_CAPABILITIES"]), ("1", "1", ""))
+        self.assertNotIn("DSTNS_DISABLE_WORLD_REGENERATION", env)
+        self.assertEqual(json.loads(env["DSTNS_PRESENTATION"]), {"webfabric": True, "fast_boot": False, "force_animate": True, "demo": False,
+                                                                 "music": False, "fullscreen": False, "music_volume": 0.6})
+
+    def test_a_web_address_is_http(self) -> None:
+        from dstns_launcher.core import apps
+        from dstns_launcher.core.errors import ConfigurationError
+
+        apps.validate(apps.App(id="org.example.web", commands=["x"], web_url="http://127.0.0.1:5173/"))
+        for wrong in ("javascript:alert(1)", "file:///etc/passwd", "ftp://x"):
+            with self.assertRaises(ConfigurationError):
+                apps.validate(apps.App(id="org.example.web", commands=["x"], web_url=wrong))

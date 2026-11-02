@@ -9,6 +9,8 @@ interface timing cannot affect a run.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import logging
 import platform
 import subprocess
@@ -279,6 +281,51 @@ def wait_for_observer(port: int, timeout: float, paths: Paths = PATHS, *,
             return True
         time.sleep(0.15)
     return False
+
+
+_CHROMES = (
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+)
+
+
+def chrome() -> str | None:
+    """A Chromium-based browser, which can open a window of its own: full screen, and allowed to play sound."""
+    import os
+    import shutil
+
+    for candidate in _CHROMES:
+        if os.path.exists(candidate):
+            return candidate
+    for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "brave-browser"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+def open_presentation(url: str, *, fullscreen: bool, sound: bool, profile: Path) -> bool:
+    """Open the observer in a window of its own, when it should be full screen or play sound.
+
+    A page may only go full screen, or play sound, after a person has done something on it. A window of its own,
+    with its own profile so that these flags apply even while the person's browser is open, can do both from the
+    start. Without such a browser, the ordinary one opens it, and the observer asks for a click.
+    """
+    browser = chrome() if (fullscreen or sound) else None
+    if browser is None:
+        return open_in_browser(url)
+    profile.mkdir(parents=True, exist_ok=True)
+    command = [browser, f"--app={url}", f"--user-data-dir={profile}", "--no-first-run", "--no-default-browser-check",
+               "--autoplay-policy=no-user-gesture-required"]
+    if fullscreen:
+        command.append("--start-fullscreen")
+    try:
+        subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        return True
+    except OSError:
+        return open_in_browser(url)
 
 
 def open_in_browser(url: str) -> bool:

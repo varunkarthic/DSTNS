@@ -470,6 +470,57 @@ An application or the operator can propose how to start one, through the [Fabric
 
 The catalogue, `config/apps.json`, belongs to the person at the machine, is not committed, and only the launcher writes it. `DSTNS_APPS_FILE` moves it.
 
+### Without a simulation
+
+`./launcher apps run [ID ...]` (or `apps start`) starts applications on their own. If no server is running, one is
+started, waiting for a simulation, and stopped again when you press Ctrl+C. With no IDs, it starts those set to
+start by themselves.
+
+### Web applications
+
+An application with a web interface of its own can say where it is:
+
+```sh
+./launcher apps add org.example.planner --command "npm run dev" --ready http://127.0.0.1:5173/ \
+    --web http://127.0.0.1:5173/ --web-label "Open planner"
+```
+
+The observer then offers a button that opens it in a new tab. An application can also declare `web` in its own
+manifest.
+
+### Reloading
+
+A person can reload an application from the observer. Its link with the server ends at once, and the launcher
+starts it again. Each process it starts is given a one-time key, in `DSTNS_FABRIC_LAUNCH_KEY`, which it presents in
+`X-DSTNS-Launch-Key` when it registers, so it comes back as itself and keeps what a person granted it.
+`Fabric/examples/hello_app.py` shows how.
+
+## Settings for every feature
+
+`./launcher config` lists every setting by category, and the terminal interface's Configuration page edits
+them. They're kept in `config/defaults.json`, and reach the server as it starts, so a change applies from the
+next start of the server. The observer reads them back from `GET /api/v1/system/features`.
+
+| Category | Setting | Default | What it does |
+|---|---|---|---|
+| Fabric | `fabric.applications` | on | Programs may connect through the Fabric API |
+| | `fabric.legacy_api` | on | The older `/playback` and `/control` routes answer. They have no credential |
+| | `fabric.launch_proposals` | on | Applications may propose how to start them |
+| | `fabric.require_signatures` | off | Every application must sign every request |
+| | `fabric.world_regeneration` | on | The observer may ask for a new world |
+| | `fabric.allow_frames`, `allow_dialogs`, `allow_camera`, `allow_layers`, `allow_control`, `allow_notifications`, `allow_messages`, `allow_storage` | on | Whether that capability can be granted at all |
+| WebFabric | `webfabric.enabled` | on | Applications appear in the observer |
+| Startup | `startup.fast_boot` | off | Use maps downloaded in advance, and don't make the film play to its end |
+| | `startup.force_animate` | on | The film plays to its end before the map. Fast Boot turns it off |
+| Presentation | `presentation.music` | off | Original music during the start-up film |
+| | `presentation.fullscreen` | off | Open the observer full screen |
+| | `presentation.music_volume` | 0.6 | From 0 to 1 |
+| Demo | `demo.music`, `demo.fullscreen` | on | The same, in Demo Mode |
+
+Full screen and music need a page to have been interacted with, so when either is on, the launcher opens the
+observer in a window of its own from a Chromium-based browser, with a profile of its own, where both are allowed
+from the start. Without such a browser, the usual one opens it, and the observer asks for a click.
+
 ## What happens when a run starts
 
 1. **Validate.** `config/defaults.json` and the options are checked against the same
