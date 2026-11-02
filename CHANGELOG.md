@@ -26,7 +26,7 @@ the application. All of it is additive, and every recorded call behaves as it di
 - **What the map shows.** With `ui.layers`, granted by a person: `PUT .../presentation` holds layers and kinds of place on or off. It's laid over a person's choices, and is not one of them. The Layers and Places panels name who holds what and offer a way back, a person's own change wins, and reduced detail under load can't be undone by an application. It ends when the application leaves, is suspended, stops checking in or loses the grant.
 - **How a path looks.** `style` is solid, dashed, dotted or flow, where dashes run along the line. `glow` adds a soft light. `color` is `auto`, a stable colour from the palette, or `#RRGGBB`, which is moved until it can be seen on the map in the current theme and gives way to a colour vision mode.
 - **All of it is limited and on the record:** 2 a second with a burst of 4, closed lists and ranges, and each request in the audit log, refusals too.
-- **A security guide.** [Fabric and WebFabric security](docs/api/security.md) sets out who can do what, what each protection does and doesn't do, and how to check it.
+- **A security guide.** [Fabric and WebFabric security](https://dstns.readthedocs.io/api/security/) sets out who can do what, what each protection does and doesn't do, and how to check it.
 
 ### The report and the film
 
