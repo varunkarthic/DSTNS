@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Varun Karthic
+
+[package]
+name = "dstns-launcher"
+version = "2.2.0"
+edition = "2021"
+description = "The DSTNS launcher: checks, builds and runs the simulator, in a terminal interface or with a command."
+license = "AGPL-3.0-or-later"
+authors = ["Varun Karthic"]
+repository = "https://github.com/varunkarthic/DSTNS"
+publish = false
+
+[[bin]]
+name = "dstns-launcher"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.30"
+crossterm = "0.29"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+ureq = { version = "3", features = ["json"] }
+rusqlite = "0.37"
+sha2 = "0.10"
+getrandom = "0.3"
+flate2 = "1"
+libc = "0.2"
+signal-hook = "0.3"
+shlex = "1"
+regex = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+unicode-width = "0.2.3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+strip = true

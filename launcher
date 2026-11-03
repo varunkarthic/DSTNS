@@ -2,19 +2,38 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Varun Karthic
 
-# DSTNS launcher. Everything (interface choice, checks, exit codes) is in Python.
+# DSTNS launcher. Everything (interface choice, checks, exit codes) is in the Rust program in LaunchKit/; this builds
+# it when its sources have changed, then runs it.
 set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "DSTNS: python3 was not found. Install Python 3.10 or later and try again." >&2
-  exit 1
-fi
-export PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}"
-# In a folder a cloud client syncs, keep Python's bytecode on local disk: the
-# client evicts __pycache__ files, and each read then waits on the network.
+export DSTNS_ROOT="$root"
+# In a folder a cloud client syncs, keep the build on local disk: the client evicts files, and a build makes
+# thousands of them.
 case "$root" in
   */Library/CloudStorage/*|*/OneDrive*|*/Dropbox*|*"/Mobile Documents/"*|*"/Google Drive"*)
     if [ "$(uname)" = Darwin ]; then cache="$HOME/Library/Caches/DSTNS"; else cache="${XDG_CACHE_HOME:-$HOME/.cache}/dstns"; fi
-    export PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-$cache/pycache}" ;;
+    id="$(printf '%s' "$root" | shasum -a 256 | cut -c1-10)"
+    export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$cache/checkout-$id/launcher}" ;;
 esac
-exec python3 -m dstns_launcher "$@"
+target="${CARGO_TARGET_DIR:-$root/LaunchKit/target}"
+program="$target/release/dstns-launcher"
+stale=""
+if [ ! -x "$program" ]; then
+  stale=1
+elif [ -n "$(find "$root/LaunchKit/src" "$root/LaunchKit/assets" "$root/LaunchKit/Cargo.toml" "$root/LaunchKit/Cargo.lock" -newer "$program" -print -quit 2>/dev/null)" ]; then
+  stale=1
+fi
+if [ -n "$stale" ]; then
+  if ! command -v cargo >/dev/null 2>&1; then
+    if [ -x "$program" ]; then
+      echo "DSTNS: the launcher's sources changed, but cargo was not found to rebuild it; using the existing build." >&2
+    else
+      echo "DSTNS: the launcher is built with Rust, which was not found. Install it from https://rustup.rs and try again." >&2
+      exit 1
+    fi
+  else
+    echo "DSTNS: building the launcher (only when its sources change)..." >&2
+    cargo build --release --quiet --manifest-path "$root/LaunchKit/Cargo.toml" >&2
+  fi
+fi
+exec "$program" "$@"

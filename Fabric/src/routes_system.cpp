@@ -84,6 +84,8 @@ void ApiServer::routes_system() {
         };
         return nlohmann::json::array({
             group("system","Service identity, health and lifecycle",{
+                {{"GET","/health","Liveness, for probes and load balancers"}},
+                {{"GET","/api/v1","This index, at the API's root"}},
                 {{"GET","/api/v1/system/health","Liveness, with the engine's lifecycle state"}},
                 {{"GET","/api/v1/system/info","Service identity, version and SUMO availability"}},
                 {{"GET","/api/v1/system/status","The full run status"}},
@@ -97,7 +99,8 @@ void ApiServer::routes_system() {
                 {{"POST","/api/v1/system/observer","An open observer reports whether a world should wait for it"}},
                 {{"GET","/api/v1/system/narrator","Narration model, queue and cache"}},
                 {{"GET","/api/v1/system/features","What the operator has turned on and off, and how the observer presents itself"}},
-                {{"POST","/api/v1/system/terminate","Stop the simulation and exit the process"}}}),
+                {{"POST","/api/v1/system/terminate","Stop the simulation and exit the process"}},
+                {{"POST","/api/v1/system/sumo-simulate","Export, build and run SUMO, and return trip statistics"}}}),
             group("playback","Moving through simulated time",{
                 {{"GET","/api/v1/playback/status","Clock, rate and lifecycle"}},
                 {{"POST","/api/v1/playback/start","Begin a run"}},
@@ -117,6 +120,22 @@ void ApiServer::routes_system() {
                 {{"GET","/api/v1/view/stops","Bus stops, thinned to realistic spacing"}},
                 {{"GET","/api/v1/view/snapshot","Per-tick dynamic state for every node and edge"}},
                 {{"GET","/api/v1/view/global","Topology and snapshot in one response"}},
+                {{"GET","/api/v1/view/nodes/{id}","One junction"}},
+                {{"GET","/api/v1/view/edges/{id}","One road"}},
+                {{"GET","/api/v1/view/run","The run: seed, configuration and clock"}},
+                {{"GET","/api/v1/view/config","The run's resolved configuration"}},
+                {{"GET","/api/v1/view/manifest","What makes this run reproducible: seed, map and build"}},
+                {{"GET","/api/v1/view/traffic","Network totals: vehicles, speeds, closures and storms"}},
+                {{"GET","/api/v1/view/congestion","The congestion index, now and on average"}},
+                {{"GET","/api/v1/view/signals","Every signal's phase and timing"}},
+                {{"GET","/api/v1/view/weather","Rain and flooding"}},
+                {{"GET","/api/v1/view/incidents","Incidents in effect"}},
+                {{"GET","/api/v1/view/bus-stops","Bus stops"}},
+                {{"GET","/api/v1/view/buildings","Buildings and their effect on demand"}},
+                {{"GET","/api/v1/view/metrics","Engine metrics: tick timing and rates"}},
+                {{"GET","/api/v1/view/events","Events in effect now"}},
+                {{"GET","/api/v1/view/stream","The snapshot, as server-sent events"}},
+                {{"GET","/api/v1/places","Classified places"}},
                 {{"POST","/api/v1/world/regenerate","Build a new world from a seed"}},
                 {{"GET","/api/v1/world/status","Preparation progress and durable errors"}}}),
             group("control","Acting on the running simulation",{
@@ -129,7 +148,9 @@ void ApiServer::routes_system() {
                 {{"PUT","/api/v1/control/edges/{id}/override","Override one edge"}},
                 {{"POST","/api/v1/control/undo","Undo the last control action"}},
                 {{"POST","/api/v1/control/redo","Redo it"}},
-                {{"GET","/api/v1/control/history","The control history"}}}),
+                {{"GET","/api/v1/control/history","The control history"}},
+                {{"POST","/api/v1/control/signals/{id}","Toggle a junction between north-south and east-west green"}},
+                {{"POST","/api/v1/export/sumo","Write a SUMO bundle for the current world"}}}),
             group("observation","Logs, events and news",{
                 {{"GET","/api/v1/view/event-queue","Scheduled or executed events, filtered and paged"}},
                 {{"GET","/api/v1/news","The operator news feed"}},
@@ -185,7 +206,19 @@ void ApiServer::routes_system() {
                 {{"GET","/api/v1/fabric/security","What is protecting what"}},
                 {{"GET","/api/v1/fabric/audit/verify","Check the audit log's hash chain"}},
                 {{"GET","/api/v1/fabric/audit","Control actions taken by applications"}},
-                {{"GET","/api/v1/fabric/state","Everything applications declare, for the observer"}}}),
+                {{"GET","/api/v1/fabric/state","Everything applications declare, for the observer"}},
+                {{"DELETE","/api/v1/fabric/apps/{id}/ui/{element}","Remove one element"}},
+                {{"DELETE","/api/v1/fabric/apps/{id}/settings","Reset settings to their defaults"}},
+                {{"POST","/api/v1/fabric/apps/{id}/view","Ask the map to look somewhere"}},
+                {{"POST","/api/v1/fabric/apps/{id}/view/outcome","Report what became of a request to move the map"}},
+                {{"PUT","/api/v1/fabric/apps/{id}/presentation","Hold layers and places on or off"}},
+                {{"DELETE","/api/v1/fabric/apps/{id}/presentation","Let go of held layers and places"}},
+                {{"POST","/api/v1/fabric/apps/{id}/actions","Record what a person did"}},
+                {{"POST","/api/v1/fabric/apps/{id}/suspend","Suspend the application"}},
+                {{"POST","/api/v1/fabric/apps/{id}/resume","Resume the application"}},
+                {{"POST","/api/v1/fabric/apps/{id}/failure","Report that the application's interface failed"}},
+                {{"DELETE","/api/v1/fabric/launch/plan","The launcher has finished starting things"}},
+                {{"DELETE","/api/v1/fabric/launch/{id}","Withdraw a proposal"}}}),
         });
     };
     server_->Get("/api/v1/system/endpoints", [index_of_api](const auto&, auto& r) {

@@ -69,8 +69,9 @@ artifacts/
 /scratch/
 
 
-# Private environment for the launcher's terminal interface
-.venv-launcher/
+# The launcher's build and its local state (whether it has been set up)
+LaunchKit/target/
+config/launcher.env
 
 # Local AI development context, and the local-only document generator
 context/
