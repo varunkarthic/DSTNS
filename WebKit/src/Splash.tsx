@@ -138,6 +138,7 @@ export function Splash({
   phase,
   quick = false,
   demo = false,
+  fastBoot = false,
   onFilmCycle,
 }: {
   stage: SplashStage;
@@ -148,6 +149,8 @@ export function Splash({
   quick?: boolean;
   /** Demo Mode: the film about everything, on a loop, with nothing to wait for. */
   demo?: boolean;
+  /** Fast Boot: the name alone while the world gets ready. */
+  fastBoot?: boolean;
   onFilmCycle?: () => void;
 }) {
   const [elapsed, setElapsed] = useState(0);
@@ -167,6 +170,7 @@ export function Splash({
       status={demo ? "Simulated, watched and built on." : stage.waiting || elapsed < 15 ? stage.detail : `${stage.detail ?? "Working"} · ${elapsed} s`}
       steps={stage.waiting || demo ? undefined : BOOT_STEPS}
       demo={demo}
+      fastBoot={fastBoot}
       stepIndex={stage.step}
       progress={stage.progress}
       progressLabel={stage.label}

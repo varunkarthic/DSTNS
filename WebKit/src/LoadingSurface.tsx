@@ -78,6 +78,7 @@ export function LoadingSurface({
   exiting = false,
   quick = false,
   demo = false,
+  fastBoot = false,
   onFilmCycle,
 }: {
   /** "boot" covers the screen; "overlay" floats a card over the dimmed map. */
@@ -116,6 +117,8 @@ export function LoadingSurface({
   exiting?: boolean;
   /** Back into a run already going, on reload. */
   quick?: boolean;
+  /** Fast Boot: the name alone, as on a reload, with a quiet line of status under it. */
+  fastBoot?: boolean;
   /** Demo Mode: the longer film, on a loop. */
   demo?: boolean;
   onFilmCycle?: () => void;
@@ -216,7 +219,7 @@ export function LoadingSurface({
     <div
       ref={surface}
       style={{ "--map-at": `${quick ? QUICK_ARRIVAL.mapAt : MAP_AT_MS}ms` } as CSSProperties}
-      className={`loading-surface ${mode} phase-${film ? phase : "film"}${ending ? " ending" : ""}${rejoin ? " rejoin" : ""}${exiting ? " exiting" : ""}${quick ? " quick" : ""}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
+      className={`loading-surface ${mode} phase-${film ? phase : "film"}${ending ? " ending" : ""}${rejoin ? " rejoin" : ""}${exiting ? " exiting" : ""}${quick ? " quick" : ""}${fastBoot ? " fastboot" : ""}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
       role={role}
       aria-modal={role === "alertdialog" ? true : undefined}
       aria-labelledby={titleId}
@@ -224,9 +227,16 @@ export function LoadingSurface({
       aria-live={role === "status" ? "polite" : undefined}
     >
       {mode === "boot" && (
-        <BootScene playing={film && phase === "film" && !exiting} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending || rejoin} rejoin={rejoin} quiet={failed && rejoin} quick={quick} demo={demo} onCycle={onFilmCycle} reduceMotion={reduceMotion} />
+        <BootScene playing={film && phase === "film" && !exiting} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending || rejoin} rejoin={rejoin} quiet={failed && rejoin} quick={quick} glint={fastBoot} demo={demo} onCycle={onFilmCycle} reduceMotion={reduceMotion} />
       )}
       {film && !rejoin && !quick && <BootTitle phase={phase} />}
+      {fastBoot && !closing && (
+        <div className="fastboot-status" aria-hidden="true">
+          <span key={title}>{title}</span>
+          {status && <small key={status}>{status}</small>}
+          <i />
+        </div>
+      )}
       {body}
       {footer}
     </div>

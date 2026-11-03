@@ -2931,3 +2931,27 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 }
 .music-toggle:hover,
 .music-toggle:focus-visible { opacity: 1; background: rgb(var(--line-rgb) / 12%); }
+
+/* Fast Boot: the name alone, as on a reload, with one quiet line beneath it and a light gliding along a hairline. */
+.fastboot-status {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(50% + 4.6vw + 40px);
+  z-index: 1;
+  margin-inline: auto;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: min(420px, 80vw);
+  text-align: center;
+  pointer-events: none;
+  animation: fastboot-in 900ms var(--motion-page, ease-out) 400ms both;
+}
+.fastboot-status span { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); animation: fastboot-in 500ms var(--motion-page, ease-out) both; }
+.fastboot-status small { font-size: 12px; color: var(--text-faint); animation: fastboot-in 500ms var(--motion-page, ease-out) 120ms both; }
+.fastboot-status i { position: relative; display: block; width: 120px; height: 1px; margin-top: 8px; overflow: hidden; background: rgb(var(--line-rgb) / 12%); }
+.fastboot-status i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 40%; background: linear-gradient(90deg, transparent, var(--accent), transparent); animation: fastboot-glide 2.3s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+.loading-surface.closing .fastboot-status { opacity: 0; transition: opacity 240ms ease-out; }
+@keyframes fastboot-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes fastboot-glide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .fastboot-status i::after { animation: none; opacity: 0.5; width: 100%; } }

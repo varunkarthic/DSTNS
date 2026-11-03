@@ -222,7 +222,7 @@ in vec4 aFromM, aToM; // tint kind phase hue
 in vec4 aLand; // x y tint order
 in float aSeed;
 uniform mat4 uView;
-uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo, uSweep, uAspect, uReach, uBurst, uInhale, uTurn;
+uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo, uSweep, uAspect, uReach, uBurst, uInhale, uTurn, uGlint;
 uniform vec2 uPointer, uPointerV, uLandShift;
 uniform vec3 uFront;
 uniform vec3 uRipple, uBase, uAccent, uWarm, uDanger, uOk, uRoad;
@@ -620,6 +620,10 @@ void main() {
   float kickAngle = aSeed * 6.283 * 7.0;
   ndc += vec2(cos(kickAngle) * 0.6 + 0.5, sin(kickAngle)) * kick * kick * (0.004 + aSeed * 0.022) * step(uSweep, 8.0);
   float seam = exp(-pow(swept * 26.0, 2.0)) * step(uSweep, 8.0);
+  // Fast Boot's name, waiting: each particle stirs a little, and a light passes across it now and then.
+  float glint = uGlint * (1.0 - l);
+  ndc += vec2(sin(uTime * 0.9 + aSeed * 40.0), cos(uTime * 0.7 + aSeed * 31.0)) * 0.0016 * glint;
+  float band = exp(-pow((ndc.x - (mod(uTime, 4.6) / 4.6 * 2.6 - 1.3)) * 7.0, 2.0)) * glint;
   gl_Position = vec4(ndc * clip.w, clip.z, clip.w);
   float depth = clip.w;
   float size = mix(a.size, b.size, m);
@@ -632,6 +636,9 @@ void main() {
   shown = min(1.0, shown * (1.0 + near * 0.9)) * (1.0 - 0.3 * swing * (1.0 - uBurst));
   vAlpha = mix(shown, 0.92, l) * hidden;
   vColour = mix(vColour, uAccent, max(seam, near * 0.35 * (1.0 - l)));
+  vColour = mix(vColour, uAccent, band * 0.55);
+  vAlpha = min(1.0, vAlpha * (1.0 - glint * 0.1 + glint * 0.1 * sin(uTime * 1.25) + band * 0.35));
+  gl_PointSize *= 1.0 + band * 0.35;
 }`;
 
 const FRAGMENT = `#version 300 es
@@ -682,7 +689,7 @@ function rgb(value: string, fallback: [number, number, number]): [number, number
   return parts.length >= 3 && parts.every(Number.isFinite) ? [parts[0] / 255, parts[1] / 255, parts[2] / 255] : fallback;
 }
 
-export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, quick = false, onCycle, demo = false, reduceMotion }: {
+export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, quick = false, glint = false, onCycle, demo = false, reduceMotion }: {
   /** The film runs; otherwise the network rests dimly behind whatever is on screen. */
   playing: boolean;
   /** Nothing is drawn yet, because the title has the screen. */
@@ -700,6 +707,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
   quick?: boolean;
   /** The film has shown every scene once. */
   onCycle?: () => void;
+  /** With quick: the name waits with a light passing across it, for Fast Boot. */
+  glint?: boolean;
   /** Demo Mode: the film goes on to the scenes about the rest of the system, and loops. */
   demo?: boolean;
   reduceMotion: boolean;
@@ -719,6 +728,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
   asleepRef.current = asleep;
   const landingRef = useRef(landing);
   landingRef.current = landing;
+  const glintRef = useRef(glint);
+  glintRef.current = glint;
 
   useEffect(() => {
     const element = canvas.current;
@@ -778,7 +789,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       return buffer;
     })()) - 1 : 0;
     const uniform = (name: string) => gl.getUniformLocation(program, name);
-    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), sweep: uniform("uSweep"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand"), aspect: uniform("uAspect"), reach: uniform("uReach"), pointerV: uniform("uPointerV"), burst: uniform("uBurst"), inhale: uniform("uInhale"), front: uniform("uFront"), turn: uniform("uTurn"), landShift: uniform("uLandShift") };
+    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), sweep: uniform("uSweep"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand"), aspect: uniform("uAspect"), reach: uniform("uReach"), pointerV: uniform("uPointerV"), burst: uniform("uBurst"), inhale: uniform("uInhale"), front: uniform("uFront"), turn: uniform("uTurn"), landShift: uniform("uLandShift"), glint: uniform("uGlint") };
     const landAt = gl.getAttribLocation(program, "aLand");
     const landBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
@@ -886,6 +897,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.uniform1f(u.ageFrom, ageFrom);
       gl.uniform1f(u.ageTo, ageTo);
       gl.uniform1f(u.sweep, sweep);
+      gl.uniform1f(u.glint, glintRef.current && quick ? 1 : 0);
       gl.uniform1f(u.mix, blend);
       gl.uniform3fv(u.front, FRONTS[scene % FRONTS.length]);
       gl.uniform1f(u.turn, scene % 2 ? 1 : -1);

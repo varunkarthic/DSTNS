@@ -25,3 +25,11 @@ it("shows only measured progress and honors reduced motion",()=>{
   expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow','42');
   expect(container.querySelector('.loading-surface')).toHaveClass('still');
 });
+it("opens Fast Boot as a reload, with the name alone and one quiet line under it",()=>{
+  const {container}=render(<LoadingSurface mode="boot" title="Waiting for a simulation" status="Start a run from the DSTNS CLI." eyebrow="Welcome to DSTNS" quick fastBoot reduceMotion={false} />);
+  expect(container.querySelector('.loading-surface')).toHaveClass('quick','fastboot');
+  expect(container.querySelector('.fastboot-status')).toHaveTextContent('Waiting for a simulation');
+  expect(container.querySelector('.fastboot-status')).toHaveTextContent('Start a run from the DSTNS CLI.');
+  // No title card and no film captions: only the name says anything.
+  expect(container.querySelector('.boot-title')).toBeNull();
+});

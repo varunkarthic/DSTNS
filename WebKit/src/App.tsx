@@ -1026,7 +1026,9 @@ export default function App() {
   const firstLifecycle = useRef<string | null>(null);
   if (firstLifecycle.current === null && sim.status) firstLifecycle.current = lifecycle;
   const opening = firstLifecycle.current === null ? null : ["IDLE", "PREPARING", "BOOTING"].includes(firstLifecycle.current);
-  const bootPhase = useBootPhase(opening === null ? null : !opening);
+  // Fast Boot opens as a reload does: the name alone, then the roads, with no title or film.
+  const fastStart = features.presentation.fast_boot && !features.presentation.demo;
+  const bootPhase = useBootPhase(opening === null ? null : !opening || fastStart);
   const [filmSeen, setFilmSeen] = useState(false);
   const onFilmCycle = useCallback(() => setFilmSeen(true), []);
   // Without force_animate (and always with Fast Boot) the film need not finish: the screen goes the moment the world is ready.
@@ -1039,7 +1041,7 @@ export default function App() {
   const lastSplash = useRef(shownStage);
   if (shownStage) lastSplash.current = shownStage;
   // Reloading a run comes straight back: the roads, the map and the panels, without the film.
-  const returning = opening === false;
+  const returning = opening === false || fastStart;
   const splash = usePresence(showSplash, reduceMotion ? MOTION_MS.boot : returning ? QUICK_ARRIVAL.landing : LANDING_MS);
   startupOnScreen.current = splash.mounted;
   const landOnRoads = useCallback(() => {
@@ -1408,7 +1410,7 @@ export default function App() {
           </div>
 
           {splash.mounted && lastSplash.current && (
-            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} quick={returning} demo={demo} onFilmCycle={onFilmCycle} />
+            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} quick={returning} demo={demo} fastBoot={fastStart && opening !== false} onFilmCycle={onFilmCycle} />
           )}
           {failure.mounted && (
             <BootFailure

@@ -361,7 +361,9 @@ export function WebFabricSettings({ onBack }: { onBack: () => void }) {
     return next;
   });
   const turn = async (on: boolean) => {
-    const ids = (picked.size ? apps.filter((item) => picked.has(item.id)) : apps).filter((item) => item.state !== "unloaded" && item.user_suspended === on).map((item) => item.id);
+    // What a person picked is sent as picked: the list may not yet show a change made elsewhere, and the server takes a
+    // repeat in its stride. "All" leaves out those already as asked, so as not to tell them twice.
+    const ids = (picked.size ? apps.filter((item) => picked.has(item.id)) : apps.filter((item) => item.user_suspended === on)).filter((item) => item.state !== "unloaded").map((item) => item.id);
     if (!ids.length) return;
     setBulk(on ? "Turning on" : "Turning off");
     const failed = await fabric.suspendMany(ids, !on);
