@@ -6,6 +6,9 @@
 #include "dstns/logging.hpp"
 #include "dstns/narrator.hpp"
 #include "dstns/osm_fetch.hpp"
+#include "dstns/geo.hpp"
+
+#include <nlohmann/json.hpp>
 
 #include <cstdlib>
 #include <exception>
@@ -48,6 +51,28 @@ int main(int argc, char** argv) {
             else if (a == "--narrator" && i + 1 < argc) narrator = argv[++i];
             else if (a == "--narrator-model" && i + 1 < argc) narrator_model = argv[++i];
             else if (a == "--narrator-cache" && i + 1 < argc) narrator_cache = argv[++i];
+            else if (a == "--list-cities") {
+                // Every city a seed can choose, and the extract each one reads, for Fast Boot to fetch in advance.
+                const double extent = i + 1 < argc && argv[i + 1][0] != '-' ? std::stod(argv[++i]) : 5000.0;
+                auto cities = nlohmann::json::array();
+                for (const auto& city : dstns::city_catalog()) {
+                    dstns::MapLocation location;
+                    location.city = city.name;
+                    location.country = city.country;
+                    location.extent_m = extent;
+                    location.centre_lat = city.centre_lat();
+                    location.centre_lon = city.centre_lon();
+                    cities.push_back({{"city", city.name}, {"country", city.country}, {"key", location.cache_key()}, {"bbox", location.bbox()}});
+                }
+                std::cout << cities.dump() << "\n";
+                return 0;
+            }
+            else if (a == "--city-of-seed" && i + 1 < argc) {
+                // Which city a seed chooses, without starting anything.
+                const auto location = dstns::select_map_location(dstns::Seed128::from_decimal(argv[++i]), 5000.0);
+                std::cout << nlohmann::json{{"city", location.city}, {"country", location.country}, {"key", location.cache_key()}}.dump() << "\n";
+                return 0;
+            }
             else if (a == "--version") {
                 std::cout << "DSTNS " << DSTNS_VERSION << "\n"
                           << "Channel: " << DSTNS_CHANNEL << "\n"
@@ -64,7 +89,7 @@ int main(int argc, char** argv) {
                              "             [--map-cache keep|prune|clear] [--map-cache-keep N]\n"
                              "             [--narrator auto|off|fm|http://HOST:PORT|unix:/PATH] [--narrator-model NAME]\n"
                              "             [--narrator-cache FILE|none]\n"
-                             "             [--version]\n";
+                             "             [--list-cities [EXTENT_M]] [--version]\n";
                 return 0;
             } else {
                 throw std::invalid_argument("unknown argument: " + a);

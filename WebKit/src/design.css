@@ -2908,3 +2908,26 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .fabric-pick { position: absolute; left: 10px; top: 50%; z-index: 1; width: 15px; height: 15px; margin: -7.5px 0 0; accent-color: var(--accent); cursor: pointer; }
 .fabric-apps li > button { padding-left: 34px; }
 .fabric-apps li.picked > button { background: rgb(var(--accent-rgb) / 8%); }
+
+/* The film's music: one quiet control in the licence's row, clear of the status line above it. */
+.music-toggle {
+  position: fixed;
+  right: 24px;
+  bottom: 10px;
+  z-index: calc(var(--z-splash) + 1);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgb(var(--line-rgb) / 18%);
+  border-radius: 50%;
+  background: rgb(var(--line-rgb) / 6%);
+  color: inherit;
+  opacity: 0.62;
+  cursor: pointer;
+  animation: film-caption var(--motion-page-ms, 600ms) var(--motion-page, ease-out) both;
+  transition: opacity var(--motion-fade-ms, 200ms) var(--motion-fade, ease-out), background var(--motion-fade-ms, 200ms) var(--motion-fade, ease-out);
+}
+.music-toggle:hover,
+.music-toggle:focus-visible { opacity: 1; background: rgb(var(--line-rgb) / 12%); }

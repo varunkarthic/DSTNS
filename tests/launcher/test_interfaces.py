@@ -269,6 +269,29 @@ class TextualInterface(unittest.TestCase):
 
         self.run_pilot(app, 120, 35, script)
 
+    def test_demo_and_fast_boot_run_their_commands_on_the_page(self):
+        app = self.make(120, 35)
+        from dstns_launcher.tui.screens.tasks import PresentationScreen
+
+        # `version` stands in for `fastboot status`: the same path, without needing a built server.
+        commands = {**PresentationScreen.COMMANDS, "status": ["version"]}
+
+        async def script(pilot):
+            with mock.patch.object(PresentationScreen, "COMMANDS", commands):
+                app.open(app.screen.page_for("presentation"))
+                await pilot.pause(0.3)
+                self.assertEqual(type(app.screen).__name__, "PresentationScreen")
+                await pilot.press("down", "down", "enter")
+                for _ in range(100):
+                    await pilot.pause(0.1)
+                    if not app.screen.busy:
+                        break
+                self.assertFalse(app.screen.busy)
+                output = "\n".join(line.text for line in app.screen.query_one("#output").lines)
+                self.assertIn("DSTNS", output)
+
+        self.run_pilot(app, 120, 35, script)
+
     def test_selection_is_visible_without_colour(self):
         app = self.make(100, 30, colors=Colors.NONE)
 

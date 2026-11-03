@@ -9,6 +9,9 @@
 #include <array>
 #include <chrono>
 #include <fstream>
+#include <vector>
+
+#include <zlib.h>
 #include <mutex>
 #include <cstdio>
 #include <cstdlib>
@@ -42,6 +45,45 @@ std::string shell_quote(const std::string& value) {
     }
     quoted.push_back('\'');
     return quoted;
+}
+
+// A gzip file into place: written beside the target and renamed, so that a failure leaves nothing half-written.
+// Returns the bytes written, or 0 if it could not be read whole.
+std::uintmax_t unpack(const std::filesystem::path& packed, const std::filesystem::path& target) {
+    constexpr std::uintmax_t kLimit = 1024ull * 1024 * 1024;
+    const auto temporary = std::filesystem::path(target.string() + ".unpacking");
+    gzFile in = gzopen(packed.string().c_str(), "rb");
+    if (!in) return 0;
+    std::uintmax_t written = 0;
+    bool whole = false;
+    {
+        std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
+        std::vector<char> buffer(1 << 20);
+        while (out) {
+            const int read = gzread(in, buffer.data(), static_cast<unsigned>(buffer.size()));
+            if (read < 0) break;
+            if (read == 0) {
+                whole = true;
+                break;
+            }
+            written += static_cast<std::uintmax_t>(read);
+            if (written > kLimit) break;
+            out.write(buffer.data(), read);
+        }
+        whole = whole && static_cast<bool>(out);
+    }
+    gzclose(in);
+    std::error_code ec;
+    if (!whole) {
+        std::filesystem::remove(temporary, ec);
+        return 0;
+    }
+    std::filesystem::rename(temporary, target, ec);
+    if (ec) {
+        std::filesystem::remove(temporary, ec);
+        return 0;
+    }
+    return written;
 }
 
 std::string python_interpreter() {
@@ -232,6 +274,15 @@ MapTileResult acquire_map_tile(const MapLocation& location, const std::filesyste
     }
 
     std::filesystem::create_directories(cache_directory, ec);
+    // Fast Boot: every city was downloaded in advance and kept compressed. Unpacking one takes a moment, and needs no
+    // network at all. A damaged one is left alone, and the map is downloaded as usual.
+    if (const char* fast = std::getenv("DSTNS_FASTBOOT_DIR"); !ec && fast && *fast) {
+        const auto packed = std::filesystem::path(fast) / (location.cache_key() + ".osm.xml.gz");
+        if (std::filesystem::is_regular_file(packed, ec)) {
+            if (const auto bytes = unpack(packed, target); bytes >= kMinimumTileBytes) return {target, false, bytes};
+        }
+        ec.clear();
+    }
     if (ec) {
         throw MapFetchError("Cannot create map cache directory " + sanitize_message(cache_directory.string()) + ": " + sanitize_message(ec.message()));
     }

@@ -24,6 +24,8 @@ dstns_server [--host ADDR] [--port PORT] [--logs DIR] [--maps DIR]
              [--narrator auto|off|fm|http://HOST:PORT|unix:/PATH] [--narrator-model NAME]
              [--narrator-cache FILE|none]
              [--version]
+dstns_server --list-cities [EXTENT_M]
+dstns_server --city-of-seed SEED
 ```
 
 | Flag | Default | Meaning |
@@ -38,6 +40,8 @@ dstns_server [--host ADDR] [--port PORT] [--logs DIR] [--maps DIR]
 | `--narrator-model NAME` | `system` | Model name sent to a Chat Completions endpoint |
 | `--narrator-cache FILE` | `<logs>/narrations.db` | Persistent narration cache; `none` keeps it in memory |
 | `--version` | | Print the version and licence notice, then exit |
+| `--list-cities [EXTENT_M]` | `5000` | Print every city a seed can choose, with its key and the box downloaded for it, as JSON, then exit |
+| `--city-of-seed SEED` | | Print the city a seed chooses, and its key, as JSON, then exit |
 | `--help` | | Print the synopsis, then exit |
 
 An unknown argument stops the server with a message and a non-zero exit code.

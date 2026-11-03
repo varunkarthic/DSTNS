@@ -54,6 +54,7 @@ import { FabricDialog, FabricDockItems, FabricHeader, FabricIndicators, FabricPa
 import { FabricOverlay } from "./webfabric/Overlay";
 import { useFabricApps, useHeld, useLaunchPlan } from "./webfabric/store";
 import { useFeatures } from "./features";
+import { MusicControl, useFullscreen } from "./Presentation";
 import { heldOver, PERSON_HOLDS_CAMERA_MS, releaseKey, viewDeclined, viewTarget } from "./webfabric/direction";
 import type { FabricOverlayHandle } from "./webfabric/Overlay";
 import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
@@ -1028,9 +1029,12 @@ export default function App() {
   const bootPhase = useBootPhase(opening === null ? null : !opening);
   const [filmSeen, setFilmSeen] = useState(false);
   const onFilmCycle = useCallback(() => setFilmSeen(true), []);
-  const paced = usePacedStages(splashStage, bootPhase, opening !== false && !reduceMotion, filmSeen);
+  // Without force_animate (and always with Fast Boot) the film need not finish: the screen goes the moment the world is ready.
+  const { force_animate: forceAnimate, demo } = features.presentation;
+  const paced = usePacedStages(splashStage, bootPhase, opening !== false && !reduceMotion, filmSeen || !forceAnimate, forceAnimate ? undefined : 240);
   const shownStage = paced.stage;
   const showSplash = (!!shownStage || paced.holding) && !sim.error && !world.active;
+  useFullscreen(features.presentation.fullscreen);
   // The start-up screen dissolves over the rendered map rather than vanishing.
   const lastSplash = useRef(shownStage);
   if (shownStage) lastSplash.current = shownStage;
@@ -1404,7 +1408,7 @@ export default function App() {
           </div>
 
           {splash.mounted && lastSplash.current && (
-            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} quick={returning} onFilmCycle={onFilmCycle} />
+            <Splash stage={lastSplash.current} closing={splash.closing} reduceMotion={reduceMotion} landing={landOnRoads} phase={bootPhase} quick={returning} demo={demo} onFilmCycle={onFilmCycle} />
           )}
           {failure.mounted && (
             <BootFailure
@@ -1416,6 +1420,8 @@ export default function App() {
               reduceMotion={reduceMotion}
             />
           )}
+          {/* The music belongs to the film: it fades as the map arrives. */}
+          <MusicControl playing={features.presentation.music && (demo || showSplash)} volume={features.presentation.music_volume} />
           {reportFilm && reportPreview && <ReportFilm {...reportFilm} preview={reportPreview} view={reportView} reduceMotion={reduceMotion} onSave={saveReport} onDone={closeReportFilm} />}
           {(shutDown || serverGone) && <ShutdownSurface reduceMotion={reduceMotion} landing={landOnRoads} lost={serverGone && !shutDown} />}
 

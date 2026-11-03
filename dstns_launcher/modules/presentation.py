@@ -12,7 +12,7 @@ import threading
 from ..core import api, configuration, server
 from ..core.errors import DSTNSLauncherError
 from ..core.reporting import Level
-from . import Command, Context, Module
+from . import Command, Context, Module, Page
 
 EXIT_OK = 0
 
@@ -60,7 +60,26 @@ def demo(context: Context) -> int:
     return EXIT_OK
 
 
+def _describe(app) -> tuple[str, list, str]:
+    from ..core.paths import PATHS
+    from ..tui.widgets import Row
+
+    config = configuration.load()
+    here = len(list(PATHS.fastboot.glob("*.osm.xml.gz"))) if PATHS.fastboot.exists() else 0
+    rows = [Row("Fast Boot", "on" if configuration.setting(config, "startup.fast_boot") else "off", None),
+            Row("Cities downloaded", str(here), None),
+            Row("Demo music", "on" if configuration.setting(config, "demo.music") else "off", None)]
+    return "Demo and Fast Boot", rows, "Enter shows them: play Demo Mode, or download every city for Fast Boot."
+
+
+def _opens_page():
+    from ..tui.screens.tasks import PresentationScreen
+
+    return PresentationScreen()
+
+
 MODULE = Module(
     name="presentation",
     commands=(Command("demo", "demo", "The start-up film on a loop with every feature, full screen and with music", demo),),
+    pages=(Page("presentation", "Demo and Fast Boot", _opens_page, _describe, before="diagnostics"),),
 )

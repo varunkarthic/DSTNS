@@ -77,6 +77,7 @@ export function LoadingSurface({
   rejoin = false,
   exiting = false,
   quick = false,
+  demo = false,
   onFilmCycle,
 }: {
   /** "boot" covers the screen; "overlay" floats a card over the dimmed map. */
@@ -115,6 +116,8 @@ export function LoadingSurface({
   exiting?: boolean;
   /** Back into a run already going, on reload. */
   quick?: boolean;
+  /** Demo Mode: the longer film, on a loop. */
+  demo?: boolean;
   onFilmCycle?: () => void;
 }) {
   // The wordmark hands over to the one in the header, so the screen resolves into
@@ -221,7 +224,7 @@ export function LoadingSurface({
       aria-live={role === "status" ? "polite" : undefined}
     >
       {mode === "boot" && (
-        <BootScene playing={film && phase === "film" && !exiting} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending || rejoin} rejoin={rejoin} quiet={failed && rejoin} quick={quick} onCycle={onFilmCycle} reduceMotion={reduceMotion} />
+        <BootScene playing={film && phase === "film" && !exiting} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending || rejoin} rejoin={rejoin} quiet={failed && rejoin} quick={quick} demo={demo} onCycle={onFilmCycle} reduceMotion={reduceMotion} />
       )}
       {film && !rejoin && !quick && <BootTitle phase={phase} />}
       {body}

@@ -93,6 +93,8 @@ It starts your own programs along with the simulation. Give each one its command
 ./launcher start --apps planner
 ```
 
+Every feature has a setting, from Fabric's capabilities to music. **Fast Boot** downloads every city once, compressed, so that a run starts in seconds, and `./launcher demo` plays the start-up film on a loop, full screen and with its own music.
+
 <br>
 
 <div align="center">

@@ -934,6 +934,146 @@ export function endMist(): Float32Array {
 }
 
 /** In chapter order. The first is the cloud, and the wordmark takes its place once drawn. */
+/**
+ * Seek and replay: the day as a track, with its checkpoints standing up along it in order, the simulation
+ * flowing along it, and the place being watched picked out. Any moment can be gone back to, and is the same.
+ */
+function replay(): Float32Array {
+  const posts = 9;
+  return formation((put, random) => {
+    for (let i = 0; i < COUNT; i++) {
+      const kind = i % 100;
+      const z = (random() - 0.5) * 0.05;
+      if (kind < 34) {
+        put(i, -2.3 + random() * 4.6, 0, z, { tint: 0.22 });
+      } else if (kind < 56) {
+        // The day going by, carried along the track.
+        put(i, -2.5 + random() * 3.2, 0.015, z, { v: [1.6, 0, 0], kind: KIND.flow, tint: 0.95 });
+      } else if (kind < 80) {
+        // Each checkpoint stands up in turn: where the day can be gone back to.
+        const post = Math.floor(random() * posts);
+        const height = 0.38 + (post % 3) * 0.06;
+        put(i, -2 + post * 0.5 + (random() - 0.5) * 0.03, random() * height, z, { v: [0, 0, 0], kind: KIND.rise, tint: 0.55, phase: post / posts });
+      } else if (kind < 90) {
+        // The moment being watched.
+        put(i, 0.75 + (random() - 0.5) * 0.02, random() * 0.82, (random() - 0.5) * 0.02, { kind: KIND.pulse, tint: 1, hue: HUE.warm });
+      } else {
+        const a = random() * TAU;
+        const r = 1.6 + random() * 1.2;
+        put(i, Math.cos(a) * r, (random() - 0.5) * 1.2, Math.sin(a) * r * 0.6, { tint: 0.06 });
+      }
+    }
+  }, 4101);
+}
+
+/**
+ * Adaptive backpressure: more than can be shown arrives as a wide stream, eases through what the screen can take,
+ * and comes out steady on the other side. Nothing is lost; it is only paced.
+ */
+function backpressure(): Float32Array {
+  const throat = 0.35;
+  return formation((put, random) => {
+    for (let i = 0; i < COUNT; i++) {
+      const kind = i % 100;
+      if (kind < 48) {
+        const y = (random() - 0.5) * 1.6;
+        const z = (random() - 0.5) * 1.6;
+        const x = -2.6 + random() * 0.6;
+        const to: [number, number, number] = [throat - x, y * 0.12 - y, z * 0.12 - z];
+        put(i, x, y, z, { v: to, kind: KIND.flow, tint: 0.55 });
+      } else if (kind < 78) {
+        const y = (random() - 0.5) * 0.18;
+        const z = (random() - 0.5) * 0.18;
+        put(i, throat, y, z, { v: [2.1, 0, 0], kind: KIND.flow, tint: 0.95, hue: HUE.ok });
+      } else if (kind < 92) {
+        // What sets the pace, breathing as it does.
+        const a = random() * TAU;
+        const r = 0.22 + random() * 0.03;
+        put(i, throat, Math.cos(a) * r, Math.sin(a) * r, { kind: KIND.pulse, tint: 0.9 });
+      } else {
+        put(i, -2.4 + random() * 4.8, (random() - 0.5) * 2, (random() - 0.5) * 1.4, { tint: 0.05 });
+      }
+    }
+  }, 4202);
+}
+
+/** A report: a page whose lines write themselves from the top, with its figures rising at the foot. */
+function report(): Float32Array {
+  const [w, h] = [1.5, 2.05];
+  const rows = 15;
+  return formation((put, random) => {
+    for (let i = 0; i < COUNT; i++) {
+      const kind = i % 100;
+      if (kind < 22) {
+        // The edge of the page.
+        const t = random() * 2 * (w + h);
+        const [x, y] = t < w ? [t - w / 2, h / 2] : t < w + h ? [w / 2, h / 2 - (t - w)] : t < 2 * w + h ? [w / 2 - (t - w - h), -h / 2] : [-w / 2, -h / 2 + (t - 2 * w - h)];
+        put(i, x, y, 0, { tint: 0.4 });
+      } else if (kind < 78) {
+        const row = Math.floor(random() * rows);
+        const y = h / 2 - 0.2 - row * ((h - 0.75) / rows);
+        // The first line is the title, wider and brighter; the rest are text, each its own length.
+        const length = row === 0 ? 0.9 : (0.55 + ((row * 37) % 9) / 20) * (w - 0.3);
+        put(i, -w / 2 + 0.15 + random() * length, y + (random() - 0.5) * (row === 0 ? 0.05 : 0.02), 0, { kind: KIND.reveal, tint: row === 0 ? 1 : 0.6, phase: (row + random() * 0.6) / rows });
+      } else if (kind < 92) {
+        const bar = Math.floor(random() * 6);
+        const height = [0.25, 0.4, 0.3, 0.5, 0.35, 0.45][bar];
+        put(i, -w / 2 + 0.25 + bar * 0.2 + (random() - 0.5) * 0.08, -h / 2 + 0.12 + random() * height, 0, { v: [0, -h / 2 + 0.12, 0], kind: KIND.rise, tint: 0.85, phase: 0.6 + bar * 0.05, hue: bar % 2 ? HUE.ok : HUE.ramp });
+      } else {
+        const a = random() * TAU;
+        const r = 1.6 + random() * 1;
+        put(i, Math.cos(a) * r, Math.sin(a) * r, -0.5 - random(), { tint: 0.05 });
+      }
+    }
+  }, 4303);
+}
+
+/** Fabric: one hub, which is the simulation, and the programs connected to it, each talking both ways. */
+function fabricHub(): Float32Array {
+  const nodes = 6;
+  const hues = [HUE.ramp, HUE.ok, HUE.warm, HUE.ramp, HUE.danger, HUE.ok];
+  return formation((put, random) => {
+    for (let i = 0; i < COUNT; i++) {
+      const kind = i % 100;
+      const node = Math.floor(random() * nodes);
+      const angle = (node / nodes) * TAU + 0.3;
+      // Upright, facing the camera, where the film's other rings lie on the ground.
+      const [nx, ny] = [Math.cos(angle) * 1.7, Math.sin(angle) * 1.15];
+      if (kind < 18) {
+        const a = random() * TAU;
+        const u = random() * 2 - 1;
+        const r = Math.pow(random(), 0.6) * 0.26;
+        put(i, Math.cos(a) * Math.sqrt(1 - u * u) * r, u * r, Math.sin(a) * Math.sqrt(1 - u * u) * r, { kind: KIND.pulse, tint: 1 });
+      } else if (kind < 36) {
+        const a = random() * TAU;
+        const u = random() * 2 - 1;
+        const r = Math.pow(random(), 0.6) * 0.12;
+        put(i, nx + Math.cos(a) * Math.sqrt(1 - u * u) * r, ny + u * r, Math.sin(a) * Math.sqrt(1 - u * u) * r, { tint: 1, hue: hues[node] });
+      } else if (kind < 64) {
+        // Out to it, and back, from the hub's surface rather than its middle.
+        const out = random() < 0.5;
+        const edge = 0.28 / 1.7;
+        const [ex, ey] = [nx * edge, ny * edge];
+        const [sx, sy] = out ? [ex, ey] : [nx, ny];
+        const jitter = (random() - 0.5) * 0.04;
+        put(i, sx + jitter, sy + jitter, jitter, { v: out ? [nx - ex, ny - ey, 0] : [ex - nx, ey - ny, 0], kind: KIND.flow, tint: 0.8, hue: out ? HUE.ramp : hues[node] });
+      } else if (kind < 80) {
+        const t = random();
+        put(i, nx * t, ny * t, 0, { tint: 0.22 });
+      } else {
+        const a = random() * TAU;
+        const r = 2.1 + random() * 0.8;
+        put(i, Math.cos(a) * r, Math.sin(a) * r * 0.7, -0.4 - random() * 0.8, { tint: 0.05 });
+      }
+    }
+  }, 4404);
+}
+
+/** Demo Mode's own scenes, after the film's: the features that a film of a city does not show. */
+export function buildDemoFormations(): Float32Array[] {
+  return [replay(), backpressure(), report(), fabricHub()];
+}
+
 export function buildFormations(): Float32Array[] {
   return [cloud(), cityMap(), junction(), demand(), rushHour(), incident(), storm(), globe(), twinWorlds(), viewfinder(), fabric()];
 }

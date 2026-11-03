@@ -160,3 +160,66 @@ class ToolsScreen(TaskScreen):
             return True, "The observer bundle was rebuilt."
         maintenance.reset(reporter)
         return True, "Runtime data cleared. Maps, saved seeds and configuration were kept."
+
+
+class PresentationScreen(TaskScreen):
+    """Demo Mode and Fast Boot, run as the commands are, so that what happens here is what happens there."""
+
+    TITLE_TEXT = "Demo and Fast Boot"
+    KEYS = [Key("Enter", "Run or stop", "Run", essential=True), Key("Esc", "Back", "Back", essential=True)]
+    ITEMS = [
+        MenuItem("demo", "Demo Mode", "The start-up film on a loop with every feature, full screen and with music. "
+                                      "Enter again ends it."),
+        MenuItem("download", "Download every city", "For Fast Boot: every city's map, compressed. It takes a long while, "
+                                                    "and carries on from where it stopped. Enter again stops it."),
+        MenuItem("status", "Fast Boot status", "How many cities are here, and how much room they take."),
+        MenuItem("clear", "Delete downloaded cities", "Everything Fast Boot downloaded. The map cache is kept."),
+    ]
+    COMMANDS = {"demo": ["demo"], "download": ["fastboot", "download"], "status": ["fastboot", "status"], "clear": ["fastboot", "clear", "--yes"]}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.process = None
+
+    def on_menu_selected(self, event: Menu.Selected) -> None:
+        if self.busy and self.process is not None:
+            self.stop()
+            return
+        if event.item.key == "clear" and not self.busy:
+            def decided(choice: str | None) -> None:
+                if choice == "yes":
+                    self.begin(event.item)
+
+            self.app.push_screen(confirm("Delete downloaded cities?", "Fast Boot downloads them again when asked.", "Delete"), decided)
+            return
+        super().on_menu_selected(event)
+
+    def stop(self) -> None:
+        import signal
+
+        import threading
+
+        process = self.process
+        if process is not None and process.poll() is None:
+            # As Ctrl+C would: Demo Mode shuts its server down, and a download keeps what it has. A process that
+            # was started with Ctrl+C ignored is asked again in a way it can't ignore; Demo Mode handles that too.
+            process.send_signal(signal.SIGINT)
+            threading.Timer(3, lambda: process.poll() is None and process.terminate()).start()
+
+    def on_unmount(self) -> None:
+        self.stop()
+
+    def perform(self, key: str) -> tuple[bool, str]:
+        import subprocess
+
+        from ...core.paths import PATHS
+
+        self.process = subprocess.Popen([str(PATHS.root / "launcher"), *self.COMMANDS[key]], cwd=PATHS.root, stdin=subprocess.DEVNULL,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        try:
+            for line in self.process.stdout:
+                self.app.call_from_thread(self.output, line.rstrip())
+            code = self.process.wait()
+        finally:
+            self.process = None
+        return code == 0, "Done." if code == 0 else f"It stopped with status {code}; the output says why."

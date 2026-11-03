@@ -17,6 +17,18 @@ every existing endpoint behaves as before, 155 recorded calls being replayed to 
 widening: `tick_rate` now accepts up to 20. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### A setting for every feature, web applications, Fast Boot and Demo Mode
+
+- **A setting for every feature.** `./launcher config` and the terminal interface's Configuration page now cover Fabric (applications, the older API, launch proposals, signatures, each capability), WebFabric, start-up, music, full screen and Demo Mode. They reach the server as it starts, and `GET /api/v1/system/features` reports them. With `fabric.legacy_api` off the older routes answer `410 LEGACY_API_DISABLED`; with applications off, registering answers `403 APPLICATIONS_DISABLED`; a capability turned off answers `403 CAPABILITY_DISABLED`.
+- **Applications without a simulation.** `./launcher apps run` starts applications on their own, with a server waiting for a simulation if none is running, and stops it again afterwards.
+- **Web applications.** An application may name its own web interface, as `web` in its manifest or with `./launcher apps add --web`. The observer offers a button that opens it.
+- **Reloading an application.** From the observer, or `POST /api/v1/fabric/apps/{id}/reload`. Its token stops working at once and the launcher starts it again; it registers with a new one-time launch key and keeps what a person granted it. An application nobody launched is unloaded instead.
+- **The WebFabric panel is a canvas.** Widgets are placed on a grid of up to 12 columns with `layout.columns` and each widget's `area`. New widgets: metric, card, chart, link, divider, status and timeline. With several applications, a menu at the top chooses between them, and each has Reload and Turn off. Settings can turn off one, several or all at once. An application that goes leaves the panel with an animation, and so does its panel when open.
+- **Fast Boot, off by default.** `./launcher fastboot download` downloads every city's district once, compressed, into the map cache. With `startup.fast_boot` on, the server unpacks a city from there instead of downloading it, in under a second, and the film need not play to its end: once the world is ready it gathers into the name and goes to the map. `dstns_server --list-cities` and `--city-of-seed` list what there is to download.
+- **`startup.force_animate`, on by default.** Off, the film behaves as with Fast Boot even when maps are downloaded as needed. Fast Boot turns it off.
+- **Demo Mode.** `./launcher demo` plays the film on a loop, full screen, with four more scenes after the usual eleven: seeking, backpressure, the report and Fabric. It has a server of its own, and leaves one already running alone.
+- **Music.** Original music, generated in the browser as it plays, for Demo Mode, and for the ordinary film when `presentation.music` is on. A small button at the bottom right mutes it, and the choice is remembered. It fades out as the map arrives. Full screen and music are off by default outside Demo Mode.
+
 ### Security fixes from an audit of the API
 
 Found by reading every route, and by sending hostile values to all of them. `tests/api/robustness_smoke.py` now does that on every run.

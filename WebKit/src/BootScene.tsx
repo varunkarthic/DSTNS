@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { LOGO_SVG } from "./logoAsset";
 import { appearance } from "./appearance";
 import { stepSpring } from "./motion";
-import { buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B, formation, IN_WORLD, JOINS, KIND, ORB_HEIGHT, ORB_HUES, sequence, SEAM, SEEDS_AT, STRIDE, TRIP_ROADS, WRECK_AT } from "./bootScenes";
+import { buildDemoFormations, buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B, formation, IN_WORLD, JOINS, KIND, ORB_HEIGHT, ORB_HUES, sequence, SEAM, SEEDS_AT, STRIDE, TRIP_ROADS, WRECK_AT } from "./bootScenes";
 
 /**
  * The start-up film.
@@ -92,6 +92,22 @@ export const FILM_CHAPTERS: readonly { label: string; title: string; text: strin
   { label: "Camera", title: "Auto Focus", text: "The camera follows what matters." },
   { label: "Extensions", title: "WebFabric", text: "Your own applications weave into the simulation." },
 ];
+
+/** Demo Mode's own chapters, after the film's. One or two words and a short line, as the film's are. */
+export const DEMO_CHAPTERS: readonly { label: string; title: string; text: string }[] = [
+  { label: "Playback", title: "Seek anywhere", text: "Go back to any moment and the day plays out the same." },
+  { label: "Keeping up", title: "Adaptive backpressure", text: "When the screen falls behind the simulation eases off." },
+  { label: "Reports", title: "One document", text: "Every run exports as a report of what happened." },
+  { label: "Fabric", title: "One API", text: "Your own programs connect and take part." },
+];
+const DEMO_CAMERAS: Camera[] = [
+  { yaw: 0, pitch: 0.26, distance: 3.6, spin: 0.004, push: 0.04 },
+  { yaw: -0.35, pitch: 0.2, distance: 3.6, spin: 0.01, push: 0.05 },
+  { yaw: 0.18, pitch: 0.08, distance: 3.3, spin: 0.006, push: 0.04 },
+  { yaw: 0.12, pitch: 0.1, distance: 3.9, spin: 0.012, push: 0.05 },
+];
+const DEMO_HOLDS = [6.4, 6, 6.4, 6.8];
+const DEMO_FILM = [...FILM_CHAPTERS, ...DEMO_CHAPTERS];
 
 interface Camera { yaw: number; pitch: number; distance: number; spin: number; push: number }
 const CAMERAS: Camera[] = [
@@ -666,7 +682,7 @@ function rgb(value: string, fallback: [number, number, number]): [number, number
   return parts.length >= 3 && parts.every(Number.isFinite) ? [parts[0] / 255, parts[1] / 255, parts[2] / 255] : fallback;
 }
 
-export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, quick = false, onCycle, reduceMotion }: {
+export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, quick = false, onCycle, demo = false, reduceMotion }: {
   /** The film runs; otherwise the network rests dimly behind whatever is on screen. */
   playing: boolean;
   /** Nothing is drawn yet, because the title has the screen. */
@@ -684,9 +700,12 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
   quick?: boolean;
   /** The film has shown every scene once. */
   onCycle?: () => void;
+  /** Demo Mode: the film goes on to the scenes about the rest of the system, and loops. */
+  demo?: boolean;
   reduceMotion: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const chapters = demo ? DEMO_FILM : FILM_CHAPTERS;
   const [chapter, setChapter] = useState(0);
   const playingRef = useRef(playing);
   playingRef.current = playing;
@@ -705,7 +724,9 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     const element = canvas.current;
     const gl = element?.getContext("webgl2", { alpha: true, antialias: false, powerPreference: "low-power" }) ?? null;
     let timer: ReturnType<typeof setInterval> | undefined;
-    const advanceCaption = () => setChapter((c) => (c + 1) % FILM_CHAPTERS.length);
+    const cameras = demo ? [...CAMERAS, ...DEMO_CAMERAS] : CAMERAS;
+    const holds = demo ? [...HOLDS, ...DEMO_HOLDS] : HOLDS;
+    const advanceCaption = () => setChapter((c) => (c + 1) % chapters.length);
     if (!element || !gl) {
       // No film to sit through, then. Its words still play if there is a wait.
       cycleRef.current?.();
@@ -716,7 +737,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     if (!program) return;
     gl.useProgram(program);
 
-    const scenes = buildFormations().map((data) => {
+    const scenes = [...buildFormations(), ...(demo ? buildDemoFormations() : [])].map((data) => {
       const buffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
@@ -847,11 +868,11 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     let strength = 1;
     let count = COUNT;
     let slow = 0;
-    const camera = { yaw: CAMERAS[0].yaw, pitch: CAMERAS[0].pitch, distance: CAMERAS[0].distance, orbit: 0 };
+    const camera = { yaw: cameras[0].yaw, pitch: cameras[0].pitch, distance: cameras[0].distance, orbit: 0 };
     let leaving = { yaw: camera.yaw, pitch: camera.pitch, distance: camera.distance };
     let travel = 1;
     // Closing slowly on whatever is holding, once the camera has arrived.
-    const pushed = () => 1 - CAMERAS[scene].push * easeInOut((held - CAMERA_S * 0.7) / (HOLDS[scene] + 1 - CAMERA_S * 0.7));
+    const pushed = () => 1 - cameras[scene].push * easeInOut((held - CAMERA_S * 0.7) / (holds[scene] + 1 - CAMERA_S * 0.7));
     // Where the pointer is, and the softer place the particles feel it, which follows it.
     const pointer = { x: 0, y: 0, vx: 0, vy: 0, toX: 0, toY: 0, dx: 0, dy: 0, reach: 0, inside: false, movedAt: 0 };
     let ripple = { x: 0, y: 0, age: -1 };
@@ -882,7 +903,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.drawArrays(gl.POINTS, 0, count);
     }
     const next = (restTo?: number) => {
-      const after = restTo ?? (scene + 1) % FILM_CHAPTERS.length;
+      const after = restTo ?? (scene + 1) % chapters.length;
       if (restTo === undefined && after === 0) cycleRef.current?.();
       const buffer = (chapterIndex: number) => (chapterIndex === 0 ? (wordmark >= 0 ? wordmark : 0) : chapterIndex);
       const closedTo = pushed();
@@ -900,7 +921,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       const turn = Math.PI * 2;
       const yaw = camera.yaw + camera.orbit;
       // From exactly where it is, slow push included, so that nothing jumps as the scene changes.
-      leaving = { yaw: CAMERAS[after].yaw + ((((yaw - CAMERAS[after].yaw + Math.PI) % turn) + turn) % turn) - Math.PI, pitch: camera.pitch, distance: camera.distance * closedTo };
+      leaving = { yaw: cameras[after].yaw + ((((yaw - cameras[after].yaw + Math.PI) % turn) + turn) % turn) - Math.PI, pitch: camera.pitch, distance: camera.distance * closedTo };
       camera.yaw = leaving.yaw;
       camera.distance = leaving.distance;
       camera.orbit = 0;
@@ -919,7 +940,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       // Blown apart, it goes as a spring does, all at once. Otherwise steadily, with each particle easing.
       if (endScattered && !rejoin) [blend, velocity] = stepSpring(blend, velocity, 1, BURST, dt);
       else blend = morph = Math.min(1, morph + dt / (closingRef.current ? GATHER_S : MORPH_S));
-      const want = CAMERAS[scene];
+      const want = cameras[scene];
       // One unhurried move from where it was to where this scene is seen from, drawing back a little
       // on the way as a crane does. Its slow drift comes in only once it has arrived.
       travel = Math.min(1, travel + dt / CAMERA_S);
@@ -1053,7 +1074,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
             velocity = 0;
           }
         }
-        if (held > HOLDS[scene] && !closingRef.current && !quick) next();
+        if (held > holds[scene] && !closingRef.current && !quick) next();
       } else if (!asleepRef.current && !ending && !quietRef.current && scene !== 1) {
         next(1);
       }
@@ -1099,7 +1120,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       from = to = 1;
       scene = 1;
       bind(from, to);
-      const still = CAMERAS[1];
+      const still = cameras[1];
       camera.yaw = still.yaw;
       camera.pitch = still.pitch;
       camera.distance = still.distance;
@@ -1122,20 +1143,20 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       document.removeEventListener("visibilitychange", onVisibility);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
-  }, [reduceMotion, ending, rejoin, quick]);
+  }, [reduceMotion, ending, rejoin, quick, demo]);
 
-  const shown = FILM_CHAPTERS[playing ? chapter : 0];
+  const shown = chapters[playing ? chapter : 0] ?? chapters[0];
   return (
     <>
       {/* A context is lost for good when the scene restarts, so each restart gets a new canvas. */}
-      <canvas key={`${reduceMotion}/${ending}/${rejoin}/${quick}`} ref={canvas} className="boot-scene" aria-hidden="true" />
+      <canvas key={`${reduceMotion}/${ending}/${rejoin}/${quick}/${demo}`} ref={canvas} className="boot-scene" aria-hidden="true" />
       {playing && !quick && (
         <div className="film-caption" aria-hidden="true" key={chapter}>
           <span className="film-chapter">{shown.label}</span>
           <h3>{shown.title}</h3>
           <p>{shown.text}</p>
           <span className="film-ticks">
-            {FILM_CHAPTERS.map((c, i) => (
+            {chapters.map((c, i) => (
               <i key={c.label} className={i === chapter ? "on" : ""} />
             ))}
           </span>

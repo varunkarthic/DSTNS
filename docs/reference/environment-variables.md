@@ -112,6 +112,7 @@ Read by the server when it starts. The launcher sets them from its settings; see
 | `DSTNS_DISABLED_CAPABILITIES` | empty | Comma-separated capabilities nobody may be granted |
 | `DSTNS_PRESENTATION` | `{}` | JSON for the observer: `webfabric`, `force_animate`, `fast_boot`, `demo`, `music`, `fullscreen` (true or false), and `music_volume` (0 to 1). Anything else is ignored |
 | `DSTNS_FABRIC_LAUNCH_KEY` | | Given by the launcher to an application it starts, to present when it registers |
+| `DSTNS_FASTBOOT_DIR` | | A folder of `{key}.osm.xml.gz` files, from `./launcher fastboot download`. A city found there is unpacked rather than downloaded |
 
 ## Standard variables
 

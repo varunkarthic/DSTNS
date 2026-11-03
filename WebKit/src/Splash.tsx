@@ -83,7 +83,7 @@ export function useBootPhase(live: boolean | null): BootPhase {
  * has reached, a little later than it reached them, and `holding` keeps the screen up
  * until the last has been seen.
  */
-export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabled: boolean, filmSeen = true): { stage: SplashStage | null; holding: boolean } {
+export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabled: boolean, filmSeen = true, stepMs = STAGE_MIN_MS): { stage: SplashStage | null; holding: boolean } {
   const [shown, setShown] = useState(0);
   const [graceOver, setGraceOver] = useState(false);
   const running = enabled && phase === "film";
@@ -95,9 +95,9 @@ export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabl
   }, [running, graceOver]);
   useEffect(() => {
     if (!running || shown >= goal) return;
-    const timer = setTimeout(() => setShown((step) => step + 1), STAGE_MIN_MS);
+    const timer = setTimeout(() => setShown((step) => step + 1), stepMs);
     return () => clearTimeout(timer);
-  }, [running, shown, goal]);
+  }, [running, shown, goal, stepMs]);
   if (!enabled) return { stage: real, holding: false };
   // Ready, and the whole film has been seen: nothing keeps it here. Ready, but the film is
   // not finished: it plays to its end, as it is part of arriving. Once it has been through
@@ -137,6 +137,7 @@ export function Splash({
   landing,
   phase,
   quick = false,
+  demo = false,
   onFilmCycle,
 }: {
   stage: SplashStage;
@@ -145,6 +146,8 @@ export function Splash({
   landing?: () => Float32Array | null;
   phase?: BootPhase;
   quick?: boolean;
+  /** Demo Mode: the film about everything, on a loop, with nothing to wait for. */
+  demo?: boolean;
   onFilmCycle?: () => void;
 }) {
   const [elapsed, setElapsed] = useState(0);
@@ -159,10 +162,11 @@ export function Splash({
   return (
     <LoadingSurface
       mode="boot"
-      eyebrow={stage.waiting ? "Welcome to DSTNS" : undefined}
-      title={stage.label}
-      status={stage.waiting || elapsed < 15 ? stage.detail : `${stage.detail ?? "Working"} · ${elapsed} s`}
-      steps={stage.waiting ? undefined : BOOT_STEPS}
+      eyebrow={demo ? "DSTNS" : stage.waiting ? "Welcome to DSTNS" : undefined}
+      title={demo ? "A day in a real city" : stage.label}
+      status={demo ? "Simulated, watched and built on." : stage.waiting || elapsed < 15 ? stage.detail : `${stage.detail ?? "Working"} · ${elapsed} s`}
+      steps={stage.waiting || demo ? undefined : BOOT_STEPS}
+      demo={demo}
       stepIndex={stage.step}
       progress={stage.progress}
       progressLabel={stage.label}

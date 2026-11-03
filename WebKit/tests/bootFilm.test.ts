@@ -3,8 +3,8 @@
 
 import source from "../src/bootScenes.ts?raw";
 import { describe, expect, it } from "vitest";
-import { FILM_CHAPTERS, landingPoints, LANDING_MS, MAP_AT_MS, PANELS_AT_MS } from "../src/BootScene";
-import { buildFormations, COUNT, KIND, onLand, STRIDE } from "../src/bootScenes";
+import { DEMO_CHAPTERS, FILM_CHAPTERS, landingPoints, LANDING_MS, MAP_AT_MS, PANELS_AT_MS } from "../src/BootScene";
+import { buildDemoFormations, buildFormations, COUNT, KIND, onLand, STRIDE } from "../src/bootScenes";
 import { sunHeight } from "../src/CommandRail";
 import { BUILT_IN } from "../src/uiConfig";
 import { filterPlaces, PLACE_FILTERS } from "../src/mapModel";
@@ -51,7 +51,8 @@ it("arrives in order: the roads, then the map, then the panels", () => {
 });
 
 describe("the film's scenes", () => {
-  const scenes = buildFormations();
+  // The film, then Demo Mode's scenes after it, which must be as distinct.
+  const scenes = [...buildFormations(), ...buildDemoFormations()];
   // How a scene's particles are spread through space, at 1/6 of a unit.
   const field = (scene: Float32Array) => {
     const cells = new Map<string, number>();
@@ -76,7 +77,7 @@ describe("the film's scenes", () => {
     return both / Math.sqrt(lengthA * lengthB);
   };
   it("has a scene for each chapter, and fills every particle with a finite position", () => {
-    expect(scenes).toHaveLength(FILM_CHAPTERS.length);
+    expect(scenes).toHaveLength(FILM_CHAPTERS.length + DEMO_CHAPTERS.length);
     for (const scene of scenes) {
       expect(scene).toHaveLength(COUNT * STRIDE);
       for (let i = 0; i < scene.length; i++) if (!Number.isFinite(scene[i])) throw new Error(`bad value at ${i}`);
@@ -112,7 +113,7 @@ it("has nowhere to land without roads or a window", () => {
 });
 
 it("keeps every headline to one or two words, and nothing has a comma", () => {
-  for (const chapter of FILM_CHAPTERS) {
+  for (const chapter of [...FILM_CHAPTERS, ...DEMO_CHAPTERS]) {
     expect(chapter.title.split(" ").length).toBeLessThanOrEqual(2);
     expect(`${chapter.label}${chapter.title}${chapter.text}`).not.toContain(",");
     // It is a simulation: nothing may read as if it were happening now, or for real.
