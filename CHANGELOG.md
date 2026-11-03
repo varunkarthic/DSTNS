@@ -79,6 +79,15 @@ With Fast Boot or Dynamic Fastboot on, asking for a new world in the observer st
 dialog opens, while the current world keeps running. **Generate** puts it in at once; **Cancel** forgets it. On screen
 the old world's ending plays, its particles gather back into the name, and the name becomes the new map.
 
+- **A new world asked for while the next city is still downloading takes a city already in the cache,** rather
+  than wait for that download; the city on its way stays next.
+- **Fixed: the name held for four seconds with nothing under it** when a new world was still being built. It moves
+  on to the film as soon as it has formed.
+- **Fixed: a frosted band hung across the top of the screen** as a new world landed: the shell's own colour,
+  showing where the header had been. And the logo flew to where the arriving header was, half off the screen,
+  instead of where it comes to rest.
+- **The adaptive film has no progress bars under its steps** on a first start or a new world, as it has no fixed
+  length.
 - **Fixed: a new world's map arrived before the particles had built its roads,** when the observer had been opened on
   a run already going: it took a reload's quicker timing. A new world now lands as a first start does, and the name
   that re-forms goes straight on to the map, without the film's opening caption.
@@ -97,6 +106,17 @@ planned cuts back to the name within a moment. It has no progress dashes, since 
   the last ones took, kept in `preparation-times.json`. The film plans only by a confident one, so a long Overpass
   request no longer leaves it resting on the name until the download ends.
 - **`startup.force_animate`** (Play the whole film) is now off by default, and can't be on with the adaptive film.
+- **Fixed: "Server Unreachable" could show before the ending had played.** Its words and light were timed from when
+  the screen appeared, not from when the particles began, and a page in the background draws no particles. The
+  ending now waits until the page is seen, the panels leave before the map as they do when a session is terminated,
+  and the words come once the particles have scattered.
+
+### Scrolling menus
+
+- **Fixed: a frosted strip hung at the top and bottom of every scrolling menu** (About, Settings, Layers, the
+  feeds). The edges are now a fade on the scroller itself, which grows with what is beyond the edge, rather than a
+  blurred band over the content. The bands also took a gap each in menus laid out with gaps, adding 16 px of empty
+  space, and stayed half shown on a list that scrolled only a little.
 
 ### Demo Mode
 

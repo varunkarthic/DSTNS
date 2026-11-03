@@ -74,7 +74,7 @@ smooths the steps a mouse wheel arrives in; a softer one with no bounce takes it
 | Where | Limit |
 |---|---|
 | Every scrolling region | Its top and bottom. `installEdgeResistance` covers them all, so a new menu needs nothing |
-| Scrolling menus | Content goes under a band that blurs more towards the edge: 40 px at the end and 24 px at the start, each driven by a scroll timeline so that it goes away when there is nothing beyond it |
+| Scrolling menus | What runs on past an edge fades into the panel, 40 px at the end and 24 px at the start, by a mask on the scroller. Each fade is driven by a scroll timeline, so it grows with what is beyond the edge and is gone when there is nothing |
 | Map zoom | 5% past fit is free, then resistance to a hard 10%, and it stays where it is let go |
 | Map pan | Part of the network stays on screen |
 | Speed and interval sliders | Either end |

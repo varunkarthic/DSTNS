@@ -927,7 +927,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         // the "auto" source; an operator-pinned map file stays pinned.
         if (!graph_->scenario().map_city.empty()) config.osm_file = "auto";
         // Dynamic Fastboot has its city on disk already, or on its way.
-        seed = next_world_.take(config, failed_city(config)).value_or(seed_avoiding_failed_city(failed_seed_, config));
+        seed = next_world_.take(config, failed_city(config), graph_->scenario().map_city).value_or(seed_avoiding_failed_city(failed_seed_, config));
         previous = run_id_;
         rate = requested_tick_rate_;
         compile_generation = ++compile_generation_;

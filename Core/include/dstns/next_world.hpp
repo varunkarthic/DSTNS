@@ -32,9 +32,11 @@ public:
 
     // A world was installed: if it was the one prepared, that one is used up; then the one after is prepared.
     void installed(Seed128 seed, const ScenarioConfig& config);
-    // The seed a new world for this configuration should take: the one prepared, or being prepared, if any, unless it
-    // is in `avoid_city`.
-    [[nodiscard]] std::optional<Seed128> take(const ScenarioConfig& config, const std::string& avoid_city = "") const;
+    // The seed a new world for this configuration should take: the one prepared, if its city is here. While that is
+    // still on its way, a city already in the cache other than `current_city`, which is sooner; else the one on its way.
+    // Never in `avoid_city`.
+    [[nodiscard]] std::optional<Seed128> take(const ScenarioConfig& config, const std::string& avoid_city = "",
+                                              const std::string& current_city = "") const;
     // What the next world is, and how far it has got, for /api/v1/world/status.
     [[nodiscard]] nlohmann::json status() const;
 

@@ -111,5 +111,39 @@ int main() {
     Server plain(off.path, {"--maps", (off / "maps").string(), "--map-cache", "keep"}, {{"DSTNS_DYNAMIC_FASTBOOT", "0"}});
     EXPECT(plain.call("GET", "/api/v1/world/status").data().at("next").at("enabled") == false);
     EXPECT(plain.call("GET", "/api/v1/system/features").data().at("presentation").at("dynamic_fastboot") == false);
+    // The next city still on its way: a new world takes a city already in the cache rather than wait for it.
+    {
+        std::string elsewhere;
+        for (int seed = 1; elsewhere.empty(); ++seed) {
+            const auto key = json::parse(run({server_binary(), "--city-of-seed", std::to_string(seed)}).output).at("key").get<std::string>();
+            if (key != "berlin_x5000") elsewhere = key;
+        }
+        std::atomic<bool> gate = false;
+        Upstream stalled;
+        stalled.http.Post(".*", [&](const httplib::Request&, httplib::Response& res) {
+            for (const double end = now() + 30; !gate && now() < end;) delay(0.02);
+            res.status = 503;
+        });
+        stalled.start();
+        TempDir slow;
+        const auto cache = slow / "maps";
+        fs::create_directories(cache);
+        write(cache / "berlin_x5000.osm.xml", fixture);
+        write(cache / (elsewhere + ".osm.xml"), fixture);
+        Server server(slow.path, {"--maps", cache.string(), "--map-cache", "keep"}, {{"DSTNS_OVERPASS_ENDPOINTS", stalled.url() + "/api/interpreter"}});
+        const auto started = server.op("POST", "/api/v1/playback/start", json{{"seed", berlin.front()}, {"playback_duration_seconds", 600}, {"map", {{"osm_file", "auto"}, {"cache_dir", cache.string()}}}});
+        EXPECT(started.status == 202, started);
+        until([&] { return server.call("GET", "/api/v1/playback/status").data().at("lifecycle") == "RUNNING"; }, 30, "the Berlin world");
+        const auto next = server.call("GET", "/api/v1/world/status").data().at("next");
+        if (next.at("state") == "fetching") {
+            EXPECT(server.op("POST", "/api/v1/world/regenerate", json{{"stage", true}}).status == 202);
+            until([&] { return server.call("GET", "/api/v1/world/status").data().at("state") == "staged"; }, 15, "a world from the cache, with no wait");
+            const auto staged_seed = server.call("GET", "/api/v1/world/status").data().at("seed").get<std::string>();
+            EXPECT(json::parse(run({server_binary(), "--city-of-seed", staged_seed}).output).at("key") == elsewhere, staged_seed, elsewhere);
+            const auto still = server.call("GET", "/api/v1/world/status").data().at("next");
+            EXPECT(still.at("seed") == next.at("seed") && still.at("state") == "fetching", "the city on its way stays next", still);
+        }
+        gate = true;
+    }
     std::cout << "dynamic fastboot ok: next city fetched, kept through a sweep, taken by the next world; ETA reported\n";
 }

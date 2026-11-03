@@ -199,7 +199,7 @@ DSTNS is for research, teaching, algorithm integration and demonstrations. It ha
 
 ## Tested
 
-Every test is C++, Rust or TypeScript: 31 engine and HTTP suites under ctest (each HTTP suite a program that starts a real server on a port of its own, with stand-ins for every upstream), 49 launcher tests, and 474 for the observer. The HTTP contract is replayed against a recorded baseline of 155 calls, and every route is fuzzed with hostile values on every run.
+Every test is C++, Rust or TypeScript: 31 engine and HTTP suites under ctest (each HTTP suite a program that starts a real server on a port of its own, with stand-ins for every upstream), 49 launcher tests, and 476 for the observer. The HTTP contract is replayed against a recorded baseline of 155 calls, and every route is fuzzed with hostile values on every run.
 
 ```bash
 ./scripts/test.sh

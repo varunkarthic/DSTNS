@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { LoadingSurface } from "../src/LoadingSurface";
 import { BootFailure, BOOT_STEPS, ShutdownSurface, Splash, splashStageFor } from "../src/Splash";
 
 afterEach(cleanup);
@@ -64,6 +65,28 @@ describe("start-up states", () => {
     expect(screen.getByRole("heading")).toHaveTextContent("Server Terminated");
     expect(screen.getByText("The simulation has ended.")).toBeInTheDocument();
     expect(document.querySelector(".loading-progress.working")).toBeNull();
+  });
+
+  it("holds the end's words until the page has been seen, and its particles have begun", () => {
+    vi.useFakeTimers();
+    let hidden = true;
+    const visibility = vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
+    try {
+      render(<LoadingSurface mode="boot" idle ending title="Server Unreachable" reduceMotion={false} />);
+      const surface = () => document.querySelector(".loading-surface")!;
+      act(() => void vi.advanceTimersByTime(20000));
+      expect(surface()).not.toHaveClass("began");
+      hidden = false;
+      act(() => void document.dispatchEvent(new Event("visibilitychange")));
+      act(() => void vi.advanceTimersByTime(1000));
+      expect(surface()).not.toHaveClass("began");
+      // No particles here to begin it, so it begins once the page has been seen for a moment.
+      act(() => void vi.advanceTimersByTime(2000));
+      expect(surface()).toHaveClass("began");
+    } finally {
+      visibility.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it("stops at the first network, with nothing held after it", () => {

@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { Icon } from "./Icons";
 import { Logo } from "./Logo";
 import { BootScene, MAP_AT_MS, QUICK_ARRIVAL } from "./BootScene";
+import { currentFeatures } from "./features";
 import type { CSSProperties } from "react";
 
 /**
@@ -133,15 +134,36 @@ export function LoadingSurface({
     if (!logo || !home) return;
     const a = logo.getBoundingClientRect();
     const b = home.getBoundingClientRect();
+    // Where the header comes to rest, not where it is while it arrives, shifted up out of the way.
+    const arriving = typeof DOMMatrixReadOnly === "function" ? new DOMMatrixReadOnly(getComputedStyle(home.closest(".app-header") ?? home).transform) : { e: 0, f: 0 };
     const scale = b.height / a.height;
-    surface.current?.style.setProperty("--fly", `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(${scale})`);
+    surface.current?.style.setProperty("--fly", `translate(${b.left - arriving.e + b.width / 2 - (a.left + a.width / 2)}px, ${b.top - arriving.f + b.height / 2 - (a.top + a.height / 2)}px) scale(${scale})`);
   }, [closing, mode, reduceMotion]);
+  // The end's light and words are timed from when its particles begin, which is not before the page is seen.
+  // Should the particles never begin, the words come anyway, once the page has been seen for a moment.
+  const [endBegan, setEndBegan] = useState(false);
+  useEffect(() => {
+    if (!ending || endBegan) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const watch = () => {
+      clearTimeout(timer);
+      if (!document.hidden) timer = setTimeout(() => setEndBegan(true), 2500);
+    };
+    watch();
+    document.addEventListener("visibilitychange", watch);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", watch);
+    };
+  }, [ending, endBegan]);
   const done = !!steps && stepIndex >= steps.length - 1 && !failed;
   const known = typeof progress === "number" && Number.isFinite(progress);
   const percent = known ? Math.round(Math.min(1, Math.max(0, progress!)) * 100) : 0;
   // Loading plays the film, with progress along the bottom. A failure or a shutdown is
   // something to read, so it stays a card in the middle.
   const film = mode === "boot" && !failed && (!!steps?.length || !!eyebrow || demo);
+  // The adaptive film plays as many scenes as the wait allows, so nothing under it counts towards an end.
+  const segments = film && !currentFeatures().presentation.dynamic_particles;
   const body = (
     <div className={`loading-card${film ? " film" : ""}`} data-tip-avoid>
       {mode === "boot" && (
@@ -187,7 +209,7 @@ export function LoadingSurface({
               <span className="loading-steps-rail" aria-hidden="true"><i style={{ transform: `scaleX(${steps.length > 1 ? Math.min(1, stepIndex / (steps.length - 1)) : 0})` }} /></span>
               {steps.map((s, i) => (
                 <li key={s.id} className={i < stepIndex ? "done" : i === stepIndex ? "active" : ""} aria-current={i === stepIndex ? "step" : undefined}>
-                  {film && <span className="film-segment" aria-hidden="true"><i style={i === stepIndex && known ? { transform: `translateX(${percent - 100}%)`, animation: "none" } : undefined} /></span>}
+                  {segments && <span className="film-segment" aria-hidden="true"><i style={i === stepIndex && known ? { transform: `translateX(${percent - 100}%)`, animation: "none" } : undefined} /></span>}
                   <span className="loading-step-dot" aria-hidden="true">
                     {i < stepIndex || (done && i === stepIndex) ? <Icon name="check" size={14} strokeWidth={2.4} /> : null}
                   </span>
@@ -220,7 +242,7 @@ export function LoadingSurface({
     <div
       ref={surface}
       style={{ "--map-at": `${quick ? QUICK_ARRIVAL.mapAt : MAP_AT_MS}ms` } as CSSProperties}
-      className={`loading-surface ${mode} phase-${film ? phase : "film"}${ending ? " ending" : ""}${rejoin ? " rejoin" : ""}${exiting ? " exiting" : ""}${quick ? " quick" : ""}${fastBoot ? " fastboot" : ""}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
+      className={`loading-surface ${mode} phase-${film ? phase : "film"}${ending ? " ending" : ""}${ending && endBegan ? " began" : ""}${rejoin ? " rejoin" : ""}${exiting ? " exiting" : ""}${quick ? " quick" : ""}${fastBoot ? " fastboot" : ""}${closing ? " closing" : ""}${closing && film && !reduceMotion ? " landing" : ""}${reduceMotion ? " still" : ""}`}
       role={role}
       aria-modal={role === "alertdialog" ? true : undefined}
       aria-labelledby={titleId}
@@ -228,7 +250,7 @@ export function LoadingSurface({
       aria-live={role === "status" ? "polite" : undefined}
     >
       {mode === "boot" && (
-        <BootScene playing={film && phase === "film" && !exiting} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending || rejoin} rejoin={rejoin} quiet={failed && rejoin} quick={quick} glint={fastBoot} demo={demo} onCycle={onFilmCycle} reduceMotion={reduceMotion} />
+        <BootScene playing={film && phase === "film" && !exiting} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending || rejoin} rejoin={rejoin} quiet={failed && rejoin} quick={quick} glint={fastBoot} demo={demo} onCycle={onFilmCycle} onEndBegan={() => setEndBegan(true)} reduceMotion={reduceMotion} />
       )}
       {film && !rejoin && !quick && <BootTitle phase={phase} />}
       {fastBoot && !closing && (

@@ -8,6 +8,7 @@
 
 #include <cstdlib>
 #include <fstream>
+#include <set>
 
 namespace dstns {
 
@@ -116,16 +117,33 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
     })});
 }
 
-std::optional<Seed128> NextWorld::take(const ScenarioConfig& config, const std::string& avoid_city) const {
+std::optional<Seed128> NextWorld::take(const ScenarioConfig& config, const std::string& avoid_city, const std::string& current_city) const {
     if (!enabled() || config.osm_file != "auto") return std::nullopt;
     const auto prepared = read_pointer(config.map_cache_dir);
-    if (!prepared.is_object() || prepared.value("extent_m", 0.0) != config.map_city_extent_m) return std::nullopt;
-    if (!avoid_city.empty() && prepared.value("city", "") == avoid_city) return std::nullopt;
-    try {
-        return Seed128::from_decimal(prepared.value("seed", ""));
-    } catch (const std::exception&) {
-        return std::nullopt;
+    const std::string on_its_way = prepared.is_object() ? prepared.value("city", "") : "";
+    std::optional<Seed128> next;
+    if (prepared.is_object() && prepared.value("extent_m", 0.0) == config.map_city_extent_m && on_its_way != avoid_city) {
+        try {
+            next = Seed128::from_decimal(prepared.value("seed", ""));
+        } catch (const std::exception&) {
+        }
+        if (next && prepared.value("state", "") == "ready") return next;
     }
+    // Not here yet: a city already in the cache is sooner. The one on its way stays next, for the world after this.
+    const std::filesystem::path cache = config.map_cache_dir;
+    std::set<std::string> cached;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(cache, ec)) {
+        if (entry.path().extension() == ".xml" && entry.file_size(ec) > 0) cached.insert(entry.path().filename().string());
+    }
+    // ponytail: random draws until one lands in a cached city; with 181 cities, 4000 draws all but always find one.
+    for (int tries = 0; !cached.empty() && tries < 4000; ++tries) {
+        const auto seed = Seed128::secure64();
+        const auto location = select_map_location(seed, config.map_city_extent_m);
+        if (location.city == avoid_city || location.city == current_city || location.city == on_its_way) continue;
+        if (cached.contains(location.cache_path(cache).filename().string())) return seed;
+    }
+    return next;
 }
 
 nlohmann::json NextWorld::status() const {

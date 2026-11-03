@@ -708,7 +708,7 @@ function rgb(value: string, fallback: [number, number, number]): [number, number
   return parts.length >= 3 && parts.every(Number.isFinite) ? [parts[0] / 255, parts[1] / 255, parts[2] / 255] : fallback;
 }
 
-export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, quick = false, glint = false, onCycle, demo = false, dynamic, reduceMotion }: {
+export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, quick = false, glint = false, onCycle, onEndBegan, demo = false, dynamic, reduceMotion }: {
   /** The film runs; otherwise the network rests dimly behind whatever is on screen. */
   playing: boolean;
   /** Nothing is drawn yet, because the title has the screen. */
@@ -726,6 +726,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
   quick?: boolean;
   /** The film has shown every scene once. */
   onCycle?: () => void;
+  /** The ending has begun on screen: what is timed by it can start. A hidden page draws nothing, so not before it is seen. */
+  onEndBegan?: () => void;
   /** With quick: the name waits with a light passing across it, for Fast Boot. */
   glint?: boolean;
   /** Demo Mode: the film goes on to the scenes about the rest of the system, and loops. */
@@ -748,6 +750,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
   const quietRef = useRef(quiet);
   quietRef.current = quiet;
   const cycleRef = useRef(onCycle);
+  const endBeganRef = useRef(onEndBegan);
+  endBeganRef.current = onEndBegan;
   cycleRef.current = onCycle;
   const asleepRef = useRef(asleep);
   asleepRef.current = asleep;
@@ -909,6 +913,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     let landedFrom = 0;
     let endScattered = false;
     let rejoined = false;
+    // The name, re-formed for a new world, has no caption to be read under it: it goes on once it has formed.
+    let rejoinHold = false;
     let endStart = 0;
     let closingFor = -1;
     let blend = 1;
@@ -969,6 +975,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         held = 0;
         return;
       }
+      rejoinHold = false;
       const buffer = (chapterIndex: number) => (chapterIndex === 0 ? (wordmark >= 0 ? wordmark : 0) : chapterIndex);
       const closedTo = pushed();
       from = to;
@@ -1075,6 +1082,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       // film carries on from there as it does at start-up.
       if (rejoin && started && !rejoined && playingRef.current) {
         rejoined = true;
+        rejoinHold = true;
         from = to;
         to = wordmark;
         scene = 0;
@@ -1090,6 +1098,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         // Starts standing on the map's roads, wherever they are, and gathers into the name.
         started = true;
         endStart = now / 1000;
+        endBeganRef.current?.();
         const points = landingRef.current?.();
         from = wordmark;
         to = wordmark;
@@ -1138,7 +1147,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
             velocity = 0;
           }
         }
-        if (held > holds[scene] && !closingRef.current && !quick) next();
+        if (held > (rejoinHold ? MORPH_S + 0.5 : holds[scene]) && !closingRef.current && !quick) next();
         // Ready sooner than the plan thought: back to the name, once this scene has been seen.
         else if (planned && scene !== 0 && held > 0.6 && remainingEta() === 0 && !closingRef.current && !quick) {
           next(0);

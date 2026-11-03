@@ -20,7 +20,8 @@ int main() {
             return std::nullopt;
         }, 8, "the download to fail").value();
     };
-    server.op("POST", "/api/v1/playback/start", json{{"seed", "42"}, {"map", {{"osm_file", "auto"}}}});
+    // A cache of its own, and empty: a city already there would be taken rather than downloaded.
+    server.op("POST", "/api/v1/playback/start", json{{"seed", "42"}, {"map", {{"osm_file", "auto"}, {"cache_dir", (tmp / "maps").string()}}}});
     auto city = failed_city();
     for (int i = 0; i < 8; ++i) {
         server.op("POST", "/api/v1/world/regenerate", json::object());

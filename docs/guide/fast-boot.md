@@ -35,7 +35,7 @@ sequenceDiagram
 | When | What happens |
 |---|---|
 | A world is installed | The next seed is chosen at random, in a city other than this one, and its city fetched in the background. A seed prepared earlier and not yet used is kept instead |
-| A new world is asked for | It takes the prepared seed. If its city is still downloading, the new world waits for that download rather than starting another, and shows its progress |
+| A new world is asked for | It takes the prepared seed. If its city is still downloading, it takes a city already in the map cache instead, other than the one running, and the city on its way stays next. With none cached, it waits for that download rather than starting another, and shows its progress |
 | The launcher starts a run with no `--seed` | It reads `next-world.json` and starts with that seed |
 | The server starts | The map cache sweep keeps the next world's city, whatever the cache policy |
 | The background download fails | The pointer is removed, and the next world chooses for itself, as it always did |
@@ -100,7 +100,8 @@ dialog opens**, before *Generate* is pressed:
 
 On screen, the old world's ending plays as always, its particles gather back into the name,
 and, because the new world is already there, the name goes straight on to its map: no
-caption, and no film between. The particles build the new roads, the map comes in under
+caption, and no film between. If the new world is still being built, the name moves on as
+soon as it has formed, and the film plays its scenes until the world is ready. The particles build the new roads, the map comes in under
 them, and then the panels, in the same order as a first start.
 
 ## The adaptive film

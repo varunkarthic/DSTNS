@@ -2497,6 +2497,8 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .loading-surface.ending .loading-status { margin: 12px auto 0; font-size: 13px; line-height: 1.5; text-align: center; color: var(--text-dim); }
 @keyframes end-text { from { opacity: 0; transform: translateY(8px); } }
 .loading-surface.still.ending .loading-card, .loading-surface.still.ending::after, .loading-surface.still.ending::before { animation: none; }
+/* Their delays count from when the particles begin, which a hidden page does not draw: until then, nothing of either. */
+.loading-surface.ending:not(.still):not(.began) .loading-card, .loading-surface.ending:not(.still):not(.began)::after { animation: none; opacity: 0; }
 .capsule-body, .capsule.open .capsule-body, .capsule:not(.open) .capsule-body { opacity: 1; }
 /* The text is gone before the card moves much, so it closes empty and nothing drifts. */
 .capsule-body-inner { min-height: 0; }
@@ -2509,7 +2511,8 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 
 /* ---- Scrolling --------------------------------------------------------------------------------- */
 /* Every scrolling region has its own layer from the start, so the browser moves it without asking
-   the page. Nothing inside one is masked, filtered or blurred, because each would mean repainting. */
+   the page. Nothing inside one is masked, filtered or blurred, because each would mean repainting; the
+   soft edges below are a mask on the scroller, not on what is in it. */
 :is(.about-scroll, .settings-scroll, .layers-scroll, .place-search-results, .capsule-body-inner, .fabric-panel-body, .deck-panel-body, .scroll-region, .stream) {
   will-change: scroll-position;
   contain: paint;
@@ -2648,6 +2651,9 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .app-shell .telemetry-deck { transition-delay: 130ms; }
 .app-shell .bottom-stack { transition-delay: 190ms; }
 .app-shell .map-readout { transition-delay: 320ms; }
+/* With the header away, the shell behind it is the workspace's colour, or its strip would hang over the film. */
+.app-shell.booting { background: var(--surface-container-lowest); }
+[data-theme="light"] .app-shell.booting { background: #eef1f3; }
 /* Everything opaque about the surface is on its ::before, which fades, or the map could not show through. */
 [data-theme="light"] .loading-surface.boot { background: none; }
 
@@ -2767,29 +2773,19 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 html:not([data-input="tab"]) :focus-visible { outline: none; }
 
 /* ---- Scrolling menus end softly -------------------------------------------------------------------
-   Content goes under a band that blurs more the nearer it is to the edge, instead of being cut by a line.
-   It goes away at each end, so that what is there can be read. The scroller carries it, on its own clock. */
-:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)::after,
-:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)::before {
-  content: ""; position: sticky; display: block; flex: none; z-index: 2; left: 0; width: 100%; pointer-events: none;
-  animation-timing-function: linear; animation-fill-mode: both; animation-timeline: scroll(nearest block);
+   What runs on past an edge fades into the panel, 24 px at the start and 40 px at the end, by a mask on the
+   scroller itself: no strip, nothing laid over it. Each fade grows with the scroll, on its own clock, so an edge
+   with nothing beyond it is sharp, and a list that does not scroll has none. */
+@property --edge-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --edge-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner) {
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-start), #000 calc(100% - var(--edge-end)), transparent);
+  animation: edge-start linear both, edge-end linear both;
+  animation-timeline: scroll(self), scroll(self);
+  animation-range: 0 24px, calc(100% - 40px) 100%;
 }
-/* Named here because blur is otherwise off everywhere, for what it costs behind large moving things.
-   These are small strips that only re-blur what scrolls beneath them. */
-html body :is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)::after,
-html body :is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)::before { backdrop-filter: blur(5px) !important; }
-:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)::after {
-  bottom: 0; height: 40px; margin-top: -40px; opacity: 0;
-  mask-image: linear-gradient(to top, #000 8%, rgb(0 0 0 / 55%) 45%, transparent);
-  animation-name: edge-end; animation-range: calc(100% - 40px) 100%;
-}
-:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)::before {
-  top: 0; height: 24px; margin-bottom: -24px; opacity: 0;
-  mask-image: linear-gradient(to bottom, #000 8%, rgb(0 0 0 / 55%) 45%, transparent);
-  animation-name: edge-start; animation-range: 0 24px;
-}
-@keyframes edge-end { from { opacity: 1; } to { opacity: 0; } }
-@keyframes edge-start { from { opacity: 0; } to { opacity: 1; } }
+@keyframes edge-start { from { --edge-start: 0px; } to { --edge-start: 24px; } }
+@keyframes edge-end { from { --edge-end: 40px; } to { --edge-end: 0px; } }
 
 /* Settings: a panel's 8px all round, so that its cards are concentric with it. */
 .settings-scroll { padding: 8px; gap: 8px; }

@@ -1099,8 +1099,16 @@ export default function App() {
       setServerGone(false);
       return;
     }
-    const timer = setTimeout(() => setServerGone(true), 8000);
-    return () => clearTimeout(timer);
+    // The ending is to be seen: a hidden page waits until it is shown, then plays it from the start.
+    const gone = () => {
+      if (document.hidden) document.addEventListener("visibilitychange", gone, { once: true });
+      else setServerGone(true);
+    };
+    const timer = setTimeout(gone, 8000);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", gone);
+    };
   }, [lostConnection]);
   const bootFailure = sim.error && !sim.topology && !world.active && !shutDown ? sim.error : "";
   const lastFailure = useRef(bootFailure);
@@ -1108,7 +1116,7 @@ export default function App() {
   const failure = usePresence(!!bootFailure, MOTION_MS.boot);
   // A new world lands as a start-up does: the particles build its roads, then the map comes in under them, then the
   // panels. Never on a reload's quicker timing, which would show the map before the particles had reached it.
-  const arrival = useArrival(!!(showSplash || bootFailure || shutDown || (world.active && !world.closing)), reduceMotion || !filmAvailable(), returning && !world.active);
+  const arrival = useArrival(!!(showSplash || bootFailure || shutDown || serverGone || (world.active && !world.closing)), reduceMotion || !filmAvailable(), returning && !world.active);
   viewContext.current = { busy: suspended ? "suspended" : tutorial.busy ? "tutorial" : dialog ? "dialog" : arrival !== "all" ? "arriving" : null, world: sim.topology };
   // While the start-up is on screen, a world that finishes waits for it. A hidden tab is not
   // watching, and a closed one stops saying so, and the engine then carries on by itself.
