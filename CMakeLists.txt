@@ -66,7 +66,9 @@ target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQL
 if(APPLE)
   target_link_libraries(dstns_core PUBLIC "-framework CoreFoundation" "-framework CFNetwork")
 endif()
-target_compile_definitions(dstns_core PUBLIC DSTNS_VERSION="${PROJECT_VERSION}")
+# The HTTP library listens with a backlog of 5 by default: an observer, its applications and a burst of polls connect at
+# once, and connections past the fifth would be dropped before a thread could take them.
+target_compile_definitions(dstns_core PUBLIC DSTNS_VERSION="${PROJECT_VERSION}" CPPHTTPLIB_LISTEN_BACKLOG=128)
 target_compile_options(dstns_core PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 
 # Apple clang already targets apple-m1 (the baseline of every Apple silicon
@@ -101,18 +103,35 @@ add_executable(dstns_road_index tools/road-index/main.cpp)
 target_link_libraries(dstns_road_index PRIVATE dstns_core)
 add_executable(dstns_replay_verify tools/replay-verify/main.cpp)
 target_link_libraries(dstns_replay_verify PRIVATE dstns_core)
+# Release engineering: image metadata, publishing, the image smoke test and licence headers. It needs no engine.
+add_executable(dstns_release tools/release/main.cpp)
+target_link_libraries(dstns_release PRIVATE nlohmann_json::nlohmann_json httplib::httplib)
+target_compile_definitions(dstns_release PRIVATE DSTNS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+if(APPLE)
+  target_link_libraries(dstns_release PRIVATE "-framework CoreFoundation" "-framework CFNetwork")
+endif()
 add_executable(dstns_benchmark tools/benchmark/main.cpp)
 target_link_libraries(dstns_benchmark PRIVATE dstns_core)
 
 if(DSTNS_BUILD_TESTS)
   enable_testing()
-  find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  foreach(smoke loading termination hardening narration fabric_contract fabric_apps fabric_platform fabric_direction fabric_launch robustness docs_coverage launcher_apps fastboot)
-    add_test(NAME dstns_http_${smoke}
-      COMMAND ${CMAKE_COMMAND} -E env "DSTNS_SERVER=$<TARGET_FILE:dstns_server>"
-        ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/api/${smoke}_smoke.py")
-    set_tests_properties(dstns_http_${smoke} PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 45)
+  # The HTTP tests: each a program of its own, against a real server it starts on a port of its own.
+  set(DSTNS_HTTP_TESTS api docs_coverage another_city termination loading fastboot hardening robustness fabric_contract narration observer_hold
+    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release)
+  foreach(name ${DSTNS_HTTP_TESTS})
+    add_executable(dstns_http_${name} tests/http/${name}.cpp)
+    target_link_libraries(dstns_http_${name} PRIVATE dstns_fabric)
+    target_include_directories(dstns_http_${name} PRIVATE Fabric/src)
+    target_compile_definitions(dstns_http_${name} PRIVATE DSTNS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    target_compile_options(dstns_http_${name} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    set_target_properties(dstns_http_${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/http-tests" OUTPUT_NAME ${name})
+    add_dependencies(dstns_http_${name} dstns_server)
+    add_test(NAME dstns_http_${name} COMMAND ${CMAKE_COMMAND} -E env "DSTNS_SERVER=$<TARGET_FILE:dstns_server>" $<TARGET_FILE:dstns_http_${name}>)
+    set_tests_properties(dstns_http_${name} PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 120)
   endforeach()
+  add_dependencies(dstns_http_release dstns_release)
+  # The launcher may have to be compiled first.
+  set_tests_properties(dstns_http_launcher_apps PROPERTIES TIMEOUT 600)
   add_executable(dstns_tests tests/unit/test_main.cpp)
   target_link_libraries(dstns_tests PRIVATE dstns_core)
   target_compile_options(dstns_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)

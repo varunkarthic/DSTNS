@@ -10,7 +10,6 @@ data/checkpoints/*
 artifacts
 data/maps/*.osm.xml
 data/seed-store
-.venv-launcher
 .cache
 .env
 .env.*
@@ -22,3 +21,4 @@ site
 docker/certificates
 WebKit/test-results
 WebKit/playwright-report
+LaunchKit/target

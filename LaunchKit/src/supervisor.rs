@@ -400,7 +400,9 @@ impl Supervisor {
     fn run_main(&self, slot: &Arc<Slot>, command: &str) -> std::result::Result<(), String> {
         let app = &slot.app;
         while !slot.stop.is_set() && !self.cancel.is_set() {
-            self.set(slot, Phase::Starting, &slot.state.lock().unwrap().1.clone());
+            // Read first: the guard would otherwise live through set(), which takes the same lock.
+            let detail = slot.state.lock().unwrap().1.clone();
+            self.set(slot, Phase::Starting, &detail);
             let began = Instant::now();
             // A key for this process alone, so that it can prove to the server to be this application.
             let mut key = [0u8; 32];

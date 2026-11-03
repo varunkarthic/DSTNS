@@ -30,8 +30,13 @@ jobs:
       channel: ${{ steps.identity.outputs.channel }}
     steps:
       - uses: actions/checkout@v6
+      - name: Build the release tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libsqlite3-dev zlib1g-dev libcurl4-openssl-dev
+          cmake -S . -B build -DDSTNS_BUILD_TESTS=OFF && cmake --build build --target dstns_release -j"$(nproc)"
       - id: identity
-        run: python3 scripts/image-metadata.py
+        run: ./build/dstns_release metadata
 
   build:
     name: Build and exercise ${{ matrix.arch }}
@@ -73,12 +78,17 @@ jobs:
           sbom: true
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+      - name: Build the release tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libsqlite3-dev zlib1g-dev libcurl4-openssl-dev
+          cmake -S . -B build -DDSTNS_BUILD_TESTS=OFF && cmake --build build --target dstns_release -j"$(nproc)"
       - name: Pull and test the exact candidate on its native architecture
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           docker pull "$IMAGE@$DIGEST"
-          python3 tests/docker/smoke.py "$IMAGE@$DIGEST" --arch '${{ matrix.arch }}' --revision '${{ needs.metadata.outputs.revision }}'
+          ./build/dstns_release smoke "$IMAGE@$DIGEST" --arch '${{ matrix.arch }}' --revision '${{ needs.metadata.outputs.revision }}'
       - name: Export verified digest
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
@@ -143,4 +153,4 @@ jobs:
         env:
           META: ${{ steps.meta.outputs.json }}
         run: |
-          python3 scripts/publish-image.py --digests /tmp/digests
+          ./build/dstns_release publish --digests /tmp/digests

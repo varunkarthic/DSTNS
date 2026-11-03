@@ -367,36 +367,36 @@ fn ctest(paths: &Paths) -> Outcome {
         .remedy("The core is not behaving as specified; run ctest --test-dir build --output-on-failure.")
 }
 
-fn smoke(paths: &Paths, script: &str, what: &str) -> (i32, String, f64) {
-    let file = paths.root.join("tests").join("api").join(script);
-    if !paths.server().exists() || !file.exists() {
-        return (-2, format!("{what}: core not built"), 0.0);
+/// One of the HTTP test programs ctest builds, against this checkout's server.
+fn http_test(paths: &Paths, name: &str, timeout: f64) -> Option<(i32, String, f64)> {
+    let program = paths.build().join("http-tests").join(name);
+    if !paths.server().exists() || !program.exists() {
+        return None;
     }
-    capture(&["python3", &file.to_string_lossy(), "--server", &paths.server().to_string_lossy()], Some(&paths.root), 180.0, &[])
+    let server = paths.server().to_string_lossy().into_owned();
+    Some(capture(&[&program.to_string_lossy()], Some(&paths.root), timeout, &[("DSTNS_SERVER", &server)]))
 }
 
 fn api_suite(paths: &Paths) -> Outcome {
-    let (code, out, seconds) = smoke(paths, "api_smoke.py", "api");
-    if code == -2 {
-        return Outcome::new(State::Skipped, "core not built");
-    }
-    let count = Regex::new(r"PASSED:\s*(\d+) assertions").unwrap().captures(&out).map(|c| c[1].to_string()).unwrap_or_else(|| "all".into());
+    let Some((code, out, seconds)) = http_test(paths, "api", 180.0) else {
+        return Outcome::new(State::Skipped, "tests not built");
+    };
+    let count = Regex::new(r"(\d+) requests checked").unwrap().captures(&out).map(|c| c[1].to_string()).unwrap_or_else(|| "all".into());
     if code == 0 {
-        Outcome::new(State::Pass, format!("{count} assertions passed in {seconds:.1}s"))
+        Outcome::new(State::Pass, format!("{count} requests checked in {seconds:.1}s"))
     } else {
-        Outcome::new(State::Fail, "HTTP contract violated").detail(tail(&out)).remedy("Run python3 tests/api/api_smoke.py for details.")
+        Outcome::new(State::Fail, "HTTP contract violated").detail(tail(&out)).remedy("Run build/http-tests/api for details.")
     }
 }
 
 fn loading_suite(paths: &Paths) -> Outcome {
-    if !paths.server().exists() {
-        return Outcome::new(State::Skipped, "core not built");
-    }
-    let (code, out, seconds) = capture(&["python3", &paths.root.join("tests/api/loading_smoke.py").to_string_lossy()], Some(&paths.root), 60.0, &[]);
+    let Some((code, out, seconds)) = http_test(paths, "loading", 60.0) else {
+        return Outcome::new(State::Skipped, "tests not built");
+    };
     if code == 0 {
         Outcome::new(State::Pass, format!("start-up, polling, regeneration and cancellation passed in {seconds:.1}s"))
     } else {
-        Outcome::new(State::Fail, "loading regression").detail(tail(&out)).remedy("Run python3 tests/api/loading_smoke.py for details.")
+        Outcome::new(State::Fail, "loading regression").detail(tail(&out)).remedy("Run build/http-tests/loading for details.")
     }
 }
 

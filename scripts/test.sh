@@ -2,18 +2,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Varun Karthic
 
+# Every suite: the engine's and the HTTP tests (ctest), the launcher's (cargo) and the observer's (Vitest).
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 "$root/scripts/build.sh"
 ctest --test-dir "$root/build" --output-on-failure
+cargo test --release --manifest-path "$root/LaunchKit/Cargo.toml"
 npm test --prefix "$root/WebKit"
-python3 "$root/tests/api/api_smoke.py" --server "$root/build/dstns_server"
-python3 "$root/tests/cli/test_fetch_osm.py"
-python3 "$root/tests/cli/test_seeds.py"
-python3 "$root/tests/launcher/test_core.py"
-python3 "$root/tests/launcher/test_interfaces.py"
-python3 "$root/tests/launcher/test_narration.py"
-
-python3 "$root/tests/api/loading_smoke.py"
-python3 "$root/tests/api/another_city_smoke.py"
-python3 "$root/tests/api/observer_hold_smoke.py"

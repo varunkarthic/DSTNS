@@ -70,9 +70,8 @@ try {
   const token = readFileSync(path.join(dir, "operator.token"), "utf8").trim();
   const seedDb = path.join(dir, `seeds-${Date.now()}.db`);
   const run = spawnSync(
-    "python3",
+    path.join(root, "launcher"),
     [
-      "launcher.py",
       "start",
       "--seed",
       "382923",
@@ -336,9 +335,8 @@ try {
   await call("/api/v1/playback/reset", {});
   await page.getByText("Waiting for a simulation").waitFor();
   const reused = spawnSync(
-    "python3",
+    path.join(root, "launcher"),
     [
-      "launcher.py",
       "start",
       "--saved-seed",
       "browser-weekend",

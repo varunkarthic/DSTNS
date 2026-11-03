@@ -89,6 +89,8 @@
   },
   "startup": {
     "fast_boot": false,
+    "dynamic_fastboot": true,
+    "dynamic_particles": true,
     "force_animate": true
   },
   "presentation": {

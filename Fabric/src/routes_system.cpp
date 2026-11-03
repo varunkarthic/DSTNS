@@ -371,8 +371,8 @@ void ApiServer::routes_system() {
     server_->Get("/api/v1/system/features", [](const auto&, auto& r) {
         const auto& on = switches();
         const char* regeneration = std::getenv("DSTNS_DISABLE_WORLD_REGENERATION");
-        auto presentation = json{{"webfabric", true}, {"force_animate", true}, {"fast_boot", false}, {"demo", false}, {"music", false}, {"fullscreen", false}, {"music_volume", 0.6},
-                                 {"map_fps", 0}, {"render_scale", 2.0}, {"film_particles", 32000}};
+        auto presentation = json{{"webfabric", true}, {"force_animate", true}, {"fast_boot", false}, {"dynamic_fastboot", true}, {"dynamic_particles", true},
+                                 {"demo", false}, {"music", false}, {"fullscreen", false}, {"music_volume", 0.6}, {"map_fps", 0}, {"render_scale", 2.0}, {"film_particles", 32000}};
         presentation.update(on.presentation);
         // Fast Boot exists to skip the wait, so the film is not made to play to its end.
         if (presentation.value("fast_boot", false)) presentation["force_animate"] = false;

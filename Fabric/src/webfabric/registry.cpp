@@ -349,7 +349,7 @@ const Switches& switches() {
         if (const char* text = std::getenv("DSTNS_PRESENTATION"); text && *text) {
             try {
                 const auto given = json::parse(text);
-                for (const char* key : {"webfabric", "force_animate", "fast_boot", "demo", "music", "fullscreen"})
+                for (const char* key : {"webfabric", "force_animate", "fast_boot", "dynamic_fastboot", "dynamic_particles", "demo", "music", "fullscreen"})
                     if (given.is_object() && given.contains(key) && given.at(key).is_boolean()) out.presentation[key] = given.at(key);
                 const auto number = [&](const char* key) -> std::optional<double> {
                     if (given.is_object() && given.contains(key) && given.at(key).is_number()) return given.at(key).get<double>();

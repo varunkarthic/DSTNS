@@ -14,6 +14,10 @@ export interface Features {
     webfabric: boolean;
     force_animate: boolean;
     fast_boot: boolean;
+    /** The next city is fetched while a world runs, so that the next one is ready in seconds. */
+    dynamic_fastboot: boolean;
+    /** The film plans its scenes from the server's estimate of how long the world will take. */
+    dynamic_particles: boolean;
     demo: boolean;
     music: boolean;
     fullscreen: boolean;
@@ -30,7 +34,7 @@ export interface Features {
 export const DEFAULT_FEATURES: Features = {
   applications: true,
   legacy_api: true,
-  presentation: { webfabric: true, force_animate: true, fast_boot: false, demo: false, music: false, fullscreen: false, music_volume: 0.6, map_fps: 0, render_scale: 2, film_particles: 32000 },
+  presentation: { webfabric: true, force_animate: true, fast_boot: false, dynamic_fastboot: true, dynamic_particles: true, demo: false, music: false, fullscreen: false, music_volume: 0.6, map_fps: 0, render_scale: 2, film_particles: 32000 },
 };
 
 let current = DEFAULT_FEATURES;

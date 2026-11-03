@@ -31,7 +31,7 @@ pub fn stages(scope: &str, paths: &Paths) -> Vec<Stage> {
     let unit = stage("Native suites (unit, property, replay, performance, HTTP)", &["ctest", "--test-dir", &build, "--output-on-failure"]);
     let replay = stage("Reproducibility verification", &[&s(paths.build().join("dstns_replay_verify"))]);
     let benchmark = stage("Load benchmark (quick)", &[&s(paths.build().join("dstns_benchmark")), "--quick"]);
-    let api = stage("HTTP contract suite", &["python3", &s(paths.root.join("tests/api/api_smoke.py")), "--server", &s(paths.server())]);
+    let api = stage("HTTP suites", &["ctest", "--test-dir", &build, "-R", "^dstns_http_", "--output-on-failure"]);
     let sumo = stage("SUMO integration smoke test", &["bash", &s(paths.root.join("tests/integration/sumo_smoke.sh"))]);
     let launcher = stage("Launcher tests", &["cargo", "test", "--release", "--manifest-path", &s(paths.root.join("LaunchKit/Cargo.toml"))]);
     let observer = stage("Observer test suites", &["npm", "test", "--prefix", &ui]);
@@ -51,7 +51,8 @@ pub fn stages(scope: &str, paths: &Paths) -> Vec<Stage> {
         "launcher" => vec![launcher],
         "ui" => ui_stages,
         _ => {
-            let mut all = vec![configure, compile, unit, replay, benchmark, api, sumo, launcher];
+            // The native suites include the HTTP ones.
+            let mut all = vec![configure, compile, unit, replay, benchmark, sumo, launcher];
             all.extend(ui_stages);
             all.push(bundle);
             all
