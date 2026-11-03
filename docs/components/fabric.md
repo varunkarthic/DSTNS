@@ -29,7 +29,7 @@ To add a route, add it to the module for its group and to the index in
 ## Compatibility
 
 Moving the API under Fabric changed no endpoint, schema or behaviour. That is tested,
-not assumed: `tests/api/fabric_contract_smoke.py` replays 155 calls against a baseline
+not assumed: `tests/http/fabric_contract.cpp` replays 155 calls against a baseline
 recorded from the server before the move, covering reads before and during a run,
 writes, aliases and refusals. A status, content type or recorded header must match,
 and every recorded response key must still exist with the same type. New routes and

@@ -22,7 +22,8 @@ is quicker: it needs nothing but Docker.
 | zlib (development headers) | any current | Compressing large API responses |
 | Node.js | 20 | Building the observer |
 | npm | 9 | Installing JavaScript dependencies |
-| Python 3 | 3.10 | The launcher, the map downloader and the test suites |
+| Rust and Cargo | 1.89 | The launcher, built by `./launcher` on first use ([rustup.rs](https://rustup.rs)) |
+| libcurl (development headers) | any current; the system's on macOS | The map downloader, which is the server itself |
 | git | any | Cloning; CMake also fetches two header-only libraries |
 | Eclipse SUMO | optional, 1.15+ | The microscopic cross-check |
 
@@ -36,7 +37,8 @@ configure, so that step needs network access.
 
     ```bash
     xcode-select --install                  # Apple Clang, make, git
-    brew install cmake node python          # SQLite and zlib ship with macOS
+    brew install cmake node                 # SQLite, zlib and libcurl ship with macOS
+    curl https://sh.rustup.rs -sSf | sh     # Rust, for the launcher
     brew install sumo                       # optional
     ```
 
@@ -44,8 +46,9 @@ configure, so that step needs network access.
 
     ```bash
     sudo apt-get update
-    sudo apt-get install -y build-essential cmake git python3 \
-        libsqlite3-dev zlib1g-dev ca-certificates curl
+    sudo apt-get install -y build-essential cmake git \
+        libsqlite3-dev zlib1g-dev libcurl4-openssl-dev ca-certificates curl
+    curl https://sh.rustup.rs -sSf | sh     # Rust, for the launcher
     # Node.js 20+ (the distribution package is often older):
     curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
     sudo apt-get install -y nodejs
@@ -55,7 +58,7 @@ configure, so that step needs network access.
 === "Fedora"
 
     ```bash
-    sudo dnf install -y gcc-c++ cmake git python3 sqlite-devel zlib-devel nodejs npm
+    sudo dnf install -y gcc-c++ cmake git sqlite-devel zlib-devel libcurl-devel nodejs npm cargo
     sudo dnf install -y sumo                 # optional
     ```
 
@@ -73,7 +76,7 @@ configure, so that step needs network access.
 Check the toolchain:
 
 ```bash
-c++ --version && cmake --version && node --version && python3 --version
+c++ --version && cmake --version && node --version && cargo --version
 ```
 
 ## Get the code
@@ -91,9 +94,10 @@ cd DSTNS
 
 The launcher is the supported path. It:
 
-1. installs its terminal interface on first interactive use (into `.venv-launcher/`);
-2. shows the SVG-derived wordmark for at least three seconds while running the
-   [start-up checks](#start-up-checks), then opens the dashboard;
+1. builds itself with Cargo the first time (about a minute), and again only when its sources change;
+2. assembles the wordmark out of particles while running the
+   [start-up checks](#start-up-checks), and on a first launch walks through the
+   [setup](../guide/operator-cli.md#first-launch-the-setup) before the dashboard;
 3. after **Start simulation** is selected, configures and compiles the core, and installs and builds the observer,
    only when their sources have changed since the last build;
 4. starts `build/dstns_server`, opens the observer and starts a run.
@@ -101,8 +105,7 @@ The launcher is the supported path. It:
 Use `./launcher start` to proceed directly to a run. Build and download time
 depend on hardware, network and cache state; the first build can take a few
 minutes. Activity labels name the current operation throughout preparation.
-See [Loading feedback](../guide/operator-cli.md#loading-feedback) for animation
-and static-output options.
+See [Start-up](../guide/operator-cli.md#start-up) for the animation and how to turn it off.
 
 ## Build manually
 
@@ -143,9 +146,9 @@ Run the server on its own and start a run from another terminal:
 
 Opened in a terminal, the launcher checks that this machine can run a simulation
 before showing the dashboard, and says what to do when it cannot: the platform,
-Python, the build tools, both configuration files, the logs directory, the map
+Rust, the build tools, both configuration files, the logs directory, the map
 downloader and cache, the core and observer builds, the API port and SUMO. Every check
-is listed in [Launcher: environment check](../guide/operator-cli.md#environment-check).
+is listed in [Launcher: start-up checks](../guide/operator-cli.md#start-up-checks).
 **Diagnostics** in the launcher can also run the core, HTTP, loading and observer
 test suites on this machine.
 
@@ -157,7 +160,7 @@ finds `sumo` and `netconvert` through `SUMO_HOME`, the standard prefixes or
 
 ```bash
 export SUMO_HOME=/opt/homebrew/share/sumo    # or wherever SUMO is installed
-curl -s localhost:8090/api/v1/system/info | python3 -m json.tool | grep -A3 '"sumo"'
+curl -s localhost:8090/api/v1/system/info | jq .sumo
 ```
 
 !!! warning "A SUMO that cannot start"
@@ -169,11 +172,12 @@ curl -s localhost:8090/api/v1/system/info | python3 -m json.tool | grep -A3 '"su
 ## Verify the installation
 
 ```bash
-ctest --test-dir build --output-on-failure      # 14 native and HTTP suites
-npm test --prefix WebKit                     # observer suites
+ctest --test-dir build --output-on-failure                  # 31 engine and HTTP suites
+cargo test --release --manifest-path LaunchKit/Cargo.toml   # the launcher
+npm test --prefix WebKit                                    # observer suites
 ```
 
-Both should pass in under a minute. See [Testing](../development/testing.md)
+Each should pass in about a minute. See [Testing](../development/testing.md)
 for everything else.
 
 ## Updating
@@ -198,9 +202,10 @@ Everything DSTNS creates lives inside the repository:
 |---|---|---|
 | `build/` | Native build | Yes; rebuilt on next start |
 | `WebKit/dist/`, `WebKit/node_modules/` | JavaScript build and dependencies | Yes |
-| `.venv-launcher/` | The launcher's terminal interface | Yes; reinstalled on next use |
+| `LaunchKit/target/` | The launcher's build | Yes; rebuilt on next use |
+| `config/launcher.env` | Whether the setup has been done | Yes; the setup runs again |
 | `logs/` | Logs, journal, operator token | Yes; `./launcher reset` clears it |
-| `data/maps/` | Downloaded city maps | Yes; downloaded again when needed |
+| `data/maps/` | Downloaded city maps, and Dynamic Fastboot's next city (`next-world.json`) | Yes; downloaded again when needed |
 | `data/seed-store/` | Saved seeds | Only if you no longer need them |
 
 Delete the repository directory to remove DSTNS completely.
@@ -224,8 +229,12 @@ Delete the repository directory to remove DSTNS completely.
     Install Node.js 20 or later and make sure `node` and `npm` are on `PATH`. Node.js
     is needed only to build the observer.
 
+??? failure "`the launcher is built with Rust, which was not found`"
+    Install Rust from [rustup.rs](https://rustup.rs), open a new terminal so that
+    `cargo` is on `PATH`, and run `./launcher` again.
+
 ??? failure "The launcher opens in compatibility mode"
-    The terminal interface could not be installed or started; the reason is in
+    The terminal interface could not start in this terminal; the reason is in
     `logs/launcher.log`. See [Troubleshooting: the launcher](../troubleshooting.md#the-launcher).
 
 ??? failure "The FetchContent step hangs or fails"

@@ -42,7 +42,7 @@ Then:
 | | Docker | From source |
 |---|---|---|
 | Operating system | Anything that runs Docker | macOS 13+, Linux; Windows through WSL 2 |
-| Software | Docker 24+ with Compose v2 | CMake 3.22+, a C++20 compiler, SQLite, zlib, Node.js 20+, Python 3.10+ |
+| Software | Docker 24+ with Compose v2 | CMake 3.22+, a C++20 compiler, SQLite, zlib, libcurl, Node.js 20+, Rust 1.89+ |
 | Disk | About 250 MB image + map cache | About 1 GB with build outputs and `node_modules` |
 | Memory | 1 GB free for a typical 3,000-node district | The same |
 | Network | Internet access to download city maps (or use the bundled offline map) | The same |

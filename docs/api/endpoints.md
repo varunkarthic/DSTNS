@@ -109,7 +109,7 @@ Builds a world as `start` does, and doesn't begin playing. Takes the same fields
 
 ### `GET /api/v1/fabric/engine/status`
 
-Lifecycle, clock, seed, rate and configuration. `lifecycle` is one of `IDLE`, `PREPARING`, `READY`, `RUNNING`, `PAUSED`, `SEEKING`, `COMPLETED`, `TERMINATING`; see [lifecycle](lifecycle.md).
+Lifecycle, clock, seed, rate and configuration. `lifecycle` is one of `IDLE`, `PREPARING`, `READY`, `RUNNING`, `PAUSED`, `SEEKING`, `COMPLETED`, `TERMINATING`; see [lifecycle](lifecycle.md). While `PREPARING`, `data.eta_s` is how many seconds the world will take, and `data.eta_confident` whether that rests on something measured (a download of known size, a city on disk, the build) rather than on how long the last ones took; both are `null` and `false` otherwise. The same applies to `/api/v1/playback/status`.
 
 **Who:** Anyone who can reach the port.
 
@@ -1269,7 +1269,10 @@ Response `200`, from a real run:
 
 ### `GET /api/v1/system/info`
 
-Version, build, and whether SUMO is available.
+Version, build, the server process, and whether SUMO is available. `process` is the server
+itself: `pid`, `uptime_s`, `peak_rss_bytes` (the most memory it has held) and `cpu_s`
+(processor time used). The launcher's dashboard, `ps`, `uptime` and the prompt's live
+readings come from it.
 
 **Who:** Anyone who can reach the port.
 
@@ -1288,6 +1291,12 @@ Response `200`, from a real run:
   },
   "lifecycle": "PAUSED",
   "ok": true,
+  "process": {
+    "cpu_s": 41.73,
+    "peak_rss_bytes": 224395264,
+    "pid": 48211,
+    "uptime_s": 751.4
+  },
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
   "sumo": {
@@ -1584,11 +1593,34 @@ Errors: `400` for the period; `403 DIRECTORY_NOT_ALLOWED`; `503 SUMO_FAILED`.
 
 ### `POST /api/v1/world/regenerate`
 
-A new world, from a new seed from the secure generator, with every other setting copied from the run the operator started. It can't choose anything else. `DSTNS_DISABLE_WORLD_REGENERATION=1` turns it off.
+A new world, from a new seed from the secure generator (or the one [Dynamic Fastboot](../guide/fast-boot.md#dynamic-fastboot) prepared), with every other setting copied from the run the operator started. It can't choose anything else. `DSTNS_DISABLE_WORLD_REGENERATION=1` turns it off.
 
 **Who:** Anyone who can reach the port, except a page from another site.
 
-Errors: `403 WORLD_REGENERATION_DISABLED`.
+Body, all optional:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `expected_run_id` | string | Refuse with `409` if the current run is no longer this one |
+| `stage` | boolean | Prepare it without replacing the current world, which keeps running. It waits in state `staged` for a commit or a discard |
+
+Errors: `403 WORLD_REGENERATION_DISABLED`, `409 LIFECYCLE_CONFLICT`.
+
+### `POST /api/v1/world/regenerate/commit`
+
+Puts in the world prepared with `stage`: at once if it is ready, or as soon as it is. Like
+any new world it starts paused at 00:00:00. The observer calls it when a person presses
+**Generate**.
+
+**Who:** As for regenerate. Errors: `403 WORLD_REGENERATION_DISABLED`, and `409` when no
+world is waiting to be confirmed.
+
+### `POST /api/v1/world/regenerate/discard`
+
+Forgets the world prepared with `stage`. One still being prepared finishes, and is dropped.
+The current world is untouched, and with nothing staged it does nothing.
+
+**Who:** As for regenerate.
 
 ### `GET /api/v1/world/status`
 
@@ -1612,11 +1644,26 @@ Response `200`, from a real run:
     "seed": "",
     "seed_hex": "",
     "stage": "idle",
-    "state": "idle"
+    "state": "idle",
+    "eta_s": null,
+    "eta_confident": false,
+    "next": {
+      "enabled": true,
+      "state": "ready",
+      "seed": "9021178532209915623",
+      "city": "Lisbon",
+      "country": "Portugal"
+    }
   },
   "ok": true
 }
 ```
+
+`state` is `idle`, `generating`, `staged` (prepared and waiting to be confirmed), `ready` or
+`failed`. While generating, `eta_s` is how many seconds the new world will take, and
+`eta_confident` whether that rests on something measured; see
+[the adaptive film](../guide/fast-boot.md#the-adaptive-film). `next` is Dynamic Fastboot's next
+world: `state` is `idle`, `fetching`, `ready`, `failed` or `off`.
 
 ## Applications: joining
 

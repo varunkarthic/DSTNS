@@ -69,31 +69,70 @@ docker run -d --name dstns -p 127.0.0.1:8090:8090 \
   -e DSTNS_SEED=382923 ghcr.io/varunkarthic/dstns:stable
 ```
 
-Then open `http://localhost:8090`. The first run downloads its city, which takes up to a minute.
+Then open `http://localhost:8090`. The first run downloads its city, which takes up to a minute; after that, [Dynamic Fastboot](#fast-starts) has the next one ready before you ask.
 
-To build from source you need a C++20 compiler, CMake 3.22, SQLite and zlib headers, Node 20 and Python 3.10. On Windows, use WSL 2.
+To build from source you need a C++20 compiler, CMake 3.22, SQLite, zlib and libcurl headers, Node 20 and Rust 1.89. On Windows, use WSL 2. Nothing needs Python.
+
+| | |
+|---|---|
+| **The first launch** | `./launcher` builds itself (about a minute, once), checks the machine, and walks through a short setup: how a run starts, how it looks and sounds, how hard it works your machine, and what may connect to it |
+| **After that** | The dashboard, in a few milliseconds |
 
 ## The launcher
 
 <img src="docs/assets/screenshots/launcher.png" alt="The DSTNS launcher's dashboard in a terminal" width="100%">
 
-The launcher checks your environment, builds what's needed, and runs everything from one place, in its terminal interface or with a single command:
+The launcher checks your environment, builds what's needed, and runs everything from one place. It's a Rust program with a console's look: a status line, live readings of the engine, the simulation, the next world and the system, the server's own log as it's written, and a prompt at the foot of every page.
 
 ```bash
 ./launcher start --seed 382923 --day-type weekend --speed 3
 ./launcher start --osm-file data/fixtures/real_network.osm.xml   # offline
 ./launcher start --seed 42 --save-seed demo                      # keep it
 ./launcher start --saved-seed demo                               # replay it
+./launcher ui demo                                               # the interface, on its Demo page, playing
 ```
 
 It starts your own programs along with the simulation. Give each one its commands, and choose which to bring up when a run starts. The engine comes up, the observer opens, your applications start, and only when all of them are ready does the day begin.
 
 ```bash
-./launcher apps add planner --command "python3 planner.py" --ready fabric
+./launcher apps add planner --command "node planner.js --url {url}" --ready fabric
 ./launcher start --apps planner
 ```
 
-Every feature has a setting, from Fabric's capabilities to music. **Fast Boot** downloads every city once, compressed, so that a run starts in seconds, and `./launcher demo` plays the start-up film on a loop, full screen and with its own music.
+Every feature has a setting, named for what it does, and settings that can't go together never are: turn one on and the launcher turns the other off, and says so.
+
+### The console
+
+The launcher reads command lines as a shell does, in its command bar, with `-c`, in `./launcher shell`, or one command at a time from your own shell:
+
+```bash
+./launcher ps | grep server                                # plain text, to pipe
+./launcher -c 'logs api | grep 500 | wc -l'                # how many requests failed
+./launcher -c 'stop && start --seed 42 --no-open'          # one thing after another
+./launcher -c 'ps | grep -q running || start'              # only if nothing is running
+```
+
+`ls`, `cat`, `tail`, `ps`, `get`, `env`, `uptime`, `about` and `docs` read the launcher's state; `grep`, `wc`, `sort`, `uniq`, `cut` and `tee` filter it; and every other command is one of the launcher's own, captured so it pipes too. In the interface, `:` opens the prompt, with suggestions, completion, a history kept between sessions, and the server's processor and memory at its right.
+
+## Fast starts
+
+| | |
+|---|---|
+| **Dynamic Fastboot** | While a world runs, the next one is chosen, in another city, and its map fetched in the background. A new world, or tomorrow's first start, is ready in seconds. On by default |
+| **Fast Boot** | `./launcher fastboot download` keeps every city, compressed, so that no start ever downloads |
+| **New worlds prepared ahead** | Ask the observer for a new world and it is prepared while you decide; *Generate* puts it in at once, *Cancel* forgets it |
+| **The adaptive film** | The start-up film plans itself by the server's estimate of when the world will be ready: as many scenes as fit, in a new order every time, always opening on the name and closing on the flight into the map |
+
+`./launcher demo` plays the film on a loop, full screen, with an original score, including scenes on time control, many worlds and AI, in whatever order you set.
+
+## AI ready
+
+The **MCP Handler** lets an AI client call DSTNS through the Model Context Protocol: every API route is a tool, and so are starting and stopping runs. No agent is included, and it is closed by default; you choose whether a client may read, change things, or start runs.
+
+```bash
+./launcher config set mcp.enabled on
+./launcher mcp client-config          # what to add to your MCP client
+```
 
 <br>
 
@@ -113,7 +152,7 @@ Every feature has a setting, from Fabric's capabilities to music. **Fast Boot** 
 
 ## Fabric and WebFabric
 
-**Fabric** is the layer everything reaches the engine through: 124 documented routes over HTTP and JSON, described in OpenAPI 3.1. **WebFabric** lets your own programs become part of the observer. There's nothing to install. A program registers itself and declares what it wants to show as data, and the observer draws it in its own design.
+**Fabric** is the layer everything reaches the engine through: 146 documented paths over HTTP and JSON, described in OpenAPI 3.1, with an index the server serves itself. **WebFabric** lets your own programs become part of the observer. There's nothing to install. A program registers itself and declares what it wants to show as data, and the observer draws it in its own design.
 
 ```python
 token = post("/api/v1/fabric/apps", {
@@ -157,6 +196,14 @@ The cover is drawn from the run itself: its city, how busy each street is at tha
 The same seed, resolved configuration, map bytes and compatible build give the same results. A seed alone won't reproduce an old experiment if the map upstream or the model has changed, so keep those alongside it. The limits, floating point among them, are documented.
 
 DSTNS is for research, teaching, algorithm integration and demonstrations. It has no calibration or certification for controlling real traffic.
+
+## Tested
+
+Every test is C++, Rust or TypeScript: 31 engine and HTTP suites under ctest (each HTTP suite a program that starts a real server on a port of its own, with stand-ins for every upstream), 49 launcher tests, and 474 for the observer. The HTTP contract is replayed against a recorded baseline of 155 calls, and every route is fuzzed with hostile values on every run.
+
+```bash
+./scripts/test.sh
+```
 
 ## Security
 

@@ -10,11 +10,15 @@ never be committed.
 | `build/` | CMake | Compiled binaries and test executables | Yes; rebuilt on demand |
 | `WebKit/dist/` | `./launcher ui build` | The compiled observer the server serves | Yes; rebuilt on demand |
 | `WebKit/node_modules/` | `npm ci` | Observer build dependencies | Yes; reinstalled |
-| `.venv-launcher/` | First interactive launcher use | Pinned Textual and Rich dependencies | Yes, with the launcher stopped; reinstalled on next interactive use |
+| `LaunchKit/target/` | `./launcher`, when its sources change | The launcher's build | Yes; rebuilt on next use |
+| `config/launcher.env` | The first-launch setup | `DSTNS_SETUP_COMPLETE=1` | Yes; the setup runs again |
+| `logs/command-history` | The command bar | The last 500 command lines | Yes |
+| `logs/preparation-times.json` | The server, after each world | How long fetching and building took, for the ETA | Yes; estimates start from defaults |
+| `data/maps/next-world.json` | The server, with Dynamic Fastboot | The next world's seed and city, and whether it is on disk | Yes; another is chosen |
 | `logs/` | launcher and server | Logs, journal and credential (below) | Yes, with the server stopped; `./launcher reset` does it for you |
 | `data/maps/` | the server | Cached city extracts and manifests | Yes; they are downloaded again when needed |
 | `data/fixtures/` | repository | One recorded real district for offline use | No; tracked |
-| `data/seed-store/` | `dstns_launcher/core/seeds.py` | Saved seeds and copies of pinned maps | Only if you do not need your saved seeds |
+| `data/seed-store/` | `LaunchKit/src/seeds.rs` | Saved seeds and copies of pinned maps | Only if you do not need your saved seeds |
 | `artifacts/` | tests, SUMO runs | Temporary scenarios and outputs | Yes |
 | `site/` | `mkdocs build` | The built documentation | Yes |
 | `.venv-docs/` | you | The documentation toolchain | Yes |

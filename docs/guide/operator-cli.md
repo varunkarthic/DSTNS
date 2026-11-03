@@ -37,7 +37,7 @@ DSTNS: building the launcher (only when its sources change)...
 ```
 
 The first build takes about a minute; after that the script starts the program in a few
-milliseconds. It needs [Rust](https://rustup.rs) (1.80 or later, with Cargo) and the
+milliseconds. It needs [Rust](https://rustup.rs) (1.89 or later, with Cargo) and the
 system's SQLite. Nothing is downloaded at run time, and nothing is installed outside the
 checkout: the build goes to `LaunchKit/target/`, or, in a checkout a cloud client syncs,
 to the local cache (see [Checkouts in a synced folder](#checkouts-in-onedrive-icloud-drive-or-dropbox)).
@@ -53,7 +53,7 @@ before the dashboard:
 | Step | What it asks |
 |---|---|
 | 1. Welcome | Nothing: what the setup covers, and whether this machine passed its checks |
-| 2. Starting up | Dynamic Fastboot, the dynamic film, Fast Boot, whether the film plays to its end, the observer's settings, narration |
+| 2. Starting up | Dynamic Fastboot, the adaptive start-up film, Fast Boot, whether the whole film plays, the observer's settings, Realistic News |
 | 3. Looks and sound | Music, its volume, full screen, and the same for Demo Mode |
 | 4. Performance | A preset (Light, Balanced, Best) or each value: compression, threads, the map's frame rate, render scale, film particles |
 | 5. Fabric | What applications may do: connect, the legacy API, launch proposals, signatures, each capability |
@@ -115,7 +115,7 @@ things rather than boxes around them.
 |---|---|
 | **Status line** | The name, where you are, the page's state (a symbol and a word), the version and the time. On a narrow terminal the right side is shortened before it can reach the left |
 | **Page** | Sections, each named on a thin rule. The section that has the keyboard is marked `▍` and takes the accent |
-| **Prompt** | Always there: `dstns ~/page ❯`. `:` or `/` puts the cursor in it. The `❯` turns red after a command that failed |
+| **Prompt** | Always there: `dstns ~/page ❯`, and at its right the server's live readings (`● :8090 running · 08:12:44 · cpu 12% · mem 214M`, every two seconds). `:` or `/` puts the cursor in it. The `❯` turns red after a command that failed |
 | **Keys** | What the keys do on this page, shortened to fit |
 
 The selected item in a list carries `▸` (or `>` without Unicode), so selection never
@@ -142,8 +142,11 @@ settled:
               [  0.640] ✓ API port           8090 available
 ```
 
-It holds for at least three seconds, overlapping the checks, so that it can be read; a
-five-second check does not add three more. `--no-animation` (or a terminal without motion)
+The whole sequence takes about three and a half seconds, drawn at 30 frames a second: the
+dust appears, the particles curve in from left to right and land, the light passes, the
+name is typed, and the boot log reads out a line at a time under a progress bar. The
+checks run meanwhile, so a slow check does not add to it, and if they take longer the
+screen waits for them. `--no-animation` (or a terminal without motion)
 shows the finished frame, and `--no-splash` skips it and runs the same checks on the
 check-results page.
 
@@ -220,23 +223,32 @@ keyboard, red when its value is wrong, with the reason beneath. **Ctrl+S** start
 
 ### Running simulation
 
-While the world is prepared, the page shows what is actually happening: each build step,
-the server starting, and, for a seed-selected city, the map download with its real size
-when the server knows it. Then the engine's own figures, four times a second:
+The same layout as the dashboard: four sections of readings, a bar across the whole width,
+and the live log beneath.
 
-| Shown | Source |
-|---|---|
-| Place, seed, day | The loaded world |
-| Simulation time and progress | `GET /api/v1/playback/status` |
-| State and speed | The same |
-| Vehicles (modelled), halting | `GET /api/v1/view/traffic` |
-| Congestion and its 15-minute average | `GET /api/v1/view/congestion` |
-| Flooded and closed roads, active storms | `GET /api/v1/view/traffic` |
-| CPU and memory | Measured with `ps`, for a server this launcher started |
-| Time until the day ends | Remaining virtual time at the current rate, while running |
+```text
+  WORLD ────────────────   CLOCK ────────────────   TRAFFIC ───────────────   ENGINE ───────────────
+  place    Lisbon, PT       time     08:12:44        vehicles 4,812             port     8090
+  seed     382923           state    running         halting  211               owner    this launcher
+  day      Weekday          speed    1×              congest  23.4% · 15m 21.0% cpu      38%
+  network  3,906 junctions  ends in  52m 13s         roads    2 flooded · 1 closed memory 214 MiB
+                                                     storms   1 active          observer 127.0.0.1:8090
+  day   ▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱  34%
+  LIVE LOG ──────────────────────────────────────────────────────────────────────────────────────
+  14:02:09 [INFO] [world] World run_8b2e… ready
+```
 
-Below is the live log: the launcher's messages and new lines of `system.log`. Watching
-never touches the simulation.
+| Section | Readings | Source |
+|---|---|---|
+| **World** | Place, seed, day type, the network's size | The loaded world |
+| **Clock** | Simulated time, state, speed, when the day ends at this rate | `GET /api/v1/playback/status` |
+| **Traffic** | Vehicles modelled and halting, congestion and its 15-minute average, flooded and closed roads, storms | `GET /api/v1/view/traffic`, `…/congestion` |
+| **Engine** | Port, whether this launcher started it, processor and memory, the observer's address | `ps`, for a server this launcher started |
+
+While the world is prepared, the bar is the map download (when the server knows its
+size) and the activity line says what is actually happening: each build step, the server
+starting, the download. Readings refresh four times a second, and watching never touches
+the simulation. On a small terminal only place, seed, time and state are kept.
 
 | Key | Action |
 |---|---|
@@ -279,8 +291,10 @@ dstns ~ ❯ apps list                      # any launcher command
 ```
 
 As you type it suggests commands and their arguments, with what each does, and shows the
-rest of the first suggestion dimmed; **Tab** takes it, **↑ ↓** walk the suggestions or the
-history, **Enter** runs, **Ctrl+C** stops a command that is running, and **Esc** closes.
+rest of the first suggestion dimmed; **Tab** takes it, **↑ ↓** walk the suggestions while
+you type and the history otherwise (once in the history they stay there until you type),
+**Enter** runs, **Ctrl+C** stops a command that is running, and **Esc** closes. The history
+is kept between sessions, in `logs/command-history`.
 Each command's output comes back in a block of its own under an `OUTPUT` rule, marked
 `✓`, or `✗` with its exit status. The [Console](console.md) page has every command.
 
@@ -362,7 +376,7 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `demo [--no-open] [--no-music] [--no-fullscreen]` | [Demo Mode](fast-boot.md#demo-mode): the film on a loop, until Ctrl+C |
 | `mcp [serve\|tools\|client-config]` | The [MCP Handler](mcp.md), for AI clients |
 | `-c 'LINE'`, `shell` | The [console](console.md): a command line, or lines until `exit` |
-| `ls`, `cat`, `tail`, `head`, `ps`, `get`, `env`, `uptime` | The console's readers, run on their own: plain text to pipe |
+| `ls`, `cat`, `tail`, `head`, `ps`, `get`, `env`, `uptime`, `about`, `docs [TOPIC]` | The console's readers, run on their own: plain text to pipe. `docs mcp` opens that page |
 | `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, and forget the setup |
 | `help`, `version`, `license` | Usage, version and licence notice, the licence text |
 | `--mode=server` | Run `dstns_server` in the foreground with the configured host and port |
@@ -493,34 +507,60 @@ person at the machine and is never committed; `DSTNS_APPS_FILE` moves it.
 `config/defaults.json` and reach the server as it starts, so a change applies from the
 server's next start. The observer reads them back from `GET /api/v1/system/features`.
 
-| Category | Setting | Default | What it does |
-|---|---|---|---|
-| Startup | `startup.dynamic_fastboot` | on | While a world runs, fetch the next city in the background; see [Dynamic Fastboot](fast-boot.md#dynamic-fastboot) |
-| | `startup.dynamic_particles` | on | The film plans its scenes by when the world will be ready; see [the dynamic film](fast-boot.md#the-dynamic-film) |
-| | `startup.fast_boot` | off | Use every city downloaded in advance, and open with the name alone |
-| | `startup.force_animate` | on | The film plays its plan to the end before the map. Fast Boot turns it off |
-| Presentation | `presentation.music` | off | Original music during the start-up film |
-| | `presentation.fullscreen` | off | Open the observer full screen |
-| | `presentation.music_volume` | 0.6 | From 0 to 1 |
-| Demo | `demo.music`, `demo.fullscreen` | on | The same, in Demo Mode |
-| Performance | `performance.compression` | fast | How hard the server compresses: fast, balanced, small or off |
-| | `performance.api_threads` | 0 | Requests answered at once; 0 lets the server choose |
-| | `performance.engine_threads` | 0 | Threads that write a large snapshot; 0 lets the server choose |
-| | `performance.map_fps` | automatic | The map's frame rate for moving traffic: automatic, 60 or 30 |
-| | `performance.render_scale` | 2 | The most pixels per point the map draws at |
-| | `performance.film_particles` | 32000 | Particles in the start-up film |
-| Fabric | `fabric.applications` | on | Programs may connect through the Fabric API |
-| | `fabric.legacy_api` | on | The older `/playback` and `/control` routes answer |
-| | `fabric.launch_proposals` | on | Applications may propose how to start them |
-| | `fabric.require_signatures` | off | Every application must sign every request |
-| | `fabric.world_regeneration` | on | The observer may ask for a new world |
-| | `fabric.allow_frames`, `allow_dialogs`, `allow_camera`, `allow_layers`, `allow_control`, `allow_notifications`, `allow_messages`, `allow_storage` | on | Whether that capability can be granted at all |
-| WebFabric | `webfabric.enabled` | on | Applications appear in the observer |
-| MCP | `mcp.enabled` | off | An AI client may connect through the [MCP Handler](mcp.md), and read |
-| | `mcp.allow_writes` | off | …and call routes that change things |
-| | `mcp.allow_launcher` | off | …and start and stop simulations |
-| Launcher | `launcher.command_bar` | on | The command bar and its prompt |
-| | `launcher.default_settings` | off | Open the observer with its settings at their defaults, every time |
+| Category | Setting | Label | Default | What it does |
+|---|---|---|---|---|
+| Startup | `startup.dynamic_fastboot` | Dynamic Fastboot | on | While a world runs, choose the next and fetch its city in the background; see [Dynamic Fastboot](fast-boot.md#dynamic-fastboot) |
+| | `startup.dynamic_particles` | Adaptive start-up film | on | The film plans itself by when the world will be ready; see [the adaptive film](fast-boot.md#the-adaptive-film) |
+| | `startup.fast_boot` | Fast Boot | off | Use every city downloaded in advance, and open with the name alone |
+| | `startup.force_animate` | Play the whole film | off | Every scene plays before the map, even when the world is ready sooner |
+| Presentation | `presentation.music` | Music | off | An original score during the start-up film |
+| | `presentation.fullscreen` | Full screen | off | Open the observer full screen |
+| | `presentation.music_volume` | Music volume | 0.6 | From 0 to 1 |
+| Demo | `demo.music`, `demo.fullscreen` | Music / Full screen in Demo Mode | on | The same, in Demo Mode |
+| | `demo.scenes` | Demo scenes and order | every scene | Which scenes Demo Mode plays, and in what order; see [Demo Mode](fast-boot.md#demo-mode) |
+| Performance | `performance.compression` | Compression | fast | How hard the server compresses large replies: fast, balanced, small or off |
+| | `performance.api_threads` | Request threads | 0 | Requests answered at once; 0 lets the server choose |
+| | `performance.engine_threads` | Snapshot threads | 0 | Threads that write a large snapshot; 0 lets the server choose |
+| | `performance.map_fps` | Map frame rate | automatic | The map's frame rate for moving traffic: automatic, 60 or 30 |
+| | `performance.render_scale` | Render scale | 2 | The most pixels per point the map draws at |
+| | `performance.film_particles` | Film particles | 32000 | Particles in the start-up film |
+| Fabric | `fabric.applications` | Applications may connect | on | Programs may register through the Fabric API |
+| | `fabric.legacy_api` | Legacy routes | on | The older `/playback` and `/control` routes answer |
+| | `fabric.launch_proposals` | Launch proposals | on | Applications may propose how to start them |
+| | `fabric.require_signatures` | Signed requests only | off | Every application must sign every request |
+| | `fabric.world_regeneration` | New worlds from the observer | on | A person in the observer may ask for a new world |
+| | `fabric.allow_frames`, `allow_dialogs`, `allow_camera`, `allow_layers`, `allow_control`, `allow_notifications`, `allow_messages`, `allow_storage` | Embedded pages, Dialogs, Camera direction… | on | Whether that capability can be granted at all |
+| WebFabric | `webfabric.enabled` | WebFabric | on | Applications appear in the observer |
+| MCP | `mcp.enabled` | MCP Handler | off | An AI client may connect through the [MCP Handler](mcp.md), and read |
+| | `mcp.allow_writes` | AI may change things | off | …and call routes that change things |
+| | `mcp.allow_launcher` | AI may start and stop runs | off | …and start and stop simulations, and change settings |
+| Launcher | `launcher.command_bar` | Command bar | on | The command bar and its prompt |
+| | `launcher.default_settings` | Observer at its defaults | off | Open the observer with its settings at their defaults, every time |
+
+### Settings that go together
+
+Some settings cannot be on together, and some need another. Wherever one is changed (the
+Configuration page, the setup, `config set`, compatibility mode, or an AI client), the
+other follows, and the launcher says so:
+
+| When this becomes | That becomes | Why |
+|---|---|---|
+| Adaptive start-up film **on** | Play the whole film **off** | The adaptive film plans its own length; the whole film plays every scene |
+| Play the whole film **on** | Adaptive start-up film **off**, Fast Boot **off** | The reverse |
+| Fast Boot **on** | Play the whole film **off** | Fast Boot opens with the name alone |
+| AI may change things, or AI may start and stop runs, **on** | MCP Handler **on** | What an AI client may do needs the handler |
+| MCP Handler **off** | Both permissions **off** | They go with it |
+| Applications may connect **off** | WebFabric **off** | Nothing could connect to appear |
+| WebFabric **on** | Applications may connect **on** | The reverse |
+
+```text
+$ ./launcher config set startup.force_animate on
+ [OK]    Play the whole film is now on  startup.force_animate
+ [INFO]  Adaptive start-up film is now off, as it must be  startup.dynamic_particles
+```
+
+The server applies the first rule too: when the adaptive film is on, it tells the observer
+not to force the whole film, whatever the file says.
 
 Full screen and music need a page to have been interacted with, so when either is on, the
 launcher opens the observer in a window of its own from a Chromium-based browser, with a

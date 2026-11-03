@@ -154,7 +154,10 @@ nav:
   - User guide:
       - guide/index.md
       - Running simulations:
-          - Operator CLI: guide/operator-cli.md
+          - The launcher: guide/operator-cli.md
+          - The console: guide/console.md
+          - Fast starts and the film: guide/fast-boot.md
+          - MCP Handler: guide/mcp.md
           - Playback control: guide/playback-control.md
           - Seeds and places: guide/seeds-and-places.md
           - Saved seeds: guide/saved-seeds.md

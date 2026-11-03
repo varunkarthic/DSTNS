@@ -15,7 +15,129 @@ only within one version.
 **Engine 2.2.0, observer 3.1.0, API contract 1.4.** Results for a seed are unchanged from engine 2.1.0, and
 every existing endpoint behaves as before, 155 recorded calls being replayed to prove it, with one deliberate
 widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
-responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
+responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`. The launcher is now a
+Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs Python to build, run or test.
+
+### The launcher, rewritten in Rust
+
+`./launcher` keeps its commands, options, exit codes, words and screens, and is now one Rust program in `LaunchKit/`,
+built by the `launcher` script the first time and again only when its sources change (about a minute once, a few
+milliseconds after). It needs Rust 1.89 and nothing at run time; `.venv-launcher/`, Textual and Rich are gone.
+
+- **A console's look.** A black field with one blue accent, a status line along the top (the page, its state, the
+  version and the time), sections named on thin rules instead of boxes, single-line fields on a quiet band, and a
+  prompt always at the foot. Text wraps or is clipped with `…`, and the status line shortens its right side, so nothing
+  overlaps or runs off at any size from 50 × 15 up.
+- **A dashboard of readings.** Engine (state, port, the server's pid, uptime and memory), Simulation (state, clock, the
+  day as a bar, seed), Next world (Dynamic Fastboot's city and whether it is on disk) and System (checks, applications,
+  MCP, the terminal), with the tail of `system.log` beneath.
+- **A running page to match.** World, Clock, Traffic and Engine sections, a full-width bar for the day or the map
+  download, and the live log under its own rule.
+- **A start-up sequence.** The wordmark assembles itself from particles that curve in and land left to right, a band of
+  light passes across it, the full name types itself out, and the real checks read out as a timestamped boot log
+  under a progress bar: about three and a half seconds at 30 frames a second, overlapping the checks.
+- **A first-launch setup** of seven steps (start-up, looks and sound, performance presets, Fabric, MCP, and a review),
+  remembered as `DSTNS_SETUP_COMPLETE=1` in `config/launcher.env` and forgotten by a reset. `./launcher setup` runs it
+  again.
+- **Every setting renamed and redescribed** to say what it does and when it applies, and **settings that conflict are
+  never on together**: the adaptive film and the whole film, Fast Boot and the whole film, the MCP permissions and the
+  MCP Handler, WebFabric and applications. Wherever one changes (the Configuration page, the setup, `config set`,
+  compatibility mode or an AI client), the other follows, and the launcher says so.
+- **`./launcher ui PAGE`** opens the interface on any page; `ui demo` opens it with Demo Mode running.
+- **Fixed: a run with applications never started.** The supervisor took a lock it already held before starting each
+  application.
+
+### The console
+
+Command lines as a Unix shell reads them, joined by `|`, `&&`, `||` and `;`, with quotes kept, exit statuses as a
+shell's, and 127 for a command that does not exist.
+
+- **Everywhere:** in the command bar (`:` or `/`), with `./launcher -c 'LINE'`, with `./launcher shell`, and one
+  command at a time from your own shell, which can pipe it: `./launcher ps | grep server`.
+- **Readers** of the launcher's state as plain text (`ls`, `cat`, `tail`, `head`, `ps`, `get`, `env`, `uptime`,
+  `about`, `docs`) and **filters** for what is piped to them (`grep`, `head`, `tail`, `wc`, `sort`, `uniq`, `cut`,
+  `tee`, `echo`). Every other word is one of the launcher's commands, run with its output captured so it pipes too.
+- **The command bar** suggests and completes, walks its history (now kept between sessions in
+  `logs/command-history`), runs a chained line as `dstns-launcher -c` so a long pipeline never holds up the interface,
+  and shows the server's live readings at the right of the prompt: port, state, clock, processor and memory.
+- **Fixed: Up and Down in the command bar** walked a recalled command's suggestions instead of the history.
+
+### Dynamic Fastboot
+
+Only the very first start downloads while anyone waits. While a world runs, the server chooses the next one, in another
+city, and fetches that city in the background; a new world takes it, and so does the launcher's next start, so either
+is ready in seconds. On by default (`startup.dynamic_fastboot`, or `DSTNS_DYNAMIC_FASTBOOT=0`).
+
+- The next world is named in `next-world.json` in the map cache, so it outlives the server, and the cache sweep at
+  start-up keeps its city whatever the policy. `GET /api/v1/world/status` reports it as `data.next`.
+- A world that wants a city still being fetched waits for that download rather than starting another, and every
+  downloader the server runs, foreground or background, stops when it terminates.
+
+### New worlds prepared ahead
+
+With Fast Boot or Dynamic Fastboot on, asking for a new world in the observer starts preparing it the moment the
+dialog opens, while the current world keeps running. **Generate** puts it in at once; **Cancel** forgets it. On screen
+the old world's ending plays, its particles gather back into the name, and the name becomes the new map.
+
+- `POST /api/v1/world/regenerate` takes `{"stage": true}`; `POST /api/v1/world/regenerate/commit` and
+  `POST /api/v1/world/regenerate/discard` are new. The world job has a new state, `staged`.
+
+### The adaptive start-up film
+
+The film plans itself by when the world will be ready (`startup.dynamic_particles`, on by default): as many scenes as
+fit, in a new order every time, WebFabric only once every other has played, always opening and closing on the name and
+the flight into the map. A world from the cache goes from the name straight to the map; one that is ready sooner than
+planned cuts back to the name within a moment. It has no progress dashes, since it plays no fixed list.
+
+- **The server says how long a world will take:** `eta_s` and `eta_confident` on the playback, engine and world status.
+  The estimate comes from the download as it goes, or the build alone for a cached city, and otherwise from how long
+  the last ones took, kept in `preparation-times.json`. The film plans only by a confident one, so a long Overpass
+  request no longer leaves it resting on the name until the download ends.
+- **`startup.force_animate`** (Play the whole film) is now off by default, and can't be on with the adaptive film.
+
+### Demo Mode
+
+- **New scenes, about what sets DSTNS apart:** Time control (playing, fast-forward and rewind along the day, with its
+  checkpoints), Many worlds (one seed growing districts of every kind) and AI ready. Seeking, backpressure, the report,
+  Fabric, What if and the newsroom are gone.
+- **`demo.scenes` chooses which scenes play, and in what order,** edited in the launcher as a list (Space turns one on
+  or off, Shift+↑↓ moves it) and passed to the observer as `demo_scenes`.
+- **Nothing on screen but the film,** its captions and the licence line.
+- **A new score:** an original theme in the manner of a cinematic hero's, with driving strings, timpani, brass and a
+  horn line of its own, building and breaking down.
+
+### MCP Handler
+
+`./launcher mcp serve` speaks the Model Context Protocol (2025-06-18, 2025-03-26, 2024-11-05) over standard input and
+output, so that an AI client can call DSTNS. Every route in the server's endpoint index is a tool, as are a generic
+request and the launcher's own status, settings, seeds, applications, start and stop. No agent is included, and it is
+closed by default: `mcp.enabled` lets a client read, `mcp.allow_writes` change things, and `mcp.allow_launcher` start
+and stop runs. Every call is logged. `./launcher mcp tools` and `mcp client-config` show what a client would get.
+
+- The endpoint index now lists every route (130), so that each is a tool.
+- `GET /api/v1/system/info` reports the server process: `pid`, `uptime_s`, `peak_rss_bytes` and `cpu_s`.
+
+### Every test in C++
+
+- **The HTTP suites, the downloader's tests and the release checks are C++ programs** in `tests/http/`, on one harness
+  (a server on a port of its own, requests, programs run and watched, stand-in upstreams). ctest runs them under their
+  old names, `dstns_http_<name>`, alongside the engine's: 31 suites in all. `launcher_apps` drives the Rust launcher
+  end to end, with the test program itself as the applications it starts. New: `api`, `fetch_osm`, `release` and
+  `dynamic_fastboot`.
+- **`dstns_release`** replaces the image metadata, publishing, image smoke test and licence-header scripts, and is
+  tested against a stand-in `docker`. CI builds and runs it, and the launcher's 49 tests, without Python. CodeQL now
+  analyses the Rust too.
+- **Fixed: the server listened with a backlog of five,** so a burst of connections (an observer, its applications and
+  a round of polls) could be dropped before a thread took them. It is now 128.
+
+### Removed
+
+- The Python launcher (`dstns_launcher/`, `launcher.py`), its requirements and its private environment.
+- Every Python test (`tests/api/`, `tests/cli/`, `tests/launcher/`, `tests/docker/`), replaced as above.
+- `scripts/image-metadata.py`, `publish-image.py`, `license-headers.py` and `launcher-logo.py`, and the redundant
+  `scripts/run.sh` and `scripts/reset.sh` (`./launcher --mode=server` and `./launcher reset` do the same).
+- The Python client examples in `Fabric/examples/` and `docs/development/example_app.py` remain, as examples of an
+  application written in Python; any language that speaks HTTP will do.
 
 ### Faster, and configurable
 
@@ -49,13 +171,13 @@ Results are unchanged: a snapshot is the same JSON to the byte, and a replayed d
 - **Reloading an application.** From the observer, or `POST /api/v1/fabric/apps/{id}/reload`. Its token stops working at once and the launcher starts it again; it registers with a new one-time launch key and keeps what a person granted it. An application nobody launched is unloaded instead.
 - **The WebFabric panel is a canvas.** Widgets are placed on a grid of up to 12 columns with `layout.columns` and each widget's `area`. New widgets: metric, card, chart, link, divider, status and timeline. With several applications, a menu at the top chooses between them, and each has Reload and Turn off. Settings can turn off one, several or all at once. An application that goes leaves the panel with an animation, and so does its panel when open.
 - **Fast Boot, off by default.** `./launcher fastboot download` downloads every city's district once, compressed, into the map cache. With `startup.fast_boot` on, the server unpacks a city from there instead of downloading it, in under a second, and the film need not play to its end: once the world is ready it gathers into the name and goes to the map. `dstns_server --list-cities` and `--city-of-seed` list what there is to download.
-- **`startup.force_animate`, on by default.** Off, the film behaves as with Fast Boot even when maps are downloaded as needed. Fast Boot turns it off.
-- **Demo Mode.** `./launcher demo` plays the film on a loop, full screen, with four more scenes after the usual eleven: seeking, backpressure, the report and Fabric. It has a server of its own, and leaves one already running alone.
+- **`startup.force_animate`.** Off, the film behaves as with Fast Boot even when maps are downloaded as needed. Fast Boot turns it off. (Now off by default; see the adaptive film above.)
+- **Demo Mode.** `./launcher demo` plays the film on a loop, full screen, with scenes of its own after the usual eleven (see Demo Mode above). It has a server of its own, and leaves one already running alone.
 - **Music.** Original music, generated in the browser as it plays, for Demo Mode, and for the ordinary film when `presentation.music` is on. A small button at the bottom right mutes it, and the choice is remembered. It fades out as the map arrives. Full screen and music are off by default outside Demo Mode.
 
 ### Security fixes from an audit of the API
 
-Found by reading every route, and by sending hostile values to all of them. `tests/api/robustness_smoke.py` now does that on every run.
+Found by reading every route, and by sending hostile values to all of them. `tests/http/robustness.cpp` now does that on every run.
 
 - **Fixed: a deeply nested JSON request crashed the server.** JSON may now nest 64 levels.
 - **Fixed: no limit on the size of a request.** It's now 16 MiB.

@@ -6,7 +6,10 @@ observer, and configuring both.
 | Page | Covers |
 |---|---|
 | **Running simulations** | |
-| [Operator CLI](operator-cli.md) | Every command and flag of `./launcher`, and what happens step by step when a run starts |
+| [The launcher](operator-cli.md) | The terminal interface, the setup, every command, option and setting, the rules between settings, and what happens step by step when a run starts |
+| [The console](console.md) | Command lines joined by `\|`, `&&`, `\|\|` and `;`, in the command bar, with `-c`, in `./launcher shell` or from your own shell |
+| [Fast starts and the film](fast-boot.md) | Dynamic Fastboot, Fast Boot, new worlds prepared ahead, the adaptive start-up film and its ETA, and Demo Mode |
+| [MCP Handler](mcp.md) | Letting an AI client call DSTNS through the Model Context Protocol, and what it may do |
 | [Playback control](playback-control.md) | Play, pause, speed, step, seek, reset, new worlds and the end of the day, in the observer and over HTTP |
 | [Seeds and places](seeds-and-places.md) | What a seed decides, the 181-city catalogue, the map cache and pinned maps |
 | [Saved seeds](saved-seeds.md) | Naming, saving, inspecting, replaying and sharing complete run configurations |

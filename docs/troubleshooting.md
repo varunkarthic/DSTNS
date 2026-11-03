@@ -27,14 +27,18 @@ grep -E "ERROR|WARN" logs/system.log | tail
 
 ## The launcher
 
-Both `./launcher` and `python3 launcher.py` use the Python launcher. In an
-interactive terminal, the default command opens its dashboard after checking the
-environment. Choose **Start simulation**, or run `./launcher start` directly.
+`./launcher` builds the Rust launcher in `LaunchKit/` when its sources change, then runs it.
+In an interactive terminal, the default command opens its dashboard after checking the
+environment (and, on a first launch, the setup). Choose **Start simulation**, or run `./launcher start` directly.
 
 | Symptom | Diagnosis and action |
 |---|---|
-| Compatibility mode opens | Check `logs/launcher.log` for an installation or Textual error. Core commands remain available. Install the pinned packages with `.venv-launcher/bin/python -m pip install -r dstns_launcher/requirements.txt`, after creating that environment with `python3 -m venv .venv-launcher` if necessary. |
-| Installation cannot use the network | Set `DSTNS_LAUNCHER_NO_INSTALL=1` to skip automatic interface installation. Use `--no-tui` for the standard-library interface. This does not install missing C++ or observer build dependencies. |
+| `the launcher is built with Rust, which was not found` | Install Rust from [rustup.rs](https://rustup.rs) and open a new terminal. An existing build is used if Cargo is missing but the sources have changed, and the script says so |
+| The first `./launcher` is slow | It is compiling the launcher (about a minute, once). Later starts take milliseconds |
+| Compatibility mode opens | The terminal interface could not start in this terminal; `logs/launcher.log` says why. Every operation remains available as numbered menus. `--no-tui` gives plain line-by-line output |
+| The setup appears again | `config/launcher.env` was removed, or **Reset runtime data** forgot it, which is what reset does. `DSTNS_SETUP_COMPLETE=1 ./launcher` skips it once |
+| `NAME: command not found` in the command bar | Not a console command or a launcher command; `help` lists them, and Tab completes |
+| Up and Down in the command bar walk suggestions, not the history | Suggestions follow what is typed; press Esc to hide them, or clear the line, and the arrows walk the history |
 | Terminal too small | Resize to at least 50 columns by 15 rows, or press **R** for compatibility mode. The previous screen's state is retained while resizing. |
 | Animation is distracting or slow over SSH | Use `--no-animation`. Status labels remain visible. `--no-splash` skips only the opening wordmark. `TERM=dumb` automatically uses plain mode. |
 | Activity is moving but there is no percentage | The current operation has no measured total. The label and output identify the work; download percentages appear only with a known byte total. Check `logs/launcher.log` and `logs/system.log` for failures. |

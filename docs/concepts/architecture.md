@@ -66,10 +66,12 @@ holds simulation state of its own; both read what the core publishes.
 | `Core/src/logging.cpp` | `RuntimeLogger`: text system log and SQLite runtime journal |
 | `Core/src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
 | `WebKit/` | The observer: React 19, Vite, Vitest, jsPDF |
-| `dstns_launcher/` | Python launcher: shared service core, Textual screens and compatibility interface |
-| `launcher`, `launcher.py` | Thin wrappers that start the CLI |
+| `LaunchKit/` | The launcher, in Rust: command line, console, terminal interface (ratatui), compatibility mode, application supervisor and the MCP Handler |
+| `launcher` | Builds the launcher when its sources change, then runs it |
+| `Core/src/next_world.cpp` | Dynamic Fastboot: the next world chosen and its city fetched while this one runs |
+| `tools/release/` | `dstns_release`: image metadata, publishing, the image smoke test and licence headers |
 | `scripts/` | Build, test, fetch and reset helpers |
-| `tests/` | Native unit, property, replay and performance suites; HTTP and CLI suites |
+| `tests/` | Native unit, property, replay and performance suites; the HTTP suites (`tests/http/`, C++, on one harness) |
 | `tools/` | `dstns_scenario_export`, `dstns_road_index`, `dstns_replay_verify`, `dstns_benchmark` |
 | `docker/`, `Dockerfile`, `docker-compose.yml` | Container build and TLS gateway |
 | `config/` | `defaults.json` (run defaults) and `ui-config.json` (observer defaults) |
@@ -276,9 +278,12 @@ notifications, Auto Focus, the PDF report) derives from those polls. See
 
 ## The operator CLI
 
-`./launcher` and `python3 launcher.py` both enter `dstns_launcher.cli`. The
-standard-library service core owns process supervision, API calls, configuration
-and saved seeds; the Textual and compatibility interfaces call the same services.
+`./launcher` builds and runs the Rust program in `LaunchKit/`. One set of operations
+(process supervision, API calls, configuration and its rules, saved seeds, applications)
+serves four faces: single commands for scripts, the [console](../guide/console.md)
+(command lines joined by `|`, `&&`, `||` and `;`), the terminal interface, and
+compatibility mode. The [MCP Handler](../guide/mcp.md) offers the same operations, and every
+route of the API, to an AI client.
 The launcher is the supported way to start a run. It
 rebuilds the native core and the observer when their sources have changed,
 reuses a healthy server on the configured port or picks a free one, waits for

@@ -795,7 +795,7 @@ icon, with no geometry duplicated anywhere.
 | HUD in a real browser | `node WebKit/tests/browser-hud.mjs` | Live core: layout at 2560, 1920, 1440, 1280 and 1024x640 with no overlaps, the notice below the minimum, tooltip collisions, speed and step reaching the engine, paused state, the numeric seed copied, settings and layers, notification capsule, telemetry collapse and side panel, place legend, tutorial start to finish, world regeneration, PDF download |
 | End to end | `node WebKit/tests/browser.mjs` | CLI-only start, pause and resume, speed, persisted motion, queue, real signal and place inspection, demand notification, responsive layouts, report, malformed data, completion, termination |
 | Core | `ctest --test-dir build` | Includes `dstns_world_and_stepping` for step and regeneration, including failure preserving the previous world |
-| HTTP | `python3 tests/api/api_smoke.py` | Step and world endpoints among the full API |
+| HTTP | `build/http-tests/api` (`ctest -R dstns_http_api`) | Step and world endpoints among the full API |
 
 The launcher checks the environment and validates `config/ui-config.json` during
 interactive startup. Run the core, HTTP and observer suites from **Tests**, or

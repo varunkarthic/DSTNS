@@ -25,8 +25,7 @@ three.
 
 ## Operator CLI
 
-Read by `./launcher` and `python3 launcher.py` (the Python launcher), and the
-scripts they run.
+Read by `./launcher`, the Rust launcher in `LaunchKit/`.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -36,10 +35,13 @@ scripts they run.
 | `DSTNS_SEED_DB` | `data/seed-store/seeds.sqlite3` | SQLite file holding saved seeds |
 | `DSTNS_BUILD_DIR` | `build/`, or the local cache in a cloud-synced checkout | Where the launcher configures and compiles the core |
 | `DSTNS_UI_DIST` | unset | Read by the server: the observer bundle to serve, before the usual `WebKit/dist` search. The launcher sets it for a synced checkout |
-| `DSTNS_LAUNCHER_VENV` | `.venv-launcher/`, or the local cache in a cloud-synced checkout | Where the launcher's private terminal-interface environment lives |
-| `DSTNS_LAUNCHER_NO_INSTALL` | unset | `1` prevents automatic installation of the optional terminal interface; compatibility mode remains available |
+| `DSTNS_ROOT` | set by `./launcher` | The checkout. Without it, the launcher looks above its own program and the working directory for `CMakeLists.txt` and `config/defaults.json` |
+| `DSTNS_SETUP_COMPLETE` | from `config/launcher.env` | `1`: the first-launch setup has been done. Unset, the terminal interface walks through it first. A value in the shell wins over the file |
+| `DSTNS_LAUNCHER_ENV` | `config/launcher.env` | The file the launcher keeps its own state in |
+| `DSTNS_APPS_FILE` | `config/apps.json` | The application catalogue |
+| `CARGO_TARGET_DIR` | `LaunchKit/target/`, or the local cache in a cloud-synced checkout | Where `./launcher` builds the launcher |
 | `NO_COLOR` | unset | Any nonempty value disables colour |
-| `TERM` | terminal-provided | `dumb` selects plain output and skips interface installation |
+| `TERM` | terminal-provided | `dumb` selects plain output |
 
 ## Observer build
 
@@ -110,7 +112,8 @@ Read by the server when it starts. The launcher sets them from its settings; see
 | `DSTNS_LAUNCH_PROPOSALS` | `1` | `0` stops applications proposing how to start them |
 | `DSTNS_REQUIRE_SIGNATURES` | `0` | `1` makes every application sign its requests |
 | `DSTNS_DISABLED_CAPABILITIES` | empty | Comma-separated capabilities nobody may be granted |
-| `DSTNS_PRESENTATION` | `{}` | JSON for the observer: `webfabric`, `force_animate`, `fast_boot`, `demo`, `music`, `fullscreen` (true or false), `music_volume` (0 to 1), `map_fps` (0, 30 or 60), `render_scale` (0.5 to 3) and `film_particles` (4,000 to 32,000). Anything else is ignored |
+| `DSTNS_PRESENTATION` | `{}` | JSON for the observer: `webfabric`, `force_animate`, `fast_boot`, `dynamic_fastboot`, `dynamic_particles`, `demo`, `music`, `fullscreen` (true or false), `music_volume` (0 to 1), `map_fps` (0, 30 or 60), `render_scale` (0.5 to 3), `film_particles` (4,000 to 32,000) and `demo_scenes` (scene ids, in order). Anything else is ignored. `force_animate` is reported off whenever `fast_boot` or `dynamic_particles` is on |
+| `DSTNS_DYNAMIC_FASTBOOT` | `1` | `0` stops the server choosing the next world and fetching its city while a world runs; see [Dynamic Fastboot](../guide/fast-boot.md#dynamic-fastboot) |
 | `DSTNS_COMPRESSION` | `fast` | How hard snapshots and the topology, the large responses, are compressed: `fast`, `balanced`, `small`, `off`, or a zlib level 0 to 9 |
 | `DSTNS_API_THREADS` | the library's choice | How many requests are answered at once |
 | `DSTNS_ENGINE_THREADS` | half the cores, up to 8 | Threads that write a large snapshot; 1 keeps it to one |

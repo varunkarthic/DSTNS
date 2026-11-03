@@ -21,7 +21,7 @@ specification recommend.
 | `package.json` files, README, About card | Declare the licence for package managers, readers and users of the running program |
 | `GET /api/v1/system/source` | The network source offer that AGPL section 13 requires |
 
-The header is enforced: `scripts/license-headers.py --check` runs in CI and fails if
+The header is enforced: `dstns_release headers --check` runs in CI and fails if
 any source file lacks it, and `--fix` adds it. New files get the header from the same
 script.
 
@@ -62,7 +62,8 @@ and the notice in [`COPYRIGHT`](https://github.com/varunkarthic/DSTNS/blob/main/
 | [Vite](https://vitejs.dev/), [Vitest](https://vitest.dev/) | MIT | Building and testing the observer |
 | [jsPDF](https://github.com/parallax/jsPDF) | MIT | PDF reports |
 | [Inter](https://rsms.me/inter/), [JetBrains Mono](https://www.jetbrains.com/lp/mono/), [Space Grotesk](https://floriankarsten.github.io/space-grotesk/) | SIL OFL 1.1 | Typefaces |
-| [Textual](https://github.com/Textualize/textual), [Rich](https://github.com/Textualize/rich) | MIT | The launcher's terminal interface (installed on first use, not bundled) |
+| [ratatui](https://github.com/ratatui/ratatui), [crossterm](https://github.com/crossterm-rs/crossterm), [rusqlite](https://github.com/rusqlite/rusqlite) | MIT | The launcher's terminal interface and its saved-seed store (compiled into the launcher) |
+| [serde](https://github.com/serde-rs/serde), [serde_json](https://github.com/serde-rs/json), [ureq](https://github.com/algesten/ureq), [regex](https://github.com/rust-lang/regex), [chrono](https://github.com/chronotope/chrono), [sha2](https://github.com/RustCrypto/hashes), [getrandom](https://github.com/rust-random/getrandom), [flate2](https://github.com/rust-lang/flate2-rs), [libc](https://github.com/rust-lang/libc), [signal-hook](https://github.com/vorner/signal-hook), [shlex](https://github.com/comex/rust-shlex), [unicode-width](https://github.com/unicode-rs/unicode-width) | MIT or Apache-2.0 | The launcher (compiled into it) |
 | [Eclipse SUMO](https://eclipse.dev/sumo/) (optional, not bundled by default) | EPL-2.0 | Microscopic cross-check |
 
 ## Using and modifying DSTNS

@@ -765,4 +765,4 @@ A hidden page says it's away, and reports nothing. Coming back gets 6 s of grace
 
 ## Starting applications
 
-`dstns_launcher/core/supervisor.py`. An application set to restart waits a growing time before each attempt, \(w_n = w_0 2^{n-1}\). Readiness is one of: registered with Fabric, the process having started, a fixed delay, or a URL answering.
+`LaunchKit/src/supervisor.rs`. An application set to restart waits a growing time before each attempt, \(w_n = w_0 2^{n-1}\). Readiness is one of: registered with Fabric, the process having started, a fixed delay, or a URL answering.

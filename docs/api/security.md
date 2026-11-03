@@ -419,6 +419,6 @@ curl -si -H 'Host: evil.example' http://127.0.0.1:8090/health | head -1
 curl -s http://127.0.0.1:8090/api/v1/fabric/apps/com.example.app | jq .data.capabilities
 ```
 
-The same checks run in `tests/api/hardening_smoke.py`, `tests/api/fabric_apps_smoke.py`,
-`tests/api/fabric_platform_smoke.py` and `tests/api/fabric_direction_smoke.py`. `tests/api/robustness_smoke.py` sends hostile
+The same checks run in `tests/http/hardening.cpp`, `tests/http/fabric_apps.cpp`,
+`tests/http/fabric_platform.cpp` and `tests/http/fabric_direction.cpp`. `tests/http/robustness.cpp` sends hostile
 values to every route that takes any, and fails on a `500` or a crash.

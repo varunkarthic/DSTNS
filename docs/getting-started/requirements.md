@@ -46,7 +46,8 @@ natively on Intel and Apple silicon machines and on Arm servers.
 | SQLite 3, with development headers | Any current release | The runtime journal |
 | zlib, with development headers | Any current release | Compressing large API responses |
 | Node.js and npm | Node.js 20, npm 9 | Building the observer |
-| Python 3 | 3.10 | The launcher, the map downloader and the test suites |
+| Rust and Cargo | 1.89 | The launcher, built by `./launcher` on first use ([rustup.rs](https://rustup.rs)) |
+| libcurl, with development headers | Any current release; the system's on macOS | The map downloader, which is the server itself |
 | git | Any | Cloning; CMake also fetches two header-only libraries |
 | Eclipse SUMO | 1.15, optional | The microscopic cross-check |
 

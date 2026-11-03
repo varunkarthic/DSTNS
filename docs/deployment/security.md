@@ -365,7 +365,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
   http://127.0.0.1:8090/api/v1/playback/start -d '{}'                             # 403
 ```
 
-The same checks run automatically in `tests/api/hardening_smoke.py`; see
+The same checks run automatically in `tests/http/hardening.cpp` and `tests/http/robustness.cpp`; see
 [Testing](../development/testing.md).
 
 ## Reporting a vulnerability

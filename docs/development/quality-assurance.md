@@ -15,13 +15,13 @@ and in continuous integration on Ubuntu 24.04.
 |---|---|---|
 | Compilation | CMake, GCC or Clang with `-Wall -Wextra -Wpedantic -Wshadow`; test targets add `-Werror` | Any warning in a test target, any error anywhere |
 | Native suites | CTest (14 targets) | Any assertion fails, including determinism and invariant checks |
-| HTTP contract | `tests/api/api_smoke.py`, `hardening_smoke.py`, `loading_smoke.py`, `termination_smoke.py` against a real server | A route, status code, error code or security control deviates from the documented contract |
+| HTTP contract | The C++ suites in `tests/http/` (`api`, `hardening`, `robustness`, `loading`, `termination`, `fabric_*`…) against a real server | A route, status code, error code or security control deviates from the documented contract |
 | Reproducibility | `dstns_replay_verify` | Two independent runs of one seed differ in any hash or in the full runtime snapshot |
-| Operator CLI | Python and Node suites under `tests/cli/` | The downloader, saved-seed store or launcher misbehaves end to end |
+| Launcher | `cargo test` in `LaunchKit/`, and `dstns_http_launcher_apps` end to end | The launcher, its console, settings rules or terminal interface misbehaves |
 | Observer | `tsc` in strict mode, Vitest, a production `vite build` | A type error, a failing component test, or a bundle that does not build |
 | Documentation | `mkdocs build --strict`, OpenAPI validation | A broken link or anchor, a page missing from navigation, an invalid OpenAPI description |
-| Container | `docker build`, then `python3 tests/docker/smoke.py IMAGE --arch amd64` (or `arm64`); publication tests both CPUs natively | Image identity, health, bundled map, observer assets, operator helper or shutdown fails |
-| Licensing | `scripts/license-headers.py --check` | A source file lacks its SPDX identifier and copyright line |
+| Container | `docker build`, then `dstns_release smoke IMAGE --arch amd64` (or `arm64`); publication tests both CPUs natively | Image identity, health, bundled map, observer assets, operator helper or shutdown fails |
+| Licensing | `dstns_release headers --check` | A source file lacks its SPDX identifier and copyright line |
 | Static analysis | CodeQL (C++, JavaScript and TypeScript, Python, GitHub Actions workflows) | A new high-confidence finding in DSTNS's own code |
 | Memory safety | `-DDSTNS_ENABLE_SANITIZERS=ON` (AddressSanitizer, UndefinedBehaviorSanitizer) | Run on demand before releases; any report is a defect |
 
@@ -164,12 +164,10 @@ run:
 |---|---|
 | CTest, 14 targets including `dstns_http_hardening` | All passed |
 | `dstns_tests` | 726 assertions passed |
-| `tests/api/hardening_smoke.py` | 14 tests passed |
-| `tests/api/api_smoke.py` | 134 assertions passed |
-| `tests/api/loading_smoke.py`, `termination_smoke.py` | Passed |
-| Observer (Vitest) | 24 files, 286 tests passed |
-| `tests/cli/test_fetch_osm.py`, `test_seeds.py`, `artifacts.test.mjs` | Passed |
-| `tests/cli/launcher_integration.py` | Passed against a real OpenStreetMap district of 1,196 junctions |
+| `ctest` (31 suites: engine, HTTP, downloader, launcher end to end, release tooling) | All passed |
+| `tests/http/api.cpp` | 123 requests checked |
+| `cargo test` (the launcher) | 49 passed |
+| Vitest (the observer) | 474 passed |
 
 The SUMO step of `api_smoke.py` runs only where a working SUMO is installed, and is
 exercised in the `WITH_SUMO=1` container image.

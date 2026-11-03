@@ -84,13 +84,14 @@ try {
   const started = await call("/api/v1/playback/start", { seed: "10775", playback_duration_seconds: 600, map: { osm_file: "data/fixtures/real_network.osm.xml" } }, token);
   assert.equal(started.code, 202, JSON.stringify(started.body));
   await page.getByRole("button", { name: "Pause simulation" }).waitFor({ timeout: 30000 });
-  // The film plays through once, and says it is finishing rather than appearing stuck.
-  await page.getByRole("heading", { name: "Finishing setup" }).waitFor({ timeout: 40000 });
-  // The world is ready, and waits for the film rather than running on behind it.
+  // The adaptive film (the default) plans by the server's estimate: a district from a file leaves no time for a scene,
+  // so the world waits for the observer only as long as the name takes to become the map.
   const waiting = (await call("/api/v1/playback/status")).body;
-  assert.equal(waiting.data.lifecycle, "PAUSED", "the world waits while the film plays");
-  assert.equal(waiting.data.observer_hold, true);
-  assert.equal(waiting.clock?.simulated_seconds ?? waiting.simulated_seconds ?? 0, 0, "and has not moved");
+  if (waiting.data.lifecycle === "PAUSED") {
+    assert.equal(waiting.data.observer_hold, true, "a world that waits is waiting for the observer");
+    assert.equal(waiting.clock?.simulated_seconds ?? waiting.simulated_seconds ?? 0, 0, "and has not moved");
+  }
+  assert.equal(await page.locator(".film-ticks").count(), 0, "the adaptive film plays no fixed list, so it counts none");
   // What is actually drawn, on the page: the roads and the land around them.
   const drawn = () => page.evaluate(() => {
     const canvas = document.querySelector(".static-map");
@@ -104,7 +105,9 @@ try {
     }
     return { x: (l + r) / 2 / f + rect.left, y: (t + b) / 2 / f + rect.top, width: (r - l) / f };
   });
+  const readyAt = Date.now();
   await page.locator(".loading-surface.closing").waitFor({ timeout: 90000 });
+  assert.ok(Date.now() - readyAt < 12000, `a world ready at once goes from the name to the map without the film, not after ${Date.now() - readyAt} ms`);
   const alone = await drawn();
   const size = page.viewportSize();
   assert.ok(Math.abs(alone.x - size.width / 2) < 24 && Math.abs(alone.y - size.height / 2) < 24, `alone, the map lands in the middle of the window, not at ${alone.x},${alone.y}`);

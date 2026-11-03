@@ -12,6 +12,8 @@ to use it. The operator CLI (`./launcher`) is documented separately in
 | [`dstns_road_index`](#dstns_road_index) | Compile an OSM file and print its graph and scenario hashes | No |
 | [`dstns_benchmark`](#dstns_benchmark) | Measure the system under increasing load: district size, events, observers, narration | No |
 | `dstns_server --fetch-osm` | Download one city extract from an Overpass endpoint | No |
+| [`dstns_release`](#dstns_release) | Release engineering: image metadata, publishing, the image smoke test, licence headers | No |
+| `build/http-tests/*` | The HTTP test programs; see [Testing](../development/testing.md#http-suites) | No: each starts its own |
 
 All binaries are written to `build/` by `cmake --build build -j`. See
 [Building from source](../development/building.md).
@@ -37,7 +39,7 @@ dstns_server --probe                    # exit 0 if the server on DSTNS_PORT is 
 | `--port PORT` | `8090` | TCP port, an integer in [1, 65535]. Out-of-range values are rejected, not wrapped |
 | `--logs DIR` | `logs` | Directory for `system.log`, `runtime.db`, `global_view.json` and `operator.token`. Created if missing |
 | `--maps DIR` | `data/maps` | Directory holding cached city extracts |
-| `--map-cache POLICY` | `prune` | What the start-up sweep does with cached extracts: `keep` leaves all, `prune` removes all but the newest N, `clear` removes all |
+| `--map-cache POLICY` | `prune` | What the start-up sweep does with cached extracts: `keep` leaves all, `prune` removes all but the newest N, `clear` removes all. Dynamic Fastboot's next city (named in `next-world.json`) is always kept |
 | `--map-cache-keep N` | `1` | Extracts `prune` keeps. The container sets 3 |
 | `--narrator MODE` | `auto` | [Realistic News](../guide/narration.md): `auto` uses Apple's on-device model where `fm` is installed and is off elsewhere; `fm` requires it; `off`; or a Chat Completions endpoint |
 | `--narrator-model NAME` | `system` | Model name sent to a Chat Completions endpoint |
@@ -186,6 +188,19 @@ cached. You can also run it yourself to prefetch a city; its options (`--bbox`, 
 comma-separated list of Overpass API endpoints to try in order, and writes the
 extract and a `.manifest.json` recording the source, licence, bounding box, byte
 count and SHA-256. See [OSM map generation](../concepts/osm-map-generation.md).
+
+## dstns_release
+
+```text
+dstns_release metadata                       version, revision, created, channel (and GITHUB_OUTPUT)
+dstns_release publish --digests DIR          both platforms' images under one index, then the public tags
+dstns_release smoke IMAGE --arch amd64|arm64 [--revision SHA]
+dstns_release headers --check | --fix        the SPDX licence header on every source file
+```
+
+It runs `git` and `docker` as programs, never through a shell, and writes to a registry
+only in `publish`. `DSTNS_ROOT` points it at another checkout. See
+[Building from source](../development/building.md#release-tooling).
 
 ## Exit codes
 

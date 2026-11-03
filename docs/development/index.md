@@ -24,14 +24,13 @@ DSTNS/
 ├── tests/
 │   ├── unit/                 native unit suites (one executable each)
 │   ├── property/, replay/, performance/
-│   ├── api/                  HTTP suites against a real server (Python)
-│   ├── cli/                  wrapper integration, downloader and saved-seed suites
-│   ├── launcher/             Python service and terminal interface suites
+│   ├── http/                 HTTP, downloader, launcher and release suites (C++, one program each)
 │   ├── integration/          SUMO smoke test
 │   └── fixtures/             small OSM files
 ├── WebKit/                the observer (React, Vite, Vitest)
-├── dstns_launcher/           Python launcher: core, Textual interface, compatibility mode
-├── scripts/                  build, test, dev and reset
+├── LaunchKit/                the launcher (Rust): CLI, console, terminal interface, MCP Handler
+├── tools/                    replay-verify, benchmark, road-index, scenario-inspect, release
+├── scripts/                  build, test and dev
 ├── docker/                   entrypoint, dstns-run, TLS gateway
 ├── config/                   defaults.json, ui-config.json
 ├── data/fixtures/            a recorded real district

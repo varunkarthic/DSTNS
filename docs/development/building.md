@@ -93,16 +93,32 @@ origin on the server with `DSTNS_ALLOWED_ORIGINS`.
 ## The launcher
 
 ```bash
-./launcher help
-python3 tests/launcher/test_core.py          # launcher operations
-python3 tests/launcher/test_interfaces.py    # command line, fallback and terminal interface
+./launcher help                                              # builds it first, if its sources changed
+cargo build --release --manifest-path LaunchKit/Cargo.toml   # or by hand
+cargo test --release --manifest-path LaunchKit/Cargo.toml
 ```
 
-The launcher is the Python package `dstns_launcher/`: `core/` holds every operation,
-`tui/` the Textual interface and `fallback/` compatibility mode. Its build step
-fingerprints the core's and the observer's sources
-(stored in `build/.launcher-source` and `WebKit/dist/.launcher-source`)
-and rebuilds only what changed.
+The launcher is a Rust program in `LaunchKit/`: [ratatui](https://ratatui.rs) and
+crossterm for the terminal interface, ureq for HTTP, rusqlite (against the system's
+SQLite) for saved seeds, and nothing that downloads at run time. The `launcher` script
+builds it with `cargo build --release` when any file under `LaunchKit/src`, `assets`,
+`Cargo.toml` or `Cargo.lock` is newer than the binary, then runs it; `CARGO_TARGET_DIR`
+moves the build, and a synced checkout keeps it in the local cache.
+
+| Path | What it is |
+|---|---|
+| `src/cli.rs`, `main.rs` | The command line: parsing, dispatch, help |
+| `src/console.rs` | The console: splitting lines on `\|`, `&&`, `\|\|` and `;`, the built-in readers and filters |
+| `src/config.rs` | Every setting, its validation, the rules between them, and what reaches the server |
+| `src/server.rs`, `session.rs`, `simulation.rs` | Finding, starting and stopping the server; a run's lifecycle |
+| `src/supervisor.rs`, `apps.rs` | Applications: the catalogue, starting them, waiting until ready, reloading |
+| `src/environment.rs`, `testing.rs`, `buildplan.rs` | The start-up checks, the test stages, building what changed |
+| `src/modules/` | Commands that add pages: applications, Fabric, Fast Boot, Demo Mode, the MCP Handler |
+| `src/tui/` | The terminal interface: `theme.rs`, `widgets.rs`, the command bar (`shell.rs`), and one file per page in `screens/` |
+| `src/interface.rs` | Compatibility mode, for a terminal the interface cannot use |
+
+The launcher rebuilds the core and the observer only when their sources are newer than
+their last builds.
 
 ## The container
 
@@ -128,15 +144,23 @@ For the observer, open `WebKit/` as the TypeScript project root.
 
 ### Terminal wordmark
 
-The launcher's checked-in text artwork is generated from
-`docs/assets/logo-wordmark.svg`. After changing that SVG, regenerate it with:
+The launcher's wordmark is text, in `LaunchKit/assets/logo.txt` and `logo-small.txt`:
+the outlines of `docs/assets/logo-wordmark.svg` drawn in Unicode half-block characters,
+at two sizes. The launcher picks the one that fits, and plain `D S T N S` where neither
+does or Unicode is unavailable. The start-up animates it cell by cell, so any change to
+the artwork animates too. After changing it, look at the start-up at both sizes:
+`DSTNS_SNAPSHOT_PAGES=splash cargo test --release snapshots -- --ignored --nocapture`.
 
-```bash
-python3 scripts/launcher-logo.py
-```
+## Release tooling
 
-The script samples the filled SVG outlines into Unicode half-block characters at
-two sizes. It uses only the Python standard library and is not run at startup.
-The launcher selects artwork that fits the terminal and falls back to plain text
-in compact or non-Unicode terminals. Review the splash at both sizes after
-regeneration; terminal font proportions can vary.
+`tools/release/main.cpp` builds `dstns_release`, which CI uses to publish the image:
+
+| Command | Does |
+|---|---|
+| `dstns_release metadata` | The image's version (from `CMakeLists.txt`), revision, build time and channel: `stable` only for `main` and the exact version tag; a tag for another version is refused. Also written to `GITHUB_OUTPUT` |
+| `dstns_release publish --digests DIR` | Puts both platforms' images under one candidate index, checks it has linux/amd64 and linux/arm64, promotes that immutable digest to the public tags, and reads every tag back |
+| `dstns_release smoke IMAGE --arch A [--revision R]` | Runs the packaged image: its labels, health with a running map, the observer's assets, provenance, a non-root user, replacing the run, a clean stop |
+| `dstns_release headers --check \| --fix` | The SPDX licence header on every source file, C++, Rust, TypeScript, shell, CSS and the rest |
+
+It needs only the JSON and HTTP headers, so `cmake --build build --target dstns_release`
+builds it on its own.
