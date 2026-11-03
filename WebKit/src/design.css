@@ -2489,16 +2489,24 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 /* The name blows apart, and the light goes out with it: a flash from the middle that settles into a still mint glow as the particles thin. Then nothing moves. */
 .loading-surface.boot.ending { --end-rgb: var(--ok-rgb); }
 [data-theme="light"] .loading-surface.boot.ending { --end-rgb: 47 190 150; }
-.loading-surface.boot.ending::after { content: ""; position: absolute; inset: 0; height: auto; pointer-events: none; background: radial-gradient(62vmin 62vmin at 50% 50%, rgb(var(--end-rgb) / 13%), rgb(var(--end-rgb) / 6%) 42%, rgb(var(--end-rgb) / 1.5%) 76%, transparent); animation: end-light 3600ms cubic-bezier(0.12, 0.72, 0.2, 1) 4550ms both; }
+.loading-surface.boot.rejoin { --end-rgb: var(--ok-rgb); }
+[data-theme="light"] .loading-surface.boot.rejoin { --end-rgb: 47 190 150; }
+.end-light { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(62vmin 62vmin at 50% 50%, rgb(var(--end-rgb) / 13%), rgb(var(--end-rgb) / 6%) 42%, rgb(var(--end-rgb) / 1.5%) 76%, transparent); }
+.loading-surface.boot.ending.began .end-light { animation: end-light 3600ms cubic-bezier(0.12, 0.72, 0.2, 1) 4550ms both; }
+/* A new world's light goes out again as the name gathers out of the mist. */
+.loading-surface.boot.rejoin .end-light { animation: end-light 3600ms cubic-bezier(0.12, 0.72, 0.2, 1) 4550ms both, end-light-out 1600ms var(--ease) 6100ms forwards; }
+@keyframes end-light-out { to { opacity: 0; } }
+.loading-surface.still.ending .end-light { animation: none; opacity: 1; }
+.loading-surface.still.rejoin .end-light { display: none; }
 @keyframes end-light { 0% { opacity: 0; transform: scale(0.2); filter: brightness(2.6); } 10% { opacity: 1; } 100% { opacity: 1; transform: none; filter: none; } }
 .loading-surface.ending .loading-card { position: absolute; z-index: 1; inset: 0; width: min(560px, calc(100% - 48px)); height: fit-content; margin: auto; padding: 0; gap: 0; align-items: center; text-align: center; background: none; border: 0; box-shadow: none; animation: end-text 1100ms var(--ease) 5600ms both; }
 .loading-surface.ending :is(.loading-mark, .loading-progress) { display: none; }
 .loading-surface.ending .loading-card h2 { margin: 0; font-family: var(--font-display, inherit); font-size: clamp(30px, 3.2vw, 44px); font-weight: 500; letter-spacing: -0.015em; line-height: 1.1; color: var(--text); }
 .loading-surface.ending .loading-status { margin: 12px auto 0; font-size: 13px; line-height: 1.5; text-align: center; color: var(--text-dim); }
 @keyframes end-text { from { opacity: 0; transform: translateY(8px); } }
-.loading-surface.still.ending .loading-card, .loading-surface.still.ending::after, .loading-surface.still.ending::before { animation: none; }
+.loading-surface.still.ending .loading-card, .loading-surface.still.ending::before { animation: none; }
 /* Their delays count from when the particles begin, which a hidden page does not draw: until then, nothing of either. */
-.loading-surface.ending:not(.still):not(.began) .loading-card, .loading-surface.ending:not(.still):not(.began)::after { animation: none; opacity: 0; }
+.loading-surface.ending:not(.still):not(.began) .loading-card { animation: none; opacity: 0; }
 .capsule-body, .capsule.open .capsule-body, .capsule:not(.open) .capsule-body { opacity: 1; }
 /* The text is gone before the card moves much, so it closes empty and nothing drifts. */
 .capsule-body-inner { min-height: 0; }

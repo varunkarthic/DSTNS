@@ -49,8 +49,16 @@ pub fn validate(config: &Value) -> Result<()> {
 }
 
 /// Validate, then write atomically in the file's existing format.
+const KEY_ADVANCED_SECURITY: &str = crate::security::KEY;
+
 pub fn save(config: &Value, paths: &Paths) -> Result<()> {
     validate(config)?;
+    // Advanced Security goes on or off only for the person at this machine, however it was changed.
+    let was = load(paths).map(|c| flag(&c, KEY_ADVANCED_SECURITY)).unwrap_or(false);
+    let now = flag(config, KEY_ADVANCED_SECURITY);
+    if was != now {
+        crate::security::confirm_change(paths, now).map_err(|why| LauncherError::config(format!("Advanced Security was not {}: {why}", if now { "turned on" } else { "turned off" })))?;
+    }
     for field in fields() {
         let problem = check_field(field, &field.get(config), config);
         if !problem.is_empty() {
@@ -462,6 +470,15 @@ pub fn fields() -> &'static [Field] {
             ),
             Field::new("mcp.allow_writes", "AI may change things", "MCP", Boolean, "An AI client may call routes that change the simulation (POST, PUT, DELETE). Turns the MCP Handler on.", json!(false)),
             Field::new("mcp.allow_launcher", "AI may start and stop runs", "MCP", Boolean, "An AI client may start and stop simulations and change settings through the launcher. Turns the MCP Handler on.", json!(false)),
+            // Security
+            Field::new(
+                KEY_ADVANCED_SECURITY,
+                "Advanced Security",
+                "Security",
+                Boolean,
+                "The launcher asks for Touch ID or your system password as it opens, and before any single command that changes something. No program can change the launcher or the engine through the MCP Handler. Turning it off asks again.",
+                json!(false),
+            ),
         ]
     })
 }

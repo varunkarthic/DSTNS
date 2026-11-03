@@ -52,11 +52,21 @@ pub struct Policy {
     pub enabled: bool,
     pub writes: bool,
     pub launcher: bool,
+    /// Advanced Security: nothing changes the launcher or the engine from here; Fabric's applications still may.
+    pub guarded: bool,
 }
+
+/// What a client may still change under Advanced Security: the applications' own routes.
+const GUARDED_WRITABLE: &str = "/api/v1/fabric/apps/";
 
 impl Policy {
     pub fn from_config(settings: &Value) -> Self {
-        Self { enabled: config::flag(settings, "mcp.enabled"), writes: config::flag(settings, "mcp.allow_writes"), launcher: config::flag(settings, "mcp.allow_launcher") }
+        let guarded = config::flag(settings, crate::security::KEY);
+        Self { enabled: config::flag(settings, "mcp.enabled"), writes: config::flag(settings, "mcp.allow_writes"), launcher: config::flag(settings, "mcp.allow_launcher") && !guarded, guarded }
+    }
+
+    pub fn may_change(&self, path: &str) -> bool {
+        self.writes && (!self.guarded || path.starts_with(GUARDED_WRITABLE))
     }
 }
 
@@ -160,7 +170,7 @@ pub fn route_tools(paths: &Paths, policy: Policy) -> Vec<Tool> {
     let mut tools = vec![];
     for (method, path, description) in routes(&index) {
         let read_only = method == "GET";
-        if !read_only && !policy.writes {
+        if !read_only && !policy.may_change(&path) {
             continue;
         }
         let name = tool_name(&method, &path);
@@ -217,8 +227,12 @@ fn request_tool(paths: &Paths, policy: Policy) -> Tool {
             if !(path.starts_with("/api/") || path == "/health") || path.contains("..") || path.contains('?') || path.contains('#') {
                 return Err(LauncherError::config("path must start /api/ or be /health, with any query in query"));
             }
-            if method != "GET" && !policy.writes {
-                return Err(LauncherError::config("Changes are not allowed.").remedy("The operator can allow them with ./launcher config set mcp.allow_writes on."));
+            if method != "GET" && !policy.may_change(path) {
+                return Err(if policy.writes {
+                    LauncherError::config("Changes are not allowed: Advanced Security is on, and only Fabric's applications may be changed.")
+                } else {
+                    LauncherError::config("Changes are not allowed.").remedy("The operator can allow them with ./launcher config set mcp.allow_writes on.")
+                });
             }
             if !["GET", "POST", "PUT", "DELETE"].contains(&method.as_str()) {
                 return Err(LauncherError::config("method must be GET, POST, PUT or DELETE"));
@@ -521,6 +535,20 @@ mod tests {
         assert!(!names.contains(&"launcher_start"), "starting needs the operator's leave");
         let unknown = h.handle(&json!({"jsonrpc": "2.0", "id": 3, "method": "nothing"})).unwrap();
         assert_eq!(unknown["error"]["code"], json!(-32601));
+    }
+
+    #[test]
+    fn advanced_security_leaves_only_the_applications_to_change() {
+        let settings = json!({"mcp": {"enabled": true, "allow_writes": true, "allow_launcher": true}, "security": {"advanced": true}});
+        let policy = Policy::from_config(&settings);
+        assert!(policy.guarded && !policy.launcher, "the launcher's tools are withdrawn");
+        assert!(policy.may_change("/api/v1/fabric/apps/org.x/ui/panel"));
+        assert!(!policy.may_change("/api/v1/system/terminate") && !policy.may_change("/api/v1/playback/start"), "the engine is not changed from here");
+        let h = handler(policy);
+        let names: Vec<String> = h.handle(&json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})).unwrap()["result"]["tools"].as_array().unwrap().iter().filter_map(|t| t["name"].as_str().map(String::from)).collect();
+        assert!(!names.iter().any(|n| n == "launcher_start" || n == "launcher_stop" || n == "launcher_config_set"));
+        let call = json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "dstns_request", "arguments": {"method": "POST", "path": "/api/v1/system/terminate"}}});
+        assert!(h.handle(&call).unwrap()["result"]["content"][0]["text"].as_str().unwrap().contains("Advanced Security"));
     }
 
     #[test]

@@ -252,6 +252,8 @@ export function LoadingSurface({
       {mode === "boot" && (
         <BootScene playing={film && phase === "film" && !exiting} asleep={film && phase !== "film"} closing={closing} landing={landing} ending={ending || rejoin} rejoin={rejoin} quiet={failed && rejoin} quick={quick} glint={fastBoot} demo={demo} onCycle={onFilmCycle} onEndBegan={() => setEndBegan(true)} reduceMotion={reduceMotion} />
       )}
+      {/* The light the name goes out with, at the end of a session and of a world. */}
+      {mode === "boot" && (ending || rejoin) && <span className="end-light" aria-hidden="true" />}
       {film && !rejoin && !quick && <BootTitle phase={phase} />}
       {fastBoot && !closing && (
         <div className="fastboot-status" aria-hidden="true">

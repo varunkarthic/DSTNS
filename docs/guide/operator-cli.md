@@ -534,6 +534,7 @@ server's next start. The observer reads them back from `GET /api/v1/system/featu
 | MCP | `mcp.enabled` | MCP Handler | off | An AI client may connect through the [MCP Handler](mcp.md), and read |
 | | `mcp.allow_writes` | AI may change things | off | …and call routes that change things |
 | | `mcp.allow_launcher` | AI may start and stop runs | off | …and start and stop simulations, and change settings |
+| Security | `security.advanced` | Advanced Security | off | Touch ID or your system password before the launcher can be changed; see [Advanced Security](#advanced-security) |
 | Launcher | `launcher.command_bar` | Command bar | on | The command bar and its prompt |
 | | `launcher.default_settings` | Observer at its defaults | off | Open the observer with its settings at their defaults, every time |
 
@@ -565,6 +566,38 @@ not to force the whole film, whatever the file says.
 Full screen and music need a page to have been interacted with, so when either is on, the
 launcher opens the observer in a window of its own from a Chromium-based browser, with a
 profile of its own, where both are allowed from the start.
+
+## Advanced Security
+
+With `security.advanced` on, the person at this machine proves they are its user, through
+the system's own prompt, before the launcher can be changed:
+
+| When | What happens |
+|---|---|
+| The interface opens, or `./launcher shell` | It asks once, as it opens. Everything started from it after that is verified with it |
+| A single command that changes something | `./launcher start`, `stop`, `config set`, `set`, `edit`, `env set`, `apps add`, `fastboot clear`, a `-c` line with any of these… ask, once each |
+| A command that only reads | `ps`, `logs`, `json`, `get`, `config get`, `apps list`, `mcp tools`… never ask |
+| It is turned on, or off | It always asks, wherever it is changed: the Configuration page, the setup, `security on`/`off`, `config set`, `edit settings` |
+| An AI client, through the [MCP Handler](mcp.md) | It can still read. It is offered no launcher tool that changes anything (whatever `mcp.allow_launcher` says), and of the routes, only Fabric's applications routes (`/api/v1/fabric/apps/…`) may be changed, as `mcp.allow_writes` allows. Fabric and WebFabric applications work as before |
+
+```bash
+./launcher security on          # asks, then turns it on
+./launcher security             # on or off, how this machine asks, and whether this session is verified
+./launcher security verify      # ask now, to try it
+./launcher security off         # asks again
+```
+
+| On | It asks with |
+|---|---|
+| macOS | Touch ID, or the account password: the system's own sheet, through LocalAuthentication. A small Swift program does the asking; the launcher builds it with `swiftc` the first time, into the build directory. Without Swift, the administrator password dialog instead |
+| Linux | polkit's prompt (`pkexec`), with a desktop; otherwise `sudo`, in the terminal, which the interface lends it |
+| Windows, under WSL | Windows Hello; if it is not set up, `sudo` as on Linux |
+
+It guards the launcher's own ways in: its interface, its commands and the MCP Handler. It is
+not a sandbox. A program running as the same user can still edit `config/defaults.json`
+itself, so keep such programs away from the checkout if that matters. A command the
+interface runs for you is verified because the interface started it; a shell that only
+claims to have verified is not.
 
 ## What happens when a run starts
 
@@ -603,6 +636,7 @@ build commands and their descendants.
 | 0 | Success |
 | 1 | A launcher, configuration, environment or simulation failure, or a failed test stage |
 | 2 | A command line that could not be read (an unclosed quote, an operator with nothing beside it) |
+| 77 | Advanced Security was on, and the system's prompt was not answered (a console line) |
 | 127 | A console command that does not exist |
 | 130 | Interrupted with Ctrl+C |
 | 143 | Terminated with `SIGTERM` |

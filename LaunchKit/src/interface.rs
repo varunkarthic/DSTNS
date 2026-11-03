@@ -32,6 +32,28 @@ pub fn restore_terminal() {
     }
 }
 
+static REDRAW: AtomicBool = AtomicBool::new(false);
+
+/// Lend the terminal to something that needs it as it is, a text editor or a password prompt, then take it back. The
+/// interface draws everything again afterwards. Without the interface, it just runs.
+pub fn with_terminal<T>(run: impl FnOnce() -> T) -> T {
+    let had = ACTIVE.load(Ordering::SeqCst);
+    restore_terminal();
+    let out = run();
+    if had {
+        drop(ratatui::init());
+        let _ = crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
+        set_terminal_active(true);
+        REDRAW.store(true, Ordering::SeqCst);
+    }
+    out
+}
+
+/// Whether the terminal was lent and is back, so that the interface must draw everything again.
+pub fn take_redraw() -> bool {
+    REDRAW.swap(false, Ordering::SeqCst)
+}
+
 pub fn run_interactive(context: Context, initial: &str) -> i32 {
     if context.args.no_tui || context.caps.term == "dumb" || context.args.reduced_ui {
         return Compatibility::new(&context).run(initial);

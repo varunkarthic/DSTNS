@@ -486,6 +486,12 @@ pub fn dispatch_scripted(context: &Context) -> Option<Result<i32>> {
 /// Pages `./launcher ui PAGE` opens the interface on.
 pub const UI_PAGES: &[&str] = &["dashboard", "start", "running", "apps", "seeds", "config", "demo", "fastboot", "diagnostics", "logs", "tests", "tools", "about", "setup"];
 
+/// Under Advanced Security, the person at this machine confirms it's them; otherwise nothing happens.
+pub fn verify(paths: &Paths, reason: &str) -> Result<()> {
+    crate::security::require(paths, reason)
+        .map_err(|why| LauncherError::config(format!("Advanced Security: {why}")).remedy("Advanced Security is on for this checkout: the person at this machine has to confirm it's them."))
+}
+
 pub fn run(argv: Vec<String>) -> i32 {
     let paths = Paths::default();
     crate::setup::load_env(&paths);
@@ -520,7 +526,13 @@ pub fn run(argv: Vec<String>) -> i32 {
             if !caps.interactive {
                 return Err(LauncherError::config("./launcher ui PAGE needs a terminal."));
             }
+            verify(&paths, "open the DSTNS launcher")?;
             return Ok(crate::interface::run_interactive(context, &page));
+        }
+        // A command that changes something asks first, under Advanced Security; one that only reads never does.
+        let words: Vec<String> = [args.command.clone(), args.topic.clone(), args.item.clone()].into_iter().flatten().collect();
+        if !words.is_empty() && !crate::security::reads_only(&words) && !(words.len() == 1 && caps.interactive && ["console", "start", "config", "logs", "setup"].contains(&words[0].as_str())) {
+            verify(&paths, &format!("run ./launcher {}", words.join(" ")))?;
         }
         if let Some(result) = dispatch_scripted(&context) {
             return result;
@@ -544,6 +556,7 @@ pub fn run(argv: Vec<String>) -> i32 {
             "setup" => "setup",
             _ => "home",
         };
+        verify(&paths, "open the DSTNS launcher")?;
         Ok(crate::interface::run_interactive(context, initial))
     })();
     let code = match outcome {

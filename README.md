@@ -101,6 +101,8 @@ It starts your own programs along with the simulation. Give each one its command
 
 Every feature has a setting, named for what it does, and settings that can't go together never are: turn one on and the launcher turns the other off, and says so.
 
+**Advanced Security** asks for Touch ID or your system password before the launcher can be changed, and keeps AI clients from changing the launcher or the engine through the MCP Handler. Turning it off asks again.
+
 ### The console
 
 The launcher reads command lines as a shell does, in its command bar, with `-c`, in `./launcher shell`, or one command at a time from your own shell:
@@ -112,7 +114,7 @@ The launcher reads command lines as a shell does, in its command bar, with `-c`,
 ./launcher -c 'ps | grep -q running || start'              # only if nothing is running
 ```
 
-`ls`, `cat`, `tail`, `ps`, `get`, `env`, `uptime`, `about` and `docs` read the launcher's state; `grep`, `wc`, `sort`, `uniq`, `cut` and `tee` filter it; and every other command is one of the launcher's own, captured so it pipes too. In the interface, `:` opens the prompt, with suggestions, completion, a history kept between sessions, and the server's processor and memory at its right.
+`ls`, `cat`, `tail`, `ps`, `get`, `env`, `uptime`, `about` and `docs` read the launcher's state; `json` shows any of it, or the server's, as JSON you can look inside (`json settings .api.port`, `json endpoints -k`); `set`, `unset`, `env set`, `edit` and `api` change almost everything, with the same checks as the interface; `ps -a` shows every DSTNS server on the machine; `grep`, `wc`, `sort`, `uniq`, `cut` and `tee` filter it all; and every other command is one of the launcher's own, captured so it pipes too. In the interface, `:` opens the prompt, with suggestions, completion, a history kept between sessions, and the server's processor and memory at its right.
 
 ## Fast starts
 
@@ -199,7 +201,7 @@ DSTNS is for research, teaching, algorithm integration and demonstrations. It ha
 
 ## Tested
 
-Every test is C++, Rust or TypeScript: 31 engine and HTTP suites under ctest (each HTTP suite a program that starts a real server on a port of its own, with stand-ins for every upstream), 49 launcher tests, and 476 for the observer. The HTTP contract is replayed against a recorded baseline of 155 calls, and every route is fuzzed with hostile values on every run.
+Every test is C++, Rust or TypeScript: 31 engine and HTTP suites under ctest (each HTTP suite a program that starts a real server on a port of its own, with stand-ins for every upstream), 58 launcher tests, and 476 for the observer. The HTTP contract is replayed against a recorded baseline of 155 calls, and every route is fuzzed with hostile values on every run.
 
 ```bash
 ./scripts/test.sh

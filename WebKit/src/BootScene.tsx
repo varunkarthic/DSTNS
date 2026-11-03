@@ -831,8 +831,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       attribute("aToV", scenes[to], 3, 3);
       attribute("aToM", scenes[to], 4, 6);
     };
-    // Only the end of a session comes to rest in it.
-    const mist = ending && !rejoin ? scenes.push((() => {
+    // The end of a session comes to rest in it; a new world's gathers out of it again.
+    const mist = ending ? scenes.push((() => {
       const buffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
       gl.bufferData(gl.ARRAY_BUFFER, endMist(), gl.STATIC_DRAW);
@@ -915,6 +915,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     let rejoined = false;
     // The name, re-formed for a new world, has no caption to be read under it: it goes on once it has formed.
     let rejoinHold = false;
+    let rejoinedAt = 0;
     let endStart = 0;
     let closingFor = -1;
     let blend = 1;
@@ -952,7 +953,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.uniform1f(u.sweep, sweep);
       gl.uniform1f(u.glint, glintRef.current && quick ? 1 : 0);
       gl.uniform1f(u.mix, blend);
-      gl.uniform3fv(u.front, FRONTS[scene % FRONTS.length]);
+      // The name gathers out of the mist from its middle outward, as it went.
+      gl.uniform3fv(u.front, rejoinHold ? [0, 0, 0] : FRONTS[scene % FRONTS.length]);
       gl.uniform1f(u.turn, scene % 2 ? 1 : -1);
       gl.uniform1f(u.land, landing);
       gl.uniform1f(u.time, time);
@@ -960,8 +962,10 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.uniform2f(u.pointerV, pointer.dx, pointer.dy);
       gl.uniform1f(u.reach, pointer.reach);
       gl.uniform1f(u.aspect, element.width / element.height);
-      gl.uniform1f(u.burst, endScattered && !rejoin ? 1 : 0);
-      gl.uniform1f(u.inhale, ending && !rejoin && started ? easeInOut((performance.now() / 1000 - endStart - (END_SCATTER_AT_S - 0.42)) / 0.42) : 0);
+      gl.uniform1f(u.burst, endScattered && !rejoined ? 1 : 0);
+      // Drawn in before the burst; for a new world, let go again as the name gathers.
+      const inhaled = ending && started ? easeInOut((performance.now() / 1000 - endStart - (END_SCATTER_AT_S - 0.42)) / 0.42) : 0;
+      gl.uniform1f(u.inhale, rejoined ? inhaled * (1 - easeInOut((performance.now() / 1000 - rejoinedAt) / 0.9)) : inhaled);
       gl.uniform2f(u.landShift, (mapCarry.x / window.innerWidth) * 2, -(mapCarry.y / window.innerHeight) * 2);
       gl.uniform3f(u.ripple, ripple.x, ripple.y, ripple.age);
       gl.uniform1f(u.dim, dim * strength);
@@ -1009,7 +1013,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       // A scene starts its own story as the particles arrive, not as they set off.
       ageTo += blend > 0.55 ? dt : 0;
       // Blown apart, it goes as a spring does, all at once. Otherwise steadily, with each particle easing.
-      if (endScattered && !rejoin) [blend, velocity] = stepSpring(blend, velocity, 1, BURST, dt);
+      if (endScattered && !rejoined) [blend, velocity] = stepSpring(blend, velocity, 1, BURST, dt);
       else blend = morph = Math.min(1, morph + dt / (closingRef.current ? GATHER_S : MORPH_S));
       const want = cameras[scene];
       // One unhurried move from where it was to where this scene is seen from, drawing back a little
@@ -1062,7 +1066,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         if (t > END_SCATTER_AT_S && !endScattered) {
           endScattered = true;
           from = to;
-          to = rejoin ? 0 : mist;
+          to = mist;
           bind(from, to);
           blend = 0;
           morph = 0;
@@ -1075,7 +1079,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         }
       }
       // Having landed, they give way to the map's own roads.
-      const endingDim = quietRef.current ? REST_DIM : ending && !rejoined ? (!rejoin && now / 1000 - endStart > END_THIN_AT_S ? 0 : now / 1000 - endStart > END_ROADS_AT_S ? 1 : 0) : null;
+      const endingDim = quietRef.current ? REST_DIM : ending && !rejoined ? (now / 1000 - endStart > END_THIN_AT_S ? (rejoin ? 0.55 : 0) : now / 1000 - endStart > END_ROADS_AT_S ? 1 : 0) : null;
       const dimTo = endingDim ?? (landed ? (closingFor > ((quick ? QUICK_ARRIVAL.mapAt : MAP_AT_MS) + (quick ? 220 : 500)) / 1000 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM);
       dim += (dimTo - dim) * Math.min(1, dt * (quietRef.current ? 1.6 : ending && !rejoined ? (now / 1000 - endStart > END_SCATTER_AT_S ? 0.72 : 5) : landed ? (quick ? 5 : 2.6) : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
       // The old world's particles, blown apart, come back together as the name, and the
@@ -1083,6 +1087,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       if (rejoin && started && !rejoined && playingRef.current) {
         rejoined = true;
         rejoinHold = true;
+        rejoinedAt = performance.now() / 1000;
         from = to;
         to = wordmark;
         scene = 0;

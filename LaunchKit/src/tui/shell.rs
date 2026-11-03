@@ -12,7 +12,7 @@
 //! line does works here too, typed the same way: `apps list`, `fastboot status`, `test unit`.
 
 use super::screens;
-use super::theme::{self, bold, fg, ACCENT, ERR, MUTED, NAVY, OK, TEXT, TEXT2, WARN};
+use super::theme::{self, bold, fg, ACCENT, ERR, GLOW, MUTED, NAVY, OK, TEXT, TEXT2, WARN};
 use super::widgets::{self, clip, key, Key};
 use super::{Action, Dialog, Ui};
 use crate::config;
@@ -35,7 +35,7 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     ("cat", "cat logs/SOURCE | config/KEY", "Show a log or a setting"),
     ("tail", "tail [-n N] logs/SOURCE", "The end of a log"),
     ("head", "head [-n N] logs/SOURCE", "The start of what a log holds now"),
-    ("ps", "ps", "What is running: the server, the simulation and applications"),
+    ("ps", "ps [-a]", "What is running: the server, the simulation and applications; -a, every DSTNS server and launcher here"),
     ("kill", "kill APP | server", "Stop an application, or the server"),
     ("start", "start [--seed N] [--day-type D] [--speed X] [--osm-file F] [--apps IDS]", "Start a simulation"),
     ("stop", "stop", "Stop the server and the applications this launcher started"),
@@ -45,6 +45,12 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     ("open", "open", "Open the observer in the browser"),
     ("get", "get KEY", "Read a setting"),
     ("set", "set KEY VALUE", "Change a setting"),
+    ("unset", "unset KEY", "A setting back to its default"),
+    ("json", "json PLACE|FILE [PATH] [-k] [-c]", "Any state as JSON: settings, env, seeds, apps, next-world, status, world, endpoints…"),
+    ("view", "view PLACE|FILE [PATH]", "The same as json"),
+    ("edit", "edit settings|ui|env|apps|FILE", "Edit in your editor; saved only if it still reads"),
+    ("api", "api [METHOD] PATH [BODY|@FILE]", "Any route on the running server, as the operator"),
+    ("security", "security [on|off|verify]", "Advanced Security: whether it's on, and how it asks"),
     ("config", "config [get KEY | set KEY VALUE]", "Settings: the page, or one at a time"),
     ("setup", "setup", "Run the first-launch setup again"),
     ("seeds", "seeds save|list|inspect|delete [ID]", "Saved seeds"),
@@ -66,7 +72,7 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     ("cut", "… | cut -d DELIM -f N", "Fields of each line"),
     ("tee", "… | tee FILE", "Also write it to a file"),
     ("echo", "echo WORDS", "Print its words"),
-    ("env", "env", "The DSTNS_ variables in use"),
+    ("env", "env [set NAME=VALUE | unset NAME]", "Variables in use; set and unset keep them for later runs"),
     ("uptime", "uptime", "The server's uptime, state and memory"),
     ("reset", "reset", "Delete runtime data, and forget the setup"),
     ("version", "version", "Version and licence"),
@@ -563,6 +569,7 @@ impl Shell {
                     self.say(line, vec![(format!("{command}: {what}: try logs/system, logs/api, logs/event, logs/playback or config/KEY"), ERR)], 1);
                 }
             }
+            "ps" if rest.iter().any(|w| w == "-a") => self.spawn(line, vec!["-c".into(), line.into()]),
             "ps" => {
                 let lines = self.processes(ui);
                 self.say(line, lines, 0);
@@ -650,6 +657,14 @@ impl Shell {
                     "Reset",
                     "Cancel",
                 ));
+            }
+            // These need the terminal, or the system's prompt, and this process is the one that was verified.
+            "edit" | "security" if command == "edit" || rest.first().map(|w| w != "status").unwrap_or(false) => {
+                let outcome = crate::inspect::run(&command, &rest, None, &ui.paths).unwrap_or_else(|| Err("not found".into()));
+                match outcome {
+                    Ok(lines) => self.say(line, lines.into_iter().map(|l| (l, OK)).collect(), 0),
+                    Err(problem) => self.say(line, vec![(problem, ERR)], 1),
+                }
             }
             other if crate::console::is_builtin(other) && !["ls", "cat", "tail", "head", "ps", "get", "help"].contains(&other) => self.spawn(line, vec!["-c".into(), line.into()]),
             other if crate::cli::COMMANDS.contains(&other) || crate::modules::find(other).is_some() => {
@@ -740,9 +755,16 @@ impl Shell {
         };
         let cursor_style = ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::REVERSED);
         let stats = self.stats.lock().map(|s| s.line.clone()).unwrap_or_default();
-        let mut spans = vec![Span::styled("dstns", fg(TEXT2)), Span::styled(format!(" {} ", if path == "/" { "~".to_string() } else { format!("~{path}") }), fg(ACCENT)), Span::styled(if ui.unicode { "❯ " } else { "> " }, bold(if self.last_failed() { ERR } else { ACCENT }))];
+        let secure = crate::security::verified();
+        let mut spans = vec![Span::styled(if secure { "dstns·secure" } else { "dstns" }, fg(if secure { OK } else { TEXT2 })), Span::styled(format!(" {} ", if path == "/" { "~".to_string() } else { format!("~{path}") }), fg(ACCENT)), Span::styled(if ui.unicode { "❯ " } else { "> " }, bold(if self.last_failed() { ERR } else { ACCENT }))];
         if self.open {
-            spans.extend([Span::styled(before, fg(TEXT)), Span::styled(under, cursor_style), Span::styled(after, fg(TEXT)), Span::styled(ghost, fg(MUTED))]);
+            let tones = tones(&self.input);
+            let at = self.cursor;
+            spans.extend(coloured(&self.input, &tones, 0, at));
+            spans.push(Span::styled(under, fg(tones.get(at).copied().unwrap_or(TEXT)).patch(cursor_style)));
+            spans.extend(coloured(&self.input, &tones, at + 1, usize::MAX));
+            spans.push(Span::styled(ghost, fg(MUTED)));
+            let _ = (before, after);
         } else {
             let used: usize = spans.iter().map(|s| widgets::width(&s.content)).sum();
             // Room is left for the readings at the right.
@@ -799,9 +821,14 @@ impl Shell {
                 Some(code) => Span::styled(format!("{} {code}", if ui.unicode { "✗" } else { "x" }), fg(ERR)),
             };
             lines.push(Line::from(vec![Span::styled(format!("{} ", if ui.unicode { "❯" } else { ">" }), bold(ACCENT)), Span::styled(clip(&output.command, w.saturating_sub(8), ui.unicode), bold(TEXT)), Span::raw("  "), status]));
+            let json = ["json", "view", "api"].contains(&output.command.split_whitespace().next().unwrap_or(""));
             for (text, tone) in &output.lines {
-                for piece in widgets::wrap(text, w.max(10)) {
-                    lines.push(Line::from(Span::styled(format!("  {piece}"), fg(*tone))));
+                // A line keeps its indent when it wraps, so that indented JSON and tables still line up.
+                let lead = text.len() - text.trim_start().len();
+                let indent = " ".repeat(lead.min(w / 2));
+                for piece in widgets::wrap(text.trim_start(), w.saturating_sub(indent.len()).max(10)) {
+                    let piece = format!("  {indent}{piece}");
+                    lines.push(if json && *tone == TEXT { Line::from(json_spans(&piece)) } else { Line::from(Span::styled(piece, fg(*tone))) });
                 }
             }
             lines.push(Line::default());
@@ -816,5 +843,116 @@ impl Shell {
         if rect.width > hint_width + 4 {
             frame.render_widget(Paragraph::new(Span::styled(hint, fg(MUTED))), Rect { x: rect.x + rect.width - hint_width - 2, y: rect.y + rect.height - 1, width: hint_width, height: 1 });
         }
+    }
+}
+
+/// A colour for each character of a command line as it is typed: commands, operators, quoted text and options.
+pub fn tones(line: &str) -> Vec<u32> {
+    let chars: Vec<char> = line.chars().collect();
+    let mut out = vec![TEXT; chars.len()];
+    let mut quote: Option<char> = None;
+    let mut first = true;
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if let Some(q) = quote {
+            out[i] = OK;
+            if c == q {
+                quote = None;
+            }
+            i += 1;
+            continue;
+        }
+        match c {
+            '\'' | '"' => {
+                quote = Some(c);
+                out[i] = OK;
+                first = false;
+            }
+            '|' | '&' | ';' => {
+                out[i] = WARN;
+                first = true;
+            }
+            ' ' => {}
+            _ => {
+                // A word: the first of each command, an option, or anything else.
+                let start = i;
+                while i < chars.len() && !matches!(chars[i], ' ' | '|' | '&' | ';' | '\'' | '"') {
+                    i += 1;
+                }
+                let tone = if first { ACCENT } else if chars[start] == '-' { TEXT2 } else { TEXT };
+                out[start..i].iter_mut().for_each(|t| *t = tone);
+                first = false;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// The characters from `from` to `to`, as spans of one colour each.
+fn coloured(line: &str, tones: &[u32], from: usize, to: usize) -> Vec<Span<'static>> {
+    let mut spans: Vec<Span<'static>> = vec![];
+    let mut run = String::new();
+    let mut tone = None;
+    for (i, c) in line.chars().enumerate().skip(from).take(to.saturating_sub(from)) {
+        if tone != Some(tones[i]) && !run.is_empty() {
+            spans.push(Span::styled(std::mem::take(&mut run), fg(tone.unwrap_or(TEXT))));
+        }
+        tone = Some(tones[i]);
+        run.push(c);
+    }
+    if !run.is_empty() {
+        spans.push(Span::styled(run, fg(tone.unwrap_or(TEXT))));
+    }
+    spans
+}
+
+/// A line of indented JSON in the theme's colours: keys in the accent, strings, numbers and literals each their own.
+fn json_spans(line: &str) -> Vec<Span<'static>> {
+    let indent = line.len() - line.trim_start().len();
+    let body = &line[indent..];
+    let mut spans = vec![Span::raw(line[..indent].to_string())];
+    let value = match body.strip_prefix('"').and_then(|b| b.find("\": ").map(|i| (i, b))) {
+        Some((i, b)) => {
+            spans.push(Span::styled(format!("\"{}\"", &b[..i]), fg(ACCENT)));
+            spans.push(Span::styled(": ".to_string(), fg(MUTED)));
+            &b[i + 3..]
+        }
+        None => body,
+    };
+    let bare = value.trim_end_matches(',');
+    let tone = if bare.starts_with('"') {
+        OK
+    } else if bare.parse::<f64>().is_ok() {
+        WARN
+    } else if ["true", "false", "null"].contains(&bare) {
+        GLOW
+    } else {
+        MUTED
+    };
+    spans.push(Span::styled(bare.to_string(), fg(tone)));
+    spans.push(Span::styled(value[bare.len()..].to_string(), fg(MUTED)));
+    spans
+}
+
+#[cfg(test)]
+mod tone_tests {
+    use super::*;
+
+    #[test]
+    fn a_line_is_coloured_by_what_each_part_is() {
+        let line = "logs api | grep -i '500 x' && stop";
+        let t = tones(line);
+        let at = |word: &str| t[line.find(word).unwrap()];
+        assert_eq!(at("logs"), ACCENT, "a command");
+        assert_eq!(at("api"), TEXT);
+        assert_eq!(at("|"), WARN, "an operator");
+        assert_eq!(at("grep"), ACCENT, "the next command");
+        assert_eq!(at("-i"), TEXT2, "an option");
+        assert_eq!(at("'500"), OK, "quoted text, spaces and all");
+        assert_eq!(t[line.find("x'").unwrap()], OK);
+        assert_eq!(at("stop"), ACCENT);
     }
 }

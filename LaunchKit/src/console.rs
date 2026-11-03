@@ -26,9 +26,17 @@ pub const BUILTINS: &[(&str, &str, &str)] = &[
     ("cat", "cat logs/SOURCE | config/KEY | FILE", "A log, a setting or a file; with nothing, its input"),
     ("tail", "tail [-n N] [logs/SOURCE]", "The last lines of a log, or of its input"),
     ("head", "head [-n N] [logs/SOURCE]", "The first lines of a log, or of its input"),
-    ("ps", "ps", "The server, the simulation and applications"),
+    ("ps", "ps [-a]", "The server, the simulation and applications; -a, every DSTNS server and launcher here"),
     ("get", "get KEY", "A setting's value"),
-    ("env", "env", "The DSTNS_ variables this launcher passes on"),
+    ("set", "set KEY VALUE", "Change a setting, with its checks and rules"),
+    ("unset", "unset KEY", "A setting back to its default"),
+    ("json", "json PLACE|FILE|- [PATH] [-k] [-c]", "Any state as JSON: settings, env, seeds, apps, next-world, status, world, endpoints…"),
+    ("view", "view PLACE|FILE [PATH]", "The same as json"),
+    ("edit", "edit settings|ui|env|apps|FILE", "Edit in your editor; saved only if it still reads"),
+    ("env", "env [set NAME=VALUE | unset NAME]", "Variables in use; set and unset keep them for later runs"),
+    ("api", "api [METHOD] PATH [BODY|@FILE]", "Any route on the running server, as the operator"),
+    ("security", "security [on|off|verify]", "Advanced Security: whether it's on, and how it asks"),
+    ("history", "history", "Commands typed so far"),
     ("uptime", "uptime", "How long the server has been up, and what it is doing"),
     ("grep", "grep [-i] [-v] [-c] PATTERN", "The lines of its input that match a pattern (a regular expression)"),
     ("wc", "wc [-l]", "Lines, words and characters in its input"),
@@ -322,12 +330,12 @@ fn builtin(words: &[String], input: Option<&[String]>, paths: &Paths) -> Ran {
             let opened = std::io::stdout().is_terminal() && crate::simulation::open_in_browser(&url);
             Ok(vec![if opened { format!("Opened {url}") } else { url }])
         }
+        "ps" if rest.iter().any(|w| w == "-a") => Ok(crate::inspect::everyone(paths)),
         "ps" => Ok(processes(paths)),
         "get" => match rest.first() {
             None => Err("get: say which setting, such as api.port".into()),
             Some(key) => read_place(&format!("config/{key}"), 1, false, paths),
         },
-        "env" => Ok(std::env::vars().filter(|(k, _)| k.starts_with("DSTNS_")).map(|(k, v)| format!("{k}={v}")).collect()),
         "uptime" => Ok(match crate::server::active_port(paths) {
             None => vec!["server stopped".into()],
             Some(port) => {
@@ -348,7 +356,7 @@ fn builtin(words: &[String], input: Option<&[String]>, paths: &Paths) -> Ran {
             }
         }
         "grep" | "wc" | "sort" | "uniq" | "cut" | "tee" => filter(name, rest, input.unwrap_or(&[])),
-        other => Err(format!("{other}: command not found")),
+        other => crate::inspect::run(other, rest, input, paths).unwrap_or_else(|| Err(format!("{other}: command not found"))),
     };
     match result {
         // grep finding nothing has failed, as it does in a shell, so that `grep x && ...` reads as it should.
@@ -393,6 +401,13 @@ pub fn run_line(line: &str, paths: &Paths) -> i32 {
         eprintln!("A quotation mark is not closed.");
         return 2;
     };
+    // Under Advanced Security, a line that changes anything asks once, before any of it runs.
+    if parts.iter().any(|(_, words)| !crate::security::reads_only(words)) {
+        if let Err(why) = crate::security::require(paths, "run a command in the DSTNS console") {
+            eprintln!("Advanced Security: {why}");
+            return 77;
+        }
+    }
     let mut status = 0;
     let mut index = 0;
     while index < parts.len() {
@@ -421,8 +436,11 @@ pub fn run_line(line: &str, paths: &Paths) -> i32 {
                 };
                 status = ran.code;
                 if last {
+                    // JSON is coloured only here, as it reaches a terminal, never on its way through a pipe.
+                    let tint = ["json", "view", "api"].contains(&name) && std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
                     let mut stdout = std::io::stdout().lock();
                     for l in &ran.out {
+                        let l = if tint { crate::inspect::tint(l) } else { l.clone() };
                         if writeln!(stdout, "{l}").is_err() {
                             // The reader went away, as `| head` does: that is not a failure.
                             return status;
@@ -441,6 +459,12 @@ pub fn run_line(line: &str, paths: &Paths) -> i32 {
 /// `./launcher shell`: lines read until `exit`, with a prompt where there is a terminal.
 pub fn repl(paths: &Paths) -> i32 {
     let interactive = std::io::stdin().is_terminal();
+    if interactive {
+        if let Err(why) = crate::security::require(paths, "open the DSTNS console") {
+            eprintln!("Advanced Security: {why}");
+            return 77;
+        }
+    }
     let mut status = 0;
     let stdin = std::io::stdin();
     loop {

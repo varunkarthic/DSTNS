@@ -166,7 +166,7 @@ run:
 | `dstns_tests` | 726 assertions passed |
 | `ctest` (31 suites: engine, HTTP, downloader, launcher end to end, release tooling) | All passed |
 | `tests/http/api.cpp` | 123 requests checked |
-| `cargo test` (the launcher) | 49 passed |
+| `cargo test` (the launcher) | 58 passed |
 | Vitest (the observer) | 476 passed |
 
 The SUMO step of `api_smoke.py` runs only where a working SUMO is installed, and is

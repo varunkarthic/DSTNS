@@ -14,7 +14,8 @@ use std::fs;
 
 pub const ENV: &str = "DSTNS_SETUP_COMPLETE";
 
-fn read(paths: &Paths) -> Vec<(String, String)> {
+/// What config/launcher.env keeps, in order.
+pub fn entries(paths: &Paths) -> Vec<(String, String)> {
     fs::read_to_string(paths.launcher_env())
         .unwrap_or_default()
         .lines()
@@ -26,7 +27,7 @@ fn read(paths: &Paths) -> Vec<(String, String)> {
 
 /// What config/launcher.env holds, into this process's environment, beneath anything already set.
 pub fn load_env(paths: &Paths) {
-    for (key, value) in read(paths) {
+    for (key, value) in entries(paths) {
         if env::var_os(&key).is_none() {
             env::set_var(key, value);
         }
@@ -37,7 +38,8 @@ pub fn first_launch() -> bool {
     !matches!(env::var(ENV).as_deref(), Ok("1") | Ok("true") | Ok("yes"))
 }
 
-fn write(paths: &Paths, entries: &[(String, String)]) -> std::io::Result<()> {
+/// Keep these in config/launcher.env, and nothing else.
+pub fn save_entries(paths: &Paths, entries: &[(String, String)]) -> std::io::Result<()> {
     let path = paths.launcher_env();
     if entries.is_empty() {
         return match fs::remove_file(&path) {
@@ -59,16 +61,16 @@ fn write(paths: &Paths, entries: &[(String, String)]) -> std::io::Result<()> {
 
 /// The setup is done: remember it.
 pub fn complete(paths: &Paths) -> std::io::Result<()> {
-    let mut entries: Vec<(String, String)> = read(paths).into_iter().filter(|(k, _)| k != ENV).collect();
+    let mut entries: Vec<(String, String)> = entries(paths).into_iter().filter(|(k, _)| k != ENV).collect();
     entries.push((ENV.into(), "1".into()));
     env::set_var(ENV, "1");
-    write(paths, &entries)
+    save_entries(paths, &entries)
 }
 
 /// Forget that it was set up, so that the next interactive start runs the setup again.
 pub fn forget(paths: &Paths) {
-    let entries: Vec<(String, String)> = read(paths).into_iter().filter(|(k, _)| k != ENV).collect();
-    let _ = write(paths, &entries);
+    let entries: Vec<(String, String)> = entries(paths).into_iter().filter(|(k, _)| k != ENV).collect();
+    let _ = save_entries(paths, &entries);
     env::remove_var(ENV);
 }
 

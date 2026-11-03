@@ -322,6 +322,15 @@ an allow-list first.
   `X-Frame-Options` and `Strict-Transport-Security`, and forwards
   `X-Forwarded-Host`. It adds encryption, not authentication.
 
+## The launcher's Advanced Security
+
+On a machine shared with other programs, such as an AI client, the launcher's
+[Advanced Security](../guide/operator-cli.md#advanced-security) asks the system to confirm the
+person at the machine (Touch ID or the password on macOS, polkit or sudo on Linux, Windows
+Hello under WSL) before the launcher can be changed. It also keeps the MCP Handler from
+changing the launcher or the engine. It guards the launcher's own ways in, not the files:
+a program running as the same user can still edit them.
+
 ## Hardening checklist
 
 - [ ] Keep the default `127.0.0.1` bind. If remote access is needed, place an

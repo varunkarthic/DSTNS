@@ -23,6 +23,11 @@ it is **closed by default**.
 Either permission turns the handler on, and turning the handler off turns both off. The
 setup's **MCP** step asks the same.
 
+With [Advanced Security](operator-cli.md#advanced-security) on, a client can still read, but
+it is offered no launcher tool that changes anything, whatever `mcp.allow_launcher` says, and
+of the routes it may change only Fabric's applications (`/api/v1/fabric/apps/…`), as
+`mcp.allow_writes` allows. Nothing it does reaches the launcher or the engine.
+
 ## Connecting a client
 
 The client starts the handler itself, over standard input and output.

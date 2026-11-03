@@ -7,7 +7,7 @@ Rust (the launcher) or TypeScript (the observer). Nothing needs Python.
 |---|---|---|---|
 | Engine: unit, property, replay, performance | C++ | `ctest` | 13 programs |
 | HTTP API, downloader, launcher end to end, release tooling | C++ | `ctest` | 18 programs |
-| Launcher: commands, console, settings, the terminal interface | Rust | `cargo test` | 49 tests |
+| Launcher: commands, console, settings, the terminal interface | Rust | `cargo test` | 58 tests |
 | Observer | TypeScript (Vitest, jsdom) | `npm test` | 476 tests in 38 files |
 | Browser | JavaScript (Playwright, installed Chrome) | `node WebKit/tests/browser*.mjs` | 4 suites |
 

@@ -533,6 +533,9 @@ pub fn run(context: Context, initial: &str) -> std::io::Result<Outcome> {
     let mut app = App { ui, screens: vec![first], dialogs: vec![], toasts: vec![], shell: shell::Shell::new(command_bar), outcome: None, quitting: false, help_open: None };
     let result = (|| -> std::io::Result<()> {
         loop {
+            if crate::interface::take_redraw() {
+                terminal.clear()?;
+            }
             terminal.draw(|frame| app.draw(frame))?;
             // The start-up animates at about 30 frames a second; everything else needs no more than 10.
             let frame = if app.screens.last().map(|s| s.path() == "/splash").unwrap_or(false) && app.ui.motion { 33 } else { 100 };

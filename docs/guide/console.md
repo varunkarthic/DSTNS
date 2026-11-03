@@ -43,12 +43,26 @@ These run in the launcher itself, read its state, and print plain text:
 | `cat logs/SOURCE`, `cat config/KEY`, `cat FILE` | A log (`system`, `api`, `event`, `playback`), a setting, or a file. With nothing named, what was piped to it |
 | `tail [-n N] [logs/SOURCE]`, `head [-n N] …` | The last or first lines of a log, or of their input. `tail -20` works too |
 | `ps` | The server (its pid, from the server itself), its port and state, and the simulation's clock and seed |
+| `ps -a` | Every DSTNS server, map download and launcher on this machine, with its pid, how long it has been up, its port and where it writes; this launcher's server is marked |
 | `get KEY` | A setting's value, as the Configuration page shows it |
-| `env` | The `DSTNS_` variables in use |
+| `json PLACE [PATH] [-k] [-c]`, `view …` | Any of the launcher's state, or the running server's, as indented JSON; see [Looking inside](#looking-inside) |
+| `env` | The `DSTNS_` variables in use, those kept in `config/launcher.env` marked `# kept` |
+| `history` | The commands typed so far, in the interface and here |
+| `security` | Whether [Advanced Security](operator-cli.md#advanced-security) is on, how this machine asks, and whether this session is verified |
 | `uptime` | How long the server has been up, its state and clock, and its peak memory |
 | `about` | Version, copyright, licence and map-data attribution |
 | `docs [TOPIC]` | Opens the documentation (in a terminal) and prints its address. Topics: `launcher`, `console`, `mcp`, `fastboot`, `api`, `endpoints`, `config`, `apps`, `testing`, `troubleshooting` |
 | `echo WORDS`, `true`, `false`, `help` | As in a shell; `help` lists every command |
+
+These change things, with the same checks as everywhere else:
+
+| Command | Does |
+|---|---|
+| `set KEY VALUE` (or `KEY=VALUE`), `unset KEY` | Change a setting, or put it back to its default, with its checks and [rules](operator-cli.md#settings-that-go-together); what else had to change is listed |
+| `env set NAME=VALUE…`, `env unset NAME…` | Keep a variable in `config/launcher.env` for every later start, or forget it. Names are capital letters, digits and `_` |
+| `edit settings\|ui\|env\|apps\|FILE` | Open it in `$VISUAL`, `$EDITOR`, nano or vi. A copy is edited, and saved only if it still reads: JSON that parses, settings that pass their checks, `NAME=VALUE` lines, a catalogue that loads. Otherwise nothing changes and the draft's path is printed |
+| `api [METHOD] PATH [BODY\|@FILE]` | Any route on the running server, as the operator, its reply as indented JSON; a status other than 2xx is printed first |
+| `security on`, `security off`, `security verify` | Turn Advanced Security on or off (each asks the system first), or ask now, to try it |
 
 And these filter what is piped to them:
 
@@ -61,6 +75,31 @@ And these filter what is piped to them:
 | `uniq [-c]` | Repeated adjacent lines once; `-c` with their count |
 | `cut -d DELIM -f N[,N]` | Fields of each line (tab-separated by default) |
 | `tee FILE` | Its input, also written to a file |
+
+## Looking inside
+
+`json` reads a place, a file, or what is piped to it (`-`), and prints it as indented JSON,
+coloured in a terminal. A path looks inside it; `-k` lists the keys there, `-c` prints it on
+one line, and a string on its own prints as it is, so that it pipes:
+
+| Place | What it is |
+|---|---|
+| `settings` | Every setting as it is in effect, defaults included (`stored`: only what `config/defaults.json` holds) |
+| `ui` | The observer's settings, `config/ui-config.json` |
+| `env` | The variables in use, each with where it came from |
+| `seeds`, `apps` | Saved seeds; the applications catalogue |
+| `next-world` | Dynamic Fastboot's next world, `next-world.json` |
+| `eta` | How long preparing worlds has taken, which the server's estimates come from |
+| `launcher` | The server this launcher is running |
+| `status`, `world`, `system`, `features`, `endpoints` | From the running server: the simulation, world generation, its build and process, what it has on, and every route |
+
+```bash
+./launcher json settings .api.port                      # 8090
+./launcher json settings .startup -k                    # the startup settings' names
+./launcher -c 'json endpoints .items -c | wc -c'
+./launcher -c 'api /api/v1/view/traffic | json - .edges[0]'
+./launcher -c 'json status .lifecycle | grep -q RUNNING && pause'
+```
 
 ## Everything else
 
@@ -88,6 +127,12 @@ The command bar adds what only makes sense inside the interface:
 | `set KEY VALUE` (or `KEY=VALUE`), `config` | Change a setting, or open the Configuration page |
 | `setup`, `reset` | The setup again; reset runtime data, after a confirmation |
 | `history`, `clear`, `man COMMAND`, `exit` | The commands typed so far, clear the output, how to use a command, leave |
+
+What is typed is coloured as it is read: each command in the accent, `|`, `&&`, `||` and `;`
+in amber, quoted text in green and options dimmed. `json`, `view` and `api` print in colour
+too: keys, strings, numbers and `true`, `false` and `null` each their own. `edit` lends the
+terminal to the editor and takes it back after. With Advanced Security verified, the prompt
+reads `dstns·secure`.
 
 As you type, suggestions appear above the prompt with what each does, and the rest of the
 first is shown dimmed. **Tab** takes it, **↑ ↓** walk the suggestions while typing and

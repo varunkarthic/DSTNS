@@ -52,6 +52,16 @@ milliseconds after). It needs Rust 1.89 and nothing at run time; `.venv-launcher
 Command lines as a Unix shell reads them, joined by `|`, `&&`, `||` and `;`, with quotes kept, exit statuses as a
 shell's, and 127 for a command that does not exist.
 
+- **Looking inside:** `json PLACE [PATH]` (and `view`) prints any of the launcher's state, or the running server's, as
+  indented JSON, coloured at a terminal and plain through a pipe: `settings` (with every default), `stored`, `ui`,
+  `env`, `seeds`, `apps`, `next-world`, `eta`, `launcher`, `status`, `world`, `system`, `features`, `endpoints`, a
+  file, or `-` for its input, with a path such as `.api.port`, `-k` for keys and `-c` for one line.
+- **Changing almost everything:** `set KEY VALUE` and `unset KEY`, with the same checks and rules as the Configuration
+  page; `env set NAME=VALUE` and `env unset NAME`, kept in `config/launcher.env`; `edit settings|ui|env|apps|FILE`,
+  in your editor, saved only if it still reads; and `api [METHOD] PATH [BODY]`, any route as the operator.
+- **`ps -a`:** every DSTNS server, map download and launcher on the machine, not only this one's.
+- **The command bar colours what is typed** (commands, operators, quoted text, options) and the JSON it prints, keeps
+  indents when a line wraps, and lends the terminal to `edit`.
 - **Everywhere:** in the command bar (`:` or `/`), with `./launcher -c 'LINE'`, with `./launcher shell`, and one
   command at a time from your own shell, which can pipe it: `./launcher ps | grep server`.
 - **Readers** of the launcher's state as plain text (`ls`, `cat`, `tail`, `head`, `ps`, `get`, `env`, `uptime`,
@@ -61,6 +71,17 @@ shell's, and 127 for a command that does not exist.
   `logs/command-history`), runs a chained line as `dstns-launcher -c` so a long pipeline never holds up the interface,
   and shows the server's live readings at the right of the prompt: port, state, clock, processor and memory.
 - **Fixed: Up and Down in the command bar** walked a recalled command's suggestions instead of the history.
+
+### Advanced Security
+
+- **`security.advanced`** (off by default): the person at the machine confirms it's them, with the system's own
+  prompt, before the launcher can be changed. Touch ID or the password on macOS, through LocalAuthentication and a
+  small Swift program the launcher builds once; polkit or sudo on Linux; Windows Hello under WSL. The interface and
+  `./launcher shell` ask as they open; a single command asks only if it changes something; turning it on or off
+  always asks.
+- **The MCP Handler under it** reads, but offers no launcher tool that changes anything, and changes only Fabric's
+  applications routes. Fabric and WebFabric work as before.
+- `./launcher security [on|off|verify]` and the Configuration page's **Security** section.
 
 ### Dynamic Fastboot
 
@@ -151,7 +172,7 @@ and stop runs. Every call is logged. `./launcher mcp tools` and `mcp client-conf
   end to end, with the test program itself as the applications it starts. New: `api`, `fetch_osm`, `release` and
   `dynamic_fastboot`.
 - **`dstns_release`** replaces the image metadata, publishing, image smoke test and licence-header scripts, and is
-  tested against a stand-in `docker`. CI builds and runs it, and the launcher's 49 tests, without Python. CodeQL now
+  tested against a stand-in `docker`. CI builds and runs it, and the launcher's 58 tests, without Python. CodeQL now
   analyses the Rust too.
 - **Fixed: the server listened with a backlog of five,** so a burst of connections (an observer, its applications and
   a round of polls) could be dropped before a thread took them. It is now 128.
