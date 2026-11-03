@@ -29,9 +29,13 @@ struct MapTileResult {
 [[nodiscard]] MapTileResult acquire_map_tile(const MapLocation& location,
                                              const std::filesystem::path& cache_directory);
 
-// Locate scripts/fetch_osm.py relative to the working directory or install
-// root. Exposed so tests and diagnostics can report a missing fetcher clearly.
-[[nodiscard]] std::filesystem::path find_fetch_script();
+// The program that downloads: this server, run as `dstns_server --fetch-osm`, or
+// DSTNS_FETCHER. Exposed so tests and diagnostics can report a missing fetcher clearly.
+[[nodiscard]] std::filesystem::path find_fetcher();
+
+// `dstns_server --fetch-osm ...`: download one district from Overpass, as the engine
+// asks, in a process of its own. See osm_download.cpp for its options.
+int fetch_osm_main(int argc, char** argv);
 
 // A snapshot of the download currently in flight, if any. The operator CLI
 // polls this so a multi-minute city download is a progress bar rather than a

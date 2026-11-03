@@ -28,6 +28,9 @@
 #include <signal.h>
 #include <cerrno>
 #include <thread>
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 extern char** environ;
 
 namespace dstns {
@@ -86,12 +89,7 @@ std::uintmax_t unpack(const std::filesystem::path& packed, const std::filesystem
     return written;
 }
 
-std::string python_interpreter() {
-    if (const char* override = std::getenv("DSTNS_PYTHON"); override && *override) return override;
-    return "python3";
-}
-
-// Read the sidecar the Python downloader updates as bytes arrive.
+// Read the sidecar the downloader updates as bytes arrive.
 void read_progress(MapFetchStatus& status) {
     std::ifstream in(status.file + ".progress");
     if (!in) return;
@@ -207,7 +205,7 @@ int run_capture(const std::string& command, std::string& output, const std::stri
     }
 }
 
-// Keep only the last few lines: Overpass errors are terse, Python tracebacks are not.
+// Keep only the last few lines: Overpass errors are terse, and anything else need not be repeated in full.
 std::string tail_lines(const std::string& text, std::size_t count) {
     std::vector<std::string> lines;
     std::istringstream stream(text);
@@ -253,12 +251,22 @@ MapFetchStatus current_map_fetch() {
     return copy;
 }
 
-std::filesystem::path find_fetch_script() {
-    for (const auto* candidate : {"scripts/fetch_osm.py", "../scripts/fetch_osm.py", "/app/scripts/fetch_osm.py"}) {
-        std::error_code ec;
-        if (std::filesystem::is_regular_file(candidate, ec)) return candidate;
-    }
-    return {};
+std::filesystem::path find_fetcher() {
+    std::error_code ec;
+    if (const char* override = std::getenv("DSTNS_FETCHER"); override && *override) return override;
+    std::filesystem::path self;
+#if defined(__APPLE__)
+    char buffer[4096];
+    std::uint32_t size = sizeof buffer;
+    if (_NSGetExecutablePath(buffer, &size) == 0) self = std::filesystem::weakly_canonical(buffer, ec);
+#else
+    self = std::filesystem::read_symlink("/proc/self/exe", ec);
+#endif
+    if (self.empty()) return {};
+    // The server downloads with itself. Another program built on the core, such as the tests, uses the server beside it.
+    if (self.filename() == "dstns_server") return self;
+    const auto beside = self.parent_path() / "dstns_server";
+    return std::filesystem::is_regular_file(beside, ec) ? beside : std::filesystem::path{};
 }
 
 MapTileResult acquire_map_tile(const MapLocation& location, const std::filesystem::path& cache_directory) {
@@ -287,9 +295,9 @@ MapTileResult acquire_map_tile(const MapLocation& location, const std::filesyste
         throw MapFetchError("Cannot create map cache directory " + sanitize_message(cache_directory.string()) + ": " + sanitize_message(ec.message()));
     }
 
-    const auto script = find_fetch_script();
-    if (script.empty()) {
-        throw MapFetchError("OSM downloader scripts/fetch_osm.py was not found; cannot download the map tile for "
+    const auto fetcher = find_fetcher();
+    if (fetcher.empty()) {
+        throw MapFetchError("The map downloader (dstns_server --fetch-osm) was not found; cannot download the map tile for "
                             + location.city + " (" + location.bbox() + ")");
     }
 
@@ -307,10 +315,9 @@ MapTileResult acquire_map_tile(const MapLocation& location, const std::filesyste
     } guard;
 
     std::ostringstream command;
-    command << shell_quote(python_interpreter()) << ' ' << shell_quote(script.string())
+    command << shell_quote(fetcher.string()) << " --fetch-osm"
             // "--bbox=VALUE", not "--bbox VALUE": a southern-hemisphere box
-            // starts with a minus sign, which argparse would read as an option
-            // and so refuse to download a seventh of the cities in the catalogue.
+            // starts with a minus sign, which would read as an option.
             << " --bbox=" << shell_quote(location.bbox())
             << " --output=" << shell_quote(target.string());
 

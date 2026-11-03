@@ -188,12 +188,12 @@ def checks(paths: Paths = PATHS, *, suites: bool = False) -> list[Check]:
         return Outcome(State.PASS, "all values recognised")
 
     def map_fetcher() -> Outcome:
-        script = root / "scripts" / "fetch_osm.py"
-        if not script.exists():
-            return Outcome(State.FAIL, "scripts/fetch_osm.py missing", remedy="Seeds cannot resolve to a city without it.")
-        code, out, _ = _command([sys.executable, "-m", "py_compile", str(script)], timeout=15)
-        return Outcome(State.PASS if code == 0 else State.FAIL, "compiles" if code == 0 else "does not compile",
-                       out.strip()[:200], remedy="" if code == 0 else "Restore scripts/fetch_osm.py from the repository.")
+        server = root / "build" / "dstns_server"
+        if not server.exists():
+            return Outcome(State.WARNING, "not built yet", remedy="Starting a run builds the server, which downloads maps itself.")
+        code, out, _ = _command([str(server), "--fetch-osm", "--help"], timeout=15)
+        return Outcome(State.PASS if code == 0 else State.FAIL, "built in" if code == 0 else "does not answer",
+                       out.strip()[:200], remedy="" if code == 0 else "Rebuild the server: ./launcher start rebuilds it.")
 
     def map_cache() -> Outcome:
         from . import configuration

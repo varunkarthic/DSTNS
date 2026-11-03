@@ -17,6 +17,12 @@ every existing endpoint behaves as before, 155 recorded calls being replayed to 
 widening: `tick_rate` now accepts up to 20. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
 
+### No Python at run time
+
+- **The engine downloads maps itself.** `scripts/fetch_osm.py` is replaced by `dstns_server --fetch-osm`, with the same options, failover between Overpass mirrors, progress, atomic writes, manifest and messages. The engine runs it in a process of its own, as before. It needs libcurl to build. `DSTNS_PYTHON` is replaced by `DSTNS_FETCHER`.
+- **The container needs no Python.** `dstns-run` is now `dstns_server --run`, the health check is `dstns_server --probe`, and the image no longer installs Python.
+- **Fast Boot opens as a reload does:** the name alone, waiting with a light passing across it, then the roads.
+
 ### A setting for every feature, web applications, Fast Boot and Demo Mode
 
 - **A setting for every feature.** `./launcher config` and the terminal interface's Configuration page now cover Fabric (applications, the older API, launch proposals, signatures, each capability), WebFabric, start-up, music, full screen and Demo Mode. They reach the server as it starts, and `GET /api/v1/system/features` reports them. With `fabric.legacy_api` off the older routes answer `410 LEGACY_API_DISABLED`; with applications off, registering answers `403 APPLICATIONS_DISABLED`; a capability turned off answers `403 CAPABILITY_DISABLED`.

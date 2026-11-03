@@ -39,7 +39,7 @@ COPY --from=ui /tmp/build-ca.crt /etc/ssl/certs/ca-certificates.crt
 RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
-      build-essential cmake git ca-certificates libsqlite3-dev zlib1g-dev \
+      build-essential cmake git ca-certificates libsqlite3-dev zlib1g-dev libcurl4-openssl-dev \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY CMakeLists.txt ./
@@ -77,7 +77,7 @@ COPY --from=ui /tmp/build-ca.crt /etc/ssl/certs/ca-certificates.crt
 RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
-      libsqlite3-0 zlib1g python3 ca-certificates tini \
+      libsqlite3-0 zlib1g libcurl4 ca-certificates tini \
  && if [ "$WITH_SUMO" = "1" ]; then apt-get install -y --no-install-recommends sumo; fi \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin dstns
@@ -88,10 +88,11 @@ COPY --from=ui /ui/dist /app/WebKit/dist
 COPY config /app/config
 COPY LICENSE COPYRIGHT /app/
 COPY WebKit/package.json /tmp/observer-package.json
-RUN python3 -c 'import json,sys; from pathlib import Path; keys=("version","revision","created","channel","platform","with_sumo"); data=dict(zip(keys,sys.argv[1:])); data.update(observer_version=json.loads(Path("/tmp/observer-package.json").read_text())["version"], author="Varun Karthic", source="https://github.com/varunkarthic/DSTNS", license="AGPL-3.0-or-later"); Path("/app/build-info.json").write_text(json.dumps(data,indent=2)+"\n")' \
-      "$VERSION" "$REVISION" "$BUILD_DATE" "$RELEASE_CHANNEL" "$TARGETPLATFORM" "$WITH_SUMO" \
+RUN observer="$(sed -n 's/^  "version": "\(.*\)",$/\1/p' /tmp/observer-package.json)" \
+ && printf '{\n  "version": "%s",\n  "revision": "%s",\n  "created": "%s",\n  "channel": "%s",\n  "platform": "%s",\n  "with_sumo": "%s",\n  "observer_version": "%s",\n  "author": "Varun Karthic",\n  "source": "https://github.com/varunkarthic/DSTNS",\n  "license": "AGPL-3.0-or-later"\n}\n' \
+      "$VERSION" "$REVISION" "$BUILD_DATE" "$RELEASE_CHANNEL" "$TARGETPLATFORM" "$WITH_SUMO" "$observer" > /app/build-info.json \
+ && test -n "$observer" \
  && rm /tmp/observer-package.json
-COPY scripts/fetch_osm.py /app/scripts/fetch_osm.py
 # A recorded real district, so a container can run with no network at all:
 # DSTNS_OSM_FILE=/app/data/fixtures/real_network.osm.xml
 COPY data/fixtures/real_network.osm.xml /app/data/fixtures/real_network.osm.xml
@@ -118,7 +119,7 @@ ENV DSTNS_PORT=8090 \
 USER dstns
 EXPOSE 8090
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
-  CMD python3 -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('DSTNS_PORT','8090'), timeout=2).read()"
+  CMD ["/app/build/dstns_server", "--probe"]
 
 # tini reaps the map downloader's children and forwards signals, so
 # `docker stop` shuts the server down cleanly.

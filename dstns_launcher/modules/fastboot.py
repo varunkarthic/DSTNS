@@ -89,7 +89,7 @@ def _download(context: Context, options: argparse.Namespace, paths: Paths) -> in
             continue
         temporary = paths.fastboot / f"{city['key']}.osm.xml.download"
         temporary.parent.mkdir(parents=True, exist_ok=True)
-        command = [os.environ.get("DSTNS_PYTHON", sys.executable), str(paths.root / "scripts" / "fetch_osm.py"), f"--bbox={city['bbox']}", "--output", str(temporary)]
+        command = [str(paths.server), "--fetch-osm", f"--bbox={city['bbox']}", "--output", str(temporary)]
         out.message(Level.INFO, label, "downloading")
         try:
             done = subprocess.run(command, cwd=paths.root, capture_output=True, text=True, timeout=900)

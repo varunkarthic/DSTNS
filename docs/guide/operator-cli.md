@@ -145,7 +145,7 @@ count and the latest check. They also run on the environment screen when
 | Build tools | Yes | The core is not built and CMake or a C++ compiler is missing |
 | Configuration | Yes | `config/defaults.json` or `config/ui-config.json` is invalid |
 | Workspace | Yes | The logs directory is not writable |
-| Map downloader | Yes | `scripts/fetch_osm.py` is missing or does not compile |
+| Map downloader | Yes | The server does not answer `--fetch-osm --help` |
 | Map cache | Yes | `data/maps/` is not writable |
 | Simulation core | Yes | The binary is missing (warning: it is built on start) |
 | Node.js | No | Missing or older than 20; needed only to rebuild the observer |

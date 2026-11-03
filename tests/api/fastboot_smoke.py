@@ -4,6 +4,7 @@
 
 """Fast Boot: a city kept compressed in advance is unpacked and used, with no download."""
 import gzip
+import itertools
 import json
 import os
 from pathlib import Path
@@ -26,7 +27,7 @@ def main():
     listed = json.loads(subprocess.run([SERVER, "--list-cities", "5000"], capture_output=True, text=True, check=True).stdout)
     assert len(listed) >= 100 and all({"city", "country", "key", "bbox"} <= set(city) for city in listed), listed[:2]
     assert {city["key"] for city in listed} >= {"berlin_x5000", "london_x5000"}
-    seeds = [seed for seed in range(1, 4000) if city_of(seed)["key"] == "berlin_x5000"][:8]
+    seeds = list(itertools.islice((seed for seed in range(1, 4000) if city_of(seed)["key"] == "berlin_x5000"), 3))
     assert seeds, "a seed that chooses Berlin, whose centre the fixture covers"
 
     with tempfile.TemporaryDirectory() as tmp:

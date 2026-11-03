@@ -55,7 +55,7 @@ holds simulation state of its own; both read what the core publishes.
 | `Fabric/src/` | `ApiServer`: every HTTP route, request validation, error mapping, CSRF guard |
 | `Core/src/scenario.cpp` | `ScenarioCompiler`: seed and config to a complete `Scenario` (graph, signals, stops, trips, weather, incidents) |
 | `Core/src/osm.cpp` | `OsmRoadLoader`: OSM XML to a connected, canonically numbered road graph and its places |
-| `Core/src/osm_fetch.cpp` | On-demand map download through `scripts/fetch_osm.py`, progress, cache sweep |
+| `Core/src/osm_fetch.cpp`, `osm_download.cpp` | On-demand map download, run as `dstns_server --fetch-osm` in a process of its own, progress, cache sweep |
 | `Core/src/geo.cpp` | The 181-city catalogue and seed-to-location resolution |
 | `Core/src/graph.cpp` | `GraphStore` (static graph plus per-tick dynamic arrays) and `RoutePlanner` (A*) |
 | `Core/src/events.cpp` | `EventRuntime`: signal controller heap, demand schedule, couplings, event history |
@@ -83,7 +83,7 @@ holds simulation state of its own; both read what the core publishes.
 | HTTP workers | cpp-httplib's thread pool | Parse requests, call the engine, serialise responses |
 | Engine loop (`worker_`) | `SimulationEngine` constructor | Wakes every 50 ms; while `RUNNING`, advances the model to where the wall clock says it should be; writes `global_view.json` every 10 s |
 | World worker (`world_worker_`) | `start_async`, `regenerate_world` | Compiles a scenario (possibly downloading a map) off the request thread, then installs it |
-| Downloader child | `osm_fetch.cpp` via `posix_spawn` | Runs `scripts/fetch_osm.py` in its own process group, so termination can kill it and its descendants |
+| Downloader child | `osm_fetch.cpp` via `posix_spawn` | Runs `dstns_server --fetch-osm` in its own process group, so termination can kill it and its descendants |
 | Shutdown worker | `terminate` handler | Stops the listener; a detached 3 s backstop guarantees the process exits |
 
 One mutex, `SimulationEngine::mutex_`, guards all simulation state. Every view
@@ -111,7 +111,7 @@ flowchart TD
     Seed(["Seed128"]) --> Geo["City and anchor<br/>(urban-crfg-v3)"]
     Seed --> Sub["Sub-seeds<br/>(SHA-256 domains)"]
     Geo --> Tile{"Map tile<br/>on disk?"}
-    Tile -- "no" --> Fetch["fetch_osm.py<br/>(Overpass)"]
+    Tile -- "no" --> Fetch["dstns_server --fetch-osm<br/>(Overpass)"]
     Tile -- "yes" --> Load
     Fetch --> Load["OsmRoadLoader<br/>parse, CRFG district growth,<br/>canonical IDs, metre projection, places"]
     Load --> Comp

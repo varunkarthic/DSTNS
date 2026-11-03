@@ -151,7 +151,7 @@ int main() {
             out << "<osm>" << std::string(8192, ' ') << "</osm>";
         }
         // Any download attempt now would fail, proving the cache was used.
-        ::setenv("DSTNS_PYTHON", "/usr/bin/false", 1);
+        ::setenv("DSTNS_FETCHER", "/usr/bin/false", 1);
         const auto reused = acquire_map_tile(first, sandbox);
         check(!reused.downloaded, "an identical cached tile is reused instead of re-downloaded");
         check(reused.file == first.cache_path(sandbox), "the reused tile is the seed-derived file");
@@ -178,7 +178,7 @@ int main() {
         check(raised, "a failed download raises MapFetchError rather than substituting another map");
         check(!std::filesystem::exists(missing.cache_path(sandbox)),
               "a failed download leaves no partial file behind to poison the cache");
-        ::unsetenv("DSTNS_PYTHON");
+        ::unsetenv("DSTNS_FETCHER");
 
         // ---- A truncated cache entry is discarded, not trusted ------------
         {
@@ -186,7 +186,7 @@ int main() {
             std::ofstream out(stub);
             out << "<osm/>";
         }
-        ::setenv("DSTNS_PYTHON", "/usr/bin/false", 1);
+        ::setenv("DSTNS_FETCHER", "/usr/bin/false", 1);
         bool rejected = false;
         try {
             (void)acquire_map_tile(missing, sandbox);
@@ -194,13 +194,13 @@ int main() {
             rejected = true;
         }
         check(rejected, "a truncated cache entry is re-fetched rather than loaded as a map");
-        ::unsetenv("DSTNS_PYTHON");
+        ::unsetenv("DSTNS_FETCHER");
 
         // A downloader that goes quiet is stopped, and says so.
         const auto silent = sandbox / "silent";
         std::ofstream(silent) << "#!/bin/sh\nsleep 30\n";
         std::filesystem::permissions(silent, std::filesystem::perms::owner_all);
-        ::setenv("DSTNS_PYTHON", silent.c_str(), 1);
+        ::setenv("DSTNS_FETCHER", silent.c_str(), 1);
         ::setenv("DSTNS_MAP_STALL_S", "1", 1);
         const auto stalled_from = std::chrono::steady_clock::now();
         std::string stalled;
@@ -212,7 +212,7 @@ int main() {
         check(stalled.find("No data arrived for 1 seconds") != std::string::npos, "a silent download fails with a reason");
         check(std::chrono::steady_clock::now() - stalled_from < std::chrono::seconds(10), "a silent download is stopped at its limit");
         ::unsetenv("DSTNS_MAP_STALL_S");
-        ::unsetenv("DSTNS_PYTHON");
+        ::unsetenv("DSTNS_FETCHER");
 
         // ---- The cache is swept on boot so extracts cannot accumulate -----
         // City extracts are tens of megabytes each; without this a long-lived
@@ -350,9 +350,9 @@ int main() {
             const auto recorded = sandbox / "argv.txt";
             std::ofstream(stub) << "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" << recorded.string() << "'\nexit 1\n";
             std::filesystem::permissions(stub, std::filesystem::perms::owner_all);
-            ::setenv("DSTNS_PYTHON", stub.c_str(), 1);
+            ::setenv("DSTNS_FETCHER", stub.c_str(), 1);
             try { (void)acquire_map_tile(sydney, sandbox / "maps"); } catch (const MapFetchError&) {}
-            ::unsetenv("DSTNS_PYTHON");
+            ::unsetenv("DSTNS_FETCHER");
             std::ifstream in(recorded);
             std::vector<std::string> argv;
             for (std::string line; std::getline(in, line);) argv.push_back(line);

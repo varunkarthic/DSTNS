@@ -25,7 +25,7 @@ def main():
         server = subprocess.Popen(
             [os.environ.get('DSTNS_SERVER', str(ROOT / 'build/dstns_server')), '--host', '127.0.0.1', '--port', str(port),
              '--logs', str(tmp), '--maps', str(tmp / 'maps'), '--map-cache', 'keep'],
-            cwd=ROOT, env={**os.environ, 'DSTNS_PYTHON': '/usr/bin/false'},
+            cwd=ROOT, env={**os.environ, 'DSTNS_FETCHER': '/usr/bin/false'},
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         def call(route, data=None):

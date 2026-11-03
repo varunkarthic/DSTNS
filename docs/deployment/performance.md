@@ -237,7 +237,7 @@ line with the roughly 800 MB observed in Docker.
 | Graph size | 50,000 nodes | `max_nodes` |
 | District target | 3,000 nodes (200 to 50,000) | `map.district_nodes` |
 | City extract | 5 km square (0.5 to 20 km) | `map.city_extent_m` |
-| Downloaded extract | 200 MiB | `fetch_osm.py` (`MAX_BYTES`) |
+| Downloaded extract | 200 MiB | `osm_download.cpp` (`kMaxBytes`) |
 | Speed | 5x | `kMaxTickRate` |
 
 ## Tuning

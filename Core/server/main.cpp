@@ -17,7 +17,17 @@
 #include <filesystem>
 #include <string>
 
+int container_run_main(int argc, char** argv);
+int container_probe_main();
+
 int main(int argc, char** argv) {
+    // The engine's map downloader is this program too, in a process of its own, and so is what a container needs.
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view arg(argv[i]);
+        if (arg == "--fetch-osm") return dstns::fetch_osm_main(argc, argv);
+        if (arg == "--run") return container_run_main(argc, argv);
+        if (arg == "--probe") return container_probe_main();
+    }
     try {
         // Loopback by default: the API can drive a run and write files, so it is
         // reachable from other machines only when the operator says so (--host).

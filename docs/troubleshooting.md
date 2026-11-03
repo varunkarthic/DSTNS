@@ -187,7 +187,7 @@ Engine 2.0.0 could not download any city south of the equator (Sydney, São Paul
 Johannesburg, Dar es Salaam…) on Python before 3.13, failing with
 `argument --bbox: expected one argument`. Update to 2.1.0 or later; see the
 [release notes](changelog.md). If you call
-`scripts/fetch_osm.py` yourself, write `--bbox=S,W,N,E` with an equals sign.
+`dstns_server --fetch-osm` yourself, write `--bbox=S,W,N,E` with an equals sign.
 
 ## The observer shows an error
 

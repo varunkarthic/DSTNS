@@ -27,7 +27,7 @@ flowchart LR
     subgraph Host["Operator's machine"]
         S["dstns_server<br/>127.0.0.1:8090"]
         F[("Files: logs, maps, SUMO output")]
-        X["Child processes<br/>fetch_osm.py, netconvert, sumo"]
+        X["Child processes<br/>dstns_server --fetch-osm, netconvert, sumo"]
     end
     N -. "blocked by loopback bind" .-> S
     W -- "CSRF, rebinding, cross-origin reads" --> S
@@ -268,7 +268,7 @@ rather than wrapped.
 
 The server starts two kinds of external program:
 
-- **The map downloader** (`python3 scripts/fetch_osm.py`), through `posix_spawn`
+- **The map downloader** (`dstns_server --fetch-osm`), through `posix_spawn`
   of `/bin/sh -c`. Every argument is single-quoted, the child has its own process
   group (so termination can kill it and its descendants), and its pipe is
   close-on-exec.

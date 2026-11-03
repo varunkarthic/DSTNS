@@ -295,7 +295,7 @@ simulated detail, but not the city. Any OpenStreetMap XML file works; export
 one from [openstreetmap.org](https://www.openstreetmap.org/export) or Overpass.
 
 !!! tip "Fetching a larger area"
-    `python3 scripts/fetch_osm.py --bbox=S,W,N,E --output=data/maps/area.osm.xml`
+    `./build/dstns_server --fetch-osm --bbox=S,W,N,E --output=data/maps/area.osm.xml`
     downloads any bounding box. Write `--bbox=` with an equals sign: a southern
     or western box starts with a minus sign.
 

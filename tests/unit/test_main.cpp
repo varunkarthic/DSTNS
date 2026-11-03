@@ -59,11 +59,11 @@ int main(){try{
     check(real_map.map_city==planned.city&&!real_map.map_downloaded,"cached tile is reused and its city recorded");
     check(real_map.nodes.size()>120,"default road map is not the 120-node grid");
     // An absent tile that cannot be downloaded must fail, never fall back.
-    ::setenv("DSTNS_PYTHON","/usr/bin/false",1);
+    ::setenv("DSTNS_FETCHER","/usr/bin/false",1);
     auto miss_cfg=auto_cfg;miss_cfg.map_cache_dir=(tile_cache/"empty").string();
     bool missing_map_rejected=false;
     try{(void)compiler.compile(seed,miss_cfg);}catch(const MapFetchError&){missing_map_rejected=true;}
-    ::unsetenv("DSTNS_PYTHON");
+    ::unsetenv("DSTNS_FETCHER");
     std::filesystem::remove_all(tile_cache);
     check(missing_map_rejected,"an undownloadable map fails instead of silently generating a grid");
     auto osm_cfg=cfg;osm_cfg.osm_file="tests/fixtures/roads.osm.xml";osm_cfg.max_nodes=50;auto osm=compiler.compile(seed,osm_cfg);check(osm.nodes.size()==9,"OSM road-only node filtering");check(osm.edges.size()==24,"OSM segment bidirectional normalization");check(std::any_of(osm.edges.begin(),osm.edges.end(),[](const auto&e){return e.synthetic_reverse;}),"OSM one-way provenance retained");

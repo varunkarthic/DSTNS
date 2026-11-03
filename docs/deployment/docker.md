@@ -101,7 +101,7 @@ flowchart LR
                 TINI["tini (PID 1)"] --> EP["dstns-entrypoint"]
                 EP --> SRV["dstns_server :8090<br/>engine · API · observer"]
                 EP -. "after health" .-> RUN["dstns-run<br/>starts the first run"]
-                SRV --> DL["fetch_osm.py<br/>map downloads"]
+                SRV --> DL["dstns_server --fetch-osm<br/>map downloads"]
             end
         end
         VM[("dstns-maps<br/>/app/data/maps")]
@@ -135,12 +135,11 @@ API from one port. The gateway is optional and only terminates TLS.
 ├── config/                         defaults.json, ui-config.json
 ├── build-info.json                 version, revision, platform and component metadata
 ├── LICENSE, COPYRIGHT              licence and developer attribution
-├── scripts/fetch_osm.py            the map downloader
 ├── data/fixtures/real_network.osm.xml   offline district
 ├── data/maps/        (volume)      map cache
 └── logs/             (volume)      system.log, runtime.db, operator.token
 /usr/local/bin/dstns-entrypoint     start-up script
-/usr/local/bin/dstns-run            run starter
+/usr/local/bin/dstns-run            run starter: dstns_server --run
 ```
 
 Properties:

@@ -12,9 +12,9 @@ them answers.
 import gzip
 import http.server
 import json
+import os
 import socket
 import subprocess
-import sys
 import threading
 import time
 import tempfile
@@ -22,7 +22,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / 'scripts/fetch_osm.py'
+# The engine downloads with itself, run as `dstns_server --fetch-osm`.
+SERVER = os.environ.get('DSTNS_SERVER', str(ROOT / 'build/dstns_server'))
 
 MAP = b"""<?xml version="1.0" encoding="UTF-8"?>
 <osm version="0.6" generator="test">
@@ -87,7 +88,7 @@ def closed_port():
 
 
 def fetch(output, endpoints, extra=()):
-    args = [sys.executable, str(SCRIPT), '--bbox', '52.499,13.399,52.502,13.402', '--output', str(output), '--retries', '0']
+    args = [SERVER, '--fetch-osm', '--bbox', '52.499,13.399,52.502,13.402', '--output', str(output), '--retries', '0']
     for endpoint in endpoints:
         args += ['--endpoint', endpoint]
     return subprocess.run(args + list(extra), capture_output=True, text=True, cwd=ROOT)
@@ -191,7 +192,7 @@ class FetchOsmTests(unittest.TestCase):
 
     def test_reads_endpoints_from_the_environment(self):
         url, handler = self.endpoint()
-        args = [sys.executable, str(SCRIPT), '--bbox', '52.499,13.399,52.502,13.402', '--output', str(self.out)]
+        args = [SERVER, '--fetch-osm', '--bbox', '52.499,13.399,52.502,13.402', '--output', str(self.out)]
         env = {'PATH': '/usr/bin:/bin', 'DSTNS_OVERPASS_ENDPOINTS': f'http://127.0.0.1:{closed_port()}/api, {url}'}
         result = subprocess.run(args, capture_output=True, text=True, cwd=ROOT, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -143,8 +143,8 @@ dstns_server [--host ADDR] [--port 1-65535] [--logs DIR] [--maps DIR]
 | `DSTNS_BIND` | Compose | Host address Compose publishes on (default `127.0.0.1`; `0.0.0.0` exposes the API to the network) |
 | `DSTNS_ALLOWED_ORIGINS` | server | Comma-separated origins allowed to make state-changing requests besides the server's own. See [Security](../deployment/security.md#origin-check-cross-site-request-forgery) |
 | `DSTNS_DISABLE_WORLD_REGENERATION` | server | `1` makes `/world/regenerate` return 403 |
-| `DSTNS_PYTHON` | server | Python interpreter for the map downloader (default `python3`) |
-| `DSTNS_OVERPASS_ENDPOINTS` | `fetch_osm.py` | Comma-separated Overpass API endpoints to try |
+| `DSTNS_FETCHER` | server | The program that downloads maps (default: the server itself, as `dstns_server --fetch-osm`) |
+| `DSTNS_OVERPASS_ENDPOINTS` | map downloader | Comma-separated Overpass API endpoints to try |
 | `DSTNS_MAP_STALL_S` | server | Seconds a map download may go without new data before it fails (default `200`) |
 | `SUMO_HOME` | server, CLI | Where to find `bin/sumo` and `bin/netconvert` first |
 | `DSTNS_API_PORT` | CLI, Vite, preflight | Port to use or proxy to, overriding `api.port` |

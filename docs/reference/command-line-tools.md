@@ -11,7 +11,7 @@ to use it. The operator CLI (`./launcher`) is documented separately in
 | [`dstns_replay_verify`](#dstns_replay_verify) | Prove that one seed gives identical worlds twice | No |
 | [`dstns_road_index`](#dstns_road_index) | Compile an OSM file and print its graph and scenario hashes | No |
 | [`dstns_benchmark`](#dstns_benchmark) | Measure the system under increasing load: district size, events, observers, narration | No |
-| `scripts/fetch_osm.py` | Download one city extract from an Overpass endpoint | No |
+| `dstns_server --fetch-osm` | Download one city extract from an Overpass endpoint | No |
 
 All binaries are written to `build/` by `cmake --build build -j`. See
 [Building from source](../development/building.md).
@@ -26,6 +26,9 @@ dstns_server [--host ADDR] [--port PORT] [--logs DIR] [--maps DIR]
              [--version]
 dstns_server --list-cities [EXTENT_M]
 dstns_server --city-of-seed SEED
+dstns_server --fetch-osm --bbox=S,W,N,E --output=FILE [...]
+dstns_server --run [--seed S] [...]     # in a container: start a run, as dstns-run
+dstns_server --probe                    # exit 0 if the server on DSTNS_PORT is healthy
 ```
 
 | Flag | Default | Meaning |
@@ -174,12 +177,12 @@ compare machines; for what the numbers mean see
 ./build/dstns_benchmark --suite network 40 80
 ```
 
-## scripts/fetch_osm.py
+## dstns_server --fetch-osm
 
-The map downloader the server invokes when a seed selects a city that is not
+The map downloader. The server runs itself this way, in a process of its own, when a seed selects a city that is not
 cached. You can also run it yourself to prefetch a city; its options (`--bbox`, `--anchor`,
-`--radius-m`, `--output`, `--retries`, `--endpoint`, `--timeout`) are listed by
-`python3 scripts/fetch_osm.py --help`. It reads `DSTNS_OVERPASS_ENDPOINTS`, a
+`--radius-m`, `--output`, `--retries`, `--endpoint`, `--timeout`, `--quiet-seconds`) are listed by
+`./build/dstns_server --fetch-osm --help`. It reads `DSTNS_OVERPASS_ENDPOINTS`, a
 comma-separated list of Overpass API endpoints to try in order, and writes the
 extract and a `.manifest.json` recording the source, licence, bounding box, byte
 count and SHA-256. See [OSM map generation](../concepts/osm-map-generation.md).

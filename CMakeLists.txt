@@ -40,6 +40,8 @@ set(HTTPLIB_USE_ZSTD_IF_AVAILABLE OFF CACHE BOOL "gzip only" FORCE)
 set(HTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN OFF CACHE BOOL "No TLS in the engine" FORCE)
 FetchContent_MakeAvailable(json httplib)
 find_package(SQLite3 REQUIRED)
+# Maps come from Overpass over HTTPS, which the engine's own HTTP library does without TLS by design.
+find_package(CURL REQUIRED)
 find_package(Threads REQUIRED)
 if(TARGET SQLite3::SQLite3)
   set(DSTNS_SQLITE_TARGET SQLite3::SQLite3)
@@ -48,10 +50,10 @@ else()
 endif()
 
 add_library(dstns_core
-  Core/src/rng.cpp Core/src/utf8.cpp Core/src/graph.cpp Core/src/asb.cpp Core/src/demand.cpp Core/src/geo.cpp Core/src/osm.cpp Core/src/osm_fetch.cpp Core/src/scenario.cpp Core/src/engine.cpp Core/src/events.cpp Core/src/logging.cpp Core/src/sumo_bridge.cpp
+  Core/src/rng.cpp Core/src/utf8.cpp Core/src/graph.cpp Core/src/asb.cpp Core/src/demand.cpp Core/src/geo.cpp Core/src/osm.cpp Core/src/osm_fetch.cpp Core/src/osm_download.cpp Core/src/scenario.cpp Core/src/engine.cpp Core/src/events.cpp Core/src/logging.cpp Core/src/sumo_bridge.cpp
   Core/src/narrator.cpp Core/src/platform.cpp)
 target_include_directories(dstns_core PUBLIC Core/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
-target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib)
+target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib CURL::libcurl)
 if(APPLE)
   target_link_libraries(dstns_core PUBLIC "-framework CoreFoundation" "-framework CFNetwork")
 endif()
@@ -81,7 +83,7 @@ target_include_directories(dstns_fabric PUBLIC Fabric/include PRIVATE Fabric/src
 target_link_libraries(dstns_fabric PUBLIC dstns_core)
 target_compile_options(dstns_fabric PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 
-add_executable(dstns_server Core/server/main.cpp)
+add_executable(dstns_server Core/server/main.cpp Core/server/container.cpp)
 target_compile_definitions(dstns_server PRIVATE DSTNS_VERSION="${PROJECT_VERSION}")
 target_link_libraries(dstns_server PRIVATE dstns_fabric)
 add_executable(dstns_scenario_export tools/scenario-inspect/main.cpp)

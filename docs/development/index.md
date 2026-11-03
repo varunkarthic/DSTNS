@@ -31,7 +31,7 @@ DSTNS/
 │   └── fixtures/             small OSM files
 ├── WebKit/                the observer (React, Vite, Vitest)
 ├── dstns_launcher/           Python launcher: core, Textual interface, compatibility mode
-├── scripts/                  build, test, dev, reset, fetch_osm.py
+├── scripts/                  build, test, dev and reset
 ├── docker/                   entrypoint, dstns-run, TLS gateway
 ├── config/                   defaults.json, ui-config.json
 ├── data/fixtures/            a recorded real district

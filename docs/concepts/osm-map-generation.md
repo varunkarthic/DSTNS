@@ -31,9 +31,9 @@ The extract is cached at `<cache_dir>/<city-slug>_x<extent>.osm.xml`, for
 example `data/maps/cologne_x5000.osm.xml`. A cached file of at least 4 KiB is
 used as is; a smaller one is treated as truncated, deleted and fetched again.
 
-On a miss, the server runs `python3 scripts/fetch_osm.py --bbox S,W,N,E
---output FILE` in its own process group (see [Security](../deployment/security.md#external-processes)).
-The script:
+On a miss, the server runs itself as `dstns_server --fetch-osm --bbox=S,W,N,E
+--output=FILE` in its own process group (see [Security](../deployment/security.md#external-processes)).
+The downloader:
 
 - queries Overpass for `highway`, `building`, `landuse` and `leisure` ways,
   traffic-signal nodes, and the nodes they reference, in XML;
