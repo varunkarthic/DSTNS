@@ -338,14 +338,16 @@ void ApiServer::routes_system() {
     server_->Get("/api/v1/system/features", [](const auto&, auto& r) {
         const auto& on = switches();
         const char* regeneration = std::getenv("DSTNS_DISABLE_WORLD_REGENERATION");
-        auto presentation = json{{"webfabric", true}, {"force_animate", true}, {"fast_boot", false}, {"demo", false}, {"music", false}, {"fullscreen", false}, {"music_volume", 0.6}};
+        auto presentation = json{{"webfabric", true}, {"force_animate", true}, {"fast_boot", false}, {"demo", false}, {"music", false}, {"fullscreen", false}, {"music_volume", 0.6},
+                                 {"map_fps", 0}, {"render_scale", 2.0}, {"film_particles", 32000}};
         presentation.update(on.presentation);
         // Fast Boot exists to skip the wait, so the film is not made to play to its end.
         if (presentation.value("fast_boot", false)) presentation["force_animate"] = false;
         send(r, {{"api_version", kApiVersion}, {"data", {
             {"applications", on.applications}, {"legacy_api", on.legacy_api}, {"launch_proposals", on.launch_proposals},
             {"require_signatures", on.require_signatures}, {"disabled_capabilities", on.disabled},
-            {"world_regeneration", !(regeneration && std::string(regeneration) == "1")}, {"presentation", presentation}}}});
+            {"world_regeneration", !(regeneration && std::string(regeneration) == "1")}, {"presentation", presentation},
+            {"performance", server_performance()}}}});
     });
     server_->Get("/api/v1/system/narrator", [this](const auto&, auto& r) {
         send(r, {{"ok", true}, {"data", engine_.narrator_status()}});

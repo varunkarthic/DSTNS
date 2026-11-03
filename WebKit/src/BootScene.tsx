@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LOGO_SVG } from "./logoAsset";
 import { appearance } from "./appearance";
+import { currentFeatures } from "./features";
 import { stepSpring } from "./motion";
 import { buildDemoFormations, buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B, formation, IN_WORLD, JOINS, KIND, ORB_HEIGHT, ORB_HUES, sequence, SEAM, SEEDS_AT, STRIDE, TRIP_ROADS, WRECK_AT } from "./bootScenes";
 
@@ -877,7 +878,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     let frame = 0;
     let dim = asleepRef.current || ending ? 0 : playingRef.current ? 1 : REST_DIM;
     let strength = 1;
-    let count = COUNT;
+    // As many particles as the operator allows; a struggling page draws fewer still.
+    let count = Math.min(COUNT, currentFeatures().presentation.film_particles);
     let slow = 0;
     const camera = { yaw: cameras[0].yaw, pitch: cameras[0].pitch, distance: cameras[0].distance, orbit: 0 };
     let leaving = { yaw: camera.yaw, pitch: camera.pitch, distance: camera.distance };

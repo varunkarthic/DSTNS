@@ -52,7 +52,8 @@ export const api = {
   systemInfo: () => request<{version?: string; build?: {compiler?: string; cpp_standard?: number}; sumo?: {available?: boolean; version?: string}}>("/api/v1/system/info"),
   status: () => request<Envelope<Status>>("/api/v1/fabric/engine/status"),
   topology: () => request<Envelope<Topology>>("/api/v1/view/topology"),
-  snapshot: () => request<Envelope<Snapshot>>("/api/v1/view/snapshot"),
+  // The observer shows three demand causes for a road, and they are most of a snapshot's bytes.
+  snapshot: () => request<Envelope<Snapshot>>("/api/v1/view/snapshot?causes=3"),
   /** `realistic` asks for Realistic News narrations; without it the feed is the core's own. */
   news: (since = 0, sinceNarration = 0, realistic = false) =>
     request<Envelope<NewsPage>>(

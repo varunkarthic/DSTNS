@@ -74,7 +74,12 @@ public:
 
     [[nodiscard]] nlohmann::json scheduled_events(bool future,const std::string& category,std::size_t offset,std::size_t limit) const;
     [[nodiscard]] nlohmann::json status() const; [[nodiscard]] nlohmann::json topology() const;
-    [[nodiscard]] nlohmann::json snapshot() const; [[nodiscard]] nlohmann::json nodes(std::size_t offset,std::size_t limit) const;
+    [[nodiscard]] nlohmann::json snapshot() const;
+    // The same snapshot as JSON text, written directly rather than built as a document first, which is most of what
+    // a snapshot costs. `causes` above 0 lists at most that many demand causes per road, which are most of its bytes,
+    // for a client that shows only the first few; 0 lists them all.
+    [[nodiscard]] std::string snapshot_text(std::size_t causes = 0) const;
+    [[nodiscard]] nlohmann::json nodes(std::size_t offset,std::size_t limit) const;
     [[nodiscard]] nlohmann::json edges(std::size_t offset,std::size_t limit) const; [[nodiscard]] nlohmann::json manifest() const;
     [[nodiscard]] nlohmann::json catalog(const std::string& kind) const;
 

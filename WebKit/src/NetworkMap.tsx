@@ -18,6 +18,7 @@ import type { RoadFlow } from "./flowTraffic";
 import { buildTiles, MARKER_BUDGET, placeNameShows, PLACE_NAME_BUDGET, sizeTier, STREET_NAME_BUDGET, streetNameShows, tierShows, tileOnScreen } from "./mapTiles";
 import { animate, createVelocityTracker, SPRINGS, stepSpring } from "./motion";
 import { appearance } from "./appearance";
+import { currentFeatures } from "./features";
 import type { RainCells } from "./mapModel";
 import { resistClamp, resistZoomOut, ZOOM_REST } from "./resistance";
 import type { SpringPreset } from "./motion";
@@ -320,7 +321,7 @@ function NetworkMap({
     g.maxY * view.scale + view.y >= -pad &&
     g.minY * view.scale + view.y <= size.h + pad;
   const setup = (canvas: HTMLCanvasElement) => {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, currentFeatures().presentation.render_scale);
     if (
       canvas.width !== Math.round(size.w * dpr) ||
       canvas.height !== Math.round(size.h * dpr)
@@ -795,8 +796,9 @@ function NetworkMap({
       const moving = rainNow.some((cell) => cell.moving);
       if (moving || flashing) frame = requestAnimationFrame(draw);
       else if (running && !reduceMotion && (layers.vehicles || (snapshot?.active_incidents.length ?? 0) > 0)) {
-        // Every frame while it can afford to; a heavy scene falls back to every other.
-        if (quality.current >= 0.7 || settling) frame = requestAnimationFrame(draw);
+        // Every frame while it can afford to; a heavy scene falls back to every other. The operator may fix either.
+        const fps = currentFeatures().presentation.map_fps;
+        if (fps === 60 || (fps !== 30 && quality.current >= 0.7) || settling) frame = requestAnimationFrame(draw);
         else frame = requestAnimationFrame(() => (frame = requestAnimationFrame(draw)));
       } else if (settling) frame = requestAnimationFrame(draw);
     };

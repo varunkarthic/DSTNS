@@ -72,7 +72,9 @@ def main():
     try:
         features = s.call("GET", "/api/v1/system/features")[1]["data"]
         assert features["applications"] and features["legacy_api"] and features["launch_proposals"] and not features["require_signatures"]
-        assert features["presentation"] == {"webfabric": True, "force_animate": True, "fast_boot": False, "demo": False, "music": False, "fullscreen": False, "music_volume": 0.6}, features
+        assert features["presentation"] == {"webfabric": True, "force_animate": True, "fast_boot": False, "demo": False, "music": False, "fullscreen": False, "music_volume": 0.6,
+                                        "map_fps": 0, "render_scale": 2.0, "film_particles": 32000}, features
+        assert features["performance"] == {"compression": "fast", "api_threads": "auto", "engine_threads": "auto"}, features
         assert s.call("GET", "/api/v1/playback/status")[0] == 200
 
         # A web interface of its own, opened in a tab, and only over http or https.

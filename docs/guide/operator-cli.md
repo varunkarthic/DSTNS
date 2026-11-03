@@ -518,6 +518,12 @@ next start of the server. The observer reads them back from `GET /api/v1/system/
 | | `presentation.fullscreen` | off | Open the observer full screen |
 | | `presentation.music_volume` | 0.6 | From 0 to 1 |
 | Demo | `demo.music`, `demo.fullscreen` | on | The same, in Demo Mode |
+| Performance | `performance.compression` | fast | How hard the server compresses: fast, balanced, small or off |
+| | `performance.api_threads` | 0 | Requests answered at once; 0 lets the server choose |
+| | `performance.engine_threads` | 0 | Threads that write a large snapshot; 0 lets the server choose |
+| | `performance.map_fps` | automatic | The map's frame rate for moving traffic: automatic, 60 or 30 |
+| | `performance.render_scale` | 2 | The most pixels per point the map draws at |
+| | `performance.film_particles` | 32000 | Particles in the start-up film |
 
 Full screen and music need a page to have been interacted with, so when either is on, the launcher opens the
 observer in a window of its own from a Chromium-based browser, with a profile of its own, where both are allowed

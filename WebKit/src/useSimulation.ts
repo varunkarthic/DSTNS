@@ -5,6 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { NOTIFY_TEMPLATES } from "./notificationModel";
 import type { Envelope, News, Snapshot, Status, Topology } from "./types";
+
+/** How often a hidden page asks for the world, which it does not draw. */
+const HIDDEN_POLL_MS = 5000;
 export function useSimulation(dwellMs = 7000, realistic = false) {
   const [status, setStatus] = useState<Envelope<Status> | null>(null),
     [snapshot, setSnapshot] = useState<Envelope<Snapshot> | null>(null),
@@ -46,7 +49,9 @@ export function useSimulation(dwellMs = 7000, realistic = false) {
       since = 0,
       initial = true,
       lastVirtual = -1;
+    let busy = false;
     async function refresh() {
+      busy = true;
       try {
         const sent = performance.now();
         // Status first, and published as soon as it arrives. While the core is
@@ -165,14 +170,23 @@ export function useSimulation(dwellMs = 7000, realistic = false) {
           setError(e instanceof Error ? e.message : "Connection failed.");
       } finally {
         // Quickly until there is a map, so a finished stage is not left on screen
-        // waiting for the next poll; then at the pace the core publishes.
-        if (!cancelled) timer = setTimeout(refresh, run ? 1000 : 250);
+        // waiting for the next poll; then at the pace the core publishes. A hidden
+        // page draws nothing, so it asks only now and then, and at once on return.
+        busy = false;
+        if (!cancelled) timer = setTimeout(refresh, !run ? 250 : document.hidden ? HIDDEN_POLL_MS : 1000);
       }
     }
+    const onVisible = () => {
+      if (document.hidden || busy || cancelled) return;
+      clearTimeout(timer);
+      void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     void refresh();
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
   useEffect(() => {

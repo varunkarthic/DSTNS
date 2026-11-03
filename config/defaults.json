@@ -99,5 +99,13 @@
   "demo": {
     "music": true,
     "fullscreen": true
+  },
+  "performance": {
+    "compression": "fast",
+    "api_threads": 0,
+    "engine_threads": 0,
+    "map_fps": 0,
+    "render_scale": 2,
+    "film_particles": 32000
   }
 }

@@ -15,9 +15,21 @@
 
 // Request parsing and response helpers shared by the Fabric route modules.
 namespace dstns::fabric {
+
+// How hard to compress, from DSTNS_COMPRESSION: off, fast (the default), balanced, small, or a zlib level 0 to 9.
+int compression_level();
+// gzip at that level; empty if it could not.
+std::string gzip(const std::string& body, int level);
+// gunzip; empty if it is not gzip.
+std::string gunzip(const std::string& body);
+// A large JSON body, compressed at the operator's level for a client that accepts gzip, and sent as a body of known
+// length, which the HTTP library passes through as it is. Returns the bytes sent.
+std::size_t send_json_text(const httplib::Request& request, httplib::Response& response, std::string body);
+// What the operator chose for the server's own work, as GET /api/v1/system/features reports it.
+nlohmann::json server_performance();
 using json = nlohmann::json;
 
-void send(httplib::Response& r, const json& j, int status = 200);
+void send(httplib::Response& r, json j, int status = 200);
 std::size_t page_parameter(const httplib::Request& request, const char* key, std::size_t fallback, std::size_t ceiling);
 Seed128 seed_from(const json& j);
 bool same_origin(const std::string& origin, const std::string& host, const std::string& forwarded_host);

@@ -3,6 +3,8 @@
 
 #include "dstns/webfabric/registry.hpp"
 
+#include <optional>
+
 #include "dstns/rng.hpp"
 #include "dstns/utf8.hpp"
 #include "support.hpp"
@@ -349,8 +351,16 @@ const Switches& switches() {
                 const auto given = json::parse(text);
                 for (const char* key : {"webfabric", "force_animate", "fast_boot", "demo", "music", "fullscreen"})
                     if (given.is_object() && given.contains(key) && given.at(key).is_boolean()) out.presentation[key] = given.at(key);
-                if (given.is_object() && given.contains("music_volume") && given.at("music_volume").is_number())
-                    out.presentation["music_volume"] = std::clamp(given.at("music_volume").get<double>(), 0.0, 1.0);
+                const auto number = [&](const char* key) -> std::optional<double> {
+                    if (given.is_object() && given.contains(key) && given.at(key).is_number()) return given.at(key).get<double>();
+                    return std::nullopt;
+                };
+                if (const auto v = number("music_volume")) out.presentation["music_volume"] = std::clamp(*v, 0.0, 1.0);
+                // How hard the observer works: frames a second for the map's animation (0 lets it decide), the most
+                // pixels per point it draws at, and how many particles the film has.
+                if (const auto v = number("map_fps")) out.presentation["map_fps"] = *v >= 45 ? 60 : *v >= 1 ? 30 : 0;
+                if (const auto v = number("render_scale")) out.presentation["render_scale"] = std::clamp(*v, 0.5, 3.0);
+                if (const auto v = number("film_particles")) out.presentation["film_particles"] = static_cast<int>(std::clamp(*v, 4000.0, 32000.0));
             } catch (const json::exception&) {
                 // A malformed setting leaves the defaults, rather than stopping the server.
             }

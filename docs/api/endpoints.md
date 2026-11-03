@@ -53,7 +53,7 @@ Body:
 |---|---|---|---|---|
 | `seed` | string or integer | No | Decimal, or `0x` and hex. Absent, `auto`, `random` or `0` draws a new one | Chooses the city and everything else |
 | `playback_duration_seconds` | number | No |  | Real seconds a whole day takes |
-| `tick_rate` | number | No | Above 0, up to 20. Default 1 | Speed multiplier |
+| `tick_rate` | number | No | Above 0, up to 10. Default 1 | Speed multiplier |
 | `day` | integer or `"auto"` | No | 0 weekday, 1 weekend | The kind of day |
 | `start_virtual_time` | seconds or `HH:MM:SS` | No | Default 0 | Where the day begins |
 | `saved_seed_id` | string | No | `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` | Name it was saved under |
@@ -304,7 +304,7 @@ Body:
 
 | Field | Type | Required | Limits and default | Meaning |
 |---|---|---|---|---|
-| `tick_rate` | number | Yes | Above 0, up to 20 | Speed multiplier |
+| `tick_rate` | number | Yes | Above 0, up to 10 | Speed multiplier |
 
 ```json
 {
@@ -695,6 +695,9 @@ Response `200`, from a real run:
 ### `GET /api/v1/view/snapshot`
 
 The state of every junction and road at this moment. It's what the observer polls. Fields for a road: `congestion` 0 to 1, `rainfall`, `flood`, `mean_speed_mps`, `effective_speed_mps`, `vehicle_count`, `halting_count`, `closed`, `incident_closed`, `incident_speed_multiplier`, `signal_multiplier`, `demand_vph`, `effective_capacity_vph`, `demand_causes`.
+
+Query: `causes`, at most this many of each road's `demand_causes`, which are most of a snapshot's bytes. The observer
+asks for 3, the number it shows. Without it, every cause is listed.
 
 **Who:** Anyone who can reach the port.
 
@@ -1507,7 +1510,7 @@ Response `200`, from a real run:
 
 What the operator has turned on and off for this server, and how the observer should present itself. It's set by whoever starts the server, through the launcher's settings or [environment variables](../reference/environment-variables.md#fabric-and-presentation), and nothing can change it while the server runs.
 
-`presentation` holds `webfabric`, `force_animate`, `fast_boot`, `demo`, `music`, `fullscreen` and `music_volume`. With `fast_boot`, `force_animate` is always false.
+`presentation` holds `webfabric`, `force_animate`, `fast_boot`, `demo`, `music`, `fullscreen` and `music_volume`, and how hard the observer works: `map_fps` (0 lets the map decide, or 60 or 30), `render_scale` (0.5 to 3) and `film_particles` (4,000 to 32,000). With `fast_boot`, `force_animate` is always false. `performance` reports the server's own: `compression`, `api_threads` and `engine_threads`.
 
 **Who:** Anyone who can reach the port.
 

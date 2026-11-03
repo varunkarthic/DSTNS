@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+#include <limits>
+#include <array>
 #include "dstns/events.hpp"
 #include "dstns/graph.hpp"
 #include <algorithm>
@@ -271,12 +273,14 @@ std::vector<DemandFactor> EventRuntime::demand_factors(std::size_t feature) cons
 
 void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time) {
     if(!s.config.buildings||!feature_edges_||demand.empty())return;
-    bool network_changed=false;
+    bool network_changed=false,disturbed=false;
     const auto& allowed=*edge_allowed_;
     for(std::size_t i=0;i<allowed.size();++i) {
-        const bool available=allowed[i]&&!edges[i].closed&&!edges[i].incident_closed;
+        const auto& d=edges[i];
+        const bool available=allowed[i]&&!d.closed&&!d.incident_closed;
         if(edge_available_[i]!=available)network_changed=true;
         edge_available_[i]=available;
+        disturbed=disturbed||d.rainfall!=0||d.flood!=0||d.closed||d.incident_closed;
     }
 
     // Pass one: read the network around each place. Everything a coupling needs
@@ -284,7 +288,9 @@ void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& ed
     // the display can never disagree about conditions.
     const std::size_t count=demand.size();
     std::vector<DemandContext> context(count);
-    for(const auto i:responders_){
+    // With no rain, flood or closure anywhere, every place reads all zeros, which is what a context starts as: most
+    // of a day, and most of what this costs, is skipped with the same result to the last bit.
+    if(disturbed)for(const auto i:responders_){
         const auto& near=(*feature_edges_)[i];
         if(near.empty())continue;
         double weight=0,rain=0,blocked=0,distress=0;
@@ -326,9 +332,14 @@ void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& ed
 
     // Pass three: combine, and note why.
     bool changed=false;
+    // A kind of place has one daily rhythm, so each is worked out once a tick rather than once a place.
+    std::array<double,256> rhythm;
+    rhythm.fill(std::numeric_limits<double>::quiet_NaN());
     for(const auto i:responders_){
         factors_[i].clear();
-        baseline_[i]=std::max(scheduled_baseline_[i],diurnal_demand(kinds_[i],time,s.config.day));
+        auto& daily=rhythm[static_cast<std::uint8_t>(kinds_[i])];
+        if(std::isnan(daily))daily=diurnal_demand(kinds_[i],time,s.config.day);
+        baseline_[i]=std::max(scheduled_baseline_[i],daily);
         const double next=couple_demand(kinds_[i],baseline_[i],context[i],&factors_[i]);
         if(std::fabs(next-demand[i])>1e-6)changed=true;
         demand[i]=next;
@@ -364,7 +375,7 @@ double EventRuntime::signal_multiplier(const Scenario& s,const EdgeStatic& e) co
     return .08;
 }
 double EventRuntime::demand_effect(EdgeId edge) const {return edge_demand_[edge.value];}
-std::vector<std::string> EventRuntime::demand_causes(const Scenario& s,EdgeId edge) const {std::vector<std::string> ids;for(auto [id,w]:(*edge_features_)[edge.value])if(w*(demand[id]-1)>.01)ids.push_back(s.features[id].id);return ids;}
+std::vector<std::string> EventRuntime::demand_causes(const Scenario& s,EdgeId edge,std::size_t limit) const {std::vector<std::string> ids;for(auto [id,w]:(*edge_features_)[edge.value]){if(limit&&ids.size()>=limit)break;if(w*(demand[id]-1)>.01)ids.push_back(s.features[id].id);}return ids;}
 void CongestionTracker::update(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time,std::uint32_t dt){
     double sum=0,weights=0;for(const auto& e:s.edges)if(is_source_direction_allowed(e)){const double w=e.length_m*e.lanes;sum+=w*edges[e.id.value].congestion;weights+=w;}
     current=weights>0?std::clamp(100*sum/weights,0.0,100.0):0;

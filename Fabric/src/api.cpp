@@ -31,6 +31,11 @@ std::unique_ptr<httplib::Server> make_server() {
 ApiServer::ApiServer(SimulationEngine& e, RuntimeLogger& l)
     : engine_(e), logger_(l), server_(make_server()),
       registry_(std::make_unique<fabric::AppRegistry>(l.log_directory() / "fabric-apps.json")) {
+    // How many requests are answered at once: DSTNS_API_THREADS, or the library's own choice.
+    if (const char* value = std::getenv("DSTNS_API_THREADS"); value && std::atoi(value) > 0) {
+        const auto threads = static_cast<std::size_t>(std::min(std::atoi(value), 256));
+        server_->new_task_queue = [threads] { return new httplib::ThreadPool(threads); };
+    }
     install_guards();
     routes_static();
     routes_system();

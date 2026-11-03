@@ -108,6 +108,29 @@ int main() {
         b.terminate();
     }
 
+    std::cout << "a snapshot with fewer demand causes\n";
+    {
+        // A client that shows a few demand causes may ask for only those: the same snapshot, each list cut short.
+        auto real = fixture();
+        real.osm_file = "data/fixtures/real_network.osm.xml";
+        SimulationEngine a(logger);
+        a.prepare(seed, real);
+        a.seek(8 * 3600 + 1800, false);
+        auto full = a.snapshot()["data"];
+        const auto few = nlohmann::json::parse(a.snapshot_text(3))["data"];
+        std::size_t longer = 0;
+        for (auto& edge : full["edges"]) {
+            auto& causes = edge["demand_causes"];
+            if (causes.size() > 3) {
+                ++longer;
+                causes.erase(causes.begin() + 3, causes.end());
+            }
+        }
+        check(longer > 0, "at half past eight some roads have more than three demand causes");
+        check(few == full, "a snapshot with three causes a road is the full one with each list cut to three");
+        a.terminate();
+    }
+
     std::cout << "step to the end of the day\n";
     {
         SimulationEngine engine(logger);

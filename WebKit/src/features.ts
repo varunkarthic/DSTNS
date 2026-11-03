@@ -18,13 +18,19 @@ export interface Features {
     music: boolean;
     fullscreen: boolean;
     music_volume: number;
+    /** Frames a second for the map's continuous animation: 60, 30, or 0 to let the map decide by how it's coping. */
+    map_fps: number;
+    /** The most canvas pixels per CSS pixel the map draws at. */
+    render_scale: number;
+    /** How many particles the film has. */
+    film_particles: number;
   };
 }
 
 export const DEFAULT_FEATURES: Features = {
   applications: true,
   legacy_api: true,
-  presentation: { webfabric: true, force_animate: true, fast_boot: false, demo: false, music: false, fullscreen: false, music_volume: 0.6 },
+  presentation: { webfabric: true, force_animate: true, fast_boot: false, demo: false, music: false, fullscreen: false, music_volume: 0.6, map_fps: 0, render_scale: 2, film_particles: 32000 },
 };
 
 let current = DEFAULT_FEATURES;
@@ -44,6 +50,12 @@ function ask() {
     })
     // An older server says nothing, and the defaults stand.
     .catch(() => undefined);
+}
+
+/** The features as they stand, for code that reads them each frame rather than rendering with them. */
+export function currentFeatures(): Features {
+  ask();
+  return current;
 }
 
 export function useFeatures(): Features {

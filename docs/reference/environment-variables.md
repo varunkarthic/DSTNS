@@ -110,7 +110,10 @@ Read by the server when it starts. The launcher sets them from its settings; see
 | `DSTNS_LAUNCH_PROPOSALS` | `1` | `0` stops applications proposing how to start them |
 | `DSTNS_REQUIRE_SIGNATURES` | `0` | `1` makes every application sign its requests |
 | `DSTNS_DISABLED_CAPABILITIES` | empty | Comma-separated capabilities nobody may be granted |
-| `DSTNS_PRESENTATION` | `{}` | JSON for the observer: `webfabric`, `force_animate`, `fast_boot`, `demo`, `music`, `fullscreen` (true or false), and `music_volume` (0 to 1). Anything else is ignored |
+| `DSTNS_PRESENTATION` | `{}` | JSON for the observer: `webfabric`, `force_animate`, `fast_boot`, `demo`, `music`, `fullscreen` (true or false), `music_volume` (0 to 1), `map_fps` (0, 30 or 60), `render_scale` (0.5 to 3) and `film_particles` (4,000 to 32,000). Anything else is ignored |
+| `DSTNS_COMPRESSION` | `fast` | How hard snapshots and the topology, the large responses, are compressed: `fast`, `balanced`, `small`, `off`, or a zlib level 0 to 9 |
+| `DSTNS_API_THREADS` | the library's choice | How many requests are answered at once |
+| `DSTNS_ENGINE_THREADS` | half the cores, up to 8 | Threads that write a large snapshot; 1 keeps it to one |
 | `DSTNS_FABRIC_LAUNCH_KEY` | | Given by the launcher to an application it starts, to present when it registers |
 | `DSTNS_FASTBOOT_DIR` | | A folder of `{key}.osm.xml.gz` files, from `./launcher fastboot download`. A city found there is unpacked rather than downloaded |
 

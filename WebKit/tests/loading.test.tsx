@@ -49,3 +49,22 @@ it("surfaces a failed initial download and recovers on a later successful start"
   await waitFor(()=>expect(result.current.snapshot?.run_id).toBe("retry"), {timeout:2500});
   expect(result.current.error).toBe("");
 });
+it("asks only now and then while hidden, and at once on return, without a second loop", async () => {
+  vi.spyOn(api,"status").mockResolvedValue(status("run","RUNNING"));
+  const sn=vi.spyOn(api,"snapshot").mockResolvedValue(snapshot("run"));
+  vi.spyOn(api,"topology").mockResolvedValue(topology("run"));
+  vi.spyOn(api,"news").mockResolvedValue(envelope("run",{items:[]}));
+  const hidden=vi.spyOn(document,"hidden","get").mockReturnValue(true);
+  const {result}=renderHook(()=>useSimulation());
+  await waitFor(()=>expect(result.current.snapshot?.run_id).toBe("run"));
+  const asked=sn.mock.calls.length;
+  // Hidden: nothing more for well over the usual second.
+  await new Promise(r=>setTimeout(r,1600));
+  expect(sn.mock.calls.length).toBe(asked);
+  // Back: at once, and then once a second, not twice a second.
+  hidden.mockReturnValue(false);
+  await act(async()=>{document.dispatchEvent(new Event("visibilitychange"));});
+  await waitFor(()=>expect(sn.mock.calls.length).toBe(asked+1));
+  await new Promise(r=>setTimeout(r,1300));
+  expect(sn.mock.calls.length).toBe(asked+2);
+}, 8000);

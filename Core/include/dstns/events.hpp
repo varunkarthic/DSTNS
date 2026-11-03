@@ -31,7 +31,8 @@ public:
     [[nodiscard]] nlohmann::json demand_json(const Scenario& scenario) const;
     [[nodiscard]] double signal_multiplier(const Scenario& scenario,const EdgeStatic& edge) const;
     [[nodiscard]] double demand_effect(EdgeId edge) const;
-    [[nodiscard]] std::vector<std::string> demand_causes(const Scenario& scenario,EdgeId edge) const;
+    // The places adding demand to this road, in the order they are recorded; at most `limit` of them, if it is not 0.
+    [[nodiscard]] std::vector<std::string> demand_causes(const Scenario& scenario,EdgeId edge,std::size_t limit=0) const;
 
     /**
      * Recompute demand from the network's present condition.

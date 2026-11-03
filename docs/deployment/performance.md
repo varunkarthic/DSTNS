@@ -240,7 +240,37 @@ line with the roughly 800 MB observed in Docker.
 | Downloaded extract | 200 MiB | `osm_download.cpp` (`kMaxBytes`) |
 | Speed | 5x | `kMaxTickRate` |
 
+## Faster in engine 2.2
+
+Measured on the bundled district, paused at 08:30 for a snapshot and replayed over a whole day for the physics, each
+against the build before, on an Apple M4 laptop on battery in Low Power Mode (so slower than the figures above). Every
+result is identical to the build before, which the tests check.
+
+| What | Before | After |
+|---|---|---|
+| Snapshot, exact, 4.9 MB | 66 ms | 27 ms |
+| Snapshot as the observer asks for it, gzip | 247 KB in 110 ms | 115 KB in 14 ms |
+| A whole day replayed (median of 3) | 29.4 s | 20.8 s |
+
+- **Snapshots are written as text.** The node and edge arrays, most of a snapshot, are written directly rather than
+  built as JSON documents first and then serialised, and responses are no longer copied before they're sent.
+- **The observer asks for the three demand causes a road shows** (`?causes=3`). They were three quarters of the bytes.
+- **Snapshots and the topology are compressed by the server,** at a level you choose, rather than at its HTTP library's
+  fixed one. The default, fast, takes about a third of the time for a little more on the wire.
+- **Demand doesn't reread a quiet network.** Each second, every place looked at the roads around it for rain,
+  flooding and closures. With none anywhere, which is most of a day, that's skipped, and each kind of place's daily
+  rhythm is worked out once a second rather than once a place.
+- **A hidden observer asks every 5 seconds** rather than every second, and at once when it's shown again.
+
 ## Tuning
+
+Every setting below is in `./launcher config`, under Performance.
+
+- **Compression** (`performance.compression`): fast by default; balanced or small over a slow link, off on one machine
+  with CPU to spare.
+- **Threads** (`performance.api_threads`, `performance.engine_threads`): leave at 0 unless the machine is shared.
+- **The observer** (`performance.map_fps`, `performance.render_scale`, `performance.film_particles`): 30 frames a
+  second, a render scale of 1 and fewer particles make the interface much lighter on a laptop's battery.
 
 - **A faster interface on slow machines:** turn off the Vehicles and Buildings
   layers and choose a lower speed. Adaptive backpressure does this automatically

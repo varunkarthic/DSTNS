@@ -40,7 +40,7 @@ void ApiServer::routes_observation() {
     // Streaming
     server_->Get("/api/v1/view/stream", [this](const auto&, auto& r) {
         r.set_header("Connection", "close");
-        r.set_content("retry: 1000\nevent: snapshot\ndata: " + dump_json(engine_.snapshot()) + "\n\n", "text/event-stream");
+        r.set_content("retry: 1000\nevent: snapshot\ndata: " + engine_.snapshot_text() + "\n\n", "text/event-stream");
     });
     server_->Get("/api/v1/news/stream", [this](const auto&, auto& r) {
         r.set_header("Connection", "close");

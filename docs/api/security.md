@@ -169,6 +169,9 @@ Every response under `/api/v1/fabric/` carries:
 X-DSTNS-Content-SHA256: SHA-256(body)
 ```
 
+The body is the response as it reads once any gzip is undone, which is what a client that decodes it, such as a
+browser's `fetch`, can check.
+
 A signed request to an application's route also gets:
 
 ```text

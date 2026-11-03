@@ -40,8 +40,17 @@ set(HTTPLIB_USE_ZSTD_IF_AVAILABLE OFF CACHE BOOL "gzip only" FORCE)
 set(HTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN OFF CACHE BOOL "No TLS in the engine" FORCE)
 FetchContent_MakeAvailable(json httplib)
 find_package(SQLite3 REQUIRED)
-# Maps come from Overpass over HTTPS, which the engine's own HTTP library does without TLS by design.
-find_package(CURL REQUIRED)
+# Maps come from Overpass over HTTPS, which the engine's own HTTP library does without TLS by design. On macOS, the
+# system's libcurl, not whichever a package manager installed: it ties the build to no one's versions, and the
+# downloader, which starts once per city, doesn't load a dozen libraries it never uses.
+if(APPLE)
+  execute_process(COMMAND xcrun --show-sdk-path OUTPUT_VARIABLE DSTNS_SDK OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+  find_library(DSTNS_SYSTEM_CURL curl PATHS "${CMAKE_OSX_SYSROOT}/usr/lib" "${DSTNS_SDK}/usr/lib" NO_DEFAULT_PATH REQUIRED)
+  add_library(CURL::libcurl INTERFACE IMPORTED)
+  set_target_properties(CURL::libcurl PROPERTIES INTERFACE_LINK_LIBRARIES "${DSTNS_SYSTEM_CURL}")
+else()
+  find_package(CURL REQUIRED)
+endif()
 find_package(Threads REQUIRED)
 if(TARGET SQLite3::SQLite3)
   set(DSTNS_SQLITE_TARGET SQLite3::SQLite3)

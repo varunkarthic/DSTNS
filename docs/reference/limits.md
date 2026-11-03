@@ -12,8 +12,8 @@ is enforced by the engine itself, so a client cannot bypass it.
 | Seed | Unsigned integer up to 128 bits, decimal or `0x` hexadecimal | A fresh 64-bit seed | `--seed`, `seed` |
 | Day type | `weekday` (0) or `weekend` (1) | `weekday` | `--day-type`, `day` |
 | Day duration at 1× | 60 to 3,600 wall-clock seconds, integer | 3,600 | `--duration`, `playback_duration_seconds` |
-| Speed (tick rate) | Greater than 0, at most 5 | 1 | `--speed` (0.01 to 5), `tick_rate` |
-| Speeds offered by the observer | 0.25, 0.5, 1, 2, 3, 5 | 1 | Command rail |
+| Speed (tick rate) | Greater than 0, at most 10 | 1 | `--speed` (0.01 to 5), `tick_rate` |
+| Speeds offered by the observer | 0.25, 0.5, 1, 2, 3, 5, 10 | 1 | Command rail |
 | Start time | 0 to 86,400 virtual seconds, or `HH:MM:SS` | 0 | `start_virtual_time` |
 | Virtual day | 86,400 virtual seconds | | Fixed |
 | Physics step | 1 virtual second | | Fixed |

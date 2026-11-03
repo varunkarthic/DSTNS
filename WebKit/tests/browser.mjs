@@ -286,7 +286,7 @@ try {
   const download = await downloadPromise;
   await download.saveAs(path.join(dir, "report.pdf"));
   assert.equal(await download.failure(), null);
-  await page.route("**/api/v1/view/snapshot", (route) =>
+  await page.route("**/api/v1/view/snapshot*", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
   );
   await page
@@ -296,7 +296,7 @@ try {
   assert.ok(
     await page.getByRole("button", { name: "Resume simulation" }).isDisabled(),
   );
-  await page.unroute("**/api/v1/view/snapshot");
+  await page.unroute("**/api/v1/view/snapshot*");
   await page.waitForFunction(
     () => !document.querySelector('[aria-label="Resume simulation"]').disabled,
   );

@@ -17,16 +17,17 @@ void ApiServer::routes_view() {
     server_->Get("/api/v1/view/config", [this](const auto&, auto& r) { send(r, engine_.status()); });
     server_->Get("/api/v1/view/manifest", [this](const auto&, auto& r) { send(r, engine_.manifest()); });
     // Served from the per-world cache; see SimulationEngine::topology_text.
-    auto topology_handler = [this](const auto&, auto& r) { r.set_content(engine_.topology_text(), "application/json"); };
+    auto topology_handler = [this](const auto& req, auto& r) { send_json_text(req, r, engine_.topology_text()); };
     server_->Get("/api/v1/view/topology", topology_handler);
     server_->Get("/api/v1/topology", topology_handler);
     server_->Get("/api/v1/view/network", topology_handler);
     server_->Get("/api/v1/view/map/full", topology_handler);
-    server_->Get("/api/v1/view/snapshot", [this](const auto&, auto& r) {
+    server_->Get("/api/v1/view/snapshot", [this](const auto& req, auto& r) {
         // Snapshots are the bulk of what the observer consumes, so their size
         // and cadence are what ASB reports as the delivered data rate.
-        send(r, engine_.snapshot());
-        engine_.note_delivery(r.body.size());
+        // ?causes=N lists at most N demand causes per road: they are most of a snapshot's bytes, and the observer shows three.
+        const auto causes = static_cast<std::size_t>(std::min<std::uint64_t>(1000, unsigned_parameter(req, "causes", 0)));
+        engine_.note_delivery(send_json_text(req, r, engine_.snapshot_text(causes)));
     });
     server_->Get("/api/v1/view/global", [this](const auto&, auto& r) { send(r, engine_.global_view()); });
     server_->Get("/api/v1/view/world", [this](const auto&, auto& r) { send(r, engine_.global_view()); });

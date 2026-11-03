@@ -2,6 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "support.hpp"
+
+#include <zlib.h>
 #include "dstns/webfabric/registry.hpp"
 #include "dstns/rng.hpp"
 
@@ -15,14 +17,88 @@
 #include <regex>
 
 namespace dstns::fabric {
-void send(httplib::Response& r, const json& j, int status) {
-    auto copy = j;
-    if (copy.is_object() && !copy.contains("ok")) {
-        copy["ok"] = (status >= 200 && status < 300);
+// Fast takes about a third of the time of zlib's default for a few per cent more bytes, which on a local network is the
+// better trade; small is for a slow link.
+int compression_level() {
+    static const int level = [] {
+        const char* value = std::getenv("DSTNS_COMPRESSION");
+        const std::string text = value ? value : "";
+        if (text == "off") return 0;
+        if (text == "balanced") return 6;
+        if (text == "small") return 9;
+        if (text.size() == 1 && text[0] >= '0' && text[0] <= '9') return text[0] - '0';
+        return 1;
+    }();
+    return level;
+}
+
+std::string gzip(const std::string& body, int level) {
+    z_stream stream{};
+    if (deflateInit2(&stream, level, Z_DEFLATED, 31, 8, Z_DEFAULT_STRATEGY) != Z_OK) return {};
+    std::string out(deflateBound(&stream, static_cast<uLong>(body.size())), '\0');
+    stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(body.data()));
+    stream.avail_in = static_cast<uInt>(body.size());
+    stream.next_out = reinterpret_cast<Bytef*>(out.data());
+    stream.avail_out = static_cast<uInt>(out.size());
+    const bool done = deflate(&stream, Z_FINISH) == Z_STREAM_END;
+    out.resize(stream.total_out);
+    deflateEnd(&stream);
+    return done ? out : std::string{};
+}
+
+std::string gunzip(const std::string& body) {
+    z_stream stream{};
+    if (inflateInit2(&stream, 31) != Z_OK) return {};
+    std::string out;
+    char buffer[16384];
+    stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(body.data()));
+    stream.avail_in = static_cast<uInt>(body.size());
+    int status = Z_OK;
+    while (status == Z_OK) {
+        stream.next_out = reinterpret_cast<Bytef*>(buffer);
+        stream.avail_out = sizeof buffer;
+        status = inflate(&stream, Z_NO_FLUSH);
+        out.append(buffer, sizeof buffer - stream.avail_out);
+    }
+    inflateEnd(&stream);
+    return status == Z_STREAM_END ? out : std::string{};
+}
+
+std::size_t send_json_text(const httplib::Request& request, httplib::Response& response, std::string body) {
+    const int level = compression_level();
+    if (level > 0 && body.size() >= 1024 && request.get_header_value("Accept-Encoding").find("gzip") != std::string::npos) {
+        if (auto packed = gzip(body, level); !packed.empty()) {
+            body.swap(packed);
+            response.set_header("Content-Encoding", "gzip");
+            response.set_header("Vary", "Accept-Encoding");
+        }
+    }
+    auto shared = std::make_shared<const std::string>(std::move(body));
+    response.set_content_provider(shared->size(), "application/json", [shared](std::size_t offset, std::size_t length, httplib::DataSink& sink) {
+        return sink.write(shared->data() + offset, std::min(length, shared->size() - offset));
+    });
+    return shared->size();
+}
+
+json server_performance() {
+    const auto threads = [](const char* name) -> json {
+        const char* value = std::getenv(name);
+        const int n = value ? std::atoi(value) : 0;
+        return n > 0 ? json(n) : json("auto");
+    };
+    const int level = compression_level();
+    return {{"compression", level == 0 ? "off" : level == 1 ? "fast" : level == 6 ? "balanced" : level == 9 ? "small" : std::to_string(level)},
+            {"api_threads", threads("DSTNS_API_THREADS")}, {"engine_threads", threads("DSTNS_ENGINE_THREADS")}};
+}
+
+void send(httplib::Response& r, json j, int status) {
+    // By value: a response built for the purpose is moved in, not copied.
+    if (j.is_object() && !j.contains("ok")) {
+        j["ok"] = (status >= 200 && status < 300);
     }
     r.status = status;
-    // JSON is UTF-8 by definition; the exact media type enables httplib compression.
-    r.set_content(dump_json(copy), "application/json");
+    // JSON is UTF-8 by definition; the exact media type enables compression.
+    r.set_content(dump_json(j), "application/json");
 }
 
 std::size_t page_parameter(const httplib::Request& request, const char* key,
@@ -213,7 +289,7 @@ ScenarioConfig config_from(const json& j) {
     if (j.contains("simulation_time")) c.playback_duration_s = j.at("simulation_time");
     if (j.contains("tick_rate")) c.tick_rate = j.at("tick_rate");
     if (!(c.tick_rate > 0 && c.tick_rate <= kMaxTickRate))
-        throw std::invalid_argument("tick_rate must be in (0,20]");
+        throw std::invalid_argument("tick_rate must be in (0,10]");
     if (j.contains("day")) {
         if (j.at("day").is_string() && j.at("day") == "auto") c.day = -1;
         else c.day = j.at("day");

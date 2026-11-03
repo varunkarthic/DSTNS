@@ -555,14 +555,14 @@ try {
   check("runtime errors preempt notifications and DND without shifting status", async () => {
     await page.getByRole("button", { name: "Do Not Disturb", exact: true }).click();
     const before = await box(page.locator(".rail .runtime"));
-    await page.route("**/api/v1/view/snapshot", route => route.abort());
+    await page.route("**/api/v1/view/snapshot*", route => route.abort());
     const error = page.getByRole("alert").filter({ hasText: "Simulator unavailable" });
     await error.waitFor({ timeout: 10000 });
     assert.ok(await error.evaluate(el => !!el.closest(".hud-left")), "errors use the simulation notification area");
     const after = await box(page.locator(".rail .runtime"));
     assert.ok(Math.abs(before.width - after.width) < 1 && Math.abs(before.x - after.x) < 1, "status geometry is reserved across state changes");
     await page.screenshot({ path: path.join(out, "system-error-dnd.png") });
-    await page.unroute("**/api/v1/view/snapshot");
+    await page.unroute("**/api/v1/view/snapshot*");
     await error.waitFor({ state: "detached", timeout: 10000 });
     await page.getByRole("button", { name: "Do Not Disturb", exact: true }).click();
   });

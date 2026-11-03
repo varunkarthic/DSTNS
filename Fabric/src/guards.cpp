@@ -10,6 +10,7 @@
 namespace dstns {
 using namespace fabric;
 
+
 // What every request passes through, whichever module answers it.
 void ApiServer::install_guards() {
     const std::string operator_token=std::getenv("DSTNS_OPERATOR_TOKEN")?std::getenv("DSTNS_OPERATOR_TOKEN"):"";
@@ -81,7 +82,8 @@ void ApiServer::install_guards() {
         }
         // Integrity: a digest of the bytes sent, and a signature over them for a request that was signed.
         if (req.path.starts_with("/api/v1/fabric/") && !res.body.empty()) {
-            const auto digest = sha256(res.body);
+            // Of the body as the client reads it, which is all one that decodes gzip itself, as a browser does, can check.
+            const auto digest = sha256(res.get_header_value("Content-Encoding") == "gzip" ? gunzip(res.body) : res.body);
             res.set_header("X-DSTNS-Content-SHA256", digest);
             if (req.has_header("X-DSTNS-Signature") && req.path.starts_with("/api/v1/fabric/apps/")) {
                 const auto id = req.path.substr(20, req.path.find('/', 20) - 20);

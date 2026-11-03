@@ -291,6 +291,21 @@ FEATURES: tuple[Field, ...] = (
           "Demo Mode plays its music. ./launcher demo starts it.", default=True),
     Field("demo.fullscreen", "Full screen in Demo Mode", "Demo", Kind.BOOLEAN,
           "Demo Mode opens full screen.", default=True),
+    Field("performance.compression", "Compression", "Performance", Kind.CHOICE,
+          "How hard the server compresses what it sends. Fast costs least; small saves bytes on a slow link.",
+          choices=(("Fast", "fast"), ("Balanced", "balanced"), ("Small", "small"), ("Off", "off")), default="fast"),
+    Field("performance.api_threads", "API threads", "Performance", Kind.INTEGER,
+          "Requests the server answers at once. 0 lets it choose.", minimum=0, maximum=256, default=0),
+    Field("performance.engine_threads", "Engine threads", "Performance", Kind.INTEGER,
+          "Threads that write a large snapshot. 0 lets it choose; 1 keeps it to one.", minimum=0, maximum=64, default=0),
+    Field("performance.map_fps", "Map frame rate", "Performance", Kind.CHOICE,
+          "How often the map's moving traffic is redrawn. Automatic drops to 30 when the map struggles.",
+          choices=(("Automatic", 0), ("60 a second", 60), ("30 a second", 30)), default=0),
+    Field("performance.render_scale", "Render scale", "Performance", Kind.NUMBER,
+          "The most pixels the map draws per point on a high-density screen. Lower is lighter.",
+          minimum=0.5, maximum=3, default=2),
+    Field("performance.film_particles", "Film particles", "Performance", Kind.INTEGER,
+          "How many particles the start-up film has. Fewer is lighter.", minimum=4000, maximum=32000, default=32000),
 )
 FIELDS = FIELDS + FEATURES
 
@@ -319,6 +334,9 @@ def presentation(config: dict[str, Any], *, demo: bool = False) -> dict[str, Any
         "music": bool(setting(config, "demo.music" if demo else "presentation.music")),
         "fullscreen": bool(setting(config, "demo.fullscreen" if demo else "presentation.fullscreen")),
         "music_volume": float(setting(config, "presentation.music_volume")),
+        "map_fps": int(setting(config, "performance.map_fps")),
+        "render_scale": float(setting(config, "performance.render_scale")),
+        "film_particles": int(setting(config, "performance.film_particles")),
     }
 
 
@@ -336,6 +354,10 @@ def server_switches(config: dict[str, Any], *, demo: bool = False) -> dict[str, 
     }
     if not setting(config, "fabric.world_regeneration"):
         env["DSTNS_DISABLE_WORLD_REGENERATION"] = "1"
+    env["DSTNS_COMPRESSION"] = str(setting(config, "performance.compression"))
+    for key, name in (("performance.api_threads", "DSTNS_API_THREADS"), ("performance.engine_threads", "DSTNS_ENGINE_THREADS")):
+        if int(setting(config, key)) > 0:
+            env[name] = str(int(setting(config, key)))
     return env
 
 

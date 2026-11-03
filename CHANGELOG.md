@@ -14,8 +14,26 @@ only within one version.
 
 **Engine 2.2.0, observer 3.1.0, API contract 1.4.** Results for a seed are unchanged from engine 2.1.0, and
 every existing endpoint behaves as before, 155 recorded calls being replayed to prove it, with one deliberate
-widening: `tick_rate` now accepts up to 20. Results for a seed do not depend on the rate. `api_version` in
+widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`.
+
+### Faster, and configurable
+
+Results are unchanged: a snapshot is the same JSON to the byte, and a replayed day ends in the same state.
+
+- **Snapshots in less than half the time,** written directly as text rather than built as a JSON document first. As the
+  observer asks for them, with three demand causes a road (`?causes=3`), one is a sixth of the time and half the bytes.
+- **The physics takes about 30% less time:** demand no longer rereads every place's roads while nothing anywhere is
+  raining, flooded or closed, and works out each kind of place's daily rhythm once a second.
+- **Snapshots and the topology are compressed at a level you choose,** fast by default.
+- **A hidden observer asks every 5 seconds,** and at once when it's shown again.
+- **Settings for all of it,** under Performance in `./launcher config`: compression, API and engine threads, the map's
+  frame rate, its render scale, and the film's particles.
+- **Fixed: the integrity digest of a compressed response was of the compressed bytes,** which a browser can't see. It's
+  now of the body as the client reads it, as documented.
+- **Fixed: a snapshot asked for while a world was being prepared answered 400.**
+- **Fixed: speed errors gave the wrong limit,** saying 5 or 20 where the limit is 10. The docs said 20 in places too.
+- **On macOS the server links the system's libcurl,** not a package manager's.
 
 ### No Python at run time
 

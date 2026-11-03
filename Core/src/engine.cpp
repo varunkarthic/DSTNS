@@ -9,6 +9,7 @@
 #include "dstns/narrator.hpp"
 #include "dstns/platform.hpp"
 
+#include <charconv>
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -45,34 +46,119 @@ nlohmann::json point_json(const Point& p) {
     return {{"lat", p.lat}, {"lon", p.lon}, {"x_m", p.x_m}, {"y_m", p.y_m}};
 }
 
-// A JSON array of `count` items. Large arrays are built in contiguous slices
-// on several cores - Apple silicon has four to sixteen performance cores idle
-// while one thread allocates a quarter of a million small objects - and joined
-// in order, so the result is the same as building it on one thread.
-template <class Item>
-nlohmann::json build_array(std::size_t count, Item item) {
-    constexpr std::size_t kSliceMin = 4096;
-    const auto cores = std::max(1u, std::thread::hardware_concurrency());
-    const auto slices = static_cast<std::size_t>(std::min<std::size_t>({count / kSliceMin, std::size_t{8}, std::size_t(cores / 2)}));
-    nlohmann::json::array_t out;
-    out.reserve(count);
-    if (slices < 2) {
-        for (std::size_t i = 0; i < count; ++i) out.push_back(item(i));
-        return out;
+// How many threads write a large array: DSTNS_ENGINE_THREADS, or half the cores, up to 8. 1 writes on one thread.
+std::size_t writer_threads() {
+    static const std::size_t threads = [] {
+        if (const char* value = std::getenv("DSTNS_ENGINE_THREADS"); value && *value) {
+            const int asked = std::atoi(value);
+            if (asked > 0) return static_cast<std::size_t>(std::min(asked, 64));
+        }
+        return static_cast<std::size_t>(std::min(8u, std::max(1u, std::thread::hardware_concurrency() / 2)));
+    }();
+    return threads;
+}
+
+// Writes one JSON object at a time, numbers as the JSON library writes them: the shortest form that reads back as the
+// same number, a whole one with ".0", and anything not finite as null.
+struct JsonText {
+    std::string& out;
+    bool first = true;
+    void open() { out += '{'; first = true; }
+    void close() { out += '}'; }
+    void key(const char* name) {
+        if (!first) out += ',';
+        first = false;
+        out += '"';
+        out += name;
+        out += "\":";
     }
-    std::vector<nlohmann::json::array_t> parts(slices);
+    void field(const char* name, double v) {
+        key(name);
+        if (!std::isfinite(v)) { out += "null"; return; }
+        char buffer[40];
+        const auto end = std::to_chars(buffer, buffer + sizeof buffer, v).ptr;
+        const std::string_view written(buffer, static_cast<std::size_t>(end - buffer));
+        out += written;
+        if (written.find_first_of(".e") == std::string_view::npos) out += ".0";
+    }
+    void integer(std::uint64_t v) {
+        char buffer[24];
+        out.append(buffer, static_cast<std::size_t>(std::to_chars(buffer, buffer + sizeof buffer, v).ptr - buffer));
+    }
+    void field(const char* name, std::size_t v) { key(name); integer(v); }
+    void field(const char* name, std::uint32_t v) { key(name); integer(v); }
+    void field(const char* name, bool v) { key(name); out += v ? "true" : "false"; }
+    // As the JSON library writes a string. Anything beyond ASCII goes through the library, which also mends bad UTF-8.
+    void string(const std::string& v) {
+        for (const unsigned char c : v)
+            if (c >= 0x80) {
+                out += dump_json(nlohmann::json(v));
+                return;
+            }
+        out += '"';
+        for (const char c : v) {
+            switch (c) {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\b': out += "\\b"; break;
+            case '\f': out += "\\f"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    char buffer[8];
+                    std::snprintf(buffer, sizeof buffer, "\\u%04x", c);
+                    out += buffer;
+                } else {
+                    out += c;
+                }
+            }
+        }
+        out += '"';
+    }
+    void strings(const char* name, const std::vector<std::string>& values, std::size_t limit = 0) {
+        key(name);
+        out += '[';
+        const auto count = limit ? std::min(limit, values.size()) : values.size();
+        for (std::size_t i = 0; i < count; ++i) {
+            if (i) out += ',';
+            string(values[i]);
+        }
+        out += ']';
+    }
+};
+
+// A JSON array of `count` items written by `item`, in slices on several threads for a large one, joined in order.
+template <class Item>
+std::string build_text(std::size_t count, Item item) {
+    constexpr std::size_t kSliceMin = 1024;
+    const auto slices = std::max<std::size_t>(1, std::min(count / kSliceMin, writer_threads()));
+    std::vector<std::string> parts(slices);
+    const auto per = (count + slices - 1) / std::max<std::size_t>(1, slices);
+    const auto write = [&](std::size_t s) {
+        const auto from = s * per, to = std::min(count, from + per);
+        auto& out = parts[s];
+        out.reserve((to > from ? to - from : 0) * 320);
+        for (std::size_t i = from; i < to; ++i) {
+            if (i != from) out += ',';
+            item(out, i);
+        }
+    };
     std::vector<std::thread> workers;
-    const auto per = (count + slices - 1) / slices;
-    for (std::size_t s = 1; s < slices; ++s)
-        workers.emplace_back([&, s] {
-            const auto from = s * per, to = std::min(count, from + per);
-            parts[s].reserve(to > from ? to - from : 0);
-            for (std::size_t i = from; i < to; ++i) parts[s].push_back(item(i));
-        });
-    for (std::size_t i = 0; i < std::min(count, per); ++i) parts[0].push_back(item(i));
+    for (std::size_t s = 1; s < slices; ++s) workers.emplace_back(write, s);
+    write(0);
     for (auto& w : workers) w.join();
-    for (auto& part : parts) std::move(part.begin(), part.end(), std::back_inserter(out));
-    return out;
+    std::string text = "[";
+    std::size_t total = 2;
+    for (const auto& part : parts) total += part.size() + 1;
+    text.reserve(total);
+    for (std::size_t s = 0; s < slices; ++s) {
+        if (s && !parts[s].empty() && text.size() > 1) text += ',';
+        text += parts[s];
+    }
+    text += ']';
+    return text;
 }
 
 struct StormAtmosphericState {
@@ -1026,7 +1112,7 @@ nlohmann::json SimulationEngine::backpressure_json() const {
 
 nlohmann::json SimulationEngine::set_tick_rate(double v) {
     std::lock_guard lock(mutex_);
-    if (!std::isfinite(v) || v <= 0 || v > kMaxTickRate) throw std::invalid_argument("tick_rate must be finite and in (0,20]");
+    if (!std::isfinite(v) || v <= 0 || v > kMaxTickRate) throw std::invalid_argument("tick_rate must be finite and in (0,10]");
     catch_up_to_wall_clock();
     const auto old = tick_rate_;
     const auto old_request = requested_tick_rate_;
@@ -1734,7 +1820,9 @@ nlohmann::json SimulationEngine::topology() const {
     });
 }
 
-nlohmann::json SimulationEngine::snapshot() const {
+nlohmann::json SimulationEngine::snapshot() const { return nlohmann::json::parse(snapshot_text()); }
+
+std::string SimulationEngine::snapshot_text(std::size_t cause_limit) const {
     // The per-node and per-edge arrays are most of a snapshot's cost. Copy the
     // raw state under the lock - a memcpy - and build their JSON after
     // releasing it, so a polling observer no longer holds the physics clock for
@@ -1745,13 +1833,13 @@ nlohmann::json SimulationEngine::snapshot() const {
     nlohmann::json result;
     {
         std::lock_guard lock(mutex_);
-        if (!graph_) return envelope(nlohmann::json::object());
+        if (!graph_) return dump_json(envelope(nlohmann::json::object()));
         node_copy = graph_->node_states();
         edge_copy = graph_->edge_states();
         causes.resize(edge_copy.size());
         if (graph_->scenario().config.buildings)
             for (std::size_t i = 0; i < edge_copy.size(); ++i)
-                causes[i] = events_.demand_causes(graph_->scenario(), EdgeId{static_cast<std::uint32_t>(i)});
+                causes[i] = events_.demand_causes(graph_->scenario(), EdgeId{static_cast<std::uint32_t>(i)}, cause_limit);
 
         nlohmann::json active_weather_list = nlohmann::json::array();
         const auto now_ppm = std::uint32_t(std::uint64_t(virtual_s_) * ppm / day_s);
@@ -1853,30 +1941,58 @@ nlohmann::json SimulationEngine::snapshot() const {
         });
     }
 
-    auto& data = result["data"];
-    data["nodes"] = build_array(node_copy.size(), [&](std::size_t i) {
+    // The arrays are written as text, a slice per core for a large network, and the rest of the snapshot, which is
+    // small, is written by the JSON library and the arrays spliced in.
+    const auto nodes_text = build_text(node_copy.size(), [&](std::string& out, std::size_t i) {
         const auto& s = node_copy[i];
-        return nlohmann::json{{"id", i}, {"rainfall", s.rainfall}, {"flood", s.flood}, {"building_effect", s.building_effect}};
+        JsonText j{out};
+        j.open();
+        j.field("id", i);
+        j.field("rainfall", s.rainfall);
+        j.field("flood", s.flood);
+        j.field("building_effect", s.building_effect);
+        j.close();
     });
-    data["edges"] = build_array(edge_copy.size(), [&](std::size_t i) {
+    const auto edges_text = build_text(edge_copy.size(), [&](std::string& out, std::size_t i) {
         const auto& s = edge_copy[i];
-        return nlohmann::json{
-            {"id", i},
-            {"congestion", s.congestion},
-            {"rainfall", s.rainfall},
-            {"flood", s.flood},
-            {"effective_speed_mps", s.effective_speed_mps},
-            {"vehicle_count", s.vehicle_count},
-            {"halting_count", s.halting_count},
-            {"closed", s.closed},
-            {"incident_closed",s.incident_closed},{"manual_closed",s.manual_closed},
-            {"incident_speed_multiplier",s.incident_speed_multiplier},{"signal_multiplier",s.signal_multiplier},
-            {"demand_vph",s.demand_vph},{"effective_capacity_vph",s.effective_capacity_vph},
-            {"mean_speed_mps",s.mean_speed_mps},
-            {"demand_causes",std::move(causes[i])}
-        };
+        JsonText j{out};
+        j.open();
+        j.field("id", i);
+        j.field("congestion", s.congestion);
+        j.field("rainfall", s.rainfall);
+        j.field("flood", s.flood);
+        j.field("effective_speed_mps", s.effective_speed_mps);
+        j.field("vehicle_count", s.vehicle_count);
+        j.field("halting_count", s.halting_count);
+        j.field("closed", s.closed);
+        j.field("incident_closed", s.incident_closed);
+        j.field("manual_closed", s.manual_closed);
+        j.field("incident_speed_multiplier", s.incident_speed_multiplier);
+        j.field("signal_multiplier", s.signal_multiplier);
+        j.field("demand_vph", s.demand_vph);
+        j.field("effective_capacity_vph", s.effective_capacity_vph);
+        j.field("mean_speed_mps", s.mean_speed_mps);
+        j.strings("demand_causes", causes[i], cause_limit);
+        j.close();
     });
-    return result;
+    std::string data_text = dump_json(result["data"]);
+    if (data_text.size() < 2 || data_text.back() != '}') return dump_json(result);
+    data_text.pop_back();
+    data_text.reserve(data_text.size() + nodes_text.size() + edges_text.size() + 32);
+    data_text += data_text.size() > 1 ? "," : "";
+    data_text += "\"edges\":";
+    data_text += edges_text;
+    data_text += ",\"nodes\":";
+    data_text += nodes_text;
+    data_text += '}';
+    // The envelope's keys before "data" carry no text from the world, so the first match is the placeholder.
+    static const std::string placeholder = R"(\u0001snapshot\u0001)";
+    result["data"] = "\x01snapshot\x01";
+    std::string text = dump_json(result);
+    const auto at = text.find("\"" + placeholder + "\"");
+    if (at == std::string::npos) return dump_json(result);
+    text.replace(at, placeholder.size() + 2, data_text);
+    return text;
 }
 
 nlohmann::json SimulationEngine::nodes(std::size_t off, std::size_t lim) const {

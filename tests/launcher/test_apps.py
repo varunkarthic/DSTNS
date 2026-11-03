@@ -381,7 +381,8 @@ class Settings(unittest.TestCase):
         self.assertEqual((env["DSTNS_FABRIC_APPS"], env["DSTNS_LEGACY_API"], env["DSTNS_DISABLED_CAPABILITIES"]), ("1", "1", ""))
         self.assertNotIn("DSTNS_DISABLE_WORLD_REGENERATION", env)
         self.assertEqual(json.loads(env["DSTNS_PRESENTATION"]), {"webfabric": True, "fast_boot": False, "force_animate": True, "demo": False,
-                                                                 "music": False, "fullscreen": False, "music_volume": 0.6})
+                                                                 "music": False, "fullscreen": False, "music_volume": 0.6,
+                                                             "map_fps": 0, "render_scale": 2, "film_particles": 32000})
 
     def test_a_web_address_is_http(self) -> None:
         from dstns_launcher.core import apps
