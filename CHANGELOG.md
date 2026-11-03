@@ -79,6 +79,9 @@ With Fast Boot or Dynamic Fastboot on, asking for a new world in the observer st
 dialog opens, while the current world keeps running. **Generate** puts it in at once; **Cancel** forgets it. On screen
 the old world's ending plays, its particles gather back into the name, and the name becomes the new map.
 
+- **Fixed: a new world's map arrived before the particles had built its roads,** when the observer had been opened on
+  a run already going: it took a reload's quicker timing. A new world now lands as a first start does, and the name
+  that re-forms goes straight on to the map, without the film's opening caption.
 - `POST /api/v1/world/regenerate` takes `{"stage": true}`; `POST /api/v1/world/regenerate/commit` and
   `POST /api/v1/world/regenerate/discard` are new. The world job has a new state, `staged`.
 
@@ -118,6 +121,9 @@ and stop runs. Every call is logged. `./launcher mcp tools` and `mcp client-conf
 - `GET /api/v1/system/info` reports the server process: `pid`, `uptime_s`, `peak_rss_bytes` and `cpu_s`.
 
 ### Every test in C++
+
+- **Fixed (code scanning): an incident's type was looked up on a plain object,** so a type named like one of its
+  properties (`constructor`, say) would have been called and thrown. The wordings are now a `Map`.
 
 - **The HTTP suites, the downloader's tests and the release checks are C++ programs** in `tests/http/`, on one harness
   (a server on a port of its own, requests, programs run and watched, stand-in upstreams). ctest runs them under their

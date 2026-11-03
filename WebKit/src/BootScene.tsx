@@ -60,10 +60,8 @@ export const QUICK_ARRIVAL = { mapAt: 780, panelsAt: 1020, landing: 1500 } as co
 export const REJOIN_AT_MS = 5800;
 /** Whether this browser can draw the film at all. */
 export const filmAvailable = () => typeof WebGL2RenderingContext !== "undefined";
-/** And how long before a ready world may interrupt them forming the name again. */
-export const REJOIN_MIN_MS = REJOIN_AT_MS + 2800;
-/** A world prepared ahead lands as soon as the name has formed. */
-export const REJOIN_QUICK_MS = REJOIN_AT_MS + 1500;
+/** And when a ready world may land: as soon as the name has formed again. */
+export const REJOIN_MIN_MS = REJOIN_AT_MS + 1500;
 // With nothing to do, the network rests dimly, out of the way of what is on screen.
 const REST_DIM = 0.14;
 // The title's logo comes apart in a sweep from left to right, each part of it turning to
@@ -1225,7 +1223,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     <>
       {/* A context is lost for good when the scene restarts, so each restart gets a new canvas. */}
       <canvas key={`${reduceMotion}/${ending}/${rejoin}/${quick}/${demo}`} ref={canvas} className="boot-scene" aria-hidden="true" />
-      {playing && !quick && (
+      {/* A new world's name, re-formed from the old one's particles, goes straight on: it is not the film's opening. */}
+      {playing && !quick && !(rejoin && chapter === 0) && (
         <div className="film-caption" aria-hidden="true" key={chapter}>
           <span className="film-chapter">{shown.label}</span>
           <h3>{shown.title}</h3>

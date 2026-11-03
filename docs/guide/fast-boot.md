@@ -99,8 +99,9 @@ dialog opens**, before *Generate* is pressed:
    `POST /api/v1/world/regenerate/discard` forgets it. The current world is untouched.
 
 On screen, the old world's ending plays as always, its particles gather back into the name,
-and, because the new world is already there, the name becomes its map straight away,
-without the film.
+and, because the new world is already there, the name goes straight on to its map: no
+caption, and no film between. The particles build the new roads, the map comes in under
+them, and then the panels, in the same order as a first start.
 
 ## The adaptive film
 

@@ -14,7 +14,7 @@ import { Logo } from "./Logo";
 import { Icon } from "./Icons";
 import { BootFailure, launchStage, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
 import { reportEta } from "./eta";
-import { filmAvailable, mapCarry, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS, REJOIN_QUICK_MS } from "./BootScene";
+import { filmAvailable, mapCarry, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS } from "./BootScene";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
 import { NotificationHistory } from "./notificationHistory";
@@ -124,8 +124,6 @@ interface WorldJob {
   status: WorldStatus | null;
   error: string;
   closing: boolean;
-  /** Prepared while the person was deciding: ready almost at once, so it lands as soon as the name re-forms. */
-  quick?: boolean;
 }
 /**
  * What may be on screen as a world arrives. While the film is building the roads nothing is;
@@ -980,7 +978,7 @@ export default function App() {
     setSettingsOpen(false);
     const ahead = staged.current;
     staged.current = null;
-    setWorld({ ...NO_WORLD_JOB, active: true, quick: !!ahead });
+    setWorld({ ...NO_WORLD_JOB, active: true });
     logControl("regenerate", ahead ? "confirmed, prepared ahead" : "requested");
     try {
       const response = (ahead && (await ahead) && (await api.commitWorld().catch(() => null))) || (await api.regenerateWorld(runId || undefined));
@@ -1042,7 +1040,8 @@ export default function App() {
     // The old world finishes leaving and the name re-forms, however fast the new one was,
     // and then the particles land on the new roads.
     const film = !reduceMotion && filmAvailable();
-    const wait = film ? Math.max(700, (world.quick ? REJOIN_QUICK_MS : REJOIN_MIN_MS) - (performance.now() - worldStartedAt.current)) : 700;
+    // Once the name has re-formed, a world that is ready lands at once: no caption, and no film between.
+    const wait = film ? Math.max(700, REJOIN_MIN_MS - (performance.now() - worldStartedAt.current)) : 700;
     const t1 = setTimeout(() => setWorld((w) => ({ ...w, closing: true })), wait);
     const t2 = setTimeout(() => setWorld(NO_WORLD_JOB), wait + (film ? LANDING_MS : MOTION_MS.overlay));
     return () => {
@@ -1107,7 +1106,9 @@ export default function App() {
   const lastFailure = useRef(bootFailure);
   if (bootFailure) lastFailure.current = bootFailure;
   const failure = usePresence(!!bootFailure, MOTION_MS.boot);
-  const arrival = useArrival(!!(showSplash || bootFailure || shutDown || (world.active && !world.closing)), reduceMotion || !filmAvailable(), returning);
+  // A new world lands as a start-up does: the particles build its roads, then the map comes in under them, then the
+  // panels. Never on a reload's quicker timing, which would show the map before the particles had reached it.
+  const arrival = useArrival(!!(showSplash || bootFailure || shutDown || (world.active && !world.closing)), reduceMotion || !filmAvailable(), returning && !world.active);
   viewContext.current = { busy: suspended ? "suspended" : tutorial.busy ? "tutorial" : dialog ? "dialog" : arrival !== "all" ? "arriving" : null, world: sim.topology };
   // While the start-up is on screen, a world that finishes waits for it. A hidden tab is not
   // watching, and a closed one stops saying so, and the engine then carries on by itself.

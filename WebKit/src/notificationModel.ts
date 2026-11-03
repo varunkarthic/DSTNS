@@ -193,7 +193,9 @@ function edgeName(topology: Topology | null, id: unknown): string | undefined {
 // ---------------------------------------------------------------------------
 
 /** Standard wordings for an incident starting, beside the core's own description. */
-const INCIDENT_WORDINGS: Record<string, (road: string, inArea: string) => string[]> = {
+// A Map, not an object: the type comes from the event, and a name such as "constructor" must find nothing rather than
+// something on Object's prototype.
+const INCIDENT_WORDINGS = new Map<string, (road: string, inArea: string) => string[]>(Object.entries({
   accident: (road, inArea) => [
     `A collision on ${road} is holding up traffic${inArea}.`,
     `Crash on ${road}${inArea}: a lane is blocked and emergency services are there.`,
@@ -215,7 +217,7 @@ const INCIDENT_WORDINGS: Record<string, (road: string, inArea: string) => string
     `Hazardous spill on ${road}${inArea}. Crews are cleaning up and speeds are well down.`,
   ],
   incident: (road, inArea) => [`An incident is affecting traffic on ${road}${inArea}.`],
-};
+}));
 
 export const INCIDENT_TITLES: Record<string, string> = {
   road_closure: "Road closure",
@@ -446,7 +448,7 @@ function describeTemplate(item: News, topology: Topology | null): Described {
       const summary = pickWording(
         [
           sentence(`${capital(head.trim() || kind)} on ${road}`) + (tail ? ` ${sentence(capital(tail))}` : ""),
-          ...(INCIDENT_WORDINGS[type] ?? INCIDENT_WORDINGS.incident)(road, inArea),
+          ...(INCIDENT_WORDINGS.get(type) ?? INCIDENT_WORDINGS.get("incident")!)(road, inArea),
         ],
         item,
       );

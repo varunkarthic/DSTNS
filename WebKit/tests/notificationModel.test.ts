@@ -90,6 +90,14 @@ describe("geography", () => {
 });
 
 describe("describeNews", () => {
+  it("describes an incident of a kind it has no wording for, whatever the kind is called", () => {
+    // The kind comes from the event: one named like an Object property must not reach it.
+    for (const type of ["constructor", "__proto__", "toString", "hasOwnProperty", "a new kind"]) {
+      const n = describeNews(news({ category: "incident", severity: "warning", template_id: "INCIDENT_ACTIVATED", message: "[06:00:00] Collision: lane blocked on Edge #0", data: { incident_id: 1, type, edge_id: 0 } }), topology);
+      expect(n.summary.length, type).toBeGreaterThan(0);
+    }
+  });
+
   it("leads rain notifications with plain language, not identifiers", () => {
     const n = describeNews(
       news({
