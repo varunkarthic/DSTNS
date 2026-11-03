@@ -57,6 +57,8 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     ("test", "test [all|unit|api|replay|benchmark|sumo|ui|launcher]", "Run test stages"),
     ("sumo", "sumo", "Check the SUMO toolchain"),
     ("ui", "ui PAGE | open|build|install", "Open the interface on a page (ui demo runs Demo Mode), or the observer: open, build, install"),
+    ("about", "about", "Version, copyright, licence and map-data attribution"),
+    ("docs", "docs [TOPIC]", "Open the documentation: launcher, console, mcp, fastboot, api, config…"),
     ("grep", "… | grep [-i] [-v] [-c] PATTERN", "Lines that match, from what is piped in"),
     ("wc", "… | wc [-l]", "Count lines, words and characters"),
     ("sort", "… | sort [-r] [-n]", "Sort what is piped in"),
@@ -103,8 +105,17 @@ struct Running {
     lines: Receiver<String>,
 }
 
+/// The live readings at the right of the prompt, refreshed off the interface's thread.
+#[derive(Default)]
+struct Stats {
+    line: String,
+    cpu: Option<(f64, std::time::Instant)>,
+}
+
 pub struct Shell {
     pub enabled: bool,
+    stats: std::sync::Arc<std::sync::Mutex<Stats>>,
+    stats_at: Option<Instant>,
     pub open: bool,
     input: String,
     cursor: usize,
@@ -118,6 +129,18 @@ pub struct Shell {
     scroll_back: usize,
 }
 
+/// Where the command history is kept between sessions: with the logs, on this machine only.
+fn history_file() -> std::path::PathBuf {
+    crate::paths::Paths::default().logs().join("command-history")
+}
+
+fn load_history() -> Vec<String> {
+    if cfg!(test) {
+        return vec![];
+    }
+    std::fs::read_to_string(history_file()).map(|t| t.lines().filter(|l| !l.trim().is_empty()).map(String::from).collect()).unwrap_or_default()
+}
+
 fn exe() -> String {
     std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "dstns-launcher".into())
 }
@@ -126,10 +149,12 @@ impl Shell {
     pub fn new(enabled: bool) -> Self {
         Self {
             enabled,
+            stats: Default::default(),
+            stats_at: None,
             open: false,
             input: String::new(),
             cursor: 0,
-            history: vec![],
+            history: load_history(),
             history_index: None,
             suggestion: 0,
             suggesting: false,
@@ -287,6 +312,12 @@ impl Shell {
                 }
                 if self.history.last() != Some(&line) {
                     self.history.push(line.clone());
+                    if self.history.len() > 500 {
+                        self.history.remove(0);
+                    }
+                    if !cfg!(test) {
+                        let _ = std::fs::write(history_file(), self.history.join("\n") + "\n");
+                    }
                 }
                 return self.run(&line, ui, &path);
             }
@@ -295,17 +326,20 @@ impl Shell {
                 self.accept(ui);
             }
             KeyCode::Up => {
-                if self.suggesting && !self.input.is_empty() && !suggestions.is_empty() {
+                // Walking the history stays in the history until something is typed: a recalled command has its own
+                // suggestions, which must not take the arrows over.
+                if self.history_index.is_none() && self.suggesting && !self.input.is_empty() && !suggestions.is_empty() {
                     self.suggestion = self.suggestion.saturating_sub(1);
                 } else if !self.history.is_empty() {
                     let index = self.history_index.map(|i| i.saturating_sub(1)).unwrap_or(self.history.len() - 1);
                     self.history_index = Some(index);
                     self.input = self.history[index].clone();
                     self.cursor = self.input.chars().count();
+                    self.suggesting = false;
                 }
             }
             KeyCode::Down => {
-                if self.suggesting && !self.input.is_empty() && !suggestions.is_empty() {
+                if self.history_index.is_none() && self.suggesting && !self.input.is_empty() && !suggestions.is_empty() {
                     self.suggestion = (self.suggestion + 1).min(suggestions.len() - 1);
                 } else if let Some(index) = self.history_index {
                     if index + 1 < self.history.len() {
@@ -326,6 +360,7 @@ impl Shell {
                 if editor.handle(&event) {
                     self.suggesting = true;
                     self.suggestion = 0;
+                    self.history_index = None;
                 }
                 if let widgets::Editor::Text { value, cursor, .. } = editor {
                     self.input = value;
@@ -381,7 +416,43 @@ impl Shell {
         }
     }
 
-    pub fn tick(&mut self, _ui: &mut Ui) -> Action {
+    /// The server's readings for the prompt, every two seconds, from a thread of their own.
+    fn refresh_stats(&mut self, ui: &Ui) {
+        if !self.enabled || self.stats_at.map(|t| t.elapsed().as_secs_f64() < 2.0).unwrap_or(false) {
+            return;
+        }
+        self.stats_at = Some(Instant::now());
+        let (session, paths, stats, unicode) = (ui.session.clone(), ui.paths.clone(), self.stats.clone(), ui.unicode);
+        std::thread::spawn(move || {
+            let Some(port) = session.any_port() else {
+                stats.lock().unwrap().line = format!("{} server stopped", if unicode { "○" } else { "-" });
+                return;
+            };
+            let status = crate::simulation::status(port, &paths);
+            let process = crate::api::process(port, &paths).unwrap_or_default();
+            let mut held = stats.lock().unwrap();
+            // Processor use since the last reading, from the time the server has used.
+            let cpu = process["cpu_s"].as_f64().map(|now| {
+                let share = held.cpu.map(|(then, at)| (now - then) / at.elapsed().as_secs_f64().max(0.1) * 100.0);
+                held.cpu = Some((now, std::time::Instant::now()));
+                share
+            });
+            let mut parts = vec![format!("{} :{port} {}", if unicode { "●" } else { "*" }, status.lifecycle.to_lowercase())];
+            if status.active() || status.lifecycle == "COMPLETED" {
+                parts.push(status.clock.clone());
+            }
+            if let Some(Some(share)) = cpu {
+                parts.push(format!("cpu {share:.0}%"));
+            }
+            if let Some(bytes) = process["peak_rss_bytes"].as_f64() {
+                parts.push(format!("mem {:.0}M", bytes / 1048576.0));
+            }
+            held.line = parts.join(if unicode { " · " } else { " | " });
+        });
+    }
+
+    pub fn tick(&mut self, ui: &mut Ui) -> Action {
+        self.refresh_stats(ui);
         let Some(running) = &mut self.running else { return Action::None };
         let block = self.blocks.last_mut().unwrap();
         while let Ok(line) = running.lines.try_recv() {
@@ -668,15 +739,25 @@ impl Shell {
             String::new()
         };
         let cursor_style = ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::REVERSED);
+        let stats = self.stats.lock().map(|s| s.line.clone()).unwrap_or_default();
         let mut spans = vec![Span::styled("dstns", fg(TEXT2)), Span::styled(format!(" {} ", if path == "/" { "~".to_string() } else { format!("~{path}") }), fg(ACCENT)), Span::styled(if ui.unicode { "❯ " } else { "> " }, bold(if self.last_failed() { ERR } else { ACCENT }))];
         if self.open {
             spans.extend([Span::styled(before, fg(TEXT)), Span::styled(under, cursor_style), Span::styled(after, fg(TEXT)), Span::styled(ghost, fg(MUTED))]);
         } else {
             let used: usize = spans.iter().map(|s| widgets::width(&s.content)).sum();
-            spans.push(Span::styled(clip("type a command, or : to begin · help · cmd | grep x && …", (area.width as usize).saturating_sub(used + 3), ui.unicode), fg(MUTED)));
+            // Room is left for the readings at the right.
+            let keep = if stats.is_empty() { 0 } else { widgets::width(&stats) + 4 };
+            spans.push(Span::styled(clip("type a command, or : to begin · help · cmd | grep x && …", (area.width as usize).saturating_sub(used + 3 + keep), ui.unicode), fg(MUTED)));
         }
         let rule = widgets::rule("", area.width, ui.unicode);
         let rect = Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area };
+        // The live readings at the right, where there is room for them beside what is typed.
+        let used: usize = spans.iter().map(|s| widgets::width(&s.content)).sum();
+        let room = (rect.width as usize).saturating_sub(used + 2);
+        if !stats.is_empty() && widgets::width(&stats) + 2 <= room {
+            spans.push(Span::raw(" ".repeat(room - widgets::width(&stats))));
+            spans.push(Span::styled(stats, fg(TEXT2)));
+        }
         frame.render_widget(Paragraph::new(vec![rule, Line::from(spans)]).style(theme::base()), rect);
         let boxed = rect;
         // The suggestions, just above it.

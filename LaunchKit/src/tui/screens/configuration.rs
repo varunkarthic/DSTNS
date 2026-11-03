@@ -26,9 +26,19 @@ pub struct ConfigurationScreen {
     in_form: bool,
     loaded: bool,
     wanted: Option<String>,
+    /// What else a change turned on or off, said once.
+    notice: String,
 }
 
 fn editor(field: &config::Field, value: &Value) -> Editor {
+    if field.key == "demo.scenes" {
+        // The chosen scenes first, in their order, then the rest, off.
+        let chosen: Vec<String> = value.as_str().unwrap_or("").split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+        let title = |id: &str| config::DEMO_SCENES.iter().position(|s| *s == id).map(|i| config::DEMO_SCENE_TITLES[i].to_string()).unwrap_or_else(|| id.to_string());
+        let mut items: Vec<(String, String, bool)> = chosen.iter().filter(|id| config::DEMO_SCENES.contains(&id.as_str())).map(|id| (id.clone(), title(id), true)).collect();
+        items.extend(config::DEMO_SCENES.iter().filter(|id| !chosen.iter().any(|c| c == *id)).map(|id| (id.to_string(), title(id), false)));
+        return Editor::Order { items, cursor: 0 };
+    }
     match field.kind {
         FieldKind::Boolean => Editor::Toggle(value.as_bool().unwrap_or(false)),
         FieldKind::Choice => Editor::select(field.choices.iter().map(|(l, c)| (capitalise(l), c.to_string())).collect(), &value.to_string()),
@@ -54,6 +64,7 @@ impl ConfigurationScreen {
             in_form: false,
             loaded: false,
             wanted: category,
+            notice: String::new(),
         }
     }
 
@@ -107,6 +118,7 @@ impl ConfigurationScreen {
                 Ok(field.choices.iter().find(|(_, c)| c.to_string() == text).map(|(_, c)| c.clone()).unwrap_or(Value::Null))
             }
             Editor::Text { value, .. } => field.parse(value),
+            Editor::Order { .. } => field.parse(&row.editor.text_value()),
         };
         let problem = match &parsed {
             Ok(value) => config::check_field(field, value, &self.current),
@@ -115,7 +127,14 @@ impl ConfigurationScreen {
         if problem.is_empty() {
             self.invalid.remove(key);
             self.form.set_problem(key, "");
-            field.set(&mut self.current, parsed.unwrap());
+            // What changed with it shows at once, and says why.
+            for other in field.set(&mut self.current, parsed.unwrap()) {
+                if let Some(row) = self.form.get_mut(other) {
+                    row.editor = Editor::Toggle(config::flag(&self.current, other));
+                    row.problem.clear();
+                }
+                self.notice = format!("{} turned {} with it", config::field(other).map(|f| f.label).unwrap_or(other), if config::flag(&self.current, other) { "on" } else { "off" });
+            }
         } else {
             self.invalid.insert(key.to_string());
             self.form.set_problem(key, &problem);
@@ -187,6 +206,8 @@ impl Screen for ConfigurationScreen {
         }
         let status = if !self.invalid.is_empty() {
             Some(Line::from(Span::styled("Correct the highlighted values before saving.", fg(ERR))))
+        } else if !self.notice.is_empty() && self.dirty() {
+            Some(Line::from(Span::styled(format!("{}. Ctrl+S saves.", self.notice), fg(WARN))))
         } else if self.dirty() {
             Some(Line::from(Span::styled("Unsaved changes. Ctrl+S saves them to config/defaults.json.", fg(WARN))))
         } else {
@@ -215,6 +236,13 @@ impl Screen for ConfigurationScreen {
                         self.in_form = true;
                     }
                 }
+            }
+            return Action::None;
+        }
+        // A list of its own keeps the arrows while there is somewhere in it to go.
+        if self.form.focused().map(|r| r.editor.consumes(&event) || (r.editor.is_order() && event.modifiers.contains(KeyModifiers::SHIFT))).unwrap_or(false) {
+            if let Some(key) = self.form.handle(&event) {
+                self.apply(&key);
             }
             return Action::None;
         }

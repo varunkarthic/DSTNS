@@ -37,6 +37,8 @@ pub const BUILTINS: &[(&str, &str, &str)] = &[
     ("cut", "cut -d DELIM -f N[,N]", "Fields of each line of its input"),
     ("tee", "tee FILE", "Its input, also written to a file"),
     ("echo", "echo WORDS", "Its words"),
+    ("about", "about", "Version, copyright, licence and map-data attribution"),
+    ("docs", "docs [TOPIC]", "Open the documentation (launcher, console, mcp, fastboot, api, config…); prints its address"),
     ("true", "true", "Succeeds"),
     ("false", "false", "Fails"),
     ("help", "help", "The commands, built-in and the launcher's"),
@@ -293,6 +295,33 @@ fn builtin(words: &[String], input: Option<&[String]>, paths: &Paths) -> Ran {
             .chain(crate::tui::shell::COMMANDS.iter().filter(|(n, _, _)| !is_builtin(n)).map(|(_, usage, what)| format!("{usage:<40}{what}")))
             .collect()),
         "ls" => list(rest.first().map(String::as_str).unwrap_or(""), paths),
+        "about" => Ok(vec![
+            format!("{} {}", crate::version::FULL_NAME, crate::version::engine_version()),
+            "Copyright © 2026 Varun Karthic".into(),
+            format!("Licence     {} (GNU Affero General Public License v3.0 or later)", crate::version::LICENSE_SPDX),
+            format!("Map data    {}", crate::version::OSM_ATTRIBUTION),
+            format!("Docs        {}", crate::version::DOCUMENTATION),
+        ]),
+        "docs" => {
+            let topic = rest.first().map(String::as_str).unwrap_or("");
+            let page = match topic {
+                "" => "",
+                "launcher" | "cli" | "tui" => "guide/operator-cli/",
+                "console" | "shell" | "pipes" => "guide/console/",
+                "mcp" | "ai" => "guide/mcp/",
+                "fastboot" | "fast-boot" | "dynamic-fastboot" | "demo" | "film" => "guide/fast-boot/",
+                "api" => "api/",
+                "endpoints" => "api/endpoints/",
+                "config" | "configuration" | "settings" => "guide/configuration/",
+                "apps" | "fabric" => "api/fabric-api/",
+                "testing" | "tests" => "development/testing/",
+                "troubleshooting" | "help" => "troubleshooting/",
+                other => return fail(format!("docs: no topic {other}. Try launcher, console, mcp, fastboot, api, endpoints, config, apps, testing or troubleshooting."), 1),
+            };
+            let url = format!("{}{page}", crate::version::DOCUMENTATION.trim_end_matches('/').to_string() + "/");
+            let opened = std::io::stdout().is_terminal() && crate::simulation::open_in_browser(&url);
+            Ok(vec![if opened { format!("Opened {url}") } else { url }])
+        }
         "ps" => Ok(processes(paths)),
         "get" => match rest.first() {
             None => Err("get: say which setting, such as api.port".into()),

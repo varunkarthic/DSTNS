@@ -497,6 +497,10 @@ nlohmann::json SimulationEngine::trigger_surge(NodeId node, double factor, doubl
     };
 }
 
+static nlohmann::json eta_json(const std::optional<SimulationEngine::Eta>& eta) {
+    return eta ? nlohmann::json(std::round(eta->seconds * 10) / 10) : nlohmann::json(nullptr);
+}
+
 static double seconds_since(std::chrono::steady_clock::time_point at) {
     return std::chrono::duration<double>(std::chrono::steady_clock::now() - at).count();
 }
@@ -893,6 +897,10 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
             return start_async(seed, failed_config, start);
         }
     }
+    if (!request.is_null() && !request.is_object()) throw std::invalid_argument("request must be an object");
+    // Staged: prepared now, while the current world carries on, and installed only once committed. The observer asks
+    // for this as soon as a person asks for a new world, before they confirm it.
+    const bool staged = request.is_object() && request.value("stage", false);
     auto compile_lease = std::make_shared<CompileLease>(compiling_);
     std::uint64_t compile_generation;
     Seed128 seed = Seed128::secure64();
@@ -901,7 +909,6 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
     double rate = 1.0;
     {
         std::lock_guard lock(mutex_);
-        if (!request.is_null() && !request.is_object()) throw std::invalid_argument("request must be an object");
         if (!graph_) throw std::logic_error("no active simulation to regenerate");
         if (terminate_requested_ || lifecycle_ == Lifecycle::Terminating) throw std::logic_error("simulation is terminating");
         if (request.is_object() && request.contains("expected_run_id") &&
@@ -910,7 +917,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         // The world is about to be replaced: stop it advancing first, so no
         // physics, events or backpressure are evaluated against a world that
         // is on its way out.
-        if (lifecycle_ == Lifecycle::Running) {
+        if (lifecycle_ == Lifecycle::Running && !staged) {
             transition(Lifecycle::Paused);
             ++playback_revision_;
         }
@@ -928,7 +935,10 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
     config.tick_rate = rate;
     std::lock_guard job_lock(world_mutex_);
     if (world_job_.state == "generating") throw std::logic_error("world generation already in progress");
+    staged_.reset();
     world_job_ = WorldJob{};
+    world_job_.staged = staged;
+    world_job_.compile_generation = compile_generation;
     world_job_.state = "generating";
     world_job_.stage = "compiling";
     world_job_.seed = seed.decimal();
@@ -938,7 +948,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
     world_job_.started = std::chrono::steady_clock::now();
     world_generating_.store(true);
     const auto generation = world_job_.generation;
-    logger_.system("INFO", "world", "Generating new world with seed " + seed.hex());
+    logger_.system("INFO", "world", std::string(staged ? "Preparing" : "Generating") + " new world with seed " + seed.hex());
     // Assigning joins the previous (already finished) worker, if any.
     world_worker_ = std::jthread([this, seed, config, generation, compile_generation, compile_lease](std::stop_token) {
         set_thread_role(ThreadRole::Preparation);
@@ -962,40 +972,107 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
             auto scenario = compiler_.compile(seed, config, compile_progress());
             {
                 std::lock_guard l(world_mutex_);
+                if (world_job_.generation != generation) {
+                    // Discarded while it was prepared: nobody wants it now.
+                    world_generating_.store(false);
+                    preparing_stage_.store(0);
+                    return;
+                }
+                if (world_job_.staged && !world_job_.commit) {
+                    // Ready, and waiting for a person to confirm it.
+                    staged_ = std::make_unique<Scenario>(std::move(scenario));
+                    staged_config_ = config;
+                    world_job_.state = "staged";
+                    world_job_.stage = "staged";
+                    world_job_.finished = std::chrono::steady_clock::now();
+                    world_generating_.store(false);
+                    preparing_stage_.store(0);
+                    logger_.system("INFO", "world", "New world prepared, waiting to be confirmed");
+                    return;
+                }
                 world_job_.stage = "installing";
             }
-            std::string run;
-            {
-                std::lock_guard lock(mutex_);
-                if (terminate_requested_ || compile_generation != compile_generation_)
-                    return fail("WORLD_CANCELLED", "Runtime changed before the world was ready; the replacement was not installed.");
-                transition(Lifecycle::Preparing);
-                failed_seed_.reset();
-                install_scenario(std::move(scenario), config.tick_rate, 0);
-                // A regenerated world waits for the operator rather than
-                // running away while its map is still being drawn.
-                transition(Lifecycle::Paused);
-                anchor_wall_clock();
-                cv_.notify_all();
-                run = run_id_;
-            }
-            // The swap is complete: backpressure may judge the new world from
-            // the next report onwards.
-            preparing_stage_.store(0);
-            world_generating_.store(false);
-            std::lock_guard l(world_mutex_);
-            if (world_job_.generation != generation) return;
-            world_job_.state = "ready";
-            world_job_.stage = "ready";
-            world_job_.run_id = run;
-            world_job_.finished = std::chrono::steady_clock::now();
-            logger_.system("INFO", "world", "World " + run + " ready");
+            if (const auto problem = install_world(std::move(scenario), config, compile_generation, generation)) fail("WORLD_CANCELLED", *problem);
         } catch (const MapFetchError& e) {
             fail("MAP_FETCH_FAILED", e.what());
         } catch (const std::exception& e) {
             fail("WORLD_GENERATION_FAILED", e.what());
         }
     });
+    return world_status_locked();
+}
+
+std::optional<std::string> SimulationEngine::install_world(Scenario scenario, const ScenarioConfig& config, std::uint64_t compile_generation, std::uint64_t generation) {
+    std::string run;
+    {
+        std::lock_guard lock(mutex_);
+        if (terminate_requested_ || compile_generation != compile_generation_)
+            return "Runtime changed before the world was ready; the replacement was not installed.";
+        transition(Lifecycle::Preparing);
+        failed_seed_.reset();
+        install_scenario(std::move(scenario), config.tick_rate, 0);
+        // A regenerated world waits for the operator rather than running away while its map is still being drawn.
+        transition(Lifecycle::Paused);
+        anchor_wall_clock();
+        cv_.notify_all();
+        run = run_id_;
+    }
+    // The swap is complete: backpressure may judge the new world from the next report onwards.
+    preparing_stage_.store(0);
+    world_generating_.store(false);
+    std::lock_guard l(world_mutex_);
+    if (world_job_.generation != generation) return std::nullopt;
+    world_job_.state = "ready";
+    world_job_.stage = "ready";
+    world_job_.run_id = run;
+    world_job_.finished = std::chrono::steady_clock::now();
+    logger_.system("INFO", "world", "World " + run + " ready");
+    return std::nullopt;
+}
+
+nlohmann::json SimulationEngine::commit_world() {
+    std::unique_ptr<Scenario> scenario;
+    ScenarioConfig config;
+    std::uint64_t compile_generation = 0, generation = 0;
+    {
+        std::lock_guard l(world_mutex_);
+        if (!world_job_.staged || (world_job_.state != "staged" && world_job_.state != "generating"))
+            throw std::logic_error("no new world is waiting to be confirmed");
+        if (world_job_.state == "generating") {
+            // Still being prepared: it goes in as soon as it is ready.
+            world_job_.commit = true;
+            world_generating_.store(true);
+            return world_status_locked();
+        }
+        scenario = std::move(staged_);
+        config = staged_config_;
+        compile_generation = world_job_.compile_generation;
+        generation = world_job_.generation;
+        world_job_.commit = true;
+        world_job_.state = "generating";
+        world_job_.stage = "installing";
+        world_generating_.store(true);
+    }
+    if (const auto problem = install_world(std::move(*scenario), config, compile_generation, generation)) {
+        std::lock_guard l(world_mutex_);
+        world_generating_.store(false);
+        world_job_.state = "failed";
+        world_job_.stage = "failed";
+        world_job_.error_code = "WORLD_CANCELLED";
+        world_job_.error = *problem;
+    }
+    return world_status();
+}
+
+nlohmann::json SimulationEngine::discard_world() {
+    std::lock_guard l(world_mutex_);
+    if (world_job_.staged && world_job_.state != "ready" && !world_job_.commit) {
+        // Its preparation finishes on its own, and is then dropped: the job it belonged to is gone.
+        staged_.reset();
+        world_job_ = WorldJob{};
+        world_generating_.store(false);
+        logger_.system("INFO", "world", "The prepared world was not wanted");
+    }
     return world_status_locked();
 }
 
@@ -1039,7 +1116,8 @@ nlohmann::json SimulationEngine::world_status_locked() const {
             {"error", error},
             // Dynamic Fastboot: the world after this one, and whether its city is on disk yet.
             {"next", next_world_.status()},
-            {"eta_s", j.state == "generating" && preparation_eta() ? nlohmann::json(std::round(*preparation_eta() * 10) / 10) : nlohmann::json(nullptr)}
+            {"eta_s", j.state == "generating" ? eta_json(preparation_eta()) : nlohmann::json(nullptr)},
+            {"eta_confident", j.state == "generating" && preparation_eta() ? preparation_eta()->confident : false}
         }}
     };
 }
@@ -1069,24 +1147,25 @@ ScenarioCompiler::Progress SimulationEngine::compile_progress() {
     };
 }
 
-std::optional<double> SimulationEngine::preparation_eta() const {
+std::optional<SimulationEngine::Eta> SimulationEngine::preparation_eta() const {
     const int stage = preparing_stage_.load();
     if (stage == 0) return std::nullopt;
     std::lock_guard lock(eta_mutex_);
-    if (stage == 3) return std::max(0.3, build_s_ - seconds_since(stage_at_[3]));
+    if (stage == 3) return Eta{std::max(0.3, build_s_ - seconds_since(stage_at_[3])), true};
     if (stage == 2) {
         const auto fetch = current_map_fetch();
         // From the cache, or unpacked by Fast Boot: only the building is left.
-        if (!fetch.active) return build_s_ + 0.5;
-        if (fetch.phase == "parse") return build_s_ + 1.0;
+        if (!fetch.active) return Eta{build_s_ + 0.5, true};
+        if (fetch.phase == "parse") return Eta{build_s_ + 1.0, true};
         if (fetch.phase == "download" && fetch.total > fetch.bytes && fetch.bytes > 0 && fetch.elapsed_s > 0.5) {
             const double rate = static_cast<double>(fetch.bytes) / fetch.elapsed_s;
-            return static_cast<double>(fetch.total - fetch.bytes) / rate + build_s_;
+            return Eta{static_cast<double>(fetch.total - fetch.bytes) / rate + build_s_, true};
         }
-        // Waiting on Overpass, or a download of no stated size: about as long as the last ones took.
-        return std::max(2.0, fetch_s_ - fetch.elapsed_s) + build_s_;
+        // Waiting on Overpass, or a download of no stated size: a guess from the last ones, which may be well off, and
+        // which never runs out while the wait goes on.
+        return Eta{std::max(0.5 * fetch_s_, fetch_s_ - fetch.elapsed_s) + build_s_, false};
     }
-    return fetch_s_ + build_s_;
+    return Eta{fetch_s_ + build_s_, false};
 }
 
 void SimulationEngine::learn_preparation(double fetch_s, double build_s) {
@@ -1802,7 +1881,8 @@ nlohmann::json SimulationEngine::status() const {
     return envelope({
         {"lifecycle", to_string(lifecycle_)},
         {"preparation_error", preparation_error_},
-        {"eta_s", preparation_eta() ? nlohmann::json(std::round(*preparation_eta() * 10) / 10) : nlohmann::json(nullptr)},
+        {"eta_s", eta_json(preparation_eta())},
+        {"eta_confident", preparation_eta() ? preparation_eta()->confident : false},
         {"observer_hold", observer_hold_},
         {"playback_revision", playback_revision_},
         {"run_id", run_id_},

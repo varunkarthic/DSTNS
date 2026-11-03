@@ -19,6 +19,8 @@ export interface Features {
     /** The film plans its scenes from the server's estimate of how long the world will take. */
     dynamic_particles: boolean;
     demo: boolean;
+    /** Demo Mode's scenes, by id, in the order to play them. Absent: all, in the film's order. */
+    demo_scenes?: string[];
     music: boolean;
     fullscreen: boolean;
     music_volume: number;

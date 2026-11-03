@@ -42,7 +42,7 @@ int main() {
             EXPECT(started.status == 202, started);
             // While it is prepared, the server says how long that will take.
             const auto preparing = server.call("GET", "/api/v1/playback/status").data();
-            if (preparing.at("lifecycle") == "PREPARING") EXPECT(preparing.at("eta_s").is_number() && preparing.at("eta_s") > 0, preparing);
+            if (preparing.at("lifecycle") == "PREPARING") EXPECT(preparing.at("eta_s").is_number() && preparing.at("eta_s") > 0 && preparing.at("eta_confident").is_boolean(), preparing);
             json status;
             for (const double end = now() + 30; now() < end; delay(0.1)) {
                 status = server.call("GET", "/api/v1/playback/status").data();
@@ -87,9 +87,24 @@ int main() {
     // Another world, prepared already, stands; the next new world takes it, and nothing is downloaded for it.
     delay(0.5);
     EXPECT(server.call("GET", "/api/v1/world/status").data().at("next").at("seed") == next_seed);
-    const auto regenerated = server.op("POST", "/api/v1/world/regenerate", json::object());
-    EXPECT(regenerated.status == 202 && regenerated.data().at("seed") == next_seed, regenerated);
+    // Asked for, the new world is prepared at once, while this one carries on; it goes in only when confirmed.
+    const auto run_before = server.call("GET", "/api/v1/playback/status").body.at("run_id");
+    const auto staged = server.op("POST", "/api/v1/world/regenerate", json{{"stage", true}});
+    EXPECT(staged.status == 202 && staged.data().at("seed") == next_seed, staged);
+    until([&] { return server.call("GET", "/api/v1/world/status").data().at("state") == "staged"; }, 20, "the world to be prepared");
+    EXPECT(server.call("GET", "/api/v1/playback/status").data().at("lifecycle") == "RUNNING", "the current world was not paused");
+    EXPECT(server.call("GET", "/api/v1/playback/status").body.at("run_id") == run_before, "nor replaced");
     EXPECT(asked == before, "no download for a city already on disk", asked.load(), before);
+    const auto committed = server.op("POST", "/api/v1/world/regenerate/commit", json::object());
+    EXPECT(committed.status == 202 && committed.data().at("state") == "ready", "put in at once", committed);
+    const auto after = server.call("GET", "/api/v1/playback/status").body;
+    EXPECT(after.at("run_id") != run_before && after.at("seed") == next_seed && after.at("data").at("lifecycle") == "PAUSED", after);
+    // Changing one's mind forgets it, and leaves the world as it was.
+    EXPECT(server.op("POST", "/api/v1/world/regenerate", json{{"stage", true}}).status == 202);
+    const auto discarded = server.op("POST", "/api/v1/world/regenerate/discard", json::object());
+    EXPECT(discarded.status == 200 && discarded.data().at("state") == "idle", discarded);
+    EXPECT(server.call("GET", "/api/v1/playback/status").body.at("run_id") == after.at("run_id"));
+    EXPECT(server.op("POST", "/api/v1/world/regenerate/commit", json::object()).status == 409, "nothing left to confirm");
 
     // Turned off, it does none of this.
     TempDir off;

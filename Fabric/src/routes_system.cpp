@@ -154,7 +154,9 @@ void ApiServer::routes_system() {
                 {{"GET","/api/v1/view/events","Events in effect now"}},
                 {{"GET","/api/v1/view/stream","The snapshot, as server-sent events"}},
                 {{"GET","/api/v1/places","Classified places"}},
-                {{"POST","/api/v1/world/regenerate","Build a new world from a seed"}},
+                {{"POST","/api/v1/world/regenerate","Build a new world from a seed; {\"stage\": true} prepares it without replacing this one yet"}},
+                {{"POST","/api/v1/world/regenerate/commit","Put in the world prepared with stage, now or as soon as it is ready"}},
+                {{"POST","/api/v1/world/regenerate/discard","Forget the world prepared with stage"}},
                 {{"GET","/api/v1/world/status","Preparation progress and durable errors"}}}),
             group("control","Acting on the running simulation",{
                 {{"PUT","/api/v1/control/tick-rate","Set the simulation rate multiplier"}},
@@ -394,8 +396,9 @@ void ApiServer::routes_system() {
         presentation.update(on.presentation);
         // The engine's own switch decides whether it fetches ahead; the observer is told what it does.
         if (!NextWorld::enabled()) presentation["dynamic_fastboot"] = false;
-        // Fast Boot exists to skip the wait, so the film is not made to play to its end.
-        if (presentation.value("fast_boot", false)) presentation["force_animate"] = false;
+        // Fast Boot exists to skip the wait, and the dynamic film plans its own length, so in either case the film is not
+        // made to play to its end.
+        if (presentation.value("fast_boot", false) || presentation.value("dynamic_particles", false)) presentation["force_animate"] = false;
         send(r, {{"api_version", kApiVersion}, {"data", {
             {"applications", on.applications}, {"legacy_api", on.legacy_api}, {"launch_proposals", on.launch_proposals},
             {"require_signatures", on.require_signatures}, {"disabled_capabilities", on.disabled},

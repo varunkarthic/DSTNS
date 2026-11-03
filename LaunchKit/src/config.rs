@@ -155,7 +155,24 @@ impl Field {
         node.clone()
     }
 
-    pub fn set(&self, config: &mut Value, value: Value) {
+    /// Set it, and whatever must change with it (see RULES). Returns the other settings that changed.
+    pub fn set(&self, config: &mut Value, value: Value) -> Vec<&'static str> {
+        self.store(config, value.clone());
+        let mut changed = vec![];
+        for (when, becomes, other, to) in RULES {
+            if *when == self.key && value == json!(*becomes) {
+                if let Some(field) = field(other) {
+                    if field.get(config) != json!(*to) {
+                        field.store(config, json!(*to));
+                        changed.push(field.key);
+                    }
+                }
+            }
+        }
+        changed
+    }
+
+    fn store(&self, config: &mut Value, value: Value) {
         let parts: Vec<&str> = self.key.split('.').collect();
         let mut node = config;
         for part in &parts[..parts.len() - 1] {
@@ -284,6 +301,24 @@ fn narration_mode(value: &Value, _config: &Value) -> String {
     }
 }
 
+/// Demo Mode's scenes, by the ids the observer gives them, in the film's order.
+pub const DEMO_SCENES: &[&str] = &["streets", "signals", "demand", "rush-hour", "incidents", "weather", "cities", "repeatable", "auto-focus", "webfabric", "time-control", "many-worlds", "ai-ready"];
+/// Their titles, as the film shows them.
+pub const DEMO_SCENE_TITLES: &[&str] = &["Mapped streets", "Signal timing", "Travel demand", "Rush hour", "Road incidents", "Simulated weather", "Cities worldwide", "Repeatable worlds", "Auto Focus", "WebFabric", "Time control", "Many worlds", "AI ready"];
+
+/// The scenes named in demo.scenes, in order.
+pub fn demo_scene_list(config: &Value) -> Vec<String> {
+    setting(config, "demo.scenes").as_str().unwrap_or("").split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+}
+
+fn demo_scenes(value: &Value, _config: &Value) -> String {
+    let text = value.as_str().unwrap_or("");
+    match text.split(',').map(str::trim).filter(|s| !s.is_empty()).find(|id| !DEMO_SCENES.contains(id)) {
+        Some(unknown) => format!("No scene {unknown}. The scenes: {}.", DEMO_SCENES.join(", ")),
+        None => String::new(),
+    }
+}
+
 fn volume(value: &Value, _config: &Value) -> String {
     if as_number(value).map(|v| (0.0..=1.0).contains(&v)).unwrap_or(false) {
         String::new()
@@ -298,127 +333,135 @@ pub fn fields() -> &'static [Field] {
     static FIELDS: std::sync::OnceLock<Vec<Field>> = std::sync::OnceLock::new();
     FIELDS.get_or_init(|| {
         vec![
-            Field::new("day", "Day type", "Run", Choice, "Weekday or weekend demand profiles. --day-type overrides it.", json!(0))
+            // Run
+            Field::new("day", "Day type", "Run", Choice, "Which demand profile the day follows: a working weekday, or a weekend's later, flatter one. --day-type overrides it for a run.", json!(0))
                 .choices(vec![("weekday", json!(0)), ("weekend", json!(1))]),
-            Field::new("playback.duration_seconds", "Day duration", "Run", Integer, "Wall-clock seconds one virtual day takes at 1×.", json!(3600))
+            Field::new("playback.duration_seconds", "Length of a day", "Run", Integer, "Wall-clock seconds one simulated day lasts at 1× speed. 3600 plays a day in an hour.", json!(3600))
                 .unit("seconds")
                 .range(60.0, Some(3600.0)),
-            Field::new("playback.tick_rate", "Speed", "Run", Number, "Initial playback multiplier.", json!(1.0)).unit("×").range(0.0, Some(MAX_TICK_RATE)).above(),
-            Field::new("map.max_nodes", "Graph size cap", "Map", Integer, "Upper bound on the number of junctions.", json!(50000)).unit("nodes").range(2.0, Some(50000.0)),
-            Field::new("map.cache_dir", "Map cache", "Map", Text, "Where downloaded city extracts are kept.", json!("data/maps")),
-            Field::new("modules.traffic", "Traffic demand", "Modules", Boolean, "Base and hotspot demand on every road.", json!(true)),
-            Field::new("modules.signals", "Traffic signals", "Modules", Boolean, "Signal controllers at junctions.", json!(true)),
-            Field::new("modules.buildings", "Places", "Modules", Boolean, "Demand from schools, offices, shops and other places.", json!(true)),
-            Field::new("modules.dws", "Weather", "Modules", Boolean, "Scheduled and manual rain.", json!(true)),
-            Field::new("modules.flooding", "Flooding", "Modules", Boolean, "Standing water and flood closures.", json!(true)),
-            Field::new("modules.news", "News", "Modules", Boolean, "The operator news feed.", json!(true)),
-            Field::new("dws.frequency", "Storms per day", "Weather", Integer, "Scheduled storms in a virtual day.", json!(3))
+            Field::new("playback.tick_rate", "Starting speed", "Run", Number, "How fast a run plays when it starts, as a multiple of the length of a day. The observer changes it while it runs.", json!(1.0)).unit("×").range(0.0, Some(MAX_TICK_RATE)).above(),
+            // Map
+            Field::new("map.max_nodes", "Largest network", "Map", Integer, "The most junctions a district's road network may have. Lower keeps big cities light.", json!(50000)).unit("junctions").range(2.0, Some(50000.0)),
+            Field::new("map.cache_dir", "Map cache folder", "Map", Text, "Where downloaded city extracts are kept, relative to the checkout. Dynamic Fastboot's next city is kept here too.", json!("data/maps")),
+            // Modules
+            Field::new("modules.traffic", "Traffic demand", "Modules", Boolean, "Base and hotspot demand on every road. Off, the roads stay empty.", json!(true)),
+            Field::new("modules.signals", "Signal timing", "Modules", Boolean, "Signal controllers at junctions, each on its own schedule.", json!(true)),
+            Field::new("modules.buildings", "Places and trips", "Modules", Boolean, "Demand drawn by schools, offices, shops and other places.", json!(true)),
+            Field::new("modules.dws", "Weather", "Modules", Boolean, "Rain cells, scheduled and called up by hand.", json!(true)),
+            Field::new("modules.flooding", "Flooding", "Modules", Boolean, "Standing water on low roads under rain, and the closures it causes.", json!(true)),
+            Field::new("modules.news", "News feed", "Modules", Boolean, "A running feed of what happens in the district.", json!(true)),
+            // Weather
+            Field::new("dws.frequency", "Storms a day", "Weather", Integer, "How many storms are scheduled across a simulated day. 0 leaves only those called up by hand.", json!(3))
                 .unit("storms")
                 .range(0.0, None)
                 .extra(dws_spacing),
+            // Launcher
             Field::new(
                 "launcher.default_settings",
-                "Open with default settings",
+                "Observer at its defaults",
                 "Launcher",
                 Boolean,
-                "Each launch opens the observer with its settings at their defaults, forgetting what this browser had chosen. --default-settings does the same once.",
+                "Every launch opens the observer with its own settings back at their defaults, forgetting what this browser chose. --default-settings does it once.",
                 json!(false),
             ),
-            Field::new(
-                "launcher.command_bar",
-                "Command bar",
-                "Launcher",
-                Boolean,
-                "A line at the bottom of the terminal interface where commands can be typed, as in a shell. : or / opens it.",
-                json!(true),
-            ),
-            Field::new("api.host", "Bind address", "Server", Text, "127.0.0.1 keeps the server local; 0.0.0.0 exposes it to the network.", json!("127.0.0.1")),
-            Field::new("api.port", "Port", "Server", Integer, "Preferred port; the next free one is used if it is taken.", json!(8090)).range(1.0, Some(65535.0)),
+            Field::new("launcher.command_bar", "Command bar", "Launcher", Boolean, "The prompt at the foot of the terminal interface, where commands are typed as in a shell, joined with | && || and ;. : or / goes to it.", json!(true)),
+            // Server
+            Field::new("api.host", "Listen address", "Server", Text, "127.0.0.1 keeps the server to this machine; 0.0.0.0 opens it to the network, which needs a gateway in front (see Deployment).", json!("127.0.0.1")),
+            Field::new("api.port", "Port", "Server", Integer, "The port to listen on. If it is taken, the next free one is used, and the launcher says which.", json!(8090)).range(1.0, Some(65535.0)),
             Field::new(
                 "narration.mode",
-                "Narration",
+                "Realistic News",
                 "Server",
                 Text,
-                "Plain-language news: auto uses Apple Foundation Models where available, fm requires them, off keeps the default wording, or a Chat Completions endpoint (http://HOST:PORT, unix:/PATH). --narrator overrides it.",
+                "Who writes the news: auto uses Apple Foundation Models where this Mac has them, fm insists on them, off keeps the plain wording, or give a Chat Completions endpoint (http://HOST:PORT, unix:/PATH). --narrator overrides it.",
                 json!("auto"),
             )
             .extra(narration_mode),
-            Field::new("fabric.applications", "Applications", "Fabric", Boolean, "Programs may connect through the Fabric API. Off, nothing can register.", json!(true)),
-            Field::new(
-                "fabric.legacy_api",
-                "Legacy API",
-                "Fabric",
-                Boolean,
-                "The older /playback and /control routes answer. They have no credential, so turning them off leaves only the Fabric API.",
-                json!(true),
-            ),
-            Field::new("fabric.launch_proposals", "Launch proposals", "Fabric", Boolean, "Applications may propose how to start them, for a person to approve here.", json!(true)),
-            Field::new("fabric.require_signatures", "Require signatures", "Fabric", Boolean, "Every application must sign every request it makes.", json!(false)),
-            Field::new("fabric.world_regeneration", "New worlds from the observer", "Fabric", Boolean, "The observer may ask the engine for a new world.", json!(true)),
-            Field::new("fabric.allow_frames", "Applications' own pages", "Fabric", Boolean, "Applications may show a page of their own, in a sandbox.", json!(true)),
-            Field::new("fabric.allow_dialogs", "Applications' dialogs", "Fabric", Boolean, "Applications may ask a question in a dialog.", json!(true)),
-            Field::new("fabric.allow_camera", "Applications move the map", "Fabric", Boolean, "Applications may ask the map to look somewhere, once a person allows it.", json!(true)),
-            Field::new("fabric.allow_layers", "Applications show layers", "Fabric", Boolean, "Applications may hold layers and places on or off, once a person allows it.", json!(true)),
-            Field::new("fabric.allow_control", "Applications control the run", "Fabric", Boolean, "Applications may play, pause and change the simulation, once a person allows it.", json!(true)),
-            Field::new("fabric.allow_notifications", "Applications' notifications", "Fabric", Boolean, "Applications may send notifications.", json!(true)),
+            // Fabric
+            Field::new("fabric.applications", "Applications may connect", "Fabric", Boolean, "Programs may register through the Fabric API. Off, nothing can, and WebFabric is off too.", json!(true)),
+            Field::new("fabric.legacy_api", "Legacy routes", "Fabric", Boolean, "The older /playback and /control routes still answer. They take no credential, so turning them off leaves only the Fabric API.", json!(true)),
+            Field::new("fabric.launch_proposals", "Launch proposals", "Fabric", Boolean, "Applications may propose how to start them, for a person to read and approve here.", json!(true)),
+            Field::new("fabric.require_signatures", "Signed requests only", "Fabric", Boolean, "Every application must sign every request with its key (HMAC-SHA-256), not only present its token.", json!(false)),
+            Field::new("fabric.world_regeneration", "New worlds from the observer", "Fabric", Boolean, "A person in the observer may ask for a new world. The seed is still the server's choice.", json!(true)),
+            Field::new("fabric.allow_frames", "Embedded pages", "Fabric", Boolean, "Applications may show a page of their own inside the observer, sandboxed, from the origins they declare.", json!(true)),
+            Field::new("fabric.allow_dialogs", "Dialogs", "Fabric", Boolean, "Applications may ask a person a question in a dialog.", json!(true)),
+            Field::new("fabric.allow_camera", "Camera direction", "Fabric", Boolean, "Applications may ask the map to look somewhere, once a person allows it.", json!(true)),
+            Field::new("fabric.allow_layers", "Layer control", "Fabric", Boolean, "Applications may hold map layers and places on or off, once a person allows it.", json!(true)),
+            Field::new("fabric.allow_control", "Simulation control", "Fabric", Boolean, "Applications may play, pause, seek and change the run, once a person allows it. Every action is on the audit log.", json!(true)),
+            Field::new("fabric.allow_notifications", "Notifications", "Fabric", Boolean, "Applications may send notifications, within a rate limit.", json!(true)),
             Field::new("fabric.allow_messages", "Messages between applications", "Fabric", Boolean, "Applications may send each other messages.", json!(true)),
-            Field::new("fabric.allow_storage", "Applications' storage", "Fabric", Boolean, "Applications may keep values across restarts.", json!(true)),
-            Field::new("webfabric.enabled", "WebFabric", "WebFabric", Boolean, "Applications appear in the observer. Off, they can still connect, but nothing of theirs is shown.", json!(true)),
-            Field::new(
-                "startup.fast_boot",
-                "Fast Boot",
-                "Startup",
-                Boolean,
-                "Use maps downloaded in advance with ./launcher fastboot download, so that a world is ready in seconds, and open with the name alone.",
-                json!(false),
-            ),
+            Field::new("fabric.allow_storage", "Storage", "Fabric", Boolean, "Applications may keep a little data of their own across restarts.", json!(true)),
+            // WebFabric
+            Field::new("webfabric.enabled", "WebFabric", "WebFabric", Boolean, "Applications' panels, controls and overlays appear in the observer. Off, they can still connect, but nothing of theirs is shown.", json!(true)),
+            // Startup
             Field::new(
                 "startup.dynamic_fastboot",
                 "Dynamic Fastboot",
                 "Startup",
                 Boolean,
-                "While a world runs, the next city is fetched in the background. A new world, or the next start, uses it and is ready in seconds; only the very first start downloads while you wait.",
+                "While a world runs, the next one is chosen, in another city, and its map fetched in the background. A new world, or the next start, then takes seconds; only the first ever start downloads while you wait.",
                 json!(true),
             ),
             Field::new(
                 "startup.dynamic_particles",
-                "Dynamic particle animation",
+                "Adaptive start-up film",
                 "Startup",
                 Boolean,
-                "The start-up film follows the server's estimate of when the world will be ready: it picks how many scenes, and which, to fill the wait, always opening and closing on the name and the flight into the map.",
+                "The film plans itself by the server's estimate of when the world will be ready: as many scenes as fit, in a new order, then straight to the map. Turns Play the whole film off.",
                 json!(true),
+            ),
+            Field::new(
+                "startup.fast_boot",
+                "Fast Boot",
+                "Startup",
+                Boolean,
+                "Use every city downloaded in advance (./launcher fastboot download), and open with the name alone. Turns Play the whole film off.",
+                json!(false),
             ),
             Field::new(
                 "startup.force_animate",
                 "Play the whole film",
                 "Startup",
                 Boolean,
-                "The start-up film plays to its end before the map, even when the world is ready sooner. Fast Boot turns this off.",
-                json!(true),
+                "Every scene of the start-up film plays before the map, even when the world is ready sooner. Turns the adaptive film and Fast Boot off.",
+                json!(false),
             ),
-            Field::new("presentation.music", "Music", "Presentation", Boolean, "Original music while the start-up film plays, with a button to mute it.", json!(false)),
-            Field::new("presentation.fullscreen", "Full screen", "Presentation", Boolean, "Open the observer full screen.", json!(false)),
-            Field::new("presentation.music_volume", "Music volume", "Presentation", Number, "From 0 to 1.", json!(0.6)).range(0.0, Some(1.0)).extra(volume),
-            Field::new("demo.music", "Music in Demo Mode", "Demo", Boolean, "Demo Mode plays its music. ./launcher demo starts it.", json!(true)),
-            Field::new("demo.fullscreen", "Full screen in Demo Mode", "Demo", Boolean, "Demo Mode opens full screen.", json!(true)),
-            Field::new("performance.compression", "Compression", "Performance", Choice, "How hard the server compresses what it sends. Fast costs least; small saves bytes on a slow link.", json!("fast"))
+            // Presentation
+            Field::new("presentation.music", "Music", "Presentation", Boolean, "An original score while the start-up film plays, with a button to mute it.", json!(false)),
+            Field::new("presentation.fullscreen", "Full screen", "Presentation", Boolean, "Open the observer full screen, in a window of its own.", json!(false)),
+            Field::new("presentation.music_volume", "Music volume", "Presentation", Number, "From 0 (silent) to 1.", json!(0.6)).range(0.0, Some(1.0)).extra(volume),
+            // Demo
+            Field::new("demo.music", "Music in Demo Mode", "Demo", Boolean, "Demo Mode plays its score. --no-music turns it off once.", json!(true)),
+            Field::new("demo.fullscreen", "Full screen in Demo Mode", "Demo", Boolean, "Demo Mode opens full screen. --no-fullscreen opens it in a window once.", json!(true)),
+            Field::new(
+                "demo.scenes",
+                "Demo scenes and order",
+                "Demo",
+                Text,
+                "Which scenes Demo Mode plays, and in what order. Space turns one on or off, Shift+↑↓ moves it. The name always opens the loop. As text: ids separated by commas.",
+                json!(DEMO_SCENES.join(", ")),
+            )
+            .extra(demo_scenes),
+            // Performance
+            Field::new("performance.compression", "Compression", "Performance", Choice, "How hard the server compresses large replies. Fast costs least processor time; small saves bytes on a slow link; off sends them as they are.", json!("fast"))
                 .choices(vec![("Fast", json!("fast")), ("Balanced", json!("balanced")), ("Small", json!("small")), ("Off", json!("off"))]),
-            Field::new("performance.api_threads", "API threads", "Performance", Integer, "Requests the server answers at once. 0 lets it choose.", json!(0)).range(0.0, Some(256.0)),
-            Field::new("performance.engine_threads", "Engine threads", "Performance", Integer, "Threads that write a large snapshot. 0 lets it choose; 1 keeps it to one.", json!(0)).range(0.0, Some(64.0)),
-            Field::new("performance.map_fps", "Map frame rate", "Performance", Choice, "How often the map's moving traffic is redrawn. Automatic drops to 30 when the map struggles.", json!(0))
+            Field::new("performance.api_threads", "Request threads", "Performance", Integer, "How many requests the server answers at once. 0 lets it choose from the processor count.", json!(0)).range(0.0, Some(256.0)),
+            Field::new("performance.engine_threads", "Snapshot threads", "Performance", Integer, "Threads that write a large snapshot in parallel. 0 lets it choose; 1 keeps it to one.", json!(0)).range(0.0, Some(64.0)),
+            Field::new("performance.map_fps", "Map frame rate", "Performance", Choice, "How often the map's moving traffic is redrawn. Automatic drops to 30 a second when the map struggles.", json!(0))
                 .choices(vec![("Automatic", json!(0)), ("60 a second", json!(60)), ("30 a second", json!(30))]),
-            Field::new("performance.render_scale", "Render scale", "Performance", Number, "The most pixels the map draws per point on a high-density screen. Lower is lighter.", json!(2)).range(0.5, Some(3.0)),
-            Field::new("performance.film_particles", "Film particles", "Performance", Integer, "How many particles the start-up film has. Fewer is lighter.", json!(32000)).range(4000.0, Some(32000.0)),
+            Field::new("performance.render_scale", "Render scale", "Performance", Number, "The most pixels the map draws per point on a high-density screen. Lower is lighter on the graphics processor.", json!(2)).range(0.5, Some(3.0)),
+            Field::new("performance.film_particles", "Film particles", "Performance", Integer, "How many particles the start-up film draws. Fewer is lighter; a struggling page draws fewer by itself.", json!(32000)).range(4000.0, Some(32000.0)),
+            // MCP
             Field::new(
                 "mcp.enabled",
                 "MCP Handler",
                 "MCP",
                 Boolean,
-                "./launcher mcp serve answers the Model Context Protocol, so that an AI client can call the API. No agent is included; this is the door, closed by default.",
+                "An AI client may connect through the Model Context Protocol (./launcher mcp serve) and read. No agent is included: this opens the door, which is closed by default.",
                 json!(false),
             ),
-            Field::new("mcp.allow_writes", "Allow changes", "MCP", Boolean, "An AI client may call routes that change things (POST, PUT, DELETE). Off, it can only read.", json!(false)),
-            Field::new("mcp.allow_launcher", "Allow launcher actions", "MCP", Boolean, "An AI client may start and stop simulations through the launcher, as you could.", json!(false)),
+            Field::new("mcp.allow_writes", "AI may change things", "MCP", Boolean, "An AI client may call routes that change the simulation (POST, PUT, DELETE). Turns the MCP Handler on.", json!(false)),
+            Field::new("mcp.allow_launcher", "AI may start and stop runs", "MCP", Boolean, "An AI client may start and stop simulations and change settings through the launcher. Turns the MCP Handler on.", json!(false)),
         ]
     })
 }
@@ -467,16 +510,36 @@ const CAPABILITIES: &[(&str, &[&str])] = &[
     ("fabric.allow_storage", &["storage"]),
 ];
 
+/// Settings that cannot be on together, or that need another: when the first becomes the value, the other becomes its
+/// value too. The interface and `config set` say what else changed.
+pub const RULES: &[(&str, bool, &str, bool)] = &[
+    // The dynamic film plans its own length; the whole film plays every scene. One or the other.
+    ("startup.dynamic_particles", true, "startup.force_animate", false),
+    ("startup.force_animate", true, "startup.dynamic_particles", false),
+    // Fast Boot opens with the name alone, which the whole film would undo.
+    ("startup.fast_boot", true, "startup.force_animate", false),
+    ("startup.force_animate", true, "startup.fast_boot", false),
+    // What an AI client may do needs the MCP Handler to be on at all.
+    ("mcp.allow_writes", true, "mcp.enabled", true),
+    ("mcp.allow_launcher", true, "mcp.enabled", true),
+    ("mcp.enabled", false, "mcp.allow_writes", false),
+    ("mcp.enabled", false, "mcp.allow_launcher", false),
+    // Applications that may not connect cannot appear in the observer either.
+    ("fabric.applications", false, "webfabric.enabled", false),
+    ("webfabric.enabled", true, "fabric.applications", true),
+];
+
 /// How the observer should present itself, as the server will tell it.
 pub fn presentation(config: &Value, demo: bool) -> Value {
     let fast = flag(config, "startup.fast_boot");
     json!({
         "webfabric": flag(config, "webfabric.enabled"),
         "fast_boot": fast,
-        "force_animate": flag(config, "startup.force_animate") && !fast,
+        "force_animate": flag(config, "startup.force_animate") && !fast && !flag(config, "startup.dynamic_particles"),
         "dynamic_fastboot": flag(config, "startup.dynamic_fastboot"),
         "dynamic_particles": flag(config, "startup.dynamic_particles"),
         "demo": demo,
+        "demo_scenes": demo_scene_list(config),
         "music": flag(config, if demo { "demo.music" } else { "presentation.music" }),
         "fullscreen": flag(config, if demo { "demo.fullscreen" } else { "presentation.fullscreen" }),
         "music_volume": as_number(&setting(config, "presentation.music_volume")).unwrap_or(0.6),
@@ -654,6 +717,31 @@ mod tests {
     }
 
     #[test]
+    fn settings_that_conflict_are_never_on_together() {
+        let mut config = json!({});
+        let changed = field("startup.force_animate").unwrap().set(&mut config, json!(true));
+        assert!(changed.contains(&"startup.dynamic_particles"));
+        assert!(!flag(&config, "startup.dynamic_particles") && flag(&config, "startup.force_animate"));
+        field("startup.dynamic_particles").unwrap().set(&mut config, json!(true));
+        assert!(!flag(&config, "startup.force_animate"), "and the other way round");
+        field("mcp.allow_launcher").unwrap().set(&mut config, json!(true));
+        assert!(flag(&config, "mcp.enabled"), "a permission needs the handler on");
+        field("mcp.enabled").unwrap().set(&mut config, json!(false));
+        assert!(!flag(&config, "mcp.allow_launcher"), "and goes with it");
+        assert!(field("startup.fast_boot").unwrap().set(&mut config, json!(false)).is_empty(), "turning something off that nothing needs changes nothing else");
+    }
+
+    #[test]
+    fn demo_scenes_are_named_by_id_in_order() {
+        let scenes = field("demo.scenes").unwrap();
+        assert_eq!(check_field(scenes, &json!("ai-ready, streets"), &json!({})), "");
+        assert!(check_field(scenes, &json!("ai-ready, newsroom"), &json!({})).contains("No scene newsroom"));
+        let config = json!({"demo": {"scenes": "ai-ready , time-control"}});
+        assert_eq!(demo_scene_list(&config), vec!["ai-ready", "time-control"]);
+        assert_eq!(presentation(&config, true)["demo_scenes"], json!(["ai-ready", "time-control"]));
+    }
+
+    #[test]
     fn a_start_takes_the_world_dynamic_fastboot_prepared() {
         let dir = std::env::temp_dir().join(format!("dstns-next-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -711,6 +799,6 @@ mod tests {
     fn setting_creates_the_sections_it_needs() {
         let mut config = json!({});
         field("mcp.allow_writes").unwrap().set(&mut config, json!(true));
-        assert_eq!(config, json!({"mcp": {"allow_writes": true}}));
+        assert_eq!(config, json!({"mcp": {"allow_writes": true, "enabled": true}}));
     }
 }

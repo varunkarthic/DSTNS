@@ -57,6 +57,9 @@ public:
     // running and is left untouched if generation fails. Returns immediately;
     // progress is reported by world_status().
     nlohmann::json regenerate_world(const nlohmann::json& request = {});
+    // A world prepared with {"stage": true}: put in now (or as soon as it is ready), or forgotten.
+    nlohmann::json commit_world();
+    nlohmann::json discard_world();
     [[nodiscard]] nlohmann::json world_status() const;
     /// What compilation is doing right now: "selecting", "acquiring",
     /// "building", or "" when nothing is being compiled. Readable while a
@@ -217,8 +220,15 @@ private:
         // `seed` is the operator-facing decimal form; `seed_hex` the internal one.
         std::string seed, seed_hex, previous_run_id, run_id, error_code, error;
         std::uint64_t generation{};
+        std::uint64_t compile_generation{};
+        // Prepared ahead of a person's confirmation, and whether it has been given.
+        bool staged{false}, commit{false};
         std::chrono::steady_clock::time_point started{}, finished{};
     };
+    std::unique_ptr<Scenario> staged_;
+    ScenarioConfig staged_config_;
+    // Installs a regenerated world. A reason when it could not be.
+    std::optional<std::string> install_world(Scenario scenario, const ScenarioConfig& config, std::uint64_t compile_generation, std::uint64_t generation);
     mutable std::mutex world_mutex_;
     WorldJob world_job_;
     std::uint64_t world_generation_counter_{};
@@ -232,7 +242,14 @@ private:
     ScenarioCompiler::Progress compile_progress();
     // How long the world being prepared will take, in seconds: from the download as it goes, and from how long the
     // last ones took, which are kept in the logs directory. Empty when nothing is being prepared.
-    [[nodiscard]] std::optional<double> preparation_eta() const;
+    // `confident` when it rests on something measured: a download of known size, a city on disk, the build itself.
+public:
+    struct Eta {
+        double seconds;
+        bool confident;
+    };
+private:
+    [[nodiscard]] std::optional<Eta> preparation_eta() const;
     void learn_preparation(double fetch_s, double build_s);
     mutable std::mutex eta_mutex_;
     std::chrono::steady_clock::time_point stage_at_[4]{};

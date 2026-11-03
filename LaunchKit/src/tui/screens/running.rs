@@ -13,14 +13,14 @@ use crate::logs::Follower;
 use crate::process::Cancel;
 use crate::reporting::Level;
 use crate::simulation::{self, Metrics, Status};
-use crate::tui::theme::{self, fg, ACCENT, MUTED, OK, TEXT2, WARN};
+use crate::tui::theme::{fg, ACCENT, MUTED, OK, TEXT, TEXT2, WARN};
 use crate::tui::widgets::{self, activity, key, row, status_lines, Key};
 use crate::tui::{level_tone, now_stamp, reporter, Action, Dialog, Event_, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::Rect;
-use ratatui::style::Style;
+
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Gauge, Paragraph};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use std::sync::mpsc::{channel, Receiver};
 use std::time::{Duration, Instant};
@@ -233,99 +233,120 @@ impl Screen for RunningScreen {
         }
     }
     fn draw(&mut self, frame: &mut Frame, area: Rect, ui: &Ui) {
-        let body = Rect { x: area.x + 2, width: area.width.saturating_sub(4), ..area };
-        let mut lines: Vec<Line> = vec![Line::from(Span::styled(if self.phase == Phase::Preparing { "STARTING" } else { "SIMULATION" }, theme::bold(TEXT2))), widgets::rule("", body.width, ui.unicode)];
-        let mut rows = vec![];
-        if let Some(current) = &self.status {
-            let world = ui.session.world.lock().unwrap().clone();
+        let body = Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area };
+        let world = ui.session.world.lock().unwrap().clone();
+        let current = self.status.clone();
+        let f = &self.figures;
+        let unicode = ui.unicode;
+        let times = if unicode { "×" } else { "x" };
+        let mut y = body.y;
+        let bottom = body.y + body.height;
+        if ui.small() {
+            // Keep what matters most at 50x15: where, which seed, the time and the state; full telemetry returns on resize.
+            let mut rows = vec![];
             if let Some(world) = &world {
-                rows.extend([row("Place", world.place()), row("Seed", world.seed.clone()), row("Day", world.day_name())]);
-            } else if !current.seed.is_empty() {
-                rows.push(row("Seed", current.seed.clone()));
+                rows.extend([row("Place", world.place()), row("Seed", world.seed.clone())]);
             }
-            rows.push(row("Simulation time", format!("{} / 24:00:00", current.clock)));
-            let mut lifecycle = current.lifecycle.to_lowercase();
-            if let Some(first) = lifecycle.get_mut(0..1) {
-                first.make_ascii_uppercase();
+            if let Some(c) = &current {
+                rows.extend([row("Time", format!("{} / 24:00:00", c.clock)), row("State", c.lifecycle.to_lowercase())]);
             }
-            rows.push(row("State", lifecycle));
-            if let Some(rate) = current.tick_rate {
-                rows.push(row("Speed", format!("{}{}", crate::config::fmt_g(rate), if ui.unicode { "×" } else { "x" })));
-            }
-            let f = &self.figures;
-            if let Some(vehicles) = f.vehicles {
-                rows.push(row("Vehicles", format!("{} modelled · {} halting", simulation::thousands(vehicles as usize), simulation::thousands(f.halting.unwrap_or(0) as usize))));
-            }
-            if let Some(congestion) = f.congestion {
-                rows.push(row("Congestion", format!("{congestion:.1}% (15-min average {:.1}%)", f.congestion_average.unwrap_or(0.0))));
-            }
-            if let Some(closed) = f.closed_roads {
-                rows.push(row("Roads", format!("{} flooded · {closed} closed", f.flooded_roads.unwrap_or(0))));
-            }
-            if let Some(storms) = f.storms {
-                rows.push(row("Storms", format!("{storms} active")));
-            }
-            if let Some(port) = self.port {
-                rows.push(row("Observer", format!("http://127.0.0.1:{port}/")));
-                let managed = ui.session.handle().map(|h| h.managed()).unwrap_or(false);
-                rows.push(row("Server", format!("port {port} · {}", if managed { "started by this launcher" } else { "already running" })));
-            }
-            if ui.small() {
-                // Keep progress and live output visible at 50x15; full telemetry returns on resize.
-                rows.retain(|r| ["Place", "Seed", "Simulation time", "State", "Speed"].contains(&r.name.as_str()));
-            }
+            let lines = status_lines(&rows, 10, body.width, unicode);
+            y += lines.len() as u16;
+            frame.render_widget(Paragraph::new(lines), body);
+        } else {
+            // Four sections of readings, as on the dashboard.
+            let strip = Rect { y, height: 6.min(body.height), ..body };
+            let parts = ratatui::layout::Layout::horizontal([ratatui::layout::Constraint::Ratio(1, 4); 4]).spacing(2).split(strip);
+            let dash = || "-".to_string();
+            widgets::readings(
+                frame,
+                parts[0],
+                "World",
+                vec![
+                    ("place", world.as_ref().map(|w| w.place()).unwrap_or_else(dash), TEXT),
+                    ("seed", world.as_ref().map(|w| w.seed.clone()).or_else(|| current.as_ref().map(|c| c.seed.clone())).unwrap_or_else(dash), TEXT2),
+                    ("day", world.as_ref().map(|w| w.day_name().to_string()).unwrap_or_else(dash), TEXT2),
+                    ("network", world.as_ref().map(|w| format!("{} junctions", simulation::thousands(w.nodes))).unwrap_or_else(dash), TEXT2),
+                ],
+                unicode,
+            );
+            let remaining = current.as_ref().and_then(|s| simulation::remaining_wall_seconds(s, f.target_rate));
+            widgets::readings(
+                frame,
+                parts[1],
+                "Clock",
+                vec![
+                    ("time", current.as_ref().map(|c| c.clock.clone()).unwrap_or_else(|| "--:--:--".into()), ACCENT),
+                    ("state", current.as_ref().map(|c| c.lifecycle.to_lowercase()).unwrap_or_else(|| "starting".into()), if self.phase == Phase::Live { OK } else { ACCENT }),
+                    ("speed", current.as_ref().and_then(|c| c.tick_rate).map(|r| format!("{}{times}", crate::config::fmt_g(r))).unwrap_or_else(dash), TEXT),
+                    ("ends in", remaining.map(|r| format!("{}m {:02}s", r as u64 / 60, r as u64 % 60)).unwrap_or_else(dash), TEXT2),
+                ],
+                unicode,
+            );
+            widgets::readings(
+                frame,
+                parts[2],
+                "Traffic",
+                vec![
+                    ("vehicles", f.vehicles.map(|v| simulation::thousands(v as usize)).unwrap_or_else(dash), TEXT),
+                    ("halting", f.halting.map(|v| simulation::thousands(v as usize)).unwrap_or_else(dash), if f.halting.unwrap_or(0) > 0 { WARN } else { TEXT2 }),
+                    ("congest", f.congestion.map(|c| format!("{c:.1}% · 15m {:.1}%", f.congestion_average.unwrap_or(0.0))).unwrap_or_else(dash), TEXT),
+                    ("roads", f.closed_roads.map(|c| format!("{} flooded · {c} closed", f.flooded_roads.unwrap_or(0))).unwrap_or_else(dash), TEXT2),
+                    ("storms", f.storms.map(|s| format!("{s} active")).unwrap_or_else(dash), TEXT2),
+                ],
+                unicode,
+            );
+            let managed = ui.session.handle().map(|h| h.managed()).unwrap_or(false);
+            widgets::readings(
+                frame,
+                parts[3],
+                "Engine",
+                vec![
+                    ("port", self.port.map(|p| p.to_string()).unwrap_or_else(dash), TEXT),
+                    ("owner", if self.port.is_none() { dash() } else if managed { "this launcher".into() } else { "attached".into() }, TEXT2),
+                    ("cpu", self.usage.map(|(c, _)| format!("{c:.0}%")).unwrap_or_else(dash), TEXT),
+                    ("memory", self.usage.map(|(_, r)| format!("{r:.0} MiB")).unwrap_or_else(dash), TEXT),
+                    ("observer", self.port.map(|p| format!("127.0.0.1:{p}")).unwrap_or_else(dash), TEXT2),
+                ],
+                unicode,
+            );
+            y += strip.height + 1;
         }
-        lines.extend(status_lines(&rows, 18, body.width, ui.unicode));
-        let mut y = body.y + lines.len() as u16;
-        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }), body);
-        // Progress: the day, or the map download.
-        let bar = match (&self.phase, &self.progress, &self.status) {
-            (Phase::Preparing, Some((_, done, total)), _) if *total > 0.0 => Some(("Map download".to_string(), (done / total).clamp(0.0, 1.0))),
-            (Phase::Live, _, Some(s)) => Some(("Progress".to_string(), s.fraction.clamp(0.0, 1.0))),
+        // Progress: the day, or the map download, across the whole width.
+        let progress = match (&self.phase, &self.progress, &current) {
+            (Phase::Preparing, Some((_, done, total)), _) if *total > 0.0 => Some(("map", (done / total).clamp(0.0, 1.0))),
+            (Phase::Live, _, Some(s)) => Some(("day", s.fraction.clamp(0.0, 1.0))),
             _ => None,
         };
-        if let Some((label, ratio)) = bar {
-            if y < body.y + body.height {
-                frame.render_widget(Paragraph::new(Span::styled(label, fg(TEXT2))), Rect { x: body.x, y, width: 19.min(body.width), height: 1 });
-                let gauge_width = body.width.saturating_sub(19);
-                frame.render_widget(
-                    Gauge::default().ratio(ratio).label(format!("{:.0}%", ratio * 100.0)).gauge_style(Style::default().fg(theme::c(ACCENT)).bg(theme::c(theme::SURFACE_ALT))).use_unicode(ui.unicode),
-                    Rect { x: body.x + 19.min(body.width), y, width: gauge_width, height: 1 },
-                );
+        if let Some((label, ratio)) = progress {
+            if y < bottom {
+                let w = body.width.saturating_sub(16) as usize;
+                let line = Line::from(vec![Span::styled(format!(" {label:<6}"), fg(MUTED)), Span::styled(widgets::bar(ratio, w, unicode), fg(ACCENT))]);
+                frame.render_widget(Paragraph::new(line), Rect { y, height: 1, ..body });
                 y += 1;
             }
         }
-        if !self.activity.is_empty() && y < body.y + body.height {
-            frame.render_widget(Paragraph::new(activity(&self.activity, self.phase == Phase::Preparing || self.stopping.is_some(), ui.motion, ui.started)), Rect { y, height: 1, ..body });
+        if !self.activity.is_empty() && y < bottom {
+            frame.render_widget(Paragraph::new(activity(&self.activity, self.phase == Phase::Preparing || self.stopping.is_some(), ui.motion, ui.started)), Rect { x: body.x + 1, y, width: body.width.saturating_sub(1), height: 1 });
             y += 1;
         }
-        if y + 2 >= body.y + body.height {
+        if y + 3 >= bottom {
             return;
         }
-        frame.render_widget(Paragraph::new(widgets::rule("Live log", body.width, ui.unicode)), Rect { y, height: 1, ..body });
         y += 1;
-        let usage_line = !ui.small();
-        let log_height = (body.y + body.height).saturating_sub(y + if usage_line { 1 } else { 0 });
+        let log_area = Rect { y, height: bottom - y, ..body };
+        let block = widgets::card("Live log", false);
+        let inner = block.inner(log_area);
+        frame.render_widget(block, log_area);
         let mut log_lines: Vec<Line> = vec![];
         for (text, tone) in &self.log {
-            for piece in widgets::wrap(text, body.width as usize) {
+            for piece in widgets::wrap(text, inner.width.max(10) as usize) {
                 log_lines.push(Line::from(Span::styled(piece, fg(*tone))));
             }
         }
         let end = if self.follow { log_lines.len() } else { log_lines.len().saturating_sub(self.log_scroll) };
-        let start = end.saturating_sub(log_height as usize);
-        frame.render_widget(Paragraph::new(log_lines[start..end].to_vec()).style(Style::default().bg(theme::c(theme::SURFACE))), Rect { y, height: log_height, ..body });
-        if usage_line {
-            let mut parts = vec![];
-            if let Some((cpu, ram)) = self.usage {
-                parts.push(format!("CPU {cpu:.0}%"));
-                parts.push(format!("RAM {ram:.0} MiB"));
-            }
-            if let Some(remaining) = self.status.as_ref().and_then(|s| simulation::remaining_wall_seconds(s, self.figures.target_rate)) {
-                parts.push(format!("Day ends in {}m {:02}s", remaining as u64 / 60, remaining as u64 % 60));
-            }
-            frame.render_widget(Paragraph::new(Span::styled(parts.join("      "), fg(MUTED))), Rect { y: y + log_height, height: 1, ..body });
-        }
+        let start = end.saturating_sub(inner.height as usize);
+        frame.render_widget(Paragraph::new(log_lines[start..end].to_vec()), inner);
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {
         match event.code {

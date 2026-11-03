@@ -1,77 +1,74 @@
-# Launcher
+# The launcher
 
-`./launcher` is how an operator builds DSTNS, checks that a machine can run it,
-starts and supervises simulations, edits the configuration, manages saved seeds,
-reads logs and runs the tests. It is also the only supported way to start a
-simulation: the server refuses start requests that lack the credential the launcher
+`./launcher` is how an operator builds DSTNS, checks that a machine can run it, starts
+and supervises simulations, edits every setting, manages saved seeds and applications,
+reads logs and runs the tests. It is also the only supported way to start a simulation:
+the server refuses a start request that lacks the operator credential the launcher
 holds.
 
-The launcher has a keyboard-driven terminal interface for interactive use, and plain
-commands for scripts. Both drive the same operations, so anything one can do the
-other can too.
+It is one program, written in Rust, in `LaunchKit/`. It has three faces, and all three
+drive the same operations, so anything one can do the others can too:
+
+| Face | What it is | Start it with |
+|---|---|---|
+| **Terminal interface** | A keyboard-driven console: a dashboard with live telemetry, a page for every task, and a command bar at its foot | `./launcher` |
+| **Commands** | One operation per invocation, with plain output and an exit status, for scripts | `./launcher start`, `./launcher apps list`… |
+| **Console** | Command lines as a Unix shell reads them, joined by `|`, `&&`, `||` and `;` | `./launcher -c '…'`, `./launcher shell`, or the command bar |
 
 ## At a glance
 
 ```bash
-./launcher                        # open the launcher (in a terminal)
-./launcher start --seed 382923    # start a particular run
-./launcher test unit              # a scripted command: prints lines, returns a status
-./launcher help                   # every command and option
+./launcher                                   # open the terminal interface
+./launcher ui demo                           # …on its Demo page, with Demo Mode running
+./launcher start --seed 382923               # start a particular run
+./launcher ps | grep server                  # read state as plain text, and pipe it
+./launcher -c 'stop && start --no-open'      # a command line, as a shell runs it
+./launcher help                              # every command and option
 ```
 
-`python3 launcher.py` is equivalent to `./launcher`. Both run the Python package
-`dstns_launcher`.
+## Building it
 
-## Interfaces
-
-| Interface | When it is used | Needs |
-|---|---|---|
-| **Terminal interface** | Interactive use in a terminal | Textual and Rich, installed automatically (below) |
-| **Compatibility mode** | The terminal interface cannot start, or `--reduced-ui` | Rich if available, otherwise nothing |
-| **Plain mode** | `--no-tui`, `TERM=dumb`, or Rich is unavailable | Nothing beyond Python |
-| **Scripted output** | Any command run without a terminal, and `test`, `seeds`, `sumo`, `reset`, `ui`, `help`, `version`, `license` | Nothing beyond Python |
-
-The launcher never becomes impossible to start because a richer interface failed. If
-the terminal interface cannot start, or stops unexpectedly, the launcher records the
-reason in `logs/launcher.log`, says so in one line, and continues in compatibility
-mode:
+The `launcher` script at the top of the checkout builds the program the first time it
+is used, and again whenever its sources change, then runs it:
 
 ```text
-DSTNS Launcher
-
-The enhanced terminal interface could not be started.
-Switching to compatibility mode.
-
-Reason:
-  The Textual package is not installed.
-  Details: logs/launcher.log
+$ ./launcher
+DSTNS: building the launcher (only when its sources change)...
 ```
 
-### Installing the terminal interface
+The first build takes about a minute; after that the script starts the program in a few
+milliseconds. It needs [Rust](https://rustup.rs) (1.80 or later, with Cargo) and the
+system's SQLite. Nothing is downloaded at run time, and nothing is installed outside the
+checkout: the build goes to `LaunchKit/target/`, or, in a checkout a cloud client syncs,
+to the local cache (see [Checkouts in a synced folder](#checkouts-in-onedrive-icloud-drive-or-dropbox)).
 
-The terminal interface uses two Python packages, [Textual](https://textual.textualize.io/)
-and [Rich](https://rich.readthedocs.io/). The first time `./launcher` is used
-interactively, it creates a private environment, `.venv-launcher/`, and installs the
-pinned versions listed in `dstns_launcher/requirements.txt` into it. Nothing is
-installed into your system Python. Later starts use the environment directly.
+If Cargo is missing and a build already exists, the script uses it and says so. If
+neither is there it explains how to install Rust and exits.
 
-In a checkout that a cloud client syncs (OneDrive, iCloud Drive, Dropbox, Google
-Drive), the environment is created in the local cache instead -
-`~/Library/Caches/DSTNS/venv-launcher-<id>` on macOS, `~/.cache/dstns/` elsewhere -
-because the client evicts files it has uploaded and every import would then wait
-on the network. `DSTNS_LAUNCHER_VENV` chooses the location outright.
+## First launch: the setup
 
-If the installation cannot complete (no network, no `venv` module, an unwritable
-directory) the launcher continues in compatibility mode. Set
-`DSTNS_LAUNCHER_NO_INSTALL=1` to prevent the installation altogether. To install by
-hand:
+The first time the terminal interface opens, it walks through a setup of seven steps
+before the dashboard:
 
-```bash
-python3 -m venv .venv-launcher
-.venv-launcher/bin/pip install -r dstns_launcher/requirements.txt
-```
+| Step | What it asks |
+|---|---|
+| 1. Welcome | Nothing: what the setup covers, and whether this machine passed its checks |
+| 2. Starting up | Dynamic Fastboot, the dynamic film, Fast Boot, whether the film plays to its end, the observer's settings, narration |
+| 3. Looks and sound | Music, its volume, full screen, and the same for Demo Mode |
+| 4. Performance | A preset (Light, Balanced, Best) or each value: compression, threads, the map's frame rate, render scale, film particles |
+| 5. Fabric | What applications may do: connect, the legacy API, launch proposals, signatures, each capability |
+| 6. MCP | Whether an AI client may connect, and whether it may change things or start runs |
+| 7. Review | Every choice, before anything is written |
 
-Scripted commands never install anything.
+**Ctrl+N** and **Ctrl+P** move between steps, **Tab** between fields, and **Enter** on
+*Skip the setup* keeps every default. Nothing is written until the review is accepted;
+then the choices go to `config/defaults.json`, and `DSTNS_SETUP_COMPLETE=1` is recorded in
+`config/launcher.env`.
+
+That file is the launcher's own state. It is never committed, and
+`DSTNS_LAUNCHER_ENV` moves it. A variable already set in the shell wins over the file, so
+`DSTNS_SETUP_COMPLETE=1 ./launcher` skips the setup for one run. `./launcher setup`, the
+command bar's `setup`, and **Reset runtime data** (which forgets the setup) bring it back.
 
 ## The terminal interface
 
@@ -79,105 +76,125 @@ Scripted commands never install anything.
 
 ```mermaid
 flowchart LR
-    Splash["Splash and startup checks"] -->|"all required checks pass"| Dash["Dashboard"]
+    Splash["Start-up: wordmark and boot log"] -->|"required checks pass"| Setup{"First launch?"}
     Splash -->|"a required check fails"| Fix["Check results: Retry · Diagnostics · Exit"]
+    Setup -->|yes| Wizard["Setup, seven steps"] --> Dash["Dashboard"]
+    Setup -->|no| Dash
     Dash --> Start["Start simulation"] --> Run["Running simulation"] --> Done["Completed"]
     Done --> Dash
-    Dash --> Other["Saved seeds · Configuration · Diagnostics<br/>Logs · Tests · Tools · About"]
+    Dash --> Other["Applications · Saved seeds · Configuration · Demo and Fast Boot<br/>Diagnostics · Logs · Tests · Tools · About"]
 ```
 
-### Splash
+### Its look
 
-The DSTNS wordmark is generated from the same SVG outlines as the documentation
-logo, preserving its open-sided D and rounded letter shapes. It uses Unicode
-half-block characters, with a smaller rendering for narrower terminals and plain
-`D S T N S` when the artwork cannot fit or Unicode is unavailable. No special
-font, image protocol or graphics library is required.
+It is a console: a black field, one blue accent used sparingly, and thin rules between
+things rather than boxes around them.
 
-The splash shows the version, licence and real startup checks for **at least three
-seconds**. The reading time overlaps the checks: a five-second check does not add
-another three-second delay. When checks finish early, the animation stops and a
-static completion message remains until the display time ends. Keyboard input
-and resizing stay responsive.
+```text
+ DSTNS  ❯ dashboard                                         ◌ running  │  v2.2.0  │  14:02:11
+  ENGINE ───────────────   SIMULATION ────────────   NEXT WORLD ───────────   SYSTEM ────────────
+  state   online           state   running           mode    dynamic          checks  15/15 pass
+  port    8090             clock   08:12:44          city    Lisbon           apps    1 up · 2 known
+  pid     48211            day     ▰▰▰▱▱▱▱▱▱▱ 34%    state   ready            mcp     off
+  uptime  00:12:31         seed    382923            seed    90211…           term    120x35
+  memory  214 MiB
 
-Passing checks lead to the dashboard (or the requested run). A required failure
-opens the detailed results and remedies. Checks are not repeated during this
-transition. `--no-splash` skips the splash and its minimum display time, then runs
-the same checks on the environment screen.
-
-### Loading feedback
-
-The splash, environment check, simulation preparation, tests and tools share an
-ASCII activity indicator. It advances four times per second only while work is
-active on the visible screen. The label names the current step; it stops when
-the operation completes or fails. Environment checks also show the actual number
-of completed checks. Percentages are never simulated; only the opening splash has
-the three-second minimum display time described above.
-
-During a map download, the launcher shows received MiB. A progress bar appears
-only when the server provides a positive byte total. When the total is unknown,
-the activity label remains visible without a percentage. Once the world is ready,
-the running screen switches to actual simulation progress.
-
-```bash
-./launcher --no-animation              # keep status text; disable terminal motion
-./launcher --no-splash                 # go directly to environment checks
-./launcher --no-tui start --no-open \
-  --seed 382923 --osm-file data/fixtures/real_network.osm.xml
+ ▍MENU ─────────────────  RUNNING SIMULATION ─────────────────────────────────────────────
+  ▸ Running simulation
+    Start simulation      Server             port 8090 · running                  ✓ OK
+    Applications          Simulation time    08:12:44 (34%)
+    …
+                          SYSTEM LOG ──────────────────────────────────────────────────────
+                          14:02:09 [INFO] [world] World run_8b2e… ready
+ ───────────────────────────────────────────────────────────────────────────────────────────
+ dstns ~ ❯ type a command, or : to begin · help · cmd | grep x && …
+  ↑↓ navigate   enter select   q quit   : command   ? help
 ```
 
-The first command retains the full keyboard interface with a static `[working]`
-marker. The second removes only the opening splash. The third uses plain output
-and the bundled real OSM extract, so map acquisition does not need a network
-connection; missing build dependencies may still require installation. Plain
-mode and redirected output do not emit animation frames.
+| Part | What it shows |
+|---|---|
+| **Status line** | The name, where you are, the page's state (a symbol and a word), the version and the time. On a narrow terminal the right side is shortened before it can reach the left |
+| **Page** | Sections, each named on a thin rule. The section that has the keyboard is marked `▍` and takes the accent |
+| **Prompt** | Always there: `dstns ~/page ❯`. `:` or `/` puts the cursor in it. The `❯` turns red after a command that failed |
+| **Keys** | What the keys do on this page, shortened to fit |
 
-### Environment check
+The selected item in a list carries `▸` (or `>` without Unicode), so selection never
+depends on colour. Every state is a symbol **and** a word: `✓ ok`, `! warning`, `✗ failed`,
+`◌ running`, `○ pending`, `- skipped`.
 
-The splash runs these real checks concurrently and reports their completion
-count and the latest check. They also run on the environment screen when
-`--no-splash` is used, or when retrying failed checks:
+### Start-up
+
+The wordmark assembles itself out of particles: each of its cells starts somewhere on the
+screen as a faint dot, flies in, and becomes the glyph it is when it lands, from left to
+right. A band of light then passes across it once, the product's full name types itself
+out beneath it, and the start-up checks scroll by as a boot log, each with the time it
+settled:
+
+```text
+              ▄██████████▄▄      ▄██████████  ▄██████████▄  ▄██▄        ▄█    ▄█████████▄
+                              …
+                  DETERMINISTIC SPATIOTEMPORAL TRANSPORT NETWORK SIMULATOR
+
+                                    v2.2.0  ·  boot: complete
+              [  0.214] ✓ Map cache          3 cached extracts · 111 MiB
+              [  0.390] ✓ Simulation core    DSTNS 2.2.0
+              [  0.512] ! Observer bundle    older than its sources
+              [  0.640] ✓ API port           8090 available
+```
+
+It holds for at least three seconds, overlapping the checks, so that it can be read; a
+five-second check does not add three more. `--no-animation` (or a terminal without motion)
+shows the finished frame, and `--no-splash` skips it and runs the same checks on the
+check-results page.
+
+### Start-up checks
 
 | Check | Required | Fails or warns when |
 |---|---|---|
 | Host platform | Yes | Not macOS or Linux (warning) |
-| Python | Yes | Older than 3.10 (warning) |
+| Rust | No | Cargo is missing: the launcher cannot be rebuilt when its sources change |
 | Build tools | Yes | The core is not built and CMake or a C++ compiler is missing |
+| Node.js | No | Missing or older than 20; needed only to rebuild the observer |
+| Licence | No | `LICENSE` is missing or not the AGPL text |
 | Configuration | Yes | `config/defaults.json` or `config/ui-config.json` is invalid |
+| Observer settings | No | `config/ui-config.json` has values the observer ignores |
 | Workspace | Yes | The logs directory is not writable |
 | Map downloader | Yes | The server does not answer `--fetch-osm --help` |
 | Map cache | Yes | `data/maps/` is not writable |
 | Simulation core | Yes | The binary is missing (warning: it is built on start) |
-| Node.js | No | Missing or older than 20; needed only to rebuild the observer |
-| Licence | No | `LICENSE` is missing or not the AGPL text |
-| Observer settings | No | `config/ui-config.json` has values the observer ignores |
 | Observer bundle | No | Not built, or older than its sources (rebuilt on start) |
 | API port | No | Informational: in use by a running server, or free |
+| Apple Foundation Models | No | Informational: whether [Realistic News](narration.md) can be written on this Mac |
 | SUMO | No | Installed but does not start |
 
-Each state is shown with a symbol **and** a word: `○ Pending`, `◌ Checking`, `✓ OK`,
-`! Warning`, `✗ Failed`, `- Skipped`. If every required check passes, the launcher
-continues to the dashboard; warnings stay visible there. If one fails, it explains why
-and what to do, and offers **Retry**, **Diagnostics**, **Continue to the dashboard**
-and **Exit**.
-
-These startup checks validate configuration, compile-check the map downloader,
-probe the core executable and installed tools, inspect the observer bundle, and
-check workspace access and the API port. They are readiness checks, not the full
-regression suite. Run **Tests**, or enable suites in **Diagnostics**, for native,
-HTTP and observer test cases. Scripted commands do not add splash delays.
+If every required check passes, the launcher goes on. If one fails it explains why and
+what to do, and offers **Retry**, **Diagnostics**, **Continue to the dashboard** and
+**Exit**. These are readiness checks, not the regression suites; **Tests** runs those.
 
 ### Dashboard
 
-The menu on the left, details of the highlighted item on the right, and the server's
-live state in the header (`✓ READY`, `◌ RUNNING`, `✗ NOT READY`). When a simulation is
-running, **Running simulation** appears at the top of the menu.
+Along the top, four sections of short readings, refreshed every two seconds off the
+interface's own thread:
+
+| Section | Readings |
+|---|---|
+| **Engine** | Online or offline, port, the server's pid, uptime and peak memory (from `GET /api/v1/system/info`) |
+| **Simulation** | Lifecycle, simulated clock, how far through the day (with a bar), seed |
+| **Next world** | [Dynamic Fastboot](fast-boot.md#dynamic-fastboot): its city, and whether that city is on disk yet. Without a server, read from `next-world.json` |
+| **System** | Start-up checks passed, applications running and known, the MCP Handler, the terminal's size |
+
+Below, the menu on the left and what is selected on the right; with room, the tail of the
+server's `system.log` runs beneath it, coloured by level. When a simulation is running,
+**Running simulation** heads the menu.
 
 | Item | Opens |
 |---|---|
+| Running simulation | The live run, when there is one |
 | Start simulation | The start form |
+| Applications | Your programs, to start alongside a run; see [Applications](#applications) |
 | Saved seeds | Saved configurations: start, inspect or delete |
-| Configuration | The editor for `config/defaults.json` |
+| Configuration | Every setting, by category |
+| Demo and Fast Boot | Demo Mode, and downloading every city |
 | Diagnostics | Every check, optionally with the test suites; server, terminal and path details |
 | Logs | The system log and the API, operator-event and lifecycle journals |
 | Tests | The test stages, with live output |
@@ -190,22 +207,22 @@ running, **Running simulation** appears at the top of the menu.
 
 | Field | Meaning |
 |---|---|
-| Seed | Empty for a fresh seed, or decimal or `0x` hexadecimal up to 128 bits |
+| Seed | Empty: the world [Dynamic Fastboot](fast-boot.md#dynamic-fastboot) prepared, else a fresh seed. Or decimal or `0x` hexadecimal up to 128 bits |
 | Day type | Weekday or weekend |
 | Map | Chosen by the seed, a cached city, the bundled offline district, or another file |
-| Speed | Initial speed, greater than 0 and at most 5 |
+| Speed | Initial speed, more than 0 and at most 10 |
+| Applications | A switch for each application in the catalogue |
 | Save as, Description | Optionally save the configuration as a [saved seed](saved-seeds.md) |
 | Open observer | Open the observer in your browser when the run starts |
 
-Values are checked with the same rules as the command line, and problems are shown
-beside the field. **Ctrl+S** or **Start simulation** begins.
+Fields are single lines on a quiet band, marked at the left: the accent while it has the
+keyboard, red when its value is wrong, with the reason beneath. **Ctrl+S** starts.
 
 ### Running simulation
 
-While the world is prepared the screen shows what is actually happening: each build
-step, the server starting, and, for a seed-selected city, the map download with its
-real size when the server knows it. Then it shows the engine's own figures, refreshed
-four times a second:
+While the world is prepared, the page shows what is actually happening: each build step,
+the server starting, and, for a seed-selected city, the map download with its real size
+when the server knows it. Then the engine's own figures, four times a second:
 
 | Shown | Source |
 |---|---|
@@ -215,13 +232,11 @@ four times a second:
 | Vehicles (modelled), halting | `GET /api/v1/view/traffic` |
 | Congestion and its 15-minute average | `GET /api/v1/view/congestion` |
 | Flooded and closed roads, active storms | `GET /api/v1/view/traffic` |
-| CPU and memory | Measured with `ps`, for a server this launcher started only |
-| Time until the day ends | Remaining virtual time divided by the current rate, while running |
+| CPU and memory | Measured with `ps`, for a server this launcher started |
+| Time until the day ends | Remaining virtual time at the current rate, while running |
 
-Below them is the live log: the launcher's own messages and new lines of the server's
-`system.log`. The terminal does not attempt to draw the city; the observer does that.
-Polling never touches the simulation, so watching from the terminal cannot change a
-run.
+Below is the live log: the launcher's messages and new lines of `system.log`. Watching
+never touches the simulation.
 
 | Key | Action |
 |---|---|
@@ -229,111 +244,126 @@ run.
 | o | Open the observer |
 | s | Stop the simulation, after confirmation |
 | Esc or b | Back to the dashboard; the simulation keeps running |
-| f | Toggle following the newest log line |
-| c | Clear the visible log (the log files are untouched) |
-| End | Jump to the newest log line |
+| f | Follow the newest log line, or not |
+| c | Clear the visible log (the files are untouched) |
+| End | Jump to the newest line |
 
-**Stopping** asks first. It requests a graceful shutdown, shows *Stopping
-simulation…*, waits up to ten seconds, and only then terminates a server the launcher
-started. It reports that the simulation stopped only once the server has actually
-exited.
+**Stopping** asks first, requests a graceful shutdown, waits up to ten seconds, and only
+then terminates a server the launcher started. It says the simulation stopped only once
+the server has exited.
 
 ### Completed
 
-When the virtual day reaches 24:00:00 the launcher shows the run's summary and offers
-**Open the observer** (where **Save Report** produces the PDF), **Restart the same
-day**, **Run another simulation** and **Back to main menu**.
+At 24:00:00 the launcher shows the run's summary and offers **Open the observer** (where
+**Save Report** makes the PDF), **Restart the same day**, **Run another simulation** and
+**Back to main menu**.
 
 ### Configuration
 
-Edits `config/defaults.json`, grouped as **Run**, **Map**, **Modules**, **Weather**
-and **Server**. Only settings that the launcher or the engine actually read are
-listed; see [Configuration](configuration.md) for every key. Each value is validated
-as you type, with the reason shown beside it, and invalid values are never written.
+Every setting, by category: **Run**, **Map**, **Modules**, **Weather**, **Launcher**,
+**Server**, **Fabric**, **WebFabric**, **Startup**, **Presentation**, **Demo**,
+**Performance** and **MCP**. Each is validated as you type, with its reason shown, and an
+invalid value is never written. The status line shows `! unsaved` while there are changes;
+**Ctrl+S** saves, and leaving with changes asks first. See
+[Settings for every feature](#settings-for-every-feature).
 
-The header shows `! UNSAVED` while there are changes. **Ctrl+S** saves. Leaving with
-unsaved changes asks **Save and continue**, **Discard changes** or **Cancel**.
+### The command bar
+
+`:` or `/` opens the prompt at the foot of every page. Type as in a shell:
+
+```text
+dstns ~ ❯ cd config/performance          # go to a page, and a section of it
+dstns ~/config/Performance ❯ get performance.compression
+dstns ~ ❯ ps | grep server && echo up    # pipelines and operators
+dstns ~ ❯ apps list                      # any launcher command
+```
+
+As you type it suggests commands and their arguments, with what each does, and shows the
+rest of the first suggestion dimmed; **Tab** takes it, **↑ ↓** walk the suggestions or the
+history, **Enter** runs, **Ctrl+C** stops a command that is running, and **Esc** closes.
+Each command's output comes back in a block of its own under an `OUTPUT` rule, marked
+`✓`, or `✗` with its exit status. The [Console](console.md) page has every command.
 
 ### Errors
 
-A recoverable error stays inside the interface. It says what happened, what to do,
-and where the details are, and offers the next steps:
+A recoverable error stays inside the interface. It says what happened, what to do, and
+where the details are, and offers the next steps:
 
 ```text
-╭─ Unable to start the simulation ─────────────────────╮
-│ could not fetch the map                               │
-│                                                       │
-│ Check the network, VPN or proxy, or set               │
-│ DSTNS_OVERPASS_ENDPOINTS to a reachable instance.     │
-│                                                       │
-│ Details have been written to: logs/launcher.log       │
-│                                                       │
-│ > Retry                                               │
-│   Diagnostics                                         │
-│   Return to menu                                      │
-╰───────────────────────────────────────────────────────╯
+┌ Unable to start the simulation ────────────────────────┐
+│ could not fetch the map                                │
+│                                                        │
+│ Check the network, VPN or proxy, or set                │
+│ DSTNS_OVERPASS_ENDPOINTS to a reachable instance.      │
+│                                                        │
+│ Details have been written to: logs/launcher.log        │
+│                                                        │
+│ ▸ Retry                                                │
+│   Diagnostics                                          │
+│   Return to menu                                       │
+└────────────────────────────────────────────────────────┘
 ```
 
-Python tracebacks are shown only with `--debug`.
+If the terminal interface itself cannot start, the launcher says why in one line and
+carries on in **compatibility mode**: numbered menus in plain text, with the same
+operations. `--reduced-ui` asks for it, and `--no-tui` (or `TERM=dumb`) asks for plain
+line-by-line output.
 
 ## Keyboard
 
 | Key | Action |
 |---|---|
 | ↑ ↓, or k j | Move |
-| Home, End | First or last item |
-| Enter | Select |
-| Tab, Shift+Tab | Next or previous control |
-| Esc | Back, or close a dialog |
-| ? | Help for the current screen |
-| q | Quit (from the dashboard and the environment check) |
-| Ctrl+C | Quit safely: if a simulation this launcher started is running, it asks first |
+| Home, End, PgUp, PgDn | First, last, a page at a time |
+| Enter | Select, or run |
+| Tab, Shift+Tab | Next or previous field |
+| Esc | Back, or close |
+| `:` or `/` | The command bar |
+| ? | Help for this page |
+| q | Quit (from the dashboard and the check results) |
+| Ctrl+C | Stop a command in the command bar; otherwise quit safely, asking first if a simulation this launcher started is running |
 
-The selected item always carries a `>` marker, so selection is visible without colour.
 A mouse works but is never needed.
 
 ## Terminal size and capabilities
 
 | Class | Size | Layout |
 |---|---|---|
-| Large | At least 100 × 30 | Sidebar and content, full wordmark, full key hints |
+| Large | At least 100 × 30 | Telemetry, sidebar and content, the log tail, full key hints |
 | Medium | At least 70 × 22 | Narrower sidebar, shorter hints |
 | Small | At least 50 × 15 | One column: the menu above the content |
 | Too small | Below 50 × 15 | A notice with the current and minimum size; R switches to compatibility mode |
 
-Resizing reflows the screen and keeps the current screen, the selection, form values
-and a running simulation. Menus and status summaries adapt to the available
-width. Log panes support scrolling when previously rendered output is wider than
-the resized terminal.
-
-In the small running layout, the place, seed, simulation time, state and speed
-remain visible alongside progress and live output. The additional network and
-process metrics return when the terminal is enlarged; the browser observer also
-provides the network details.
-
-The launcher assumes only the terminal's own monospace font: no Nerd Fonts, no
-ligatures, no images. Colour degrades from truecolour to 256 and 16 colours to none
-(set `NO_COLOR=1` or pass `--no-color`), and every state is also written as a word.
-It works over SSH and in IDE terminals.
+Resizing reflows the page and keeps the selection, form values and a running simulation.
+Prose wraps to the room there is and lists are clipped with `…`, so text never runs into
+other text. The launcher needs only the terminal's own monospace font: no Nerd Fonts, no
+ligatures, no images. Colour comes down from true colour to 256 and 16 colours to none
+(`NO_COLOR=1` or `--no-color`), and it works over SSH and in IDE terminals.
 
 ## Commands
 
 | Command | Does |
 |---|---|
-| *(none)* | In a terminal, opens the launcher. Without one, starts a run, like `start` |
-| `start` | Build what changed, start or reuse the server, start a run. In a terminal, shows it on the running screen |
-| `console` | Opens the launcher's dashboard |
-| `seeds save\|list\|inspect\|delete [ID]` | Manage saved seeds, printing JSON; see [Saved seeds](saved-seeds.md) |
+| *(none)* | In a terminal, opens the interface. Without one, starts a run, like `start` |
+| `start` | Build what changed, start or reuse the server, start a run. In a terminal, shows it on the running page |
+| `stop` | Stop the running server, and the applications this launcher started |
+| `console` | Open the interface's dashboard |
+| `ui PAGE` | Open the interface on a page: `start`, `apps`, `seeds`, `config`, `demo` (which runs [Demo Mode](fast-boot.md#demo-mode) there), `fastboot`, `logs`, `diagnostics`, `tests`, `tools`, `about`, `setup` |
 | `ui open\|dev\|build\|install` | Open the observer, run its Vite development server, build its bundle, or install its dependencies |
+| `setup` | Run the first-launch setup again |
+| `seeds save\|list\|inspect\|delete [ID]` | Manage saved seeds, printing JSON; see [Saved seeds](saved-seeds.md) |
 | `logs [system\|api\|event\|playback]` | Print a log. Without a source, in a terminal, opens the log viewer |
-| `config` | Opens the configuration editor; without a terminal, prints the current values |
-| `test [all\|unit\|api\|replay\|benchmark\|sumo\|ui]` | Run test stages and print a summary; the exit status is non-zero if any fails |
-| `sumo` | Check the SUMO toolchain on a synthetic grid, outside the server |
-| `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, after confirmation |
-| `apps [list\|add\|set\|show\|remove\|run\|status\|logs\|doctor\|proposals\|approve\|reject]` | The applications this launcher can start; see [Applications](#applications) |
+| `config [get KEY\|set KEY VALUE]` | Edit every setting; or read or change one |
+| `test [all\|unit\|api\|replay\|benchmark\|sumo\|ui\|launcher]` | Run test stages and print a summary; non-zero if any fails |
+| `sumo` | Check the SUMO toolchain on a synthetic grid |
+| `apps …` | The applications this launcher can start; see [Applications](#applications) |
 | `fabric [status\|capabilities\|grant\|settings\|audit]` | Look at and act on a running server through the Fabric API |
-| `fastboot [download\|status\|clear]` | Download every city in advance for [Fast Boot](#fast-boot) |
-| `demo [--no-open] [--no-music] [--no-fullscreen]` | [Demo Mode](#demo-mode): the film on a loop, until Ctrl+C |
+| `fastboot [download\|status\|clear]` | Every city in advance, for [Fast Boot](fast-boot.md) |
+| `demo [--no-open] [--no-music] [--no-fullscreen]` | [Demo Mode](fast-boot.md#demo-mode): the film on a loop, until Ctrl+C |
+| `mcp [serve\|tools\|client-config]` | The [MCP Handler](mcp.md), for AI clients |
+| `-c 'LINE'`, `shell` | The [console](console.md): a command line, or lines until `exit` |
+| `ls`, `cat`, `tail`, `head`, `ps`, `get`, `env`, `uptime` | The console's readers, run on their own: plain text to pipe |
+| `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, and forget the setup |
 | `help`, `version`, `license` | Usage, version and licence notice, the licence text |
 | `--mode=server` | Run `dstns_server` in the foreground with the configured host and port |
 
@@ -343,76 +373,60 @@ For `start` and `seeds save`:
 
 | Option | Range | Meaning |
 |---|---|---|
-| `--seed N` | Decimal or `0x` hex, up to 128 bits | The seed. Omitted: a fresh 64-bit seed |
+| `--seed N` | Decimal or `0x` hex, up to 128 bits | The seed. Omitted: the prepared next world, else a fresh 64-bit seed |
 | `--saved-seed ID` | | Run a saved configuration; excludes `--seed` |
 | `--save-seed ID` | | Save this run's configuration under `ID` |
 | `--description TEXT` | | Note stored with `--save-seed` |
 | `--day-type weekday\|weekend` | | Day type |
 | `--duration S` | Integer 60 to 3600 | Wall-clock seconds per virtual day at 1× |
-| `--speed X` | 0.01 to 5 | Initial speed multiplier |
+| `--speed X` | 0.01 to 10 | Initial speed multiplier |
 | `--max-nodes N` | Integer 2 to 50000 | Graph size cap |
 | `--osm-file PATH` | Existing file | Pin a map instead of letting the seed choose |
-| `--default-settings` | | Open the observer with its settings at their defaults, forgetting what this browser had chosen. `launcher.default_settings` in `config/defaults.json`, also under Configuration, does this on every launch. |
+| `--apps ID,ID`, `--no-apps` | | Start these applications with the run (it waits until they are ready), or none |
+| `--default-settings` | | Open the observer with its settings at their defaults |
 | `--open`, `--no-open` | | Open the observer in a browser. Default: when a desktop is present |
-| `--narrator MODE` | `auto`, `fm`, `off`, `http://HOST:PORT`, `unix:/PATH` | [Realistic News](narration.md). Default: `narration.mode` in `config/defaults.json`, else `auto` |
+| `--narrator MODE` | `auto`, `fm`, `off`, `http://HOST:PORT`, `unix:/PATH` | [Realistic News](narration.md). Default: `narration.mode`, else `auto` |
 
 ### Narration
 
-Before it starts a server, the launcher decides whether
-[Realistic News](narration.md) can be written, and reports Apple's on-device
-model in one of three states:
-
-| State | Meaning |
-|---|---|
-| **Available** | `fm` is installed, the model is ready and Apple's terms are accepted: Realistic News is on |
-| **Unavailable** | Wanted (`auto` or `fm`) but missing, unsupported, not ready or not agreed to: Standard news, with the reason |
-| **Disabled** | Turned off (`--narrator off`), or another model chosen with an endpoint |
-
-`auto` and `fm` are checked in order: macOS, the `fm` command, `fm available`, and
-`fm license --status`. An endpoint must answer `/v1/models`. When the model cannot
-be used the server is started with `--narrator off` and the launcher says why and
-what would fix it:
+Before it starts a server, the launcher decides whether [Realistic News](narration.md) can
+be written, and reports Apple's on-device model as **Available**, **Unavailable** (with the
+reason and what would fix it) or **Disabled**:
 
 ```text
  [OK]    Apple Foundation Models: Available  Realistic News on: news written on this Mac from each event and its context
  [WARN]  Apple Foundation Models: Unavailable  the on-device model is not available (Apple Intelligence is turned off).
          Turn on Apple Intelligence in System Settings and let the model finish downloading. Using Standard news.
- [INFO]  Apple Foundation Models: Disabled  turned off; Standard news
 ```
 
-Once the run has started it reports what the server's narrator actually did -
-**Realistic News ready**, or a warning if the model stopped answering - and the
-**Apple Foundation Models** environment check shows the same state. Attaching to a server
-that is already running reports that server's narration, which was fixed when it
-started. `--narrator` lasts for one invocation; set `narration.mode` (in the
-**Server** section of the configuration screen) to change the default.
+`--narrator` lasts for one invocation; `narration.mode` changes the default.
 
 ### Interface options
 
 | Option | Effect |
 |---|---|
-| `--reduced-ui` | Use compatibility mode |
-| `--no-tui` | Use plain mode |
+| `--reduced-ui` | Compatibility mode |
+| `--no-tui` | Plain mode |
 | `--no-color` | No colour (`NO_COLOR` is also honoured) |
-| `--no-splash` | Skip the splash; retain environment checks |
-| `--no-animation` | Disable terminal animation while keeping activity labels |
-| `--debug` | Verbose launcher log, tracebacks, and diagnostics on standard error for scripted commands |
+| `--no-splash` | Skip the start-up animation; keep the checks |
+| `--no-animation` | No motion anywhere, while keeping activity labels |
+| `--debug` | A verbose launcher log, and diagnostics on standard error |
 | `--verbose`, `-v` | Show command output while builds and tests run |
-| `--yes`, `-y` | Do not ask for confirmation (`reset`) |
+| `--yes`, `-y` | Do not ask for confirmation (`reset`, `apps approve`) |
 
 ## Applications
 
 ![Applications in the launcher](../assets/screenshots/launcher-apps.png){ .screenshot }
 
-![Choosing what to start, applications included](../assets/screenshots/launcher-start.png){ .screenshot }
-
-The launcher can start your own programs alongside a simulation. Each application has one or more commands. All but the last must finish successfully, and the last is the application, which stays running.
+The launcher can start your own programs alongside a simulation. Each has one or more
+commands. All but the last must finish successfully, and the last is the application,
+which stays running.
 
 ```sh
 ./launcher apps add org.example.planner \
     --name "Route planner" \
-    --command "python3 -m pip install -q -r requirements.txt" \
-    --command "python3 planner.py --url {url}" \
+    --command "npm ci" \
+    --command "node planner.js --url {url}" \
     --required --autostart
 
 ./launcher start                                # starts it, because of --autostart
@@ -423,10 +437,14 @@ The launcher can start your own programs alongside a simulation. Each applicatio
 ### When things happen
 
 1. The engine is built and started, and the observer opens on its film.
-2. The chosen applications start, all at once. The observer says "Starting applications" and how many are ready.
-3. **Once they are all ready, the simulation starts**, and the observer goes on to the dashboard as usual.
+2. The chosen applications start, all at once. The observer says *Starting applications*
+   and how many are ready.
+3. **Once they are all ready, the simulation starts.**
 
-An application that fails stops the simulation from starting only if it is `--required`. Otherwise the launcher says what went wrong and the run goes ahead without it. Its output goes to `logs/apps/<id>.log`, and an application that has been started this way stops when the launcher does.
+An application that fails stops the simulation from starting only if it is `--required`;
+the launcher then says which, and why (`Planner is required, and did not start: … failed
+with status 4`). Otherwise the run goes ahead without it. Its output goes to
+`logs/apps/<id>.log`, and an application started this way stops when the launcher does.
 
 ### Options
 
@@ -437,83 +455,50 @@ An application that fails stops the simulation from starting only if it is `--re
 | `--cwd DIR` | Where to run it, relative to the checkout |
 | `--env KEY=VALUE` | An environment variable. Repeat it for several |
 | `--ready HOW` | `fabric`: it reports itself active (the default). `process`: it stays up for a second. `delay:5`: after five seconds. Or a URL that answers |
-| `--timeout S` | How long to wait for it to be ready, 1 to 600 seconds, 60 by default |
+| `--timeout S` | How long to wait for it, 1 to 600 seconds, 60 by default |
 | `--restart POLICY` | `never` (the default), or `on-failure`, which tries five times, waiting longer each time |
 | `--required`, `--autostart` | As above. `--no-required` and `--no-autostart` turn them off |
-| `--grant CAPABILITY` | A permission to give it when it registers, so that you are not asked each time |
+| `--grant CAPABILITY` | A permission to give it when it registers |
 | `--setting KEY=VALUE` | A setting to give it when it registers |
+| `--web URL`, `--web-label TEXT` | Its own web interface, which the observer offers to open |
 
-There is no shell: a command is one program and its arguments, so what is in the catalogue is exactly what runs. Use `--cwd` and several commands instead of `cd` and `&&`. An application gets `DSTNS_URL`, `DSTNS_PORT` and `DSTNS_APP_ID` in its environment, and never the operator's credential.
-
-To be ready, an application calls `PUT /api/v1/fabric/apps/{id}/state` with `{"state": "active"}`. `Fabric/examples/hello_app.py` is the smallest whole one. An application that needs the road network has to wait for it, since the world is not loaded until after it is ready: subscribe to the `lifecycle` topic and draw on the map once the run has started.
+There is no shell: a command is one program and its arguments, so what is in the
+catalogue is exactly what runs. An application gets `DSTNS_URL`, `DSTNS_PORT` and
+`DSTNS_APP_ID` in its environment, and never the operator's credential. To be ready, it
+calls `PUT /api/v1/fabric/apps/{id}/state` with `{"state": "active"}`;
+`Fabric/examples/hello_app.py` is the smallest whole one.
 
 ### Looking after them
 
 | Command | Does |
 | --- | --- |
 | `apps list`, `apps show ID` | What is set up. `--json` for a script |
-| `apps set ID ...` | Change one, with the options above. Only what is given changes |
+| `apps set ID …` | Change one. Only what is given changes |
 | `apps doctor [ID]` | Find what would stop them from starting, such as a program not on `PATH` |
-| `apps run ID...` | Start these with a server that is already running, and look after them until Ctrl+C |
-| `apps status` | What the server knows of each: its state, requests, refusals and any permissions it is waiting for |
-| `apps logs ID` | Its output |
+| `apps run [ID …]` | Start them on their own, with a server waiting for a run, until Ctrl+C |
+| `apps status` | What the server knows of each: state, requests, refusals, permissions waiting |
+| `apps logs ID [-n N]` | Its output |
+| `apps proposals`, `apps approve ID`, `apps reject ID` | Launch entries proposed through the [Fabric API](../api/fabric-api.md#starting-applications-with-the-launcher): nothing runs until a person has read exactly what it would run |
 
-In the terminal interface, **Applications** on the dashboard does the same, and **Start simulation** lists each with a switch.
-
-### Through the Fabric API
-
-An application or the operator can propose how to start one, through the [Fabric API](../api/fabric-api.md#starting-applications-with-the-launcher). A proposal is only ever that. Nothing runs until a person has read exactly what it would run and approved it:
-
-```sh
-./launcher apps proposals
-./launcher apps approve org.example.planner     # shows the commands, and asks
-./launcher apps reject org.example.planner
-```
-
-The catalogue, `config/apps.json`, belongs to the person at the machine, is not committed, and only the launcher writes it. `DSTNS_APPS_FILE` moves it.
-
-### Without a simulation
-
-`./launcher apps run [ID ...]` (or `apps start`) starts applications on their own. If no server is running, one is
-started, waiting for a simulation, and stopped again when you press Ctrl+C. With no IDs, it starts those set to
-start by themselves.
-
-### Web applications
-
-An application with a web interface of its own can say where it is:
-
-```sh
-./launcher apps add org.example.planner --command "npm run dev" --ready http://127.0.0.1:5173/ \
-    --web http://127.0.0.1:5173/ --web-label "Open planner"
-```
-
-The observer then offers a button that opens it in a new tab. An application can also declare `web` in its own
-manifest.
-
-### Reloading
-
-A person can reload an application from the observer. Its link with the server ends at once, and the launcher
-starts it again. Each process it starts is given a one-time key, in `DSTNS_FABRIC_LAUNCH_KEY`, which it presents in
-`X-DSTNS-Launch-Key` when it registers, so it comes back as itself and keeps what a person granted it.
-`Fabric/examples/hello_app.py` shows how.
+A person can reload an application from the observer: its link ends, the launcher starts
+it again, and because each process it starts is given a one-time key
+(`DSTNS_FABRIC_LAUNCH_KEY`, presented as `X-DSTNS-Launch-Key`), it comes back as itself and
+keeps what a person granted it. The catalogue is `config/apps.json`, which belongs to the
+person at the machine and is never committed; `DSTNS_APPS_FILE` moves it.
 
 ## Settings for every feature
 
-`./launcher config` lists every setting by category, and the terminal interface's Configuration page edits
-them. They're kept in `config/defaults.json`, and reach the server as it starts, so a change applies from the
-next start of the server. The observer reads them back from `GET /api/v1/system/features`.
+`./launcher config` lists every setting by category; the Configuration page edits them;
+`config get KEY` and `config set KEY VALUE` read and change one. They are kept in
+`config/defaults.json` and reach the server as it starts, so a change applies from the
+server's next start. The observer reads them back from `GET /api/v1/system/features`.
 
 | Category | Setting | Default | What it does |
 |---|---|---|---|
-| Fabric | `fabric.applications` | on | Programs may connect through the Fabric API |
-| | `fabric.legacy_api` | on | The older `/playback` and `/control` routes answer. They have no credential |
-| | `fabric.launch_proposals` | on | Applications may propose how to start them |
-| | `fabric.require_signatures` | off | Every application must sign every request |
-| | `fabric.world_regeneration` | on | The observer may ask for a new world |
-| | `fabric.allow_frames`, `allow_dialogs`, `allow_camera`, `allow_layers`, `allow_control`, `allow_notifications`, `allow_messages`, `allow_storage` | on | Whether that capability can be granted at all |
-| WebFabric | `webfabric.enabled` | on | Applications appear in the observer |
-| Startup | `startup.fast_boot` | off | Use maps downloaded in advance, and don't make the film play to its end |
-| | `startup.force_animate` | on | The film plays to its end before the map. Fast Boot turns it off |
+| Startup | `startup.dynamic_fastboot` | on | While a world runs, fetch the next city in the background; see [Dynamic Fastboot](fast-boot.md#dynamic-fastboot) |
+| | `startup.dynamic_particles` | on | The film plans its scenes by when the world will be ready; see [the dynamic film](fast-boot.md#the-dynamic-film) |
+| | `startup.fast_boot` | off | Use every city downloaded in advance, and open with the name alone |
+| | `startup.force_animate` | on | The film plays its plan to the end before the map. Fast Boot turns it off |
 | Presentation | `presentation.music` | off | Original music during the start-up film |
 | | `presentation.fullscreen` | off | Open the observer full screen |
 | | `presentation.music_volume` | 0.6 | From 0 to 1 |
@@ -524,70 +509,52 @@ next start of the server. The observer reads them back from `GET /api/v1/system/
 | | `performance.map_fps` | automatic | The map's frame rate for moving traffic: automatic, 60 or 30 |
 | | `performance.render_scale` | 2 | The most pixels per point the map draws at |
 | | `performance.film_particles` | 32000 | Particles in the start-up film |
+| Fabric | `fabric.applications` | on | Programs may connect through the Fabric API |
+| | `fabric.legacy_api` | on | The older `/playback` and `/control` routes answer |
+| | `fabric.launch_proposals` | on | Applications may propose how to start them |
+| | `fabric.require_signatures` | off | Every application must sign every request |
+| | `fabric.world_regeneration` | on | The observer may ask for a new world |
+| | `fabric.allow_frames`, `allow_dialogs`, `allow_camera`, `allow_layers`, `allow_control`, `allow_notifications`, `allow_messages`, `allow_storage` | on | Whether that capability can be granted at all |
+| WebFabric | `webfabric.enabled` | on | Applications appear in the observer |
+| MCP | `mcp.enabled` | off | An AI client may connect through the [MCP Handler](mcp.md), and read |
+| | `mcp.allow_writes` | off | …and call routes that change things |
+| | `mcp.allow_launcher` | off | …and start and stop simulations |
+| Launcher | `launcher.command_bar` | on | The command bar and its prompt |
+| | `launcher.default_settings` | off | Open the observer with its settings at their defaults, every time |
 
-Full screen and music need a page to have been interacted with, so when either is on, the launcher opens the
-observer in a window of its own from a Chromium-based browser, with a profile of its own, where both are allowed
-from the start. Without such a browser, the usual one opens it, and the observer asks for a click.
-
-### Fast Boot
-
-Fast Boot is off by default. `./launcher fastboot download` downloads every city's district once, from
-OpenStreetMap's Overpass API, and keeps each compressed in `fastboot/` in the map cache. It pauses between
-downloads to be fair to the service, so it takes a while; it can be stopped with Ctrl+C and picks up where it left
-off, and `--cities berlin,london` or `--limit N` download fewer. `fastboot status` says what's there, and
-`fastboot clear` deletes it.
-
-With `startup.fast_boot` on, the server unpacks a city from there rather than downloading it. A city that isn't
-there, or whose file is damaged, is downloaded as usual. The film then doesn't have to play to its end: once the
-world is ready, it gathers into the name and goes to the map. `startup.force_animate` off does the same without
-Fast Boot.
-
-### Demo Mode
-
-`./launcher demo` plays the start-up film on a loop with four more scenes about the rest of DSTNS, full screen
-and with music, until Ctrl+C. It starts a server of its own with no simulation, on another port if one is already
-running, which it leaves alone. `demo.music` and `demo.fullscreen` turn either off for good, and `--no-music` and
-`--no-fullscreen` for once. The music is written for DSTNS and generated by the browser as it plays, so there is
-nothing to license or download. A small button at the bottom right of the page mutes it. The terminal interface has a Demo and Fast Boot page for both.
+Full screen and music need a page to have been interacted with, so when either is on, the
+launcher opens the observer in a window of its own from a Chromium-based browser, with a
+profile of its own, where both are allowed from the start.
 
 ## What happens when a run starts
 
-1. **Validate.** `config/defaults.json` and the options are checked against the same
-   bounds the engine enforces, and the start request is assembled (see
-   [Configuration](configuration.md#precedence)).
-2. **Build what changed.** The launcher fingerprints the core's sources
-   (`CMakeLists.txt`, `src/`, `include/`, `apps/dstns_server`) and the observer's, and
-   rebuilds each only when its fingerprint differs from the one stored beside the last
-   build (`.launcher-source`).
+1. **Validate.** `config/defaults.json` and the options are checked against the bounds the
+   engine enforces, and the start request is assembled. With no seed, the seed is the one
+   [Dynamic Fastboot](fast-boot.md#dynamic-fastboot) prepared, when there is one.
+2. **Build what changed.** The core and the observer are rebuilt only when their sources
+   are newer than the last build.
 3. **Find a server.** If the port (`DSTNS_API_PORT`, else the last one recorded in
-   `logs/launcher.json`, else `api.port`) answers `/health` as a current DSTNS server,
-   the launcher attaches to it. If something else holds the port, or an older DSTNS, it
-   uses the next free port. Otherwise it starts `dstns_server --host H --port P --logs L`
-   and waits up to 15 seconds for it to be healthy.
-4. **Open the observer**, when requested, and wait for it to load, so the world's
+   `logs/launcher.json`, else `api.port`) answers `/health` as a current DSTNS server, the
+   launcher attaches to it. If something else holds the port, it uses the next free one.
+   Otherwise it starts `dstns_server` with the settings as environment variables and waits
+   up to 15 seconds for it to be healthy.
+4. **Open the observer**, when asked, and wait for it to load, so that the world's
    preparation is watched in the browser rather than behind a blank tab.
-5. **Start the run.** `POST /api/v1/playback/start` with the operator credential from
-   `logs/operator.token`, following the map download for a seed-selected city.
-6. **Confirm the world.** The launcher reads the topology, checks that a real
-   OpenStreetMap network loaded, and reports the city, the coordinates, whether the map
-   was downloaded or cached, and the size of the network.
+5. **Start the applications**, and wait until each is ready.
+6. **Start the run** with the operator credential from `logs/operator.token`, following
+   the map download for a seed-selected city.
+7. **Confirm the world**: a real OpenStreetMap network, its city and coordinates, whether
+   the map was downloaded or cached, and its size.
 
-If a run is already in progress on the server and no run options were given, the
-launcher shows that run instead of starting another.
-
-Without a terminal, `start` then follows the server it started and exits with its
-status: 0 when the server stops normally, 1 otherwise. A server it attached to is left
-running.
+Without a terminal, `start` then follows the server it started and exits with its status.
+A server it attached to is left running.
 
 ## Ending a session
 
-Leaving the launcher stops a server it started, after confirmation in the interface. A
-server it attached to keeps running. When the launcher is ended by `SIGTERM`, `SIGHUP`
-(the terminal closed) or Ctrl+C in scripted use, it stops a server it started before
-exiting. Cancellation during startup also reaches build commands and their
-descendants, prevents a cancelled build from being marked complete, and stops a
-server created by the pending startup. **Stop** on the running screen requests
-server shutdown; it is separate from pausing simulation time.
+Leaving the launcher stops a server it started, after confirmation. A server it attached
+to keeps running. On `SIGTERM`, `SIGHUP` (the terminal closed) or Ctrl+C in scripted use,
+it stops a server it started before exiting, and cancellation during start-up reaches
+build commands and their descendants.
 
 ## Exit codes
 
@@ -595,50 +562,39 @@ server shutdown; it is separate from pausing simulation time.
 |---|---|
 | 0 | Success |
 | 1 | A launcher, configuration, environment or simulation failure, or a failed test stage |
+| 2 | A command line that could not be read (an unclosed quote, an operator with nothing beside it) |
+| 127 | A console command that does not exist |
 | 130 | Interrupted with Ctrl+C |
 | 143 | Terminated with `SIGTERM` |
 
 ## Checkouts in OneDrive, iCloud Drive or Dropbox
 
-Sync clients evict files they have uploaded, and some refuse the burst of file
-creation a build makes; CMake then fails with "Could not create ...", and
-anything reading an evicted file times out. When the checkout is in a synced
-folder, the launcher keeps everything it generates on local disk and leaves only
-the sources in the synced folder:
+Sync clients evict files they have uploaded, and some refuse the burst of file creation a
+build makes. When the checkout is in a synced folder, everything generated stays on local
+disk and only the sources stay in the synced folder:
 
 | What | Where (macOS; XDG state and cache directories elsewhere) |
 |---|---|
+| The launcher's build | `~/Library/Caches/DSTNS/checkout-<id>/launcher/` |
 | C++ build | `~/Library/Caches/DSTNS/checkout-<id>/build/` |
 | Observer build (a local mirror of `WebKit/` and `config/`) | `~/Library/Caches/DSTNS/checkout-<id>/source/` |
 | Downloaded city extracts (when `map.cache_dir` is the default) | `~/Library/Caches/DSTNS/checkout-<id>/maps/` |
 | Server logs, journal and credential | `~/Library/Logs/DSTNS/logs-<id>/` |
 | Launcher log | `~/Library/Logs/DSTNS/launcher.log` |
-| Terminal-interface environment, Python bytecode | `~/Library/Caches/DSTNS/` |
 
-`<id>` names the checkout, so two checkouts never share a build.
-`DSTNS_BUILD_DIR` and `DSTNS_LOGS_DIR` choose those directories outright. The
-server is told where the observer is with `DSTNS_UI_DIST`. Saved seeds stay in
-`data/seed-store/`, with the checkout.
-
-If the observer cannot be built - most often because Node.js is missing or no
-longer starts - the launcher says why and starts the simulation anyway, serving
-the previous observer build if there is one.
+`<id>` names the checkout, so two checkouts never share a build. `DSTNS_BUILD_DIR`,
+`DSTNS_LOGS_DIR` and `CARGO_TARGET_DIR` choose those directories outright.
 
 ## Diagnostics
 
-The launcher writes its own log to `logs/launcher.log` (rotated at 1 MB, two backups;
-in a cloud-synced checkout, `~/Library/Logs/DSTNS/launcher.log` on macOS or
-`~/.local/state/dstns/launcher.log` elsewhere):
-the version, Python and operating system, the terminal's capabilities, environment
-check results, server starts and stops, fallbacks to compatibility mode, and the full
-traceback of any unexpected error. It never records the operator credential or
-environment values. Run with `--debug` for more detail, and for tracebacks on screen.
-If the log cannot be written, logging stops quietly for the session; it never
-interrupts the launcher.
+The launcher writes its own log to `logs/launcher.log`: its version and platform, the
+terminal's capabilities, check results, server starts and stops, every console command,
+every MCP call, and any unexpected error. It never records the operator credential or
+environment values. `--debug` adds detail.
 
-**Diagnostics** in the dashboard re-runs every check, optionally with the core, HTTP,
-loading and observer test suites, and shows the running server's version and SUMO
-status, the terminal's size and capabilities, and the paths in use.
+**Diagnostics** on the dashboard re-runs every check, optionally with the core, HTTP,
+loading and observer suites, and shows the running server's version and SUMO status, the
+terminal's size and capabilities, and the paths in use.
 
 ## Failure messages
 
@@ -650,7 +606,8 @@ status, the terminal's size and capabilities, and the paths in use.
 | `OSM data unavailable; provide --osm-file PATH` | A pinned map path does not exist |
 | `MAP_FETCH_FAILED …` | The seed's district could not be downloaded. The launcher lists maps already on disk and the command to run one offline |
 | `Server did not become healthy within 15s` | See [Troubleshooting](../troubleshooting.md#health-check-timeout-during-start-up) |
-| `The server did not load a usable real OSM network.` | The run started but the topology is empty or synthetic |
+| `… is required, and did not start: …` | A required application failed; its log is named in the message |
+| `NAME: command not found. help lists them.` | A console command that does not exist |
 | `Unknown option: …`, `Unknown command: …` | See `./launcher help` |
 
 More in [Troubleshooting](../troubleshooting.md#the-launcher).

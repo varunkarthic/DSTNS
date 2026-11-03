@@ -37,6 +37,8 @@ export interface Status {
   preparation_error?: string;
   /** Seconds until the world being prepared is ready, as the server estimates it; null when nothing is. */
   eta_s?: number | null;
+  /** Whether eta_s rests on something measured, rather than on how long the last ones took. */
+  eta_confident?: boolean;
   /** The world is ready and waiting for an observer's start-up to finish. */
   observer_hold?: boolean;
   playback_revision?: number;
@@ -356,7 +358,7 @@ export interface Backpressure {
 // ---------------------------------------------------------------------------
 // World regeneration
 // ---------------------------------------------------------------------------
-export type WorldJobState = "idle" | "generating" | "ready" | "failed";
+export type WorldJobState = "idle" | "generating" | "staged" | "ready" | "failed";
 export type WorldStage =
   | "idle"
   | "compiling"
@@ -389,6 +391,7 @@ export interface WorldStatus {
   error: { code: string; message: string } | null;
   /** Seconds until the new world is ready, as the server estimates it. */
   eta_s?: number | null;
+  eta_confident?: boolean;
   /** Dynamic Fastboot: the world after this one, and whether its city is on disk yet. */
   next?: { enabled: boolean; state: string; seed?: string; city?: string; country?: string };
 }

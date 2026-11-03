@@ -20,7 +20,9 @@ use ratatui::Frame;
 use std::sync::mpsc::{channel, Receiver};
 use std::time::{Duration, Instant};
 
-const MINIMUM: Duration = Duration::from_secs(3);
+/// Long enough for the whole sequence to be seen: the particles land, the light passes, the name is typed, and the
+/// boot log reads out. The checks run meanwhile, and it waits for them if they take longer.
+const MINIMUM: Duration = Duration::from_millis(3400);
 
 pub struct SplashScreen {
     initial: String,
@@ -91,29 +93,38 @@ impl Screen for SplashScreen {
                 // Where it comes from, the same each time, and when it sets off: left to right, a little apart.
                 let hash = (index as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ 0x51ED_270B;
                 let (sx, sy) = ((hash % area.width.max(1) as u64) as f64, ((hash >> 20) % area.height.max(1) as u64) as f64);
-                let delay = column as f64 / logo_width.max(1) as f64 * 0.35 + ((hash >> 40) % 100) as f64 / 100.0 * 0.15;
-                let progress = ((t - delay) / 0.75).clamp(0.0, 1.0);
+                // They appear as dust first, then set off left to right, a little apart.
+                let appear = ((hash >> 30) % 100) as f64 / 100.0 * 0.4;
+                let delay = 0.3 + column as f64 / logo_width.max(1) as f64 * 0.55 + ((hash >> 40) % 100) as f64 / 100.0 * 0.25;
+                let progress = ((t - delay) / 0.9).clamp(0.0, 1.0);
                 let eased = 1.0 - (1.0 - progress).powi(3);
-                if progress <= 0.0 && t < 1.2 {
-                    // Not yet set off: a faint dot where it waits.
-                    let cell = &mut buffer[(sx as u16 + area.x, sy as u16 + area.y)];
-                    if cell.symbol() == " " {
-                        cell.set_symbol(if ui.unicode { "·" } else { "." }).set_style(fg(NAVY));
+                if progress <= 0.0 {
+                    // Waiting: a faint dot where it is, once it has appeared.
+                    if t >= appear {
+                        let cell = &mut buffer[(sx as u16 + area.x, sy as u16 + area.y)];
+                        if cell.symbol() == " " {
+                            cell.set_symbol(if ui.unicode { "·" } else { "." }).set_style(fg(if t - appear < 0.15 { TEAL } else { NAVY }));
+                        }
                     }
                     continue;
                 }
                 if progress < 1.0 {
-                    let x = (sx + (tx as f64 - area.x as f64 - sx) * eased).round() as u16 + area.x;
-                    let y = (sy + (ty as f64 - area.y as f64 - sy) * eased).round() as u16 + area.y;
-                    if x < area.x + area.width && y < area.y + area.height {
-                        buffer[(x, y)].set_symbol(if !ui.unicode { "*" } else if progress > 0.7 { "•" } else { "·" }).set_style(fg(if progress > 0.6 { ACCENT } else { TEAL }));
+                    // In flight, on a curve: drawn aside from the straight line, most in the middle of the way.
+                    let (dx, dy) = (tx as f64 - area.x as f64 - sx, ty as f64 - area.y as f64 - sy);
+                    let length = (dx * dx + dy * dy).sqrt().max(1.0);
+                    let bend = (progress * std::f64::consts::PI).sin() * (6.0 + ((hash >> 50) % 6) as f64) * if hash & 1 == 0 { 1.0 } else { -1.0 };
+                    let x = (sx + dx * eased - dy / length * bend).round();
+                    let y = (sy + dy * eased + dx / length * bend * 0.5).round();
+                    if x >= 0.0 && y >= 0.0 && (x as u16) < area.width && (y as u16) < area.height {
+                        let symbol = if !ui.unicode { "*" } else if progress > 0.75 { "•" } else if progress > 0.35 { "∙" } else { "·" };
+                        buffer[(x as u16 + area.x, y as u16 + area.y)].set_symbol(symbol).set_style(fg(if progress > 0.6 { ACCENT } else { TEAL }));
                     }
                     continue;
                 }
-                // Landed. Then a band of light passes across, once.
-                let sweep = (t - 1.2) / 1.0 * (logo_width as f64 + 12.0) - 6.0;
+                // Landed. Then a band of light passes across, once, and settles.
+                let sweep = (t - 1.75) / 0.9 * (logo_width as f64 + 14.0) - 7.0;
                 let near = (column as f64 - sweep).abs();
-                let tone = if (0.0..=1.2).contains(&(t - 1.2)) && near < 3.0 { GLOW } else { ACCENT };
+                let tone = if (1.75..=2.65).contains(&t) && near < 3.5 { GLOW } else { ACCENT };
                 if tx < area.x + area.width && ty < area.y + area.height {
                     buffer[(tx, ty)].set_symbol(&ch.to_string()).set_style(bold(tone));
                 }
@@ -122,20 +133,32 @@ impl Screen for SplashScreen {
 
         // The name, typed out, with a cursor while it types.
         let name = FULL_NAME.to_uppercase();
-        let typed = (((t - 0.6) / 1.1).clamp(0.0, 1.0) * name.chars().count() as f64) as usize;
+        let typed = (((t - 1.1) / 1.2).clamp(0.0, 1.0) * name.chars().count() as f64) as usize;
         let mut shown: String = name.chars().take(typed).collect();
         if typed < name.chars().count() && (t * 3.0) as i64 % 2 == 0 {
             shown.push(if ui.unicode { '▌' } else { '_' });
         }
         let mut lines: Vec<Line> = vec![Line::from(Span::styled(shown, bold(TEXT))), Line::default()];
-        lines.push(Line::from(vec![Span::styled(format!("v{}", engine_version()), fg(TEXT2)), Span::styled(if ui.unicode { "  ·  " } else { "  -  " }, fg(MUTED)), Span::styled(label, fg(ACCENT))]));
+        // How far start-up has got: the checks done, and no faster than the sequence itself.
+        let share = (complete as f64 / self.items.len().max(1) as f64).min(t / MINIMUM.as_secs_f64());
+        lines.push(Line::from(vec![
+            Span::styled(format!("v{}", engine_version()), fg(TEXT2)),
+            Span::styled(if ui.unicode { "  ·  " } else { "  -  " }, fg(MUTED)),
+            Span::styled(label, fg(ACCENT)),
+            Span::styled(if ui.unicode { "  ·  " } else { "  -  " }, fg(MUTED)),
+            Span::styled(widgets::bar(share, 14, ui.unicode), fg(if share >= 1.0 { TEXT2 } else { ACCENT })),
+        ]));
         lines.push(Line::from(Span::styled(self.detail.clone(), fg(MUTED))));
         lines.push(Line::default());
         lines.push(Line::default());
         // The boot log: one block, left-aligned within it, the block itself centred.
         let mut log: Vec<Line> = vec![];
         let start = settled.len().saturating_sub(log_rows);
-        for check in &settled[start..] {
+        for (row, check) in settled[start..].iter().enumerate() {
+            // The log reads out a line at a time once the name is up, however quickly the checks were done.
+            if t < 2.1 + row as f64 * 0.16 {
+                continue;
+            }
             let (fancy, plain, _) = check.outcome.state.marker();
             log.push(Line::from(vec![
                 Span::styled(format!("[{:>7.3}] ", self.settled_at.get(check.key).copied().unwrap_or(0.0)), fg(MUTED)),

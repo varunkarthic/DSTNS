@@ -188,14 +188,7 @@ impl DashboardScreen {
     fn cards(&self, frame: &mut Frame, area: Rect, ui: &Ui) {
         let parts = Layout::horizontal([Constraint::Ratio(1, 4); 4]).spacing(2).split(Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area });
         let online = self.status.as_ref().map(|s| s.reachable).unwrap_or(false);
-        let write = |frame: &mut Frame, index: usize, title: &str, readings: Vec<(&str, String, u32)>| {
-            let w = parts[index].width.saturating_sub(2) as usize;
-            let lines: Vec<Line> = readings
-                .into_iter()
-                .map(|(name, value, tone)| Line::from(vec![Span::styled(format!("{name:<8}"), fg(MUTED)), Span::styled(widgets::clip(&value, w.saturating_sub(8), ui.unicode), fg(tone))]))
-                .collect();
-            frame.render_widget(Paragraph::new(lines).block(card(title, false)), parts[index]);
-        };
+        let write = |frame: &mut Frame, index: usize, title: &str, items: Vec<(&str, String, u32)>| widgets::readings(frame, parts[index], title, items, ui.unicode);
         let process = self.process.clone().unwrap_or_default();
         let uptime = process["uptime_s"].as_f64().map(clock).unwrap_or_else(|| "-".into());
         let memory = process["peak_rss_bytes"].as_f64().map(|b| format!("{:.0} MiB", b / 1048576.0)).unwrap_or_else(|| "-".into());
@@ -213,8 +206,7 @@ impl DashboardScreen {
         );
         match &self.status {
             Some(s) if online && (s.active() || s.lifecycle == "COMPLETED") => {
-                let filled = (s.fraction.clamp(0.0, 1.0) * 10.0).round() as usize;
-                let bar = if ui.unicode { format!("{}{} {:.0}%", "▰".repeat(filled), "▱".repeat(10 - filled), s.fraction * 100.0) } else { format!("{:.0}%", s.fraction * 100.0) };
+                let bar = widgets::bar(s.fraction, 10, ui.unicode);
                 write(frame, 1, "Simulation", vec![("state", s.lifecycle.to_lowercase(), ACCENT), ("clock", s.clock.clone(), TEXT), ("day", bar, ACCENT), ("seed", s.seed.clone(), TEXT2)]);
             }
             _ => write(frame, 1, "Simulation", vec![("state", "idle".into(), TEXT2), ("clock", "--:--:--".into(), MUTED), ("day", "-".into(), MUTED), ("seed", "-".into(), MUTED)]),

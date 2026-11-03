@@ -141,7 +141,7 @@ export function LoadingSurface({
   const percent = known ? Math.round(Math.min(1, Math.max(0, progress!)) * 100) : 0;
   // Loading plays the film, with progress along the bottom. A failure or a shutdown is
   // something to read, so it stays a card in the middle.
-  const film = mode === "boot" && !failed && (!!steps?.length || !!eyebrow);
+  const film = mode === "boot" && !failed && (!!steps?.length || !!eyebrow || demo);
   const body = (
     <div className={`loading-card${film ? " film" : ""}`} data-tip-avoid>
       {mode === "boot" && (
@@ -169,7 +169,8 @@ export function LoadingSurface({
         </div>
       )}
       {eyebrow && <p className="loading-eyebrow">{eyebrow}</p>}
-      <h2 id={titleId} key={title}>{title}</h2>
+      {/* Demo Mode lets the film speak for itself: its heading is there for a screen reader only. */}
+      <h2 id={titleId} key={title} className={demo ? "sr-only" : undefined}>{title}</h2>
       {failed ? (
         <>
           {error && (

@@ -7,21 +7,43 @@ import { Icon } from "./Icons";
 /**
  * The film's music, and its full screen, when the operator has turned them on.
  *
- * The music is written here, not recorded: slow pads through four chords in D, a sub bass under them, and a
- * pentatonic line that thickens as it goes, played by the browser as it goes. It's original, so there is
- * nothing to license, and nothing to download. The same seed makes it the same every time.
+ * The music is written here, not recorded, and played by the browser as it goes: an original theme in the manner of a
+ * cinematic hero's score. Strings drive in sixteenths under timpani, brass answers on the off-beats, and a horn line
+ * of its own soars over the top, in D minor, through Dm, B♭, F and C. It builds over four phrases, breaks down to the
+ * strings, and builds again. It is original, so there is nothing to license, and nothing to download; the same seed
+ * makes it the same every time.
  */
 
-const BPM = 76;
-const EIGHTH = 30 / BPM;
-/** Each chord holds two bars: Dadd9, Bm7, Gmaj7, A. Lowest note first. */
-const CHORDS = [
-  [38, 57, 62, 64, 69],
-  [35, 54, 59, 62, 66],
-  [31, 55, 59, 62, 66],
-  [33, 52, 57, 61, 64],
+const BPM = 118;
+const SIXTEENTH = 15 / BPM;
+const BAR = 16;
+/** Two bars each: the chord's root (bass), then its voicing. */
+const CHORDS: readonly (readonly number[])[] = [
+  [38, 57, 62, 65],
+  [34, 58, 62, 65],
+  [41, 57, 60, 65],
+  [36, 55, 60, 64],
 ];
-const LINE = [62, 64, 66, 69, 71, 74, 76, 78, 81];
+/** The horn's theme, eight bars long: [sixteenth in the bar, note, length in sixteenths]. */
+const THEME: readonly (readonly (readonly [number, number, number])[])[] = [
+  [[0, 62, 4], [4, 69, 6], [10, 67, 2], [12, 65, 4]],
+  [[0, 64, 8], [8, 60, 4], [12, 62, 4]],
+  [[0, 65, 4], [4, 67, 4], [8, 69, 4], [12, 72, 4]],
+  [[0, 70, 12], [12, 69, 4]],
+  [[0, 69, 4], [4, 65, 4], [8, 72, 6], [14, 70, 2]],
+  [[0, 69, 8], [8, 67, 4], [12, 65, 4]],
+  [[0, 67, 4], [4, 64, 4], [8, 67, 4], [12, 72, 4]],
+  [[0, 69, 12], [12, 64, 4]],
+];
+/** Phrases of eight bars: what plays in each, in a cycle of six. */
+const ARRANGEMENT = [
+  { strings: true, drums: 1, brass: false, horn: 0 },
+  { strings: true, drums: 2, brass: true, horn: 0 },
+  { strings: true, drums: 2, brass: true, horn: 1 },
+  { strings: true, drums: 3, brass: true, horn: 2 },
+  { strings: true, drums: 0, brass: false, horn: 0 },
+  { strings: true, drums: 3, brass: true, horn: 2 },
+];
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
 
 export interface Music {
@@ -40,119 +62,131 @@ export function startMusic(volume: number): Music | null {
   const audio = new Context();
   const master = audio.createGain();
   master.gain.value = 0;
-  master.connect(audio.destination);
+  // Nothing ever clips, however much plays at once.
+  const limiter = audio.createDynamicsCompressor();
+  limiter.threshold.value = -12;
+  limiter.ratio.value = 6;
+  limiter.connect(master).connect(audio.destination);
   const bus = audio.createGain();
-  bus.gain.value = 0.7;
-  bus.connect(master);
-  // A large, dark room: decaying noise as the room's answer to a click.
+  bus.gain.value = 0.6;
+  bus.connect(limiter);
+  // A hall: decaying noise as the room's answer to a click.
   const room = audio.createConvolver();
-  const length = Math.floor(audio.sampleRate * 4);
+  const length = Math.floor(audio.sampleRate * 3.2);
   const impulse = audio.createBuffer(2, length, audio.sampleRate);
   for (let channel = 0; channel < 2; channel++) {
     const data = impulse.getChannelData(channel);
-    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 3.2;
+    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 2.6;
   }
   room.buffer = impulse;
-  const wet = audio.createGain();
-  wet.gain.value = 0.55;
-  bus.connect(room).connect(wet).connect(master);
-  // The line echoes a dotted eighth behind itself, darker each time.
-  const echo = audio.createDelay(2);
-  echo.delayTime.value = EIGHTH * 1.5;
-  const feedback = audio.createGain();
-  feedback.gain.value = 0.38;
-  const tone = audio.createBiquadFilter();
-  tone.type = "lowpass";
-  tone.frequency.value = 2400;
-  echo.connect(tone).connect(feedback).connect(echo);
-  tone.connect(bus);
+  const hall = audio.createGain();
+  hall.gain.value = 0.35;
+  hall.connect(room).connect(limiter);
+  const noise = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+  const grain = noise.getChannelData(0);
+  for (let i = 0; i < grain.length; i++) grain[i] = Math.random() * 2 - 1;
 
-  let seed = 20260;
-  const random = () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296;
-    return seed / 4294967296;
-  };
-
-  const pad = (notes: number[], at: number, hold: number) => {
+  // A sound: oscillators through a filter and an envelope, to the bus and some to the hall.
+  const voice = (at: number, notes: readonly number[], shape: OscillatorType, peak: number, attack: number, hold: number, release: number, cutoff: [number, number], wet: number, detune = 0) => {
     const filter = audio.createBiquadFilter();
     filter.type = "lowpass";
-    filter.Q.value = 0.6;
-    filter.frequency.setValueAtTime(500, at);
-    filter.frequency.linearRampToValueAtTime(1300, at + hold * 0.6);
-    filter.frequency.linearRampToValueAtTime(700, at + hold + 3);
+    filter.frequency.setValueAtTime(cutoff[0], at);
+    filter.frequency.linearRampToValueAtTime(cutoff[1], at + attack + hold * 0.5);
     const gain = audio.createGain();
     gain.gain.setValueAtTime(0, at);
-    gain.gain.linearRampToValueAtTime(0.045, at + 2.6);
-    gain.gain.setValueAtTime(0.045, at + hold);
-    gain.gain.linearRampToValueAtTime(0, at + hold + 3.2);
-    filter.connect(gain).connect(bus);
+    gain.gain.linearRampToValueAtTime(peak, at + attack);
+    gain.gain.setValueAtTime(peak, at + attack + hold);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + attack + hold + release);
+    filter.connect(gain);
+    gain.connect(bus);
+    if (wet > 0) {
+      const send = audio.createGain();
+      send.gain.value = wet;
+      gain.connect(send).connect(hall);
+    }
     for (const note of notes) {
-      for (const detune of [-7, 7]) {
-        const voice = audio.createOscillator();
-        voice.type = "sawtooth";
-        voice.frequency.value = hz(note);
-        voice.detune.value = detune;
-        voice.connect(filter);
-        voice.start(at);
-        voice.stop(at + hold + 3.4);
+      for (const cents of detune ? [-detune, detune] : [0]) {
+        const osc = audio.createOscillator();
+        osc.type = shape;
+        osc.frequency.value = hz(note);
+        osc.detune.value = cents;
+        osc.connect(filter);
+        osc.start(at);
+        osc.stop(at + attack + hold + release + 0.05);
       }
     }
   };
-  const bass = (note: number, at: number, hold: number) => {
-    const voice = audio.createOscillator();
-    voice.type = "sine";
-    voice.frequency.value = hz(note);
+  const timpani = (at: number, pitch: number, loud: number) => {
+    const osc = audio.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(pitch * 1.9, at);
+    osc.frequency.exponentialRampToValueAtTime(pitch, at + 0.12);
     const gain = audio.createGain();
-    gain.gain.setValueAtTime(0, at);
-    gain.gain.linearRampToValueAtTime(0.22, at + 1.2);
-    gain.gain.setValueAtTime(0.22, at + hold - 0.4);
-    gain.gain.linearRampToValueAtTime(0, at + hold + 0.8);
-    voice.connect(gain).connect(bus);
-    voice.start(at);
-    voice.stop(at + hold + 1);
-  };
-  const pluck = (note: number, at: number, loud: number) => {
-    const voice = audio.createOscillator();
-    voice.type = "triangle";
-    voice.frequency.value = hz(note);
-    const gain = audio.createGain();
-    gain.gain.setValueAtTime(0, at);
-    gain.gain.linearRampToValueAtTime(loud, at + 0.006);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + 1.4);
-    voice.connect(gain);
+    gain.gain.setValueAtTime(loud, at);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.9);
+    osc.connect(gain);
     gain.connect(bus);
-    gain.connect(echo);
-    voice.start(at);
-    voice.stop(at + 1.5);
+    gain.connect(hall);
+    osc.start(at);
+    osc.stop(at + 1);
+  };
+  const hit = (at: number, from: number, loud: number, decay: number) => {
+    const source = audio.createBufferSource();
+    source.buffer = noise;
+    const filter = audio.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = from;
+    const gain = audio.createGain();
+    gain.gain.setValueAtTime(loud, at);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+    source.connect(filter).connect(gain);
+    gain.connect(bus);
+    gain.connect(hall);
+    source.start(at, Math.random() * 0.5, decay + 0.05);
   };
 
   // Scheduled a little ahead on the audio clock, so that a busy page never makes it stumble.
   let step = 0;
-  let next = audio.currentTime + 0.1;
-  let place = 2;
+  let next = audio.currentTime + 0.12;
   const schedule = () => {
-    while (next < audio.currentTime + 0.8) {
-      const bar = Math.floor(step / 8);
-      if (step % 16 === 0) {
-        const chord = CHORDS[(step / 16) % CHORDS.length];
-        pad(chord.slice(1), next, EIGHTH * 16);
-        if (bar >= 4) bass(chord[0], next, EIGHTH * 16);
+    while (next < audio.currentTime + 0.6) {
+      const bar = Math.floor(step / BAR);
+      const inBar = step % BAR;
+      const phrase = Math.floor(bar / 8);
+      const part = ARRANGEMENT[phrase % ARRANGEMENT.length];
+      const chord = CHORDS[Math.floor((bar % 8) / 2)];
+      const root = chord[0];
+      // Strings: sixteenths on the root, rising to its fifth and octave, the first of each beat leaned on.
+      if (part.strings) {
+        const pattern = [0, 0, 12, 0, 7, 0, 12, 7];
+        const note = root + 24 + pattern[inBar % 8];
+        voice(next, [note], "sawtooth", inBar % 4 === 0 ? 0.05 : 0.03, 0.004, 0.02, 0.09, [700, 1500], 0.15);
       }
-      // Two bars of pads alone, then the line comes in and fills out over the next sixteen.
-      const density = bar < 2 ? 0 : Math.min(0.62, 0.18 + (bar - 2) * 0.03);
-      const strong = step % 4 === 0;
-      if (density > 0 && random() < (strong ? density + 0.2 : density)) {
-        place = Math.max(0, Math.min(LINE.length - 1, place + Math.round((random() - 0.5) * 4)));
-        pluck(LINE[place], next, strong ? 0.07 : 0.045);
-        // Now and then, a bell two octaves up.
-        if (bar >= 8 && random() < 0.08) pluck(LINE[place] + 24, next + EIGHTH * 0.5, 0.018);
+      // The bass, on every eighth.
+      if (part.drums > 0 && inBar % 2 === 0) voice(next, [root], "sawtooth", 0.08, 0.005, 0.08, 0.12, [220, 380], 0);
+      // Timpani on one and three, a roll into every fourth bar, the snare on two and four.
+      if (part.drums > 0 && (inBar === 0 || inBar === 8)) timpani(next, hz(root + 12), 0.5);
+      if (part.drums > 1 && bar % 4 === 3 && inBar >= 12) timpani(next, hz(root + 12), 0.25 + (inBar - 12) * 0.06);
+      if (part.drums > 1 && (inBar === 4 || inBar === 12)) hit(next, 1800, 0.14, 0.2);
+      if (part.drums > 2 && inBar % 2 === 1) hit(next, 7000, 0.03, 0.05);
+      // Brass: a stab on the downbeat, and an answer off the beat.
+      if (part.brass && (inBar === 0 || inBar === 10) && bar % 2 === 0) voice(next, chord.slice(1), "sawtooth", 0.035, 0.03, 0.18, 0.5, [500, 2600], 0.4, 6);
+      // A held pad under it all, softly, once the brass has come in.
+      if (part.brass && inBar === 0 && bar % 2 === 0) voice(next, chord.slice(1).map((n) => n - 12), "sawtooth", 0.012, 0.6, SIXTEENTH * 28, 1.2, [400, 900], 0.6, 9);
+      // The horn: the theme, and in the biggest phrases the same an octave up beside it.
+      if (part.horn > 0) {
+        for (const [at, note, held] of THEME[bar % 8]) {
+          if (at !== inBar) continue;
+          const time = SIXTEENTH * held;
+          voice(next, part.horn > 1 ? [note, note + 12] : [note], "sawtooth", part.horn > 1 ? 0.04 : 0.05, 0.06, time * 0.8, 0.45, [900, 2200], 0.5, 5);
+        }
       }
-      step = (step + 1) % (16 * CHORDS.length * 8);
-      next += EIGHTH;
+      step = (step + 1) % (BAR * 8 * ARRANGEMENT.length);
+      next += SIXTEENTH;
     }
   };
   schedule();
-  const timer = setInterval(schedule, 200);
+  const timer = setInterval(schedule, 150);
 
   const music: Music = {
     level(level, seconds = 1.5) {
@@ -172,7 +206,7 @@ export function startMusic(volume: number): Music | null {
       void audio.resume().catch(() => undefined);
     },
   };
-  music.level(volume, 4);
+  music.level(volume, 3);
   return music;
 }
 

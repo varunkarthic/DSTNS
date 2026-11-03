@@ -62,6 +62,8 @@ export const REJOIN_AT_MS = 5800;
 export const filmAvailable = () => typeof WebGL2RenderingContext !== "undefined";
 /** And how long before a ready world may interrupt them forming the name again. */
 export const REJOIN_MIN_MS = REJOIN_AT_MS + 2800;
+/** A world prepared ahead lands as soon as the name has formed. */
+export const REJOIN_QUICK_MS = REJOIN_AT_MS + 1500;
 // With nothing to do, the network rests dimly, out of the way of what is on screen.
 const REST_DIM = 0.14;
 // The title's logo comes apart in a sweep from left to right, each part of it turning to
@@ -81,40 +83,52 @@ const END_STILL_S = 10.5;
 
 // One or two words and one short line, with no commas. Nothing here may suggest it is
 // happening now or for real: it is a simulation, and these are its features.
-export const FILM_CHAPTERS: readonly { label: string; title: string; text: string }[] = [
-  { label: "Deterministic Spatiotemporal Transport Network Simulator", title: "Traffic simulation", text: "A full simulated day in one district." },
-  { label: "Networks", title: "Mapped streets", text: "Every district comes from OpenStreetMap." },
-  { label: "Signals", title: "Signal timing", text: "Signalled junctions each run their own schedule." },
-  { label: "Demand", title: "Travel demand", text: "Every school and office draws trips." },
-  { label: "Rhythm", title: "Rush hour", text: "Modelled demand rises and falls through the day." },
-  { label: "Incidents", title: "Road incidents", text: "A collision closes lanes and the queue spreads back." },
-  { label: "Environment", title: "Simulated weather", text: "Rain cells cross the district and roads flood." },
-  { label: "Places", title: "Cities worldwide", text: "A seed chooses the district." },
-  { label: "Reproducibility", title: "Repeatable worlds", text: "Any seed grows the same day on any machine." },
-  { label: "Camera", title: "Auto Focus", text: "The camera follows what matters." },
-  { label: "Extensions", title: "WebFabric", text: "Your own applications weave into the simulation." },
+/** A chapter of the film: `id` names it in the operator's demo.scenes setting. */
+export interface Chapter {
+  id: string;
+  label: string;
+  title: string;
+  text: string;
+}
+export const FILM_CHAPTERS: readonly Chapter[] = [
+  { id: "simulation", label: "Deterministic Spatiotemporal Transport Network Simulator", title: "Traffic simulation", text: "A full simulated day in one district." },
+  { id: "streets", label: "Networks", title: "Mapped streets", text: "Every district comes from OpenStreetMap." },
+  { id: "signals", label: "Signals", title: "Signal timing", text: "Signalled junctions each run their own schedule." },
+  { id: "demand", label: "Demand", title: "Travel demand", text: "Every school and office draws trips." },
+  { id: "rush-hour", label: "Rhythm", title: "Rush hour", text: "Modelled demand rises and falls through the day." },
+  { id: "incidents", label: "Incidents", title: "Road incidents", text: "A collision closes lanes and the queue spreads back." },
+  { id: "weather", label: "Environment", title: "Simulated weather", text: "Rain cells cross the district and roads flood." },
+  { id: "cities", label: "Places", title: "Cities worldwide", text: "A seed chooses the district." },
+  { id: "repeatable", label: "Reproducibility", title: "Repeatable worlds", text: "Any seed grows the same day on any machine." },
+  { id: "auto-focus", label: "Camera", title: "Auto Focus", text: "The camera follows what matters." },
+  { id: "webfabric", label: "Extensions", title: "WebFabric", text: "Your own applications weave into the simulation." },
 ];
 
 /**
- * Demo Mode's own chapters, after the film's: what sets DSTNS apart. One or two words and a short line, as the film's
- * are, and each a reason to use it rather than a description of what it is.
+ * Demo Mode's own chapters: what sets DSTNS apart. One or two words and a short line, as the film's are, and each a
+ * reason to use it rather than a description of what it is.
  */
-export const DEMO_CHAPTERS: readonly { label: string; title: string; text: string }[] = [
-  { label: "Playback", title: "Instant rewind", text: "Scrub to any second and the day plays out exactly as it did." },
-  { label: "Interventions", title: "What if", text: "Close a street and the traffic finds another way." },
-  { label: "Narration", title: "Newsroom", text: "Every incident is written up as news by a model on this machine." },
-  { label: "Dynamic Fastboot", title: "Instant worlds", text: "The next city is fetched while this one runs." },
-  { label: "MCP", title: "AI ready", text: "Any AI assistant can drive the simulation through MCP." },
+export const DEMO_CHAPTERS: readonly Chapter[] = [
+  { id: "time-control", label: "Playback", title: "Time control", text: "Rewind or fast-forward to any moment and the day plays out the same." },
+  { id: "many-worlds", label: "Seeds", title: "Many worlds", text: "Each seed grows its own district and the same seed grows the same one." },
+  { id: "ai-ready", label: "MCP", title: "AI ready", text: "Any AI assistant can drive the simulation through MCP." },
 ];
 const DEMO_CAMERAS: Camera[] = [
-  { yaw: 0, pitch: 0.26, distance: 3.6, spin: 0.004, push: 0.04 },
-  { yaw: 0.1, pitch: 0.95, distance: 3.4, spin: 0.01, push: 0.05 },
-  { yaw: -0.12, pitch: 0.08, distance: 3.5, spin: 0.006, push: 0.04 },
-  { yaw: -0.2, pitch: 0.72, distance: 3.9, spin: 0.012, push: 0.05 },
+  { yaw: 0, pitch: 0.22, distance: 3.6, spin: 0.004, push: 0.04 },
+  { yaw: -0.15, pitch: 0.82, distance: 4.0, spin: 0.014, push: 0.05 },
   { yaw: 0.12, pitch: 0.1, distance: 3.9, spin: 0.012, push: 0.05 },
 ];
-const DEMO_HOLDS = [6.4, 6.6, 6.6, 6.8, 6.8];
+const DEMO_HOLDS = [7, 7.4, 6.8];
 const DEMO_FILM = [...FILM_CHAPTERS, ...DEMO_CHAPTERS];
+
+/**
+ * Demo Mode's scenes, in the operator's order: the name always opens the loop, then the chapters `ids` names, any
+ * the film doesn't have left out. Nothing named: all of them, in the film's order.
+ */
+export function demoPlaylist(ids: readonly string[] | undefined): number[] {
+  const chosen = (ids ?? []).map((id) => DEMO_FILM.findIndex((c) => c.id === id)).filter((i, at, all) => i > 0 && all.indexOf(i) === at);
+  return [0, ...(chosen.length ? chosen : DEMO_FILM.map((_, i) => i).slice(1))];
+}
 
 interface Camera { yaw: number; pitch: number; distance: number; spin: number; push: number }
 const CAMERAS: Camera[] = [
@@ -752,6 +766,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     const holds = demo ? [...HOLDS, ...DEMO_HOLDS] : HOLDS;
     const advanceCaption = () => setChapter((c) => (c + 1) % chapters.length);
     const planned = !demo && (dynamic ?? currentFeatures().presentation.dynamic_particles);
+    const playlist = demo ? demoPlaylist(currentFeatures().presentation.demo_scenes) : null;
     // The scenes this round has shown. WebFabric, the last, waits for every other.
     const seen = new Set<number>();
     const plan = () => {
@@ -949,7 +964,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.drawArrays(gl.POINTS, 0, count);
     }
     const next = (restTo?: number) => {
-      const after = restTo ?? (planned ? plan() : (scene + 1) % chapters.length);
+      const after = restTo ?? (planned ? plan() : playlist ? playlist[(playlist.indexOf(scene) + 1) % playlist.length] : (scene + 1) % chapters.length);
       if (restTo === undefined && after === 0) cycleRef.current?.();
       // Already on the name, with nothing that fits: it stays, and looks again in a moment.
       if (after === scene && after === 0) {
@@ -1127,7 +1142,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         }
         if (held > holds[scene] && !closingRef.current && !quick) next();
         // Ready sooner than the plan thought: back to the name, once this scene has been seen.
-        else if (planned && scene !== 0 && held > 1.6 && remainingEta() === 0 && !closingRef.current && !quick) {
+        else if (planned && scene !== 0 && held > 0.6 && remainingEta() === 0 && !closingRef.current && !quick) {
           next(0);
           cycleRef.current?.();
         }
@@ -1204,6 +1219,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
   }, [reduceMotion, ending, rejoin, quick, demo, dynamic]);
 
   const shown = chapters[playing ? chapter : 0] ?? chapters[0];
+  // The dashes count the scenes of a film that plays them all; the dynamic film plays as many as the wait allows.
+  const counted = demo || !(dynamic ?? currentFeatures().presentation.dynamic_particles);
   return (
     <>
       {/* A context is lost for good when the scene restarts, so each restart gets a new canvas. */}
@@ -1213,11 +1230,13 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
           <span className="film-chapter">{shown.label}</span>
           <h3>{shown.title}</h3>
           <p>{shown.text}</p>
-          <span className="film-ticks">
-            {chapters.map((c, i) => (
-              <i key={c.label} className={i === chapter ? "on" : ""} />
-            ))}
-          </span>
+          {counted && (
+            <span className="film-ticks">
+              {(demo ? demoPlaylist(currentFeatures().presentation.demo_scenes) : chapters.map((_, i) => i)).map((i) => (
+                <i key={chapters[i].id} className={i === chapter ? "on" : ""} />
+              ))}
+            </span>
+          )}
         </div>
       )}
     </>

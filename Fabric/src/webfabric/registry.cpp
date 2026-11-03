@@ -356,6 +356,14 @@ const Switches& switches() {
                     return std::nullopt;
                 };
                 if (const auto v = number("music_volume")) out.presentation["music_volume"] = std::clamp(*v, 0.0, 1.0);
+                // Demo Mode's scenes, by id, in order: short names only, and not many of them.
+                if (given.is_object() && given.contains("demo_scenes") && given.at("demo_scenes").is_array()) {
+                    json scenes = json::array();
+                    for (const auto& id : given.at("demo_scenes")) {
+                        if (id.is_string() && !id.get<std::string>().empty() && id.get<std::string>().size() <= 32 && scenes.size() < 32) scenes.push_back(id);
+                    }
+                    out.presentation["demo_scenes"] = scenes;
+                }
                 // How hard the observer works: frames a second for the map's animation (0 lets it decide), the most
                 // pixels per point it draws at, and how many particles the film has.
                 if (const auto v = number("map_fps")) out.presentation["map_fps"] = *v >= 45 ? 60 : *v >= 1 ? 30 : 0;

@@ -14,7 +14,7 @@ import { Logo } from "./Logo";
 import { Icon } from "./Icons";
 import { BootFailure, launchStage, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
 import { reportEta } from "./eta";
-import { filmAvailable, mapCarry, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS } from "./BootScene";
+import { filmAvailable, mapCarry, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS, REJOIN_QUICK_MS } from "./BootScene";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
 import { NotificationHistory } from "./notificationHistory";
@@ -124,6 +124,8 @@ interface WorldJob {
   status: WorldStatus | null;
   error: string;
   closing: boolean;
+  /** Prepared while the person was deciding: ready almost at once, so it lands as soon as the name re-forms. */
+  quick?: boolean;
 }
 /**
  * What may be on screen as a world arrives. While the film is building the roads nothing is;
@@ -948,13 +950,40 @@ export default function App() {
   }, [lifecycle]);
 
   // ---- World generation -----------------------------------------------------
+  // With Fast Boot or Dynamic Fastboot, the new world is prepared the moment a person asks for one, while they decide,
+  // and put in when they confirm; forgotten if they don't.
+  const prepareAhead = features.presentation.fast_boot || features.presentation.dynamic_fastboot;
+  const staged = useRef<Promise<boolean> | null>(null);
+  const confirmed = useRef(false);
+  useEffect(() => {
+    if (dialog !== "regenerate" || !prepareAhead || !runId) return;
+    confirmed.current = false;
+    staged.current = api
+      .regenerateWorld(runId, true)
+      .then(() => true)
+      .catch((e) => {
+        console.warn("Could not prepare the new world ahead:", e);
+        return false;
+      });
+    return () => {
+      const ahead = staged.current;
+      if (!confirmed.current && ahead) {
+        void ahead.then((ok) => {
+          if (ok) void api.discardWorld().catch(() => undefined);
+        });
+      }
+      if (!confirmed.current) staged.current = null;
+    };
+  }, [dialog, prepareAhead, runId]);
   const requestWorld = useCallback(async () => {
     setLayersOpen(false);
     setSettingsOpen(false);
-    setWorld({ ...NO_WORLD_JOB, active: true });
-    logControl("regenerate", "requested");
+    const ahead = staged.current;
+    staged.current = null;
+    setWorld({ ...NO_WORLD_JOB, active: true, quick: !!ahead });
+    logControl("regenerate", ahead ? "confirmed, prepared ahead" : "requested");
     try {
-      const response = await api.regenerateWorld(runId || undefined);
+      const response = (ahead && (await ahead) && (await api.commitWorld().catch(() => null))) || (await api.regenerateWorld(runId || undefined));
       setWorld((w) => ({ ...w, status: response.data, requestedSeed: response.data.seed }));
     } catch (e) {
       const text = e instanceof Error ? e.message : "";
@@ -970,7 +999,8 @@ export default function App() {
   const etaNow = world.active
     ? worldLoaded ? 0 : world.status?.state === "generating" ? world.status.eta_s ?? null : null
     : lifecycle === "PREPARING" ? status?.eta_s ?? null : sim.topology && lifecycle !== "IDLE" ? 0 : null;
-  reportEta(etaNow);
+  const etaSure = etaNow === 0 || (world.active ? !!world.status?.eta_confident : !!status?.eta_confident);
+  reportEta(etaNow, etaSure);
   useEffect(() => {
     if (!world.active || world.error || worldLoaded) return;
     let cancel = false;
@@ -1012,7 +1042,7 @@ export default function App() {
     // The old world finishes leaving and the name re-forms, however fast the new one was,
     // and then the particles land on the new roads.
     const film = !reduceMotion && filmAvailable();
-    const wait = film ? Math.max(700, REJOIN_MIN_MS - (performance.now() - worldStartedAt.current)) : 700;
+    const wait = film ? Math.max(700, (world.quick ? REJOIN_QUICK_MS : REJOIN_MIN_MS) - (performance.now() - worldStartedAt.current)) : 700;
     const t1 = setTimeout(() => setWorld((w) => ({ ...w, closing: true })), wait);
     const t2 = setTimeout(() => setWorld(NO_WORLD_JOB), wait + (film ? LANDING_MS : MOTION_MS.overlay));
     return () => {
@@ -1462,6 +1492,7 @@ export default function App() {
               closing={dialogClosing}
               onCancel={closeDialog}
               onConfirm={() => {
+                confirmed.current = true;
                 closeDialog();
                 // Let the dialog finish leaving before the world overlay
                 // arrives, so the two are never on screen together.

@@ -91,7 +91,7 @@
     "fast_boot": false,
     "dynamic_fastboot": true,
     "dynamic_particles": true,
-    "force_animate": true
+    "force_animate": false
   },
   "presentation": {
     "music": false,
@@ -100,7 +100,8 @@
   },
   "demo": {
     "music": true,
-    "fullscreen": true
+    "fullscreen": true,
+    "scenes": "streets, signals, demand, rush-hour, incidents, weather, cities, repeatable, auto-focus, webfabric, time-control, many-worlds, ai-ready"
   },
   "performance": {
     "compression": "fast",

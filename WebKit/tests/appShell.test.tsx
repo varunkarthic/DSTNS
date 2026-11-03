@@ -399,8 +399,11 @@ describe("world regeneration", () => {
     calls.length = 0;
     fireEvent.click(screen.getByLabelText("Generate new world"));
     expect(await screen.findByRole("dialog")).toHaveTextContent("Generate New World?");
-    expect(calls).toEqual([]);
+    // With Dynamic Fastboot (on by default) the new world is prepared while the person decides: staged, never put in.
+    await waitFor(() => expect(calls.some((c) => c.path.endsWith("/world/regenerate") && JSON.parse(c.body).stage === true)).toBe(true));
+    expect(calls.every((c) => c.path.endsWith("/world/regenerate") && JSON.parse(c.body).stage === true)).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() => expect(calls.some((c) => c.path.endsWith("/world/regenerate/commit"))).toBe(true));
 
     const overlay = await screen.findByRole("alertdialog");
     await waitFor(() => expect(calls.some((c) => c.path.includes("/world/regenerate") && JSON.parse(c.body).expected_run_id === "run_1")).toBe(true));
@@ -1153,8 +1156,22 @@ describe("a finished run's next move", () => {
     // later would otherwise pass.
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(screen.getByRole("dialog", { name: /new world/i })).toBeInTheDocument();
-    // Nothing has been regenerated merely by asking.
-    expect(calls.some((c) => c.path.includes("/world/regenerate"))).toBe(false);
+    // Nothing has been replaced merely by asking: at most, the new world is being prepared.
+    const asked = calls.filter((c) => c.path.includes("/world/regenerate"));
+    expect(asked.every((c) => c.path.endsWith("/world/regenerate") && JSON.parse(c.body).stage === true)).toBe(true);
+  });
+
+  it("forgets a world prepared ahead when the person changes their mind", async () => {
+    mockApi();
+    render(<App />);
+    await ready();
+    calls.length = 0;
+    fireEvent.click(screen.getByLabelText("Generate new world"));
+    await screen.findByRole("dialog");
+    await waitFor(() => expect(calls.some((c) => c.path.endsWith("/world/regenerate"))).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(calls.some((c) => c.path.endsWith("/world/regenerate/discard"))).toBe(true));
+    expect(calls.some((c) => c.path.endsWith("/world/regenerate/commit"))).toBe(false);
   });
 });
 

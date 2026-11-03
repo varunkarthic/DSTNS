@@ -165,9 +165,9 @@ export function Splash({
   return (
     <LoadingSurface
       mode="boot"
-      eyebrow={demo ? "DSTNS" : stage.waiting ? "Welcome to DSTNS" : undefined}
-      title={demo ? "A day in a real city" : stage.label}
-      status={demo ? "Simulated, watched and built on." : stage.waiting || elapsed < 15 ? stage.detail : `${stage.detail ?? "Working"} · ${elapsed} s`}
+      eyebrow={demo ? undefined : stage.waiting ? "Welcome to DSTNS" : undefined}
+      title={demo ? "DSTNS Demo Mode" : stage.label}
+      status={demo ? undefined : stage.waiting || elapsed < 15 ? stage.detail : `${stage.detail ?? "Working"} · ${elapsed} s`}
       steps={stage.waiting || demo ? undefined : BOOT_STEPS}
       demo={demo}
       fastBoot={fastBoot}

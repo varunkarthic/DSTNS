@@ -155,6 +155,8 @@ Commands
   setup                  Run the first-launch setup again
   seeds save|list|inspect|delete [ID]
                          Manage saved seeds (prints JSON)
+  ui PAGE               Open the interface on a page: start, apps, seeds, config, demo (runs
+                         Demo Mode), logs, diagnostics, tests, tools, about, setup
   ui open|dev|build|install
                          Open the observer, run its dev server, build or install it
   logs [system|api|event|playback]
@@ -197,8 +199,19 @@ Interface options
   --yes, -y              Do not ask for confirmation (reset)
   --mode=server          Run the C++ server in the foreground
 
-In the terminal interface, : or / opens the command bar, where any of these can be typed as
-in a shell, with ls, cd, cat, ps and kill besides.
+Console
+  -c 'LINE'              Run a command line: commands joined by | && || and ;
+  shell                  Read command lines until exit
+  ls, cat, tail, head, ps, get, env, uptime
+                         Read the launcher's state as plain text, to pipe: ./launcher ps | grep server
+  grep, wc, sort, uniq, cut, tee, echo
+                         Filter what is piped to them, inside a -c line or the shell
+
+  ./launcher -c 'logs api | grep 500 | wc -l'
+  ./launcher -c 'stop && start --seed 42 --no-open'
+
+In the terminal interface, : or / opens the command bar, where all of this can be typed as in a
+shell, with cd, kill and history besides.
 
 Documentation: https://dstns.readthedocs.io/guide/operator-cli/
 "
@@ -326,9 +339,14 @@ pub fn command_config(context: &Context) -> Result<i32> {
             if !problem.is_empty() {
                 return Err(LauncherError::config(format!("{}: {problem}", field.label)));
             }
-            field.set(&mut current, value.clone());
+            let also = field.set(&mut current, value.clone());
             config::save(&current, paths)?;
             out.message(Level::Success, &format!("{} is now {}", field.label, field.display(&value)), &key);
+            for other in also {
+                if let Some(other) = config::field(other) {
+                    out.message(Level::Info, &format!("{} is now {}, as it must be", other.label, other.display(&other.get(&current))), other.key);
+                }
+            }
             Ok(EXIT_OK)
         }
         Some(other) => Err(LauncherError::config(format!("Unknown config action: {other}")).remedy("Use ./launcher config, config get KEY or config set KEY VALUE.")),

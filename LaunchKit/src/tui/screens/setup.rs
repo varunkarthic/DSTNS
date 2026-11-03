@@ -159,6 +159,7 @@ impl SetupScreen {
             Editor::Toggle(on) => Ok(Value::Bool(*on)),
             Editor::Select { choices, index } => Ok(serde_json::from_str::<Value>(&choices[*index].1).unwrap_or(Value::Null)),
             Editor::Text { value, .. } => field.parse(value),
+            Editor::Order { .. } => field.parse(&row.editor.text_value()),
         };
         let problem = match &parsed {
             Ok(value) => config::check_field(field, value, &self.current),
@@ -166,18 +167,19 @@ impl SetupScreen {
         };
         form.set_problem(key, &problem);
         if problem.is_empty() {
-            field.set(&mut self.current, parsed.unwrap());
+            // What changes with it shows at once, on whichever step it is.
+            for other in field.set(&mut self.current, parsed.unwrap()) {
+                for form in &mut self.forms {
+                    if let Some(row) = form.get_mut(other) {
+                        row.editor = Editor::Toggle(config::flag(&self.current, other));
+                    }
+                }
+            }
         }
         if key.starts_with("performance.") {
             self.sync_preset();
         }
-        if key == "startup.fast_boot" && config::flag(&self.current, "startup.fast_boot") {
-            // Fast Boot does without the whole film.
-            config::field("startup.force_animate").unwrap().set(&mut self.current, json!(false));
-            if let Some(row) = self.forms[1].get_mut("startup.force_animate") {
-                row.editor = Editor::Toggle(false);
-            }
-        }
+
     }
 
     fn invalid(&self) -> bool {

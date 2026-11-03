@@ -29,6 +29,15 @@ void ApiServer::routes_world() {
         }
         send(r, engine_.regenerate_world(body(req)), 202);
     });
+    // A world prepared ahead ({"stage": true}), once a person has confirmed it, or changed their mind.
+    server_->Post("/api/v1/world/regenerate/commit", [this, regeneration_disabled](const auto&, auto& r) {
+        if (regeneration_disabled) {
+            send(r, {{"api_version", kApiVersion}, {"error", {{"code", "WORLD_REGENERATION_DISABLED"}, {"message", "World regeneration is disabled by the operator."}}}}, 403);
+            return;
+        }
+        send(r, engine_.commit_world(), 202);
+    });
+    server_->Post("/api/v1/world/regenerate/discard", [this](const auto&, auto& r) { send(r, engine_.discard_world()); });
     server_->Get("/api/v1/world/status", [this, regeneration_disabled](const auto&, auto& r) {
         auto status = engine_.world_status();
         status["data"]["enabled"] = !regeneration_disabled;

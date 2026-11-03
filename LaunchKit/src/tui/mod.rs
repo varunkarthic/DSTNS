@@ -534,7 +534,9 @@ pub fn run(context: Context, initial: &str) -> std::io::Result<Outcome> {
     let result = (|| -> std::io::Result<()> {
         loop {
             terminal.draw(|frame| app.draw(frame))?;
-            if event::poll(Duration::from_millis(100))? {
+            // The start-up animates at about 30 frames a second; everything else needs no more than 10.
+            let frame = if app.screens.last().map(|s| s.path() == "/splash").unwrap_or(false) && app.ui.motion { 33 } else { 100 };
+            if event::poll(Duration::from_millis(frame))? {
                 match event::read()? {
                     Event::Key(key) if key.kind != KeyEventKind::Release => app.on_key(key),
                     Event::Resize(width, height) => {
@@ -713,6 +715,26 @@ mod tests {
     }
 
     #[test]
+    fn the_command_bar_walks_its_history() {
+        let mut app = app(120, 35, Box::new(screens::dashboard::DashboardScreen::new()));
+        app.shell = shell::Shell::new(true);
+        press(&mut app, KeyCode::Char(':'));
+        for line in ["pwd", "ls apps", "help ls"] {
+            typed(&mut app, line);
+            press(&mut app, KeyCode::Enter);
+        }
+        // Back through it, past commands that have suggestions of their own, and forward again.
+        press(&mut app, KeyCode::Up);
+        assert!(screen(&mut app, 120, 35).contains("❯ help ls"));
+        press(&mut app, KeyCode::Up);
+        assert!(screen(&mut app, 120, 35).contains("❯ ls apps"));
+        press(&mut app, KeyCode::Up);
+        assert!(screen(&mut app, 120, 35).contains("❯ pwd"));
+        press(&mut app, KeyCode::Down);
+        assert!(screen(&mut app, 120, 35).contains("❯ ls apps"));
+    }
+
+    #[test]
     fn the_command_bar_suggests_and_completes() {
         let mut app = app(120, 35, Box::new(screens::dashboard::DashboardScreen::new()));
         press(&mut app, KeyCode::Char(':'));
@@ -759,7 +781,8 @@ mod tests {
                     let ui = &mut app.ui;
                     let _ = app.screens.last_mut().unwrap().tick(ui);
                 } else if page != "dashboard" {
-                    let opened = screens::open(page, "", &app.ui).unwrap();
+                    let (page, section) = page.split_once('/').unwrap_or((page, ""));
+                    let opened = screens::open(page, section, &app.ui).unwrap();
                     app.apply(Action::Push(opened));
                 }
                 if page == "shell" || std::env::var("DSTNS_SNAPSHOT_SHELL").is_ok() {

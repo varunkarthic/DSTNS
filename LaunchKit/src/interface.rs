@@ -388,7 +388,13 @@ impl<'a> Compatibility<'a> {
                 Err(problem)
             }
         }) {
-            Ok(value) => field.set(current, value),
+            Ok(value) => {
+                for other in field.set(current, value) {
+                    if let Some(other) = config::field(other) {
+                        self.out.message(Level::Info, &format!("{} is now {}, as it must be", other.label, other.display(&other.get(current))), "");
+                    }
+                }
+            }
             Err(problem) => self.out.message(Level::Error, &format!("{}: {problem}", field.label), ""),
         }
     }

@@ -61,6 +61,27 @@ pub fn card(title: &str, focused: bool) -> Block<'static> {
     block
 }
 
+/// A section of readings, each a short name and a value: telemetry, never a sentence cut short.
+pub fn readings(frame: &mut Frame, area: Rect, title: &str, items: Vec<(&str, String, u32)>, unicode: bool) {
+    let w = area.width.saturating_sub(2) as usize;
+    let name_width = items.iter().map(|(n, _, _)| width(n)).max().unwrap_or(0).clamp(6, 9) + 1;
+    let lines: Vec<Line> = items
+        .into_iter()
+        .map(|(name, value, tone)| Line::from(vec![Span::styled(format!("{name:<name_width$}"), fg(MUTED)), Span::styled(clip(&value, w.saturating_sub(name_width), unicode), fg(tone))]))
+        .collect();
+    frame.render_widget(Paragraph::new(lines).block(card(title, false)), area);
+}
+
+/// A bar for a fraction, `width` cells long: filled, then not, then the percentage.
+pub fn bar(ratio: f64, width: usize, unicode: bool) -> String {
+    let filled = (ratio.clamp(0.0, 1.0) * width as f64).round() as usize;
+    if unicode {
+        format!("{}{} {:>3.0}%", "▰".repeat(filled), "▱".repeat(width - filled.min(width)), ratio * 100.0)
+    } else {
+        format!("[{}{}] {:>3.0}%", "#".repeat(filled), "-".repeat(width - filled.min(width)), ratio * 100.0)
+    }
+}
+
 /// The wordmark, or plain "D S T N S" where it would not fit.
 pub fn wordmark(area: Rect, unicode: bool) -> Text<'static> {
     let fits = |logo: &str| area.width as usize >= logo.lines().map(width).max().unwrap_or(0);
@@ -402,6 +423,9 @@ pub enum Editor {
     Text { value: String, cursor: usize, placeholder: String, numeric: bool, disabled: bool, multiline: bool },
     Toggle(bool),
     Select { choices: Vec<(String, String)>, index: usize },
+    /// Items to turn on or off and put in order: (id, label, on). Space turns one on or off, Shift+↑↓ (or J and K)
+    /// moves it; the value is the ids that are on, in order.
+    Order { items: Vec<(String, String, bool)>, cursor: usize },
 }
 
 impl Editor {
@@ -423,6 +447,21 @@ impl Editor {
             Editor::Text { value, .. } => value.clone(),
             Editor::Toggle(on) => on.to_string(),
             Editor::Select { choices, index } => choices.get(*index).map(|(_, v)| v.clone()).unwrap_or_default(),
+            Editor::Order { items, .. } => items.iter().filter(|(_, _, on)| *on).map(|(id, _, _)| id.as_str()).collect::<Vec<_>>().join(", "),
+        }
+    }
+    pub fn is_order(&self) -> bool {
+        matches!(self, Editor::Order { .. })
+    }
+    /// Whether this key is the editor's own rather than the form's: an order list keeps ↑↓ until its ends.
+    pub fn consumes(&self, event: &KeyEvent) -> bool {
+        match self {
+            Editor::Order { items, cursor } => match event.code {
+                KeyCode::Up => *cursor > 0,
+                KeyCode::Down => *cursor + 1 < items.len(),
+                _ => false,
+            },
+            _ => false,
         }
     }
     pub fn toggled(&self) -> bool {
@@ -431,6 +470,7 @@ impl Editor {
     pub fn height(&self) -> u16 {
         match self {
             Editor::Text { multiline: true, .. } => 4,
+            Editor::Order { items, .. } => items.len().max(1) as u16,
             _ => 1,
         }
     }
@@ -492,6 +532,36 @@ impl Editor {
                     _ => false,
                 }
             }
+            Editor::Order { items, cursor } => {
+                let shift = event.modifiers.contains(KeyModifiers::SHIFT);
+                match event.code {
+                    KeyCode::Up | KeyCode::Char('K') if (shift || event.code == KeyCode::Char('K')) && *cursor > 0 => {
+                        items.swap(*cursor, *cursor - 1);
+                        *cursor -= 1;
+                        true
+                    }
+                    KeyCode::Down | KeyCode::Char('J') if (shift || event.code == KeyCode::Char('J')) && *cursor + 1 < items.len() => {
+                        items.swap(*cursor, *cursor + 1);
+                        *cursor += 1;
+                        true
+                    }
+                    KeyCode::Up => {
+                        *cursor = cursor.saturating_sub(1);
+                        false
+                    }
+                    KeyCode::Down => {
+                        *cursor = (*cursor + 1).min(items.len().saturating_sub(1));
+                        false
+                    }
+                    KeyCode::Char(' ') | KeyCode::Enter => {
+                        if let Some(item) = items.get_mut(*cursor) {
+                            item.2 = !item.2;
+                        }
+                        true
+                    }
+                    _ => false,
+                }
+            }
             Editor::Toggle(on) => match event.code {
                 KeyCode::Char(' ') | KeyCode::Enter | KeyCode::Left | KeyCode::Right => {
                     *on = !*on;
@@ -542,6 +612,32 @@ impl Editor {
                 let (knob, word) = if *on { (if unicode { "━━●" } else { "--o" }, "on") } else { (if unicode { "●━━" } else { "o--" }, "off") };
                 vec![Line::from(vec![Span::styled(knob.to_string(), fg(if *on { ACCENT } else { MUTED })), Span::styled(format!(" {word}"), fg(TEXT))])]
             }
+            Editor::Order { items, cursor } => items
+                .iter()
+                .enumerate()
+                .map(|(i, (id, label, on))| {
+                    let here = focused && i == *cursor;
+                    let mark = match (*on, unicode) {
+                        (true, true) => "✓",
+                        (true, false) => "x",
+                        (false, _) => " ",
+                    };
+                    let place = if *on { format!("{:>2}", items[..=i].iter().filter(|(_, _, o)| *o).count()) } else { "  ".into() };
+                    // The label gets the room; the id only where there is plenty.
+                    let room = inner_width.saturating_sub(9);
+                    let with_id = room >= 36;
+                    let label_room = if with_id { room - 16 } else { room };
+                    let mut spans = vec![
+                        Span::styled(if here { if unicode { "▸ " } else { "> " } } else { "  " }, fg(ACCENT)),
+                        Span::styled(format!("{place} [{mark}] "), fg(if *on { ACCENT } else { MUTED })),
+                        Span::styled(format!("{:<label_room$}", clip(label, label_room, unicode)), if here { bold(TEXT) } else { fg(if *on { TEXT } else { MUTED }) }),
+                    ];
+                    if with_id {
+                        spans.push(Span::styled(clip(id, 16, unicode), fg(MUTED)));
+                    }
+                    Line::from(spans)
+                })
+                .collect(),
             Editor::Select { choices, index } => {
                 let label = choices.get(*index).map(|(l, _)| l.clone()).unwrap_or_default();
                 let arrows = if unicode { ("‹ ", " ›") } else { ("< ", " >") };
@@ -706,5 +802,23 @@ pub fn columns(area: Rect, sidebar: u16, small: bool, sidebar_height: u16) -> (R
     } else {
         let parts = Layout::horizontal([Constraint::Length(sidebar + 1), Constraint::Min(10)]).split(area);
         (Rect { x: parts[0].x + 1, width: parts[0].width.saturating_sub(1), ..parts[0] }, Rect { x: parts[1].x + 1, width: parts[1].width.saturating_sub(2), ..parts[1] })
+    }
+}
+
+#[cfg(test)]
+mod order_tests {
+    use super::*;
+
+    #[test]
+    fn an_order_list_turns_items_on_and_off_and_moves_them() {
+        let mut editor = Editor::Order { items: ["a", "b", "c"].iter().map(|id| (id.to_string(), id.to_uppercase(), true)).collect(), cursor: 0 };
+        assert_eq!(editor.text_value(), "a, b, c");
+        assert!(editor.handle(&KeyEvent::new(KeyCode::Down, KeyModifiers::SHIFT)), "a moves down");
+        assert_eq!(editor.text_value(), "b, a, c");
+        assert!(editor.handle(&KeyEvent::from(KeyCode::Char(' '))), "and is turned off where it now is");
+        assert_eq!(editor.text_value(), "b, c");
+        assert!(editor.consumes(&KeyEvent::from(KeyCode::Down)) && editor.consumes(&KeyEvent::from(KeyCode::Up)), "the list keeps the arrows inside it");
+        editor.handle(&KeyEvent::from(KeyCode::Down));
+        assert!(!editor.consumes(&KeyEvent::from(KeyCode::Down)), "and gives them back at its end");
     }
 }

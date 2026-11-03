@@ -26,7 +26,7 @@ void out_of_the_box() {
     Server s(tmp.path);
     const auto features = s.call("GET", "/api/v1/system/features").data();
     EXPECT(features.at("applications") == true && features.at("legacy_api") == true && features.at("launch_proposals") == true && features.at("require_signatures") == false, features);
-    EXPECT(features.at("presentation") == (json{{"webfabric", true}, {"force_animate", true}, {"fast_boot", false}, {"dynamic_fastboot", true}, {"dynamic_particles", true},
+    EXPECT(features.at("presentation") == (json{{"webfabric", true}, {"force_animate", false}, {"fast_boot", false}, {"dynamic_fastboot", true}, {"dynamic_particles", true},
                                                 {"demo", false}, {"music", false}, {"fullscreen", false}, {"music_volume", 0.6}, {"map_fps", 0}, {"render_scale", 2.0},
                                                 {"film_particles", 32000}}), features);
     EXPECT(features.at("performance") == (json{{"compression", "fast"}, {"api_threads", "auto"}, {"engine_threads", "auto"}}), features);
@@ -97,11 +97,14 @@ void switched_off() {
     TempDir tmp;
     Server s(tmp.path, {}, {{"DSTNS_LEGACY_API", "0"}, {"DSTNS_FABRIC_APPS", "0"}, {"DSTNS_LAUNCH_PROPOSALS", "0"},
                             {"DSTNS_DISABLED_CAPABILITIES", "control.world, ui.frames, nonsense"},
-                            {"DSTNS_PRESENTATION", json{{"fast_boot", true}, {"music", true}, {"fullscreen", "yes"}, {"music_volume", 3}, {"junk", 1}}.dump()}});
+                            {"DSTNS_PRESENTATION", json{{"fast_boot", true}, {"music", true}, {"fullscreen", "yes"}, {"music_volume", 3}, {"junk", 1}, {"demo_scenes", {"ai-ready", "streets", 5}}}.dump()}});
     const auto features = s.call("GET", "/api/v1/system/features").data();
     EXPECT(features.at("legacy_api") == false && features.at("applications") == false && features.at("launch_proposals") == false, features);
     EXPECT((as_set(features.at("disabled_capabilities")) == std::set<std::string>{"control.world", "ui.frames"}), features);
     const auto p = features.at("presentation");
+    EXPECT(p.at("demo_scenes") == json::array({"ai-ready", "streets"}), "Demo Mode's scenes, strings only, in order", p);
+    // The dynamic film, on by default, and the whole film are never on together.
+    EXPECT(p.at("dynamic_particles") == true && p.at("force_animate") == false, p);
     EXPECT(p.at("fast_boot") == true && p.at("music") == true && p.at("force_animate") == false && p.at("fullscreen") == false && p.at("music_volume") == 1 && !p.contains("junk"), p);
     const auto gone = s.call("GET", "/api/v1/playback/status");
     EXPECT(gone.status == 410 && gone.code() == "LEGACY_API_DISABLED", gone);
@@ -129,11 +132,19 @@ void signatures_required() {
     EXPECT(s.op("PUT", "/api/v1/fabric/launch/org.test.s", json{{"commands", {"x"}}}).status == 200, "the operator still can");
 }
 
+void the_whole_film() {
+    TempDir tmp;
+    Server s(tmp.path, {}, {{"DSTNS_PRESENTATION", json{{"dynamic_particles", false}, {"force_animate", true}}.dump()}});
+    const auto p = s.call("GET", "/api/v1/system/features").data().at("presentation");
+    EXPECT(p.at("force_animate") == true && p.at("dynamic_particles") == false, "the whole film, with the dynamic film off", p);
+}
+
 } // namespace
 
 int main() {
     out_of_the_box();
     switched_off();
     signatures_required();
+    the_whole_film();
     std::cout << "fabric launch ok\n";
 }

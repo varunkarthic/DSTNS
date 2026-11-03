@@ -87,11 +87,14 @@ export const api = {
       body: JSON.stringify({ seconds }),
     }),
   // Ask the core for a new world from a fresh seed. Progress is polled.
-  regenerateWorld: (expected_run_id?: string) =>
+  // With stage, it is prepared without replacing this world, until commitWorld or discardWorld.
+  regenerateWorld: (expected_run_id?: string, stage = false) =>
     request<{ data: WorldStatus }>("/api/v1/world/regenerate", {
       method: "POST",
-      body: JSON.stringify(expected_run_id ? { expected_run_id } : {}),
+      body: JSON.stringify({ ...(expected_run_id ? { expected_run_id } : {}), ...(stage ? { stage } : {}) }),
     }),
+  commitWorld: () => request<{ data: WorldStatus }>("/api/v1/world/regenerate/commit", { method: "POST", body: "{}" }),
+  discardWorld: () => request<{ data: WorldStatus }>("/api/v1/world/regenerate/discard", { method: "POST", body: "{}" }),
   worldStatus: () => request<{ data: WorldStatus }>("/api/v1/world/status"),
   observer: (waiting: boolean) =>
     request<unknown>("/api/v1/system/observer", { method: "POST", body: JSON.stringify({ waiting }) }),

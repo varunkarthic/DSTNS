@@ -206,6 +206,11 @@ paths:
                 expected_run_id:
                   type: string
                   description: Cancel with 409 if the active run is no longer this one.
+                stage:
+                  type: boolean
+                  description: Prepare the new world without replacing the current one, which keeps running. It
+                    waits in state `staged` until /api/v1/world/regenerate/commit puts it in or /api/v1/world/regenerate/discard
+                    forgets it. The observer asks for this the moment a person asks for a new world, before they confirm.
       responses:
         '202':
           description: Generation started
@@ -233,6 +238,58 @@ paths:
         4XX:
           $ref: '#/components/responses/Error'
       security: []
+  /api/v1/world/regenerate/commit:
+    post:
+      tags:
+      - World
+      operationId: commitWorld
+      summary: Put in the world prepared with stage
+      description: Installs the staged world at once, or, if it is still being prepared, as soon as it is ready. Like
+        any new world it starts paused at 00:00:00.
+      responses:
+        '202':
+          description: Installed, or to be installed when ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/WorldStatus'
+        '403':
+          description: Regeneration disabled by the operator (WORLD_REGENERATION_DISABLED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: No world is waiting to be confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/world/regenerate/discard:
+    post:
+      tags:
+      - World
+      operationId: discardWorld
+      summary: Forget the world prepared with stage
+      description: A world still being prepared finishes and is dropped. The current world is untouched. Discarding
+        when nothing is staged does nothing.
+      responses:
+        '200':
+          description: The world job, now idle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/WorldStatus'
   /api/v1/world/status:
     get:
       tags:
@@ -1207,7 +1264,9 @@ paths:
       tags:
       - System
       operationId: systemInfo
-      summary: Version, build and SUMO availability
+      summary: Version, build, the server process and SUMO availability
+      description: '`process` is the server itself: `pid`, `uptime_s`, `peak_rss_bytes` (the most memory it has held)
+        and `cpu_s` (processor time used), for a supervisor or the launcher''s dashboard.'
       responses:
         '200': *id002
         4XX:
@@ -3722,12 +3781,14 @@ components:
           enum:
           - idle
           - generating
+          - staged
           - ready
           - failed
         stage:
           type: string
           enum:
           - idle
+          - staged
           - compiling
           - requesting
           - downloading
@@ -3781,6 +3842,37 @@ components:
               - WORLD_GENERATION_FAILED
               - TERMINATING
             message:
+              type: string
+        eta_s:
+          nullable: true
+          type: number
+          description: Seconds until the new world is ready, as the server estimates it, while it is generating.
+        eta_confident:
+          type: boolean
+          description: Whether eta_s rests on something measured (a download of known size, a city on disk, the
+            build itself) rather than on how long the last ones took.
+        next:
+          type: object
+          description: 'Dynamic Fastboot: the world after this one, chosen while this one runs, and whether its city
+            is on disk yet.'
+          properties:
+            enabled:
+              type: boolean
+            state:
+              type: string
+              enum:
+              - idle
+              - fetching
+              - ready
+              - failed
+              - 'off'
+            seed:
+              type: string
+            city:
+              type: string
+            country:
+              type: string
+            error:
               type: string
     Health:
       type: object
