@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-// Session termination against a real server: once running, and once with a download stalled in flight.
+// Session termination against a real server: once running, and once with a download stalled in flight, asked to end
+// through the API and by a signal.
 #include "harness.hpp"
 
 #include <atomic>
@@ -41,7 +42,7 @@ std::set<int> still_alive(const std::set<int>& pids) {
     return alive;
 }
 
-void session(bool downloading) {
+void session(bool downloading, bool signalled = false) {
     std::atomic<bool> entered = false, gate = false;
     Upstream upstream;
     upstream.http.Post(".*", [&](const httplib::Request&, httplib::Response& res) {
@@ -64,8 +65,13 @@ void session(bool downloading) {
         } else {
             until([&] { return server.op("GET", "/api/v1/playback/status", none, 2).data().at("lifecycle") == "RUNNING"; }, 12, "the run");
         }
-        EXPECT(server.op("POST", "/api/v1/system/terminate", json::object(), 2).body.at("ok") == true);
-        EXPECT(server.process.wait(6) == 0, server.process.status);
+        if (signalled) {
+            ::kill(server.process.pid, SIGTERM);
+            EXPECT(server.process.wait(6) == 128 + SIGTERM, "ended by the signal", server.process.status);
+        } else {
+            EXPECT(server.op("POST", "/api/v1/system/terminate", json::object(), 2).body.at("ok") == true);
+            EXPECT(server.process.wait(6) == 0, server.process.status);
+        }
         until([&] { return still_alive(children).empty(); }, 12, "the downloader to stop");
         bool unreachable = false;
         try {
@@ -85,5 +91,6 @@ void session(bool downloading) {
 int main() {
     session(false);
     session(true);
-    std::cout << "termination ok: a running session, and one with a download in flight\n";
+    session(true, true);
+    std::cout << "termination ok: a running session, and one with a download in flight, through the API and by SIGTERM\n";
 }

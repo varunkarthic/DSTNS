@@ -32,6 +32,7 @@
 #include <mutex>
 #include <optional>
 #include <random>
+#include <set>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -66,8 +67,18 @@ template <class... T> std::string describe(const T&... values) {
     return out;
 }
 
+// Every process group started and not yet reaped. A failure exits without unwinding, so it stops them here, or a
+// failed test would leave its servers running.
+inline std::mutex children_lock;
+inline std::set<pid_t> children;
+inline void kill_children() {
+    std::lock_guard guard(children_lock);
+    for (const pid_t pid : children) ::killpg(pid, SIGKILL);
+}
+
 [[noreturn]] inline void fail(const std::string& what, const char* file, int line) {
     std::cerr << "FAIL " << fs::path(file).filename().string() << ':' << line << ": " << what << std::endl;
+    kill_children();
     std::exit(1);
 }
 
@@ -84,6 +95,7 @@ inline const bool terminate_handler_installed = [] {
         } catch (...) {
         }
         std::cerr << "FAIL " << fs::path(last_file).filename().string() << ':' << last_line << " (or just after): " << what << std::endl;
+        kill_children();
         std::_Exit(1);
     });
     return true;
@@ -286,6 +298,10 @@ struct Process {
             ::_exit(127);
         }
         if (process.pid < 0) fail("fork failed", __FILE__, __LINE__);
+        {
+            std::lock_guard guard(children_lock);
+            children.insert(process.pid);
+        }
         if (capture != Capture::Nothing) {
             ::close(pipe_ends[1]);
             process.output_fd = pipe_ends[0];
@@ -309,6 +325,8 @@ struct Process {
         int raw = 0;
         if (::waitpid(pid, &raw, WNOHANG) == pid) {
             status = WIFEXITED(raw) ? WEXITSTATUS(raw) : 128 + WTERMSIG(raw);
+            std::lock_guard guard(children_lock);
+            children.erase(pid);
             return false;
         }
         return true;

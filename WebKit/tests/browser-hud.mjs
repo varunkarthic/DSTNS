@@ -473,12 +473,15 @@ try {
     assert.ok(await page.locator(".loading-surface.rejoin.exiting").count(), "the old world's exit plays first");
     assert.equal(await page.locator(".boot-title").count(), 0, "no title screen for a new world");
     assert.equal(await page.locator(".film-caption").count(), 0, "no caption until the name has re-formed");
-    // Then the same particles recollect, and the film carries on from the name.
-    await page.locator(".film-caption h3").waitFor({ timeout: 10000 });
-    assert.match(await page.locator(".film-caption h3").innerText(), /Traffic simulation/);
-    assert.equal(await page.locator(".loading-surface.rejoin.exiting").count(), 0, "the exit has finished");
+    // Then the same particles recollect into the name, which goes on from there with no opening caption.
+    await page.locator(".loading-surface.rejoin.exiting").waitFor({ state: "detached", timeout: 10000 });
     await page.screenshot({ path: path.join(out, "world-generating.png") });
-    await overlay.waitFor({ state: "detached", timeout: 60000 });
+    const captions = new Set();
+    for (const end = Date.now() + 60000; Date.now() < end && (await overlay.count()); await page.waitForTimeout(100)) {
+      for (const text of await page.locator(".film-caption h3").allInnerTexts()) captions.add(text);
+    }
+    assert.ok(!captions.has("Traffic simulation"), `no opening caption; saw ${[...captions].join(", ") || "none"}`);
+    await overlay.waitFor({ state: "detached", timeout: 1000 });
     const after = (await call("/api/v1/playback/status")).body;
     assert.notEqual(after.run_id, before.run_id, "new run");
     assert.notEqual(after.seed, before.seed, "new seed");

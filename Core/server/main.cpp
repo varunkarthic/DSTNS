@@ -10,12 +10,18 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cerrno>
+#include <csignal>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
 #include <string>
+#include <thread>
+
+#include <fcntl.h>
+#include <unistd.h>
 
 int container_run_main(int argc, char** argv);
 int container_probe_main();
@@ -27,6 +33,27 @@ int main(int argc, char** argv) {
         if (arg == "--fetch-osm") return dstns::fetch_osm_main(argc, argv);
         if (arg == "--run") return container_run_main(argc, argv);
         if (arg == "--probe") return container_probe_main();
+    }
+    // A signal ends the server at once, as it always has, but stops its map downloads first: they run in process
+    // groups of their own, so nothing else would, and they would carry on without it.
+    static int stop_pipe[2] = {-1, -1};
+    if (::pipe(stop_pipe) == 0) {
+        ::fcntl(stop_pipe[0], F_SETFD, FD_CLOEXEC);
+        ::fcntl(stop_pipe[1], F_SETFD, FD_CLOEXEC);
+        for (const int sig : {SIGTERM, SIGINT, SIGHUP}) {
+            // A signal the server was started ignoring (nohup, a background job) stays ignored.
+            if (std::signal(sig, [](int raised) { const char c = static_cast<char>(raised); (void)!::write(stop_pipe[1], &c, 1); }) == SIG_IGN)
+                std::signal(sig, SIG_IGN);
+        }
+        std::thread([] {
+            char raised = 0;
+            while (::read(stop_pipe[0], &raised, 1) < 0 && errno == EINTR) {
+            }
+            dstns::cancel_map_download();
+            std::signal(raised, SIG_DFL);
+            std::raise(raised);
+            std::_Exit(128 + raised);
+        }).detach();
     }
     try {
         // Loopback by default: the API can drive a run and write files, so it is

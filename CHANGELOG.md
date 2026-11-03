@@ -135,6 +135,11 @@ and stop runs. Every call is logged. `./launcher mcp tools` and `mcp client-conf
   analyses the Rust too.
 - **Fixed: the server listened with a backlog of five,** so a burst of connections (an observer, its applications and
   a round of polls) could be dropped before a thread took them. It is now 128.
+- **Fixed: a server ended by a signal left its map download running.** `SIGTERM`, `SIGINT` or `SIGHUP` (a
+  `docker stop`, Ctrl+C, a closed terminal) killed the server at once, and the downloader, in a process group of its
+  own, carried on without it. The server now stops its downloads first, then ends by the same signal.
+- **Fixed: a failed HTTP test left its servers running.** A failed check exits without unwinding, so nothing stopped
+  them; the harness now stops every process it started before it exits.
 
 ### Removed
 
