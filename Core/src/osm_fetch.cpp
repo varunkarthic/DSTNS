@@ -5,6 +5,8 @@
 
 #include "dstns/utf8.hpp"
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -12,7 +14,11 @@
 #include <vector>
 
 #include <zlib.h>
+#include <map>
+#include <memory>
 #include <mutex>
+#include <optional>
+#include <set>
 #include <cstdio>
 #include <cstdlib>
 #include <sstream>
@@ -124,7 +130,8 @@ int stall_limit_s() {
 // A private process group lets session termination stop the downloader and its
 // descendants without touching the launcher's terminal or unrelated processes.
 std::mutex child_mutex;
-pid_t download_pid = 0;
+// Every downloader running: the world being prepared, and Dynamic Fastboot's next city in the background.
+std::set<pid_t> download_pids;
 bool download_cancelled = false;
 // `watched` is the file whose progress sidecar shows the download moving. Mirrors
 // failing over are not progress: only bytes arriving are, then parsing them.
@@ -154,7 +161,7 @@ int run_capture(const std::string& command, std::string& output, const std::stri
     {
         std::lock_guard lock(child_mutex);
         error = download_cancelled ? ECANCELED : posix_spawnp(&pid, "sh", &actions, &attr, argv, environ);
-        if (!error) download_pid = pid;
+        if (!error) download_pids.insert(pid);
     }
     posix_spawn_file_actions_destroy(&actions);
     posix_spawnattr_destroy(&attr);
@@ -197,7 +204,7 @@ int run_capture(const std::string& command, std::string& output, const std::stri
             std::lock_guard lock(child_mutex);
             const auto reaped = ::waitpid(pid, &status, WNOHANG);
             if (reaped == pid || (reaped < 0 && errno != EINTR)) {
-                download_pid = 0;
+                download_pids.erase(pid);
                 return reaped == pid && WIFEXITED(status) ? WEXITSTATUS(status) : -1;
             }
         }
@@ -234,9 +241,9 @@ std::chrono::steady_clock::time_point g_started;
 void cancel_map_download() {
     std::lock_guard lock(child_mutex);
     download_cancelled = true;
-    if (download_pid > 0) {
-        ::kill(-download_pid, SIGTERM);
-        ::kill(-download_pid, SIGKILL);
+    for (const pid_t pid : download_pids) {
+        ::kill(-pid, SIGTERM);
+        ::kill(-pid, SIGKILL);
     }
 }
 
@@ -269,17 +276,57 @@ std::filesystem::path find_fetcher() {
     return std::filesystem::is_regular_file(beside, ec) ? beside : std::filesystem::path{};
 }
 
-MapTileResult acquire_map_tile(const MapLocation& location, const std::filesystem::path& cache_directory) {
+// One city's file, downloaded once even when two ask for it: a world wanting the city Dynamic Fastboot is fetching
+// waits for that download rather than starting another.
+static std::shared_ptr<std::mutex> lock_for(const std::filesystem::path& target) {
+    static std::mutex guard;
+    static std::map<std::string, std::weak_ptr<std::mutex>> locks;
+    std::lock_guard lock(guard);
+    auto& slot = locks[target.string()];
+    auto held = slot.lock();
+    if (!held) slot = held = std::make_shared<std::mutex>();
+    return held;
+}
+
+MapTileResult acquire_map_tile(const MapLocation& location, const std::filesystem::path& cache_directory, bool background) {
     const auto target = location.cache_path(cache_directory);
     std::error_code ec;
-
-    // Cache hit: the seed names this exact tile and it is already on disk.
-    if (std::filesystem::is_regular_file(target, ec)) {
+    const auto cached = [&]() -> std::optional<MapTileResult> {
+        if (!std::filesystem::is_regular_file(target, ec)) return std::nullopt;
         const auto size = std::filesystem::file_size(target, ec);
-        if (!ec && size >= kMinimumTileBytes) return {target, false, size};
+        if (!ec && size >= kMinimumTileBytes) return MapTileResult{target, false, size};
         // A truncated cache entry is worse than none; drop it and re-download.
         std::filesystem::remove(target, ec);
+        return std::nullopt;
+    };
+
+    // Cache hit: the seed names this exact tile and it is already on disk.
+    if (auto hit = cached()) return *hit;
+
+    // What the operator sees: published before waiting, so that a download already under way in the background shows
+    // its progress here too, read from the same file. A background download publishes nothing.
+    std::optional<std::chrono::steady_clock::time_point> published;
+    if (!background) {
+        std::lock_guard lock(g_fetch_mutex);
+        g_fetch = {true, location.city, location.country, "connect", target.string(), 0, 0, 0};
+        g_started = std::chrono::steady_clock::now();
+        published = g_started;
     }
+    // Always clear the published status, however this call leaves.
+    struct FetchGuard {
+        bool active;
+        ~FetchGuard() {
+            if (!active) return;
+            std::lock_guard lock(g_fetch_mutex);
+            g_fetch = {};
+        }
+    } guard{published.has_value()};
+    const auto file_lock = lock_for(target);
+    std::unique_lock held(*file_lock, std::defer_lock);
+    // In the background, a city someone else is already fetching is theirs to fetch.
+    if (!background) held.lock();
+    else if (!held.try_lock()) return {target, false, 0};
+    if (auto hit = cached()) return *hit;
 
     std::filesystem::create_directories(cache_directory, ec);
     // Fast Boot: every city was downloaded in advance and kept compressed. Unpacking one takes a moment, and needs no
@@ -300,19 +347,6 @@ MapTileResult acquire_map_tile(const MapLocation& location, const std::filesyste
         throw MapFetchError("The map downloader (dstns_server --fetch-osm) was not found; cannot download the map tile for "
                             + location.city + " (" + location.bbox() + ")");
     }
-
-    {
-        std::lock_guard lock(g_fetch_mutex);
-        g_fetch = {true, location.city, location.country, "connect", target.string(), 0, 0, 0};
-        g_started = std::chrono::steady_clock::now();
-    }
-    // Always clear the published status, however this call leaves.
-    struct FetchGuard {
-        ~FetchGuard() {
-            std::lock_guard lock(g_fetch_mutex);
-            g_fetch = {};
-        }
-    } guard;
 
     std::ostringstream command;
     command << shell_quote(fetcher.string()) << " --fetch-osm"
@@ -372,6 +406,14 @@ CacheSweep sweep_map_cache(const std::filesystem::path& directory, CachePolicy p
         entries.push_back({path, std::filesystem::last_write_time(path, ec), std::filesystem::file_size(path, ec)});
     }
     std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) { return a.age > b.age; });
+    // Dynamic Fastboot's next city is kept whatever the policy: it is what the next start will use.
+    std::string next;
+    try {
+        std::ifstream pointer(directory / "next-world.json");
+        if (pointer) next = nlohmann::json::parse(pointer).value("key", "") + ".osm.xml";
+    } catch (const std::exception&) {
+    }
+    std::erase_if(entries, [&](const Entry& entry) { return !next.empty() && entry.file.filename() == next; });
 
     for (std::size_t i = 0; i < entries.size(); ++i) {
         if (i < keep) { ++result.kept; continue; }

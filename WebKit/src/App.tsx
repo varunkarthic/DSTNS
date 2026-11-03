@@ -13,6 +13,7 @@ import { MapDock } from "./MapDock";
 import { Logo } from "./Logo";
 import { Icon } from "./Icons";
 import { BootFailure, launchStage, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
+import { reportEta } from "./eta";
 import { filmAvailable, mapCarry, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS } from "./BootScene";
 import { usePresence } from "./LoadingSurface";
 import { PlaceLegend, RoadLegend } from "./Legends";
@@ -965,6 +966,11 @@ export default function App() {
 
   const worldLoaded =
     world.status?.state === "ready" && !!sim.topology && sim.snapshot?.run_id === world.status.run_id && sim.status?.run_id === world.status.run_id;
+  // How long until the world is ready, for the film to plan by: the new world's, the run's, or nothing left to wait for.
+  const etaNow = world.active
+    ? worldLoaded ? 0 : world.status?.state === "generating" ? world.status.eta_s ?? null : null
+    : lifecycle === "PREPARING" ? status?.eta_s ?? null : sim.topology && lifecycle !== "IDLE" ? 0 : null;
+  reportEta(etaNow);
   useEffect(() => {
     if (!world.active || world.error || worldLoaded) return;
     let cancel = false;
@@ -1033,7 +1039,9 @@ export default function App() {
   const onFilmCycle = useCallback(() => setFilmSeen(true), []);
   // Without force_animate (and always with Fast Boot) the film need not finish: the screen goes the moment the world is ready.
   const { force_animate: forceAnimate, demo } = features.presentation;
-  const paced = usePacedStages(splashStage, bootPhase, opening !== false && !reduceMotion, filmSeen || !forceAnimate, forceAnimate ? undefined : 240);
+  // The dynamic film paces itself by when the world will be ready, so the stages need not be held on screen for it.
+  const dynamicFilm = features.presentation.dynamic_particles && !demo;
+  const paced = usePacedStages(splashStage, bootPhase, opening !== false && !reduceMotion, filmSeen || !forceAnimate, forceAnimate && !dynamicFilm ? undefined : 240);
   const shownStage = paced.stage;
   const showSplash = (!!shownStage || paced.holding) && !sim.error && !world.active;
   useFullscreen(features.presentation.fullscreen);

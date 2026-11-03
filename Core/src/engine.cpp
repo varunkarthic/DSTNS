@@ -9,6 +9,7 @@
 #include "dstns/narrator.hpp"
 #include "dstns/platform.hpp"
 
+#include <fstream>
 #include <charconv>
 #include <algorithm>
 #include <cmath>
@@ -496,8 +497,42 @@ nlohmann::json SimulationEngine::trigger_surge(NodeId node, double factor, doubl
     };
 }
 
+static double seconds_since(std::chrono::steady_clock::time_point at) {
+    return std::chrono::duration<double>(std::chrono::steady_clock::now() - at).count();
+}
+
 void SimulationEngine::install_scenario(Scenario scenario, double tick_rate, std::uint32_t start) {
     installed_at_ = std::chrono::steady_clock::now();
+    {
+        double fetch = 0, build = 0;
+        {
+            std::lock_guard lock(eta_mutex_);
+            if (!estimates_loaded_) {
+                estimates_loaded_ = true;
+                try {
+                    std::ifstream saved(logger_.log_directory() / "preparation-times.json");
+                    if (saved) {
+                        const auto times = nlohmann::json::parse(saved);
+                        fetch_s_ = std::clamp(times.value("fetch_s", fetch_s_), 1.0, 900.0);
+                        build_s_ = std::clamp(times.value("build_s", build_s_), 0.1, 300.0);
+                    }
+                } catch (const std::exception&) {
+                }
+            }
+            if (stage_at_[2] != std::chrono::steady_clock::time_point{} && stage_at_[3] >= stage_at_[2]) {
+                fetch = std::chrono::duration<double>(stage_at_[3] - stage_at_[2]).count();
+                build = seconds_since(stage_at_[3]);
+            }
+            std::fill(std::begin(stage_at_), std::end(stage_at_), std::chrono::steady_clock::time_point{});
+        }
+        if (build > 0) learn_preparation(fetch, build);
+    }
+    {
+        // A world chosen by its seed stores the file it resolved to; the next one is chosen the same way.
+        auto config = scenario.config;
+        if (!scenario.map_city.empty()) config.osm_file = "auto";
+        next_world_.installed(scenario.seed, config);
+    }
     run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
     narration_context_.reset();
     graph_ = std::make_unique<GraphStore>(std::move(scenario));
@@ -843,13 +878,17 @@ static Seed128 seed_avoiding_failed_city(const std::optional<Seed128>& failed, c
     return seed;
 }
 
+std::string SimulationEngine::failed_city(const ScenarioConfig& config) const {
+    return failed_seed_ && config.osm_file == "auto" ? select_map_location(*failed_seed_, config.map_city_extent_m).city : "";
+}
+
 nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request) {
     // The first world never arrived, so there is none to replace: this is that start again.
     {
         std::unique_lock lock(mutex_);
         if (lifecycle_ == Lifecycle::Idle && failed_start_) {
             const auto [failed_config, start] = *failed_start_;
-            const auto seed = seed_avoiding_failed_city(failed_seed_, failed_config);
+            const auto seed = next_world_.take(failed_config, failed_city(failed_config)).value_or(seed_avoiding_failed_city(failed_seed_, failed_config));
             lock.unlock();
             return start_async(seed, failed_config, start);
         }
@@ -880,7 +919,8 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         // Re-rolling must let the new seed choose its own place, so restore
         // the "auto" source; an operator-pinned map file stays pinned.
         if (!graph_->scenario().map_city.empty()) config.osm_file = "auto";
-        seed = seed_avoiding_failed_city(failed_seed_, config);
+        // Dynamic Fastboot has its city on disk already, or on its way.
+        seed = next_world_.take(config, failed_city(config)).value_or(seed_avoiding_failed_city(failed_seed_, config));
         previous = run_id_;
         rate = requested_tick_rate_;
         compile_generation = ++compile_generation_;
@@ -996,7 +1036,10 @@ nlohmann::json SimulationEngine::world_status_locked() const {
             {"generation", j.generation},
             {"elapsed_s", elapsed},
             {"map", map},
-            {"error", error}
+            {"error", error},
+            // Dynamic Fastboot: the world after this one, and whether its city is on disk yet.
+            {"next", next_world_.status()},
+            {"eta_s", j.state == "generating" && preparation_eta() ? nlohmann::json(std::round(*preparation_eta() * 10) / 10) : nlohmann::json(nullptr)}
         }}
     };
 }
@@ -1017,10 +1060,43 @@ constexpr double kWorldSettleS = 3.0;
 // engine lock is held.
 ScenarioCompiler::Progress SimulationEngine::compile_progress() {
     return [this](ScenarioCompiler::Stage stage) {
-        preparing_stage_.store(stage == ScenarioCompiler::Stage::Selecting   ? 1
-                               : stage == ScenarioCompiler::Stage::Acquiring ? 2
-                                                                             : 3);
+        const int number = stage == ScenarioCompiler::Stage::Selecting ? 1 : stage == ScenarioCompiler::Stage::Acquiring ? 2 : 3;
+        {
+            std::lock_guard lock(eta_mutex_);
+            stage_at_[number] = std::chrono::steady_clock::now();
+        }
+        preparing_stage_.store(number);
     };
+}
+
+std::optional<double> SimulationEngine::preparation_eta() const {
+    const int stage = preparing_stage_.load();
+    if (stage == 0) return std::nullopt;
+    std::lock_guard lock(eta_mutex_);
+    if (stage == 3) return std::max(0.3, build_s_ - seconds_since(stage_at_[3]));
+    if (stage == 2) {
+        const auto fetch = current_map_fetch();
+        // From the cache, or unpacked by Fast Boot: only the building is left.
+        if (!fetch.active) return build_s_ + 0.5;
+        if (fetch.phase == "parse") return build_s_ + 1.0;
+        if (fetch.phase == "download" && fetch.total > fetch.bytes && fetch.bytes > 0 && fetch.elapsed_s > 0.5) {
+            const double rate = static_cast<double>(fetch.bytes) / fetch.elapsed_s;
+            return static_cast<double>(fetch.total - fetch.bytes) / rate + build_s_;
+        }
+        // Waiting on Overpass, or a download of no stated size: about as long as the last ones took.
+        return std::max(2.0, fetch_s_ - fetch.elapsed_s) + build_s_;
+    }
+    return fetch_s_ + build_s_;
+}
+
+void SimulationEngine::learn_preparation(double fetch_s, double build_s) {
+    const auto file = logger_.log_directory() / "preparation-times.json";
+    std::lock_guard lock(eta_mutex_);
+    // Smoothed, so that one slow mirror does not set every estimate after it. A fetch that took no time came from
+    // the cache, and says nothing about downloading.
+    if (fetch_s > 2.0) fetch_s_ = fetch_s_ * 0.6 + fetch_s * 0.4;
+    if (build_s > 0) build_s_ = build_s_ * 0.6 + build_s * 0.4;
+    std::ofstream(file) << nlohmann::json{{"fetch_s", fetch_s_}, {"build_s", build_s_}}.dump() << '\n';
 }
 
 std::string SimulationEngine::preparation_stage() const {
@@ -1726,6 +1802,7 @@ nlohmann::json SimulationEngine::status() const {
     return envelope({
         {"lifecycle", to_string(lifecycle_)},
         {"preparation_error", preparation_error_},
+        {"eta_s", preparation_eta() ? nlohmann::json(std::round(*preparation_eta() * 10) / 10) : nlohmann::json(nullptr)},
         {"observer_hold", observer_hold_},
         {"playback_revision", playback_revision_},
         {"run_id", run_id_},

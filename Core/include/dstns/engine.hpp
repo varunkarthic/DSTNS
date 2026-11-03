@@ -7,6 +7,7 @@
 #include "dstns/events.hpp"
 #include "dstns/asb.hpp"
 #include "dstns/logging.hpp"
+#include "dstns/next_world.hpp"
 #include "dstns/scenario.hpp"
 
 #include <atomic>
@@ -181,6 +182,8 @@ private:
     void release_observer_hold();
     // What the last failed attempt asked for, so trying again can pick somewhere else.
     std::optional<Seed128> failed_seed_;
+    // The city the last failed attempt was in, where the seed chose it. Caller holds mutex_.
+    [[nodiscard]] std::string failed_city(const ScenarioConfig& config) const;
     std::optional<std::pair<ScenarioConfig, std::uint32_t>> failed_start_;
     std::string run_id_; std::uint32_t virtual_s_{}; std::uint32_t start_virtual_s_{}; double tick_rate_{1};
     std::chrono::steady_clock::time_point anchor_wall_{}; std::uint32_t anchor_virtual_s_{};
@@ -227,6 +230,16 @@ private:
     // by the API thread while the engine lock is held by a compile.
     std::atomic<int> preparing_stage_{0};
     ScenarioCompiler::Progress compile_progress();
+    // How long the world being prepared will take, in seconds: from the download as it goes, and from how long the
+    // last ones took, which are kept in the logs directory. Empty when nothing is being prepared.
+    [[nodiscard]] std::optional<double> preparation_eta() const;
+    void learn_preparation(double fetch_s, double build_s);
+    mutable std::mutex eta_mutex_;
+    std::chrono::steady_clock::time_point stage_at_[4]{};
+    double fetch_s_{30.0}, build_s_{3.0};
+    bool estimates_loaded_{false};
+    // Dynamic Fastboot: the next world's city, fetched while this one runs.
+    NextWorld next_world_;
     // When the current world was installed. A report that arrives just after a
     // swap was measured against the world that has just gone.
     std::chrono::steady_clock::time_point installed_at_{};

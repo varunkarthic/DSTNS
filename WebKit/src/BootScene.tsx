@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { LOGO_SVG } from "./logoAsset";
 import { appearance } from "./appearance";
 import { currentFeatures } from "./features";
+import { remainingEta } from "./eta";
 import { stepSpring } from "./motion";
 import { buildDemoFormations, buildFormations, CAMERA_YAW_INCIDENT, COUNT, endMist, FOCUS_A, FOCUS_B, formation, IN_WORLD, JOINS, KIND, ORB_HEIGHT, ORB_HUES, sequence, SEAM, SEEDS_AT, STRIDE, TRIP_ROADS, WRECK_AT } from "./bootScenes";
 
@@ -94,20 +95,25 @@ export const FILM_CHAPTERS: readonly { label: string; title: string; text: strin
   { label: "Extensions", title: "WebFabric", text: "Your own applications weave into the simulation." },
 ];
 
-/** Demo Mode's own chapters, after the film's. One or two words and a short line, as the film's are. */
+/**
+ * Demo Mode's own chapters, after the film's: what sets DSTNS apart. One or two words and a short line, as the film's
+ * are, and each a reason to use it rather than a description of what it is.
+ */
 export const DEMO_CHAPTERS: readonly { label: string; title: string; text: string }[] = [
-  { label: "Playback", title: "Seek anywhere", text: "Go back to any moment and the day plays out the same." },
-  { label: "Keeping up", title: "Adaptive backpressure", text: "When the screen falls behind the simulation eases off." },
-  { label: "Reports", title: "One document", text: "Every run exports as a report of what happened." },
-  { label: "Fabric", title: "One API", text: "Your own programs connect and take part." },
+  { label: "Playback", title: "Instant rewind", text: "Scrub to any second and the day plays out exactly as it did." },
+  { label: "Interventions", title: "What if", text: "Close a street and the traffic finds another way." },
+  { label: "Narration", title: "Newsroom", text: "Every incident is written up as news by a model on this machine." },
+  { label: "Dynamic Fastboot", title: "Instant worlds", text: "The next city is fetched while this one runs." },
+  { label: "MCP", title: "AI ready", text: "Any AI assistant can drive the simulation through MCP." },
 ];
 const DEMO_CAMERAS: Camera[] = [
   { yaw: 0, pitch: 0.26, distance: 3.6, spin: 0.004, push: 0.04 },
-  { yaw: -0.35, pitch: 0.2, distance: 3.6, spin: 0.01, push: 0.05 },
-  { yaw: 0.18, pitch: 0.08, distance: 3.3, spin: 0.006, push: 0.04 },
+  { yaw: 0.1, pitch: 0.95, distance: 3.4, spin: 0.01, push: 0.05 },
+  { yaw: -0.12, pitch: 0.08, distance: 3.5, spin: 0.006, push: 0.04 },
+  { yaw: -0.2, pitch: 0.72, distance: 3.9, spin: 0.012, push: 0.05 },
   { yaw: 0.12, pitch: 0.1, distance: 3.9, spin: 0.012, push: 0.05 },
 ];
-const DEMO_HOLDS = [6.4, 6, 6.4, 6.8];
+const DEMO_HOLDS = [6.4, 6.6, 6.6, 6.8, 6.8];
 const DEMO_FILM = [...FILM_CHAPTERS, ...DEMO_CHAPTERS];
 
 interface Camera { yaw: number; pitch: number; distance: number; spin: number; push: number }
@@ -690,7 +696,7 @@ function rgb(value: string, fallback: [number, number, number]): [number, number
   return parts.length >= 3 && parts.every(Number.isFinite) ? [parts[0] / 255, parts[1] / 255, parts[2] / 255] : fallback;
 }
 
-export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, quick = false, glint = false, onCycle, demo = false, reduceMotion }: {
+export function BootScene({ playing, asleep = false, closing = false, landing, ending = false, rejoin = false, quiet = false, quick = false, glint = false, onCycle, demo = false, dynamic, reduceMotion }: {
   /** The film runs; otherwise the network rests dimly behind whatever is on screen. */
   playing: boolean;
   /** Nothing is drawn yet, because the title has the screen. */
@@ -712,6 +718,12 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
   glint?: boolean;
   /** Demo Mode: the film goes on to the scenes about the rest of the system, and loops. */
   demo?: boolean;
+  /**
+   * Dynamic particle animation: the film plans itself by when the world will be ready. Scenes come in a new order each
+   * time, only as many as fit the wait, WebFabric only once all the rest have played, and it always opens and closes
+   * on the name. Read from the server's settings unless given.
+   */
+  dynamic?: boolean;
   reduceMotion: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -739,6 +751,26 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     const cameras = demo ? [...CAMERAS, ...DEMO_CAMERAS] : CAMERAS;
     const holds = demo ? [...HOLDS, ...DEMO_HOLDS] : HOLDS;
     const advanceCaption = () => setChapter((c) => (c + 1) % chapters.length);
+    const planned = !demo && (dynamic ?? currentFeatures().presentation.dynamic_particles);
+    // The scenes this round has shown. WebFabric, the last, waits for every other.
+    const seen = new Set<number>();
+    const plan = () => {
+      const last = chapters.length - 1;
+      const others = Array.from({ length: last - 1 }, (_, i) => i + 1).filter((i) => !seen.has(i));
+      const pool = others.length ? others : seen.has(last) ? [] : [last];
+      if (!pool.length) {
+        // A long wait: another round, in another order.
+        seen.clear();
+        return 0;
+      }
+      // A scene, and the way back to the name, must both fit before the world is ready. Not knowing, it plays on.
+      const eta = remainingEta();
+      const fits = eta === null ? pool : pool.filter((i) => holds[i] + MORPH_S * 2 <= eta);
+      if (!fits.length) return 0;
+      const pick = fits[Math.floor(Math.random() * fits.length)];
+      seen.add(pick);
+      return pick;
+    };
     if (!element || !gl) {
       // No film to sit through, then. Its words still play if there is a wait.
       cycleRef.current?.();
@@ -917,8 +949,13 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.drawArrays(gl.POINTS, 0, count);
     }
     const next = (restTo?: number) => {
-      const after = restTo ?? (scene + 1) % chapters.length;
+      const after = restTo ?? (planned ? plan() : (scene + 1) % chapters.length);
       if (restTo === undefined && after === 0) cycleRef.current?.();
+      // Already on the name, with nothing that fits: it stays, and looks again in a moment.
+      if (after === scene && after === 0) {
+        held = 0;
+        return;
+      }
       const buffer = (chapterIndex: number) => (chapterIndex === 0 ? (wordmark >= 0 ? wordmark : 0) : chapterIndex);
       const closedTo = pushed();
       from = to;
@@ -1089,6 +1126,13 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
           }
         }
         if (held > holds[scene] && !closingRef.current && !quick) next();
+        // Ready sooner than the plan thought: back to the name, once this scene has been seen.
+        else if (planned && scene !== 0 && held > 1.6 && remainingEta() === 0 && !closingRef.current && !quick) {
+          next(0);
+          cycleRef.current?.();
+        }
+        // On the name, and the world is ready: straight on to the map, without holding the name for its full time.
+        else if (planned && scene === 0 && !dissolving && held > 0.9 && remainingEta() === 0 && !closingRef.current && !quick) cycleRef.current?.();
       } else if (!asleepRef.current && !ending && !quietRef.current && scene !== 1) {
         next(1);
       }
@@ -1157,7 +1201,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       document.removeEventListener("visibilitychange", onVisibility);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
-  }, [reduceMotion, ending, rejoin, quick, demo]);
+  }, [reduceMotion, ending, rejoin, quick, demo, dynamic]);
 
   const shown = chapters[playing ? chapter : 0] ?? chapters[0];
   return (

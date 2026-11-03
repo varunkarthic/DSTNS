@@ -6,7 +6,11 @@
 #include "dstns/osm_fetch.hpp"
 #include "dstns/sumo_bridge.hpp"
 #include "support.hpp"
+#include "dstns/next_world.hpp"
 #include "dstns/webfabric/registry.hpp"
+
+#include <sys/resource.h>
+#include <unistd.h>
 
 #include <array>
 #include <chrono>
@@ -50,9 +54,23 @@ void ApiServer::routes_system() {
     server_->Get("/health", health_handler);
     server_->Get("/api/v1/system/health", health_handler);
     server_->Get("/api/v1/system/status", [this](const auto&, auto& r) { send(r, engine_.status()); });
+    // When this server started, for its uptime.
+    static const auto started = std::chrono::steady_clock::now();
     server_->Get("/api/v1/system/info", [this](const auto&, auto& r) {
         auto env = SumoBridge::detect();
+        rusage usage{};
+        ::getrusage(RUSAGE_SELF, &usage);
+#if defined(__APPLE__)
+        const auto peak = static_cast<std::uint64_t>(usage.ru_maxrss);
+#else
+        const auto peak = static_cast<std::uint64_t>(usage.ru_maxrss) * 1024;
+#endif
         send(r, {
+            // The process itself: what a supervisor or the launcher's console shows.
+            {"process", {{"pid", ::getpid()},
+                         {"uptime_s", std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count()},
+                         {"peak_rss_bytes", peak},
+                         {"cpu_s", usage.ru_utime.tv_sec + usage.ru_stime.tv_sec + (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6}}},
             {"ok", true},
             {"service", "dstns"},
             {"product", "Deterministic Spatiotemporal Transport Network Simulator"},
@@ -87,7 +105,7 @@ void ApiServer::routes_system() {
                 {{"GET","/health","Liveness, for probes and load balancers"}},
                 {{"GET","/api/v1","This index, at the API's root"}},
                 {{"GET","/api/v1/system/health","Liveness, with the engine's lifecycle state"}},
-                {{"GET","/api/v1/system/info","Service identity, version and SUMO availability"}},
+                {{"GET","/api/v1/system/info","Service identity, version, the process (pid, uptime, memory) and SUMO availability"}},
                 {{"GET","/api/v1/system/status","The full run status"}},
                 {{"GET","/api/v1/system/endpoints","This index"}},
                 {{"GET","/api/v1/system/map-status","What map is loaded and where it came from"}},
@@ -374,6 +392,8 @@ void ApiServer::routes_system() {
         auto presentation = json{{"webfabric", true}, {"force_animate", true}, {"fast_boot", false}, {"dynamic_fastboot", true}, {"dynamic_particles", true},
                                  {"demo", false}, {"music", false}, {"fullscreen", false}, {"music_volume", 0.6}, {"map_fps", 0}, {"render_scale", 2.0}, {"film_particles", 32000}};
         presentation.update(on.presentation);
+        // The engine's own switch decides whether it fetches ahead; the observer is told what it does.
+        if (!NextWorld::enabled()) presentation["dynamic_fastboot"] = false;
         // Fast Boot exists to skip the wait, so the film is not made to play to its end.
         if (presentation.value("fast_boot", false)) presentation["force_animate"] = false;
         send(r, {{"api_version", kApiVersion}, {"data", {

@@ -90,6 +90,13 @@ impl TaskScreen {
         )
     }
 
+    /// This page, with a task already begun, as `./launcher ui demo` opens it.
+    pub fn begun(mut self, key: &str, ui: &Ui) -> Self {
+        self.menu.select(key);
+        self.begin(key, ui);
+        self
+    }
+
     fn begin(&mut self, key: &str, ui: &Ui) {
         let label = self.menu.items.iter().find(|i| i.key == key).map(|i| i.label.clone()).unwrap_or_default();
         self.title = label.to_uppercase();
@@ -247,10 +254,10 @@ impl Screen for TaskScreen {
         }
         lines.push(widgets::rule("Output", inner.width, ui.unicode));
         let used = lines.len() as u16;
-        frame.render_widget(Paragraph::new(lines), inner);
+        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }), inner);
         let space = inner.height.saturating_sub(used) as usize;
         let output: Vec<Line> = self.output.iter().rev().take(space).rev().map(|l| Line::from(Span::styled(widgets::clip(l, inner.width as usize, ui.unicode), fg(TEXT2)))).collect();
-        frame.render_widget(Paragraph::new(output), Rect { y: inner.y + used, height: inner.height.saturating_sub(used), ..inner });
+        frame.render_widget(Paragraph::new(output).wrap(ratatui::widgets::Wrap { trim: false }), Rect { y: inner.y + used, height: inner.height.saturating_sub(used), ..inner });
         let _ = MUTED;
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {

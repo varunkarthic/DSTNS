@@ -5,7 +5,7 @@
 
 use crate::environment::State;
 use crate::simulation::{self, Status};
-use crate::tui::theme::{bold, fg, CYAN, ERR, OK, TEXT, TEXT2, WARN};
+use crate::tui::theme::{fg, ACCENT, ERR, MUTED, OK, TEXT, TEXT2, WARN};
 use crate::tui::widgets::{self, card, item, key, row, row_state, status_lines, Key, Menu, MenuEvent, MenuItem, Row};
 use crate::tui::{Action, Screen, Ui};
 use crate::version::{engine_version, DOCUMENTATION, FULL_NAME, LICENSE_SPDX, OSM_ATTRIBUTION};
@@ -40,18 +40,33 @@ pub fn menu_items() -> Vec<MenuItem> {
     items
 }
 
+/// What the dashboard shows of the system, gathered off the interface's thread.
+#[derive(Default)]
+struct Telemetry {
+    port: Option<u16>,
+    status: Option<Status>,
+    /// The server process: pid, uptime, peak memory, processor time.
+    process: Option<serde_json::Value>,
+    /// Dynamic Fastboot's next world: from the server, or from next-world.json when none is running.
+    next: Option<serde_json::Value>,
+    log: Vec<String>,
+}
+
 pub struct DashboardScreen {
     menu: Menu,
     port: Option<u16>,
     status: Option<Status>,
-    polls: Option<Receiver<(Option<u16>, Option<Status>)>>,
+    process: Option<serde_json::Value>,
+    next: Option<serde_json::Value>,
+    log: Vec<String>,
+    polls: Option<Receiver<Telemetry>>,
     last_poll: Option<Instant>,
     scroll: u16,
 }
 
 impl DashboardScreen {
     pub fn new() -> Self {
-        Self { menu: Menu::new(menu_items()), port: None, status: None, polls: None, last_poll: None, scroll: 0 }
+        Self { menu: Menu::new(menu_items()), port: None, status: None, process: None, next: None, log: vec![], polls: None, last_poll: None, scroll: 0 }
     }
 
     fn poll(&mut self, ui: &Ui) {
@@ -64,7 +79,12 @@ impl DashboardScreen {
         std::thread::spawn(move || {
             let port = session.any_port();
             let status = port.map(|p| simulation::status(p, &paths));
-            let _ = sender.send((port, status));
+            let process = port.and_then(|p| crate::api::process(p, &paths));
+            let next = port
+                .and_then(|p| crate::api::get(p, "/api/v1/world/status", 2.0, &paths).data().and_then(|d| d.get("next")).cloned())
+                .or_else(|| std::fs::read_to_string(paths.map_cache(None).join("next-world.json")).ok().and_then(|t| serde_json::from_str(&t).ok()));
+            let log = crate::logs::system_tail(12, &paths).unwrap_or_default();
+            let _ = sender.send(Telemetry { port, status, process, next, log });
         });
         self.polls = Some(receiver);
         self.last_poll = Some(Instant::now());
@@ -86,7 +106,7 @@ impl DashboardScreen {
 
     fn describe(&self, key: &str, ui: &Ui) -> (String, Vec<Row>, Text<'static>) {
         let mut rows = vec![];
-        let hint = |text: &str| Text::from(widgets::wrap(text, 80).into_iter().map(|l| Line::from(Span::styled(l, fg(TEXT2)))).collect::<Vec<_>>());
+        let hint = |text: &str| Text::from(text.lines().map(|l| Line::from(Span::styled(l.to_string(), fg(TEXT2)))).collect::<Vec<_>>());
         if let Some(page) = crate::modules::pages().into_iter().find(|p| p.key == key) {
             return describe_page(page.key, page.label, ui);
         }
@@ -164,47 +184,107 @@ impl DashboardScreen {
         }
     }
 
+    /// The telemetry strip: four panels of short readings, each a name and a value, never a sentence cut short.
     fn cards(&self, frame: &mut Frame, area: Rect, ui: &Ui) {
-        let parts = Layout::horizontal([Constraint::Ratio(1, 4); 4]).spacing(1).split(Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area });
+        let parts = Layout::horizontal([Constraint::Ratio(1, 4); 4]).spacing(2).split(Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area });
         let online = self.status.as_ref().map(|s| s.reachable).unwrap_or(false);
-        let mut write = |index: usize, title: &str, first: String, second: String, tone: u32| {
-            let lines = vec![Line::from(Span::styled(widgets::clip(&first, parts[index].width.saturating_sub(4) as usize, ui.unicode), bold(tone))), Line::from(Span::styled(widgets::clip(&second, parts[index].width.saturating_sub(4) as usize, ui.unicode), fg(TEXT2)))];
-            frame.render_widget(Paragraph::new(lines).block(card(title, false).padding(ratatui::widgets::Padding::horizontal(1))), parts[index]);
+        let write = |frame: &mut Frame, index: usize, title: &str, readings: Vec<(&str, String, u32)>| {
+            let w = parts[index].width.saturating_sub(2) as usize;
+            let lines: Vec<Line> = readings
+                .into_iter()
+                .map(|(name, value, tone)| Line::from(vec![Span::styled(format!("{name:<8}"), fg(MUTED)), Span::styled(widgets::clip(&value, w.saturating_sub(8), ui.unicode), fg(tone))]))
+                .collect();
+            frame.render_widget(Paragraph::new(lines).block(card(title, false)), parts[index]);
         };
-        write(0, "Engine", engine_version().into(), if online { format!("Serving on port {}", self.port.unwrap_or(0)) } else { "Not running".into() }, if online { OK } else { TEXT });
+        let process = self.process.clone().unwrap_or_default();
+        let uptime = process["uptime_s"].as_f64().map(clock).unwrap_or_else(|| "-".into());
+        let memory = process["peak_rss_bytes"].as_f64().map(|b| format!("{:.0} MiB", b / 1048576.0)).unwrap_or_else(|| "-".into());
+        write(
+            frame,
+            0,
+            "Engine",
+            vec![
+                ("state", if online { "online".into() } else { "offline".into() }, if online { OK } else { TEXT2 }),
+                ("port", self.port.filter(|_| online).map(|p| p.to_string()).unwrap_or_else(|| "-".into()), TEXT),
+                ("pid", process["pid"].as_u64().map(|p| p.to_string()).unwrap_or_else(|| "-".into()), TEXT),
+                ("uptime", uptime, TEXT),
+                ("memory", memory, TEXT),
+            ],
+        );
         match &self.status {
             Some(s) if online && (s.active() || s.lifecycle == "COMPLETED") => {
-                let mut state = s.lifecycle.to_lowercase();
-                if let Some(first) = state.get_mut(0..1) {
-                    first.make_ascii_uppercase();
-                }
-                write(1, "Simulation", s.clock.clone(), format!("{state}, {:.0}% of the day", s.fraction * 100.0), CYAN)
+                let filled = (s.fraction.clamp(0.0, 1.0) * 10.0).round() as usize;
+                let bar = if ui.unicode { format!("{}{} {:.0}%", "▰".repeat(filled), "▱".repeat(10 - filled), s.fraction * 100.0) } else { format!("{:.0}%", s.fraction * 100.0) };
+                write(frame, 1, "Simulation", vec![("state", s.lifecycle.to_lowercase(), ACCENT), ("clock", s.clock.clone(), TEXT), ("day", bar, ACCENT), ("seed", s.seed.clone(), TEXT2)]);
             }
-            _ => write(1, "Simulation", "None".into(), if online { "Ready to start".into() } else { "Start one from here".into() }, TEXT),
+            _ => write(frame, 1, "Simulation", vec![("state", "idle".into(), TEXT2), ("clock", "--:--:--".into(), MUTED), ("day", "-".into(), MUTED), ("seed", "-".into(), MUTED)]),
         }
+        let current = crate::config::load(&ui.paths).unwrap_or_default();
+        let next = self.next.clone().unwrap_or_default();
+        let fastboot = if !crate::config::flag(&current, "startup.dynamic_fastboot") {
+            vec![("mode", "off".to_string(), TEXT2)]
+        } else {
+            let state = next["state"].as_str().unwrap_or("idle").to_string();
+            let tone = match state.as_str() {
+                "ready" => OK,
+                "fetching" => ACCENT,
+                "failed" => ERR,
+                _ => TEXT2,
+            };
+            vec![("mode", "dynamic".into(), TEXT), ("city", next["city"].as_str().unwrap_or("-").to_string(), TEXT), ("state", state, tone), ("seed", next["seed"].as_str().unwrap_or("-").to_string(), TEXT2)]
+        };
+        write(frame, 2, "Next world", fastboot);
+        let checks = ui.checks.clone().unwrap_or_default();
+        let failing = checks.iter().filter(|c| c.outcome.state == State::Fail).count();
+        let warning = checks.iter().filter(|c| c.outcome.state == State::Warning).count();
+        let passed = checks.iter().filter(|c| c.outcome.state == State::Pass).count();
         let known = crate::apps::load(&ui.paths).map(|a| a.len()).unwrap_or(0);
         let running = ui.session.supervisor().map(|s| s.states().iter().filter(|a| a.phase == crate::supervisor::Phase::Ready).count()).unwrap_or(0);
-        if running > 0 {
-            write(2, "Applications", format!("{running} running"), format!("{known} set up"), TEXT);
-        } else {
-            write(2, "Applications", format!("{known} set up"), if known == 0 { "Enter Applications to add".into() } else { "None running".into() }, TEXT);
-        }
-        let checks = ui.checks.clone().unwrap_or_default();
-        let failing: Vec<_> = checks.iter().filter(|c| c.outcome.state == State::Fail).collect();
-        let warning = checks.iter().filter(|c| c.outcome.state == State::Warning).count();
-        if let Some(first) = failing.first() {
-            write(3, "This machine", "Not ready".into(), first.name.into(), ERR);
-        } else if warning > 0 {
-            write(3, "This machine", "Ready".into(), format!("{warning} to look at"), WARN);
-        } else {
-            write(3, "This machine", "Ready".into(), format!("{} checks passed", checks.len()), OK);
-        }
+        write(
+            frame,
+            3,
+            "System",
+            vec![
+                ("checks", format!("{passed}/{} pass", checks.len()), if failing > 0 { ERR } else if warning > 0 { WARN } else { OK }),
+                ("apps", format!("{running} up · {known} known"), TEXT),
+                ("mcp", if crate::config::flag(&current, "mcp.enabled") { "on".into() } else { "off".into() }, TEXT),
+                ("term", format!("{}x{}", ui.width, ui.height), TEXT2),
+            ],
+        );
     }
+
+    /// The end of the server's own log, as it is written.
+    fn log_panel(&self, frame: &mut Frame, area: Rect, ui: &Ui) {
+        let block = card("System log", false);
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+        let w = inner.width as usize;
+        let lines: Vec<Line> = if self.log.is_empty() {
+            vec![Line::from(Span::styled("nothing yet: it is written once the server starts", fg(MUTED)))]
+        } else {
+            self.log[self.log.len().saturating_sub(inner.height as usize)..]
+                .iter()
+                .map(|l| {
+                    // The date is the same on every line; the time and the rest say what happened.
+                    let shown = l.split_once(' ').filter(|(d, _)| d.len() == 10 && d.chars().nth(4) == Some('-')).map(|(_, rest)| rest).unwrap_or(l);
+                    let tone = if l.contains("ERROR") { ERR } else if l.contains("WARN") { WARN } else { TEXT2 };
+                    Line::from(Span::styled(widgets::clip(shown, w, ui.unicode), fg(tone)))
+                })
+                .collect()
+        };
+        frame.render_widget(Paragraph::new(lines), inner);
+    }
+}
+
+/// Seconds as hh:mm:ss.
+fn clock(seconds: f64) -> String {
+    let s = seconds.max(0.0) as u64;
+    format!("{:02}:{:02}:{:02}", s / 3600, (s / 60) % 60, s % 60)
 }
 
 /// What a module's page says on the dashboard.
 fn describe_page(key: &str, label: &str, ui: &Ui) -> (String, Vec<Row>, Text<'static>) {
-    let hint = |text: &str| Text::from(widgets::wrap(text, 80).into_iter().map(|l| Line::from(Span::styled(l, fg(TEXT2)))).collect::<Vec<_>>());
+    let hint = |text: &str| Text::from(text.lines().map(|l| Line::from(Span::styled(l.to_string(), fg(TEXT2)))).collect::<Vec<_>>());
     match key {
         "apps" => match crate::apps::load(&ui.paths) {
             Err(error) => (label.into(), vec![row_state("Catalogue", error.message, State::Fail)], Text::default()),
@@ -248,11 +328,11 @@ impl Screen for DashboardScreen {
     fn draw(&mut self, frame: &mut Frame, area: Rect, ui: &Ui) {
         let mut body = area;
         if !ui.medium_or_small() && area.height > 14 {
-            let parts = Layout::vertical([Constraint::Length(5), Constraint::Min(1)]).split(area);
+            let parts = Layout::vertical([Constraint::Length(6), Constraint::Length(1), Constraint::Min(1)]).split(area);
             self.cards(frame, parts[0], ui);
-            body = parts[1];
+            body = parts[2];
         }
-        let sidebar_width = if ui.layout == crate::terminal::Layout::Medium { 24 } else { 30 };
+        let sidebar_width = if ui.layout == crate::terminal::Layout::Medium { 24 } else { 28 };
         let (side, content) = widgets::columns(body, sidebar_width, ui.small(), self.menu.items.len() as u16 + 1);
         if ui.small() {
             self.menu.render(frame, side, true, ui.unicode);
@@ -260,20 +340,31 @@ impl Screen for DashboardScreen {
             let block = card("Menu", true);
             let inner = block.inner(side);
             frame.render_widget(block, side);
-            self.menu.render(frame, Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner }, true, ui.unicode);
+            self.menu.render(frame, inner, true, ui.unicode);
         }
         let Some(current) = self.menu.current_key() else { return };
         let (title, rows, hint) = self.describe(&current, ui);
-        let block = card("", false);
-        let inner = if ui.small() { content } else { block.inner(content) };
+        // With room, the system log runs below what is selected.
+        let (detail, log) = if !ui.small() && content.height >= 22 {
+            let parts = Layout::vertical([Constraint::Min(10), Constraint::Length(1), Constraint::Length(9)]).split(content);
+            (parts[0], Some(parts[2]))
+        } else {
+            (content, None)
+        };
+        let block = card(&title, false);
+        let inner = if ui.small() { detail } else { block.inner(detail) };
         if !ui.small() {
-            frame.render_widget(block, content);
+            frame.render_widget(block, detail);
         }
-        let inner = Rect { x: inner.x + 2, width: inner.width.saturating_sub(4), ..inner };
-        let mut lines = vec![Line::from(Span::styled(title.to_uppercase(), bold(TEXT))), Line::default()];
+        let mut lines = vec![Line::default()];
         lines.extend(status_lines(&rows, 18, inner.width, ui.unicode));
-        lines.extend(hint.lines);
+        // Wrapped to the room there is, never cut.
+        let words = hint.lines.iter().map(|l| l.to_string()).collect::<Vec<_>>().join("\n");
+        lines.extend(widgets::wrap(&words, inner.width.max(10) as usize).into_iter().map(|l| Line::from(Span::styled(l, fg(TEXT2)))));
         frame.render_widget(Paragraph::new(lines).scroll((self.scroll, 0)), inner);
+        if let Some(log) = log {
+            self.log_panel(frame, log, ui);
+        }
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {
         if event.code == KeyCode::Char('q') {
@@ -289,8 +380,9 @@ impl Screen for DashboardScreen {
         }
     }
     fn click(&mut self, column: u16, row: u16, ui: &mut Ui) -> Action {
-        let top = if !ui.medium_or_small() && ui.height > 20 { 3 + 5 + 1 } else { 3 + 1 };
-        let sidebar = if ui.layout == crate::terminal::Layout::Medium { 24 } else { 30 };
+        // Below the status line, the line of air, the telemetry and the menu's own rule.
+        let top = if !ui.medium_or_small() && ui.height > 20 { 2 + 6 + 1 + 1 } else { 2 + 1 };
+        let sidebar = if ui.layout == crate::terminal::Layout::Medium { 24 } else { 28 };
         if column > 1 && column < sidebar + 2 && row >= top {
             if let MenuEvent::Selected(key) = self.menu.click(row - top) {
                 return self.open(&key, ui);
@@ -300,9 +392,12 @@ impl Screen for DashboardScreen {
     }
     fn tick(&mut self, ui: &mut Ui) -> Action {
         if let Some(polls) = &self.polls {
-            if let Ok((port, status)) = polls.try_recv() {
-                self.port = port;
-                self.status = status;
+            if let Ok(telemetry) = polls.try_recv() {
+                self.port = telemetry.port;
+                self.status = telemetry.status;
+                self.process = telemetry.process;
+                self.next = telemetry.next;
+                self.log = telemetry.log;
                 self.polls = None;
                 self.refresh_menu();
             }
@@ -327,7 +422,7 @@ impl DashboardScreen {
             "exit" => Action::Quit,
             "docs" => {
                 let _ = crate::simulation::open_in_browser(DOCUMENTATION);
-                Action::Toast(format!("Opening {DOCUMENTATION}"), CYAN)
+                Action::Toast(format!("Opening {DOCUMENTATION}"), ACCENT)
             }
             "running" => Action::Push(Box::new(super::running::RunningScreen::new(None))),
             other => super::open(other, "", ui).map(Action::Push).unwrap_or(Action::None),

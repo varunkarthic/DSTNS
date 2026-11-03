@@ -498,6 +498,7 @@ pub fn server_switches(config: &Value, demo: bool) -> Vec<(String, String)> {
         ("DSTNS_REQUIRE_SIGNATURES".to_string(), one("fabric.require_signatures")),
         ("DSTNS_DISABLED_CAPABILITIES".to_string(), disabled.join(",")),
         ("DSTNS_PRESENTATION".to_string(), presentation(config, demo).to_string()),
+        ("DSTNS_DYNAMIC_FASTBOOT".to_string(), one("startup.dynamic_fastboot")),
     ];
     if !flag(config, "fabric.world_regeneration") {
         env.push(("DSTNS_DISABLE_WORLD_REGENERATION".into(), "1".into()));
@@ -560,6 +561,13 @@ pub fn fresh_seed() -> String {
     u64::from_be_bytes(bytes).to_string()
 }
 
+/// The seed of the world Dynamic Fastboot prepared in this map cache, if there is one.
+pub fn prepared_seed(cache: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(cache.join("next-world.json")).ok()?;
+    let seed = serde_json::from_str::<Value>(&text).ok()?.get("seed")?.as_str()?.to_string();
+    (!seed.is_empty() && seed.chars().all(|c| c.is_ascii_digit())).then_some(seed)
+}
+
 /// The body of POST /api/v1/playback/start for these options.
 pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
     if options.seed.is_some() && options.saved_seed.is_some() {
@@ -574,20 +582,22 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
         crate::seeds::operate("use", &json!({"id": name}), paths)?["config"].clone()
     } else {
         let defaults = load(paths)?;
-        let seed = match &options.seed {
-            Some(seed) => normalise_seed(seed)?,
-            None => fresh_seed(),
-        };
         let map = defaults.get("map").cloned().unwrap_or(json!({}));
         // "auto" lets the seed choose a real city district; a path pins a file.
         let source = options.osm_file.clone().or_else(|| map.get("osm_file").and_then(|v| v.as_str()).map(String::from)).unwrap_or_else(|| "auto".into());
+        let cache = map.get("cache_dir").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+        let seed = match &options.seed {
+            Some(seed) => normalise_seed(seed)?,
+            // Dynamic Fastboot: the world the last run prepared, whose city is on disk already.
+            None if source == "auto" && flag(&defaults, "startup.dynamic_fastboot") => prepared_seed(&paths.map_cache(cache)).unwrap_or_else(fresh_seed),
+            None => fresh_seed(),
+        };
         let mut map_options = Map::new();
         map_options.insert("osm_file".into(), json!(if source == "auto" { "auto".to_string() } else { absolute(&paths.root.join(&source)).to_string_lossy().into_owned() }));
         map_options.insert("max_nodes".into(), map.get("max_nodes").cloned().unwrap_or(json!(50000)));
         if let Some(radius) = map.get("tile_radius_m").filter(|r| !r.is_null() && **r != json!(0)) {
             map_options.insert("tile_radius_m".into(), radius.clone());
         }
-        let cache = map.get("cache_dir").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
         if cache.is_some() || paths.synced() {
             map_options.insert("cache_dir".into(), json!(paths.map_cache(cache).to_string_lossy()));
         }
@@ -641,6 +651,18 @@ mod tests {
 
     fn base() -> Value {
         json!({"playback": {"duration_seconds": 3600, "tick_rate": 1}, "api": {"port": 8090, "host": "127.0.0.1"}})
+    }
+
+    #[test]
+    fn a_start_takes_the_world_dynamic_fastboot_prepared() {
+        let dir = std::env::temp_dir().join(format!("dstns-next-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(prepared_seed(&dir), None, "nothing prepared");
+        std::fs::write(dir.join("next-world.json"), r#"{"seed": "8675309", "city": "Lisbon", "state": "ready"}"#).unwrap();
+        assert_eq!(prepared_seed(&dir).as_deref(), Some("8675309"));
+        std::fs::write(dir.join("next-world.json"), r#"{"seed": "not a number"}"#).unwrap();
+        assert_eq!(prepared_seed(&dir), None, "only a seed it can use");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

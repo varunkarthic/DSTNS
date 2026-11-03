@@ -967,58 +967,130 @@ function replay(): Float32Array {
 }
 
 /**
- * Adaptive backpressure: more than can be shown arrives as a wide stream, eases through what the screen can take,
- * and comes out steady on the other side. Nothing is lost; it is only paced.
+ * What if: a street is closed, and the traffic that used it turns off before the closure, runs along the parallel
+ * street, and comes back on the far side. The city answers a change the way a city does.
  */
-function backpressure(): Float32Array {
-  const throat = 0.35;
+function detour(): Float32Array {
+  const near = 0;
+  const far = -0.75;
+  const [left, right] = [-0.85, 0.85];
+  // From one point to the next, a stretch of the way round.
+  const legs: readonly (readonly [number, number, number, number])[] = [
+    [-2.3, near, left, near],
+    [left, near, left, far],
+    [left, far, right, far],
+    [right, far, right, near],
+    [right, near, 2.3, near],
+  ];
   return formation((put, random) => {
     for (let i = 0; i < COUNT; i++) {
       const kind = i % 100;
-      if (kind < 48) {
-        const y = (random() - 0.5) * 1.6;
-        const z = (random() - 0.5) * 1.6;
-        const x = -2.6 + random() * 0.6;
-        const to: [number, number, number] = [throat - x, y * 0.12 - y, z * 0.12 - z];
-        put(i, x, y, z, { v: to, kind: KIND.flow, tint: 0.55 });
-      } else if (kind < 78) {
-        const y = (random() - 0.5) * 0.18;
-        const z = (random() - 0.5) * 0.18;
-        put(i, throat, y, z, { v: [2.1, 0, 0], kind: KIND.flow, tint: 0.95, hue: HUE.ok });
-      } else if (kind < 92) {
-        // What sets the pace, breathing as it does.
-        const a = random() * TAU;
-        const r = 0.22 + random() * 0.03;
-        put(i, throat, Math.cos(a) * r, Math.sin(a) * r, { kind: KIND.pulse, tint: 0.9 });
+      if (kind < 26) {
+        // The streets: the main one, its parallel, and the two that join them.
+        const which = random();
+        if (which < 0.45) put(i, -2.4 + random() * 4.8, 0, near + (random() - 0.5) * 0.05, { tint: 0.32 });
+        else if (which < 0.8) put(i, -2.4 + random() * 4.8, 0, far + (random() - 0.5) * 0.05, { tint: 0.26 });
+        else put(i, (which < 0.9 ? left : right) + (random() - 0.5) * 0.05, 0, far + random() * (near - far), { tint: 0.3 });
+      } else if (kind < 66) {
+        // The traffic, going round. Each leg carries its share in turn, so the flow reads as one journey.
+        const leg = Math.floor(random() * legs.length);
+        const [ax, az, bx, bz] = legs[leg];
+        put(i, ax + (random() - 0.5) * 0.02, 0.012, az + (random() - 0.5) * 0.03, { v: [bx - ax, 0, bz - az], kind: KIND.flow, tint: 0.95, hue: HUE.ok, phase: (leg + random()) / legs.length });
+      } else if (kind < 80) {
+        // The closure, across the main street.
+        const across = (random() - 0.5) * 0.34;
+        put(i, (random() - 0.5) * 0.08, 0.02 + random() * 0.05, near + across, { kind: KIND.pulse, tint: 1, hue: HUE.danger });
+      } else if (kind < 88) {
+        // What was caught by it, and waits.
+        put(i, -0.7 + random() * 0.55, 0.015, near + (random() - 0.5) * 0.04, { tint: 0.75, hue: HUE.warm });
       } else {
-        put(i, -2.4 + random() * 4.8, (random() - 0.5) * 2, (random() - 0.5) * 1.4, { tint: 0.05 });
+        put(i, -2.6 + random() * 5.2, (random() - 0.5) * 0.04, -2 + random() * 3.4, { tint: 0.05 });
       }
     }
   }, 4202);
 }
 
-/** A report: a page whose lines write themselves from the top, with its figures rising at the foot. */
-function report(): Float32Array {
-  const [w, h] = [1.5, 2.05];
-  const rows = 15;
+/**
+ * Instant worlds: the city being watched on one side, and on the other the next one, already arriving, street by
+ * street, fetched while this one runs. When a new world is asked for, it is there.
+ */
+function instantWorlds(): Float32Array {
+  const [here, next] = [-1.25, 1.25];
   return formation((put, random) => {
     for (let i = 0; i < COUNT; i++) {
       const kind = i % 100;
-      if (kind < 22) {
+      if (kind < 24) {
+        // The city now: a grid, with its traffic.
+        const along = (random() - 0.5) * 1.5;
+        const line = (Math.floor(random() * 6) - 2.5) * 0.27;
+        const [x, z] = random() < 0.5 ? [here + along, line] : [here + line, along];
+        if (random() < 0.3) put(i, x, 0.01, z, { v: random() < 0.5 ? [0.3, 0, 0] : [0, 0, 0.3], kind: KIND.flow, tint: 0.8 });
+        else put(i, x, 0, z, { tint: 0.42 });
+      } else if (kind < 58) {
+        // The next city: rings and spokes, appearing from its centre out as it is fetched.
+        const ring = random() < 0.55;
+        const a = random() * TAU;
+        const r = ring ? (1 + Math.floor(random() * 4)) * 0.19 : random() * 0.78;
+        const angle = ring ? a : Math.floor(a / (TAU / 9)) * (TAU / 9);
+        put(i, next + Math.cos(angle) * r, 0, Math.sin(angle) * r, { kind: KIND.reveal, tint: 0.7, hue: HUE.ok, phase: r / 0.8 * 0.85 });
+      } else if (kind < 84) {
+        // Arriving from above, into the next city.
+        const a = random() * TAU;
+        const r = Math.sqrt(random()) * 0.75;
+        const [tx, tz] = [next + Math.cos(a) * r, Math.sin(a) * r];
+        const [sx, sy, sz] = [(random() - 0.5) * 0.6, 1.25 + random() * 0.3, (random() - 0.5) * 0.4];
+        put(i, sx, sy, sz, { v: [tx - sx, -sy, tz - sz], kind: KIND.flow, tint: 0.85, hue: HUE.ramp });
+      } else if (kind < 90) {
+        // Where it comes from.
+        const a = random() * TAU;
+        const r = Math.pow(random(), 0.7) * 0.2;
+        put(i, Math.cos(a) * r, 1.4 + Math.sin(a) * r * 0.6, (random() - 0.5) * 0.1, { kind: KIND.pulse, tint: 1 });
+      } else {
+        put(i, -2.6 + random() * 5.2, -0.05 - random() * 0.4, -1.8 + random() * 3.2, { tint: 0.05 });
+      }
+    }
+  }, 4505);
+}
+
+/**
+ * The newsroom: incidents flare across the city on one side, and each is carried to a page on the other, where its
+ * story writes itself, line by line.
+ */
+function newsroom(): Float32Array {
+  const [w, h] = [1.35, 1.9];
+  const page = 0.75;
+  const rows = 13;
+  const events: readonly (readonly [number, number])[] = [[-1.9, 0.55], [-1.35, -0.35], [-2.05, -0.75], [-1.15, 0.85], [-1.6, 0.05]];
+  return formation((put, random) => {
+    for (let i = 0; i < COUNT; i++) {
+      const kind = i % 100;
+      if (kind < 8) {
+        // Where something happened.
+        const [ex, ey] = events[Math.floor(random() * events.length)];
+        const a = random() * TAU;
+        const r = Math.pow(random(), 0.6) * 0.09;
+        put(i, ex + Math.cos(a) * r, ey + Math.sin(a) * r, 0, { kind: KIND.pulse, tint: 1, hue: HUE.danger });
+      } else if (kind < 22) {
+        // Each carried across to the page.
+        const [ex, ey] = events[Math.floor(random() * events.length)];
+        const [tx, ty] = [page - w / 2 + 0.1, h / 2 - 0.25 - random() * (h - 0.6)];
+        put(i, ex, ey, 0, { v: [tx - ex, ty - ey, 0], kind: KIND.flow, tint: 0.85, hue: HUE.warm });
+      } else if (kind < 32) {
         // The edge of the page.
         const t = random() * 2 * (w + h);
         const [x, y] = t < w ? [t - w / 2, h / 2] : t < w + h ? [w / 2, h / 2 - (t - w)] : t < 2 * w + h ? [w / 2 - (t - w - h), -h / 2] : [-w / 2, -h / 2 + (t - 2 * w - h)];
-        put(i, x, y, 0, { tint: 0.4 });
-      } else if (kind < 78) {
+        put(i, page + x, y, 0, { tint: 0.4 });
+      } else if (kind < 84) {
         const row = Math.floor(random() * rows);
         const y = h / 2 - 0.2 - row * ((h - 0.75) / rows);
         // The first line is the title, wider and brighter; the rest are text, each its own length.
-        const length = row === 0 ? 0.9 : (0.55 + ((row * 37) % 9) / 20) * (w - 0.3);
-        put(i, -w / 2 + 0.15 + random() * length, y + (random() - 0.5) * (row === 0 ? 0.05 : 0.02), 0, { kind: KIND.reveal, tint: row === 0 ? 1 : 0.6, phase: (row + random() * 0.6) / rows });
+        const length = row === 0 ? 0.85 : (0.55 + ((row * 37) % 9) / 20) * (w - 0.3);
+        put(i, page - w / 2 + 0.15 + random() * length, y + (random() - 0.5) * (row === 0 ? 0.05 : 0.02), 0, { kind: KIND.reveal, tint: row === 0 ? 1 : 0.6, phase: (row + random() * 0.6) / rows });
       } else if (kind < 92) {
-        const bar = Math.floor(random() * 6);
-        const height = [0.25, 0.4, 0.3, 0.5, 0.35, 0.45][bar];
-        put(i, -w / 2 + 0.25 + bar * 0.2 + (random() - 0.5) * 0.08, -h / 2 + 0.12 + random() * height, 0, { v: [0, -h / 2 + 0.12, 0], kind: KIND.rise, tint: 0.85, phase: 0.6 + bar * 0.05, hue: bar % 2 ? HUE.ok : HUE.ramp });
+        // The headline's mark: what kind of story this is.
+        const a = random() * TAU;
+        const r = 0.05 + random() * 0.015;
+        put(i, page + w / 2 - 0.2 + Math.cos(a) * r, h / 2 - 0.2 + Math.sin(a) * r, 0, { kind: KIND.pulse, tint: 0.9, hue: HUE.warm });
       } else {
         const a = random() * TAU;
         const r = 1.6 + random() * 1;
@@ -1028,7 +1100,7 @@ function report(): Float32Array {
   }, 4303);
 }
 
-/** Fabric: one hub, which is the simulation, and the programs connected to it, each talking both ways. */
+/** AI ready: the simulation at the centre, and every control it has reachable as a tool, each called and answered. */
 function fabricHub(): Float32Array {
   const nodes = 6;
   const hues = [HUE.ramp, HUE.ok, HUE.warm, HUE.ramp, HUE.danger, HUE.ok];
@@ -1069,9 +1141,9 @@ function fabricHub(): Float32Array {
   }, 4404);
 }
 
-/** Demo Mode's own scenes, after the film's: the features that a film of a city does not show. */
+/** Demo Mode's own scenes, after the film's: what sets DSTNS apart, that a film of a city does not show. */
 export function buildDemoFormations(): Float32Array[] {
-  return [replay(), backpressure(), report(), fabricHub()];
+  return [replay(), detour(), newsroom(), instantWorlds(), fabricHub()];
 }
 
 export function buildFormations(): Float32Array[] {

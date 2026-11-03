@@ -26,8 +26,12 @@ struct MapTileResult {
 // Throws MapFetchError when the tile is absent and cannot be downloaded. There
 // is deliberately no fallback to a bundled map: a failed download must surface
 // rather than silently change which map the seed denotes.
+//
+// `background` is Dynamic Fastboot fetching the next world's city: it publishes no progress, and leaves a city
+// another caller is already fetching to that caller (returning no bytes).
 [[nodiscard]] MapTileResult acquire_map_tile(const MapLocation& location,
-                                             const std::filesystem::path& cache_directory);
+                                             const std::filesystem::path& cache_directory,
+                                             bool background = false);
 
 // The program that downloads: this server, run as `dstns_server --fetch-osm`, or
 // DSTNS_FETCHER. Exposed so tests and diagnostics can report a missing fetcher clearly.

@@ -55,8 +55,9 @@ pub fn after_environment(initial: &str, ui: &mut Ui) -> Action {
 pub fn initial_page(initial: &str, ui: &Ui) -> Action {
     match initial {
         "start" => Action::Push(Box::new(running::RunningScreen::new(Some(ui.args.run.clone())))),
-        "config" => Action::Push(Box::new(configuration::ConfigurationScreen::new(None))),
-        "logs" => Action::Push(Box::new(logs::LogsScreen::new(ui))),
-        _ => Action::None,
+        // Demo Mode, running, on its page.
+        "demo" => Action::Push(Box::new(tasks::TaskScreen::presentation().begun("demo", ui))),
+        "home" | "dashboard" => Action::None,
+        page => open(page, "", ui).map(Action::Push).unwrap_or(Action::None),
     }
 }

@@ -155,7 +155,7 @@ impl Screen for DiagnosticsScreen {
             ui.unicode,
         ));
         self.scroll = self.scroll.min((lines.len() as u16).saturating_sub(inner.height));
-        frame.render_widget(Paragraph::new(lines).scroll((self.scroll, 0)), inner);
+        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }).scroll((self.scroll, 0)), inner);
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {
         match event.code {

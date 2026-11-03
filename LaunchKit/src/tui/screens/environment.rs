@@ -139,7 +139,7 @@ impl Screen for EnvironmentScreen {
         if self.done && total > area.height {
             self.scroll = total - area.height;
         }
-        frame.render_widget(Paragraph::new(lines).scroll((self.scroll, 0)), body);
+        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }).scroll((self.scroll, 0)), body);
         if self.done {
             let y = (area.y + text_height).saturating_sub(self.scroll);
             if y < area.y + area.height {

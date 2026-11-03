@@ -24,7 +24,7 @@ use std::collections::VecDeque;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use theme::{bold, fg, CYAN, ERR, MUTED, OK, TEAL, TEXT, TEXT2, WARN};
+use theme::{bold, fg, ACCENT, ERR, MUTED, OK, TEAL, TEXT, TEXT2, WARN};
 use widgets::{Key, Menu, MenuEvent};
 
 /// What a screen asks the interface to do.
@@ -271,7 +271,7 @@ impl App {
         if id == "quit" {
             if choice == "yes" && !self.quitting {
                 self.quitting = true;
-                self.toasts.push(Toast { text: "Stopping the simulation...".into(), tone: CYAN, until: Instant::now() + Duration::from_secs(30) });
+                self.toasts.push(Toast { text: "Stopping the simulation...".into(), tone: ACCENT, until: Instant::now() + Duration::from_secs(30) });
                 let session = self.ui.session.clone();
                 std::thread::spawn(move || {
                     session.stop_server();
@@ -368,7 +368,7 @@ impl App {
         frame.render_widget(Block::default().style(theme::base()), area);
         if self.ui.layout == Layout::TooSmall {
             let lines = vec![
-                Line::from(Span::styled("DSTNS", bold(CYAN))),
+                Line::from(Span::styled("DSTNS", bold(ACCENT))),
                 Line::default(),
                 Line::from(Span::styled("Terminal too small for the full interface.", fg(TEXT))),
                 Line::default(),
@@ -389,9 +389,11 @@ impl App {
             self.screens.last_mut().unwrap().draw(frame, area, ui);
             return;
         }
-        let header_height = if small { 1 } else { 3 };
+        let header_height = 1;
         let bar_height = self.shell.height();
-        let parts = Split::vertical([Constraint::Length(header_height), Constraint::Min(1), Constraint::Length(bar_height), Constraint::Length(1)]).split(area);
+        // The status line, a line of air, the page, the prompt, and the keys.
+        let parts = Split::vertical([Constraint::Length(header_height), Constraint::Length(if small { 0 } else { 1 }), Constraint::Min(1), Constraint::Length(bar_height), Constraint::Length(1)]).split(area);
+        let parts = [parts[0], parts[2], parts[3], parts[4]];
         let (title, state) = {
             let top = self.screens.last().unwrap();
             (top.title(), top.state())
@@ -433,14 +435,14 @@ impl App {
             let rect = Rect { x: area.width.saturating_sub(w + 2), y: parts[3].y.saturating_sub(3 + bar_height), width: w, height: 3 };
             frame.render_widget(Clear, rect);
             frame.render_widget(
-                Paragraph::new(Span::styled(text, fg(TEXT))).block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(fg(toast.tone))).style(theme::base()),
+                Paragraph::new(Span::styled(text, fg(TEXT))).block(Block::default().borders(Borders::ALL).border_type(BorderType::Plain).border_style(fg(toast.tone))).style(theme::base()),
                 rect,
             );
         }
         if let Some(lines) = &self.help_open {
             let mut text = vec![];
             for (key, label) in lines {
-                text.push(Line::from(vec![Span::styled(widgets::clip(&format!("{key:<16}"), 18, self.ui.unicode), bold(CYAN)), Span::styled(label.clone(), fg(TEXT))]));
+                text.push(Line::from(vec![Span::styled(widgets::clip(&format!("{key:<16}"), 18, self.ui.unicode), bold(ACCENT)), Span::styled(label.clone(), fg(TEXT))]));
             }
             text.push(Line::default());
             text.push(Line::from(Span::styled("Esc or ? closes this help.", fg(MUTED))));
@@ -469,9 +471,9 @@ fn draw_box(frame: &mut Frame, area: Rect, title: &str, message: Text<'static>, 
     let border = if error { ERR } else { TEAL };
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
+        .border_type(BorderType::Plain)
         .border_style(fg(border))
-        .title(Span::styled(format!(" {title} "), bold(if error { ERR } else { CYAN })))
+        .title(Span::styled(format!(" {title} "), bold(if error { ERR } else { ACCENT })))
         .padding(ratatui::widgets::Padding::new(2, 2, 1, 1))
         .style(ratatui::style::Style::default().bg(theme::c(theme::SURFACE)).fg(theme::c(TEXT)));
     let inner = block.inner(rect);
@@ -657,7 +659,7 @@ mod tests {
         screen(&mut app, 120, 35);
         // Configuration is a few down, and Enter opens it.
         for _ in 0..12 {
-            if screen(&mut app, 120, 35).contains("> Configuration") {
+            if screen(&mut app, 120, 35).contains("▸ Configuration") {
                 break;
             }
             press(&mut app, KeyCode::Down);
@@ -741,12 +743,40 @@ mod tests {
         std::env::remove_var(crate::setup::ENV);
     }
 
+    /// Every page as text, to look over by eye: cargo test snapshots -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn snapshots() {
+        let sizes = std::env::var("DSTNS_SNAPSHOT_SIZES").unwrap_or_else(|_| "120x35,80x24".into());
+        let pages = std::env::var("DSTNS_SNAPSHOT_PAGES").unwrap_or_else(|_| "dashboard,start,apps,seeds,config,demo,logs,tests,tools,about,setup".into());
+        for size in sizes.split(',') {
+            let (width, height) = size.split_once('x').map(|(w, h)| (w.parse().unwrap(), h.parse().unwrap())).unwrap();
+            for page in pages.split(',') {
+                let first: Box<dyn Screen> = if page == "splash" { Box::new(screens::splash::SplashScreen::new("home")) } else { Box::new(screens::dashboard::DashboardScreen::new()) };
+                let mut app = app(width, height, first);
+                if page == "splash" {
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    let ui = &mut app.ui;
+                    let _ = app.screens.last_mut().unwrap().tick(ui);
+                } else if page != "dashboard" {
+                    let opened = screens::open(page, "", &app.ui).unwrap();
+                    app.apply(Action::Push(opened));
+                }
+                if page == "shell" || std::env::var("DSTNS_SNAPSHOT_SHELL").is_ok() {
+                    press(&mut app, KeyCode::Char(':'));
+                    typed(&mut app, "ls");
+                }
+                println!("==== {page} {width}x{height}\n{}", screen(&mut app, width, height));
+            }
+        }
+    }
+
     #[test]
     fn colour_comes_down_to_none_and_selection_still_shows() {
         let mut app = app(100, 30, Box::new(screens::dashboard::DashboardScreen::new()));
         theme::set_depth(Colors::None);
         let text = screen(&mut app, 100, 30);
-        assert!(text.contains("> "), "the selected item carries a marker, not only a colour");
+        assert!(text.contains("▸ "), "the selected item carries a marker, not only a colour");
         theme::set_depth(Colors::TrueColor);
     }
 }

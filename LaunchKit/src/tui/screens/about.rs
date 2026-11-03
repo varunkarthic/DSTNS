@@ -54,7 +54,7 @@ impl Screen for AboutScreen {
         lines.push(Line::default());
         lines.push(Line::from(Span::styled("This program comes with ABSOLUTELY NO WARRANTY. It is free software, and you are welcome", fg(MUTED))));
         lines.push(Line::from(Span::styled("to redistribute it under the terms of the licence; see LICENSE.", fg(MUTED))));
-        frame.render_widget(Paragraph::new(lines), body);
+        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }), body);
     }
     fn key(&mut self, _event: KeyEvent, _ui: &mut Ui) -> Action {
         Action::None

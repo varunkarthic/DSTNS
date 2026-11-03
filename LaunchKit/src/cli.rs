@@ -465,9 +465,24 @@ pub fn dispatch_scripted(context: &Context) -> Option<Result<i32>> {
     }
 }
 
+/// Pages `./launcher ui PAGE` opens the interface on.
+pub const UI_PAGES: &[&str] = &["dashboard", "start", "running", "apps", "seeds", "config", "demo", "fastboot", "diagnostics", "logs", "tests", "tools", "about", "setup"];
+
 pub fn run(argv: Vec<String>) -> i32 {
     let paths = Paths::default();
     crate::setup::load_env(&paths);
+    // The console: a line run as a shell would (-c), lines read until exit (shell), or one of its own commands, which
+    // print plain text for a system shell to pipe. `help` stays the launcher's.
+    match argv.first().map(String::as_str) {
+        Some("-c") => return crate::console::run_line(&argv[1..].join(" "), &paths),
+        Some("shell") | Some("sh") => return crate::console::repl(&paths),
+        Some(first) if first != "help" && (crate::console::is_builtin(first) || argv.iter().any(|a| ["|", "||", "&&", ";"].contains(&a.as_str()))) => {
+            // Operators given as words of their own stay operators; every other word is quoted as it was.
+            let line = argv.iter().map(|a| if ["|", "||", "&&", ";"].contains(&a.as_str()) { a.clone() } else { shlex::try_quote(a).map(|q| q.into_owned()).unwrap_or_else(|_| a.clone()) }).collect::<Vec<_>>().join(" ");
+            return crate::console::run_line(&line, &paths);
+        }
+        _ => {}
+    }
     let debug = argv.iter().any(|a| a == "--debug");
     crate::log::configure(&paths, debug, debug);
     let caps = crate::terminal::detect(argv.iter().any(|a| a == "--no-color"));
@@ -481,6 +496,14 @@ pub fn run(argv: Vec<String>) -> i32 {
         let reporter = Arc::new(LineReporter::new(Output::new(&caps), args.verbose));
         let context = Context { args: args.clone(), caps: caps.clone(), out: Output::new(&caps), reporter, session: session.clone(), paths: paths.clone() };
         crate::signals::install(session.clone());
+        // `ui PAGE`: the interface, opened on that page.
+        let page = args.topic.clone().filter(|t| args.command.as_deref() == Some("ui") && UI_PAGES.contains(&t.as_str()));
+        if let Some(page) = page {
+            if !caps.interactive {
+                return Err(LauncherError::config("./launcher ui PAGE needs a terminal."));
+            }
+            return Ok(crate::interface::run_interactive(context, &page));
+        }
         if let Some(result) = dispatch_scripted(&context) {
             return result;
         }

@@ -115,6 +115,11 @@ fn decode(text: &str) -> Value {
 }
 
 /// The server's /health if a DSTNS server answers on `port`.
+/// The server process: its pid, uptime, peak memory and processor time, from /api/v1/system/info.
+pub fn process(port: u16, paths: &Paths) -> Option<Value> {
+    get(port, "/api/v1/system/info", 2.0, paths).body.get("process").cloned()
+}
+
 pub fn health(port: u16, paths: &Paths) -> Option<Value> {
     let response = call(port, "/health", "GET", None, 1.0, paths);
     if response.code != 200 || !response.body.is_object() {

@@ -10,6 +10,7 @@ mod artifacts;
 mod buildplan;
 mod cli;
 mod config;
+mod console;
 mod environment;
 mod errors;
 mod fabric;

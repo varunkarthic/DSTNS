@@ -5,7 +5,7 @@
 
 use crate::environment::State;
 use crate::simulation::{self, Status, World};
-use crate::tui::theme::{bold, fg, CYAN, TEXT, TEXT2};
+use crate::tui::theme::{bold, fg, ACCENT, TEXT, TEXT2};
 use crate::tui::widgets::{self, item, key, row, status_lines, symbol, Key, Menu, MenuEvent};
 use crate::tui::{Action, Screen, Ui};
 use crossterm::event::KeyEvent;
@@ -68,9 +68,9 @@ impl Screen for CompletionScreen {
         lines.push(Line::from(Span::styled("The observer holds the full report: choose Save Report there for the PDF.", fg(TEXT2))));
         lines.push(Line::default());
         let height = lines.len() as u16;
-        frame.render_widget(Paragraph::new(lines), body);
+        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }), body);
         self.menu.render(frame, Rect { y: body.y + height, height: body.height.saturating_sub(height), ..body }, true, ui.unicode);
-        let _ = (CYAN, TEXT);
+        let _ = (ACCENT, TEXT);
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {
         let MenuEvent::Selected(choice) = self.menu.handle(&event) else { return Action::None };
@@ -79,7 +79,7 @@ impl Screen for CompletionScreen {
                 if let Some(port) = self.port {
                     std::thread::spawn(move || simulation::open_in_browser(&format!("http://127.0.0.1:{port}/")));
                 }
-                Action::Toast("Opening the observer".into(), CYAN)
+                Action::Toast("Opening the observer".into(), ACCENT)
             }
             "restart" => match self.port.map(|p| simulation::control(p, "restart", &ui.paths)) {
                 Some(Ok(_)) => Action::Replace(Box::new(super::running::RunningScreen::new(None))),

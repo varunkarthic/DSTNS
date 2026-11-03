@@ -6,7 +6,7 @@
 use crate::apps::{self as catalogue, App};
 use crate::environment::State;
 use crate::supervisor::Phase;
-use crate::tui::theme::{bold, fg, CYAN, ERR, TEXT, TEXT2};
+use crate::tui::theme::{bold, fg, ACCENT, ERR, TEXT, TEXT2};
 use crate::tui::widgets::{self, card, form_row, item, key, row, row_state, status_lines, Editor, Form, Key, Menu, MenuEvent, MenuItem, Row};
 use crate::tui::{Action, Dialog, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -174,7 +174,7 @@ impl Screen for AppsScreen {
             lines.push(Line::default());
             lines.extend(widgets::wrap(&hint, inner.width as usize).into_iter().map(|l| Line::from(Span::styled(l, fg(TEXT2)))));
         }
-        frame.render_widget(Paragraph::new(lines), inner);
+        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }), inner);
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {
         match event.code {
@@ -203,7 +203,7 @@ impl Screen for AppsScreen {
                 Line::default(),
             ];
             for command in proposal.pointer("/spec/commands").and_then(|c| c.as_array()).cloned().unwrap_or_default() {
-                lines.push(Line::from(Span::styled(format!("  {}", command.as_str().unwrap_or("")), fg(CYAN))));
+                lines.push(Line::from(Span::styled(format!("  {}", command.as_str().unwrap_or("")), fg(ACCENT))));
             }
             return Action::Dialog(Dialog::new(&format!("proposal:{id}"), "Launch proposal", Text::from(lines), &[("later", "Decide later"), ("reject", "Turn it down"), ("approve", "Approve")], Some("later")));
         }
@@ -212,14 +212,14 @@ impl Screen for AppsScreen {
             let supervisor = supervisor.unwrap();
             let id = id.to_string();
             std::thread::spawn(move || supervisor.stop(&id));
-            return Action::Toast(format!("Stopping {}", s.app.title()), CYAN);
+            return Action::Toast(format!("Stopping {}", s.app.title()), ACCENT);
         }
         let Some(port) = self.port else { return Action::Toast("No server is running. Start a simulation first, and choose this application.".into(), crate::tui::theme::WARN) };
         match catalogue::get(id, &ui.paths) {
             Ok(app) => {
                 let (events, _receiver) = crate::tui::reporter();
                 ui.session.supervise(port, events, crate::process::Cancel::new()).start(app);
-                Action::Toast("Starting".into(), CYAN)
+                Action::Toast("Starting".into(), ACCENT)
             }
             Err(error) => Action::Toast(error.message, ERR),
         }
@@ -390,7 +390,7 @@ impl Screen for AppEditScreen {
             lines.push(Line::from(Span::styled(self.error.clone(), fg(ERR))));
         }
         lines.push(Line::from(Span::styled("Ctrl+S saves; Esc cancels.", fg(TEXT2))));
-        frame.render_widget(Paragraph::new(lines), Rect { y: inner.y + inner.height.saturating_sub(footer), height: footer, x: inner.x + 1, width: inner.width.saturating_sub(2) });
+        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }), Rect { y: inner.y + inner.height.saturating_sub(footer), height: footer, x: inner.x + 1, width: inner.width.saturating_sub(2) });
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {
         if event.modifiers.contains(KeyModifiers::CONTROL) && event.code == KeyCode::Char('s') {

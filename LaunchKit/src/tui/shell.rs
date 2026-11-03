@@ -12,7 +12,7 @@
 //! line does works here too, typed the same way: `apps list`, `fastboot status`, `test unit`.
 
 use super::screens;
-use super::theme::{self, bold, fg, CYAN, ERR, MUTED, NAVY, OK, TEAL, TEXT, TEXT2, WARN};
+use super::theme::{self, bold, fg, ACCENT, ERR, MUTED, NAVY, OK, TEXT, TEXT2, WARN};
 use super::widgets::{self, clip, key, Key};
 use super::{Action, Dialog, Ui};
 use crate::config;
@@ -56,7 +56,16 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     ("logs", "logs [system|api|event|playback]", "A log, as a table"),
     ("test", "test [all|unit|api|replay|benchmark|sumo|ui|launcher]", "Run test stages"),
     ("sumo", "sumo", "Check the SUMO toolchain"),
-    ("ui", "ui open|build|install", "The observer: open it, build it, or install its dependencies"),
+    ("ui", "ui PAGE | open|build|install", "Open the interface on a page (ui demo runs Demo Mode), or the observer: open, build, install"),
+    ("grep", "… | grep [-i] [-v] [-c] PATTERN", "Lines that match, from what is piped in"),
+    ("wc", "… | wc [-l]", "Count lines, words and characters"),
+    ("sort", "… | sort [-r] [-n]", "Sort what is piped in"),
+    ("uniq", "… | uniq [-c]", "Repeated lines once"),
+    ("cut", "… | cut -d DELIM -f N", "Fields of each line"),
+    ("tee", "… | tee FILE", "Also write it to a file"),
+    ("echo", "echo WORDS", "Print its words"),
+    ("env", "env", "The DSTNS_ variables in use"),
+    ("uptime", "uptime", "The server's uptime, state and memory"),
     ("reset", "reset", "Delete runtime data, and forget the setup"),
     ("version", "version", "Version and licence"),
     ("history", "history", "Commands typed so far"),
@@ -137,6 +146,11 @@ impl Shell {
         self.show_output = !self.blocks.is_empty();
     }
 
+    /// Whether the last command failed: the prompt says so, as a shell's often does.
+    fn last_failed(&self) -> bool {
+        self.blocks.last().and_then(|b| b.status).map(|s| s != 0).unwrap_or(false)
+    }
+
     pub fn has_output(&self) -> bool {
         self.show_output && !self.blocks.is_empty()
     }
@@ -145,9 +159,10 @@ impl Shell {
         self.show_output = false;
     }
 
+    /// Always there while it is on: a rule, and the prompt.
     pub fn height(&self) -> u16 {
-        if self.open {
-            3
+        if self.enabled {
+            2
         } else {
             0
         }
@@ -231,7 +246,7 @@ impl Shell {
             "fabric" => ["status", "capabilities", "grant", "settings", "audit"].map(|a| (a.to_string(), String::new())).to_vec(),
             "fastboot" => ["download", "status", "clear"].map(|a| (a.to_string(), String::new())).to_vec(),
             "mcp" => ["tools", "client-config"].map(|a| (a.to_string(), String::new())).to_vec(),
-            "ui" => ["open", "build", "install"].map(|a| (a.to_string(), String::new())).to_vec(),
+            "ui" => crate::cli::UI_PAGES.iter().map(|p| (p.to_string(), "page".to_string())).chain(["open", "build", "install"].map(|a| (a.to_string(), "observer".to_string()))).collect(),
             "help" | "man" => COMMANDS.iter().map(|(n, _, d)| (n.to_string(), d.to_string())).collect(),
             "start" => ["--seed", "--day-type", "--speed", "--osm-file", "--apps", "--no-apps", "--saved-seed", "--save-seed", "--duration"].map(|a| (a.to_string(), String::new())).to_vec(),
             _ => vec![],
@@ -394,6 +409,12 @@ impl Shell {
     }
 
     fn run(&mut self, line: &str, ui: &mut Ui, path: &str) -> Action {
+        // Commands joined by | && || or ; run in the launcher's console, as a process of its own, so that a long
+        // pipeline never holds up the interface and its output streams in.
+        if crate::console::chained(line) {
+            self.spawn(line, vec!["-c".into(), line.into()]);
+            return Action::None;
+        }
         let Some(words) = shlex::split(line) else {
             self.say(line, vec![("It could not be read: a quotation mark is not closed.".into(), ERR)], 2);
             return Action::None;
@@ -406,7 +427,7 @@ impl Shell {
             "help" | "man" => {
                 let lines: Vec<(String, u32)> = match rest.first() {
                     Some(name) => match COMMANDS.iter().find(|(n, _, _)| n == name) {
-                        Some((_, usage, description)) => vec![(usage.to_string(), CYAN), (description.to_string(), TEXT)],
+                        Some((_, usage, description)) => vec![(usage.to_string(), ACCENT), (description.to_string(), TEXT)],
                         None => vec![(format!("No command {name}. Type help to see them."), WARN)],
                     },
                     None => COMMANDS.iter().map(|(_, u, d)| (format!("{u:<42} {d}"), TEXT)).collect(),
@@ -559,6 +580,7 @@ impl Shell {
                     "Cancel",
                 ));
             }
+            other if crate::console::is_builtin(other) && !["ls", "cat", "tail", "head", "ps", "get", "help"].contains(&other) => self.spawn(line, vec!["-c".into(), line.into()]),
             other if crate::cli::COMMANDS.contains(&other) || crate::modules::find(other).is_some() => {
                 if ["console", "start"].contains(&other) {
                     return Action::None;
@@ -593,7 +615,7 @@ impl Shell {
             "config" => match config::load(&ui.paths) {
                 Err(error) => vec![(error.message, ERR)],
                 Ok(_) if section.is_empty() => {
-                    let mut out: Vec<(String, u32)> = config::categories().into_iter().map(|c| (format!("{c}/"), CYAN)).collect();
+                    let mut out: Vec<(String, u32)> = config::categories().into_iter().map(|c| (format!("{c}/"), ACCENT)).collect();
                     out.push(("ls config/CATEGORY lists its settings.".into(), TEXT2));
                     out
                 }
@@ -627,7 +649,7 @@ impl Shell {
             }
         }
         if let Some(running) = &self.running {
-            lines.push((format!("command       pid {} · running", running.child.id()), CYAN));
+            lines.push((format!("command       pid {} · running", running.child.id()), ACCENT));
         }
         lines
     }
@@ -635,7 +657,6 @@ impl Shell {
     pub fn draw(&mut self, frame: &mut Frame, area: Rect, body: Rect, ui: &Ui, path: &str) {
         let suggestions = self.suggestions(ui);
         self.suggestion = self.suggestion.min(suggestions.len().saturating_sub(1));
-        let prompt = format!("dstns {path} {} ", if ui.unicode { "❯" } else { ">" });
         let before: String = self.input.chars().take(self.cursor).collect();
         let under: String = self.input.chars().nth(self.cursor).map(String::from).unwrap_or_else(|| " ".into());
         let after: String = self.input.chars().skip(self.cursor + 1).collect();
@@ -647,18 +668,17 @@ impl Shell {
             String::new()
         };
         let cursor_style = ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::REVERSED);
-        let line = Line::from(vec![
-            Span::styled(prompt, bold(CYAN)),
-            Span::styled(before, fg(TEXT)),
-            Span::styled(under, cursor_style),
-            Span::styled(after, fg(TEXT)),
-            Span::styled(ghost, fg(MUTED)),
-        ]);
-        let boxed = Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area };
-        frame.render_widget(
-            Paragraph::new(line).block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(fg(TEAL)).title(Span::styled(" Command ", fg(CYAN)))).style(theme::base()),
-            boxed,
-        );
+        let mut spans = vec![Span::styled("dstns", fg(TEXT2)), Span::styled(format!(" {} ", if path == "/" { "~".to_string() } else { format!("~{path}") }), fg(ACCENT)), Span::styled(if ui.unicode { "❯ " } else { "> " }, bold(if self.last_failed() { ERR } else { ACCENT }))];
+        if self.open {
+            spans.extend([Span::styled(before, fg(TEXT)), Span::styled(under, cursor_style), Span::styled(after, fg(TEXT)), Span::styled(ghost, fg(MUTED))]);
+        } else {
+            let used: usize = spans.iter().map(|s| widgets::width(&s.content)).sum();
+            spans.push(Span::styled(clip("type a command, or : to begin · help · cmd | grep x && …", (area.width as usize).saturating_sub(used + 3), ui.unicode), fg(MUTED)));
+        }
+        let rule = widgets::rule("", area.width, ui.unicode);
+        let rect = Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area };
+        frame.render_widget(Paragraph::new(vec![rule, Line::from(spans)]).style(theme::base()), rect);
+        let boxed = rect;
         // The suggestions, just above it.
         if self.suggesting && !suggestions.is_empty() && !self.input.is_empty() {
             let count = suggestions.len().min(6) as u16;
@@ -680,24 +700,24 @@ impl Shell {
                         Line::from(Span::styled(format!("{text:<w$}"), if chosen { theme::selected(true) } else { fg(TEXT2) }))
                     })
                     .collect();
-                frame.render_widget(Paragraph::new(lines).block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(fg(NAVY))).style(theme::base()), rect);
+                frame.render_widget(Paragraph::new(lines).block(Block::default().borders(Borders::ALL).border_type(BorderType::Plain).border_style(fg(NAVY))).style(theme::base()), rect);
             }
         }
     }
 
     pub fn draw_output(&mut self, frame: &mut Frame, area: Rect, ui: &Ui) {
         let rect = Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area };
-        let block = Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(fg(NAVY)).title(Span::styled(" Output ", fg(TEXT2)));
+        let block = Block::default().borders(Borders::TOP).border_type(BorderType::Plain).border_style(fg(NAVY)).title(Span::styled(" OUTPUT ", bold(TEXT2)));
         let inner = block.inner(rect);
         let w = inner.width as usize;
         let mut lines: Vec<Line> = vec![];
         for output in &self.blocks {
             let status = match output.status {
-                None => Span::styled(if ui.motion { ["◐", "◓", "◑", "◒"][(output.started.elapsed().as_millis() / 200) as usize % 4] } else { "~" }.to_string(), fg(CYAN)),
+                None => Span::styled(if ui.motion { ["◐", "◓", "◑", "◒"][(output.started.elapsed().as_millis() / 200) as usize % 4] } else { "~" }.to_string(), fg(ACCENT)),
                 Some(0) => Span::styled(if ui.unicode { "✓" } else { "+" }.to_string(), fg(OK)),
                 Some(code) => Span::styled(format!("{} {code}", if ui.unicode { "✗" } else { "x" }), fg(ERR)),
             };
-            lines.push(Line::from(vec![Span::styled(format!("{} ", if ui.unicode { "❯" } else { ">" }), bold(CYAN)), Span::styled(clip(&output.command, w.saturating_sub(8), ui.unicode), bold(TEXT)), Span::raw("  "), status]));
+            lines.push(Line::from(vec![Span::styled(format!("{} ", if ui.unicode { "❯" } else { ">" }), bold(ACCENT)), Span::styled(clip(&output.command, w.saturating_sub(8), ui.unicode), bold(TEXT)), Span::raw("  "), status]));
             for (text, tone) in &output.lines {
                 for piece in widgets::wrap(text, w.max(10)) {
                     lines.push(Line::from(Span::styled(format!("  {piece}"), fg(*tone))));

@@ -2,10 +2,10 @@
 // Copyright (C) 2026 Varun Karthic
 
 //! The few widgets the launcher is built from. Every one renders its meaning in text: the selected menu item carries
-//! `>`, a status carries a symbol and a word, the focused form field carries a marker. Colour only reinforces what is
+//! `▸`, a status carries a symbol and a word, the focused form field carries a marker. Colour only reinforces what is
 //! already readable in monochrome.
 
-use super::theme::{self, bold, c, fg, BG, CYAN, ERR, KEYCAP, MUTED, NAVY, TEAL, TEXT, TEXT2};
+use super::theme::{self, bold, c, fg, ACCENT, BG, ERR, MUTED, NAVY, SURFACE, SURFACE_ALT, TEAL, TEXT, TEXT2};
 use crate::environment::State;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -49,11 +49,14 @@ pub fn symbol(state: State, unicode: bool) -> Span<'static> {
     Span::styled((if unicode { fancy } else { plain }).to_string(), fg(theme::tone(state)))
 }
 
-/// One rounded card for one thing.
+/// A section: its name on a thin rule above it, and no box around it. Focused, the rule and the name take the accent.
 pub fn card(title: &str, focused: bool) -> Block<'static> {
-    let mut block = Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(fg(if focused { TEAL } else { NAVY }));
+    let mut block = Block::default().borders(Borders::TOP).border_type(BorderType::Plain).border_style(fg(if focused { TEAL } else { NAVY })).padding(ratatui::widgets::Padding::horizontal(1));
     if !title.is_empty() {
-        block = block.title(Span::styled(format!(" {title} "), if focused { fg(CYAN) } else { fg(TEXT2) }));
+        block = block.title(Line::from(vec![
+            Span::styled(if focused { "▍" } else { " " }, fg(ACCENT)),
+            Span::styled(format!("{} ", title.to_uppercase()), if focused { bold(ACCENT) } else { bold(TEXT2) }),
+        ]));
     }
     block
 }
@@ -69,37 +72,47 @@ pub fn wordmark(area: Rect, unicode: bool) -> Text<'static> {
         None
     };
     match pick {
-        Some(logo) => Text::from(logo.trim_end_matches('\n').lines().map(|l| Line::from(Span::styled(l.to_string(), fg(CYAN)))).collect::<Vec<_>>()),
-        None => Text::from(Line::from(Span::styled("D S T N S", bold(CYAN)))),
+        Some(logo) => Text::from(logo.trim_end_matches('\n').lines().map(|l| Line::from(Span::styled(l.to_string(), fg(ACCENT)))).collect::<Vec<_>>()),
+        None => Text::from(Line::from(Span::styled("D S T N S", bold(ACCENT)))),
     }
 }
 
-/// "DSTNS 2.2.0 · Screen" on the left, a state marker and word on the right.
-pub fn header(frame: &mut Frame, area: Rect, title: &str, state: Option<(State, String)>, unicode: bool, small: bool) {
-    let inner_width = if small { area.width as usize } else { area.width.saturating_sub(4) as usize };
-    let mut left = vec![Span::styled("DSTNS", bold(CYAN)), Span::styled(format!(" {}", crate::version::engine_version()), fg(TEXT2))];
-    if !title.is_empty() && area.width >= 50 {
-        left.push(Span::styled(if unicode { "  ·  " } else { "  -  " }, fg(MUTED)));
-        left.push(Span::styled(title.to_string(), fg(TEXT)));
-    }
-    let mut right = vec![];
-    if let Some((state, word)) = &state {
-        right.push(symbol(*state, unicode));
-        right.push(Span::styled(format!(" {}", word.to_uppercase()), fg(theme::tone(*state))));
+/// The status line along the top, as a terminal multiplexer has one: the name as a tab, where you are, and on the right
+/// the screen's state, the version and the time. The right side is clipped before it can run into the left.
+pub fn header(frame: &mut Frame, area: Rect, title: &str, state: Option<(State, String)>, unicode: bool, _small: bool) {
+    let w = area.width as usize;
+    let tab = Style::default().fg(c(BG)).bg(c(ACCENT)).add_modifier(Modifier::BOLD);
+    let mut left = vec![Span::styled(" DSTNS ", if theme::colourless() { Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD) } else { tab })];
+    if !title.is_empty() {
+        left.push(Span::styled(if unicode { " ❯ " } else { " > " }, fg(MUTED)));
+        left.push(Span::styled(title.to_lowercase(), fg(TEXT)));
     }
     let left_width: usize = left.iter().map(|s| width(&s.content)).sum();
-    let right_width: usize = right.iter().map(|s| width(&s.content)).sum();
-    let gap = inner_width.saturating_sub(left_width + right_width).max(1);
+    let mut right: Vec<Span> = vec![];
+    if let Some((state, word)) = &state {
+        right.push(symbol(*state, unicode));
+        right.push(Span::styled(format!(" {}", word.to_lowercase()), fg(theme::tone(*state))));
+    }
+    let clock = chrono::Local::now().format("%H:%M:%S").to_string();
+    let tail = [format!("v{}", crate::version::engine_version()), clock];
+    for part in tail {
+        let used: usize = right.iter().map(|s| width(&s.content)).sum();
+        if left_width + used + width(&part) + 4 <= w {
+            right.push(Span::styled(if right.is_empty() { String::new() } else { if unicode { "  │  " } else { "  |  " }.to_string() }, fg(NAVY)));
+            right.push(Span::styled(part, fg(MUTED)));
+        }
+    }
+    // Whatever is on the right never covers the left.
+    let mut right_width: usize = right.iter().map(|s| width(&s.content)).sum();
+    while left_width + right_width + 2 > w && !right.is_empty() {
+        right.pop();
+        right_width = right.iter().map(|s| width(&s.content)).sum();
+    }
+    let gap = w.saturating_sub(left_width + right_width + 1);
     let mut spans = left;
     spans.push(Span::raw(" ".repeat(gap)));
     spans.extend(right);
-    let line = Line::from(spans);
-    if small {
-        frame.render_widget(Paragraph::new(line).style(theme::base()), area);
-    } else {
-        let boxed = Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area };
-        frame.render_widget(Paragraph::new(line).block(card("", false).padding(ratatui::widgets::Padding::horizontal(1))).style(theme::base()), boxed);
-    }
+    frame.render_widget(Paragraph::new(Line::from(spans)).style(Style::default().bg(c(SURFACE))), area);
 }
 
 #[derive(Clone, Debug)]
@@ -123,19 +136,19 @@ pub fn keybar(frame: &mut Frame, area: Rect, keys: &[Key]) {
         keys.iter().filter(|k| k.essential).map(|k| (k.clone(), if k.short.is_empty() { k.label.clone() } else { k.short.clone() })).collect(),
         keys.iter().filter(|k| k.essential).map(|k| (k.clone(), String::new())).collect(),
     ];
-    let keycap = if theme::colourless() { Style::default().add_modifier(Modifier::REVERSED) } else { Style::default().fg(c(TEXT)).bg(c(KEYCAP)) };
+    let keycap = if theme::colourless() { Style::default().add_modifier(Modifier::REVERSED) } else { bold(ACCENT) };
     for (n, variant) in variants.iter().enumerate() {
         let mut spans = vec![];
         let mut used = 0;
         for (k, label) in variant {
             if !spans.is_empty() {
-                spans.push(Span::raw("  "));
-                used += 2;
+                spans.push(Span::styled("   ", fg(NAVY)));
+                used += 3;
             }
-            spans.push(Span::styled(format!(" {} ", k.key), keycap));
-            used += width(&k.key) + 2;
+            spans.push(Span::styled(k.key.to_lowercase(), keycap));
+            used += width(&k.key);
             if !label.is_empty() {
-                spans.push(Span::styled(format!(" {label}"), fg(TEXT2)));
+                spans.push(Span::styled(format!(" {}", label.to_lowercase()), fg(MUTED)));
                 used += width(label) + 1;
             }
         }
@@ -270,8 +283,9 @@ impl Menu {
         let mut lines = vec![];
         for (position, item) in self.items.iter().enumerate().skip(self.offset) {
             let chosen = position == self.index;
-            let label = clip(&item.label, w.saturating_sub(2), unicode);
-            let text = format!("{}{label}", if chosen { "> " } else { "  " });
+            let label = clip(&item.label, w.saturating_sub(3), unicode);
+            let marker = if !chosen { "  " } else if unicode { "▸ " } else { "> " };
+            let text = format!("{marker}{label}");
             let padded = format!("{text}{}", " ".repeat(w.saturating_sub(width(&text))));
             let style = if item.disabled {
                 fg(MUTED)
@@ -378,7 +392,7 @@ pub fn activity(label: &str, busy: bool, motion: bool, started: Instant) -> Line
     } else {
         "[working] ".into()
     };
-    Line::from(Span::styled(format!("{prefix}{label}"), fg(CYAN)))
+    Line::from(Span::styled(format!("{prefix}{label}"), fg(ACCENT)))
 }
 
 // --- Forms ------------------------------------------------------------------------------------------------------
@@ -416,8 +430,8 @@ impl Editor {
     }
     pub fn height(&self) -> u16 {
         match self {
-            Editor::Text { multiline: true, .. } => 6,
-            _ => 3,
+            Editor::Text { multiline: true, .. } => 4,
+            _ => 1,
         }
     }
     /// Returns whether the value changed.
@@ -499,9 +513,10 @@ impl Editor {
         }
     }
     pub fn render(&self, frame: &mut Frame, area: Rect, focused: bool, invalid: bool, unicode: bool) {
-        let border = if invalid { ERR } else if focused { CYAN } else { NAVY };
-        let block = Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(fg(border));
-        let inner_width = area.width.saturating_sub(2) as usize;
+        // A field is a quiet band with a mark at its left: the accent when it has the keyboard, red when it is wrong.
+        let edge = if invalid { ERR } else if focused { ACCENT } else { NAVY };
+        let block = Block::default().borders(Borders::LEFT).border_type(BorderType::Thick).border_style(fg(edge)).padding(ratatui::widgets::Padding::horizontal(1));
+        let inner_width = area.width.saturating_sub(3) as usize;
         let content: Vec<Line> = match self {
             Editor::Text { value, cursor, placeholder, disabled, multiline, .. } => {
                 if value.is_empty() && !focused {
@@ -525,7 +540,7 @@ impl Editor {
             }
             Editor::Toggle(on) => {
                 let (knob, word) = if *on { (if unicode { "━━●" } else { "--o" }, "on") } else { (if unicode { "●━━" } else { "o--" }, "off") };
-                vec![Line::from(vec![Span::styled(knob.to_string(), fg(if *on { CYAN } else { MUTED })), Span::styled(format!(" {word}"), fg(TEXT))])]
+                vec![Line::from(vec![Span::styled(knob.to_string(), fg(if *on { ACCENT } else { MUTED })), Span::styled(format!(" {word}"), fg(TEXT))])]
             }
             Editor::Select { choices, index } => {
                 let label = choices.get(*index).map(|(l, _)| l.clone()).unwrap_or_default();
@@ -533,7 +548,7 @@ impl Editor {
                 vec![Line::from(vec![Span::styled(arrows.0, fg(MUTED)), Span::styled(label, fg(TEXT)), Span::styled(arrows.1, fg(MUTED))])]
             }
         };
-        frame.render_widget(Paragraph::new(content).block(block).style(Style::default().bg(c(BG))), area);
+        frame.render_widget(Paragraph::new(content).block(block).style(Style::default().bg(c(if focused { SURFACE_ALT } else { SURFACE }))), area);
     }
 }
 
@@ -605,7 +620,8 @@ impl Form {
     fn row_height(&self, row: &FormRow, area_width: u16, label_width: u16) -> u16 {
         let stacked = area_width < 60;
         let hint = if row.hint.is_empty() { 0 } else { wrap(&row.hint, area_width.saturating_sub(if stacked { 2 } else { label_width }) as usize).len() as u16 };
-        (if stacked { 1 } else { 0 }) + row.editor.height() + (if row.problem.is_empty() { 0 } else { 1 }) + hint
+        // And a line of air below it.
+        (if stacked { 1 } else { 0 }) + row.editor.height() + (if row.problem.is_empty() { 0 } else { 1 }) + hint + 1
     }
     /// Draws the fields into `area`, scrolled so that the focused one is in view; `active` says whether the form has
     /// the keyboard.
@@ -632,8 +648,8 @@ impl Form {
                 continue;
             }
             let focused = active && index == self.focus;
-            let label_style = if focused { bold(CYAN) } else { fg(TEXT2) };
-            let label_text = format!("{}{}", if focused { "> " } else { "  " }, row.label);
+            let label_style = if focused { bold(ACCENT) } else { fg(TEXT2) };
+            let label_text = format!("{}{}", if !focused { "  " } else if unicode { "▸ " } else { "> " }, row.label);
             let visible_rect = |ry: i32, rh: u16| -> Option<Rect> {
                 let top = ry.max(area.y as i32);
                 let bottom = (ry + rh as i32).min((area.y + area.height) as i32);
@@ -647,7 +663,7 @@ impl Form {
                 line_y += 1;
                 (area.x + 2, area.width.saturating_sub(2))
             } else {
-                if let Some(r) = visible_rect(line_y + 1, 1) {
+                if let Some(r) = visible_rect(line_y, 1) {
                     frame.render_widget(Paragraph::new(Line::from(Span::styled(clip(&label_text, label_width as usize - 1, unicode), label_style))), Rect { width: label_width, ..r });
                 }
                 let unit_width = if row.unit.is_empty() { 0 } else { width(&row.unit) as u16 + 2 };
@@ -657,7 +673,7 @@ impl Form {
             if line_y >= area.y as i32 && line_y + editor_height as i32 <= (area.y + area.height) as i32 {
                 row.editor.render(frame, Rect { x: editor_x, y: line_y as u16, width: editor_width, height: editor_height }, focused, !row.problem.is_empty(), unicode);
                 if !row.unit.is_empty() && !stacked {
-                    frame.render_widget(Paragraph::new(Span::styled(row.unit.clone(), fg(MUTED))), Rect { x: editor_x + editor_width + 1, y: line_y as u16 + 1, width: width(&row.unit) as u16 + 1, height: 1 });
+                    frame.render_widget(Paragraph::new(Span::styled(row.unit.clone(), fg(MUTED))), Rect { x: editor_x + editor_width + 1, y: line_y as u16, width: width(&row.unit) as u16 + 1, height: 1 });
                 }
             }
             line_y += editor_height as i32;

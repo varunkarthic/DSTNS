@@ -193,7 +193,7 @@ impl Screen for ConfigurationScreen {
             None
         };
         let header_height = header.len() as u16 + 1;
-        frame.render_widget(Paragraph::new(header), Rect { height: header_height, ..inner });
+        frame.render_widget(Paragraph::new(header).wrap(ratatui::widgets::Wrap { trim: false }), Rect { height: header_height, ..inner });
         let footer = if status.is_some() { 2 } else { 0 };
         let form_area = Rect { y: inner.y + header_height, height: inner.height.saturating_sub(header_height + footer), ..inner };
         self.form.render(frame, form_area, self.in_form, ui.unicode, 30);

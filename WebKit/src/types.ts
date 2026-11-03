@@ -35,6 +35,8 @@ export interface Envelope<T> {
 }
 export interface Status {
   preparation_error?: string;
+  /** Seconds until the world being prepared is ready, as the server estimates it; null when nothing is. */
+  eta_s?: number | null;
   /** The world is ready and waiting for an observer's start-up to finish. */
   observer_hold?: boolean;
   playback_revision?: number;
@@ -385,4 +387,8 @@ export interface WorldStatus {
     elapsed_s: number;
   } | null;
   error: { code: string; message: string } | null;
+  /** Seconds until the new world is ready, as the server estimates it. */
+  eta_s?: number | null;
+  /** Dynamic Fastboot: the world after this one, and whether its city is on disk yet. */
+  next?: { enabled: boolean; state: string; seed?: string; city?: string; country?: string };
 }

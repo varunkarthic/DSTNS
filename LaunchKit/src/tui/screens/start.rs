@@ -147,7 +147,7 @@ impl Screen for StartScreen {
             lines.push(Line::from(Span::styled(self.error.clone(), fg(ERR))));
         }
         lines.push(Line::from(Span::styled("Ctrl+S starts it; Esc cancels.", fg(TEXT2))));
-        frame.render_widget(Paragraph::new(lines), Rect { y: inner.y + inner.height.saturating_sub(footer), height: footer, x: inner.x + 1, width: inner.width.saturating_sub(2) });
+        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }), Rect { y: inner.y + inner.height.saturating_sub(footer), height: footer, x: inner.x + 1, width: inner.width.saturating_sub(2) });
         let _ = widgets::width("");
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {

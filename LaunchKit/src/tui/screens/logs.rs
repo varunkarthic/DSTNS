@@ -3,7 +3,7 @@
 
 //! Logs: the server's system log and its SQLite journal.
 
-use crate::tui::theme::{bold, fg, CYAN, ERR, TEXT, TEXT2, WARN};
+use crate::tui::theme::{bold, fg, ACCENT, ERR, TEXT, TEXT2, WARN};
 use crate::tui::widgets::{self, card, item, key, Key, Menu, MenuEvent};
 use crate::tui::{Action, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -33,7 +33,7 @@ impl LogsScreen {
         if source == "system" {
             self.title = format!("{}  ·  logs/system.log", label.to_uppercase());
             self.lines = match crate::logs::system_tail(500, &ui.paths) {
-                None => vec![Line::from(Span::styled("No system log yet. It is created when the server first starts.", fg(TEXT2)))],
+                None => widgets::wrap("No system log yet. It is created when the server first starts.", 48).into_iter().map(|l| Line::from(Span::styled(l, fg(TEXT2)))).collect(),
                 Some(lines) => lines.into_iter().map(|l| Line::from(Span::styled(l.clone(), fg(if l.contains("[ERROR]") { ERR } else if l.contains("[WARN") { WARN } else { TEXT })))).collect(),
             };
         } else {
@@ -46,7 +46,7 @@ impl LogsScreen {
                         .map(|i| table.rows.iter().map(|r| widgets::width(&r[i])).chain(std::iter::once(table.columns[i].len())).max().unwrap_or(0).min(48))
                         .collect();
                     let format = |cells: &[String]| cells.iter().zip(&widths).map(|(c, w)| crate::output::pad(&widgets::clip(c, *w, true), *w)).collect::<Vec<_>>().join("  ");
-                    std::iter::once(Line::from(Span::styled(format(&table.columns), bold(CYAN)))).chain(table.rows.iter().map(|r| Line::from(Span::styled(format(r), fg(TEXT))))).collect()
+                    std::iter::once(Line::from(Span::styled(format(&table.columns), bold(ACCENT)))).chain(table.rows.iter().map(|r| Line::from(Span::styled(format(r), fg(TEXT))))).collect()
                 }
             };
         }

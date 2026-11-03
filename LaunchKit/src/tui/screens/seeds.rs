@@ -93,7 +93,7 @@ impl Screen for SeedsScreen {
                 }
             },
         }
-        frame.render_widget(Paragraph::new(lines), inner);
+        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }), inner);
     }
     fn key(&mut self, event: KeyEvent, _ui: &mut Ui) -> Action {
         if matches!(event.code, KeyCode::Char('d') | KeyCode::Delete) {

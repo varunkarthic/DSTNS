@@ -60,7 +60,7 @@ endif()
 
 add_library(dstns_core
   Core/src/rng.cpp Core/src/utf8.cpp Core/src/graph.cpp Core/src/asb.cpp Core/src/demand.cpp Core/src/geo.cpp Core/src/osm.cpp Core/src/osm_fetch.cpp Core/src/osm_download.cpp Core/src/scenario.cpp Core/src/engine.cpp Core/src/events.cpp Core/src/logging.cpp Core/src/sumo_bridge.cpp
-  Core/src/narrator.cpp Core/src/platform.cpp)
+  Core/src/narrator.cpp Core/src/platform.cpp Core/src/next_world.cpp)
 target_include_directories(dstns_core PUBLIC Core/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib CURL::libcurl)
 if(APPLE)
@@ -117,7 +117,7 @@ if(DSTNS_BUILD_TESTS)
   enable_testing()
   # The HTTP tests: each a program of its own, against a real server it starts on a port of its own.
   set(DSTNS_HTTP_TESTS api docs_coverage another_city termination loading fastboot hardening robustness fabric_contract narration observer_hold
-    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release)
+    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot)
   foreach(name ${DSTNS_HTTP_TESTS})
     add_executable(dstns_http_${name} tests/http/${name}.cpp)
     target_link_libraries(dstns_http_${name} PRIVATE dstns_fabric)

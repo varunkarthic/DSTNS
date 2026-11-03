@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-//! The same design as the observer, as far as a terminal goes: its colours, its quiet surfaces, one rounded card for
-//! one thing, a line between things rather than a box around each, and plain words. Meaning never depends on colour;
-//! every state also has a symbol and a word. Colours are given as the terminal can show them: true colour where it
-//! can, else the nearest of 256 or 16, else none.
+//! A console's look: a black field, one blue accent used sparingly, steel-grey text, and thin rules between things
+//! rather than boxes around them. Meaning never depends on colour; every state also has a symbol and a word. Colours
+//! are given as the terminal can show them: true colour where it can, else the nearest of 256 or 16, else none.
 
 use crate::environment::State;
 use crate::terminal::Colors;
@@ -29,19 +28,23 @@ pub fn colourless() -> bool {
     DEPTH.load(Ordering::SeqCst) == 3
 }
 
-pub const BG: u32 = 0x071420;
-pub const SURFACE: u32 = 0x0D1C28;
-pub const SURFACE_ALT: u32 = 0x122431;
-pub const KEYCAP: u32 = 0x1A2F3E;
-pub const CYAN: u32 = 0x37D7FF;
-pub const TEAL: u32 = 0x1E7C8F;
-pub const NAVY: u32 = 0x243B4C;
-pub const TEXT: u32 = 0xE6F0F7;
-pub const TEXT2: u32 = 0x93A8B6;
-pub const MUTED: u32 = 0x5F7685;
-pub const OK: u32 = 0x5EE3BF;
-pub const WARN: u32 = 0xF0AA2E;
-pub const ERR: u32 = 0xEF5A64;
+pub const BG: u32 = 0x000000;
+pub const SURFACE: u32 = 0x0A0D12;
+pub const SURFACE_ALT: u32 = 0x111824;
+pub const KEYCAP: u32 = 0x161E2B;
+/// The one accent: a mild blue, the observer's.
+pub const ACCENT: u32 = 0x4DA3FF;
+/// The accent, brighter: what a sweep of light passes over.
+pub const GLOW: u32 = 0xB8DCFF;
+/// The accent, quiet: focused rules and the trail of moving things.
+pub const TEAL: u32 = 0x24507F;
+pub const NAVY: u32 = 0x1A2330;
+pub const TEXT: u32 = 0xD8E0E8;
+pub const TEXT2: u32 = 0x8B98A8;
+pub const MUTED: u32 = 0x4E5A6A;
+pub const OK: u32 = 0x3DDC97;
+pub const WARN: u32 = 0xF5B041;
+pub const ERR: u32 = 0xF0525C;
 
 fn cube(value: u8) -> u8 {
     if value < 48 {
@@ -73,7 +76,8 @@ fn indexed(r: u8, g: u8, b: u8) -> u8 {
 fn basic(rgb: u32) -> Color {
     match rgb {
         BG | SURFACE | SURFACE_ALT | KEYCAP => Color::Reset,
-        CYAN | TEAL => Color::Cyan,
+        ACCENT | GLOW => Color::Blue,
+        TEAL => Color::DarkGray,
         NAVY | MUTED => Color::DarkGray,
         TEXT => Color::White,
         TEXT2 => Color::Gray,
@@ -111,7 +115,7 @@ pub fn tone(state: State) -> u32 {
         State::Pass => OK,
         State::Warning => WARN,
         State::Fail => ERR,
-        State::Running => CYAN,
+        State::Running => ACCENT,
         State::Skipped | State::Pending => MUTED,
     }
 }
@@ -122,9 +126,9 @@ pub fn selected(focused: bool) -> Style {
         return Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD);
     }
     if focused {
-        Style::default().fg(c(BG)).bg(c(CYAN)).add_modifier(Modifier::BOLD)
+        Style::default().fg(c(GLOW)).bg(c(SURFACE_ALT)).add_modifier(Modifier::BOLD)
     } else {
-        bold(CYAN)
+        bold(ACCENT)
     }
 }
 
@@ -136,8 +140,8 @@ mod tests {
     fn colours_come_down_to_what_the_terminal_shows() {
         assert_eq!(indexed(0, 0, 0), 16);
         assert_eq!(indexed(255, 255, 255), 231);
-        let cyan = indexed(0x37, 0xD7, 0xFF);
-        assert!((16..232).contains(&cyan));
+        let blue = indexed(0x4D, 0xA3, 0xFF);
+        assert!((16..232).contains(&blue));
         assert_eq!(basic(OK), Color::Green);
     }
 }

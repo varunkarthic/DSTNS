@@ -9,7 +9,7 @@
 
 use crate::config::{self, FieldKind};
 use crate::environment::{self, State};
-use crate::tui::theme::{bold, fg, CYAN, ERR, MUTED, OK, TEXT, TEXT2, WARN};
+use crate::tui::theme::{bold, fg, ACCENT, ERR, MUTED, OK, TEXT, TEXT2, WARN};
 use crate::tui::widgets::{self, card, form_row, item, key, row, status_lines, Editor, Form, FormRow, Key, Menu, MenuEvent};
 use crate::tui::{Action, Dialog, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -30,7 +30,7 @@ const STEPS: &[Step] = &[
     Step {
         title: "Starting a run",
         intro: "How a simulation begins. Fast Boot needs every city downloaded first, which you can do at the end of this setup or later.",
-        keys: &["startup.fast_boot", "startup.force_animate", "launcher.default_settings", "narration.mode"],
+        keys: &["startup.dynamic_fastboot", "startup.dynamic_particles", "startup.fast_boot", "startup.force_animate", "launcher.default_settings", "narration.mode"],
     },
     Step { title: "Presentation", intro: "Music and full screen for the start-up film. Demo Mode has its own, on by default.", keys: &["presentation.music", "presentation.fullscreen", "presentation.music_volume"] },
     Step {
@@ -260,7 +260,7 @@ impl Screen for SetupScreen {
         let inner = Rect { x: inner.x + 2, width: inner.width.saturating_sub(4), ..inner };
         // Where it is: a dot for each page.
         let dots: Vec<Span> = (0..STEPS.len())
-            .map(|i| Span::styled(if ui.unicode { if i == self.step { "● " } else { "○ " } } else if i == self.step { "* " } else { "o " }, fg(if i <= self.step { CYAN } else { MUTED })))
+            .map(|i| Span::styled(if ui.unicode { if i == self.step { "● " } else { "○ " } } else if i == self.step { "* " } else { "o " }, fg(if i <= self.step { ACCENT } else { MUTED })))
             .collect();
         let mut head = vec![Line::from(dots), Line::default()];
         if self.step == 0 {
@@ -301,14 +301,14 @@ impl Screen for SetupScreen {
         }
         head.push(Line::default());
         let head_height = head.len() as u16;
-        frame.render_widget(Paragraph::new(head), Rect { height: head_height.min(inner.height), ..inner });
+        frame.render_widget(Paragraph::new(head).wrap(ratatui::widgets::Wrap { trim: false }), Rect { height: head_height.min(inner.height), ..inner });
         let actions_height = self.actions.items.len() as u16 + 1;
         let error_height = if self.error.is_empty() { 0 } else { 1 };
         let form_area = Rect { y: inner.y + head_height, height: inner.height.saturating_sub(head_height + actions_height + error_height), ..inner };
         let in_actions = self.in_actions;
         self.forms[self.step].render(frame, form_area, !in_actions, ui.unicode, 28);
         if !self.error.is_empty() {
-            frame.render_widget(Paragraph::new(Span::styled(self.error.clone(), fg(ERR))), Rect { y: inner.y + inner.height.saturating_sub(actions_height + 1), height: 1, ..inner });
+            frame.render_widget(Paragraph::new(Span::styled(self.error.clone(), fg(ERR))).wrap(ratatui::widgets::Wrap { trim: false }), Rect { y: inner.y + inner.height.saturating_sub(actions_height + 1), height: 1, ..inner });
         }
         self.actions.render(frame, Rect { y: inner.y + inner.height.saturating_sub(actions_height) + 1, height: actions_height.saturating_sub(1), ..inner }, in_actions, ui.unicode);
     }

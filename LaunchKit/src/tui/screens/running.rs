@@ -13,7 +13,7 @@ use crate::logs::Follower;
 use crate::process::Cancel;
 use crate::reporting::Level;
 use crate::simulation::{self, Metrics, Status};
-use crate::tui::theme::{self, fg, CYAN, MUTED, OK, TEXT2, WARN};
+use crate::tui::theme::{self, fg, ACCENT, MUTED, OK, TEXT2, WARN};
 use crate::tui::widgets::{self, activity, key, row, status_lines, Key};
 use crate::tui::{level_tone, now_stamp, reporter, Action, Dialog, Event_, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -277,7 +277,7 @@ impl Screen for RunningScreen {
         }
         lines.extend(status_lines(&rows, 18, body.width, ui.unicode));
         let mut y = body.y + lines.len() as u16;
-        frame.render_widget(Paragraph::new(lines), body);
+        frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }), body);
         // Progress: the day, or the map download.
         let bar = match (&self.phase, &self.progress, &self.status) {
             (Phase::Preparing, Some((_, done, total)), _) if *total > 0.0 => Some(("Map download".to_string(), (done / total).clamp(0.0, 1.0))),
@@ -289,7 +289,7 @@ impl Screen for RunningScreen {
                 frame.render_widget(Paragraph::new(Span::styled(label, fg(TEXT2))), Rect { x: body.x, y, width: 19.min(body.width), height: 1 });
                 let gauge_width = body.width.saturating_sub(19);
                 frame.render_widget(
-                    Gauge::default().ratio(ratio).label(format!("{:.0}%", ratio * 100.0)).gauge_style(Style::default().fg(theme::c(CYAN)).bg(theme::c(theme::SURFACE_ALT))).use_unicode(ui.unicode),
+                    Gauge::default().ratio(ratio).label(format!("{:.0}%", ratio * 100.0)).gauge_style(Style::default().fg(theme::c(ACCENT)).bg(theme::c(theme::SURFACE_ALT))).use_unicode(ui.unicode),
                     Rect { x: body.x + 19.min(body.width), y, width: gauge_width, height: 1 },
                 );
                 y += 1;
@@ -332,7 +332,7 @@ impl Screen for RunningScreen {
             KeyCode::Char('f') => {
                 self.follow = !self.follow;
                 self.log_scroll = 0;
-                Action::Toast(format!("Log follow {}", if self.follow { "on" } else { "off" }), CYAN)
+                Action::Toast(format!("Log follow {}", if self.follow { "on" } else { "off" }), ACCENT)
             }
             KeyCode::PageUp | KeyCode::Up => {
                 self.follow = false;
