@@ -123,12 +123,12 @@ export function placeFeature(feature: OverlayFeature, network: Network | null): 
   return type === "route" ? { ...feature, type: "line", points: track.points } : feature;
 }
 
-const PATH_SPRINGS: Record<string, SpringPreset> = {
+const PATH_SPRINGS: Record<string, SpringPreset> = Object.assign(Object.create(null), {
   smooth: SPRINGS.spatialSlow,
   standard: SPRINGS.spatialDefault,
   lively: SPRINGS.expressiveDefault,
   snappy: SPRINGS.expressiveFast,
-};
+});
 
 export function pathSpring(spring: OverlayFeature["spring"]): SpringPreset {
   if (spring && typeof spring === "object") return { k: spring.stiffness, c: spring.damping };

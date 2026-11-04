@@ -4,8 +4,8 @@
 import { roadState } from "./mapModel";
 import type { Layers, Snapshot, Topology } from "./types";
 
-const PRINT_ROADS: Record<string, string> = { clear: "#2fa98a", moderate: "#d98a12", severe: "#cf3442", blocked: "#7a1f2b", flooded: "#2f6fc0" };
-const WEIGHTS: Record<string, number> = { motorway: 7, trunk: 6.4, primary: 5.4, secondary: 4.2, tertiary: 3.2, residential: 1.9, service: 1.3 };
+const PRINT_ROADS: Record<string, string> = Object.assign(Object.create(null), { clear: "#2fa98a", moderate: "#d98a12", severe: "#cf3442", blocked: "#7a1f2b", flooded: "#2f6fc0" });
+const WEIGHTS: Record<string, number> = Object.assign(Object.create(null), { motorway: 7, trunk: 6.4, primary: 5.4, secondary: 4.2, tertiary: 3.2, residential: 1.9, service: 1.3 });
 
 export type Sheet = OffscreenCanvas | HTMLCanvasElement;
 export type Pen = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;

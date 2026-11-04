@@ -51,6 +51,8 @@ describe("features on the road network", () => {
     expect(pathSpring("lively")).toBe(SPRINGS.expressiveDefault);
     expect(pathSpring({ stiffness: 200, damping: 30 })).toEqual({ k: 200, c: 30 });
     expect(pathSpring(undefined)).toBe(SPRINGS.spatialDefault);
+    // An application names the spring: a name like one of Object's properties is not a spring.
+    for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty"]) expect(pathSpring(name as never), name).toBe(SPRINGS.spatialDefault);
   });
 });
 

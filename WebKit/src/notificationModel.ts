@@ -219,13 +219,13 @@ const INCIDENT_WORDINGS = new Map<string, (road: string, inArea: string) => stri
   incident: (road, inArea) => [`An incident is affecting traffic on ${road}${inArea}.`],
 }));
 
-export const INCIDENT_TITLES: Record<string, string> = {
+export const INCIDENT_TITLES: Record<string, string> = Object.assign(Object.create(null), {
   road_closure: "Road closure",
   accident: "Collision",
   congestion: "Congestion bottleneck",
   vehicle_breakdown: "Vehicle breakdown",
   hazard_spill: "Hazard spill",
-};
+});
 
 const pct = (v: unknown) => (typeof v === "number" ? `${Math.round(v * 100)}%` : "");
 const km = (m: unknown) =>

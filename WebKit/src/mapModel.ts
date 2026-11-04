@@ -238,12 +238,12 @@ export function hasMarker(feature: { polygon: boolean; demand_type?: string | nu
 }
 
 /** The core's demand types, as the legend names them. */
-export const DEMAND_TYPE_LABEL: Record<string, string> = {
+export const DEMAND_TYPE_LABEL: Record<string, string> = Object.assign(Object.create(null), {
   school: "School",
   office: "Office",
   mall: "Retail",
   store: "Commercial",
-};
+});
 
 /**
  * What a place's hover card says. The kind and demand wording match the place

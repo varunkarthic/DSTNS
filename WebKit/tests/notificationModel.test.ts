@@ -95,6 +95,9 @@ describe("describeNews", () => {
     for (const type of ["constructor", "__proto__", "toString", "hasOwnProperty", "a new kind"]) {
       const n = describeNews(news({ category: "incident", severity: "warning", template_id: "INCIDENT_ACTIVATED", message: "[06:00:00] Collision: lane blocked on Edge #0", data: { incident_id: 1, type, edge_id: 0 } }), topology);
       expect(n.summary.length, type).toBeGreaterThan(0);
+      expect(n.title, type).toBe("Incident");
+      const cleared = describeNews(news({ category: "incident", severity: "info", template_id: "INCIDENT_RESOLVED", message: "[07:00:00] Cleared", data: { incident_id: 1, type, edge_id: 0 } }), topology);
+      expect(cleared.title, type).toBe("Incident cleared");
     }
   });
 

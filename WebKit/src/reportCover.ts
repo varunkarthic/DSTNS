@@ -6,8 +6,8 @@ import { encoded, penOf, sheet } from "./reportMap";
 import type { Pen, Sheet } from "./reportMap";
 import type { Snapshot, Topology } from "./types";
 
-const WEIGHTS: Record<string, number> = { motorway: 7, trunk: 6.4, primary: 5.4, secondary: 4.2, tertiary: 3.2, residential: 1.9, service: 1.3 };
-const TROUBLE: Record<string, string> = { moderate: "#ffb547", severe: "#ff5f6d", blocked: "#ff5f6d", flooded: "#5aa2ff" };
+const WEIGHTS: Record<string, number> = Object.assign(Object.create(null), { motorway: 7, trunk: 6.4, primary: 5.4, secondary: 4.2, tertiary: 3.2, residential: 1.9, service: 1.3 });
+const TROUBLE: Record<string, string> = Object.assign(Object.create(null), { moderate: "#ffb547", severe: "#ff5f6d", blocked: "#ff5f6d", flooded: "#5aa2ff" });
 
 /**
  * Out of focus, in a way every browser can do on a worker: halved and doubled, one step at a time, on

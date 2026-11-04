@@ -78,7 +78,7 @@ const LAYER_NAMES: Record<keyof Layers, string> = {
   events: "Demand",
 };
 
-const MODULE_NAMES: Record<string, string> = {
+const MODULE_NAMES: Record<string, string> = Object.assign(Object.create(null), {
   traffic: "Traffic",
   signals: "Signals",
   buildings: "Place demand",
@@ -86,7 +86,7 @@ const MODULE_NAMES: Record<string, string> = {
   flooding: "Flooding",
   news: "Event news",
   incidents: "Incidents",
-};
+});
 
 const pct = (v: number, digits = 0) => `${(v * 100).toFixed(digits)}%`;
 const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`);

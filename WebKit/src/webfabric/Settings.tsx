@@ -25,7 +25,7 @@ const STATE_LABEL: Record<AppState, string> = {
   unloaded: "Not running",
 };
 
-export const CAPABILITY_LABEL: Record<string, { label: string; hint: string; sensitive?: boolean }> = {
+export const CAPABILITY_LABEL: Record<string, { label: string; hint: string; sensitive?: boolean }> = Object.assign(Object.create(null), {
   "ui.header": { label: "Header items", hint: "Add buttons to the header." },
   "ui.status": { label: "Status", hint: "Show status lines over the map." },
   "ui.panels": { label: "Panels", hint: "Open its own side panels." },
@@ -44,7 +44,7 @@ export const CAPABILITY_LABEL: Record<string, { label: string; hint: string; sen
   "control.playback": { label: "Control playback", hint: "Pause, seek, step and change speed.", sensitive: true },
   "control.events": { label: "Change the simulation", hint: "Inject events and overrides. This changes the results of the run.", sensitive: true },
   "control.world": { label: "Replace the world", hint: "Generate a new world, ending the current one.", sensitive: true },
-};
+});
 
 function Field({ field, value, onChange }: { field: SettingsField; value: unknown; onChange: (value: unknown) => void }) {
   const id = `wf-${field.id}`;
