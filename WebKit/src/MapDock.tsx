@@ -150,7 +150,12 @@ function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean;
           <p>No place here matches “{needle}”.</p>
         </div>
       )}
-      {!needle && features.length === 0 && <p className="place-search-empty">No named places in this district.</p>}
+      {!needle && features.length === 0 && (
+        <div className="place-search-empty">
+          <EmptyFigure figure="terrain" />
+          <p>No named places in this district.</p>
+        </div>
+      )}
     </div>
   );
 }

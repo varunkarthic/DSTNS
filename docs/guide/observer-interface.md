@@ -138,10 +138,13 @@ glyph swaps with a short rotation.
 
 The clock shows the current simulation time, with the share of the day completed beneath it, or Paused. Beside it, the
 day is drawn as the sun's path: above a dashed horizon from six until six, and below it through the night. What has
-passed is lit, and the sun or the moon stands at the current time. It reports time and does not set it: Back, Forward and
-Step move through the day.
+passed is lit, and the sun or the moon stands at the current time. Back, Forward and Step move through the day, and
+Time Control goes anywhere in it.
 
-- **Click** the clock to switch between 12 and 24 hour time everywhere.
+- **Click** the clock to open **Time Control**: go to a time of day (or Start, 06:00, Noon, 18:00, End), jump back or
+  forward by any number of hours and minutes, and choose 12- or 24-hour time. It says how far the time typed is from
+  now, and where a jump lands. Arrow keys, or scrolling over a focused field, step its number; Enter goes.
+- **Hold** the clock to switch between 12 and 24 hour time everywhere at once.
 - Between snapshots the playhead keeps advancing at the running rate, and a skip travels on a spring.
 
 The accessible name carries the time, percentage and paused state, for example

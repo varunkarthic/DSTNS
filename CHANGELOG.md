@@ -27,11 +27,18 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
 - **High Contrast**, in Accessibility (`accessibility.high_contrast`): text at full strength, firmer edges and
   outlines, thicker focus rings and solid surfaces.
 - **Panels that keep their shape.** The notification opens on a spring as the dock's panels do; it and the collapsed
-  telemetry strip keep their rounded corners all the way. The dock's panels take the whole column, the strip's panels
-  are as tall as the strip and no taller, and Network shows its figures two by two with the system beneath.
+  telemetry strip keep their rounded corners all the way. The dock's panels are as tall as the dock, the strip's
+  panels are as tall as the strip and no taller, and Network shows its figures two by two with the system beneath.
+- **Telemetry folds without spilling.** Its contents are cut to the panel as it narrows into the strip, and the
+  panel settles without bouncing, so the strip never squeezes thinner than itself on the way.
+- **Time Control, tidied.** It has a close button and the day's progress in its heading; Go and Jump sit beside
+  their fields; the distance reads "earlier than now" or "later than now"; scrolling over a field steps it. Menus
+  from the bar clear the whole bar rather than its button.
 - **Empty states with a drawing**: cones with nothing to close off, an empty drawer, a loupe over a blank sheet, a
-  plug short of its socket, and a hub with no applications, drawn as line figures that answer the pointer
-  ([Hairline](https://github.com/lucasmarkes/hairline), MIT; the cones are DSTNS's own on its engine).
+  plug short of its socket, a hub with no applications, a chart with no data before the first news, a sieve where a
+  filter leaves nothing, and a plinth of pillars for a district with no named places, drawn as line figures that
+  answer the pointer ([Hairline](https://github.com/lucasmarkes/hairline), MIT; the cones are DSTNS's own on its
+  engine).
 - **A start that runs in order.** A world ready while the title's logo is being taken apart waits for it to become the
   film's name, and a new world's mist has no hole at its middle.
 - **Dynamic Fastboot** removes a used world's city, and what was kept beside it, once a world in another city takes
@@ -44,10 +51,17 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   built by [graphify](https://github.com/safishamsi/graphify)'s AST extraction (no model, no key) on every
   documentation build, laid out at build time, and served as one compact file, so it draws at once.
 - **Searched in plain words**, in the page and with no model: code names split, typos forgiven, DSTNS's own terms
-  widened, and questions read as relations (*who calls physics_step*, *what does next_world.cpp import*, *functions in
-  the launcher*), with operators (`in:`, `type:`, `file:`, `community:`, `rel:`) for exact searches.
-- **A side panel** that says what a node is, where it is (with its line, opening it on GitHub), what it contains,
-  calls, depends on and is used by, each row going to that node; and filters by kind, part, folder and connection.
+  widened, and questions read as relations (*who calls physics_step*, *what is inside App.tsx*, *functions in the
+  launcher*). Results come as you type, a best match first and the rest grouped by kind, with the words typed marked
+  in each name; a member is found after the class it belongs to, not before it, and no one file fills the list. A
+  question the graph has no answer to says so and shows what has that name.
+- **A card** that says in one sentence what an item is and where, opens it on GitHub at its line, and lists what it
+  holds, calls, depends on and is used by, each row going to that item. The chosen item's links flow from what uses
+  to what is used.
+- **Laid out as the observer is**: a search bar at the top, a dock of tools on the left with Filters (everything,
+  code or docs; kinds; parts; a folder; kinds of link; quiet items), Colours and How to use it, solid panels and
+  groups tinted by the part they belong to.
+- Files that share a name with another (`apps.rs`, `index.md`, `motion.ts`) are files in the graph, not symbols.
 - **In a clone too**: `data/graph/dstns-graph.json`, which the new **Knowledge graph** workflow rebuilds after every
   push. `./launcher graph` asks it, the MCP Handler offers it as `graph_ask`, `graph_show`, `graph_relations` and
   `graph_path`, and a **Claude skill** (`skills/dstns-graph`, and a download on the Graph page) asks it from Claude.
@@ -63,6 +77,8 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
 
 ### Fixes
 
+- The documentation's graph is built with graphify 0.9.102, which no longer lets a Fortran file include files from
+  outside the folder being read (GHSA-pcc4-rvhr-2pr8).
 - The container image builds again: its build stage copies the daemons and the alerts they build in.
 - An application that has unregistered, or been unloaded, can no longer change its interface (`409 APP_NOT_ACTIVE`),
   rather than being told it had.

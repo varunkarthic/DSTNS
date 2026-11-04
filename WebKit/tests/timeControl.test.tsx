@@ -31,8 +31,8 @@ describe("Time Control", () => {
     expect(fromFields(12, 30, true, true)).toBe(12 * 3600 + 1800);
     expect(fromFields(7, 5, true, true)).toBe(19 * 3600 + 300);
     expect(fromFields(19, 5, false, false)).toBe(19 * 3600 + 300);
-    expect(describeDistance(5400)).toBe("1 h 30 min ahead.");
-    expect(describeDistance(-600)).toBe("10 min back.");
+    expect(describeDistance(5400)).toBe("1 h 30 min later than now.");
+    expect(describeDistance(-600)).toBe("10 min earlier than now.");
     expect(describeDistance(10)).toBe("That is now.");
   });
 
@@ -44,7 +44,7 @@ describe("Time Control", () => {
     expect(menu).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "14" } });
     fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "05" } });
-    expect(menu).toHaveTextContent("5 h 35 min ahead.");
+    expect(menu).toHaveTextContent("5 h 35 min later than now.");
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
     expect(onSeekTo).toHaveBeenCalledWith(14 * 3600 + 300);
   });

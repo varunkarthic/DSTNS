@@ -81,9 +81,13 @@ export function Floating({
     const a = anchor.current?.getBoundingClientRect();
     if (!el || !a) return;
     const size = el.getBoundingClientRect();
+    // A menu from a bar clears the whole bar, not only its button, so it never sits on the bar's edge.
+    const bar = anchor.current?.closest(".rail")?.getBoundingClientRect();
+    const top = bar ? bar.top : a.top;
+    const height = bar ? bar.height : a.height;
     setPlace(
       computePlacement({
-        anchor: { left: a.left, top: a.top, width: a.width, height: a.height },
+        anchor: { left: a.left, top, width: a.width, height },
         tip: { width: size.width, height: size.height },
         viewport: { width: window.innerWidth, height: window.innerHeight },
         avoid: avoidRegions(anchor.current, 160).filter((r) => (r.weight ?? 1) > 1),

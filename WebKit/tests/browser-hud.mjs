@@ -372,7 +372,7 @@ try {
     await time.click();
     const menu = page.getByRole("dialog", { name: "Time Control" });
     await menu.waitFor();
-    await menu.getByRole("radio", { name: "12-hour (AM/PM)" }).click();
+    await menu.getByRole("radio", { name: "12-hour" }).click();
     await page.getByRole("button", { name: /Simulation time \d{1,2}:\d{2}:\d{2} (AM|PM)/ }).waitFor();
     await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(out, "time-control.png") });

@@ -156,7 +156,8 @@ def _sort(node: dict) -> str:
         return "class"
     if node.get("_callable"):
         return "function"
-    if path and label == path.rsplit("/", 1)[-1]:
+    # A file is named by its name, or, where two files share one, by as much of its path as tells them apart.
+    if path and (label == path or path.endswith("/" + label)):
         return "file"
     if kind == "document":
         return "section"

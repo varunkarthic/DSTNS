@@ -314,7 +314,7 @@ function StackView({ status, snapshot, topology, asb, virtualTime }: Pick<Props,
 
 function NewsView({ news, topology }: { news: News[]; topology: Topology | null }) {
   const time = useTimeFormat();
-  if (!news.length) return <Empty icon="info">No events recorded yet for this run.</Empty>;
+  if (!news.length) return <Empty icon="info" figure="plot">No events recorded yet for this run.</Empty>;
   return (
     <>
       {news.slice(0, 120).map((item) => (
@@ -421,7 +421,7 @@ function QueueView({ runId, filter, onFilter, topology }: { runId: string; filte
       </div>
       {error && <Empty icon="incident">{error}</Empty>}
       {!error && !queue && <Empty icon="clock">Loading scheduled events.</Empty>}
-      {queue?.items.length === 0 && <Empty icon="clock">No {filter.view === "future" ? "pending" : "executed"} events in this category.</Empty>}
+      {queue?.items.length === 0 && <Empty icon="clock" figure="sieve">No {filter.view === "future" ? "pending" : "executed"} events in this category.</Empty>}
       {queue?.items.map((item) => (
         <StreamRow
           key={`${item.id}-${item.virtual_s}`}
@@ -552,7 +552,7 @@ function HistoryView({ history, filter, onFilter }: { history: HistoryFeed; filt
         </div>
       </div>
       {!list.length && (
-        <Empty icon="bell" figure={filter === "all" ? "drawer" : undefined}>{filter === "all" ? "No notifications yet for this run." : `No ${HISTORY_FILTERS.find((f) => f.id === filter)!.label.toLowerCase()} notifications.`}</Empty>
+        <Empty icon="bell" figure={filter === "all" ? "drawer" : "sieve"}>{filter === "all" ? "No notifications yet for this run." : `No ${HISTORY_FILTERS.find((f) => f.id === filter)!.label.toLowerCase()} notifications.`}</Empty>
       )}
       {list.slice(0, limit).map((entry) => (
         <HistoryRow key={entry.key} entry={entry} />

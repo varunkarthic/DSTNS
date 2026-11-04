@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useRef } from "react";
-import { cones, drawer, hub, loupe, plug, setReducedMotion } from "./vendor/hairline";
+import { cones, drawer, hub, loupe, plot, plug, setReducedMotion, sieve, terrain } from "./vendor/hairline";
 
-const FIGURES = { cones, drawer, hub, loupe, plug } as const;
+const FIGURES = { cones, drawer, hub, loupe, plot, plug, sieve, terrain } as const;
 export type EmptyFigureName = keyof typeof FIGURES;
 
 /**

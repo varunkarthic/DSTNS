@@ -10,23 +10,23 @@ it, and what depends on it, without reading the source first.
 
 | On the map | What it is |
 |---|---|
-| A dot | A node: a source file, a class, a function or method, a document or one of its sections, or a concept |
-| Its colour | The part of DSTNS it belongs to: the engine, Fabric, the daemons, the launcher, the observer, the documentation, tests, tools or configuration |
-| Its size | How many connections it has |
-| A faint disc | A community: nodes that connect more among themselves than to the rest, named after their most central member |
-| A line | A connection: `calls`, `imports`, `contains`, `defines`, `references`, `method`, `inherits`, `implements` and others |
+| A dot | One item: a source file, a class, a function or method, a document or one of its sections, or an idea |
+| Its colour | The part of DSTNS it belongs to: the engine, Fabric, the daemons, the launcher, the observer, the documentation, tests, tools or configuration. **Colours** in the dock lists them |
+| Its size | How many links it has |
+| A tinted cloud | A group: items that link more among themselves than to the rest, named after their most central member |
+| A line | A link: one item holds, calls, depends on, builds on or mentions the other |
 
 ## Using it
 
 | To… | Do this |
 |---|---|
-| Move and zoom | Drag, scroll or pinch. The buttons at the lower right zoom and show everything |
-| Find something | Type in the search field, or press ++slash++ anywhere on the page. ++arrow-up++ and ++arrow-down++ walk the results; ++enter++ goes to one |
-| Narrow a search | Add operators: `in:Core`, `kind:document`, `file:engine.cpp`, `community:scenario`, `rel:calls`. Words without one match names, then file paths, then initials (`se` finds `SimulationEngine`) |
-| Read about a node | Choose it. The panel names its file and line, with a link to that line on GitHub at the commit the graph was built from, its community and its neighbours by kind of connection |
-| See further round it | **Neighbours**, **2 steps** or **3 steps**: everything else fades |
-| Share it | **Copy link**: the address names the node, and opens on it |
-| Show less | **Filters**: by part of DSTNS, by kind, by kind of connection, and by how connected a node must be |
+| Find something | Type in the search bar, or press ++slash++ anywhere on the page. A name, a topic or a question all work: `SimulationEngine`, `docs about weather`, `what calls physics_step`, `what is inside App.tsx`. Results come as you type, a best match first and then the rest by kind, with the words you typed marked |
+| Narrow a search | Say what you want in the words: `functions in the launcher`, `classes in core`, `files in the observer` |
+| Read about an item | Choose it in the results or on the map. The card says what it is and where, in one sentence, opens the source on GitHub at its line, and lists what it is linked to by kind of link |
+| See what it is linked to | The links flow along their lines from what uses to what is used. **Direct links**, **2 steps** or **3 steps** light more round it |
+| Share it | The copy button in the card: the address names the item, and opens on it |
+| Show less | **Filters** in the dock: everything, code or docs; kinds of thing; parts of DSTNS; one folder; kinds of link; and how many links an item needs to be shown |
+| Move and zoom | Drag, scroll or pinch; ++plus++ and ++minus++ zoom, and ++0++ shows everything |
 
 ## How it is built
 

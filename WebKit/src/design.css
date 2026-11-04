@@ -244,14 +244,30 @@ dd .status-badge {
   transition-timing-function: var(--motion-expand, ease-out);
   transition-duration: var(--motion-expand-ms, 280ms);
 }
+/* A shape changing size settles without bouncing: an overshoot of a few percent of 400 px squeezes the strip. */
 .deck-surface {
   transition:
-    left var(--motion-expand-ms, 280ms) var(--motion-expand, ease-out),
-    bottom var(--motion-expand-ms, 280ms) var(--motion-expand, ease-out),
-    border-radius var(--motion-expand-ms, 280ms) var(--motion-expand, ease-out);
+    left var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out),
+    bottom var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out),
+    border-radius var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out);
+}
+/* The panel's contents are cut to the surface as it narrows into the strip, so nothing hangs outside it. */
+.deck-full {
+  clip-path: inset(0 0 0 0 round var(--r-lg));
+  transition:
+    opacity var(--t-select) var(--ease) var(--t-fast),
+    transform var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out),
+    clip-path var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out);
+}
+.telemetry-deck.compact .deck-full {
+  clip-path: inset(0 0 max(0px, calc(100% - var(--strip-h, 480px))) calc(100% - var(--strip-w)) round calc(var(--strip-w) / 2));
+  transition:
+    opacity var(--t-select) var(--ease),
+    transform var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out),
+    clip-path var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out);
 }
 .lower-hud {
-  transition: margin-right var(--motion-expand-ms, 280ms) var(--motion-expand, ease-out);
+  transition: margin-right var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out);
 }
 .layers-popover,
 .floating.placed {
@@ -3007,25 +3023,26 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .reduce-motion .time-control .time-value { animation: none; }
 
 /* ---- Time Control ------------------------------------------------------------------------------------------- */
-.floating.time-menu { width: 312px; max-width: calc(100vw - 24px); max-height: none; padding: 6px 0 8px; overflow: visible; }
-.time-menu-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 16px 8px; }
-.time-menu-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
-.time-menu-head .mono { font-size: 12px; color: var(--text-dim); }
-.time-menu-section { display: grid; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--well-line); }
+.floating.time-menu { width: 356px; max-width: calc(100vw - 24px); max-height: none; padding: 4px 0 6px; overflow: visible; transform-origin: 50% 100%; }
+.time-menu-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 10px 10px 16px; }
+.time-menu-head h3 { margin: 0 0 2px; font-size: 13.5px; font-weight: 600; color: var(--text); }
+.time-menu-head .mono { font-size: 11.5px; color: var(--text-dim); }
+.time-menu-section { display: grid; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid var(--well-line); }
 .time-menu-section h4 { margin: 0; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
-.time-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.time-menu-row .segmented { flex: 1; max-width: 150px; }
+.time-menu-row { display: flex; align-items: center; gap: 8px; }
+.time-menu-row > .btn { margin-left: auto; min-width: 68px; height: 34px; }
+.time-menu-row .segmented { flex: none; width: 124px; }
 .time-fields { display: inline-flex; align-items: center; gap: 4px; color: var(--text-faint); }
-.time-fields small { font-size: 11px; margin-right: 4px; }
-.time-field { width: 40px; height: 34px; padding: 0; text-align: center; font-size: 16px; color: var(--text); background: var(--well); border: 1px solid var(--well-line); border-radius: var(--r-sm); outline: none; transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
-.time-field:focus { border-color: var(--accent-line, var(--accent)); box-shadow: 0 0 0 3px var(--accent-soft); }
-.time-presets { display: flex; gap: 4px; flex-wrap: wrap; }
-.time-presets button { flex: 1; height: 28px; padding: 0 8px; font-size: 11.5px; color: var(--text-dim); background: var(--well); border: 1px solid var(--well-line); border-radius: var(--r-pill); transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+.time-fields small { font-size: 11px; margin-right: 2px; }
+.time-field { width: 42px; height: 34px; padding: 0; text-align: center; font-size: 16px; color: var(--text); background: var(--well); border: 1px solid var(--well-line); border-radius: var(--r-sm); outline: none; caret-color: var(--accent); transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
+.time-field:hover { background: var(--hover); }
+.time-field:focus { border-color: var(--accent-line, var(--accent)); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--surface-solid); }
+.time-presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.time-presets button { height: 28px; padding: 0 6px; font-size: 11.5px; color: var(--text-dim); background: var(--well); border: 1px solid var(--well-line); border-radius: var(--r-pill); transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), transform var(--motion-release-ms, 180ms) var(--motion-release, ease-out); }
 .time-presets button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.time-presets button:active:not(:disabled) { transform: scale(0.96); }
 .time-presets button:disabled { opacity: 0.45; }
-.time-menu-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.time-menu-foot .btn { min-width: 72px; height: 32px; }
-.time-menu-note { font-size: 12px; color: var(--text-dim); }
+.time-menu-note { font-size: 12px; color: var(--text-dim); margin-top: -2px; }
 .time-menu-note b { color: var(--text); font-weight: 600; }
 .time-menu-tip { font-size: 11px; color: var(--text-faint); }
 

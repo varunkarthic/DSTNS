@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
+import { Icon } from "./Icons";
 import { Floating, useDismiss } from "./Popover";
 import { useTimeFormat } from "./preferences";
 import { Segmented } from "./settingsControls";
@@ -27,7 +28,7 @@ export function fromFields(hour: number, minute: number, hour12: boolean, pm: bo
 /** How far a target is from now, in words. */
 export function describeDistance(delta: number): string {
   if (Math.abs(delta) < 30) return "That is now.";
-  return `${formatDuration(Math.abs(delta))} ${delta > 0 ? "ahead" : "back"}.`;
+  return `${formatDuration(Math.abs(delta))} ${delta > 0 ? "later than now" : "earlier than now"}.`;
 }
 
 function NumberField({ value, min, max, label, onChange, onEnter }: { value: number; min: number; max: number; label: string; onChange: (v: number) => void; onEnter: () => void }) {
@@ -52,6 +53,11 @@ function NumberField({ value, min, max, label, onChange, onEnter }: { value: num
         if (digits) onChange(Math.max(min, Math.min(max, Number(digits))));
       }}
       onBlur={() => setText(String(value).padStart(2, "0"))}
+      onWheel={(e) => {
+        // Scrolling over a focused field steps it, as the arrow keys do.
+        if (document.activeElement !== e.currentTarget || !e.deltaY) return;
+        step(e.deltaY < 0 ? 1 : -1);
+      }}
       onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "ArrowUp") (e.preventDefault(), step(1));
         else if (e.key === "ArrowDown") (e.preventDefault(), step(-1));
@@ -164,8 +170,13 @@ export function TimeControl({
       </button>
       <Floating anchor={trigger} open={open} preferred={["top"]} only className="time-menu" panelRef={panel} role="dialog" label="Time Control">
         <header className="time-menu-head">
-          <h3>Time Control</h3>
-          <span className="mono">{hasClock ? time.time(seconds) : "--:--:--"}</span>
+          <div>
+            <h3>Time Control</h3>
+            <span className="mono">{hasClock ? time.time(seconds) : "--:--:--"} · {percent.toFixed(0)}% of the day</span>
+          </div>
+          <button type="button" className="icon-btn small" aria-label="Close Time Control" onClick={() => setOpen(false)}>
+            <Icon name="close" size={14} />
+          </button>
         </header>
 
         <section className="time-menu-section" aria-label="Go to a time">
@@ -177,15 +188,13 @@ export function TimeControl({
               <NumberField label="Minute" value={minute} min={0} max={59} onChange={setMinute} onEnter={() => go(target)} />
             </div>
             {time.hour12 && <Segmented label="Half of the day" value={pm ? "pm" : "am"} options={[{ value: "am", label: "AM" }, { value: "pm", label: "PM" }]} onChange={(v) => setPm(v === "pm")} />}
+            <button type="button" className="btn primary" disabled={disabled || Math.abs(target - now) < 1} onClick={() => go(target)}>Go</button>
           </div>
+          <span className="time-menu-note">{describeDistance(target - now)}</span>
           <div className="time-presets" role="group" aria-label="Times of day">
             {presets.map(([name, at]) => (
               <button key={name} type="button" disabled={disabled || at === now} onClick={() => go(at)}>{name}</button>
             ))}
-          </div>
-          <div className="time-menu-foot">
-            <span className="time-menu-note">{describeDistance(target - now)}</span>
-            <button type="button" className="btn primary" disabled={disabled || Math.abs(target - now) < 1} onClick={() => go(target)}>Go</button>
           </div>
         </section>
 
@@ -199,19 +208,17 @@ export function TimeControl({
               <NumberField label="Minutes" value={jumpMinutes} min={0} max={59} onChange={setJumpMinutes} onEnter={() => go(landing)} />
               <small>m</small>
             </div>
-          </div>
-          <div className="time-menu-foot">
-            <span className="time-menu-note">
-              Lands at <b className="mono">{time.time(landing, { seconds: false })}</b>
-              {landing !== now + sign * (jumpHours * 3600 + jumpMinutes * 60) && ", the day's edge"}
-            </span>
             <button type="button" className="btn" disabled={disabled || landing === now} onClick={() => go(landing)}>Jump</button>
           </div>
+          <span className="time-menu-note">
+            Lands at <b className="mono">{time.time(landing, { seconds: false })}</b>
+            {landing !== now + sign * (jumpHours * 3600 + jumpMinutes * 60) && ", the day's edge"}
+          </span>
         </section>
 
         <section className="time-menu-section" aria-label="Clock">
           <h4>Clock</h4>
-          <Segmented label="Clock format" value={time.hour12 ? "12" : "24"} options={[{ value: "24", label: "24-hour" }, { value: "12", label: "12-hour (AM/PM)" }]} onChange={(v) => (v === "12") !== time.hour12 && time.toggle()} />
+          <Segmented label="Clock format" value={time.hour12 ? "12" : "24"} options={[{ value: "24", label: "24-hour" }, { value: "12", label: "12-hour" }]} onChange={(v) => (v === "12") !== time.hour12 && time.toggle()} />
           <small className="time-menu-tip">Hold the clock to switch at any time.</small>
         </section>
       </Floating>

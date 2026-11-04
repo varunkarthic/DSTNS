@@ -10,7 +10,7 @@ import { Spring } from "./motion";
  *
  * It starts as a bead at the icon that asked for it, inside the dock's edge. The
  * bead bulges out on a neck of the same material, the neck thins and lets go, and
- * the drop swells upward and outward into a panel the height of the column. Closing
+ * the drop swells upward and outward into a panel the height of the dock. Closing
  * runs the same path backward, so it is drawn back in. Everything is one spring
  * value, so opening and closing can interrupt each other at any point.
  */
@@ -50,7 +50,7 @@ export const FluidPanel = forwardRef<HTMLElement, {
   anchor: string;
   label: string;
   width?: number;
-  /** A panel shorter than the column, centred on its icon. By default it runs from the dock's top to the lower bar. */
+  /** A panel shorter than the dock, centred on its icon. By default it is the dock's height. */
   fitHeight?: number;
   className?: string;
   reduceMotion?: boolean;
@@ -70,10 +70,7 @@ export const FluidPanel = forwardRef<HTMLElement, {
     const icon = document.querySelector(anchor)?.getBoundingClientRect();
     if (!dock || !icon) return;
     const iconY = icon.top + icon.height / 2;
-    // From the top of the dock to just above the lower bar: the whole column, so that nothing in it is squeezed.
-    const floor = document.querySelector(".lower-hud")?.getBoundingClientRect().top ?? window.innerHeight - 24;
-    const column = Math.max(dock.height, floor - GAP - dock.top);
-    const height = fitHeight ?? column;
+    const height = fitHeight ?? dock.height;
     const top = fitHeight ? Math.max(dock.top, Math.min(iconY - fitHeight / 2, dock.bottom - fitHeight)) : dock.top;
     geometry.current = { left: dock.right + GAP, top, height, anchorY: iconY - top };
     const el = panel.current;

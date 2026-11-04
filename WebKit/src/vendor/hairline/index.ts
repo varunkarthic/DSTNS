@@ -9,7 +9,10 @@ import { mount as conesEngine } from "./figures/cones";
 import { mount as drawerEngine } from "./figures/drawer";
 import { mount as hubEngine } from "./figures/hub";
 import { mount as loupeEngine } from "./figures/loupe";
+import { mount as plotEngine } from "./figures/plot";
 import { mount as plugEngine } from "./figures/plug";
+import { mount as sieveEngine } from "./figures/sieve";
+import { mount as terrainEngine } from "./figures/terrain";
 
 export type { Figure, HairlineOptions } from "./mount";
 export { setReducedMotion } from "./core/motion";
@@ -28,3 +31,12 @@ export const hub = (el: HTMLElement, options?: HairlineOptions): Figure =>
 
 export const cones = (el: HTMLElement, options?: HairlineOptions): Figure =>
   create({ id: "cones", label: "Traffic cones on a kerb with nothing to close off: the pointer's height picks a cone in the stack, and it lifts clear with those above it.", rest: "rest", engine: conesEngine, tour: [[150, 210], [150, 150], [150, 110], null] }, el, options);
+
+export const plot = (el: HTMLElement, options?: HairlineOptions): Figure =>
+  create({ id: "plot", label: "A bar chart with no data: seven flat tabs on its base, before a plate of grid lines. The pointer brushes them, and each lifts a little, the nearest most, and drops back to zero.", rest: "rest", engine: plotEngine }, el, options);
+
+export const sieve = (el: HTMLElement, options?: HairlineOptions): Figure =>
+  create({ id: "sieve", label: "Three test sieves stacked over a pan: the pointer's height picks one, it rises clear of the stack, and every mesh is bare.", rest: "rest", engine: sieveEngine }, el, options);
+
+export const terrain = (el: HTMLElement, options?: HairlineOptions): Figure =>
+  create({ id: "terrain", label: "Eighty-one pillars on a plinth that rise around the pointer and rest as a dune with two rises.", rest: "rest", engine: terrainEngine }, el, options);
