@@ -32,6 +32,9 @@ Read by `./launcher`, the Rust launcher in `LaunchKit/`.
 | `DSTNS_API_PORT` | Last healthy port in `logs/launcher.json`, then `api.port` from `config/defaults.json` | Port to start on or attach to. An invalid value stops the CLI with `Invalid DSTNS_API_PORT` |
 | `DSTNS_LOGS_DIR` | `logs/` in the repository | Logs directory passed to the server and read for the credential |
 | `DSTNS_OPERATOR_TOKEN` | contents of `logs/operator.token` | Credential sent in the `X-DSTNS-Operator` header |
+| `DSTNS_GROQ_API_KEY` | unset | The Groq key for the launcher's model, kept in `config/launcher.env` by `./launcher model key KEY`. `GROQ_API_KEY` works too |
+| `DSTNS_LAUNCHER_ENV` | `config/launcher.env` | Where the launcher keeps its own state and the variables `env set` keeps |
+| `DSTNS_VERIFIED_BY` | set by the launcher | Under [Advanced Security](../guide/operator-cli.md#advanced-security), the process id of the launcher that verified, passed to what it starts. Honoured only when that process is the launcher itself, so setting it by hand does nothing |
 | `DSTNS_SEED_DB` | `data/seed-store/seeds.sqlite3` | SQLite file holding saved seeds |
 | `DSTNS_BUILD_DIR` | `build/`, or the local cache in a cloud-synced checkout | Where the launcher configures and compiles the core |
 | `DSTNS_UI_DIST` | unset | Read by the server: the observer bundle to serve, before the usual `WebKit/dist` search. The launcher sets it for a synced checkout |
@@ -114,6 +117,8 @@ Read by the server when it starts. The launcher sets them from its settings; see
 | `DSTNS_DISABLED_CAPABILITIES` | empty | Comma-separated capabilities nobody may be granted |
 | `DSTNS_PRESENTATION` | `{}` | JSON for the observer: `webfabric`, `force_animate`, `fast_boot`, `dynamic_fastboot`, `dynamic_particles`, `demo`, `music`, `fullscreen` (true or false), `music_volume` (0 to 1), `map_fps` (0, 30 or 60), `render_scale` (0.5 to 3), `film_particles` (4,000 to 32,000) and `demo_scenes` (scene ids, in order). Anything else is ignored. `force_animate` is reported off whenever `fast_boot` or `dynamic_particles` is on |
 | `DSTNS_DYNAMIC_FASTBOOT` | `1` | `0` stops the server choosing the next world and fetching its city while a world runs; see [Dynamic Fastboot](../guide/fast-boot.md#dynamic-fastboot) |
+| `DSTNS_DAEMON` | `{}` | JSON for the [daemons](../guide/daemons.md), laid over their defaults: `enabled`, `sustain_s`, `daemons` (each on or off), `rcs.modules.MODULE.memory_mib` and `.cpu_percent` (α, β, γ), and `cache.interval_s`, `max_mib`, `stale_part_s`. The launcher writes it from its settings |
+| `DSTNS_MAPS_DIR` | the server's `--maps` | Set by the server for its daemons: the map cache the disk watch and the cache handler look after |
 | `DSTNS_COMPRESSION` | `fast` | How hard snapshots and the topology, the large responses, are compressed: `fast`, `balanced`, `small`, `off`, or a zlib level 0 to 9 |
 | `DSTNS_API_THREADS` | the library's choice | How many requests are answered at once |
 | `DSTNS_ENGINE_THREADS` | half the cores, up to 8 | Threads that write a large snapshot; 1 keeps it to one |

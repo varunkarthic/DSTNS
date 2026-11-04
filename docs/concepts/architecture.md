@@ -1,8 +1,9 @@
 # Architecture
 
 DSTNS is one C++20 process that owns the simulation and serves it over HTTP,
-an operator CLI that builds, starts and supervises that process, and a React
-observer that watches a run in the browser. This page describes how those parts
+with daemons inside it that watch it and the machine; a Rust launcher that
+builds, starts and supervises that process; and a React observer that watches
+a run in the browser. This page describes how those parts
 fit together, which threads exist and what they own, how a run moves through
 its lifecycle, and where each concern lives in the source tree.
 
@@ -11,7 +12,7 @@ its lifecycle, and where each concern lives in the source tree.
 
 ```mermaid
 flowchart LR
-    CLI["<b>Operator CLI</b><br/>build, start, test,<br/>logs, seeds, sumo"]
+    CLI["<b>Launcher</b> (Rust)<br/>build, start, console,<br/>daemons, MCP Handler"]
     OBS["<b>Observer</b> (React)<br/>map, rail, telemetry,<br/>PDF report"]
     subgraph CORE["dstns_server (C++20)"]
         direction TB
@@ -23,7 +24,12 @@ flowchart LR
         ASB["AdaptiveBackpressure"]
         SB["SumoBridge"]
         LOG["RuntimeLogger"]
+        DMN["DaemonHandler<br/>rcs, memory, disk,<br/>stall, cache"]
+        GW["DaemonGateway<br/>emergency and<br/>notification queues"]
         API --> ENG
+        API --> GW
+        DMN --> GW
+        DMN -. "reads, never waits" .-> ENG
         ENG --> COMP
         ENG --> GS
         ENG --> EV
@@ -34,6 +40,8 @@ flowchart LR
     API -- "health, status" --> CLI
     OBS -- "view, news" --> API
     OBS -- "playback, world,<br/>backpressure" --> API
+    OBS -- "daemon queues" --> GW
+    CLI -- "processes, daemon queues" --> GW
     COMP --> OSM["OSM loader and<br/>map downloader"]
     SB --> SUMO["netconvert, sumo"]
     CORE --> LOGS[("logs/system.log<br/>logs/runtime.db")]
@@ -66,15 +74,17 @@ holds simulation state of its own; both read what the core publishes.
 | `Core/src/logging.cpp` | `RuntimeLogger`: text system log and SQLite runtime journal |
 | `Core/src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
 | `WebKit/` | The observer: React 19, Vite, Vitest, jsPDF |
-| `LaunchKit/` | The launcher, in Rust: command line, console, terminal interface (ratatui), compatibility mode, application supervisor and the MCP Handler |
+| `LaunchKit/` | The launcher, in Rust: command line, console and its tools (`inspect.rs`), terminal interface (ratatui) and Simplified Launch Control, compatibility mode, application supervisor, the MCP Handler, Advanced Security (`security.rs`, with `assets/verify.swift`), the launcher's model for plain-word requests (`assistant.rs`) and its side of the daemons (`daemons.rs`) |
 | `launcher` | Builds the launcher when its sources change, then runs it |
 | `Core/src/next_world.cpp` | Dynamic Fastboot: the next world chosen and its city fetched while this one runs |
+| `Daemon/` | The daemons, `dstns_daemon`: the handler, the gateway and its two queues, the Resource Control Subsystem, the memory, disk and stall watchers, the auto cache handler, process and machine readings, and `messages.json`, the templates every message is made from. See [the daemons](../guide/daemons.md) |
+| `Fabric/src/routes_daemon.cpp` | `/api/v1/daemon/…`: the open overview, the queues, acknowledgement, and turning daemons on and off |
 | `tools/release/` | `dstns_release`: image metadata, publishing, the image smoke test and licence headers |
 | `scripts/` | Build, test, fetch and reset helpers |
 | `tests/` | Native unit, property, replay and performance suites; the HTTP suites (`tests/http/`, C++, on one harness) |
 | `tools/` | `dstns_scenario_export`, `dstns_road_index`, `dstns_replay_verify`, `dstns_benchmark` |
 | `docker/`, `Dockerfile`, `docker-compose.yml` | Container build and TLS gateway |
-| `config/` | `defaults.json` (run defaults) and `ui-config.json` (observer defaults) |
+| `config/` | `defaults.json` (run defaults), `ui-config.json` (observer defaults) and `daemon-alerts.json` (the daemons' alerts) |
 
 ## The core process
 
@@ -87,6 +97,8 @@ holds simulation state of its own; both read what the core publishes.
 | World worker (`world_worker_`) | `start_async`, `regenerate_world` | Compiles a scenario (possibly downloading a map) off the request thread, then installs it |
 | Downloader child | `osm_fetch.cpp` via `posix_spawn` | Runs `dstns_server --fetch-osm` in its own process group, so termination can kill it and its descendants |
 | Shutdown worker | `terminate` handler | Stops the listener; a detached 3 s backstop guarantees the process exits |
+| Daemons | `DaemonHandler::start`, as the API starts | One thread for each daemon, each waking at its own interval (1 s for `rcs` and `stall`, 2 s for `memory`, 5 s for `cache`, 10 s for `disk`). They read the engine only through accessors that try its lock and give up at once, so a compile never holds them up, and they stop first when the server ends |
+| Signal listener | `main` | Waits on a pipe that the `SIGTERM`, `SIGINT` and `SIGHUP` handlers write to; stops the map downloads, then ends the process by the same signal |
 
 One mutex, `SimulationEngine::mutex_`, guards all simulation state. Every view
 and every control takes it, so a response is always a coherent picture of
@@ -276,13 +288,17 @@ notifications, Auto Focus, the PDF report) derives from those polls. See
 [Observer interface](../guide/observer-interface.md) and
 [ASB](backpressure.md).
 
-## The operator CLI
+## The launcher
 
 `./launcher` builds and runs the Rust program in `LaunchKit/`. One set of operations
 (process supervision, API calls, configuration and its rules, saved seeds, applications)
-serves four faces: single commands for scripts, the [console](../guide/console.md)
-(command lines joined by `|`, `&&`, `||` and `;`), the terminal interface, and
-compatibility mode. The [MCP Handler](../guide/mcp.md) offers the same operations, and every
+serves five faces: single commands for scripts, the [console](../guide/console.md)
+(command lines joined by `|`, `&&`, `||` and `;`), the terminal interface,
+[Simplified Launch Control](../guide/operator-cli.md#simplified-launch-control) for small
+terminals, and compatibility mode. Requests in plain words go to the launcher's own model
+(Apple's Foundation Models, Ollama or Groq), whose suggestion is checked and put on the
+prompt, never run by itself; [Advanced Security](../guide/operator-cli.md#advanced-security)
+can require the system's prompt before anything is changed. The [MCP Handler](../guide/mcp.md) offers the same operations, and every
 route of the API, to an AI client.
 The launcher is the supported way to start a run. It
 rebuilds the native core and the observer when their sources have changed,

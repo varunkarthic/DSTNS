@@ -208,6 +208,8 @@ server's `system.log` runs beneath it, coloured by level. When a simulation is r
 
 ### Start simulation
 
+![The launcher's start page, with three applications set up](../assets/screenshots/launcher-start.png){ .screenshot }
+
 | Field | Meaning |
 |---|---|
 | Seed | Empty: the world [Dynamic Fastboot](fast-boot.md#dynamic-fastboot) prepared, else a fresh seed. Or decimal or `0x` hexadecimal up to 128 bits |
@@ -376,7 +378,12 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `demo [--no-open] [--no-music] [--no-fullscreen]` | [Demo Mode](fast-boot.md#demo-mode): the film on a loop, until Ctrl+C |
 | `mcp [serve\|tools\|client-config]` | The [MCP Handler](mcp.md), for AI clients |
 | `-c 'LINE'`, `shell` | The [console](console.md): a command line, or lines until `exit` |
-| `ls`, `cat`, `tail`, `head`, `ps`, `get`, `env`, `uptime`, `about`, `docs [TOPIC]` | The console's readers, run on their own: plain text to pipe. `docs mcp` opens that page |
+| `ls`, `cat`, `tail`, `head`, `ps [-a]`, `get`, `env`, `uptime`, `about`, `docs [TOPIC]`, `json`, `view`, `history` | The console's readers, run on their own: plain text to pipe. `docs mcp` opens that page; `json PLACE [PATH]` shows any state as JSON |
+| `set`, `unset`, `env set\|unset`, `edit`, `api` | The console's tools for changing things: a setting, a kept variable, a file in your editor, any route. See [the console](console.md) |
+| `ask "REQUEST"` | A request in plain words as a line of commands, printed and never run; see [Asking in plain words](#asking-in-plain-words) |
+| `model [use PROVIDER [NAME]\|key KEY\|test]` | The launcher's model: Apple's Foundation Models, Ollama or Groq |
+| `daemon [show NAME\|on NAME\|off NAME\|queue emergency\|notification]` | The server's [daemons](daemons.md) |
+| `security [on\|off\|verify]` | [Advanced Security](#advanced-security) |
 | `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, and forget the setup |
 | `help`, `version`, `license` | Usage, version and licence notice, the licence text |
 | `--mode=server` | Run `dstns_server` in the foreground with the configured host and port |
@@ -614,6 +621,8 @@ A request it cannot turn into commands, such as *delete everything and quit*, ge
 own setting, [`narration.mode`](#settings-for-every-feature).
 
 ## Simplified Launch Control
+
+![Simplified Launch Control in a 62 × 20 terminal](../assets/screenshots/launcher-simplified.png){ .screenshot }
 
 When the terminal is smaller than 70 × 22, the launcher stops before it starts anything and
 asks: **Simplified Launch Control**, or **Leave**. Simplified Launch Control is the launcher

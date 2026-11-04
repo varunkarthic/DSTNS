@@ -123,6 +123,8 @@ Only the very first start downloads while anyone waits. While a world runs, the 
 city, and fetches that city in the background; a new world takes it, and so does the launcher's next start, so either
 is ready in seconds. On by default (`startup.dynamic_fastboot`, or `DSTNS_DYNAMIC_FASTBOOT=0`).
 
+- **Fixed: `data/maps/next-world.json` was committed,** though it is each checkout's own state, written as Dynamic
+  Fastboot works. It is now ignored with the rest of the map cache.
 - The next world is named in `next-world.json` in the map cache, so it outlives the server, and the cache sweep at
   start-up keeps its city whatever the policy. `GET /api/v1/world/status` reports it as `data.next`.
 - A world that wants a city still being fetched waits for that download rather than starting another, and every

@@ -161,6 +161,10 @@ loop, with nothing on screen but the film, its captions and the licence line:
 | Many worlds | `many-worlds` | One seed at the centre, and from it districts of every kind (a grid, rings and spokes, an old town, a diagonal plan, a waterfront) |
 | AI ready | `ai-ready` | The simulation at the centre, with its controls reached as tools by the programs around it, through the [MCP Handler](mcp.md) |
 
+| ![Time control](../assets/screenshots/film-time-control.png) | ![Many worlds](../assets/screenshots/film-many-worlds.png) | ![AI ready](../assets/screenshots/film-ai-ready.png) |
+|---|---|---|
+| Time control | Many worlds | AI ready |
+
 `demo.scenes` chooses which scenes play and in what order, by id. On the Configuration
 page, under **Demo**, it is a list: **Space** turns a scene on or off and **Shift+↑ ↓** moves
 it. The name always opens the loop. As text, it is the ids separated by commas:

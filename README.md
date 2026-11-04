@@ -116,6 +116,8 @@ The launcher reads command lines as a shell does, in its command bar, with `-c`,
 ./launcher -c 'ps | grep -q running || start'              # only if nothing is running
 ```
 
+<img src="docs/assets/screenshots/launcher-console.png" alt="The launcher's command bar: settings as coloured JSON, and a request in plain words turned into a suggested command line waiting on the prompt" width="100%">
+
 `ls`, `cat`, `tail`, `ps`, `get`, `env`, `uptime`, `about` and `docs` read the launcher's state; `json` shows any of it, or the server's, as JSON you can look inside (`json settings .api.port`, `json endpoints -k`); `set`, `unset`, `env set`, `edit` and `api` change almost everything, with the same checks as the interface; `ps -a` shows every DSTNS server on the machine; `grep`, `wc`, `sort`, `uniq`, `cut` and `tee` filter it all; and every other command is one of the launcher's own, captured so it pipes too. In the interface, `:` opens the prompt, with suggestions, completion, a history kept between sessions, and the server's processor and memory at its right.
 
 ## Fast starts
@@ -160,7 +162,7 @@ The **MCP Handler** lets an AI client call DSTNS through the Model Context Proto
 
 ## Fabric and WebFabric
 
-**Fabric** is the layer everything reaches the engine through: 146 documented paths over HTTP and JSON, described in OpenAPI 3.1, with an index the server serves itself. **WebFabric** lets your own programs become part of the observer. There's nothing to install. A program registers itself and declares what it wants to show as data, and the observer draws it in its own design.
+**Fabric** is the layer everything reaches the engine through: 153 documented paths over HTTP and JSON, described in OpenAPI 3.1, with an index the server serves itself. **WebFabric** lets your own programs become part of the observer. There's nothing to install. A program registers itself and declares what it wants to show as data, and the observer draws it in its own design.
 
 ```python
 token = post("/api/v1/fabric/apps", {

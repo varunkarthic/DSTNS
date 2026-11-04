@@ -260,6 +260,40 @@ See [Saved seeds](guide/saved-seeds.md).
 
 See [Writing documentation](development/documentation.md).
 
+## The launcher asks about Simplified Launch Control
+
+The terminal is smaller than 70 × 22, the least the full interface needs. Make it larger and
+the launcher goes on by itself; or choose **Simplified Launch Control**, the essentials on a
+few lines; or set `launcher.small_terminal` to `simplified` or `full` to stop it asking.
+
+## A request in plain words says there is no model
+
+`./launcher model` says which model is chosen, which is in use and why not. Apple's
+Foundation Models need a Mac with Apple silicon and macOS 27 or later, with the model
+available (`fm available`). For Ollama, start it, or set `model.ollama_url`. For Groq, keep a
+key with `./launcher model key KEY`. `model test` asks it something.
+
+## A suggestion is refused
+
+The model's answer is checked before it reaches the prompt, and a line that leaves, resets,
+opens a shell, writes files, joins commands with `;` or `||`, or uses a command that does not
+exist is refused, with the reason. Ask again in other words, or type the command.
+
+## Advanced Security: not verified
+
+The system's prompt was dismissed, or could not be shown. On macOS the first prompt builds a
+small Swift program, which needs `swiftc` (the Xcode command line tools); without it, the
+administrator password dialog is used. On Linux, `sudo` asks in the terminal when there is
+no desktop for polkit. A console line that was refused ends with exit code 77.
+
+## The daemons say a module is using less than it should
+
+That is the Resource Control Subsystem's lowest kind of message: below its α, something may
+not be working. If it is expected (a run with almost nothing to simulate, say), lower that
+module's α (`rcs.engine.cpu`, `rcs.engine.memory`) or raise `daemon.sustain_s`. A warning or
+an alert over β or γ means the module really is using that much: `./launcher daemon show rcs`
+shows each module's readings and lines.
+
 ## Diagnosing something else
 
 Three things explain most behaviour you cannot account for:

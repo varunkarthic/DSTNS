@@ -30,6 +30,8 @@ data/maps/*.manifest.json
 data/maps/*.part
 data/maps/*.progress
 data/maps/*.tmp
+data/maps/next-world.json
+data/maps/next-world.json.tmp
 
 # Build and run outputs
 *.tsbuildinfo

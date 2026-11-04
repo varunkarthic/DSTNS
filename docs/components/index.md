@@ -37,3 +37,4 @@ Several documents split behavior owned by one class into smaller conceptual topi
 | [Logging system](logging-system.md) | `RuntimeLogger` | Text log and SQLite journal |
 | [SUMO adapter](sumo-adapter.md) | `SumoBridge` | Export and batch SUMO runs |
 | [Observer](webkit.md) | `WebKit/` | The browser application |
+| [Daemons](../guide/daemons.md) | `Daemon/`: `Handler`, `Gateway`, `Queue` | Watchers on threads of their own, and their two queues |

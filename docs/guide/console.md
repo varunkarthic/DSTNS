@@ -121,6 +121,8 @@ any other:
 
 ## In the command bar
 
+![The command bar: JSON in colour, and a request in plain words turned into a suggestion waiting on the prompt](../assets/screenshots/launcher-console.png){ .screenshot }
+
 The command bar adds what only makes sense inside the interface:
 
 | Command | Does |

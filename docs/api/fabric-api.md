@@ -277,6 +277,24 @@ POST /api/v1/fabric/apps/{id}/messages
 {"to": "org.example.planner", "type": "route.changed", "data": {"route": "R1"}}
 ```
 
+## The daemons' queues
+
+While the server's [daemons](../guide/daemons.md) are on (`GET /api/v1/daemon` says, without
+a token), an application should read **daemonEmergencyQueue** and act at once on what it
+holds: an engine over its memory limit, the machine out of memory or disk. Reading it with the
+application's own token subscribes it, and an emergency it has acted on can be acknowledged.
+
+```python
+read = get("/api/v1/daemon/emergency-queue?app=org.example.planner&since=0&wait=25", token)["data"]
+for message in read["items"]:
+    if message["level"] == "emergency":
+        pause_heavy_work()
+    post(f"/api/v1/daemon/emergency-queue/{message['sequence']}/ack?app=org.example.planner", {}, token)
+```
+
+**daemonNotificationQueue** carries what is worth knowing but not urgent. See
+[the endpoints](endpoints.md#daemons).
+
 ## Changing several things at once
 
 `POST /api/v1/fabric/apps/{id}/ui/batch` takes `upsert`, an array of elements, and `remove`, an array of IDs. It applies whole or not at all, so that nothing appears half-updated. Every check comes before any change.
