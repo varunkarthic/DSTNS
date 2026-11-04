@@ -236,14 +236,14 @@ export function landingPoints(roads: readonly { x_m: number; y_m: number }[][], 
 }
 
 const VERTEX = `#version 300 es
-in vec3 aFrom, aFromV, aTo, aToV;
-in vec4 aFromM, aToM; // tint kind phase hue
+in vec3 aFrom, aFromV, aTo, aToV, aPrev, aPrevV;
+in vec4 aFromM, aToM, aPrevM; // tint kind phase hue
 in vec4 aLand; // x y tint order
 in float aSeed;
 uniform mat4 uView;
-uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo, uSweep, uAspect, uReach, uBurst, uInhale, uTurn, uGlint;
+uniform float uMix, uTime, uPixels, uLand, uAgeFrom, uAgeTo, uSweep, uAspect, uReach, uBurst, uInhale, uTurn, uGlint, uCarry, uAgePrev, uCarryTurn;
 uniform vec2 uPointer, uPointerV, uLandShift;
-uniform vec3 uFront;
+uniform vec3 uFront, uCarryFront;
 uniform vec3 uRipple, uBase, uAccent, uWarm, uDanger, uOk, uRoad;
 out vec3 vColour;
 out float vAlpha;
@@ -570,6 +570,25 @@ Live live(vec3 p, vec3 v, vec4 m, float age) {
   if (kind == ${KIND.rest} || kind == ${KIND.reveal}) p += 0.009 * vec3(sin(t * 0.9 + phase * 40.0), sin(t * 1.1 + phase * 57.0), cos(t * 0.8 + phase * 31.0));
   return Live(p, alpha, size, tint, hue);
 }
+// How far a particle has got from one scene to the next, by the front it sets off along, and with no sudden start or stop.
+float progress(float mixed, vec3 target, vec3 front) {
+  float along = dot(front, front) < 0.5 ? clamp(length(target) / 2.4, 0.0, 1.0) : clamp(dot(target, front) / 3.8 + 0.5, 0.0, 1.0);
+  float m = clamp(mixed * 1.5 - mix(aSeed, along, 0.62) * 0.5, 0.0, 1.0);
+  return m * m * m * (m * (m * 6.0 - 15.0) + 10.0);
+}
+// On the way they ride one current together, each a little off its line.
+// Squared, so that what lifts them off their line begins and ends with no speed of its own.
+vec3 ride(vec3 p, float m, float lift, float turnWay) {
+  float swing = sin(m * 3.14159);
+  float arc = swing * swing * lift;
+  float angle = aSeed * 40.0 + uTime * 0.6;
+  // One body of water: a slow field they are all carried by, and only a little of their own.
+  vec3 current = vec3(sin(p.y * 1.7 + uTime * 0.5) + cos(p.z * 1.3 - uTime * 0.4), sin(p.z * 1.9 + uTime * 0.45) + cos(p.x * 1.1 + uTime * 0.35), sin(p.x * 1.6 - uTime * 0.5) + cos(p.y * 1.2 + uTime * 0.3));
+  p += arc * (current * 0.17 + vec3(cos(angle), sin(angle * 1.3) * 0.7, sin(angle)) * (0.025 + aSeed * 0.07));
+  float turn = arc * turnWay * (0.26 + aSeed * 0.14);
+  p.xz = mat2(cos(turn), -sin(turn), sin(turn), cos(turn)) * p.xz;
+  return p;
+}
 vec3 colourOf(float tint, float hue) {
   if (hue < 0.5) return mix(uBase, uAccent, tint);
   if (hue < 1.5) return uWarm;
@@ -580,11 +599,7 @@ vec3 colourOf(float tint, float hue) {
 void main() {
   // Particles set off as a front across the scene, not as a block and not as noise.
   // Which way that front goes changes from scene to scene: across, or outward from the middle.
-  float along = dot(uFront, uFront) < 0.5 ? clamp(length(aTo) / 2.4, 0.0, 1.0) : clamp(dot(aTo, uFront) / 3.8 + 0.5, 0.0, 1.0);
-  float order = mix(aSeed, along, 0.62);
-  float m = clamp(uMix * 1.5 - order * 0.5, 0.0, 1.0);
-  // No sudden start or stop, in speed or in the change of speed.
-  m = m * m * m * (m * (m * 6.0 - 15.0) + 10.0);
+  float m = progress(uMix, aTo, uFront);
   // The end blows outward from the middle all at once, hard, and then slows.
   if (uBurst > 0.5) {
     m = clamp(uMix * 1.12 - aSeed * 0.12, 0.0, 1.0);
@@ -592,21 +607,21 @@ void main() {
   }
   Live a = live(aFrom, aFromV, aFromM, uAgeFrom);
   Live b = live(aTo, aToV, aToM, uAgeTo);
+  // A scene left before it had arrived: the next sets off from exactly where each particle had got to, on its way.
+  if (uCarry < 1.0) {
+    float c = progress(uCarry, aFrom, uCarryFront);
+    Live o = live(aPrev, aPrevV, aPrevM, uAgePrev);
+    a.p = ride(mix(o.p, a.p, c), c, 1.0, uCarryTurn);
+    a.alpha = mix(o.alpha, a.alpha, c);
+    a.size = mix(o.size, a.size, c);
+    a.tint = mix(o.tint, a.tint, c);
+    if (c < 0.5) a.hue = o.hue;
+  }
   // The name draws in on itself just before it goes, as anything does before a burst.
   float drawn = 1.0 - uInhale * 0.075;
   a.p *= drawn;
   if (uBurst < 0.5) b.p *= drawn;
-  vec3 p = mix(a.p, b.p, m);
-  // On the way they ride one current together, each a little off its line.
-  // Squared, so that what lifts them off their line begins and ends with no speed of its own.
-  float swing = sin(m * 3.14159);
-  float arc = swing * swing * (1.0 - uBurst);
-  float angle = aSeed * 40.0 + uTime * 0.6;
-  // One body of water: a slow field they are all carried by, and only a little of their own.
-  vec3 current = vec3(sin(p.y * 1.7 + uTime * 0.5) + cos(p.z * 1.3 - uTime * 0.4), sin(p.z * 1.9 + uTime * 0.45) + cos(p.x * 1.1 + uTime * 0.35), sin(p.x * 1.6 - uTime * 0.5) + cos(p.y * 1.2 + uTime * 0.3));
-  p += arc * (current * 0.17 + vec3(cos(angle), sin(angle * 1.3) * 0.7, sin(angle)) * (0.025 + aSeed * 0.07));
-  float turn = arc * uTurn * (0.26 + aSeed * 0.14);
-  p.xz = mat2(cos(turn), -sin(turn), sin(turn), cos(turn)) * p.xz;
+  vec3 p = ride(mix(a.p, b.p, m), m, 1.0 - uBurst, uTurn);
   vec4 clip = uView * vec4(p, 1.0);
   // The pointer moves through them like a hand through water: those nearby ease aside and
   // turn a little around it, are carried along with its movement, and catch the light.
@@ -652,7 +667,7 @@ void main() {
   // Nearer and further than the focal distance falls away, as with a lens.
   float shown = (0.32 + tint * 0.68) * clamp(1.5 - abs(depth - 3.1) * 0.5, 0.18, 1.0) * mix(a.alpha, b.alpha, m);
   // A little quieter in flight, so that the crossing is a veil, not a blaze.
-  shown = min(1.0, shown * (1.0 + near * 0.9)) * (1.0 - 0.3 * swing * (1.0 - uBurst));
+  shown = min(1.0, shown * (1.0 + near * 0.9)) * (1.0 - 0.3 * sin(m * 3.14159) * (1.0 - uBurst));
   vAlpha = mix(shown, 0.92, l) * hidden;
   vColour = mix(vColour, uAccent, max(seam, near * 0.35 * (1.0 - l)));
   vColour = mix(vColour, uAccent, band * 0.55);
@@ -685,7 +700,14 @@ function compile(gl: WebGL2RenderingContext): WebGLProgram | null {
   }
   if (!program) return null;
   gl.linkProgram(program);
-  return gl.getProgramParameter(program, gl.LINK_STATUS) ? program : null;
+  if (gl.getProgramParameter(program, gl.LINK_STATUS)) return program;
+  // Say why, so that a film that does not draw is not a mystery.
+  for (const shader of gl.getAttachedShaders(program) ?? []) {
+    const log = gl.getShaderInfoLog(shader);
+    if (log) console.warn("The start-up film's shader did not compile:", log);
+  }
+  console.warn("The start-up film's shader did not link:", gl.getProgramInfoLog(program));
+  return null;
 }
 
 function viewMatrix(aspect: number, yaw: number, pitch: number, distance: number): Float32Array {
@@ -816,6 +838,10 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     gl.enableVertexAttribArray(seedAt);
     gl.vertexAttribPointer(seedAt, 1, gl.FLOAT, false, 0, 0);
 
+    // A scene left before it had arrived, carried into the next: which it was, and how far it had got.
+    let prev = 0;
+    const NONE = { mix: 1, front: [0, 0, 0] as readonly number[], turn: 0, age: 0 };
+    let carry = NONE;
     const attribute = (name: string, buffer: WebGLBuffer | null, size: number, offset: number) => {
       const at = gl.getAttribLocation(program, name);
       if (at < 0) return;
@@ -824,6 +850,9 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.vertexAttribPointer(at, size, gl.FLOAT, false, STRIDE * 4, offset * 4);
     };
     const bind = (from: number, to: number) => {
+      attribute("aPrev", scenes[prev], 3, 0);
+      attribute("aPrevV", scenes[prev], 3, 3);
+      attribute("aPrevM", scenes[prev], 4, 6);
       attribute("aFrom", scenes[from], 3, 0);
       attribute("aFromV", scenes[from], 3, 3);
       attribute("aFromM", scenes[from], 4, 6);
@@ -839,7 +868,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       return buffer;
     })()) - 1 : 0;
     const uniform = (name: string) => gl.getUniformLocation(program, name);
-    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), sweep: uniform("uSweep"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand"), aspect: uniform("uAspect"), reach: uniform("uReach"), pointerV: uniform("uPointerV"), burst: uniform("uBurst"), inhale: uniform("uInhale"), front: uniform("uFront"), turn: uniform("uTurn"), landShift: uniform("uLandShift"), glint: uniform("uGlint") };
+    const u = { view: uniform("uView"), mix: uniform("uMix"), time: uniform("uTime"), pixels: uniform("uPixels"), pointer: uniform("uPointer"), ripple: uniform("uRipple"), base: uniform("uBase"), accent: uniform("uAccent"), warm: uniform("uWarm"), danger: uniform("uDanger"), ok: uniform("uOk"), road: uniform("uRoad"), ageFrom: uniform("uAgeFrom"), ageTo: uniform("uAgeTo"), sweep: uniform("uSweep"), dim: uniform("uDim"), cover: uniform("uCover"), land: uniform("uLand"), aspect: uniform("uAspect"), reach: uniform("uReach"), pointerV: uniform("uPointerV"), burst: uniform("uBurst"), inhale: uniform("uInhale"), front: uniform("uFront"), turn: uniform("uTurn"), landShift: uniform("uLandShift"), glint: uniform("uGlint"), carry: uniform("uCarry"), carryFront: uniform("uCarryFront"), carryTurn: uniform("uCarryTurn"), agePrev: uniform("uAgePrev") };
     const landAt = gl.getAttribLocation(program, "aLand");
     const landBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
@@ -849,6 +878,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
 
     // Starts as the cloud, and the first thing it does is become the wordmark.
     let from = 0, to = 0;
+    carry = NONE;
     bind(from, to);
     const image = new Image();
     let cancelled = false;
@@ -867,6 +897,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       if (reduceMotion || !started || scene !== 0 || ending) return;
       to = wordmark;
       if (quick) from = wordmark;
+      carry = NONE;
       bind(from, to);
       blend = quick ? 1 : 0;
       morph = blend;
@@ -953,6 +984,10 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.uniform1f(u.sweep, sweep);
       gl.uniform1f(u.glint, glintRef.current && quick ? 1 : 0);
       gl.uniform1f(u.mix, blend);
+      gl.uniform1f(u.carry, carry.mix);
+      gl.uniform3fv(u.carryFront, carry.front as number[]);
+      gl.uniform1f(u.carryTurn, carry.turn);
+      gl.uniform1f(u.agePrev, carry.age);
       // The name gathers out of the mist from its middle outward, as it went.
       gl.uniform3fv(u.front, rejoinHold ? [0, 0, 0] : FRONTS[scene % FRONTS.length]);
       gl.uniform1f(u.turn, scene % 2 ? 1 : -1);
@@ -966,7 +1001,9 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       // Drawn in before the burst; for a new world, let go again as the name gathers.
       const inhaled = ending && started ? easeInOut((performance.now() / 1000 - endStart - (END_SCATTER_AT_S - 0.42)) / 0.42) : 0;
       gl.uniform1f(u.inhale, rejoined ? inhaled * (1 - easeInOut((performance.now() / 1000 - rejoinedAt) / 0.9)) : inhaled);
-      gl.uniform2f(u.landShift, (mapCarry.x / window.innerWidth) * 2, -(mapCarry.y / window.innerHeight) * 2);
+      // Particles landing follow the map's camera; leaving it, they do not, whatever the map does as it goes or is replaced.
+      const following = !(ending && !rejoined);
+      gl.uniform2f(u.landShift, following ? (mapCarry.x / window.innerWidth) * 2 : 0, following ? -(mapCarry.y / window.innerHeight) * 2 : 0);
       gl.uniform3f(u.ripple, ripple.x, ripple.y, ripple.age);
       gl.uniform1f(u.dim, dim * strength);
       gl.drawArrays(gl.POINTS, 0, count);
@@ -979,6 +1016,9 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         held = 0;
         return;
       }
+      // Not there yet: where each particle has got to is where the next scene starts from, so nothing jumps.
+      carry = blend < 0.999 && !endScattered ? { mix: blend, front: rejoinHold ? [0, 0, 0] : FRONTS[scene % FRONTS.length], turn: scene % 2 ? 1 : -1, age: ageFrom } : NONE;
+      prev = from;
       rejoinHold = false;
       const buffer = (chapterIndex: number) => (chapterIndex === 0 ? (wordmark >= 0 ? wordmark : 0) : chapterIndex);
       const closedTo = pushed();
@@ -1067,6 +1107,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
           endScattered = true;
           from = to;
           to = mist;
+          carry = NONE;
           bind(from, to);
           blend = 0;
           morph = 0;
@@ -1091,6 +1132,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         from = to;
         to = wordmark;
         scene = 0;
+        carry = NONE;
         bind(from, to);
         blend = 0;
         morph = 0;
@@ -1107,6 +1149,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         const points = landingRef.current?.();
         from = wordmark;
         to = wordmark;
+        carry = NONE;
         bind(from, to);
         blend = 1;
         morph = 1;
@@ -1135,6 +1178,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
             gl.bindBuffer(gl.ARRAY_BUFFER, landBuffer);
             gl.bufferData(gl.ARRAY_BUFFER, points, gl.DYNAMIC_DRAW);
             from = to = wordmark;
+            carry = NONE;
             bind(from, to);
             blend = 1;
             morph = 1;
@@ -1146,6 +1190,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
           } else if (wordmark >= 0) {
             to = wordmark;
             if (quick) from = wordmark;
+            carry = NONE;
             bind(from, to);
             blend = quick ? 1 : 0;
             morph = blend;
@@ -1153,8 +1198,8 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
           }
         }
         if (held > (rejoinHold ? MORPH_S + 0.5 : holds[scene]) && !closingRef.current && !quick) next();
-        // Ready sooner than the plan thought: back to the name, once this scene has been seen.
-        else if (planned && scene !== 0 && held > 0.6 && remainingEta() === 0 && !closingRef.current && !quick) {
+        // Ready sooner than the plan thought: back to the name at once, from wherever the particles have got to.
+        else if (planned && scene !== 0 && remainingEta() === 0 && !closingRef.current && !quick) {
           next(0);
           cycleRef.current?.();
         }
@@ -1204,6 +1249,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       // One still picture of the network, and nothing moves.
       from = to = 1;
       scene = 1;
+      carry = NONE;
       bind(from, to);
       const still = cameras[1];
       camera.yaw = still.yaw;

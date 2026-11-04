@@ -2558,6 +2558,8 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 html body *, html body *::before, html body *::after { backdrop-filter: none !important;  }
 
 /* ---- A new world: the old one leaves, then the film with nothing before it ------------------------ */
+/* The name is in the middle already: no small one in the corner while it ends, gathers and goes on. */
+.loading-surface.boot.rejoin .loading-card.film .loading-mark { display: none; }
 .loading-surface.boot.rejoin::before { animation: end-cover 900ms var(--ease) both; }
 .loading-surface.boot.rejoin.exiting .loading-card.film, .loading-surface.boot.rejoin.exiting .loading-licence { opacity: 0; }
 .loading-surface.boot .loading-card.film .loading-steps { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
@@ -2959,3 +2961,17 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 @keyframes fastboot-in { from { opacity: 0; transform: translateY(4px); } }
 @keyframes fastboot-glide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 @media (prefers-reduced-motion: reduce) { .fastboot-status i::after { animation: none; opacity: 0.5; width: 100%; } }
+
+/* ---- The source, on the start-up and in Demo Mode: there if looked for, and otherwise out of the way ---------- */
+.boot-source { position: absolute; z-index: 3; top: 22px; right: 28px; display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px; border-radius: var(--r-pill); font-size: 11.5px; letter-spacing: 0.01em; color: var(--text-faint); text-decoration: none; opacity: 0.72; transition: opacity 220ms var(--ease), color 220ms var(--ease), background-color 220ms var(--ease); animation: boot-source-in 900ms var(--ease) 600ms both; }
+.boot-source:hover, .boot-source:focus-visible { opacity: 1; color: var(--text); background: rgb(var(--ink-rgb) / 6%); }
+.loading-surface.closing .boot-source { opacity: 0; pointer-events: none; }
+@keyframes boot-source-in { from { opacity: 0; } }
+.reduce-motion .boot-source { animation: none; }
+
+/* ---- A jump through the day: faint particles the way it goes, and how far, while the server works it out ------- */
+.seek-film { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; transition: opacity 420ms var(--ease); }
+.seek-film.visible { opacity: 1; }
+.seek-film canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.seek-film-label { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); padding: 6px 13px; border-radius: var(--r-pill); font-size: 12px; color: var(--text-dim); background: var(--surface-solid); border: 1px solid rgb(var(--border-rgb) / 14%); box-shadow: var(--hud-shadow); white-space: nowrap; }
+.seek-film-label b { color: var(--text); font-weight: 600; margin-left: 4px; font-variant-numeric: tabular-nums; }

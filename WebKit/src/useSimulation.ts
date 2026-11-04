@@ -2,12 +2,14 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useRef, useState } from "react";
-import { api } from "./api";
+import { api, UNREACHABLE } from "./api";
 import { NOTIFY_TEMPLATES } from "./notificationModel";
 import type { Envelope, News, Snapshot, Status, Topology } from "./types";
 
 /** How often a hidden page asks for the world, which it does not draw. */
 const HIDDEN_POLL_MS = 5000;
+/** A server that does not answer is asked again every five seconds, until it does. */
+export const RECONNECT_MS = 5000;
 export function useSimulation(dwellMs = 7000, realistic = false) {
   const [status, setStatus] = useState<Envelope<Status> | null>(null),
     [snapshot, setSnapshot] = useState<Envelope<Snapshot> | null>(null),
@@ -50,6 +52,7 @@ export function useSimulation(dwellMs = 7000, realistic = false) {
       initial = true,
       lastVirtual = -1;
     let busy = false;
+    let unreachable = false;
     async function refresh() {
       busy = true;
       try {
@@ -58,6 +61,7 @@ export function useSimulation(dwellMs = 7000, realistic = false) {
         // compiling a world there is no snapshot or topology to fetch yet, and
         // the interface still has to be able to say what is happening.
         const st = await api.status();
+        unreachable = false;
         if (cancelled) return;
         setLatencyMs(Math.round(performance.now() - sent));
         if (run !== st.run_id || st.data.lifecycle === "PREPARING") {
@@ -166,6 +170,7 @@ export function useSimulation(dwellMs = 7000, realistic = false) {
           }
         }
       } catch (e) {
+        unreachable = e instanceof Error && e.message === UNREACHABLE;
         if (!cancelled)
           setError(e instanceof Error ? e.message : "Connection failed.");
       } finally {
@@ -173,7 +178,7 @@ export function useSimulation(dwellMs = 7000, realistic = false) {
         // waiting for the next poll; then at the pace the core publishes. A hidden
         // page draws nothing, so it asks only now and then, and at once on return.
         busy = false;
-        if (!cancelled) timer = setTimeout(refresh, !run ? 250 : document.hidden ? HIDDEN_POLL_MS : 1000);
+        if (!cancelled) timer = setTimeout(refresh, unreachable ? RECONNECT_MS : !run ? 250 : document.hidden ? HIDDEN_POLL_MS : 1000);
       }
     }
     const onVisible = () => {

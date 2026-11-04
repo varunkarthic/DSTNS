@@ -7,6 +7,9 @@ const base =
     /\/$/,
     "",
   ) ?? "";
+/** What the client says when the server does not answer at all, as distinct from answering with an error. */
+export const UNREACHABLE = "Simulator unavailable. Waiting to reconnect…";
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -17,7 +20,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: { "Content-Type": "application/json", "X-DSTNS-Host": "observer", ...init?.headers },
     });
   } catch {
-    throw new Error("Simulator unavailable. Waiting to reconnect…");
+    throw new Error(UNREACHABLE);
   }
   let result;
   try {

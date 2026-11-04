@@ -264,6 +264,13 @@ export function LoadingSurface({
       )}
       {body}
       {footer}
+      {/* Where the source is, quietly, on the start-up and in Demo Mode. */}
+      {mode === "boot" && !failed && !ending && !rejoin && (
+        <a className="boot-source" href="https://github.com/varunkarthic/DSTNS" target="_blank" rel="noreferrer noopener" aria-label="Source on GitHub: varunkarthic/DSTNS">
+          <Icon name="github" size={14} />
+          <span>varunkarthic/DSTNS</span>
+        </a>
+      )}
     </div>
   );
 }

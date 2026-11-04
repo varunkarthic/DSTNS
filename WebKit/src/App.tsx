@@ -42,7 +42,8 @@ import { NotificationCapsule } from "./NotificationCapsule";
 import { SettingsDrawer } from "./SettingsDrawer";
 import { useSimulation } from "./useSimulation";
 import { excuseBackpressure, useBackpressure, describeAsb, formatRate } from "./useBackpressure";
-import { api } from "./api";
+import { api, UNREACHABLE } from "./api";
+import { SeekFilm, type Seek } from "./SeekFilm";
 import { formatCoordinate } from "./mapProjection";
 import { MOTION_MS } from "./motion";
 import { applyAppearance, resolveTheme } from "./appearance";
@@ -702,6 +703,12 @@ export default function App() {
   }, []);
 
   // ---- Actions ----------------------------------------------------------
+  // A jump through the day, while the server works it out, for the particles that show it.
+  const [seeking, setSeeking] = useState<Seek | null>(null);
+  const seekBy = useCallback((delta: number, from: number) => {
+    setSeeking({ direction: delta < 0 ? -1 : 1, seconds: Math.abs(delta) });
+    return api.seek(Math.max(0, Math.min(DAY_SECONDS, from + delta))).finally(() => setSeeking(null));
+  }, []);
   const action = useCallback(async (fn: () => Promise<unknown>) => {
     setPending(true);
     setActionError("");
@@ -1072,7 +1079,10 @@ export default function App() {
   const dynamicFilm = features.presentation.dynamic_particles && !demo;
   const paced = usePacedStages(splashStage, bootPhase, opening !== false && !reduceMotion, filmSeen || !forceAnimate, forceAnimate && !dynamicFilm ? undefined : 240);
   const shownStage = paced.stage;
-  const showSplash = (!!shownStage || paced.holding) && !sim.error && !world.active;
+  // A server that stays away is treated as stopped, whoever stopped it. It clears if it returns.
+  const [serverGone, setServerGone] = useState(false);
+  // Demo Mode's film plays on while its server is away, until the ending takes over.
+  const showSplash = (!!shownStage || paced.holding) && (!sim.error || (demo && sim.error === UNREACHABLE && !serverGone)) && !world.active;
   useFullscreen(features.presentation.fullscreen);
   // The start-up screen dissolves over the rendered map rather than vanishing.
   const lastSplash = useRef(shownStage);
@@ -1092,8 +1102,8 @@ export default function App() {
   // Nothing has ever loaded and the simulator is not answering, or refused the
   // world. Once a world is on screen a lost connection is shown over it instead.
   // A server that stays away is treated as stopped, whoever stopped it. It clears if it returns.
-  const [serverGone, setServerGone] = useState(false);
-  const lostConnection = !!sim.error && !!sim.topology && !world.active && !shutDown;
+  // Demo Mode has no world to lose, but loses its server as a run does: the same ending, and back when it returns.
+  const lostConnection = !!sim.error && (!!sim.topology || (demo && sim.error === UNREACHABLE)) && !world.active && !shutDown;
   useEffect(() => {
     if (!lostConnection) {
       setServerGone(false);
@@ -1110,13 +1120,23 @@ export default function App() {
       document.removeEventListener("visibilitychange", gone);
     };
   }, [lostConnection]);
-  const bootFailure = sim.error && !sim.topology && !world.active && !shutDown ? sim.error : "";
+  const bootFailure = sim.error && !sim.topology && !world.active && !shutDown && !(demo && sim.error === UNREACHABLE) ? sim.error : "";
   const lastFailure = useRef(bootFailure);
   if (bootFailure) lastFailure.current = bootFailure;
   const failure = usePresence(!!bootFailure, MOTION_MS.boot);
   // A new world lands as a start-up does: the particles build its roads, then the map comes in under them, then the
   // panels. Never on a reload's quicker timing, which would show the map before the particles had reached it.
   const arrival = useArrival(!!(showSplash || bootFailure || shutDown || serverGone || (world.active && !world.closing)), reduceMotion || !filmAvailable(), returning && !world.active);
+  // Once a world has arrived, its landing is over: what the particles stood on is forgotten, so that the next ending
+  // does not start from where this one's map was.
+  useEffect(() => {
+    if (arrival !== "all") return;
+    const t = setTimeout(() => {
+      landedAt.current = null;
+      mapCarry.x = mapCarry.y = 0;
+    }, LANDING_MS);
+    return () => clearTimeout(t);
+  }, [arrival]);
   viewContext.current = { busy: suspended ? "suspended" : tutorial.busy ? "tutorial" : dialog ? "dialog" : arrival !== "all" ? "arriving" : null, world: sim.topology };
   // While the start-up is on screen, a world that finishes waits for it. A hidden tab is not
   // watching, and a closed one stops saying so, and the engine then carries on by itself.
@@ -1148,8 +1168,8 @@ export default function App() {
   };
   useShortcuts(resolveBindings(config.shortcuts), {
     play: () => interactive && ["RUNNING", "PAUSED"].includes(lifecycle) && void action(lifecycle === "PAUSED" ? api.play : api.pause),
-    back: () => interactive && void action(() => api.seek(Math.max(0, virtual - config.playback.skip_seconds))),
-    forward: () => interactive && void action(() => api.seek(Math.min(DAY_SECONDS, virtual + config.playback.skip_seconds))),
+    back: () => interactive && void action(() => seekBy(-config.playback.skip_seconds, virtual)),
+    forward: () => interactive && void action(() => seekBy(config.playback.skip_seconds, virtual)),
     step: () => interactive && void action(() => api.step(config.playback.step_seconds)),
     slower: () => interactive && !rateLocked && stepSpeed(-1),
     faster: () => interactive && !rateLocked && stepSpeed(1),
@@ -1258,6 +1278,7 @@ export default function App() {
               onMapPick={fabric.deliverPick}
             />
             {webfabricOn && <FabricOverlay ref={overlay} topology={sim.topology} snapshot={sim.snapshot?.data ?? null} />}
+            <SeekFilm seek={seeking} reduceMotion={reduceMotion} />
           </div>
 
           {interactive && webfabricOn && (
@@ -1436,11 +1457,11 @@ export default function App() {
               fineControl={config.playback.fine_control}
               onBack={(seconds = config.playback.skip_seconds) => {
                 logControl("back", formatDuration(seconds));
-                void action(() => api.seek(Math.max(0, virtual - seconds)));
+                void action(() => seekBy(-seconds, virtual));
               }}
               onForward={(seconds = config.playback.skip_seconds) => {
                 logControl("forward", formatDuration(seconds));
-                void action(() => api.seek(Math.min(DAY_SECONDS, virtual + seconds)));
+                void action(() => seekBy(seconds, virtual));
               }}
               onStep={() => {
                 logControl("step", formatDuration(config.playback.step_seconds));
