@@ -138,6 +138,8 @@ int main(int argc, char** argv) {
         {std::ofstream token_file(token_path);if(!token_file)throw std::runtime_error("cannot write operator credential");token_file<<token;}
         std::filesystem::permissions(token_path,std::filesystem::perms::owner_read|std::filesystem::perms::owner_write);
         setenv("DSTNS_OPERATOR_TOKEN",token.c_str(),1);
+        // Where the maps are, for the daemons that watch the disk and keep the cache.
+        setenv("DSTNS_MAPS_DIR", maps.c_str(), 1);
         dstns::RuntimeLogger logger(logs);
         // Downloaded city extracts are tens of megabytes each. Sweep them once
         // at startup so a long-lived install cannot accumulate one per city it

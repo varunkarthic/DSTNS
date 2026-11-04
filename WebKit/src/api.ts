@@ -7,6 +7,19 @@ const base =
     /\/$/,
     "",
   ) ?? "";
+/** One message from a daemon, as its queue holds it. */
+export interface DaemonMessage {
+  sequence: number;
+  id: string;
+  level: "info" | "warning" | "alert" | "emergency";
+  queue: string;
+  daemon: string;
+  title: string;
+  text: string;
+  data: Record<string, unknown>;
+  time_ms: number;
+}
+
 /** What the client says when the server does not answer at all, as distinct from answering with an error. */
 export const UNREACHABLE = "Simulator unavailable. Waiting to reconnect…";
 
@@ -122,6 +135,10 @@ export const api = {
     request("/api/v1/fabric/engine/reset", { method: "POST", body: "{}" }),
   terminate: () =>
     request("/api/v1/system/terminate", { method: "POST", body: "{}" }),
+  // The daemons: whether they run, and their two queues, after a sequence.
+  daemons: () => request<{ data: { enabled: boolean; queues: Record<string, { latest_sequence: number }> } }>("/api/v1/daemon"),
+  daemonQueue: (queue: "emergency" | "notification", since: number) =>
+    request<{ data: { items: DaemonMessage[]; latest_sequence: number } }>(`/api/v1/daemon/${queue}-queue?since=${since}`),
   // ASB: report how far behind this observer is and receive the resulting
   // backpressure state in the same round trip.
   backpressure: (

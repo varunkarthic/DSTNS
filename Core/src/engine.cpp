@@ -2575,6 +2575,18 @@ std::uint64_t SimulationEngine::state_revision() const {
     return graph_ ? graph_->state_revision() : 0;
 }
 
+std::optional<double> SimulationEngine::try_virtual_seconds() const {
+    std::unique_lock lock(mutex_, std::try_to_lock);
+    if (!lock) return std::nullopt;
+    return static_cast<double>(virtual_s_);
+}
+
+std::optional<std::string> SimulationEngine::try_map_file() const {
+    std::unique_lock lock(mutex_, std::try_to_lock);
+    if (!lock || !graph_) return std::nullopt;
+    return graph_->scenario().config.osm_file;
+}
+
 Lifecycle SimulationEngine::lifecycle() const {
     // Deliberately lock-free: liveness must be observable while the engine is
     // busy compiling a world. See transition().

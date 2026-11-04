@@ -1,0 +1,7 @@
+// Generated from Daemon/messages.json and config/daemon-alerts.json, so that the server never depends on finding them.
+#pragma once
+
+namespace dstns::daemon {
+inline constexpr const char* kMessagesJson = R"DSTNSJSON(@DSTNS_DAEMON_MESSAGES@)DSTNSJSON";
+inline constexpr const char* kAlertsJson = R"DSTNSJSON(@DSTNS_DAEMON_ALERTS@)DSTNSJSON";
+} // namespace dstns::daemon

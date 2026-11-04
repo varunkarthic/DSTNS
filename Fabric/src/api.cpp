@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
+#include "dstns/daemon.hpp"
 #include "dstns/webfabric/registry.hpp"
 
 #include <httplib.h>
@@ -9,6 +10,8 @@
 #include <cstdlib>
 
 namespace dstns {
+
+std::unique_ptr<daemon::Handler> make_daemons(SimulationEngine& engine, RuntimeLogger& logger);
 
 namespace {
 // HTTPS when given a certificate, which needs a build with DSTNS_TLS. Asked for and not
@@ -45,6 +48,9 @@ ApiServer::ApiServer(SimulationEngine& e, RuntimeLogger& l)
     routes_view();
     routes_observation();
     routes_apps();
+    routes_daemon();
+    daemons_ = make_daemons(engine_, logger_);
+    daemons_->start();
 }
 
 ApiServer::~ApiServer() {
@@ -62,6 +68,8 @@ void ApiServer::listen(const std::string& host, std::uint16_t port) {
 
 void ApiServer::stop() {
     if (stopping_.exchange(true)) return;
+    // The daemons first, so that a queue being waited on lets its reader go.
+    if (daemons_) daemons_->stop();
     if (server_) server_->stop();
 }
 

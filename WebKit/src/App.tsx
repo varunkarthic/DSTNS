@@ -44,6 +44,7 @@ import { useSimulation } from "./useSimulation";
 import { excuseBackpressure, useBackpressure, describeAsb, formatRate } from "./useBackpressure";
 import { api, UNREACHABLE } from "./api";
 import { SeekFilm, type Seek } from "./SeekFilm";
+import { useDaemonNotifications } from "./daemons";
 import { formatCoordinate } from "./mapProjection";
 import { MOTION_MS } from "./motion";
 import { applyAppearance, resolveTheme } from "./appearance";
@@ -561,6 +562,7 @@ export default function App() {
   }, []);
   const onMapCursor = useCallback((point: { lat: number; lon: number } | null) => readout.current?.cursor(point), []);
   const fabricNotes = useFabricNotifications(config.notifications.dwell_ms, virtual);
+  const daemonNotes = useDaemonNotifications(config.notifications.dwell_ms, virtual);
 
   // ---- Notifications ------------------------------------------------------
   const [dismissedFocus, setDismissedFocus] = useState<Set<string>>(new Set());
@@ -568,7 +570,7 @@ export default function App() {
   const isdNotes = useISDNotifications(intentional, { requested: requestedRate, applied: appliedRate }, virtual);
   // Once the day has ended nothing more is happening in it, so its events stop too.
   const dayOver = lifecycle === "COMPLETED";
-  const notifications = useMemo(() => [...isdNotes, ...(dayOver ? [] : buildNotifications(sim.toasts, sim.topology)), ...fabricNotes.notes], [isdNotes, dayOver, sim.toasts, sim.topology, fabricNotes.notes]);
+  const notifications = useMemo(() => [...isdNotes, ...(dayOver ? [] : buildNotifications(sim.toasts, sim.topology)), ...fabricNotes.notes, ...daemonNotes.notes], [isdNotes, dayOver, sim.toasts, sim.topology, fabricNotes.notes, daemonNotes.notes]);
   const policy = useMemo(
     () => ({
       enabled: config.notifications.enabled,
@@ -630,9 +632,10 @@ export default function App() {
     (n: UiNotification) => {
       if (n.newsIds.length) sim.dismissToasts(n.newsIds);
       if (n.type === "APPLICATION") fabricNotes.dismiss(n.id);
+      if (n.type === "DAEMON") daemonNotes.dismiss(n.id);
       if (n.focusKey && !n.newsIds.length) setDismissedFocus((s) => new Set(s).add(n.focusKey!));
     },
-    [sim, fabricNotes],
+    [sim, fabricNotes, daemonNotes],
   );
 
   // ---- Congestion history ------------------------------------------------

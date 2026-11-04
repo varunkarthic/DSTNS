@@ -1,0 +1,11 @@
+{
+  "description": "The alerts the daemons raise, each by a reading crossing a line. message is a template in Daemon/messages.json; recovered, if given, is sent once the reading is back. sustain_s, if given, is how long the reading must stay over the line first; otherwise the launcher's setting (daemon.sustain_s) applies. The Resource Control Subsystem's own limits, α, β and γ for each module, are settings of their own (rcs.*).",
+  "version": 1,
+  "alerts": [
+    { "daemon": "memory", "reading": "available_percent", "below": 5, "message": "memory.critical", "recovered": "memory.recovered", "sustain_s": 2 },
+    { "daemon": "memory", "reading": "available_percent", "below": 12, "message": "memory.low", "recovered": "memory.recovered" },
+    { "daemon": "disk", "reading": "free_mib", "below": 512, "message": "disk.critical", "recovered": "disk.recovered", "sustain_s": 1 },
+    { "daemon": "disk", "reading": "free_mib", "below": 2048, "message": "disk.low", "recovered": "disk.recovered" },
+    { "daemon": "stall", "reading": "stalled_s", "above": 15, "message": "engine.stalled", "recovered": "engine.recovered", "sustain_s": 0 }
+  ]
+}

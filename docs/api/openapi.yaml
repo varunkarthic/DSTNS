@@ -17,6 +17,8 @@ servers:
 - url: http://127.0.0.1:8090
   description: Local C++ API server
 tags:
+- name: Daemons
+  description: Watchers inside the server, and the queues everyone hears them on
 - name: Playback
 - name: View
 - name: Control
@@ -3712,6 +3714,211 @@ paths:
           $ref: '#/components/responses/Ok'
         4XX:
           $ref: '#/components/responses/Error'
+  /api/v1/daemon:
+    get:
+      tags:
+      - Daemons
+      operationId: daemonOverview
+      summary: Whether the daemons are on, which run, and the queues. Anyone
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
+  /api/v1/daemon/messages:
+    get:
+      tags:
+      - Daemons
+      operationId: daemonMessages
+      summary: Every message a daemon can send, as templates. Anyone
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
+  /api/v1/daemon/emergency-queue:
+    get:
+      tags:
+      - Daemons
+      operationId: daemonEmergencyQueue
+      summary: 'daemonEmergencyQueue, alerts and emergencies: reading it subscribes'
+      parameters:
+      - name: since
+        in: query
+        schema:
+          type: integer
+      - name: wait
+        in: query
+        schema:
+          type: number
+      - name: limit
+        in: query
+        schema:
+          type: integer
+      - name: app
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
+      - AppToken: []
+  /api/v1/daemon/notification-queue:
+    get:
+      tags:
+      - Daemons
+      operationId: daemonNotificationQueue
+      summary: 'daemonNotificationQueue, what is not urgent: reading it subscribes'
+      parameters:
+      - name: since
+        in: query
+        schema:
+          type: integer
+      - name: wait
+        in: query
+        schema:
+          type: number
+      - name: limit
+        in: query
+        schema:
+          type: integer
+      - name: app
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
+      - AppToken: []
+  /api/v1/daemon/emergency-queue/{sequence}/ack:
+    post:
+      tags:
+      - Daemons
+      operationId: daemonAcknowledge
+      summary: An emergency heard and acted on
+      parameters:
+      - name: sequence
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
+      - AppToken: []
+  /api/v1/daemon/rcs/processes:
+    put:
+      tags:
+      - Daemons
+      operationId: daemonProcesses
+      summary: The processes a module runs in, from the launcher. Operator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+  /api/v1/daemon/{name}:
+    get:
+      tags:
+      - Daemons
+      operationId: daemonDetail
+      summary: 'One daemon: its readings and settings'
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
+      - ObserverHost: []
+      - AppToken: []
+    put:
+      tags:
+      - Daemons
+      operationId: daemonChange
+      summary: Turn a daemon on or off, or change its settings. Operator
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security:
+      - OperatorKey: []
 components:
   securitySchemes:
     OperatorKey:

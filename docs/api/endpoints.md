@@ -2887,6 +2887,123 @@ Response `200`, from a real run:
 
 Errors: `404 PROPOSAL_NOT_FOUND`.
 
+## Daemons
+
+Small watchers run inside the server, each on a thread of its own, and say what they notice on two queues: **daemonEmergencyQueue**, for alerts and emergencies, and **daemonNotificationQueue**, for everything else. An application should read the emergency queue while the daemons are on, and act on what it hears at once. See [the daemons](../guide/daemons.md) for what each one watches.
+
+### `GET /api/v1/daemon`
+
+Whether the daemons are on, which are running, and the two queues: how many messages each holds, the latest sequence, and who has read it in the last minute. Anyone may ask, without a token, to find out whether to subscribe.
+
+**Who:** Anyone.
+
+Response `200`, from a real run:
+
+```json
+{
+  "api_version": "1.4",
+  "data": {
+    "daemons": [
+      {"description": "Resource Control Subsystem: each module's memory and processor against its α, β and γ", "enabled": true, "name": "rcs", "running": true},
+      {"description": "The machine's memory: how much is left, before anything has to be stopped", "enabled": true, "name": "memory", "running": true}
+    ],
+    "enabled": true,
+    "queues": {
+      "daemonEmergencyQueue": {"latest_sequence": 0, "length": 0, "subscribers": ["org.example.planner"]},
+      "daemonNotificationQueue": {"latest_sequence": 2, "length": 2, "subscribers": ["observer"]}
+    },
+    "subscribe": {"daemonEmergencyQueue": "/api/v1/daemon/emergency-queue", "daemonNotificationQueue": "/api/v1/daemon/notification-queue"},
+    "sustain_s": 5
+  }
+}
+```
+
+### `GET /api/v1/daemon/messages`
+
+Every message a daemon can send, as templates: its level, title and text, with `{name}`s filled in from the message's data. The same as `Daemon/messages.json`.
+
+**Who:** Anyone.
+
+### `GET /api/v1/daemon/emergency-queue`, `GET /api/v1/daemon/notification-queue`
+
+The messages after `since`, oldest first. Reading is subscribing: an application that has read a queue in the last minute is listed as one of its subscribers.
+
+**Who:** The observer or the operator, or an application by its token, naming itself with `?app=ID` or `X-DSTNS-App`.
+
+| Query | Meaning |
+|---|---|
+| `since` | The last sequence seen; 0, or nothing, for everything the queue still holds |
+| `wait` | Up to 25 seconds to wait for something new before answering |
+| `limit` | At most this many, up to 500 (100 by default) |
+
+Response `200`:
+
+```json
+{
+  "api_version": "1.4",
+  "data": {
+    "items": [
+      {
+        "acknowledged_by": [],
+        "daemon": "rcs",
+        "data": {"alpha": 4, "beta": 2048, "gamma": 4096, "metric": "memory", "module": "engine", "sustain_s": 5, "unit": "MiB", "value": 4210.3},
+        "id": "rcs.over_gamma",
+        "level": "alert",
+        "queue": "daemonEmergencyQueue",
+        "sequence": 1,
+        "text": "engine has used 4210 MiB of memory for 5.0 s, over its γ, the most it should ever use, of 4096 MiB.",
+        "time_ms": 1793700123456,
+        "title": "engine is over its memory limit"
+      }
+    ],
+    "latest_sequence": 1,
+    "missed": 0,
+    "queue": "daemonEmergencyQueue"
+  }
+}
+```
+
+`missed` counts messages that left the queue before this reader asked for them: the emergency queue keeps 200, the notification queue 500.
+
+Errors: `401 APP_REQUIRED`, `401 APP_TOKEN_INVALID`, `404 APP_NOT_FOUND`, `409 DAEMONS_OFF`.
+
+### `POST /api/v1/daemon/emergency-queue/{sequence}/ack`
+
+An emergency heard and acted on. Who has acknowledged it is listed with it.
+
+**Who:** The observer or the operator, or an application by its token.
+
+Errors: `404 NOT_FOUND`, `409 DAEMONS_OFF`.
+
+### `PUT /api/v1/daemon/rcs/processes`
+
+The processes a module runs in, for the Resource Control Subsystem to watch. The launcher reports itself (`launcher`) and the applications it started (`applications`); the engine and its map downloads it finds for itself.
+
+**Who:** The operator.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `module` | string | Yes | `launcher`, `applications`, or a name of your own with its limits in the settings |
+| `pids` | array of integers | Yes | Its processes |
+
+Errors: `400 BAD_MODULE`, `403 OPERATOR_REQUIRED`.
+
+### `GET /api/v1/daemon/{name}`
+
+One daemon (`rcs`, `memory`, `disk`, `stall`, `cache`): whether it is on, how often it wakes, what it last read, and its settings.
+
+**Who:** The observer or the operator, or an application by its token.
+
+Errors: `404 NOT_FOUND`, `409 DAEMONS_OFF`.
+
+### `PUT /api/v1/daemon/{name}`
+
+Turn a daemon on or off, or change its settings while the server runs: `{"enabled": false}`, `{"settings": {"modules": {"engine": {"memory_mib": [4, 1024, 2048]}}}}` for the Resource Control Subsystem, `{"settings": {"max_mib": 1024}}` for the cache, and `{"sustain_s": 3}` for how long any condition must hold before it says anything. A daemon turned on or off says so on the notification queue.
+
+**Who:** The operator.
+
+Errors: `400 BAD_SETTINGS`, `403 OPERATOR_REQUIRED`, `404 NOT_FOUND`.
+
 ## Older routes
 
 These work as they always have, and also carry a `legacy` field in the JSON, with `Deprecation: true`, `Warning` and `X-DSTNS-Successor` headers. They're open to any program that can reach the port, which `/api/v1/fabric/engine/` isn't: see [what is not protected](security.md#what-is-not-protected).

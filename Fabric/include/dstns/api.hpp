@@ -14,6 +14,7 @@ namespace httplib { class Server; }
 
 namespace dstns {
 namespace fabric { class AppRegistry; }
+namespace daemon { class Handler; }
 
 class ApiServer {
 public:
@@ -33,8 +34,11 @@ private:
     void routes_view();
     void routes_observation();
     void routes_apps();
+    void routes_daemon();
     SimulationEngine& engine_; RuntimeLogger& logger_; std::unique_ptr<httplib::Server> server_; std::atomic_bool stopping_{};
     std::unique_ptr<fabric::AppRegistry> registry_;
+    // The daemons: watchers on threads of their own, from the server's start to its end.
+    std::unique_ptr<daemon::Handler> daemons_;
     std::atomic_bool termination_started_{};
     std::thread shutdown_worker_;
     // How many times the observer page has been served, so the launcher can

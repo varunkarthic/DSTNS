@@ -1,0 +1,82 @@
+{
+  "description": "Every message a DSTNS daemon can send, as templates: the enum the daemons and their readers share. {name} is filled in from the message's data. Levels, lowest first: info, warning, alert, emergency. Alerts and emergencies go to daemonEmergencyQueue; the rest to daemonNotificationQueue.",
+  "version": 1,
+  "levels": ["info", "warning", "alert", "emergency"],
+  "messages": {
+    "rcs.below_alpha": {
+      "level": "info",
+      "title": "{module} is using less than it should",
+      "text": "{module} has used {value} {unit} of {metric} for {sustain_s} s, below its α of {alpha} {unit}. Something may be off: is it working properly?"
+    },
+    "rcs.over_beta": {
+      "level": "warning",
+      "title": "{module} is using a lot of {metric}",
+      "text": "{module} has used {value} {unit} of {metric} for {sustain_s} s, over its β of {beta} {unit}. Its limit, γ, is {gamma} {unit}."
+    },
+    "rcs.over_gamma": {
+      "level": "alert",
+      "title": "{module} is over its {metric} limit",
+      "text": "{module} has used {value} {unit} of {metric} for {sustain_s} s, over its γ, the most it should ever use, of {gamma} {unit}."
+    },
+    "rcs.recovered": {
+      "level": "info",
+      "title": "{module} is back within its {metric} limits",
+      "text": "{module} uses {value} {unit} of {metric} again, between its α of {alpha} and β of {beta} {unit}."
+    },
+    "memory.low": {
+      "level": "warning",
+      "title": "This machine is low on memory",
+      "text": "{available_mib} MiB of {total_mib} MiB is available ({available_percent}%). Close what is not needed."
+    },
+    "memory.critical": {
+      "level": "emergency",
+      "title": "This machine is out of memory",
+      "text": "Only {available_mib} MiB of {total_mib} MiB is available ({available_percent}%). Programs may be stopped by the system at any moment."
+    },
+    "memory.recovered": {
+      "level": "info",
+      "title": "Memory is available again",
+      "text": "{available_mib} MiB of {total_mib} MiB is available ({available_percent}%)."
+    },
+    "disk.low": {
+      "level": "warning",
+      "title": "Disk space is low",
+      "text": "{free_mib} MiB is free where DSTNS keeps its logs and maps. The cache handler is clearing what it can."
+    },
+    "disk.critical": {
+      "level": "emergency",
+      "title": "The disk is almost full",
+      "text": "Only {free_mib} MiB is free where DSTNS keeps its logs and maps. Logs, checkpoints and downloads may fail."
+    },
+    "disk.recovered": {
+      "level": "info",
+      "title": "Disk space is available again",
+      "text": "{free_mib} MiB is free."
+    },
+    "engine.stalled": {
+      "level": "warning",
+      "title": "The simulation has stopped moving",
+      "text": "The run is meant to be running, but its clock has not moved for {stalled_s} s."
+    },
+    "engine.recovered": {
+      "level": "info",
+      "title": "The simulation is moving again",
+      "text": "Its clock is moving again."
+    },
+    "cache.swept": {
+      "level": "info",
+      "title": "The cache was cleaned",
+      "text": "{removed} files, {freed_mib} MiB, that nothing needed any more. The map cache is {cache_mib} MiB."
+    },
+    "daemon.enabled": {
+      "level": "info",
+      "title": "{daemon} is on",
+      "text": "The {daemon} daemon was turned on."
+    },
+    "daemon.disabled": {
+      "level": "info",
+      "title": "{daemon} is off",
+      "text": "The {daemon} daemon was turned off."
+    }
+  }
+}

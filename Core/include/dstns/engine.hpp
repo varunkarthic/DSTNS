@@ -143,6 +143,9 @@ public:
 
     [[nodiscard]] std::uint64_t state_revision() const;
     [[nodiscard]] Lifecycle lifecycle() const;
+    // For watchers that must never wait on a world being compiled: nothing, while the engine is busy.
+    [[nodiscard]] std::optional<double> try_virtual_seconds() const;
+    [[nodiscard]] std::optional<std::string> try_map_file() const;
     void terminate();
     /**
      * Ask the core to stop without waiting for the engine lock.

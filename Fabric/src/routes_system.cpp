@@ -239,6 +239,15 @@ void ApiServer::routes_system() {
                 {{"POST","/api/v1/fabric/apps/{id}/failure","Report that the application's interface failed"}},
                 {{"DELETE","/api/v1/fabric/launch/plan","The launcher has finished starting things"}},
                 {{"DELETE","/api/v1/fabric/launch/{id}","Withdraw a proposal"}}}),
+            group("daemon","Watchers inside the server, and the queues everyone hears them on",{
+                {{"GET","/api/v1/daemon","Whether the daemons are on, which run, and the queues: asked by anyone"}},
+                {{"GET","/api/v1/daemon/messages","Every message a daemon can send, as templates"}},
+                {{"GET","/api/v1/daemon/emergency-queue","daemonEmergencyQueue: alerts and emergencies, for every application to hear"}},
+                {{"GET","/api/v1/daemon/notification-queue","daemonNotificationQueue: what the daemons notice that is not urgent"}},
+                {{"POST","/api/v1/daemon/emergency-queue/{sequence}/ack","An emergency heard and acted on"}},
+                {{"PUT","/api/v1/daemon/rcs/processes","The processes a module runs in, from the launcher"}},
+                {{"GET","/api/v1/daemon/{name}","One daemon: its readings and settings"}},
+                {{"PUT","/api/v1/daemon/{name}","Turn a daemon on or off, or change its settings"}}}),
         });
     };
     server_->Get("/api/v1/system/endpoints", [index_of_api](const auto&, auto& r) {

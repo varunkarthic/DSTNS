@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace dstns {
 
@@ -55,6 +56,8 @@ struct MapFetchStatus {
 
 // Cancel only the downloader process group owned by this server session.
 void cancel_map_download();
+// The process groups of the map downloads running now, for whatever watches what they use.
+[[nodiscard]] std::vector<int> map_download_pids();
 
 // How the map cache is trimmed when the server boots.
 enum class CachePolicy {

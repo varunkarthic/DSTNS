@@ -84,14 +84,24 @@ if(DSTNS_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_link_options(dstns_core PUBLIC -fsanitize=address,undefined)
 endif()
 
+# The daemons: watchers on threads of their own, and their queues. The message templates and the alerts are built in.
+file(READ "${CMAKE_SOURCE_DIR}/Daemon/messages.json" DSTNS_DAEMON_MESSAGES)
+file(READ "${CMAKE_SOURCE_DIR}/config/daemon-alerts.json" DSTNS_DAEMON_ALERTS)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/Daemon/messages.json" "${CMAKE_SOURCE_DIR}/config/daemon-alerts.json")
+configure_file(Daemon/daemon_catalogue.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/generated/dstns/daemon_catalogue.hpp" @ONLY)
+add_library(dstns_daemon Daemon/src/gateway.cpp Daemon/src/handler.cpp Daemon/src/watchers.cpp Daemon/src/probe.cpp)
+target_include_directories(dstns_daemon PUBLIC Daemon/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_link_libraries(dstns_daemon PUBLIC nlohmann_json::nlohmann_json Threads::Threads)
+target_compile_options(dstns_daemon PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
+
 # Fabric: the HTTP API over the core. Depends on the core; the core never on it.
 add_library(dstns_fabric
   Fabric/src/api.cpp Fabric/src/support.cpp Fabric/src/guards.cpp Fabric/src/routes_static.cpp Fabric/src/routes_system.cpp
   Fabric/src/routes_playback.cpp Fabric/src/routes_world.cpp Fabric/src/routes_control.cpp Fabric/src/routes_view.cpp
-  Fabric/src/routes_observation.cpp Fabric/src/operations.cpp
+  Fabric/src/routes_observation.cpp Fabric/src/operations.cpp Fabric/src/routes_daemon.cpp
   Fabric/src/webfabric/routes.cpp Fabric/src/webfabric/registry.cpp)
 target_include_directories(dstns_fabric PUBLIC Fabric/include PRIVATE Fabric/src)
-target_link_libraries(dstns_fabric PUBLIC dstns_core)
+target_link_libraries(dstns_fabric PUBLIC dstns_core dstns_daemon)
 target_compile_options(dstns_fabric PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 
 add_executable(dstns_server Core/server/main.cpp Core/server/container.cpp)
@@ -117,7 +127,7 @@ if(DSTNS_BUILD_TESTS)
   enable_testing()
   # The HTTP tests: each a program of its own, against a real server it starts on a port of its own.
   set(DSTNS_HTTP_TESTS api docs_coverage another_city termination loading fastboot hardening robustness fabric_contract narration observer_hold
-    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot)
+    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot daemon)
   foreach(name ${DSTNS_HTTP_TESTS})
     add_executable(dstns_http_${name} tests/http/${name}.cpp)
     target_link_libraries(dstns_http_${name} PRIVATE dstns_fabric)
@@ -179,6 +189,12 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_world_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_world_and_stepping COMMAND dstns_world_tests)
   set_tests_properties(dstns_world_and_stepping PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_executable(dstns_daemon_tests tests/unit/daemon_tests.cpp)
+  target_link_libraries(dstns_daemon_tests PRIVATE dstns_daemon)
+  target_compile_options(dstns_daemon_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_daemon_rules COMMAND dstns_daemon_tests)
+  set_tests_properties(dstns_daemon_rules PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_executable(dstns_prop_tests tests/property/property_tests.cpp)
   target_link_libraries(dstns_prop_tests PRIVATE dstns_core)

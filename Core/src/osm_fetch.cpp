@@ -247,6 +247,11 @@ void cancel_map_download() {
     }
 }
 
+std::vector<int> map_download_pids() {
+    std::lock_guard lock(child_mutex);
+    return {download_pids.begin(), download_pids.end()};
+}
+
 MapFetchStatus current_map_fetch() {
     std::lock_guard lock(g_fetch_mutex);
     auto copy = g_fetch;
