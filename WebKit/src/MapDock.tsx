@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { FluidPanel } from "./FluidPanel";
+import { EmptyFigure } from "./EmptyFigure";
 import { PlaceGlyph } from "./Legends";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
@@ -144,10 +145,10 @@ function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean;
         </ul>
       )}
       {needle && results.length === 0 && (
-        <p className="place-search-empty">
-          <Icon name="pin" size={18} />
-          No place here matches “{needle}”.
-        </p>
+        <div className="place-search-empty">
+          <EmptyFigure figure="loupe" />
+          <p>No place here matches “{needle}”.</p>
+        </div>
       )}
       {!needle && features.length === 0 && <p className="place-search-empty">No named places in this district.</p>}
     </div>

@@ -4,6 +4,7 @@
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { BrandLogo } from "./BrandLogo";
+import { EmptyFigure, type EmptyFigureName } from "./EmptyFigure";
 import { Icon, categoryIcon } from "./Icons";
 import type { IconName } from "./Icons";
 import { FabricDeck } from "./webfabric/Slots";
@@ -169,10 +170,10 @@ function StreamRow({
   );
 }
 
-function Empty({ icon, children }: { icon: IconName; children: ReactNode }) {
+function Empty({ icon, figure, children }: { icon: IconName; figure?: EmptyFigureName; children: ReactNode }) {
   return (
     <div className="stream-empty">
-      <Icon name={icon} size={16} />
+      {figure ? <EmptyFigure figure={figure} /> : <Icon name={icon} size={16} />}
       <span>{children}</span>
     </div>
   );
@@ -333,7 +334,7 @@ function NewsView({ news, topology }: { news: News[]; topology: Topology | null 
 function IncidentsView({ news, topology }: { news: News[]; topology: Topology | null }) {
   const time = useTimeFormat();
   const incidents = useMemo(() => news.filter(isIncident), [news]);
-  if (!incidents.length) return <Empty icon="check">No incidents on the network.</Empty>;
+  if (!incidents.length) return <Empty icon="check" figure="cones">No incidents on the network.</Empty>;
   return (
     <>
       {incidents.slice(0, 120).map((item) => {
@@ -551,7 +552,7 @@ function HistoryView({ history, filter, onFilter }: { history: HistoryFeed; filt
         </div>
       </div>
       {!list.length && (
-        <Empty icon="bell">{filter === "all" ? "No notifications yet for this run." : `No ${HISTORY_FILTERS.find((f) => f.id === filter)!.label.toLowerCase()} notifications.`}</Empty>
+        <Empty icon="bell" figure={filter === "all" ? "drawer" : undefined}>{filter === "all" ? "No notifications yet for this run." : `No ${HISTORY_FILTERS.find((f) => f.id === filter)!.label.toLowerCase()} notifications.`}</Empty>
       )}
       {list.slice(0, limit).map((entry) => (
         <HistoryRow key={entry.key} entry={entry} />

@@ -18,6 +18,25 @@ widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on 
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`. The launcher is now a
 Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs Python to build, run or test.
 
+### Time Control, High Contrast and the observer's panels
+
+- **Time Control**, from the clock: go to a time earlier or later in the day, jump by any number of hours and minutes
+  either way, and choose 12- or 24-hour time. Holding the clock switches 12- and 24-hour time at once.
+- **A jump you can follow.** Its particles gather speed and slow to a stop on gentle curves, and the clock in its label
+  runs towards where it lands.
+- **High Contrast**, in Accessibility (`accessibility.high_contrast`): text at full strength, firmer edges and
+  outlines, thicker focus rings and solid surfaces.
+- **Panels that keep their shape.** The notification opens on a spring as the dock's panels do; it and the collapsed
+  telemetry strip keep their rounded corners all the way. The dock's panels take the whole column, the strip's panels
+  are as tall as the strip and no taller, and Network shows its figures two by two with the system beneath.
+- **Empty states with a drawing**: cones with nothing to close off, an empty drawer, a loupe over a blank sheet, a
+  plug short of its socket, and a hub with no applications, drawn as line figures that answer the pointer
+  ([Hairline](https://github.com/lucasmarkes/hairline), MIT; the cones are DSTNS's own on its engine).
+- **A start that runs in order.** A world ready while the title's logo is being taken apart waits for it to become the
+  film's name, and a new world's mist has no hole at its middle.
+- **Dynamic Fastboot** removes a used world's city, and what was kept beside it, once a world in another city takes
+  over.
+
 ### The launcher, rewritten in Rust
 
 `./launcher` keeps its commands, options, exit codes, words and screens, and is now one Rust program in `LaunchKit/`,

@@ -47,3 +47,10 @@ source, licence, query and checksum.
 
 Eclipse SUMO is used as an optional external batch-validation tool and is
 licensed separately under EPL-2.0.
+
+The observer's empty-state figures use code from Hairline
+(https://github.com/lucasmarkes/hairline), © 2026 Lucas Marques, licensed
+under the MIT License. The copied files are in WebKit/src/vendor/hairline/,
+each with its SPDX identifier and copyright line, beside the full MIT text
+in WebKit/src/vendor/hairline/LICENSE. The cones figure and the index there
+are part of DSTNS and are covered by its licence above.

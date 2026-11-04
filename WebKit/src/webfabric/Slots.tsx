@@ -3,6 +3,7 @@
 
 import { Component, memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
+import { EmptyFigure } from "../EmptyFigure";
 import { Icon } from "../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { Tooltip } from "../Tooltip";
@@ -723,6 +724,7 @@ export function FabricDeck() {
   if (!current)
     return (
       <div className="fabric-empty">
+        <EmptyFigure figure="hub" />
         <BrandLogo name="webfabric" height={18} />
         <strong>Nothing to show yet</strong>
         <p>Applications connected through the Fabric API show their panels, figures and controls here.</p>

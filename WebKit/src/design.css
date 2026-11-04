@@ -3078,3 +3078,21 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
    shows how far it has got. */
 .loading-surface.boot.rejoin:not(.still) :is(.loading-card.film, .loading-licence) { animation: end-text 700ms var(--ease) 8600ms both; }
 .loading-surface.boot.rejoin.closing :is(.loading-card.film, .loading-licence) { animation: none; opacity: 0; }
+
+/* ---- Empty states: a small line drawing above the words (EmptyFigure.tsx, Hairline's figures) ---------------- */
+/* Its plates are filled with what it stands on, so they must be that colour; its strokes are the interface's lines. */
+.empty-figure {
+  --hairline-plate: var(--figure-ground, var(--surface-solid));
+  --hairline-hi: color-mix(in srgb, var(--accent) 88%, var(--text));
+  --hairline-edge: rgb(var(--line-rgb) / 46%);
+  --hairline-mid: rgb(var(--line-rgb) / 26%);
+  --hairline-lo: rgb(var(--line-rgb) / 13%);
+  --hairline-stroke: 1;
+  width: min(176px, 70%);
+  margin: 4px auto 2px;
+}
+.high-contrast .empty-figure { --hairline-edge: rgb(var(--line-rgb) / 72%); --hairline-mid: rgb(var(--line-rgb) / 48%); --hairline-lo: rgb(var(--line-rgb) / 28%); --hairline-stroke: 1.3; }
+.stream-empty:has(.empty-figure) { flex-direction: column; text-align: center; gap: 8px; padding-block: 18px 22px; }
+.stream-frame .empty-figure { --figure-ground: var(--well); }
+.fabric-empty .empty-figure { width: min(168px, 64%); }
+.place-search-empty:has(.empty-figure) { display: grid; justify-items: center; gap: 6px; text-align: center; }
