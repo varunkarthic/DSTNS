@@ -229,7 +229,7 @@ export function Select<T extends string>({
         <span className="select-trigger-text">{options[selected]?.label}</span>
         <Icon name="chevronDown" size={14} />
       </button>
-      <Floating anchor={trigger} open={open} preferred={["bottom", "top"]} className="menu" panelRef={menu} role="presentation">
+      <Floating anchor={trigger} open={open} preferred={["bottom", "top"]} only className="menu" panelRef={menu} role="presentation">
         <div
           id={listId}
           role="listbox"

@@ -162,6 +162,18 @@ describe("slots", () => {
     await waitFor(() => expect(fabric.getOpenPanel()).toBeNull());
   });
 
+  it("keeps a panel asked for until it appears, however often other applications change", async () => {
+    render(<FabricPanel />);
+    load([mockApp("org.x.w", 0), mockApp("org.x.b", 1)]);
+    act(() => fabric.setOpenPanel("org.x.w/p"));
+    // Its frame waits for a grant; meanwhile another application updates.
+    for (let i = 0; i < 3; i++) load([mockApp("org.x.w", 0), mockApp("org.x.b", 1, { detail: `tick ${i}` })]);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(fabric.getOpenPanel()).toBe("org.x.w/p");
+    load([mockApp("org.x.w", 0, { ui: [{ id: "p", slot: "panel", title: "Report", widgets: [] }] }), mockApp("org.x.b", 1)]);
+    expect(await screen.findByRole("dialog", { name: "Report, w" })).toBeInTheDocument();
+  });
+
   it("holds a dialog while the observer is busy, shows one at a time, and does not reopen an answered one", async () => {
     const dialog = (id: string): FabricElement => ({ id, slot: "dialog", title: `Title ${id}`, body: "Body", actions: [{ id: "yes", label: "Yes" }] });
     const { rerender } = render(<FabricDialog blocked />);

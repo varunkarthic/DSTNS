@@ -251,11 +251,12 @@ dd .status-badge {
     bottom var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out),
     border-radius var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out);
 }
-/* The panel's contents are cut to the surface as it narrows into the strip, so nothing hangs outside it. */
+/* The panel's contents are cut to the surface as it narrows into the strip, so nothing hangs outside it, and on the
+   way out they are there at once, uncovered as the surface grows, rather than fading in after it. */
 .deck-full {
   clip-path: inset(0 0 0 0 round var(--r-lg));
   transition:
-    opacity var(--t-select) var(--ease) var(--t-fast),
+    opacity var(--t-fast) var(--ease),
     transform var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out),
     clip-path var(--motion-morph-ms, 280ms) var(--motion-morph, ease-out);
 }

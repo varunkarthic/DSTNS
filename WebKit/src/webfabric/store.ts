@@ -416,10 +416,12 @@ class FabricStore {
     if (!state.unchanged && state.apps) {
       const next = mergeApps(this.apps, state.full === false ? applyDelta(this.apps, state.apps, state.removed) : state.apps);
       if (next !== this.apps) {
-        this.apps = next;
-        // A panel whose application has gone is closed, but only once it has had time to leave: see FabricPanel.
+        // A panel whose application has gone is closed, but only once it has had time to leave: see FabricPanel. One
+        // asked for that has not appeared yet, such as a frame waiting for its grant, stays asked for.
         const open = this.openPanel;
-        if (open && !this.findPanel(open))
+        const had = open ? this.findPanel(open) : undefined;
+        this.apps = next;
+        if (open && had && !this.findPanel(open))
           setTimeout(() => {
             if (this.openPanel === open && !this.findPanel(open)) this.setOpenPanel(null);
           }, 420);

@@ -495,7 +495,7 @@ describe("notifications", () => {
     const head = within(capsule).getByRole("button", { expanded: false });
     // The most severe event leads; the other is counted, not stacked.
     expect(head).toHaveTextContent("Collision");
-    expect(head).toHaveTextContent("+1");
+    expect(head).toHaveTextContent("1 more");
     expect(head).not.toHaveTextContent(/Edge #0|Node #0/);
     fireEvent.click(head);
     expect(head).toHaveAttribute("aria-expanded", "true");
@@ -533,7 +533,7 @@ describe("notifications", () => {
     await arrive(rain(), crash());
     const capsule = await screen.findByRole("article", { name: "Notifications" });
     expect(capsule).toHaveTextContent("Collision");
-    expect(capsule).not.toHaveTextContent("+1");
+    expect(capsule).not.toHaveTextContent("1 more");
     expect(calls).toEqual([]);
   }, 15000);
 
@@ -585,7 +585,7 @@ describe("notifications", () => {
     const capsule = await screen.findByRole("article", { name: "Notifications" });
     // Weather is muted, but it is what the camera is following.
     expect(capsule).toHaveTextContent("Heavy rain");
-    expect(capsule).not.toHaveTextContent("+1");
+    expect(capsule).not.toHaveTextContent("1 more");
     fireEvent.click(within(capsule).getByRole("button", { expanded: false }));
     expect(capsule).toHaveTextContent("Following");
   }, 15000);

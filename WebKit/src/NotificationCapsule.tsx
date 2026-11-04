@@ -280,8 +280,8 @@ export function NotificationCapsule(
           </span>
           {!urgent && <span className="capsule-time mono">{time.time(current.timestamp, { seconds: false })}</span>}
           {others.length > 0 && (
-            <span className="capsule-badge" key={others.length} aria-hidden="true">
-              +{others.length}
+            <span className="capsule-badge" key={others.length} aria-hidden="true" title={`${others.length} more ${others.length === 1 ? "notification" : "notifications"}`}>
+              {others.length} more
             </span>
           )}
           <span className="capsule-chevron" aria-hidden="true">

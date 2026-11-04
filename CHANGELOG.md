@@ -77,6 +77,10 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
 
 ### Fixes
 
+- A WebFabric panel opened before its application may show it, such as a frame waiting for its grant, stays open
+  and appears once allowed, rather than closing at the next update from any other application.
+- A dropdown opens under or over its field, even inside a panel full of controls, instead of beside the panel.
+- The notification's count reads "3 more" rather than "+3".
 - The documentation's graph is built with graphify 0.9.102, which no longer lets a Fortran file include files from
   outside the folder being read (GHSA-pcc4-rvhr-2pr8).
 - The container image builds again: its build stage copies the daemons and the alerts they build in.

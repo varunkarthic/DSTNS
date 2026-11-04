@@ -880,7 +880,8 @@
 .capsule-badge {
   min-width: 26px;
   height: 20px;
-  padding: 0 6px;
+  padding: 0 8px;
+  white-space: nowrap;
   border-radius: var(--r-sm);
   display: grid;
   place-items: center;
