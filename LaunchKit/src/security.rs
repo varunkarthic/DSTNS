@@ -217,6 +217,10 @@ pub fn reads_only(words: &[String]) -> bool {
         "fastboot" => matches!(word(1), "" | "status"),
         // The handler only reads, or refuses, under Advanced Security.
         "mcp" => true,
+        // A suggestion is only printed; trying the model, or reading the daemons, changes nothing.
+        "ask" => true,
+        "model" => matches!(word(1), "" | "status" | "test"),
+        "daemon" | "daemons" => matches!(word(1), "" | "status" | "list" | "show" | "queue"),
         "api" => word(1).eq_ignore_ascii_case("get"),
         _ => false,
     }

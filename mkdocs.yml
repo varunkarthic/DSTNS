@@ -158,6 +158,7 @@ nav:
           - The console: guide/console.md
           - Fast starts and the film: guide/fast-boot.md
           - MCP Handler: guide/mcp.md
+          - The daemons: guide/daemons.md
           - Playback control: guide/playback-control.md
           - Seeds and places: guide/seeds-and-places.md
           - Saved seeds: guide/saved-seeds.md

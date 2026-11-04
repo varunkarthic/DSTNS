@@ -65,6 +65,15 @@ pub fn save(config: &Value, paths: &Paths) -> Result<()> {
             return Err(LauncherError::config(format!("{}: {problem}", field.label)));
         }
     }
+    // What changed, into the launcher's log: every setting, from what to what.
+    if let Ok(before) = load(paths) {
+        for field in fields() {
+            let (was_value, now_value) = (field.get(&before), field.get(config));
+            if was_value != now_value {
+                crate::log::info(&format!("settings: {} from {} to {}", field.key, field.display(&was_value), field.display(&now_value)));
+            }
+        }
+    }
     let text = serde_json::to_string_pretty(config).unwrap() + "\n";
     let temporary = paths.config().with_extension("json.tmp");
     fs::write(&temporary, text)?;
@@ -373,6 +382,10 @@ pub fn fields() -> &'static [Field] {
                 json!(false),
             ),
             Field::new("launcher.command_bar", "Command bar", "Launcher", Boolean, "The prompt at the foot of the terminal interface, where commands are typed as in a shell, joined with | && || and ;. : or / goes to it.", json!(true)),
+            Field::new("launcher.scroll_lines", "Scroll speed", "Launcher", Integer, "How many lines one notch of the mouse wheel or trackpad scrolls a list or the command output.", json!(3)).unit("lines").range(1.0, Some(20.0)),
+            Field::new("launcher.natural_scrolling", "Natural scrolling", "Launcher", Boolean, "Content moves the way the fingers do, as on a Mac's trackpad. Off, the wheel moves the view instead.", json!(false)),
+            Field::new("launcher.small_terminal", "Small terminals", "Launcher", Choice, "What happens when the terminal is too small for the full interface: ask (Simplified Launch Control, or leave), always use Simplified Launch Control, or show the full interface anyway.", json!("ask"))
+                .choices(vec![("Ask", json!("ask")), ("Simplified", json!("simplified")), ("Full anyway", json!("full"))]),
             // Server
             Field::new("api.host", "Listen address", "Server", Text, "127.0.0.1 keeps the server to this machine; 0.0.0.0 opens it to the network, which needs a gateway in front (see Deployment).", json!("127.0.0.1")),
             Field::new("api.port", "Port", "Server", Integer, "The port to listen on. If it is taken, the next free one is used, and the launcher says which.", json!(8090)).range(1.0, Some(65535.0)),
@@ -470,6 +483,30 @@ pub fn fields() -> &'static [Field] {
             ),
             Field::new("mcp.allow_writes", "AI may change things", "MCP", Boolean, "An AI client may call routes that change the simulation (POST, PUT, DELETE). Turns the MCP Handler on.", json!(false)),
             Field::new("mcp.allow_launcher", "AI may start and stop runs", "MCP", Boolean, "An AI client may start and stop simulations and change settings through the launcher. Turns the MCP Handler on.", json!(false)),
+            // The launcher's own model, for commands asked for in plain words
+            Field::new("model.provider", "Model", "Model", Choice, "Which model turns a request in plain words into commands at the prompt. Automatic uses Apple's Foundation Models on a Mac with Apple silicon and macOS 27 or later; else Ollama, if it answers; else Groq, if a key is kept (model key KEY).", json!("auto"))
+                .choices(vec![("Automatic", json!("auto")), ("Apple Foundation Models", json!("apple")), ("Ollama", json!("ollama")), ("Groq", json!("groq")), ("Off", json!("off"))]),
+            Field::new("model.name", "Model name", "Model", Text, "Which model, for Ollama (llama3.2, qwen2.5…) or Groq (llama-3.3-70b-versatile…). default uses each one's own.", json!("default")),
+            Field::new("model.ollama_url", "Ollama address", "Model", Text, "Where Ollama answers.", json!("http://127.0.0.1:11434")),
+            // The daemons, inside the server
+            Field::new("daemon.enabled", "Daemons", "Daemons", Boolean, "Small watchers inside the server: the Resource Control Subsystem, memory, disk, a stalled run, and the cache handler. They say what they notice in the launcher and the observer, and on the daemon queues for applications.", json!(true)),
+            Field::new("daemon.sustain_s", "Hold before alerting", "Daemons", Number, "How long a condition must hold before a daemon says anything, so that a brief spike is not an alarm.", json!(5)).unit("s").range(0.0, Some(300.0)),
+            Field::new("daemon.rcs", "Resource Control Subsystem", "Daemons", Boolean, "Each module's memory and processor against its α, β and γ (Resource Control).", json!(true)),
+            Field::new("daemon.memory", "Memory watch", "Daemons", Boolean, "The machine's available memory: a warning when it is low, an emergency when it is critical.", json!(true)),
+            Field::new("daemon.disk", "Disk watch", "Daemons", Boolean, "Free space where the logs and maps are kept.", json!(true)),
+            Field::new("daemon.stall", "Stall watch", "Daemons", Boolean, "A run that should be running but whose clock has stopped.", json!(true)),
+            Field::new("daemon.cache", "Auto cache handler", "Daemons", Boolean, "Clears what nothing needs: old cities beyond the cache's budget, abandoned downloads, stray files. Never the running world's city or the next one.", json!(true)),
+            Field::new("cache.max_mib", "Map cache budget", "Daemons", Integer, "The most the map cache may hold; the cities least recently used go first.", json!(2048)).unit("MiB").range(0.0, Some(1048576.0)),
+            Field::new("cache.interval_min", "Cache sweep every", "Daemons", Integer, "How often the cache handler looks; it also looks at once when disk space is low.", json!(10)).unit("min").range(1.0, Some(1440.0)),
+            // The Resource Control Subsystem's lines, α, β and γ, for each module
+            Field::new("rcs.engine.memory", "Engine memory", "Resource Control", Text, "α, β, γ in MiB: the least the engine should use while it works, where it is using a lot (a warning), and the most it ever should (an alert).", json!("4, 2048, 4096")).extra(rcs_lines),
+            Field::new("rcs.engine.cpu", "Engine processor", "Resource Control", Text, "α, β, γ as a percentage of one core. Below α while the run is running, something may be wrong.", json!("0.2, 180, 380")).extra(rcs_lines),
+            Field::new("rcs.downloads.memory", "Map downloads memory", "Resource Control", Text, "α, β, γ in MiB, for the map downloads while they run.", json!("0, 768, 2048")).extra(rcs_lines),
+            Field::new("rcs.downloads.cpu", "Map downloads processor", "Resource Control", Text, "α, β, γ as a percentage of one core.", json!("0, 150, 300")).extra(rcs_lines),
+            Field::new("rcs.launcher.memory", "Launcher memory", "Resource Control", Text, "α, β, γ in MiB, for this launcher.", json!("1, 256, 1024")).extra(rcs_lines),
+            Field::new("rcs.launcher.cpu", "Launcher processor", "Resource Control", Text, "α, β, γ as a percentage of one core.", json!("0, 60, 150")).extra(rcs_lines),
+            Field::new("rcs.applications.memory", "Applications memory", "Resource Control", Text, "α, β, γ in MiB, for the applications this launcher starts, together.", json!("0, 1024, 4096")).extra(rcs_lines),
+            Field::new("rcs.applications.cpu", "Applications processor", "Resource Control", Text, "α, β, γ as a percentage of one core, together.", json!("0, 200, 400")).extra(rcs_lines),
             // Security
             Field::new(
                 KEY_ADVANCED_SECURITY,
@@ -480,6 +517,39 @@ pub fn fields() -> &'static [Field] {
                 json!(false),
             ),
         ]
+    })
+}
+
+/// α, β, γ: three numbers, each at least the one before.
+pub fn rcs_triple(value: &Value) -> Option<[f64; 3]> {
+    let parts: Vec<f64> = value.as_str()?.split(',').map(|p| p.trim().parse::<f64>()).collect::<std::result::Result<_, _>>().ok()?;
+    match parts.as_slice() {
+        [a, b, g] if *a >= 0.0 && a <= b && b <= g => Some([*a, *b, *g]),
+        _ => None,
+    }
+}
+
+fn rcs_lines(value: &Value, _config: &Value) -> String {
+    if rcs_triple(value).is_some() {
+        String::new()
+    } else {
+        "Write α, β and γ as three numbers, each at least the one before, such as 4, 2048, 4096.".into()
+    }
+}
+
+/// The daemons' settings, for the server.
+pub fn daemon_settings(config: &Value) -> Value {
+    let mut modules = serde_json::Map::new();
+    for module in ["engine", "downloads", "launcher", "applications"] {
+        let line = |metric: &str| rcs_triple(&setting(config, &format!("rcs.{module}.{metric}"))).map(|t| json!(t)).unwrap_or(Value::Null);
+        modules.insert(module.into(), json!({"memory_mib": line("memory"), "cpu_percent": line("cpu")}));
+    }
+    json!({
+        "enabled": flag(config, "daemon.enabled"),
+        "sustain_s": as_number(&setting(config, "daemon.sustain_s")).unwrap_or(5.0),
+        "daemons": {"rcs": flag(config, "daemon.rcs"), "memory": flag(config, "daemon.memory"), "disk": flag(config, "daemon.disk"), "stall": flag(config, "daemon.stall"), "cache": flag(config, "daemon.cache")},
+        "rcs": {"modules": modules},
+        "cache": {"interval_s": as_int(&setting(config, "cache.interval_min")).unwrap_or(10) * 60, "max_mib": as_int(&setting(config, "cache.max_mib")).unwrap_or(2048)},
     })
 }
 
@@ -579,6 +649,7 @@ pub fn server_switches(config: &Value, demo: bool) -> Vec<(String, String)> {
         ("DSTNS_DISABLED_CAPABILITIES".to_string(), disabled.join(",")),
         ("DSTNS_PRESENTATION".to_string(), presentation(config, demo).to_string()),
         ("DSTNS_DYNAMIC_FASTBOOT".to_string(), one("startup.dynamic_fastboot")),
+        ("DSTNS_DAEMON".to_string(), daemon_settings(config).to_string()),
     ];
     if !flag(config, "fabric.world_regeneration") {
         env.push(("DSTNS_DISABLE_WORLD_REGENERATION".into(), "1".into()));

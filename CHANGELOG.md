@@ -72,6 +72,40 @@ shell's, and 127 for a command that does not exist.
   and shows the server's live readings at the right of the prompt: port, state, clock, processor and memory.
 - **Fixed: Up and Down in the command bar** walked a recalled command's suggestions instead of the history.
 
+### The daemons
+
+- **Watchers inside the server, each on a thread of its own** (`Daemon/`): the **Resource Control Subsystem** (each
+  module's memory and processor against its α, β and γ: below α a quiet note that something may be off, over β a
+  warning, over γ an alert), **memory** and **disk** (warnings, and emergencies when critical), **stall** (a running
+  clock that has stopped), and the **auto cache handler** (the map cache kept to its budget, abandoned downloads and
+  stray files cleared, never the running world's city or the next one). Nothing is said until a condition has held
+  for its sustain time, so a spike is not an alarm.
+- **Two queues**, handled by the daemon gateway: **daemonEmergencyQueue** (alerts and emergencies, for every
+  application to act on) and **daemonNotificationQueue** (the rest). `GET /api/v1/daemon` tells anyone what runs;
+  the queues are read with a cursor and a long-poll by the observer, the operator and applications by their tokens,
+  and emergencies can be acknowledged. Every message is a template from `Daemon/messages.json`; the alerts are in
+  `config/daemon-alerts.json`. Both are built into the server.
+- **The operator turns daemons on and off and changes their settings** through the launcher (`daemon.*`, `rcs.*`,
+  `cache.*`, `./launcher daemon …`) or `PUT /api/v1/daemon/{name}`; the launcher reports its own and its applications'
+  processes to the Resource Control Subsystem.
+- **What they say** is in the launcher's log, a toast in the interface for a warning or worse, and a notification from
+  System in the observer.
+
+### The launcher, further
+
+- **Asking in plain words:** a request typed at the prompt (or after `ask` or `?`) is turned into commands by the
+  launcher's own model, checked as a console line, and put on the prompt to be run with Enter, never by itself.
+  `model.provider` chooses Apple's Foundation Models (automatic on Apple silicon with macOS 27 or later), Ollama or
+  Groq; `./launcher model` says which, and `model key` keeps a Groq key. The MCP Handler offers the same as
+  `launcher_suggest`.
+- **Simplified Launch Control:** a terminal smaller than 70 × 22 pauses the start-up and asks whether to use it or
+  leave: the launcher on a few lines, with no command bar, for starting and stopping a run, opening the observer and
+  the settings that matter most. `launcher.small_terminal` decides without asking.
+- **The first page is revealed** from the top down as the start-up ends, behind a fringe of its particles.
+- **Scrolling:** `launcher.scroll_lines` and `launcher.natural_scrolling`.
+- **Everything a person does is logged:** each page, question and answer, command, setting changed (from what to
+  what) and choice.
+
 ### Advanced Security
 
 - **`security.advanced`** (off by default): the person at the machine confirms it's them, with the system's own
@@ -122,6 +156,15 @@ fit, in a new order every time, WebFabric only once every other has played, alwa
 the flight into the map. A world from the cache goes from the name straight to the map; one that is ready sooner than
 planned cuts back to the name within a moment. It has no progress dashes, since it plays no fixed list.
 
+- **Ready mid-scene, it goes back to the name at once and smoothly:** a scene left before it had arrived is carried
+  into the next, so each particle sets off from exactly where it was.
+- **A jump through the day shows itself:** faint particles streaming the way it goes, denser and faster from a minute
+  to an hour, and how far, while the server works it out.
+- **The start-up and Demo Mode show the source,** varunkarthic/DSTNS on GitHub, quietly at the top right.
+- **An unreachable server is asked again every five seconds,** and Demo Mode loses and regains its server as a run
+  does, with the same ending.
+- **Fixed: a new world's old roads jumped to the top-left corner** as the new world's map was set up; and the small
+  corner logo no longer shows on a new world.
 - **The server says how long a world will take:** `eta_s` and `eta_confident` on the playback, engine and world status.
   The estimate comes from the download as it goes, or the build alone for a cached city, and otherwise from how long
   the last ones took, kept in `preparation-times.json`. The film plans only by a confident one, so a long Overpass

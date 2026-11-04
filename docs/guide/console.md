@@ -49,6 +49,9 @@ These run in the launcher itself, read its state, and print plain text:
 | `env` | The `DSTNS_` variables in use, those kept in `config/launcher.env` marked `# kept` |
 | `history` | The commands typed so far, in the interface and here |
 | `security` | Whether [Advanced Security](operator-cli.md#advanced-security) is on, how this machine asks, and whether this session is verified |
+| `ask REQUEST` | A request in plain words, as a line of commands, from the launcher's model; it is printed, never run. See [Asking in plain words](operator-cli.md#asking-in-plain-words) |
+| `model` | Which model answers those requests, and whether Apple's is here; `model test` tries it |
+| `daemon`, `daemon show NAME`, `daemon queue emergency\|notification` | The [daemons](daemons.md): which run, what one reads, and what they have said |
 | `uptime` | How long the server has been up, its state and clock, and its peak memory |
 | `about` | Version, copyright, licence and map-data attribution |
 | `docs [TOPIC]` | Opens the documentation (in a terminal) and prints its address. Topics: `launcher`, `console`, `mcp`, `fastboot`, `api`, `endpoints`, `config`, `apps`, `testing`, `troubleshooting` |
@@ -63,6 +66,8 @@ These change things, with the same checks as everywhere else:
 | `edit settings\|ui\|env\|apps\|FILE` | Open it in `$VISUAL`, `$EDITOR`, nano or vi. A copy is edited, and saved only if it still reads: JSON that parses, settings that pass their checks, `NAME=VALUE` lines, a catalogue that loads. Otherwise nothing changes and the draft's path is printed |
 | `api [METHOD] PATH [BODY\|@FILE]` | Any route on the running server, as the operator, its reply as indented JSON; a status other than 2xx is printed first |
 | `security on`, `security off`, `security verify` | Turn Advanced Security on or off (each asks the system first), or ask now, to try it |
+| `model use auto\|apple\|ollama\|groq\|off [NAME]`, `model key KEY` | Choose the model, and keep a Groq key in `config/launcher.env` |
+| `daemon on NAME`, `daemon off NAME` | Turn one daemon on or off until the server stops |
 
 And these filter what is piped to them:
 
@@ -91,7 +96,7 @@ one line, and a string on its own prints as it is, so that it pipes:
 | `next-world` | Dynamic Fastboot's next world, `next-world.json` |
 | `eta` | How long preparing worlds has taken, which the server's estimates come from |
 | `launcher` | The server this launcher is running |
-| `status`, `world`, `system`, `features`, `endpoints` | From the running server: the simulation, world generation, its build and process, what it has on, and every route |
+| `status`, `world`, `system`, `features`, `endpoints`, `daemons` | From the running server: the simulation, world generation, its build and process, what it has on, every route, and the daemons |
 
 ```bash
 ./launcher json settings .api.port                      # 8090
@@ -127,6 +132,10 @@ The command bar adds what only makes sense inside the interface:
 | `set KEY VALUE` (or `KEY=VALUE`), `config` | Change a setting, or open the Configuration page |
 | `setup`, `reset` | The setup again; reset runtime data, after a confirmation |
 | `history`, `clear`, `man COMMAND`, `exit` | The commands typed so far, clear the output, how to use a command, leave |
+
+A line whose first word is not a command is a request in plain words, as is anything after
+`ask` or `?`: the launcher's model turns it into commands and puts them on the prompt, where
+Enter runs them and Esc leaves them. See [Asking in plain words](operator-cli.md#asking-in-plain-words).
 
 What is typed is coloured as it is read: each command in the accent, `|`, `&&`, `||` and `;`
 in amber, quoted text in green and options dimmed. `json`, `view` and `api` print in colour

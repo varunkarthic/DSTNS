@@ -103,6 +103,8 @@ Every feature has a setting, named for what it does, and settings that can't go 
 
 **Advanced Security** asks for Touch ID or your system password before the launcher can be changed, and keeps AI clients from changing the launcher or the engine through the MCP Handler. Turning it off asks again.
 
+Type what you want in plain words, and the launcher's own model (Apple's Foundation Models on the Mac, or Ollama, or Groq) suggests the commands, checked and on the prompt for you to run, never by itself. On a terminal too small for all this, **Simplified Launch Control** does the essentials on a few lines.
+
 ### The console
 
 The launcher reads command lines as a shell does, in its command bar, with `-c`, in `./launcher shell`, or one command at a time from your own shell:
@@ -126,6 +128,10 @@ The launcher reads command lines as a shell does, in its command bar, with `-c`,
 | **The adaptive film** | The start-up film plans itself by the server's estimate of when the world will be ready: as many scenes as fit, in a new order every time, always opening on the name and closing on the flight into the map |
 
 `./launcher demo` plays the film on a loop, full screen, with an original score, including scenes on time control, many worlds and AI, in whatever order you set.
+
+## Daemons
+
+Watchers inside the server keep an eye on things: the **Resource Control Subsystem** checks each module's memory and processor against an α (the least it should use), β (a lot) and γ (the most it ever should); others watch memory, disk and a stalled run; and the **auto cache handler** keeps the map cache within its budget. What they notice is in the launcher and the observer, and on two queues, **daemonEmergencyQueue** and **daemonNotificationQueue**, that applications subscribe to.
 
 ## AI ready
 
@@ -201,7 +207,7 @@ DSTNS is for research, teaching, algorithm integration and demonstrations. It ha
 
 ## Tested
 
-Every test is C++, Rust or TypeScript: 31 engine and HTTP suites under ctest (each HTTP suite a program that starts a real server on a port of its own, with stand-ins for every upstream), 58 launcher tests, and 476 for the observer. The HTTP contract is replayed against a recorded baseline of 155 calls, and every route is fuzzed with hostile values on every run.
+Every test is C++, Rust or TypeScript: 33 engine and HTTP suites under ctest (each HTTP suite a program that starts a real server on a port of its own, with stand-ins for every upstream), 61 launcher tests, and 478 for the observer. The HTTP contract is replayed against a recorded baseline of 155 calls, and every route is fuzzed with hostile values on every run.
 
 ```bash
 ./scripts/test.sh

@@ -293,6 +293,20 @@ pub fn launcher_tools(paths: &Paths, policy: Policy, session: Arc<Session>) -> V
         {
             let p = paths.clone();
             Tool {
+                name: "launcher_suggest".into(),
+                description: "Turn a request in plain words into a line of the launcher's console commands, checked as the command bar checks it, by the launcher's own model. It is only a suggestion: nothing is run.".into(),
+                schema: json!({"type": "object", "properties": {"request": {"type": "string", "description": "What is wanted, in plain words"}}, "required": ["request"]}),
+                read_only: true,
+                handler: Box::new(move |arguments| {
+                    let request = arguments.get("request").and_then(|r| r.as_str()).unwrap_or("");
+                    let (suggestion, model) = crate::assistant::suggest(&p, request).map_err(LauncherError::config)?;
+                    Ok(json!({"line": suggestion.line, "notes": suggestion.warnings, "model": model.label(), "run": false}))
+                }),
+            }
+        },
+        {
+            let p = paths.clone();
+            Tool {
                 name: "launcher_apps_list".into(),
                 description: "The applications this launcher can start alongside a simulation.".into(),
                 schema: json!({"type": "object", "properties": {}}),

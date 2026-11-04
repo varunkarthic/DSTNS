@@ -7,10 +7,12 @@
 mod api;
 mod apps;
 mod artifacts;
+mod assistant;
 mod buildplan;
 mod cli;
 mod config;
 mod console;
+mod daemons;
 mod environment;
 mod errors;
 mod fabric;

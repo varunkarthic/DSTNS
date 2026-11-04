@@ -5,10 +5,10 @@ Rust (the launcher) or TypeScript (the observer). Nothing needs Python.
 
 | Suites | Language | Run with | Count |
 |---|---|---|---|
-| Engine: unit, property, replay, performance | C++ | `ctest` | 13 programs |
-| HTTP API, downloader, launcher end to end, release tooling | C++ | `ctest` | 18 programs |
-| Launcher: commands, console, settings, the terminal interface | Rust | `cargo test` | 58 tests |
-| Observer | TypeScript (Vitest, jsdom) | `npm test` | 476 tests in 38 files |
+| Engine: unit, property, replay, performance, daemons | C++ | `ctest` | 14 programs |
+| HTTP API, downloader, daemons, launcher end to end, release tooling | C++ | `ctest` | 19 programs |
+| Launcher: commands, console, settings, the terminal interface | Rust | `cargo test` | 61 tests |
+| Observer | TypeScript (Vitest, jsdom) | `npm test` | 478 tests in 40 files |
 | Browser | JavaScript (Playwright, installed Chrome) | `node WebKit/tests/browser*.mjs` | 4 suites |
 
 ## Running everything
@@ -45,6 +45,7 @@ Each target is a standalone executable under `build/`.
 | `dstns_map_sourcing` | `dstns_map_tests` | The downloader receiving a southern-hemisphere box as one `--bbox=` argument; seeds resolving reproducibly; 200 seeds reaching many cities across six longitude bands and both hemispheres; true-metre scale; the cache sweep keeping, pruning and clearing extracts and always removing `.part` and `.progress` leftovers |
 | `dstns_loading_concurrency` | `dstns_loading_tests` | Compile lease, cancellation and status reads during a compile |
 | `dstns_world_and_stepping` | `dstns_world_tests` | Exact steps that leave the run paused; step and seek equivalence; completion at 24:00:00 by playing, stepping or seeking; regeneration with a fresh seed, failure leaving the old world untouched, and backpressure ignoring the swap; edge overrides surviving a backwards seek; undo and redo of signal toggles; surge and weather bounds; demand types |
+| `dstns_daemon_rules` | `dstns_daemon_tests` | A condition counting only once it has held for its sustain time, and ending likewise; templates filled in; every alert naming a template; urgent messages on the emergency queue and the rest on the notification queue; low, critical and back again, with one recovered |
 | `dstns_property_invariants` | `dstns_prop_tests` | Topology and attachment invariants; congestion, rain, flood, building effect, progress and speed staying in bounds over a run |
 | `dstns_replay_reproducibility` | `dstns_rep_tests` | Two independent compilations and engines agreeing on every hash and on full snapshots, for a grid and an OSM map |
 | `dstns_narration` | `dstns_narrator_tests` | The facts a model is given (no internal IDs, percentages, HH:MM) and the checks on what it writes (invented numbers, injuries, speculation, labels, length); the narrator's queue, bound, back-off, refusals and persistent cache; that an engine with a narrator produces byte-identical snapshots and news text to one without, with every incident narrated; the cached topology response equal to the built one; large snapshots assembled in order |
@@ -86,6 +87,7 @@ runs itself, or to the bundled fixtures. ctest runs each as `dstns_http_<name>`,
 | `dstns_http_another_city` | `another_city` | Every retry after a failed download chooses a different city |
 | `dstns_http_fastboot` | `fastboot` | A city packed in advance is unpacked whole and used, with no download; a damaged pack leaves nothing half-written |
 | `dstns_http_dynamic_fastboot` | `dynamic_fastboot` | The next city fetched in the background and named in `next-world.json`; kept through a cache sweep; taken by the next world with no download; a staged world prepared while the current one runs, committed and discarded; `eta_s` and `eta_confident`; the switch off |
+| `dstns_http_daemon` | `daemon` | The daemons on a real server: the open overview; the queues refused without a token, read by an application's token and subscribed; the cache handler keeping the next world's city and clearing the rest; an RCS alert heard by a waiting reader and acknowledged; processes reported; a daemon turned off; all of them off |
 | `dstns_http_fetch_osm` | `fetch_osm` | The downloader against stand-in mirrors: failover on refused connections and shed load, retries, compression, silence, error remarks, offline reports in one line, endpoints from the environment |
 | `dstns_http_docs_coverage` | `docs_coverage` | Every route the server lists is in `openapi.yaml` and in Every endpoint |
 | `dstns_http_release` | `release` | `dstns_release` against a stand-in `docker`: metadata channels, two-platform promotion, read-back, licence headers on every source file |
@@ -142,7 +144,7 @@ npm test --prefix WebKit          # Vitest, jsdom
 npx --prefix WebKit tsc -b        # type check
 ```
 
-38 files, 476 tests. The main ones:
+40 files, 478 tests. The main ones:
 
 | File | Covers |
 |---|---|

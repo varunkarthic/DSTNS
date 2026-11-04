@@ -34,6 +34,7 @@ pub const PLACES: &[(&str, &str)] = &[
     ("system", "The server's build, process and modules"),
     ("features", "What the server has turned on"),
     ("endpoints", "Every route the server serves"),
+    ("daemons", "The daemons: which run, and their queues"),
 ];
 
 fn read_json(path: &std::path::Path) -> Result<Value, String> {
@@ -76,6 +77,7 @@ pub fn place(name: &str, input: Option<&[String]>, paths: &Paths) -> Result<Valu
         "system" => server("/api/v1/system/info", paths),
         "features" => server("/api/v1/system/features", paths),
         "endpoints" => server("/api/v1/system/endpoints", paths),
+        "daemons" => server("/api/v1/daemon", paths),
         file if std::path::Path::new(file).is_file() => read_json(std::path::Path::new(file)),
         other => Err(format!("json: no place or file {other}. ls json lists the places.")),
     }
@@ -441,6 +443,107 @@ fn security_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, Strin
     }
 }
 
+fn ask_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> {
+    let request = rest.join(" ");
+    if request.trim().is_empty() {
+        return Err("ask: say what you want, such as ask show me the api log's errors".into());
+    }
+    let (suggestion, model) = crate::assistant::suggest(paths, &request)?;
+    eprintln!("Suggested by {}. Nothing has been run.", model.label());
+    for warning in &suggestion.warnings {
+        eprintln!("Note: {warning}");
+    }
+    Ok(vec![suggestion.line])
+}
+
+fn model_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> {
+    match rest.first().map(String::as_str) {
+        None | Some("status") => {
+            let settings = config::load(paths).map_err(|e| e.message)?;
+            let chosen = config::setting(&settings, "model.provider").as_str().unwrap_or("auto").to_string();
+            let key = std::env::var(crate::assistant::GROQ_KEY).map(|k| format!("kept ({}…)", k.chars().take(4).collect::<String>())).unwrap_or_else(|_| "not kept".into());
+            Ok(vec![
+                format!("Chosen        {chosen}"),
+                format!("In use        {}", crate::assistant::resolve(paths).map(|m| m.label()).unwrap_or_else(|why| format!("none: {why}"))),
+                format!("Apple's model {}", if crate::assistant::apple_available() { "available" } else { "not available here" }),
+                format!("Groq key      {key}"),
+            ])
+        }
+        Some("use") => {
+            let provider = rest.get(1).ok_or("model use: auto, apple, ollama, groq or off")?;
+            let mut out = set_command("set", &["model.provider".into(), provider.clone()], paths)?;
+            if let Some(name) = rest.get(2) {
+                out.extend(set_command("set", &["model.name".into(), name.clone()], paths)?);
+            }
+            Ok(out)
+        }
+        Some("key") => {
+            let key = rest.get(1).ok_or("model key: give the Groq API key")?;
+            env_command(&["set".into(), format!("{}={key}", crate::assistant::GROQ_KEY)], paths)?;
+            Ok(vec![format!("The Groq key is kept in config/launcher.env as {}, on this machine only.", crate::assistant::GROQ_KEY)])
+        }
+        Some("test") => {
+            let model = crate::assistant::resolve(paths)?;
+            let answer = crate::assistant::ask(&model, "Answer in one short sentence.", "Say that you are ready.")?;
+            Ok(vec![format!("{}: {answer}", model.label())])
+        }
+        Some(other) => Err(format!("model: {other}? model, model use PROVIDER [NAME], model key KEY or model test")),
+    }
+}
+
+fn daemon_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> {
+    let port = crate::server::active_port(paths).ok_or("No server is running. start starts one.")?;
+    let call = |method: &str, route: &str, body: Option<Value>| -> Result<Value, String> {
+        let response = crate::api::call(port, route, method, body.as_ref(), 15.0, paths);
+        if response.code == 0 {
+            return Err("The server did not answer.".into());
+        }
+        if !(200..300).contains(&response.code) {
+            return Err(response.body["error"]["message"].as_str().unwrap_or("refused").to_string());
+        }
+        Ok(response.body.get("data").cloned().unwrap_or(response.body))
+    };
+    match rest.first().map(String::as_str) {
+        None | Some("status") | Some("list") => {
+            let overview = call("GET", "/api/v1/daemon", None)?;
+            if overview["enabled"] != json!(true) {
+                return Ok(vec!["The daemons are off (daemon.enabled).".into()]);
+            }
+            let mut lines = vec![format!("{:<8}{:<10}{}", "NAME", "STATE", "WATCHES")];
+            for d in overview["daemons"].as_array().cloned().unwrap_or_default() {
+                let state = if d["running"] == json!(true) { "running" } else if d["enabled"] == json!(true) { "starting" } else { "off" };
+                lines.push(format!("{:<8}{:<10}{}", d["name"].as_str().unwrap_or(""), state, d["description"].as_str().unwrap_or("")));
+            }
+            for (name, q) in overview["queues"].as_object().cloned().unwrap_or_default() {
+                lines.push(format!("{name}: {} held, latest {}, {} subscribed", q["length"], q["latest_sequence"], q["subscribers"].as_array().map(|a| a.len()).unwrap_or(0)));
+            }
+            Ok(lines)
+        }
+        Some("show") => {
+            let name = rest.get(1).ok_or("daemon show: rcs, memory, disk, stall or cache")?;
+            Ok(render(&call("GET", &format!("/api/v1/daemon/{name}"), None)?, false))
+        }
+        Some(turn @ ("on" | "off")) => {
+            let name = rest.get(1).ok_or("daemon on|off: rcs, memory, disk, stall or cache")?;
+            call("PUT", &format!("/api/v1/daemon/{name}"), Some(json!({"enabled": turn == "on"})))?;
+            Ok(vec![format!("{name} is {turn}, until the server stops; daemon.{name} keeps it for the next start.")])
+        }
+        Some("queue") => {
+            let which = match rest.get(1).map(String::as_str).unwrap_or("notification") {
+                "emergency" | "emergencies" | "alerts" => "emergency",
+                _ => "notification",
+            };
+            let read = call("GET", &format!("/api/v1/daemon/{which}-queue"), None)?;
+            let items = read["items"].as_array().cloned().unwrap_or_default();
+            if items.is_empty() {
+                return Ok(vec![format!("Nothing on daemon{}Queue.", if which == "emergency" { "Emergency" } else { "Notification" })]);
+            }
+            Ok(items.iter().map(|m| format!("{:>5}  {:<9} {:<7} {} — {}", m["sequence"], m["level"].as_str().unwrap_or(""), m["daemon"].as_str().unwrap_or(""), m["title"].as_str().unwrap_or(""), m["text"].as_str().unwrap_or(""))).collect())
+        }
+        Some(other) => Err(format!("daemon: {other}? daemon, daemon show NAME, daemon on|off NAME, or daemon queue emergency|notification")),
+    }
+}
+
 /// The console's tools, by name. None for a name that is not one of them.
 pub fn run(name: &str, rest: &[String], input: Option<&[String]>, paths: &Paths) -> Option<Result<Vec<String>, String>> {
     Some(match name {
@@ -450,6 +553,9 @@ pub fn run(name: &str, rest: &[String], input: Option<&[String]>, paths: &Paths)
         "edit" => edit(rest.first().map(String::as_str).unwrap_or(""), paths),
         "api" => api_command(rest, paths),
         "security" => security_command(rest, paths),
+        "ask" => ask_command(rest, paths),
+        "model" => model_command(rest, paths),
+        "daemon" | "daemons" => daemon_command(rest, paths),
         "history" => Ok(std::fs::read_to_string(paths.logs().join("command-history")).unwrap_or_default().lines().enumerate().map(|(i, l)| format!("{:>5}  {l}", i + 1)).collect()),
         _ => return None,
     })

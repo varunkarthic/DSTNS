@@ -73,6 +73,7 @@ $ ./launcher mcp tools
 | `launcher_status` | reads | Whether a server is running, its port and lifecycle, the seed and clock, the observer's address |
 | `launcher_config_get` | reads | One setting, or all of them |
 | `launcher_seeds_list`, `launcher_apps_list` | reads | Saved seeds; the application catalogue |
+| `launcher_suggest` | reads | A request in plain words as a line of console commands, from the launcher's own model, checked as the command bar checks it. Nothing is run |
 | `launcher_start` | changes (with `mcp.allow_launcher`) | Start a simulation, with a seed, day type, speed and map |
 | `launcher_stop` | changes (with `mcp.allow_launcher`) | Stop the server and the applications this launcher started |
 | `launcher_config_set` | changes (with `mcp.allow_launcher` and `mcp.allow_writes`) | Change a setting, with the same validation and [rules](operator-cli.md#settings-that-go-together) as `config set` |

@@ -176,6 +176,11 @@ impl Supervisor {
             .collect()
     }
 
+    /// The process each running application was started as, which leads its own process group.
+    pub fn pids(&self) -> Vec<u32> {
+        self.running.lock().unwrap().values().filter_map(|slot| slot.child.lock().unwrap().as_ref().map(|c| c.id())).collect()
+    }
+
     pub fn get(&self, id: &str) -> Option<Snapshot> {
         self.states().into_iter().find(|s| s.app.id == id)
     }

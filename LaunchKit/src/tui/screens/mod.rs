@@ -14,6 +14,7 @@ pub mod logs;
 pub mod running;
 pub mod seeds;
 pub mod setup;
+pub mod simple;
 pub mod splash;
 pub mod start;
 pub mod tasks;

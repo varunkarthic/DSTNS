@@ -219,14 +219,37 @@ struct App {
     outcome: Option<Outcome>,
     quitting: bool,
     help_open: Option<Vec<(String, String)>>,
+    /// Simplified Launch Control, in place of everything else, for a terminal too small for the full interface.
+    simple: Option<screens::simple::SimpleScreen>,
+    /// Asking, before anything starts, whether to use it or leave: which of the two is chosen.
+    size_prompt: Option<usize>,
+    /// How the mouse wheel scrolls: lines a notch, and whether the content follows the fingers.
+    scroll: (usize, bool),
+    /// When the first page began to be revealed, after the start-up.
+    reveal: Option<Instant>,
 }
 
 impl App {
     fn apply(&mut self, action: Action) {
+        // Every action is in the launcher's log, so that what a person did can be told afterwards.
+        match &action {
+            Action::Push(screen) => crate::log::info(&format!("interface: opened {}", screen.path())),
+            Action::Replace(screen) => crate::log::info(&format!("interface: on to {}", screen.path())),
+            Action::Pop => crate::log::info("interface: back"),
+            Action::Home => crate::log::info("interface: to the dashboard"),
+            Action::Dialog(dialog) => crate::log::info(&format!("interface: asked {}", dialog.title)),
+            Action::Toast(text, _) => crate::log::info(&format!("interface: said {text}")),
+            Action::Quit => crate::log::info("interface: asked to leave"),
+            Action::None | Action::Many(_) => {}
+        }
         match action {
             Action::None => {}
             Action::Push(screen) => self.screens.push(screen),
             Action::Replace(screen) => {
+                // From the start-up to the first page: it is revealed, rather than appearing.
+                if self.screens.last().map(|s| s.path() == "/splash").unwrap_or(false) && self.ui.motion {
+                    self.reveal = Some(Instant::now());
+                }
                 self.screens.pop();
                 self.screens.push(screen);
             }
@@ -268,6 +291,7 @@ impl App {
     }
 
     fn dialog_chosen(&mut self, id: String, choice: String) {
+        crate::log::info(&format!("interface: answered {id}: {choice}"));
         if id == "quit" {
             if choice == "yes" && !self.quitting {
                 self.quitting = true;
@@ -296,8 +320,33 @@ impl App {
             self.request_quit();
             return;
         }
+        if let Some(choice) = self.size_prompt {
+            match event.code {
+                KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down | KeyCode::Tab => self.size_prompt = Some(1 - choice),
+                KeyCode::Char('s') | KeyCode::Char('S') => self.choose_size(0),
+                KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => self.choose_size(1),
+                KeyCode::Enter => self.choose_size(choice),
+                _ => {}
+            }
+            return;
+        }
+        if let Some(simple) = self.simple.as_mut() {
+            let action = simple.key(event, &mut self.ui);
+            match action {
+                Action::Home => {
+                    crate::log::info("simplified launch control: back to the full interface");
+                    self.simple = None;
+                }
+                Action::Quit => self.request_quit(),
+                _ => {}
+            }
+            return;
+        }
         if self.ui.layout == Layout::TooSmall {
-            if matches!(event.code, KeyCode::Char('r') | KeyCode::Char('R')) {
+            if matches!(event.code, KeyCode::Char('s') | KeyCode::Char('S')) {
+                crate::log::info("terminal too small: Simplified Launch Control");
+                self.simple = Some(screens::simple::SimpleScreen::new());
+            } else if matches!(event.code, KeyCode::Char('r') | KeyCode::Char('R')) {
                 self.outcome = Some(Outcome { code: 0, reduced: true });
             }
             return;
@@ -363,9 +412,85 @@ impl App {
         self.apply(action);
     }
 
+    /// The first page, revealed from the top down, behind a fringe of the start-up's particles settling as it goes.
+    fn draw_reveal(&mut self, frame: &mut Frame) {
+        const REVEAL_MS: f64 = 720.0;
+        let Some(began) = self.reveal else { return };
+        let t = began.elapsed().as_secs_f64() * 1000.0 / REVEAL_MS;
+        if t >= 1.0 {
+            self.reveal = None;
+            return;
+        }
+        let area = frame.area();
+        // Fast, then easing to a stop at the foot of the screen.
+        let eased = 1.0 - (1.0 - t).powi(3);
+        let edge = (area.height as f64 * eased).round() as u16;
+        let fringe = 3u16;
+        let glyphs: &[&str] = if self.ui.unicode { &["·", "∙", "•", "⋅"] } else { &[".", "'", ":", "."] };
+        let buffer = frame.buffer_mut();
+        for y in area.y..area.y + area.height {
+            let below = y.saturating_sub(area.y);
+            if below < edge {
+                continue;
+            }
+            let depth = below - edge;
+            for x in area.x..area.x + area.width {
+                let cell = &mut buffer[(x, y)];
+                cell.set_symbol(" ").set_style(theme::base());
+                // A few particles just under the edge, thinning as they go down, as if they were still landing.
+                if depth < fringe {
+                    let seed = (x as u64).wrapping_mul(2654435761) ^ (y as u64).wrapping_mul(40503) ^ (began.elapsed().as_millis() as u64 / 66);
+                    if seed % (6 + depth as u64 * 7) == 0 {
+                        let tone = if depth == 0 { theme::GLOW } else if depth == 1 { ACCENT } else { theme::TEAL };
+                        cell.set_symbol(glyphs[(seed / 7) as usize % glyphs.len()]).set_style(fg(tone));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Before anything starts: 0 is Simplified Launch Control, 1 is leaving.
+    fn choose_size(&mut self, choice: usize) {
+        self.size_prompt = None;
+        if choice == 0 {
+            crate::log::info(&format!("terminal {}x{}: Simplified Launch Control", self.ui.width, self.ui.height));
+            self.simple = Some(screens::simple::SimpleScreen::new());
+        } else {
+            crate::log::info(&format!("terminal {}x{}: left rather than use Simplified Launch Control", self.ui.width, self.ui.height));
+            self.outcome = Some(Outcome { code: 0, reduced: false });
+        }
+    }
+
+    fn draw_size_prompt(&self, frame: &mut Frame, area: Rect, choice: usize) {
+        let w = area.width.saturating_sub(4) as usize;
+        let option = |i: usize, text: &str| if i == choice { Span::styled(format!(" {text} "), theme::selected(true)) } else { Span::styled(format!(" {text} "), fg(TEXT2)) };
+        let lines = vec![
+            Line::from(Span::styled("DSTNS", bold(ACCENT))),
+            Line::default(),
+            Line::from(Span::styled(widgets::clip(&format!("This terminal is {} × {}.", area.width, area.height), w, self.ui.unicode), fg(TEXT))),
+            Line::from(Span::styled(widgets::clip(&format!("The full interface needs {} × {}.", crate::terminal::MEDIUM.0, crate::terminal::MEDIUM.1), w, self.ui.unicode), fg(TEXT2))),
+            Line::default(),
+            Line::from(vec![option(0, "Simplified Launch Control"), Span::raw("  "), option(1, "Leave")]),
+            Line::default(),
+            Line::from(Span::styled(widgets::clip("Or make the terminal larger.", w, self.ui.unicode), fg(MUTED))),
+        ];
+        let height = (lines.len() as u16).min(area.height);
+        let y = area.y + area.height.saturating_sub(height) / 2;
+        frame.render_widget(Paragraph::new(lines).alignment(ratatui::layout::Alignment::Center), Rect { y, height, ..area });
+    }
+
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
         frame.render_widget(Block::default().style(theme::base()), area);
+        if let Some(choice) = self.size_prompt {
+            self.draw_size_prompt(frame, area, choice);
+            return;
+        }
+        if let Some(simple) = self.simple.as_mut() {
+            let ui = &self.ui;
+            simple.draw(frame, area, ui);
+            return;
+        }
         if self.ui.layout == Layout::TooSmall {
             let lines = vec![
                 Line::from(Span::styled("DSTNS", bold(ACCENT))),
@@ -375,7 +500,7 @@ impl App {
                 Line::from(Span::styled(format!("Current: {} x {}", area.width, area.height), fg(TEXT2))),
                 Line::from(Span::styled(format!("Recommended minimum: {} x {}", MINIMUM.0, MINIMUM.1), fg(TEXT2))),
                 Line::default(),
-                Line::from(Span::styled("Resize the terminal or press R for reduced mode.", fg(TEXT))),
+                Line::from(Span::styled("Make it larger, or press S for Simplified Launch Control.", fg(TEXT))),
             ];
             let height = lines.len() as u16;
             let y = area.y + area.height.saturating_sub(height) / 2;
@@ -530,15 +655,31 @@ pub fn run(context: Context, initial: &str) -> std::io::Result<Outcome> {
     } else {
         Box::new(screens::splash::SplashScreen::new(initial))
     };
-    let mut app = App { ui, screens: vec![first], dialogs: vec![], toasts: vec![], shell: shell::Shell::new(command_bar), outcome: None, quitting: false, help_open: None };
+    let settings = crate::config::load(&context.paths).unwrap_or_default();
+    let scroll = (crate::config::as_int(&crate::config::setting(&settings, "launcher.scroll_lines")).unwrap_or(3).clamp(1, 20) as usize, crate::config::flag(&settings, "launcher.natural_scrolling"));
+    // Too small for the full interface: ask first, as the setting says, before anything starts.
+    let cramped = size.width < crate::terminal::MEDIUM.0 || size.height < crate::terminal::MEDIUM.1;
+    let small_terminal = crate::config::setting(&settings, "launcher.small_terminal").as_str().unwrap_or("ask").to_string();
+    let (size_prompt, simple) = match (cramped, small_terminal.as_str()) {
+        (true, "ask") => (Some(0), None),
+        (true, "simplified") => (None, Some(screens::simple::SimpleScreen::new())),
+        _ => (None, None),
+    };
+    if cramped {
+        crate::log::info(&format!("terminal {}x{} is small for the full interface ({small_terminal})", size.width, size.height));
+    }
+    let mut app = App { ui, screens: vec![first], dialogs: vec![], toasts: vec![], shell: shell::Shell::new(command_bar), outcome: None, quitting: false, help_open: None, simple, size_prompt, scroll, reveal: None };
     let result = (|| -> std::io::Result<()> {
         loop {
             if crate::interface::take_redraw() {
                 terminal.clear()?;
             }
-            terminal.draw(|frame| app.draw(frame))?;
+            terminal.draw(|frame| {
+                app.draw(frame);
+                app.draw_reveal(frame);
+            })?;
             // The start-up animates at about 30 frames a second; everything else needs no more than 10.
-            let frame = if app.screens.last().map(|s| s.path() == "/splash").unwrap_or(false) && app.ui.motion { 33 } else { 100 };
+            let frame = if (app.screens.last().map(|s| s.path() == "/splash").unwrap_or(false) || app.reveal.is_some()) && app.ui.motion { 33 } else { 100 };
             if event::poll(Duration::from_millis(frame))? {
                 match event::read()? {
                     Event::Key(key) if key.kind != KeyEventKind::Release => app.on_key(key),
@@ -546,14 +687,27 @@ pub fn run(context: Context, initial: &str) -> std::io::Result<Outcome> {
                         app.ui.width = width;
                         app.ui.height = height;
                         app.ui.layout = layout_for(width, height);
+                        if app.size_prompt.is_some() && width >= crate::terminal::MEDIUM.0 && height >= crate::terminal::MEDIUM.1 {
+                            app.size_prompt = None;
+                        }
                     }
                     Event::Mouse(mouse) => {
                         if app.dialogs.is_empty() && app.help_open.is_none() {
                             let ui = &mut app.ui;
                             let action = match mouse.kind {
                                 MouseEventKind::Down(MouseButton::Left) => app.screens.last_mut().unwrap().click(mouse.column, mouse.row, ui),
-                                MouseEventKind::ScrollUp => app.screens.last_mut().unwrap().key(KeyEvent::from(KeyCode::Up), ui),
-                                MouseEventKind::ScrollDown => app.screens.last_mut().unwrap().key(KeyEvent::from(KeyCode::Down), ui),
+                                MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
+                                    let (lines, natural) = app.scroll;
+                                    let up = matches!(mouse.kind, MouseEventKind::ScrollUp) != natural;
+                                    let mut last = Action::None;
+                                    for _ in 0..lines {
+                                        last = app.screens.last_mut().unwrap().key(KeyEvent::from(if up { KeyCode::Up } else { KeyCode::Down }), ui);
+                                        if !matches!(last, Action::None) {
+                                            break;
+                                        }
+                                    }
+                                    last
+                                }
                                 _ => Action::None,
                             };
                             app.apply(action);
@@ -562,11 +716,17 @@ pub fn run(context: Context, initial: &str) -> std::io::Result<Outcome> {
                     _ => {}
                 }
             }
-            let ui = &mut app.ui;
-            let action = app.screens.last_mut().unwrap().tick(ui);
-            app.apply(action);
-            let action = app.shell.tick(&mut app.ui);
-            app.apply(action);
+            if let Some(simple) = app.simple.as_mut() {
+                simple.tick(&app.ui);
+            }
+            // Asking about the terminal's size, the start-up waits for the answer.
+            if app.size_prompt.is_none() {
+                let ui = &mut app.ui;
+                let action = app.screens.last_mut().unwrap().tick(ui);
+                app.apply(action);
+                let action = app.shell.tick(&mut app.ui);
+                app.apply(action);
+            }
             if app.quitting && app.ui.session.handle().map(|h| !h.running(&app.ui.paths)).unwrap_or(true) {
                 app.outcome = Some(Outcome { code: 0, reduced: false });
             }
@@ -616,7 +776,7 @@ mod tests {
             run_log: VecDeque::new(),
             started: Instant::now(),
         };
-        App { ui, screens: vec![first], dialogs: vec![], toasts: vec![], shell: shell::Shell::new(true), outcome: None, quitting: false, help_open: None }
+        App { ui, screens: vec![first], dialogs: vec![], toasts: vec![], shell: shell::Shell::new(true), outcome: None, quitting: false, help_open: None, simple: None, size_prompt: None, scroll: (3, false), reveal: None }
     }
 
     fn screen(app: &mut App, width: u16, height: u16) -> String {

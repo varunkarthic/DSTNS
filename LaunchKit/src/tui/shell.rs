@@ -51,6 +51,9 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     ("edit", "edit settings|ui|env|apps|FILE", "Edit in your editor; saved only if it still reads"),
     ("api", "api [METHOD] PATH [BODY|@FILE]", "Any route on the running server, as the operator"),
     ("security", "security [on|off|verify]", "Advanced Security: whether it's on, and how it asks"),
+    ("ask", "ask REQUEST  (or just type it)", "A request in plain words, as commands to run, from the launcher's model; nothing runs until Enter"),
+    ("model", "model [use PROVIDER [NAME] | key KEY | test]", "The model for plain-word requests: Apple's, Ollama's or Groq's"),
+    ("daemon", "daemon [show NAME | on NAME | off NAME | queue emergency|notification]", "The daemons inside the server, and what they have said"),
     ("config", "config [get KEY | set KEY VALUE]", "Settings: the page, or one at a time"),
     ("setup", "setup", "Run the first-launch setup again"),
     ("seeds", "seeds save|list|inspect|delete [ID]", "Saved seeds"),
@@ -111,11 +114,14 @@ struct Running {
     lines: Receiver<String>,
 }
 
-/// The live readings at the right of the prompt, refreshed off the interface's thread.
+/// The live readings at the right of the prompt, refreshed off the interface's thread; and what the daemons have said.
 #[derive(Default)]
 struct Stats {
     line: String,
     cpu: Option<(f64, std::time::Instant)>,
+    /// The last sequence read from each daemon queue, from when this launcher first heard it.
+    heard: Option<(u64, u64)>,
+    said: Vec<serde_json::Value>,
 }
 
 pub struct Shell {
@@ -133,6 +139,8 @@ pub struct Shell {
     running: Option<Running>,
     show_output: bool,
     scroll_back: usize,
+    /// A request in plain words, with the model: which output block is its, and the answer when it comes.
+    asking: Option<(usize, Receiver<Result<(crate::assistant::Suggestion, String), String>>)>,
 }
 
 /// Where the command history is kept between sessions: with the logs, on this machine only.
@@ -167,6 +175,7 @@ impl Shell {
             blocks: vec![],
             running: None,
             show_output: false,
+            asking: None,
             scroll_back: 0,
         }
     }
@@ -454,11 +463,45 @@ impl Shell {
                 parts.push(format!("mem {:.0}M", bytes / 1048576.0));
             }
             held.line = parts.join(if unicode { " · " } else { " | " });
+            drop(held);
+            crate::daemons::report_and_listen(port, &paths, &session, &stats_said(&stats));
         });
     }
 
     pub fn tick(&mut self, ui: &mut Ui) -> Action {
         self.refresh_stats(ui);
+        // What the daemons said: a warning or worse as a toast; everything into the launcher's log, by the listener.
+        let said: Vec<serde_json::Value> = self.stats.lock().map(|mut s| std::mem::take(&mut s.said)).unwrap_or_default();
+        if let Some(message) = said.iter().filter(|m| m["level"] != "info").last() {
+            let tone = if message["level"] == "warning" { WARN } else { ERR };
+            return Action::Toast(format!("{}: {}", message["title"].as_str().unwrap_or(""), message["text"].as_str().unwrap_or("")), tone);
+        }
+        // The model has answered: its suggestion goes on the prompt, to be run with Enter, or not.
+        if let Some((index, answer)) = &self.asking {
+            if let Ok(outcome) = answer.try_recv() {
+                let index = *index;
+                self.asking = None;
+                if let Some(block) = self.blocks.get_mut(index) {
+                    match outcome {
+                        Ok((suggestion, model)) => {
+                            block.lines = vec![(format!("Suggested by {model}. Nothing has been run."), TEXT2), (suggestion.line.clone(), ACCENT)];
+                            block.lines.extend(suggestion.warnings.iter().map(|w| (format!("Note: {w}"), WARN)));
+                            block.lines.push(("Enter runs it, as it is or as you change it. Esc leaves it.".into(), MUTED));
+                            block.status = Some(0);
+                            crate::log::info(&format!("command bar: suggested {}", suggestion.line));
+                            self.input = suggestion.line;
+                            self.cursor = self.input.chars().count();
+                            self.open = true;
+                            self.suggesting = false;
+                        }
+                        Err(problem) => {
+                            block.lines = vec![(problem, ERR)];
+                            block.status = Some(1);
+                        }
+                    }
+                }
+            }
+        }
         let Some(running) = &mut self.running else { return Action::None };
         let block = self.blocks.last_mut().unwrap();
         while let Ok(line) = running.lines.try_recv() {
@@ -485,7 +528,31 @@ impl Shell {
         Action::None
     }
 
+    /// A request in plain words: the model is asked on a thread of its own, and its answer comes back to tick().
+    fn ask(&mut self, request: &str, ui: &Ui) {
+        if self.asking.is_some() {
+            self.say(request, vec![("The model is still answering the last request.".into(), WARN)], 1);
+            return;
+        }
+        let (tx, rx) = channel();
+        let paths = ui.paths.clone();
+        let wanted = request.to_string();
+        std::thread::spawn(move || {
+            let _ = tx.send(crate::assistant::suggest(&paths, &wanted).map(|(s, m)| (s, m.label())));
+        });
+        self.blocks.push(Output { command: format!("ask {request}"), lines: vec![("Asking the model…".into(), TEXT2)], status: None, started: Instant::now() });
+        self.show_output = true;
+        self.asking = Some((self.blocks.len() - 1, rx));
+    }
+
     fn run(&mut self, line: &str, ui: &mut Ui, path: &str) -> Action {
+        crate::log::info(&format!("command bar: {line}"));
+        // In plain words: `ask …`, `? …`, or a line whose first word is not a command.
+        let request = line.strip_prefix("ask ").or_else(|| line.strip_prefix('?')).map(str::trim).map(String::from).or_else(|| crate::assistant::is_request(line).then(|| line.to_string()));
+        if let Some(request) = request.filter(|r| !r.is_empty()) {
+            self.ask(&request, ui);
+            return Action::None;
+        }
         // Commands joined by | && || or ; run in the launcher's console, as a process of its own, so that a long
         // pipeline never holds up the interface and its output streams in.
         if crate::console::chained(line) {
@@ -955,4 +1022,21 @@ mod tone_tests {
         assert_eq!(t[line.find("x'").unwrap()], OK);
         assert_eq!(at("stop"), ACCENT);
     }
+}
+
+/// What the poller hands the daemons' listener: a place for their cursors and what they said.
+fn stats_said(stats: &std::sync::Arc<std::sync::Mutex<Stats>>) -> crate::daemons::Inbox {
+    let stats = stats.clone();
+    crate::daemons::Inbox::new(
+        {
+            let stats = stats.clone();
+            move || stats.lock().ok().and_then(|s| s.heard)
+        },
+        move |heard, said| {
+            if let Ok(mut s) = stats.lock() {
+                s.heard = Some(heard);
+                s.said.extend(said);
+            }
+        },
+    )
 }

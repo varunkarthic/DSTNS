@@ -535,7 +535,18 @@ server's next start. The observer reads them back from `GET /api/v1/system/featu
 | | `mcp.allow_writes` | AI may change things | off | …and call routes that change things |
 | | `mcp.allow_launcher` | AI may start and stop runs | off | …and start and stop simulations, and change settings |
 | Security | `security.advanced` | Advanced Security | off | Touch ID or your system password before the launcher can be changed; see [Advanced Security](#advanced-security) |
+| Model | `model.provider` | Model | automatic | Which model turns requests in plain words into commands: automatic, Apple Foundation Models, Ollama, Groq or off. See [Asking in plain words](#asking-in-plain-words) |
+| | `model.name` | Model name | default | For Ollama or Groq; default is each one's own |
+| | `model.ollama_url` | Ollama address | http://127.0.0.1:11434 | Where Ollama answers |
+| Daemons | `daemon.enabled` | Daemons | on | The watchers inside the server. See [the daemons](daemons.md) |
+| | `daemon.sustain_s` | Hold before alerting | 5 | How long a condition holds before anything is said |
+| | `daemon.rcs`, `daemon.memory`, `daemon.disk`, `daemon.stall`, `daemon.cache` | Resource Control Subsystem… | on | One each |
+| | `cache.max_mib`, `cache.interval_min` | Map cache budget, Cache sweep every | 2048, 10 | The auto cache handler's budget and pace |
+| Resource Control | `rcs.engine.memory`, `rcs.engine.cpu`, `rcs.downloads.*`, `rcs.launcher.*`, `rcs.applications.*` | Engine memory… | see [the daemons](daemons.md#the-resource-control-subsystem) | α, β and γ for each module, as three numbers |
 | Launcher | `launcher.command_bar` | Command bar | on | The command bar and its prompt |
+| | `launcher.scroll_lines` | Scroll speed | 3 | Lines one notch of the wheel or trackpad scrolls |
+| | `launcher.natural_scrolling` | Natural scrolling | off | Content follows the fingers, as on a Mac's trackpad |
+| | `launcher.small_terminal` | Small terminals | ask | Too small for the full interface: ask, always use [Simplified Launch Control](#simplified-launch-control), or show the full interface anyway |
 | | `launcher.default_settings` | Observer at its defaults | off | Open the observer with its settings at their defaults, every time |
 
 ### Settings that go together
@@ -566,6 +577,63 @@ not to force the whole film, whatever the file says.
 Full screen and music need a page to have been interacted with, so when either is on, the
 launcher opens the observer in a window of its own from a Chromium-based browser, with a
 profile of its own, where both are allowed from the start.
+
+## Asking in plain words
+
+Type what you want at the prompt in plain words, or after `ask` or `?`, and the launcher's
+model turns it into a line of commands, joined by `&&` or `|`:
+
+```text
+dstns ~ ❯ stop the server and start a new one with seed 42 on a weekend
+  Suggested by Apple Foundation Models, on this Mac. Nothing has been run.
+  stop && start --seed 42 --day-type weekend
+  Note: stop stops or deletes something.
+  Note: start --seed 42 --day-type weekend starts a simulation.
+dstns ~ ❯ stop && start --seed 42 --day-type weekend▌
+```
+
+It is never run by itself: it is put on the prompt, where Enter runs it, as it is or as you
+change it, and Esc leaves it. Before it gets there, it is checked as a console line: only
+commands that exist, joined only by `&&` and `|`, with no substitution or redirection; nothing
+that leaves, resets, opens a shell, edits or writes files, changes variables or touches
+Advanced Security; and a note for anything that starts, stops, deletes or changes a setting.
+A request it cannot turn into commands, such as *delete everything and quit*, gets nothing.
+
+`./launcher ask "…"` prints the line instead, and the MCP Handler offers the same as
+`launcher_suggest`.
+
+| `model.provider` | Uses |
+|---|---|
+| `auto` | Apple's Foundation Models on a Mac with Apple silicon and macOS 27 or later, where they are available; else Ollama, if it answers; else Groq, if a key is kept |
+| `apple` | Apple's Foundation Models, on the device, through the `fm` command |
+| `ollama` | Any model Ollama has (`model.name`), at `model.ollama_url` |
+| `groq` | Any Groq model (`model.name`), with a key kept by `./launcher model key KEY` in `config/launcher.env` |
+| `off` | Nothing: requests in plain words are refused |
+
+`./launcher model` says which is in use, and `model test` asks it something. The news has its
+own setting, [`narration.mode`](#settings-for-every-feature).
+
+## Simplified Launch Control
+
+When the terminal is smaller than 70 × 22, the launcher stops before it starts anything and
+asks: **Simplified Launch Control**, or **Leave**. Simplified Launch Control is the launcher
+on a few lines, with no command bar and no panels: whether a simulation runs; start or stop
+one; open the observer; and Fast Boot, Dynamic Fastboot, the adaptive film, music and the day
+type, each a line that Enter or its number changes. Made larger, it offers the full interface
+again. `launcher.small_terminal` can skip the question either way. Shrunk below 50 × 15
+while the full interface is open, **S** switches to it.
+
+## The daemons from the launcher
+
+The launcher tells the server's [Resource Control Subsystem](daemons.md#the-resource-control-subsystem)
+which processes are its own and its applications', and listens to both daemon queues: every
+message goes into `logs/launcher.log`, and a warning or worse is a toast in the interface.
+`./launcher daemon` lists them, `daemon show rcs` shows what each module uses, and
+`daemon queue emergency` what they have raised.
+
+Everything a person does in the launcher is in `logs/launcher.log`: each page opened, each
+question asked and answered, each command typed, each setting changed with its old and new
+value, and each choice in Simplified Launch Control.
 
 ## Advanced Security
 

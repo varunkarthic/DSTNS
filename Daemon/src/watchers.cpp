@@ -85,7 +85,18 @@ private:
             }
             return out;
         }
-        return handler.processes(module);
+        // Each application leads a process group of its own: all of it counts.
+        auto reported = handler.processes(module);
+        if (module != "applications") return reported;
+        std::vector<int> out;
+        for (const int leader : reported) {
+            auto members = process_group(leader);
+            if (members.empty()) members.push_back(leader);
+            out.insert(out.end(), members.begin(), members.end());
+        }
+        std::sort(out.begin(), out.end());
+        out.erase(std::unique(out.begin(), out.end()), out.end());
+        return out;
     }
 
     struct Zone {

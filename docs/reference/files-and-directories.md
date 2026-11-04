@@ -66,6 +66,8 @@ megabytes each.
 |---|---|---|
 | `config/defaults.json` | CLI, server | Run, map, module and API defaults. See [Configuration](../guide/configuration.md) |
 | `config/ui-config.json` | server, observer | The observer's starting state. See [Observer configuration](../guide/observer-configuration.md) |
+| `config/daemon-alerts.json` | server | The alerts the daemons raise when a reading crosses a line. See [the daemons](../guide/daemons.md) |
+| `Daemon/messages.json` | server, launcher, observer | Every message a daemon can send, as templates: the enum they share. Built into the server |
 | `docker-compose.yml`, `Dockerfile` | Docker | The container build and run definition |
 | `mkdocs.yml`, `.readthedocs.yaml` | MkDocs, Read the Docs | This documentation site |
 
