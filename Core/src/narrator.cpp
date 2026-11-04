@@ -929,4 +929,10 @@ nlohmann::json Narrator::status() const {
     };
 }
 
+nlohmann::json Narrator::off_status() {
+    nlohmann::json out = Narrator(nullptr, {}).status();
+    out["state"] = "off";
+    return out;
+}
+
 } // namespace dstns

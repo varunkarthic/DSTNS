@@ -460,6 +460,12 @@ AppRegistry::App& AppRegistry::find(const std::string& id) {
     return found->second;
 }
 
+// What an application shows belongs to it while it is loaded. One that has unregistered, or stopped answering, has no
+// interface to change: it registers again first, rather than drawing what nobody will see.
+static void require_loaded(const std::string& state) {
+    if (state == "unloaded") throw Refusal(409, "APP_NOT_ACTIVE", "this application was unloaded; register again");
+}
+
 void AppRegistry::touch(App& app) {
     app.last_seen = Clock::now();
     if (app.lease_lapsed) {
@@ -901,6 +907,7 @@ void AppRegistry::set_ui(const std::string& id, const json& elements) {
     if (ui_bytes(elements) > kMaxUiBytes) throw Refusal(413, "UI_TOO_LARGE", "the declared UI is too large");
     std::lock_guard lock(mutex_);
     auto& app = find(id);
+    require_loaded(app.state);
     std::set<std::string> ids;
     for (const auto& element : elements) {
         check_element(app, element);
@@ -916,6 +923,7 @@ void AppRegistry::upsert_element(const std::string& id, const std::string& eleme
     copy["id"] = element;
     std::lock_guard lock(mutex_);
     auto& app = find(id);
+    require_loaded(app.state);
     check_element(app, copy);
     auto next = app.elements;
     const auto existing = std::find_if(next.begin(), next.end(), [&](const json& item) { return item.at("id") == element; });
@@ -932,6 +940,7 @@ void AppRegistry::upsert_element(const std::string& id, const std::string& eleme
 void AppRegistry::remove_element(const std::string& id, const std::string& element) {
     std::lock_guard lock(mutex_);
     auto& app = find(id);
+    require_loaded(app.state);
     auto& items = app.elements;
     const auto existing = std::find_if(items.begin(), items.end(), [&](const json& item) { return item.at("id") == element; });
     if (existing == items.end()) throw Refusal(404, "ELEMENT_NOT_FOUND", "no such element: " + element);
@@ -1112,6 +1121,7 @@ void AppRegistry::batch_ui(const std::string& id, const json& upsert, const json
     if (!upsert.is_array() || !remove.is_array()) throw Refusal(400, "INVALID_ELEMENT", "upsert and remove must be arrays");
     std::lock_guard lock(mutex_);
     auto& app = find(id);
+    require_loaded(app.state);
     auto next = app.elements;
     std::vector<std::string> changed;
     for (const auto& element : remove) {

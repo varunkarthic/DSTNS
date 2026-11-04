@@ -286,6 +286,9 @@ int main() {
         return server.call(method, route, data, token, headers);
     };
     EXPECT(call("GET", BASE + "/" + a).data().at("state") == "unloaded");
+    // Unloaded, it has no interface to change until it registers again: nothing it drew would be seen.
+    const auto stale = call("PUT", BASE + "/" + a + "/ui/late", json{{"slot", "status"}, {"label", "Late"}, {"value", "1"}}, ta);
+    EXPECT(stale.status == 409 && stale.code() == "APP_NOT_ACTIVE", stale);
     EXPECT(call("POST", BASE, manifest(controller, {{"capabilities", {"control.playback"}}})).code() == "APP_ID_CONFLICT", "granted IDs need their token");
     const auto back = call("POST", BASE, manifest(controller, {{"capabilities", {"ui.status", "control.playback"}}}), tc);
     const auto granted = back.data().at("app").at("capabilities").at("granted");

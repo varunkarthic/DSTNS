@@ -45,6 +45,9 @@ WORKDIR /src
 COPY CMakeLists.txt ./
 COPY Core Core
 COPY Fabric Fabric
+COPY Daemon Daemon
+# The daemons' alerts are built into the server, as their message templates are.
+COPY config/daemon-alerts.json config/daemon-alerts.json
 COPY tools tools
 RUN grep -Fx "project(dstns VERSION $VERSION LANGUAGES CXX)" CMakeLists.txt
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDSTNS_BUILD_TESTS=OFF \

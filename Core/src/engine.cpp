@@ -1822,7 +1822,7 @@ nlohmann::json SimulationEngine::narrator_status() const {
         std::lock_guard lock(mutex_);
         narrator = narrator_;
     }
-    if (!narrator) return {{"enabled", false}, {"state", "off"}};
+    if (!narrator) return Narrator::off_status();
     return narrator->status();
 }
 

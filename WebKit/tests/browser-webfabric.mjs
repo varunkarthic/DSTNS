@@ -128,6 +128,8 @@ try {
   const edge = (i) => net.edges[i % net.edges.length].geometry.map((p) => [p.x_m, p.y_m]);
   const lines = Array.from({ length: 6 }, (_, i) => ({ type: "line", series: i, width: 2.5, points: edge(i * 37).concat(edge(i * 37 + 1), edge(i * 37 + 2)) }));
   const bus = (t) => ({ id: "buses", slot: "overlay", features: Array.from({ length: 6 }, (_, i) => { const pts = edge(i * 37); const p = pts[t % pts.length]; return { id: `bus-${i}`, type: "point", size: 5, series: i, x_m: p[0], y_m: p[1] }; }) });
+  // Draws roads and drives them; registered with the rest, so the interface the later checks see is settled.
+  const roads = await register("org.mock.roads", "Road works", ["ui.overlays"]);
   const planner = await register("org.mock.planner", "Route planner", ["ui.sidebar", "ui.overlays", "settings"], [
     { id: "routes", slot: "overlay", features: lines },
     bus(0),
@@ -215,13 +217,15 @@ try {
     const chain = [at];
     while (chain.length < 8 && from.has(at) && !chain.includes(from.get(at).to)) chain.push((at = from.get(at).to));
     assert.ok(chain.length >= 3, "there is a chain to draw");
+    // An application of its own: the planner has unregistered by now, and an unloaded one may not draw.
+    assert.equal((await call("PUT", "/api/v1/fabric/apps/org.mock.planner/ui/drawn", { slot: "overlay", features: [] }, planner)).body.error?.code, "APP_NOT_ACTIVE", "the unregistered planner is refused");
     const stranger = net.nodes.find((n) => !net.edges.some((e) => e.from === chain[0] && e.to === n.id))?.id;
-    const refused = await call("PUT", "/api/v1/fabric/apps/org.mock.planner/ui/drawn", { slot: "overlay", features: [{ type: "route", nodes: [chain[0], stranger], draw_s: 2 }] }, planner);
+    const refused = await call("PUT", "/api/v1/fabric/apps/org.mock.roads/ui/drawn", { slot: "overlay", features: [{ type: "route", nodes: [chain[0], stranger], draw_s: 2 }] }, roads);
     assert.ok(refused.code >= 400 && refused.code < 500, "junctions that are not adjacent are refused");
-    const placed = await call("PUT", "/api/v1/fabric/apps/org.mock.planner/ui/drawn", { slot: "overlay", features: [
+    const placed = await call("PUT", "/api/v1/fabric/apps/org.mock.roads/ui/drawn", { slot: "overlay", features: [
       { type: "route", nodes: chain, draw_s: 1.2, width: 5, tone: "warn" },
       { type: "path", id: "convoy", nodes: chain, drive: true, count: 3, shape: "vehicle", speed_mps: 25, loop: true, reveal: false, trail: false, tone: "danger", size: 6 },
-    ] }, planner);
+    ] }, roads);
     assert.equal(placed.code, 200, JSON.stringify(placed.body));
     const frame = () => page.evaluate(() => {
       const c = document.querySelector(".fabric-overlay");
@@ -233,7 +237,7 @@ try {
     const first = await until(frame, "the overlay");
     // A convoy may be waiting at a red signal, so it gets long enough for the lights to change.
     await until(async () => (await frame()).hash !== first.hash, "it moves by itself, with nothing more sent", 60000);
-    assert.equal((await call("DELETE", "/api/v1/fabric/apps/org.mock.planner/ui/drawn", undefined, planner)).code, 200);
+    assert.equal((await call("DELETE", "/api/v1/fabric/apps/org.mock.roads/ui/drawn", undefined, roads)).code, 200);
   });
 
   await test("a panel opens from the dock, and reports use to its own application", async () => {

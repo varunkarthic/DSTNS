@@ -162,6 +162,8 @@ public:
     /// Highest completion sequence so far.
     [[nodiscard]] std::uint64_t sequence() const;
     [[nodiscard]] nlohmann::json status() const;
+    // The same fields with nothing in them, for a server with no narrator: the endpoint has one shape everywhere.
+    [[nodiscard]] static nlohmann::json off_status();
     /// Wait until nothing is queued or in flight, or the timeout passes. For tests and benchmarks.
     bool wait_idle(std::chrono::milliseconds timeout) const;
 
