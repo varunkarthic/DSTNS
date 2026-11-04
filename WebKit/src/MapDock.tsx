@@ -196,7 +196,7 @@ export function MapDock(props: MapDockProps) {
 
       <div className="divider" aria-hidden="true" />
 
-      <Tooltip label="Search places" side={["right"]}>
+      <Tooltip label="Search places" side={["right"]} disabled={searchOpen}>
         <button
           data-tutorial="search"
           data-search-trigger
@@ -280,7 +280,7 @@ export function MapDock(props: MapDockProps) {
 
       <div className="divider" aria-hidden="true" />
 
-      <Tooltip label="Settings" side={["right"]}>
+      <Tooltip label="Settings" side={["right"]} disabled={props.settingsOpen}>
         <button
           data-tutorial="settings"
           data-settings-trigger

@@ -250,9 +250,9 @@ export default function App() {
   const theme = resolveTheme(access.theme, prefersDark);
   const [appearanceKey, setAppearanceKey] = useState(0);
   useLayoutEffect(() => {
-    applyAppearance({ theme, vision: access.color_vision, reduceTransparency: access.reduce_transparency, advanced: access.advanced });
+    applyAppearance({ theme, vision: access.color_vision, reduceTransparency: access.reduce_transparency, highContrast: access.high_contrast, advanced: access.advanced });
     setAppearanceKey((n) => n + 1);
-  }, [theme, access.color_vision, access.reduce_transparency, access.advanced]);
+  }, [theme, access.color_vision, access.reduce_transparency, access.high_contrast, access.advanced]);
   useEffect(() => installEdgeResistance(), []);
   useEffect(() => setByteUnits(config.display.byte_units), [config.display.byte_units]);
 
@@ -709,8 +709,9 @@ export default function App() {
   // A jump through the day, while the server works it out, for the particles that show it.
   const [seeking, setSeeking] = useState<Seek | null>(null);
   const seekBy = useCallback((delta: number, from: number) => {
-    setSeeking({ direction: delta < 0 ? -1 : 1, seconds: Math.abs(delta) });
-    return api.seek(Math.max(0, Math.min(DAY_SECONDS, from + delta))).finally(() => setSeeking(null));
+    const to = Math.max(0, Math.min(DAY_SECONDS, from + delta));
+    setSeeking({ direction: delta < 0 ? -1 : 1, seconds: Math.abs(to - from), from, to });
+    return api.seek(to).finally(() => setSeeking(null));
   }, []);
   const action = useCallback(async (fn: () => Promise<unknown>) => {
     setPending(true);
@@ -1339,6 +1340,7 @@ export default function App() {
               theme: access.theme,
               colorVision: access.color_vision,
               reduceTransparency: access.reduce_transparency,
+              highContrast: access.high_contrast,
               advanced: access.advanced,
               byteUnits: config.display.byte_units,
               shortcuts: config.shortcuts,
@@ -1360,6 +1362,7 @@ export default function App() {
               onTheme: (value) => persist({ accessibility: { ...access, theme: value } }),
               onColorVision: (value) => persist({ accessibility: { ...access, color_vision: value } }),
               onReduceTransparency: (value) => persist({ accessibility: { ...access, reduce_transparency: value } }),
+              onHighContrast: (value) => persist({ accessibility: { ...access, high_contrast: value } }),
               onAdvanced: (value) => persist({ accessibility: { ...access, advanced: value } }),
               onByteUnits: (value) => persist({ display: { byte_units: value } }),
               onShortcuts: (shortcuts) => persist({ shortcuts }),
@@ -1465,6 +1468,10 @@ export default function App() {
               onForward={(seconds = config.playback.skip_seconds) => {
                 logControl("forward", formatDuration(seconds));
                 void action(() => seekBy(seconds, virtual));
+              }}
+              onSeekTo={(target) => {
+                logControl(target < virtual ? "back" : "forward", `to ${formatSimulationTime(target, false)}`);
+                void action(() => seekBy(target - virtual, virtual));
               }}
               onStep={() => {
                 logControl("step", formatDuration(config.playback.step_seconds));

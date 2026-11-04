@@ -57,6 +57,7 @@
     "theme": "system",
     "color_vision": "standard",
     "reduce_transparency": false,
+    "high_contrast": false,
     "advanced": true
   },
   "_enums": {

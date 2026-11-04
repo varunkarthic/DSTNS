@@ -66,8 +66,10 @@ describe("applying", () => {
     expect(appearance.revision).toBe(before + 1);
     expect(stateColors.severe).toBe(paletteFor("light", "deuteranopia").severe);
     expect(demandColor(1.9)).toBe(`rgb(${[1, 3, 5].map((i) => parseInt(stateColors.severe.slice(i, i + 2), 16)).join(" ")})`);
-    applyAppearance({ theme: "dark", vision: "standard", reduceTransparency: false, advanced: true }, root);
+    expect(root.classList.contains("high-contrast")).toBe(false);
+    applyAppearance({ theme: "dark", vision: "standard", reduceTransparency: false, highContrast: true, advanced: true }, root);
     expect(root.classList.contains("basic-mode")).toBe(false);
+    expect(root.classList.contains("high-contrast")).toBe(true);
   });
 
   it("follows the device only when asked to", () => {

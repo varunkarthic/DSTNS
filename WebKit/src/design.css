@@ -2643,6 +2643,7 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .settings-scroll { padding-top: 12px; }
 
 /* The capsule's details read as the same list as the history's. */
+.capsule-facts { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .capsule-facts > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: baseline; }
 .capsule-facts dd { margin: 0; text-align: left; font-family: inherit; font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
 .capsule-facts dd.mono { font-family: var(--font-mono, monospace); font-size: 11.5px; }
@@ -2707,7 +2708,7 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
    A control a line tall is a stadium, sized so that it is that as well: a 36px field 8px inside a panel
    has an 18px end. What sits in a stadium's end is round, with its centre on the semicircle's.
    Lists are one card with divider lines, not a stack of rounded cards. */
-:is(.rail, .capsule:not(.open), .hud-pill, .hud-button.hud-pill, .hud-group, .map-dock, .tab-row, .tab-pill, .tab-row button, .tab-row button[aria-selected="true"], .seg, .seg button, .segmented, .segmented-pill, .segmented button, .chips, .chip-filter, .fabric-tabs, .fabric-tabs-pill, .fabric-tabs button, .fabric-sidebar-apps, .fabric-sidebar-apps button, .fabric-sidebar-tab, .fabric-picking, .fabric-picking button, .panel-actions, .time-control, .seed-value, .rail .seed-value, .rail .rail-terminate, .select-trigger, .place-search-field, .place-filters button, .about-links a, .keycap, .btn, .rail-terminate, .capsule-head, .capsule-tech > button, .capsule-others button, .fabric-action, .skip-menu, .skip-menu button, .place-row, .layer-row, .menu-item, .focus-menu > button, .place-search-results button, .place-rows li, .fabric-rows li > :is(button, div), .day-track) { border-radius: var(--r-pill); }
+:is(.rail, .hud-pill, .hud-button.hud-pill, .hud-group, .map-dock, .tab-row, .tab-pill, .tab-row button, .tab-row button[aria-selected="true"], .seg, .seg button, .segmented, .segmented-pill, .segmented button, .chips, .chip-filter, .fabric-tabs, .fabric-tabs-pill, .fabric-tabs button, .fabric-sidebar-apps, .fabric-sidebar-apps button, .fabric-sidebar-tab, .fabric-picking, .fabric-picking button, .panel-actions, .time-control, .seed-value, .rail .seed-value, .rail .rail-terminate, .select-trigger, .place-search-field, .place-filters button, .about-links a, .keycap, .btn, .rail-terminate, .capsule-head, .capsule-tech > button, .capsule-others button, .fabric-action, .skip-menu, .skip-menu button, .place-row, .layer-row, .menu-item, .focus-menu > button, .place-search-results button, .place-rows li, .fabric-rows li > :is(button, div), .day-track) { border-radius: var(--r-pill); }
 :is(.row-icon, .settings-row-icon, .place-glyph, .place-search-results .place-glyph, .inspect-head .place-glyph, .dialog-icon, .fabric-tile, .settings-action-mark, .settings-nav-mark, .rail-btn, .rail-btn.play, .rail .rail-btn, .map-dock button, .icon-btn, .btn.icon, .capsule-icon-btn, .strip-expand, .strip-view, .strip-fabric) { border-radius: 50%; }
 :is(.metric-grid, .stream-frame, .settings-section, .settings-section:first-child, .settings-action, .settings-nav.settings-action, .about-facts, .about-dialog .about-facts, .disclosure, .about-scroll .disclosure, .subsystem-card, .fabric-hero, .fabric-empty, .fabric-apps > li > button, .done-dialog .done-stats, .summary-grid, .inspect-card, .link-row, .tip:has(.tip-detail)) { border-radius: var(--r-md); }
 :is(.fabric-spark, .history-detail dl.technical, .loading-error, .viewport-facts > div) { border-radius: var(--r-sm); }
@@ -2717,7 +2718,12 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .hud-group .hud-pill, .hud-group .hud-pill.hud-button, .hud-group > button.hud-pill { display: inline-flex; height: 34px; margin: 0; align-items: center; line-height: 1; transform: none; }
 .hud-group > * + *, .hud-group > button { border-left: 0; }
 .hud-group .hud-pill.hud-button, .hud-group > button.hud-pill, .hud-group > .legend-road .hud-pill, .hud-group > .legend-place .hud-pill, .hud-center > .legend-road .hud-pill, .hud-center > .legend-place .hud-pill { border-radius: var(--r-pill); }
-.telemetry-deck.compact .deck-surface, .strip-overview, .strip-metric { border-radius: var(--r-pill); }
+.strip-overview, .strip-metric { border-radius: var(--r-pill); }
+/* What opens and closes is rounded by real lengths at both ends: half its height or width closed, the panel's radius
+   open. From 999px the corners would pass through hundreds of pixels on the way, and the card would swell into an
+   ellipse and land square before its corners came back. */
+.capsule:not(.open) { border-radius: 20px; }
+.telemetry-deck.compact .deck-surface { border-radius: calc(var(--strip-w) / 2); }
 
 /* The deck: 8px in from its edge, everything inside it is a card or a stadium. */
 .deck-full { padding: 8px; gap: 8px; }
@@ -2975,3 +2981,100 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .seek-film canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .seek-film-label { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); padding: 6px 13px; border-radius: var(--r-pill); font-size: 12px; color: var(--text-dim); background: var(--surface-solid); border: 1px solid rgb(var(--border-rgb) / 14%); box-shadow: var(--hud-shadow); white-space: nowrap; }
 .seek-film-label b { color: var(--text); font-weight: 600; margin-left: 4px; font-variant-numeric: tabular-nums; }
+
+/* ---- A collapsed deck's panels stand beside the strip, as tall as it and no taller ---------------------------- */
+.deck-panel, .deck-panel:has(.stream) { height: var(--strip-h, 100%); max-height: 100%; }
+.deck-network { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.deck-network > .stream-frame { min-height: 0; }
+/* Two by two, with room: nothing is cut short at this width. */
+.deck-panel .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); flex: none; }
+.deck-panel .metric { padding: 12px 14px; gap: 3px; }
+.deck-panel .metric:nth-child(odd) { border-left: 0; }
+.deck-panel .metric:nth-child(n + 3) { border-top: 1px solid var(--well-line); }
+.deck-panel .metric .metric-value { font-size: 19px; }
+.deck-panel .metric.wide { padding: 10px 14px; }
+
+/* ---- The notification opens on a spring (NotificationCapsule.tsx), not on these transitions ---------------- */
+.capsule, .capsule.open { transition: box-shadow var(--t-expand) var(--ease); }
+.capsule-body, .capsule.open .capsule-body, .capsule:not(.open) .capsule-body { display: flex; flex-direction: column; justify-content: flex-start; height: 0; overflow: hidden; transition: none; }
+.capsule-body-inner, .capsule.open .capsule-body-inner, .capsule:not(.open) .capsule-body-inner { flex: none; transition: none; will-change: opacity, transform, filter; }
+
+/* ---- The clock: room around it, so a hover reads as a button and not a smudge -------------------------------- */
+.time-control { min-width: 108px; padding: 5px 14px 5px 12px; margin-inline: 2px; gap: 2px; transition: background var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+.time-control:hover, .time-control.active { background: var(--hover); box-shadow: inset 0 0 0 1px rgb(var(--line-rgb) / 10%); }
+.time-control .time-value { animation: time-format-in 260ms var(--ease); }
+@keyframes time-format-in { from { opacity: 0.2; transform: translateY(3px); } }
+.reduce-motion .time-control .time-value { animation: none; }
+
+/* ---- Time Control ------------------------------------------------------------------------------------------- */
+.floating.time-menu { width: 312px; max-width: calc(100vw - 24px); max-height: none; padding: 6px 0 8px; overflow: visible; }
+.time-menu-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 16px 8px; }
+.time-menu-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+.time-menu-head .mono { font-size: 12px; color: var(--text-dim); }
+.time-menu-section { display: grid; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--well-line); }
+.time-menu-section h4 { margin: 0; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+.time-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.time-menu-row .segmented { flex: 1; max-width: 150px; }
+.time-fields { display: inline-flex; align-items: center; gap: 4px; color: var(--text-faint); }
+.time-fields small { font-size: 11px; margin-right: 4px; }
+.time-field { width: 40px; height: 34px; padding: 0; text-align: center; font-size: 16px; color: var(--text); background: var(--well); border: 1px solid var(--well-line); border-radius: var(--r-sm); outline: none; transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+.time-field:focus { border-color: var(--accent-line, var(--accent)); box-shadow: 0 0 0 3px var(--accent-soft); }
+.time-presets { display: flex; gap: 4px; flex-wrap: wrap; }
+.time-presets button { flex: 1; height: 28px; padding: 0 8px; font-size: 11.5px; color: var(--text-dim); background: var(--well); border: 1px solid var(--well-line); border-radius: var(--r-pill); transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+.time-presets button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.time-presets button:disabled { opacity: 0.45; }
+.time-menu-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.time-menu-foot .btn { min-width: 72px; height: 32px; }
+.time-menu-note { font-size: 12px; color: var(--text-dim); }
+.time-menu-note b { color: var(--text); font-weight: 600; }
+.time-menu-tip { font-size: 11px; color: var(--text-faint); }
+
+/* ---- A jump's clock runs with the stream ------------------------------------------------------------------- */
+.seek-film-clock { margin-left: 10px; padding-left: 10px; border-left: 1px solid rgb(var(--line-rgb) / 16%); color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ---- High contrast: text at full strength, edges that hold, and nothing seen through ------------------------- */
+.high-contrast {
+  --text: #ffffff;
+  --text-dim: #e2ebf1;
+  --text-faint: #c3d0d9;
+  --hud-bg: var(--surface-solid);
+  --hud-bg-strong: var(--surface-solid);
+  --glass: var(--surface-solid);
+  --glass-strong: var(--surface-solid);
+  --glass-bg: var(--surface-solid);
+  --hud-blur: none;
+  --glass-blur: none;
+  --surface-solid: #02090f;
+  --well: #0b1923;
+  --hud-border: rgb(var(--line-rgb) / 46%);
+  --hud-border-strong: rgb(var(--line-rgb) / 62%);
+  --glass-line: rgb(var(--line-rgb) / 46%);
+  --well-line: rgb(var(--line-rgb) / 34%);
+  --hover: rgb(var(--ink-rgb) / 14%);
+  --pressed: rgb(var(--ink-rgb) / 22%);
+  --accent-line: var(--accent);
+}
+.high-contrast[data-theme="light"] {
+  --text: #000000;
+  --text-dim: #17232c;
+  --text-faint: #2c3a44;
+  --surface-solid: #ffffff;
+  --well: #eef2f5;
+  --hud-border: rgb(0 0 0 / 52%);
+  --hud-border-strong: rgb(0 0 0 / 70%);
+  --glass-line: rgb(0 0 0 / 52%);
+  --well-line: rgb(0 0 0 / 32%);
+  --hover: rgb(0 0 0 / 9%);
+  --pressed: rgb(0 0 0 / 15%);
+}
+.high-contrast * { backdrop-filter: none !important; }
+.high-contrast :is(.scrim, .loading-surface.overlay) { background: rgb(var(--scrim-rgb) / 94%); }
+.high-contrast :focus-visible { outline: 3px solid var(--accent) !important; outline-offset: 2px; }
+.high-contrast :is(.btn, .icon-btn, .rail-btn, .map-dock button, .select-trigger, .segmented, .time-field, .place-search-field, .switch) { box-shadow: inset 0 0 0 1px var(--hud-border); }
+.high-contrast :is(.time-hint, .metric-sub, .capsule-line, .settings-row-text span) { color: var(--text-dim); }
+
+/* ---- A new world: its words wait until the name has gathered ------------------------------------------------ */
+/* A world that is ready by then lands before they would show, so they never flash on and off; one that is not
+   shows how far it has got. */
+.loading-surface.boot.rejoin:not(.still) :is(.loading-card.film, .loading-licence) { animation: end-text 700ms var(--ease) 8600ms both; }
+.loading-surface.boot.rejoin.closing :is(.loading-card.film, .loading-licence) { animation: none; opacity: 0; }

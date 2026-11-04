@@ -58,6 +58,7 @@ export function Floating({
   role = "dialog",
   label,
   id,
+  only = false,
 }: {
   anchor: RefObject<HTMLElement | null>;
   open: boolean;
@@ -68,6 +69,8 @@ export function Floating({
   role?: string;
   label?: string;
   id?: string;
+  /** Keep to the preferred sides, whatever they cover. */
+  only?: boolean;
 }) {
   const own = useRef<HTMLDivElement>(null);
   const ref = panelRef ?? own;
@@ -85,12 +88,13 @@ export function Floating({
         viewport: { width: window.innerWidth, height: window.innerHeight },
         avoid: avoidRegions(anchor.current, 160).filter((r) => (r.weight ?? 1) > 1),
         preferred,
+        only,
         gap: 8,
         margin: 12,
       }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchor, preferred.join()]);
+  }, [anchor, preferred.join(), only]);
   useLayoutEffect(() => {
     if (!open) {
       setPlace(null);

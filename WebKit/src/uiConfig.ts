@@ -79,6 +79,8 @@ export interface UiConfig {
     theme: ThemeSetting;
     color_vision: ColorVision;
     reduce_transparency: boolean;
+    /** Text at full strength, firmer edges and outlines, and solid surfaces. */
+    high_contrast: boolean;
     /** Off, measures meant for specialists give way to plain language. */
     advanced: boolean;
   };
@@ -110,7 +112,7 @@ export const BUILT_IN: UiConfig = {
   asb: { enabled: true, report_interval_ms: 1000 },
   news: { style: "realistic" },
   shortcuts: {},
-  accessibility: { theme: "system", color_vision: "standard", reduce_transparency: false, advanced: true },
+  accessibility: { theme: "system", color_vision: "standard", reduce_transparency: false, high_contrast: false, advanced: true },
 };
 
 const REDUCE_MOTION: ReduceMotionSetting[] = ["auto", "on", "off"];
@@ -222,6 +224,7 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
       theme: oneOf(accessibility.theme, ["system", "dark", "light"] as ThemeSetting[], base.accessibility.theme),
       color_vision: oneOf(accessibility.color_vision, ["standard", "protanopia", "deuteranopia", "tritanopia", "monochrome"] as ColorVision[], base.accessibility.color_vision),
       reduce_transparency: bool(accessibility.reduce_transparency, base.accessibility.reduce_transparency),
+      high_contrast: bool(accessibility.high_contrast, base.accessibility.high_contrast),
       advanced: bool(accessibility.advanced, base.accessibility.advanced),
     },
   };

@@ -23,7 +23,10 @@ namespace dstns {
 // next start of the server, is ready in seconds. Only the very first start downloads while someone waits.
 //
 // Which seed comes next is written to next-world.json in the map cache, beside the city it names, so that it outlives
-// the server: the launcher starts with it, and the cache sweep keeps its city. Turned off by DSTNS_DYNAMIC_FASTBOOT=0.
+// the server: the launcher starts with it, and the cache sweep keeps its city. Once a prepared world has been used, its
+// city is listed as spent, and its extract and everything beside it are removed as soon as a world in another city
+// takes over, so that each start is somewhere new and the cache does not fill with places already seen.
+// Turned off by DSTNS_DYNAMIC_FASTBOOT=0.
 class NextWorld {
 public:
     [[nodiscard]] static bool enabled();

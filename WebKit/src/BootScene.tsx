@@ -69,6 +69,9 @@ const REST_DIM = 0.14;
 const SWEEP_DELAY_S = 0.18;
 const SWEEP_S = 1.2;
 const DISSOLVE_HOLD_S = SWEEP_DELAY_S + SWEEP_S + 0.15;
+/** From the film's start to the particles standing as the film's own name, having taken the title's logo apart. A
+ * world ready sooner waits for this, so that the logo becomes the name, and the name the roads, one after the other. */
+export const TITLE_HANDOVER_MS = Math.round((DISSOLVE_HOLD_S + DISSOLVE_S) * 1000);
 // The end: the panels leave, the map goes from under its own roads, those roads fly into
 // the name, and the name is blown into a mint mist that thins into the light behind it.
 // Then nothing moves, and nothing is drawn. About as long as it always was.

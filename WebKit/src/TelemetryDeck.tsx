@@ -825,7 +825,14 @@ function TelemetryDeckImpl(props: Props) {
           </header>
           <div className="deck-panel-body" key={panel}>
             {panel === "overview" ? (
-              <Overview snapshot={snapshot} topology={topology} congestion={props.congestion} />
+              // The strip's whole height is the panel's: the figures with room between them, then what each part of the
+              // system is doing, as the full deck shows it.
+              <div className="deck-network">
+                <Overview snapshot={snapshot} topology={topology} congestion={props.congestion} />
+                <StreamScroll resetKey={panel} labelledBy={`${idPrefix}-panel-title`}>
+                  <DetailView view="stack" props={props} state={views} />
+                </StreamScroll>
+              </div>
             ) : (
               <StreamScroll resetKey={panel} labelledBy={`${idPrefix}-panel-title`}>
                 <DetailView view={panel} props={props} state={views} />

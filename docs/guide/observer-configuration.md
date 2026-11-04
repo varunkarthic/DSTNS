@@ -169,6 +169,7 @@ In `config/ui-config.json` under `accessibility`, and in Settings:
 |---|---|---|
 | `color_vision` | `standard`, `protanopia`, `deuteranopia`, `tritanopia`, `monochrome` | Which palette to use. Applications' colours follow it too |
 | `reduce_transparency` | `true`, `false` | Solid surfaces in place of translucent ones |
+| `high_contrast` | `true`, `false` | Text at full strength, firmer edges and outlines, thicker focus rings, and solid surfaces |
 | `advanced` | `true`, `false` | Whether specialist detail is shown |
 
 `schema_version` says which form the file is in. `_comment` and `_enums` are notes for people, and are ignored.

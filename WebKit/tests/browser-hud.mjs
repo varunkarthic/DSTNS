@@ -368,9 +368,22 @@ try {
     await page.getByRole("button", { name: "Resume simulation" }).waitFor();
     await page.waitForTimeout(800);
     assert.match(await time.getAttribute("class"), /paused/, "paused time control breathes");
+    // The clock opens Time Control: the format is chosen there, and a time typed there is gone to.
     await time.click();
+    const menu = page.getByRole("dialog", { name: "Time Control" });
+    await menu.waitFor();
+    await menu.getByRole("radio", { name: "12-hour (AM/PM)" }).click();
     await page.getByRole("button", { name: /Simulation time \d{1,2}:\d{2}:\d{2} (AM|PM)/ }).waitFor();
-    await time.click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: path.join(out, "time-control.png") });
+    await menu.getByRole("radio", { name: "24-hour" }).click();
+    const target = Math.min(23 * 3600, Math.floor(after.clock.virtual_day_seconds / 60) * 60 + 2 * 3600);
+    await menu.getByLabel("Hour", { exact: true }).fill(String(Math.floor(target / 3600)).padStart(2, "0"));
+    await menu.getByLabel("Minute", { exact: true }).fill(String(Math.floor((target % 3600) / 60)).padStart(2, "0"));
+    await menu.getByRole("button", { name: "Go", exact: true }).click();
+    let landed = 0;
+    for (let i = 0; i < 60 && Math.abs(landed - target) > 5; i++) { await page.waitForTimeout(250); landed = (await call("/api/v1/playback/status")).body.clock.virtual_day_seconds; }
+    assert.ok(Math.abs(landed - target) <= 5, `Time Control went to ${target} (at ${landed})`);
     await page.screenshot({ path: path.join(out, "rail-paused.png"), clip: { x: 200, y: 780, width: 1040, height: 120 } });
   });
 

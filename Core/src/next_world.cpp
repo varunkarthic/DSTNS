@@ -6,6 +6,7 @@
 #include "dstns/geo.hpp"
 #include "dstns/osm_fetch.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <set>
@@ -21,6 +22,27 @@ nlohmann::json read_pointer(const std::filesystem::path& cache) {
     } catch (const std::exception&) {
     }
     return nullptr;
+}
+
+// The cities of worlds Dynamic Fastboot has used: each is removed once a world in another city has taken over.
+std::vector<std::string> spent_of(const nlohmann::json& pointer) {
+    std::vector<std::string> out;
+    if (pointer.is_object() && pointer.contains("spent") && pointer.at("spent").is_array())
+        for (const auto& key : pointer.at("spent")) if (key.is_string()) out.push_back(key.get<std::string>());
+    return out;
+}
+
+// A city's extract and everything kept beside it: its manifest, a progress sidecar, an interrupted download. The
+// world built from it is in memory, and Fast Boot keeps its own copy elsewhere, so nothing is lost that a run needs.
+void forget_city(const std::filesystem::path& cache, const std::string& key) {
+    std::error_code ec;
+    for (const auto* suffix : {".osm.xml", ".osm.manifest.json", ".osm.xml.progress"}) std::filesystem::remove(cache / (key + suffix), ec);
+    std::vector<std::filesystem::path> partial;
+    for (const auto& entry : std::filesystem::directory_iterator(cache, ec)) {
+        const auto name = entry.path().filename().string();
+        if (name.starts_with(key + ".osm.xml.") && name.ends_with(".part")) partial.push_back(entry.path());
+    }
+    for (const auto& file : partial) std::filesystem::remove(file, ec);
 }
 
 } // namespace
@@ -51,11 +73,18 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
     const double extent = config.map_city_extent_m;
     const auto here = select_map_location(seed, extent);
     auto prepared = read_pointer(cache);
-    // This world was the one prepared: it is used now.
+    // Worlds used before this one are over: their cities go, unless this world is in one of them again.
+    std::vector<std::string> spent;
+    for (const auto& key : spent_of(prepared)) {
+        if (key == here.cache_key()) spent.push_back(key);
+        else forget_city(cache, key);
+    }
+    // This world was the one prepared: it is used now, and its city goes once the next world takes over.
     if (prepared.is_object() && prepared.value("seed", "") == seed.decimal()) {
         std::error_code ec;
         std::filesystem::remove(pointer(cache), ec);
         prepared = nullptr;
+        if (std::find(spent.begin(), spent.end(), here.cache_key()) == spent.end()) spent.push_back(here.cache_key());
     }
     // One prepared earlier and not yet used, for this size of city, stands; its city is fetched again if it went.
     std::optional<Seed128> next;
@@ -75,9 +104,9 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
     const auto file = location.cache_path(cache);
     const bool on_disk = std::filesystem::is_regular_file(file, ec) && std::filesystem::file_size(file, ec) > 0;
     // By value: the worker records too, long after this returns.
-    const auto record = [this, cache, location, extent, seed = next->decimal()](const std::string& state) {
+    const auto record = [this, cache, location, extent, spent, seed = next->decimal()](const std::string& state) {
         write(cache, {{"seed", seed}, {"city", location.city}, {"country", location.country}, {"key", location.cache_key()},
-                      {"extent_m", extent}, {"state", state}});
+                      {"extent_m", extent}, {"state", state}, {"spent", spent}});
     };
     record(on_disk ? "ready" : "fetching");
     std::lock_guard lock(mutex_);
@@ -92,7 +121,7 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
         if (worker.seed == seed_) return; // Already on its way.
     }
     auto running = std::make_shared<std::atomic<bool>>(true);
-    workers_.push_back({seed_, running, std::jthread([this, cache, location, record, seed = seed_, running](std::stop_token) {
+    workers_.push_back({seed_, running, std::jthread([this, cache, location, record, spent, seed = seed_, running](std::stop_token) {
         std::string state = "ready", error;
         try {
             const auto tile = acquire_map_tile(location, cache, true);
@@ -108,9 +137,11 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
                 state_ = state;
                 error_ = error;
                 std::error_code ignored;
-                // A failure leaves the next world to choose for itself, as it always did.
-                if (state == "failed") std::filesystem::remove(pointer(cache), ignored);
-                else record(state);
+                // A failure leaves the next world to choose for itself, as it always did; the used cities still go.
+                if (state == "failed") {
+                    if (spent.empty()) std::filesystem::remove(pointer(cache), ignored);
+                    else write(cache, {{"spent", spent}});
+                } else record(state);
             }
         }
         running->store(false);
@@ -121,6 +152,7 @@ std::optional<Seed128> NextWorld::take(const ScenarioConfig& config, const std::
     if (!enabled() || config.osm_file != "auto") return std::nullopt;
     const auto prepared = read_pointer(config.map_cache_dir);
     const std::string on_its_way = prepared.is_object() ? prepared.value("city", "") : "";
+    const auto spent = spent_of(prepared);
     std::optional<Seed128> next;
     if (prepared.is_object() && prepared.value("extent_m", 0.0) == config.map_city_extent_m && on_its_way != avoid_city) {
         try {
@@ -134,7 +166,10 @@ std::optional<Seed128> NextWorld::take(const ScenarioConfig& config, const std::
     std::set<std::string> cached;
     std::error_code ec;
     for (const auto& entry : std::filesystem::directory_iterator(cache, ec)) {
-        if (entry.path().extension() == ".xml" && entry.file_size(ec) > 0) cached.insert(entry.path().filename().string());
+        const auto name = entry.path().filename().string();
+        // A used world's city is on its way out, not a place for the next one.
+        const bool used = std::any_of(spent.begin(), spent.end(), [&](const std::string& key) { return name == key + ".osm.xml"; });
+        if (entry.path().extension() == ".xml" && entry.file_size(ec) > 0 && !used) cached.insert(name);
     }
     // ponytail: random draws until one lands in a cached city; with 181 cities, 4000 draws all but always find one.
     for (int tries = 0; !cached.empty() && tries < 4000; ++tries) {

@@ -326,7 +326,9 @@ describe("command rail", () => {
     fireEvent.click(screen.getByRole("tab", { name: /News/ }));
     expect(await screen.findByText("Forecast issued at 14:30:00")).toBeInTheDocument();
 
+    // The clock opens Time Control, where the format is chosen.
     fireEvent.click(time);
+    fireEvent.click(await screen.findByRole("radio", { name: "12-hour (AM/PM)" }));
     await waitFor(() => expect(screen.getByRole("button", { name: /Simulation time 6:00:00 AM/ })).toBeInTheDocument());
     // Text composed by the core and timestamps elsewhere follow the same preference.
     expect(await screen.findByText("Forecast issued at 2:30:00 PM")).toBeInTheDocument();

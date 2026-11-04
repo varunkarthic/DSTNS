@@ -33,6 +33,8 @@ export interface PlacementInput {
   gap?: number;
   /** Minimum distance from the viewport edge. */
   margin?: number;
+  /** Only the preferred sides: a menu that must not cover the bar it opens from. */
+  only?: boolean;
 }
 
 export interface Placement {
@@ -96,12 +98,13 @@ export function computePlacement(input: PlacementInput): Placement {
     preferred: input.preferred ?? (["top", "bottom", "right", "left"] as Side[]),
     gap: input.gap ?? 8,
     margin: input.margin ?? 8,
+    only: !!input.only,
     // A region that contains the anchor is its own container, not a neighbour.
     avoid: (input.avoid ?? []).filter(
       (r) => intersectionArea(r, input.anchor) < input.anchor.width * input.anchor.height * 0.5,
     ),
   };
-  const sides = [...full.preferred, ...(["top", "bottom", "right", "left"] as Side[]).filter((s) => !full.preferred.includes(s))];
+  const sides = input.only ? full.preferred : [...full.preferred, ...(["top", "bottom", "right", "left"] as Side[]).filter((s) => !full.preferred.includes(s))];
   let best: (Placement & { score: number }) | null = null;
   for (const side of sides) {
     const c = candidate(side, full);

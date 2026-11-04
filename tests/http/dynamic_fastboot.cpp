@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 // Dynamic Fastboot: while a world runs, the next city is fetched in the background and named in next-world.json. A
-// restart keeps it through the cache sweep, and the next world takes it, with no download while anyone waits. And the
-// server says how long a world being prepared will take.
+// restart keeps it through the cache sweep, and the next world takes it, with no download while anyone waits. Once
+// used, its city is removed when a world elsewhere takes over. And the server says how long a world being prepared will take.
 #include "harness.hpp"
 #include "support.hpp"
 
@@ -105,6 +105,17 @@ int main() {
     EXPECT(discarded.status == 200 && discarded.data().at("state") == "idle", discarded);
     EXPECT(server.call("GET", "/api/v1/playback/status").body.at("run_id") == after.at("run_id"));
     EXPECT(server.op("POST", "/api/v1/world/regenerate/commit", json::object()).status == 409, "nothing left to confirm");
+
+    // A used world's city goes once a world somewhere else takes over: each start is somewhere new.
+    EXPECT(json::parse(read(maps / "next-world.json")).at("spent") == json::array({next_key}), read(maps / "next-world.json"));
+    EXPECT(fs::exists(maps / (next_key + ".osm.xml")), "kept while its world runs");
+    until([&] { return server.call("GET", "/api/v1/world/status").data().at("next").at("state") == "ready"; }, 20, "the world after it");
+    // The world discarded above may still be finishing its build; the next one waits for it.
+    until([&] { return server.op("POST", "/api/v1/world/regenerate", json{{"stage", true}}).status == 202; }, 20, "a new world asked for");
+    until([&] { return server.call("GET", "/api/v1/world/status").data().at("state") == "staged"; }, 20, "the world after it, prepared");
+    EXPECT(server.op("POST", "/api/v1/world/regenerate/commit", json::object()).status == 202);
+    until([&] { return !fs::exists(maps / (next_key + ".osm.xml")); }, 10, "the used city removed");
+    EXPECT(!fs::exists(maps / (next_key + ".osm.manifest.json")), "with what was kept beside it");
 
     // Turned off, it does none of this.
     TempDir off;

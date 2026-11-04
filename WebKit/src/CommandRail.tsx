@@ -6,6 +6,7 @@ import type { RefObject } from "react";
 import { animate, SPRINGS, stepSpring } from "./motion";
 import { QuantizedSlider } from "./QuantizedSlider";
 import { Floating, useDismiss } from "./Popover";
+import { TimeControl } from "./TimeControl";
 import { SKIP_OPTIONS } from "./uiConfig";
 import { Icon, ActionIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
@@ -107,6 +108,8 @@ export interface CommandRailProps {
   fineControl: boolean;
   onBack: (seconds?: number) => void;
   onForward: (seconds?: number) => void;
+  /** Go to a time of day, earlier or later: Time Control. */
+  onSeekTo: (target: number) => void;
   onStep: () => void;
   onRate: (rate: number) => void;
   onReset: () => void;
@@ -159,15 +162,7 @@ export function CommandRail(props: CommandRailProps) {
         <SkipButton direction="forward" label={skip} fine={props.fineControl} disabled={!live || virtual >= DAY_SECONDS} reduceMotion={props.reduceMotion} onSkip={props.onForward} />
       </div>
 
-      <TimeControl
-        seconds={virtual}
-        hasClock={!!clock}
-        percent={percent}
-        paused={paused}
-        label={time.time(virtual)}
-        hour12={time.hour12}
-        onToggle={time.toggle}
-      />
+      <TimeControl seconds={virtual} hasClock={!!clock} percent={percent} paused={paused} disabled={!live || lifecycle === "IDLE"} onSeekTo={props.onSeekTo} />
 
       <DayTimeline track={progress} hour12={time.hour12} paused={paused} />
 
@@ -306,39 +301,6 @@ function DayTimeline({ track, hour12, paused }: { track: RefObject<HTMLElement |
   );
 }
 
-function TimeControl({
-  seconds,
-  hasClock,
-  percent,
-  paused,
-  label,
-  hour12,
-  onToggle,
-}: {
-  seconds: number;
-  hasClock: boolean;
-  percent: number;
-  paused: boolean;
-  label: string;
-  hour12: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`time-control${paused ? " paused" : ""}`}
-      data-tutorial="clock"
-      data-tip-avoid
-      onClick={onToggle}
-      aria-label={`Simulation time ${hasClock ? label : "unavailable"}, ${percent.toFixed(0)} percent complete${paused ? ", paused" : ""}. Activate to switch to ${hour12 ? "24" : "12"} hour time.`}
-      data-seconds={Math.round(seconds)}
-    >
-      <span className="time-value mono">{hasClock ? label : "--:--:--"}</span>
-      <span className="time-hint">{paused ? "Paused" : `${percent.toFixed(0)}% of day`}</span>
-    </button>
-  );
-}
-
 const SPEED_LABELS = RATES.map((rate) => String(rate));
 
 function SpeedControl({
@@ -435,7 +397,7 @@ function SkipButton({ direction, label, fine, disabled, reduceMotion, onSkip }: 
           <ActionIcon name={direction} size={18} signal={pressed} motion={direction} reduceMotion={reduceMotion} />
         </button>
       </Tooltip>
-      <Floating anchor={trigger} open={open} preferred={["top"]} className="skip-menu" panelRef={menu} role="menu" label={direction === "back" ? "Go back by" : "Go forward by"}>
+      <Floating anchor={trigger} open={open} preferred={["top"]} only className="skip-menu" panelRef={menu} role="menu" label={direction === "back" ? "Go back by" : "Go forward by"}>
         {SKIP_OPTIONS.map((seconds) => (
           <button
             key={seconds}

@@ -51,6 +51,7 @@ export interface SettingsValues {
   theme: ThemeSetting;
   colorVision: ColorVision;
   reduceTransparency: boolean;
+  highContrast: boolean;
   advanced: boolean;
   byteUnits: ByteUnits;
   shortcuts: ShortcutOverrides;
@@ -73,6 +74,7 @@ export interface SettingsActions {
   onTheme: (theme: ThemeSetting) => void;
   onColorVision: (vision: ColorVision) => void;
   onReduceTransparency: (on: boolean) => void;
+  onHighContrast: (on: boolean) => void;
   onAdvanced: (on: boolean) => void;
   onByteUnits: (units: ByteUnits) => void;
   onShortcuts: (shortcuts: ShortcutOverrides) => void;
@@ -204,6 +206,13 @@ export function SettingsDrawer({
             hint="Solid surfaces, for stronger contrast."
             htmlFor="set-transparency"
             control={<Switch id="set-transparency" label="Reduce transparency" checked={values.reduceTransparency} onChange={actions.onReduceTransparency} />}
+          />
+          <Row
+            title="High contrast"
+            icon="eye"
+            hint="Text at full strength, firmer edges and outlines, and solid surfaces."
+            htmlFor="set-contrast"
+            control={<Switch id="set-contrast" label="High contrast" checked={values.highContrast} onChange={actions.onHighContrast} />}
           />
           <Row
             title="Advanced mode"

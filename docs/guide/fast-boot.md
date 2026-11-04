@@ -38,7 +38,8 @@ sequenceDiagram
 | A new world is asked for | It takes the prepared seed. If its city is still downloading, it takes a city already in the map cache instead, other than the one running, and the city on its way stays next. With none cached, it waits for that download rather than starting another, and shows its progress |
 | The launcher starts a run with no `--seed` | It reads `next-world.json` and starts with that seed |
 | The server starts | The map cache sweep keeps the next world's city, whatever the cache policy |
-| The background download fails | The pointer is removed, and the next world chooses for itself, as it always did |
+| The prepared world is used | Its city is listed under `spent`. Its extract, manifest and any partial download are removed as soon as a world in another city takes over, so each start is somewhere new and the cache does not fill with places already seen. While its own world runs, the city stays, for that run's SUMO export |
+| The background download fails | The next world chooses for itself, as it always did. The pointer keeps only the `spent` list, so the used cities still go |
 
 The pointer, `next-world.json`, lives in the map cache beside the city it names, so it
 outlives the server:
@@ -50,7 +51,8 @@ outlives the server:
   "country": "Portugal",
   "key": "lisbon_x5000",
   "extent_m": 5000.0,
-  "state": "ready"
+  "state": "ready",
+  "spent": ["new-orleans_x5000"]
 }
 ```
 

@@ -4,7 +4,7 @@
 import { formatBytes } from "./units";
 import { useEffect, useState } from "react";
 import { Icon } from "./Icons";
-import { filmAvailable } from "./BootScene";
+import { filmAvailable, TITLE_HANDOVER_MS } from "./BootScene";
 import { LoadingSurface } from "./LoadingSurface";
 import type { BootPhase } from "./LoadingSurface";
 import { Mark } from "./Logo";
@@ -87,6 +87,18 @@ export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabl
   const [shown, setShown] = useState(0);
   const [graceOver, setGraceOver] = useState(false);
   const running = enabled && phase === "film";
+  // The title was on screen: its logo is being taken apart into the film's name, and nothing lands until it has.
+  const [sawTitle, setSawTitle] = useState(false);
+  const [handedOver, setHandedOver] = useState(false);
+  useEffect(() => {
+    if (phase === "title") setSawTitle(true);
+  }, [phase]);
+  useEffect(() => {
+    if (!running || !sawTitle || handedOver) return;
+    const timer = setTimeout(() => setHandedOver(true), TITLE_HANDOVER_MS);
+    return () => clearTimeout(timer);
+  }, [running, sawTitle, handedOver]);
+  const handingOver = running && sawTitle && !handedOver;
   const goal = real ? real.step : BOOT_STEPS.length;
   useEffect(() => {
     if (!running || graceOver) return;
@@ -103,11 +115,11 @@ export function usePacedStages(real: SplashStage | null, phase: BootPhase, enabl
   // not finished: it plays to its end, as it is part of arriving. Once it has been through
   // once, this screen leaves the moment the world is ready, wherever the film has got to.
   if (!real && shown >= BOOT_STEPS.length) {
-    if (filmSeen) return { stage: null, holding: false };
+    if (filmSeen && !handingOver) return { stage: null, holding: false };
     return { stage: { step: BOOT_STEPS.length - 1, label: "Finishing setup", detail: "Setting up the interface" }, holding: true };
   }
   const step = Math.min(shown, BOOT_STEPS.length - 1);
-  const holding = phase !== "film" || shown < goal || (!real && shown < BOOT_STEPS.length) || !filmSeen;
+  const holding = phase !== "film" || shown < goal || (!real && shown < BOOT_STEPS.length) || !filmSeen || handingOver;
   if (real?.waiting) {
     if (graceOver) return { stage: real, holding: false };
     return { stage: { step: 0, label: BOOT_STEPS[0].label, detail: STAGE_DETAIL[0] }, holding: true };

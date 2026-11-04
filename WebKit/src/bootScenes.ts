@@ -927,7 +927,9 @@ export function endMist(): Float32Array {
       const a = random() * TAU;
       // A ring ahead of the rest, going out through everything as the shock of it.
       const shock = i % 9 === 0;
-      const r = shock ? 3.1 + random() * 0.12 : 0.2 + Math.sqrt(-2 * Math.log(1 - random() * 0.985)) * 0.95;
+      // The rest as a cloud densest at its middle (a Gaussian, by its radius): any floor under the radius would leave
+      // a hole there, which shows as a dark spot while the mist stands.
+      const r = shock ? 3.1 + random() * 0.12 : Math.sqrt(-2 * Math.log(1 - random() * 0.985)) * 0.95;
       put(i, Math.cos(a) * r, Math.sin(a) * r, shock ? 0 : (random() - 0.5) * 1.1, { kind: KIND.boil, tint: shock ? 0.9 : 0.14 + random() * 0.3, hue: HUE.ok });
     }
   }, 31);

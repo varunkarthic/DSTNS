@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { BrandLogo } from "./BrandLogo";
-import { MOTION_MS } from "./motion";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Spring } from "./motion";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon, categoryIcon } from "./Icons";
 import { focusMatches, SEVERITY_LABEL, REALISTIC_NEWS } from "./notificationModel";
 import type { UiNotification } from "./notificationModel";
@@ -18,7 +18,34 @@ import { formatDuration } from "./timeFormat";
  * upward in place to the full description, measured details, the raw
  * technical fields and the other current events. The list shown while it is
  * open is held steady, so an expiring notification cannot vanish mid-read.
+ *
+ * It opens as the dock's panels do: one spring carries the card's height, a
+ * little past where it settles and back, its corners from the pill's to the
+ * panel's, and the words, which sharpen out of a blur once there is room for
+ * them. Closing is the same spring run back, and either can interrupt the other.
  */
+
+const OPEN = { k: 170, c: 21 };
+const CLOSE = { k: 260, c: 33 };
+const CLOSED_RADIUS = 20;
+const OPEN_RADIUS = 26;
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+const smooth = (x: number) => {
+  const t = clamp01(x);
+  return t * t * (3 - 2 * t);
+};
+
+/** The card at a point along the way. Pure, so it can be checked. */
+export function capsuleFrame(t: number, fullHeight: number) {
+  const words = smooth((t - 0.38) / 0.5);
+  return {
+    height: Math.max(0, t) * fullHeight,
+    radius: CLOSED_RADIUS + (OPEN_RADIUS - CLOSED_RADIUS) * smooth(t / 0.4),
+    opacity: words,
+    lift: (1 - words) * 10,
+    blur: (1 - words) * 4,
+  };
+}
 export function NotificationCapsule(
 {
   items,
@@ -42,6 +69,10 @@ export function NotificationCapsule(
   const [technical, setTechnical] = useState(false);
   const [held, setHeld] = useState<UiNotification[] | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const card = useRef<HTMLElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const spring = useRef<Spring | null>(null);
 
   // While open, what the person is reading is theirs. Newer events wait behind a
   // count rather than moving the list or the scroll position under them.
@@ -73,8 +104,31 @@ export function NotificationCapsule(
       setHeld(null);
       setSelected(null);
       setTechnical(false);
-    }, reduceMotion ? 0 : MOTION_MS.overlay + 160);
+    }, reduceMotion ? 0 : 560);
   };
+
+  // The spring paints the card directly: nothing re-renders while it moves.
+  useLayoutEffect(() => {
+    const paint = (t: number) => {
+      if (!body.current || !inner.current || !card.current) return;
+      const f = capsuleFrame(t, inner.current.offsetHeight);
+      // At rest open, the card follows what it holds: another event, or the technical details shown.
+      body.current.style.height = t === 1 ? "auto" : `${f.height.toFixed(1)}px`;
+      card.current.style.borderRadius = `${f.radius.toFixed(2)}px`;
+      inner.current.style.opacity = f.opacity.toFixed(3);
+      inner.current.style.transform = f.lift > 0.05 ? `translateY(${f.lift.toFixed(1)}px)` : "";
+      inner.current.style.filter = f.blur > 0.05 ? `blur(${f.blur.toFixed(1)}px)` : "";
+    };
+    spring.current ??= new Spring(0, OPEN, paint, 0.001);
+    const s = spring.current;
+    if (reduceMotion) {
+      s.jump(open ? 1 : 0);
+      return;
+    }
+    s.setPreset(open ? OPEN : CLOSE);
+    s.set(open ? 1 : 0);
+  });
+  useEffect(() => () => spring.current?.stop(), []);
 
   useEffect(() => {
     if (!open) return;
@@ -104,13 +158,14 @@ export function NotificationCapsule(
   return (
     <div className="capsule-slot" data-tutorial="notifications" ref={root} data-tip-avoid>
       <article
+        ref={card}
         className={`capsule sev-${current.severity}${open ? " open" : ""}${reduceMotion ? " still" : ""}${current.app ? " from-webfabric" : ""}${current.isd ? " from-isd" : ""}`}
         aria-label="Notifications"
         role={urgent ? "alert" : undefined}
         aria-live={urgent ? "assertive" : "polite"}
       >
-        <div className="capsule-body" aria-hidden={!open} inert={!open || undefined}>
-          <div className="capsule-body-inner scroll-region">
+        <div ref={body} className="capsule-body" aria-hidden={!open} inert={!open || undefined}>
+          <div ref={inner} className="capsule-body-inner scroll-region">
             <div className="capsule-pad">
               <>
                 <div className="capsule-detail-head">

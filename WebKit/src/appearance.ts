@@ -97,7 +97,7 @@ const triplet = (hex: string) => {
   return m ? `${parseInt(m[1], 16)} ${parseInt(m[2], 16)} ${parseInt(m[3], 16)}` : "0 0 0";
 };
 
-export function applyAppearance(options: { theme: "dark" | "light"; vision: ColorVision; reduceTransparency: boolean; advanced: boolean }, root: HTMLElement = document.documentElement) {
+export function applyAppearance(options: { theme: "dark" | "light"; vision: ColorVision; reduceTransparency: boolean; highContrast?: boolean; advanced: boolean }, root: HTMLElement = document.documentElement) {
   const meaning = paletteFor(options.theme, options.vision);
   appearance.theme = options.theme;
   appearance.meaning = meaning;
@@ -106,6 +106,7 @@ export function applyAppearance(options: { theme: "dark" | "light"; vision: Colo
   root.dataset.theme = options.theme;
   root.dataset.vision = options.vision;
   root.classList.toggle("reduce-transparency", options.reduceTransparency);
+  root.classList.toggle("high-contrast", !!options.highContrast);
   root.classList.toggle("basic-mode", !options.advanced);
   root.style.colorScheme = options.theme;
   const set = (name: string, value: string) => root.style.setProperty(name, value);
