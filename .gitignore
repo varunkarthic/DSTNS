@@ -16,6 +16,8 @@ __pycache__/
 *.idx
 logs/*.json
 logs/command-history
+output/
+tmp/
 
 # Operator credentials and saved local configurations
 config/apps.json
