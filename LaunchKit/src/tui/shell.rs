@@ -54,6 +54,7 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     ("ask", "ask REQUEST  (or just type it)", "A request in plain words, as commands to run, from the launcher's model; nothing runs until Enter"),
     ("model", "model [use PROVIDER [NAME] | key KEY | test]", "The model for plain-word requests: Apple's, Ollama's or Groq's"),
     ("daemon", "daemon [show NAME | on NAME | off NAME | queue emergency|notification]", "The daemons inside the server, and what they have said"),
+    ("graph", "graph [search|show|callers|callees|deps|users|members|path|update] …", "The knowledge graph: where code is, and what calls and depends on what"),
     ("config", "config [get KEY | set KEY VALUE]", "Settings: the page, or one at a time"),
     ("setup", "setup", "Run the first-launch setup again"),
     ("seeds", "seeds save|list|inspect|delete [ID]", "Saved seeds"),
@@ -107,6 +108,8 @@ struct Output {
     lines: Vec<(String, u32)>,
     status: Option<i32>,
     started: Instant,
+    /// When it finished, for how long it took.
+    ended: Option<Instant>,
 }
 
 struct Running {
@@ -139,8 +142,17 @@ pub struct Shell {
     running: Option<Running>,
     show_output: bool,
     scroll_back: usize,
+    /// How tall the output is, in rows, once a person has chosen; 0 lets it size itself.
+    rows: u16,
+    /// Where the output was last drawn, and the page's height then: the mouse scrolls it and drags its top edge.
+    pane: Option<Rect>,
+    body_height: u16,
+    dragging: bool,
+    /// How many lines the output had, last drawn, and how many showed: for the scrollbar and for scrolling to the end.
+    drawn_lines: usize,
+    shown_lines: usize,
     /// A request in plain words, with the model: which output block is its, and the answer when it comes.
-    asking: Option<(usize, Receiver<Result<(crate::assistant::Suggestion, String), String>>)>,
+    asking: Option<(usize, Receiver<Result<(crate::assistant::Reply, String), String>>)>,
 }
 
 /// Where the command history is kept between sessions: with the logs, on this machine only.
@@ -177,6 +189,12 @@ impl Shell {
             show_output: false,
             asking: None,
             scroll_back: 0,
+            rows: 0,
+            pane: None,
+            body_height: 0,
+            dragging: false,
+            drawn_lines: 0,
+            shown_lines: 0,
         }
     }
 
@@ -208,22 +226,69 @@ impl Shell {
         }
     }
 
-    pub fn output_height(&self, body: u16) -> u16 {
-        if self.has_output() {
-            (body / 2).clamp(6, 16).min(body.saturating_sub(4))
-        } else {
-            0
+    pub fn output_height(&mut self, body: u16) -> u16 {
+        self.body_height = body;
+        if !self.has_output() {
+            self.pane = None;
+            return 0;
+        }
+        let most = body.saturating_sub(3).max(5);
+        if self.rows > 0 { self.rows.clamp(5, most) } else { (body / 2).clamp(8, 18).min(most) }
+    }
+
+    /// Taller or shorter by `by` rows, kept until the launcher closes.
+    pub fn resize(&mut self, by: i32) {
+        let now = self.pane.map(|p| p.height).unwrap_or_else(|| self.output_height(self.body_height));
+        self.rows = (now as i32 + by).clamp(5, self.body_height.saturating_sub(3).max(5) as i32) as u16;
+    }
+
+    /// Up (towards older lines) or down by `lines`.
+    pub fn scroll(&mut self, up: bool, lines: usize) {
+        let most = self.drawn_lines.saturating_sub(self.shown_lines);
+        self.scroll_back = if up { (self.scroll_back + lines).min(most) } else { self.scroll_back.saturating_sub(lines) };
+    }
+
+    /// The mouse, over the output: the wheel scrolls it, and its top edge, dragged, sizes it. True if it was the
+    /// output's; anything else is the page's.
+    pub fn mouse(&mut self, kind: crossterm::event::MouseEventKind, column: u16, row: u16, lines: usize, natural: bool) -> bool {
+        use crossterm::event::{MouseButton, MouseEventKind};
+        let Some(pane) = self.pane else { return false };
+        let inside = column >= pane.x && column < pane.x + pane.width && row >= pane.y && row < pane.y + pane.height;
+        match kind {
+            MouseEventKind::ScrollUp | MouseEventKind::ScrollDown if inside => {
+                self.scroll(matches!(kind, MouseEventKind::ScrollUp) != natural, lines.max(1));
+                true
+            }
+            MouseEventKind::Down(MouseButton::Left) if row == pane.y && inside => {
+                self.dragging = true;
+                true
+            }
+            MouseEventKind::Drag(MouseButton::Left) if self.dragging => {
+                let bottom = pane.y + pane.height;
+                self.rows = bottom.saturating_sub(row).clamp(5, self.body_height.saturating_sub(3).max(5));
+                true
+            }
+            MouseEventKind::Up(MouseButton::Left) if self.dragging => {
+                self.dragging = false;
+                true
+            }
+            _ => inside,
         }
     }
 
     pub fn keys(&self) -> Vec<Key> {
-        vec![
+        let mut keys = vec![
             key("Enter", "Run", "Run", true),
             key("Tab", "Complete", "Complete", true),
             key("↑↓", "Suggestions or history", "History", false),
-            key("Ctrl+C", "Stop a command", "Stop", false),
-            key("Esc", "Close", "Close", true),
-        ]
+        ];
+        if self.has_output() {
+            keys.push(key("PgUp/PgDn", "Scroll the output", "Scroll", false));
+            keys.push(key("Ctrl+↑↓", "Size the output", "Size", false));
+        }
+        keys.push(key("Ctrl+C", "Stop a command", "Stop", false));
+        keys.push(key("Esc", "Close", "Close", true));
+        keys
     }
 
     /// Ctrl+C: stops a command that is running, rather than the launcher.
@@ -238,7 +303,7 @@ impl Shell {
     }
 
     fn say(&mut self, command: &str, lines: Vec<(String, u32)>, status: i32) {
-        self.blocks.push(Output { command: command.into(), lines, status: Some(status), started: Instant::now() });
+        self.blocks.push(Output { command: command.into(), lines, status: Some(status), started: Instant::now(), ended: Some(Instant::now()) });
         self.show_output = true;
         self.scroll_back = 0;
         if self.blocks.len() > 50 {
@@ -340,6 +405,14 @@ impl Shell {
                 self.suggesting = true;
                 self.accept(ui);
             }
+            KeyCode::Up if event.modifiers.contains(KeyModifiers::CONTROL) => self.resize(2),
+            KeyCode::Down if event.modifiers.contains(KeyModifiers::CONTROL) => self.resize(-2),
+            KeyCode::Up if event.modifiers.contains(KeyModifiers::SHIFT) => self.scroll(true, 1),
+            KeyCode::Down if event.modifiers.contains(KeyModifiers::SHIFT) => self.scroll(false, 1),
+            KeyCode::PageUp => self.scroll(true, self.shown_lines.saturating_sub(2).max(3)),
+            KeyCode::PageDown => self.scroll(false, self.shown_lines.saturating_sub(2).max(3)),
+            KeyCode::End if event.modifiers.contains(KeyModifiers::CONTROL) => self.scroll_back = 0,
+            KeyCode::Home if event.modifiers.contains(KeyModifiers::CONTROL) => self.scroll(true, usize::MAX / 2),
             KeyCode::Up => {
                 // Walking the history stays in the history until something is typed: a recalled command has its own
                 // suggestions, which must not take the arrows over.
@@ -367,8 +440,6 @@ impl Shell {
                     self.cursor = self.input.chars().count();
                 }
             }
-            KeyCode::PageUp => self.scroll_back += 5,
-            KeyCode::PageDown => self.scroll_back = self.scroll_back.saturating_sub(5),
             KeyCode::Char('l') if event.modifiers.contains(KeyModifiers::CONTROL) => self.blocks.clear(),
             _ => {
                 let mut editor = widgets::Editor::Text { value: self.input.clone(), cursor: self.cursor, placeholder: String::new(), numeric: false, disabled: false, multiline: false };
@@ -423,7 +494,7 @@ impl Shell {
                         }
                     });
                 }
-                self.blocks.push(Output { command: shown.into(), lines: vec![], status: None, started: Instant::now() });
+                self.blocks.push(Output { command: shown.into(), lines: vec![], status: None, started: Instant::now(), ended: None });
                 self.show_output = true;
                 self.scroll_back = 0;
                 self.running = Some(Running { child, lines: receiver });
@@ -483,11 +554,27 @@ impl Shell {
                 self.asking = None;
                 if let Some(block) = self.blocks.get_mut(index) {
                     match outcome {
-                        Ok((suggestion, model)) => {
+                        Ok((crate::assistant::Reply::Answer(lines), by)) => {
+                            block.lines = vec![(format!("Answered by {by}."), TEXT2)];
+                            let mut sources = false;
+                            for line in lines {
+                                if line == "From the knowledge graph:" || line.ends_with("what the knowledge graph has:") {
+                                    sources = true;
+                                    block.lines.push((line, MUTED));
+                                } else {
+                                    block.lines.push((line, if sources { ACCENT } else { TEXT }));
+                                }
+                            }
+                            block.status = Some(0);
+                            block.ended = Some(Instant::now());
+                            crate::log::info(&format!("command bar: answered by {by}"));
+                        }
+                        Ok((crate::assistant::Reply::Command(suggestion), model)) => {
                             block.lines = vec![(format!("Suggested by {model}. Nothing has been run."), TEXT2), (suggestion.line.clone(), ACCENT)];
                             block.lines.extend(suggestion.warnings.iter().map(|w| (format!("Note: {w}"), WARN)));
                             block.lines.push(("Enter runs it, as it is or as you change it. Esc leaves it.".into(), MUTED));
                             block.status = Some(0);
+                            block.ended = Some(Instant::now());
                             crate::log::info(&format!("command bar: suggested {}", suggestion.line));
                             self.input = suggestion.line;
                             self.cursor = self.input.chars().count();
@@ -497,6 +584,7 @@ impl Shell {
                         Err(problem) => {
                             block.lines = vec![(problem, ERR)];
                             block.status = Some(1);
+                            block.ended = Some(Instant::now());
                         }
                     }
                 }
@@ -523,6 +611,7 @@ impl Shell {
                 block.lines.push((line, TEXT));
             }
             block.status = Some(status.code().unwrap_or(130));
+                            block.ended = Some(Instant::now());
             self.running = None;
         }
         Action::None
@@ -538,9 +627,9 @@ impl Shell {
         let paths = ui.paths.clone();
         let wanted = request.to_string();
         std::thread::spawn(move || {
-            let _ = tx.send(crate::assistant::suggest(&paths, &wanted).map(|(s, m)| (s, m.label())));
+            let _ = tx.send(crate::assistant::respond(&paths, &wanted));
         });
-        self.blocks.push(Output { command: format!("ask {request}"), lines: vec![("Asking the model…".into(), TEXT2)], status: None, started: Instant::now() });
+        self.blocks.push(Output { command: format!("ask {request}"), lines: vec![("Asking…".into(), TEXT2)], status: None, started: Instant::now(), ended: None });
         self.show_output = true;
         self.asking = Some((self.blocks.len() - 1, rx));
     }
@@ -876,39 +965,96 @@ impl Shell {
     }
 
     pub fn draw_output(&mut self, frame: &mut Frame, area: Rect, ui: &Ui) {
+        self.pane = Some(area);
         let rect = Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area };
-        let block = Block::default().borders(Borders::TOP).border_type(BorderType::Plain).border_style(fg(NAVY)).title(Span::styled(" OUTPUT ", bold(TEXT2)));
-        let inner = block.inner(rect);
-        let w = inner.width as usize;
+        frame.render_widget(Clear, rect);
+        if rect.height < 3 || rect.width < 20 {
+            return;
+        }
+        // The top edge is a handle: a rule, what this is, and how to move and size it.
+        let commands = self.blocks.len();
+        let title = format!(" OUTPUT · {commands} {} ", if commands == 1 { "command" } else { "commands" });
+        let handle = if ui.unicode { " ⇕ drag or Ctrl+↑↓ to size " } else { " drag or Ctrl+Up/Down to size " };
+        let rule = if ui.unicode { "─" } else { "-" };
+        let fill = (rect.width as usize).saturating_sub(widgets::width(&title) + widgets::width(handle) + 2);
+        let top = Line::from(vec![
+            Span::styled(rule, fg(if self.dragging { ACCENT } else { NAVY })),
+            Span::styled(title, bold(TEXT2)),
+            Span::styled(rule.repeat(fill), fg(if self.dragging { ACCENT } else { NAVY })),
+            Span::styled(handle, fg(if self.dragging { ACCENT } else { MUTED })),
+            Span::styled(rule, fg(if self.dragging { ACCENT } else { NAVY })),
+        ]);
+        frame.render_widget(Paragraph::new(top), Rect { height: 1, ..rect });
+        let body = Rect { y: rect.y + 1, height: rect.height - 2, width: rect.width.saturating_sub(2), ..rect };
+        let w = body.width as usize;
+        let gutter = if ui.unicode { "│ " } else { "| " };
         let mut lines: Vec<Line> = vec![];
         for output in &self.blocks {
-            let status = match output.status {
-                None => Span::styled(if ui.motion { ["◐", "◓", "◑", "◒"][(output.started.elapsed().as_millis() / 200) as usize % 4] } else { "~" }.to_string(), fg(ACCENT)),
-                Some(0) => Span::styled(if ui.unicode { "✓" } else { "+" }.to_string(), fg(OK)),
-                Some(code) => Span::styled(format!("{} {code}", if ui.unicode { "✗" } else { "x" }), fg(ERR)),
+            // Each command a card: what ran, how it ended and how long it took, then what it said beside a rail.
+            let took = output.ended.map(|e| e.duration_since(output.started)).filter(|d| d.as_millis() >= 50).map(|d| if d.as_secs() >= 60 { format!(" · {} min {} s", d.as_secs() / 60, d.as_secs() % 60) } else { format!(" · {:.1} s", d.as_secs_f64()) }).unwrap_or_default();
+            let (mark, tone) = match output.status {
+                None => (format!("{} running", if ui.motion && ui.unicode { ["◐", "◓", "◑", "◒"][(output.started.elapsed().as_millis() / 200) as usize % 4] } else { "~" }), ACCENT),
+                Some(0) => (format!("{} done{took}", if ui.unicode { "✓" } else { "+" }), OK),
+                Some(code) => (format!("{} exit {code}{took}", if ui.unicode { "✗" } else { "x" }), ERR),
             };
-            lines.push(Line::from(vec![Span::styled(format!("{} ", if ui.unicode { "❯" } else { ">" }), bold(ACCENT)), Span::styled(clip(&output.command, w.saturating_sub(8), ui.unicode), bold(TEXT)), Span::raw("  "), status]));
+            let prompt = if ui.unicode { "❯ " } else { "> " };
+            let room = w.saturating_sub(widgets::width(&mark) + 4);
+            let command = clip(&output.command, room, ui.unicode);
+            let pad = w.saturating_sub(widgets::width(prompt) + widgets::width(&command) + widgets::width(&mark) + 1);
+            lines.push(Line::from(vec![Span::styled(prompt, bold(tone)), Span::styled(command, bold(TEXT)), Span::raw(" ".repeat(pad)), Span::styled(mark, fg(tone))]));
             let json = ["json", "view", "api"].contains(&output.command.split_whitespace().next().unwrap_or(""));
+            let rail = fg(if output.status.map(|c| c != 0).unwrap_or(false) { ERR } else { NAVY });
+            if output.lines.is_empty() && output.status.is_some() {
+                lines.push(Line::from(vec![Span::styled(gutter, rail), Span::styled("(nothing printed)", fg(MUTED))]));
+            }
             for (text, tone) in &output.lines {
                 // A line keeps its indent when it wraps, so that indented JSON and tables still line up.
                 let lead = text.len() - text.trim_start().len();
                 let indent = " ".repeat(lead.min(w / 2));
-                for piece in widgets::wrap(text.trim_start(), w.saturating_sub(indent.len()).max(10)) {
-                    let piece = format!("  {indent}{piece}");
-                    lines.push(if json && *tone == TEXT { Line::from(json_spans(&piece)) } else { Line::from(Span::styled(piece, fg(*tone))) });
+                // A line that fits is left as it is, so the columns of a table stay columns.
+                let room = w.saturating_sub(indent.len() + 3).max(10);
+                let pieces = if widgets::width(text.trim_start()) <= room { vec![text.trim_start().to_string()] } else { widgets::wrap(text.trim_start(), room) };
+                for piece in pieces {
+                    let piece = format!("{indent}{piece}");
+                    let mut spans = vec![Span::styled(gutter, rail)];
+                    if json && *tone == TEXT {
+                        spans.extend(json_spans(&piece));
+                    } else {
+                        spans.push(Span::styled(piece, fg(*tone)));
+                    }
+                    lines.push(Line::from(spans));
                 }
             }
             lines.push(Line::default());
         }
-        let visible = inner.height as usize;
-        let end = lines.len().saturating_sub(self.scroll_back.min(lines.len().saturating_sub(visible)));
+        let visible = body.height as usize;
+        self.drawn_lines = lines.len();
+        self.shown_lines = visible;
+        self.scroll_back = self.scroll_back.min(lines.len().saturating_sub(visible));
+        let end = lines.len() - self.scroll_back;
         let start = end.saturating_sub(visible);
-        frame.render_widget(Clear, rect);
-        frame.render_widget(Paragraph::new(lines[start..end].to_vec()).block(block).style(theme::base()), rect);
-        let hint = if self.running.is_some() { " Ctrl+C stops it " } else { " Esc hides this " };
-        let hint_width = hint.len() as u16;
-        if rect.width > hint_width + 4 {
-            frame.render_widget(Paragraph::new(Span::styled(hint, fg(MUTED))), Rect { x: rect.x + rect.width - hint_width - 2, y: rect.y + rect.height - 1, width: hint_width, height: 1 });
+        frame.render_widget(Paragraph::new(lines[start..end].to_vec()).style(theme::base()), body);
+        // A scrollbar, when there is more than shows.
+        if lines.len() > visible && visible > 2 {
+            let track = Rect { x: rect.x + rect.width - 1, width: 1, ..body };
+            let thumb = ((visible * visible) / lines.len()).max(1);
+            let at = if lines.len() == visible { 0 } else { (start * (visible - thumb)) / (lines.len() - visible) };
+            let bar: Vec<Line> = (0..visible).map(|i| Line::from(Span::styled(if i >= at && i < at + thumb { if ui.unicode { "┃" } else { "#" } } else if ui.unicode { "│" } else { "|" }, fg(if i >= at && i < at + thumb { TEXT2 } else { NAVY })))).collect();
+            frame.render_widget(Paragraph::new(bar), track);
+        }
+        // The foot: where in it you are, and what moves it.
+        let foot = if self.running.is_some() {
+            " Ctrl+C stops it ".to_string()
+        } else if self.scroll_back > 0 {
+            format!(" {} {} newer lines · Ctrl+End to the newest · Esc hides this ", if ui.unicode { "↓" } else { "v" }, self.scroll_back)
+        } else if lines.len() > visible {
+            " Wheel or PgUp/PgDn scrolls · Esc hides this ".to_string()
+        } else {
+            " Esc hides this ".to_string()
+        };
+        let foot_width = widgets::width(&foot) as u16;
+        if rect.width > foot_width + 4 {
+            frame.render_widget(Paragraph::new(Span::styled(foot, fg(if self.scroll_back > 0 { ACCENT } else { MUTED }))), Rect { x: rect.x + rect.width - foot_width - 2, y: rect.y + rect.height - 1, width: foot_width, height: 1 });
         }
     }
 }
@@ -1039,4 +1185,37 @@ fn stats_said(stats: &std::sync::Arc<std::sync::Mutex<Stats>>) -> crate::daemons
             }
         },
     )
+}
+
+#[cfg(test)]
+mod output_tests {
+    use super::*;
+    use crossterm::event::{MouseButton, MouseEventKind};
+
+    #[test]
+    fn the_output_scrolls_and_sizes_from_the_keyboard_and_the_mouse() {
+        let mut shell = Shell::new(true);
+        for n in 0..30 {
+            shell.say(&format!("echo {n}"), vec![(format!("line {n}"), TEXT)], 0);
+        }
+        assert_eq!(shell.output_height(40), 18, "it sizes itself at first");
+        shell.pane = Some(Rect { x: 0, y: 20, width: 100, height: 18 });
+        shell.drawn_lines = 90;
+        shell.shown_lines = 16;
+        shell.resize(4);
+        assert_eq!(shell.output_height(40), 22, "and keeps the size a person gives it");
+        shell.resize(-100);
+        assert_eq!(shell.output_height(40), 5, "never smaller than five rows");
+        // The wheel over it scrolls it, and only so far; elsewhere it is the page's.
+        assert!(shell.mouse(MouseEventKind::ScrollUp, 10, 25, 3, false));
+        assert_eq!(shell.scroll_back, 3);
+        shell.scroll(true, 1000);
+        assert_eq!(shell.scroll_back, 90 - 16);
+        assert!(!shell.mouse(MouseEventKind::ScrollUp, 10, 5, 3, false), "above it, the page scrolls");
+        // Its top edge, dragged up, makes it taller.
+        assert!(shell.mouse(MouseEventKind::Down(MouseButton::Left), 30, 20, 3, false));
+        assert!(shell.mouse(MouseEventKind::Drag(MouseButton::Left), 30, 14, 3, false));
+        assert!(shell.mouse(MouseEventKind::Up(MouseButton::Left), 30, 14, 3, false));
+        assert_eq!(shell.rows, 24);
+    }
 }

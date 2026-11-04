@@ -268,6 +268,68 @@ pub fn check(answer: &str) -> Result<Suggestion, String> {
     Ok(Suggestion { line, warnings })
 }
 
+/// What the launcher says back to something typed in plain words: a line of commands to run, or an answer.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Reply {
+    Command(Suggestion),
+    /// Lines of an answer: the model's words, then what in the graph they come from.
+    Answer(Vec<String>),
+}
+
+/// A question rather than something to do: who, what, where, how, why, or anything that ends in a question mark.
+pub fn is_question(text: &str) -> bool {
+    let first = text.split_whitespace().next().unwrap_or("").to_lowercase();
+    text.trim_end().ends_with('?') || matches!(first.as_str(), "who" | "what" | "where" | "which" | "how" | "why" | "when" | "explain" | "describe" | "does" | "is" | "are" | "can")
+}
+
+/// A question answered from the knowledge graph: in the model's words where there is a model, kept to what the graph
+/// says; otherwise the graph's own matches. Either way, each answer says where in the source it comes from.
+pub fn answer(paths: &Paths, question: &str) -> Result<(Vec<String>, String), String> {
+    let graph = crate::graph::load(paths)?;
+    let found = crate::graph::answer(graph, question, 8);
+    let Ok(model) = resolve(paths) else {
+        let mut lines = vec!["No model, so here is what the knowledge graph has:".to_string()];
+        lines.extend(found);
+        return Ok((lines, "the knowledge graph".into()));
+    };
+    let instructions = "You answer questions about DSTNS, a deterministic traffic simulator, for someone at its launcher. \
+        Use only the facts given. Answer in at most four short sentences of plain words, naming files as path:line. \
+        If the facts do not answer the question, say so, and suggest graph show NAME or graph search WORDS to look further. \
+        Do not invent names, files or numbers.";
+    let prompt = format!("{question}\n\nFacts from DSTNS's knowledge graph:\n{}", graph.facts(question).join("\n"));
+    match ask(&model, instructions, &prompt) {
+        Ok(text) => {
+            let mut lines: Vec<String> = text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+            lines.push(String::new());
+            lines.push("From the knowledge graph:".into());
+            lines.extend(found.into_iter().skip_while(|l| l.starts_with("Read as")).take(6));
+            Ok((lines, model.label()))
+        }
+        Err(problem) => {
+            let mut lines = vec![format!("The model did not answer ({problem}), so here is what the knowledge graph has:")];
+            lines.extend(found);
+            Ok((lines, "the knowledge graph".into()))
+        }
+    }
+}
+
+/// Something typed in plain words: a question is answered, anything else becomes a checked line of commands; a request
+/// no command does is answered from the graph instead, if it can be.
+pub fn respond(paths: &Paths, request: &str) -> Result<(Reply, String), String> {
+    if is_question(request) {
+        if let Ok((lines, by)) = answer(paths, request) {
+            return Ok((Reply::Answer(lines), by));
+        }
+    }
+    match suggest(paths, request) {
+        Ok((suggestion, model)) => Ok((Reply::Command(suggestion), model.label())),
+        Err(why) => match answer(paths, request) {
+            Ok((lines, by)) if why.contains("did not find a command") => Ok((Reply::Answer(lines), by)),
+            _ => Err(why),
+        },
+    }
+}
+
 /// A request in plain words, as a checked line of commands.
 pub fn suggest(paths: &Paths, request: &str) -> Result<(Suggestion, Model), String> {
     let model = resolve(paths)?;

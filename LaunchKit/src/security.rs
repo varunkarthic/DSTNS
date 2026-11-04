@@ -221,6 +221,8 @@ pub fn reads_only(words: &[String]) -> bool {
         "ask" => true,
         "model" => matches!(word(1), "" | "status" | "test"),
         "daemon" | "daemons" => matches!(word(1), "" | "status" | "list" | "show" | "queue"),
+        // Only building it again writes anything.
+        "graph" => word(1) != "update",
         "api" => word(1).eq_ignore_ascii_case("get"),
         _ => false,
     }

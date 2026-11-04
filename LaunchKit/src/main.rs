@@ -16,6 +16,7 @@ mod daemons;
 mod environment;
 mod errors;
 mod fabric;
+mod graph;
 mod inspect;
 mod interface;
 mod log;

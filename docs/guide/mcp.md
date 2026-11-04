@@ -74,6 +74,8 @@ $ ./launcher mcp tools
 | `launcher_config_get` | reads | One setting, or all of them |
 | `launcher_seeds_list`, `launcher_apps_list` | reads | Saved seeds; the application catalogue |
 | `launcher_suggest` | reads | A request in plain words as a line of console commands, from the launcher's own model, checked as the command bar checks it. Nothing is run |
+| `graph_ask` | reads | A question about the code in plain words, answered from the [knowledge graph](operator-cli.md#the-knowledge-graph) with no model: *who calls physics_step*, *what does next_world.cpp import*, *functions in the launcher that save settings*. Each result has its file, line and GitHub link |
+| `graph_show`, `graph_relations`, `graph_path` | reads | One node and everything round it; its callers, callees, dependencies, users or members; the chain between two |
 | `launcher_start` | changes (with `mcp.allow_launcher`) | Start a simulation, with a seed, day type, speed and map |
 | `launcher_stop` | changes (with `mcp.allow_launcher`) | Stop the server and the applications this launcher started |
 | `launcher_config_set` | changes (with `mcp.allow_launcher` and `mcp.allow_writes`) | Change a setting, with the same validation and [rules](operator-cli.md#settings-that-go-together) as `config set` |

@@ -245,6 +245,78 @@ fn request_tool(paths: &Paths, policy: Policy) -> Tool {
     }
 }
 
+/// The knowledge graph, from this checkout: read-only, and so offered whatever else is allowed.
+pub fn graph_tools(paths: &Paths) -> Vec<Tool> {
+    fn node(g: &crate::graph::Graph, i: usize) -> Value {
+        json!({"name": g.label(i), "type": g.sort_of(i), "where": g.where_is(i), "url": g.url(i)})
+    }
+    let graph = |p: &Paths| crate::graph::load(p).map_err(LauncherError::config);
+    let text = |a: &Value, key: &str| a.get(key).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let (p1, p2, p3, p4) = (paths.clone(), paths.clone(), paths.clone(), paths.clone());
+    vec![
+        Tool {
+            name: "graph_ask".into(),
+            description: "Ask DSTNS's knowledge graph in plain words, with no model: \"who calls physics_step\", \"what does next_world.cpp import\", \"what is in SimulationEngine\", \"functions in the launcher that save settings\". Each answer has its file, line and a GitHub link. Ask it before reading source.".into(),
+            schema: json!({"type": "object", "properties": {"question": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 100}}, "required": ["question"]}),
+            read_only: true,
+            handler: Box::new(move |a| {
+                let g = graph(&p1)?;
+                let found = g.ask(&text(&a, "question"), a.get("limit").and_then(|l| l.as_u64()).unwrap_or(20) as usize);
+                Ok(json!({"read_as": found.understood, "found": found.nodes.iter().map(|i| node(g, *i)).collect::<Vec<_>>()}))
+            }),
+        },
+        Tool {
+            name: "graph_show".into(),
+            description: "Everything the knowledge graph knows about one file, class or function: where it is, and what it contains, calls, depends on and is used by.".into(),
+            schema: json!({"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}),
+            read_only: true,
+            handler: Box::new(move |a| {
+                let g = graph(&p2)?;
+                let name = text(&a, "name");
+                let i = g.subject(&name, None).ok_or_else(|| LauncherError::config(format!("Nothing in the graph is called {name}.")))?;
+                let mut out = node(g, i);
+                for (group, direction, key) in [("contains", "out", "contains"), ("contains", "in", "inside"), ("calls", "out", "calls"), ("calls", "in", "called_by"), ("imports", "out", "depends_on"), ("imports", "in", "used_by"), ("references", "out", "refers_to"), ("references", "in", "referred_to_by")] {
+                    let items = g.around(i, group, direction);
+                    if !items.is_empty() {
+                        out[key] = Value::Array(items.iter().take(60).map(|n| node(g, *n)).collect());
+                    }
+                }
+                Ok(out)
+            }),
+        },
+        Tool {
+            name: "graph_relations".into(),
+            description: "What is joined to a name in the knowledge graph by one relation: callers, callees, dependencies (what a file imports), users (what imports it) or members (what it contains).".into(),
+            schema: json!({"type": "object", "properties": {"name": {"type": "string"}, "relation": {"type": "string", "enum": ["callers", "callees", "dependencies", "users", "members"]}}, "required": ["name", "relation"]}),
+            read_only: true,
+            handler: Box::new(move |a| {
+                let g = graph(&p3)?;
+                let (group, direction) = match text(&a, "relation").as_str() {
+                    "callers" => ("calls", "in"),
+                    "callees" => ("calls", "out"),
+                    "dependencies" => ("imports", "out"),
+                    "users" => ("imports", "in"),
+                    _ => ("contains", "out"),
+                };
+                let name = text(&a, "name");
+                let i = g.subject(&name, Some((group, direction))).ok_or_else(|| LauncherError::config(format!("Nothing in the graph is called {name}.")))?;
+                Ok(json!({"of": node(g, i), "relation": text(&a, "relation"), "found": g.around(i, group, direction).iter().map(|n| node(g, *n)).collect::<Vec<_>>()}))
+            }),
+        },
+        Tool {
+            name: "graph_path".into(),
+            description: "The shortest chain of relations between two names in the knowledge graph, such as how SeekFilm reaches SimulationEngine.".into(),
+            schema: json!({"type": "object", "properties": {"from": {"type": "string"}, "to": {"type": "string"}}, "required": ["from", "to"]}),
+            read_only: true,
+            handler: Box::new(move |a| {
+                let g = graph(&p4)?;
+                let (Some(from), Some(to)) = (g.subject(&text(&a, "from"), None), g.subject(&text(&a, "to"), None)) else { return Err(LauncherError::config("One of them is not in the graph.")) };
+                Ok(json!({"from": node(g, from), "to": node(g, to), "steps": g.path(from, to).unwrap_or_default()}))
+            }),
+        },
+    ]
+}
+
 /// The launcher's own: what is running, its settings, and, if allowed, starting and stopping.
 pub fn launcher_tools(paths: &Paths, policy: Policy, session: Arc<Session>) -> Vec<Tool> {
     let p = paths.clone();
@@ -386,6 +458,7 @@ pub struct McpServer {
 impl McpServer {
     pub fn tools(&self) -> Vec<Tool> {
         let mut tools = launcher_tools(&self.paths, self.policy, self.session.clone());
+        tools.extend(graph_tools(&self.paths));
         tools.push(request_tool(&self.paths, self.policy));
         tools.extend(route_tools(&self.paths, self.policy));
         tools
@@ -572,5 +645,19 @@ mod tests {
         let refused = h.handle(&call).unwrap();
         assert_eq!(refused["result"]["isError"], json!(true));
         assert!(refused["result"]["content"][0]["text"].as_str().unwrap().contains("not allowed"));
+    }
+
+    #[test]
+    fn the_graph_answers_from_the_checkout() {
+        let paths = Paths::default();
+        if !paths.root.join(crate::graph::FILE).is_file() {
+            return;
+        }
+        let tools = graph_tools(&paths);
+        assert_eq!(tools.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(), vec!["graph_ask", "graph_show", "graph_relations", "graph_path"]);
+        assert!(tools.iter().all(|t| t.read_only), "the graph only reads");
+        let found = (tools[0].handler)(&json!({"question": "who calls physics_step"})).unwrap();
+        assert!(found["found"].as_array().unwrap().iter().any(|n| n["name"] == "SimulationEngine::step_to()"), "{found}");
+        assert!(found["found"][0]["url"].as_str().unwrap().contains("#L"));
     }
 }

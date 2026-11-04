@@ -297,8 +297,14 @@ rest of the first suggestion dimmed; **Tab** takes it, **↑ ↓** walk the sugg
 you type and the history otherwise (once in the history they stay there until you type),
 **Enter** runs, **Ctrl+C** stops a command that is running, and **Esc** closes. The history
 is kept between sessions, in `logs/command-history`.
-Each command's output comes back in a block of its own under an `OUTPUT` rule, marked
-`✓`, or `✗` with its exit status. The [Console](console.md) page has every command.
+
+Each command's output comes back as a card under the `OUTPUT` rule: the command, then
+`✓ done` or `✗ exit N` and how long it took, then what it printed beside a rail, red if it
+failed. The wheel scrolls it when the pointer is over it, as do **PgUp/PgDn** a page and
+**Shift+↑ ↓** a line; **Ctrl+Home** and **Ctrl+End** go to the oldest and the newest, and a
+scrollbar and the foot say where you are. Its top edge is a handle: drag it, or press
+**Ctrl+↑ ↓**, to make the output taller or shorter, and it keeps that size. The
+[Console](console.md) page has every command.
 
 ### Errors
 
@@ -606,8 +612,22 @@ that leaves, resets, opens a shell, edits or writes files, changes variables or 
 Advanced Security; and a note for anything that starts, stops, deletes or changes a setting.
 A request it cannot turn into commands, such as *delete everything and quit*, gets nothing.
 
-`./launcher ask "…"` prints the line instead, and the MCP Handler offers the same as
-`launcher_suggest`.
+A **question** is answered instead, in a few sentences, from the
+[knowledge graph](#the-knowledge-graph): anything that begins *who*, *what*, *where*, *which*,
+*how* or *why*, or ends in a question mark. The model is given only what the graph says about
+it, and the answer names each file and line it comes from. With no model, the graph's own
+matches are the answer.
+
+```text
+dstns ~ ❯ what calls physics_step?
+  Answered by Apple Foundation Models, on this Mac.
+  SimulationEngine::step_to() at Core/src/engine.cpp:1656 calls physics_step.
+  From the knowledge graph:
+  SimulationEngine::step_to()              function  Core/src/engine.cpp:1656
+```
+
+`./launcher ask "…"` prints the line, or the answer, instead, and the MCP Handler offers the
+same as `launcher_suggest` and `graph_ask`.
 
 | `model.provider` | Uses |
 |---|---|
@@ -619,6 +639,33 @@ A request it cannot turn into commands, such as *delete everything and quit*, ge
 
 `./launcher model` says which is in use, and `model test` asks it something. The news has its
 own setting, [`narration.mode`](#settings-for-every-feature).
+
+## The knowledge graph
+
+`data/graph/dstns-graph.json` is a map of the repository: every file, class, function and
+documentation section, and what contains, calls, imports and refers to what, each with its file
+and line. A workflow rebuilds it after every push, so a clone has it. The documentation draws the
+same graph on its [Graph](../graph.md) page; how it is made is in
+[the knowledge graph](../development/knowledge-graph.md).
+
+`graph` asks it, with no model and no server:
+
+```bash
+./launcher graph who calls stepSpring                       # a question, in plain words
+./launcher graph functions in the launcher that save settings
+./launcher graph show SimulationEngine                       # what it is, where, and all round it
+./launcher graph callers physics_step                        # also callees, deps, users, members
+./launcher graph path SeekFilm SimulationEngine              # how two things connect
+./launcher graph update                                      # build it again (needs graphify)
+```
+
+Words are split as code names are (`seekBy` is *seek* and *by*), and a few of DSTNS's own terms
+widen a search (*rewind* also finds *seek*). *functions*, *classes*, *files* and *docs* say what
+kind of thing is wanted, and *in the launcher*, *in core*, *in the observer*, *in fabric*,
+*in daemons* or *in docs* where. Each answer is the name, its kind and `file:line`; `show` adds
+a link to that line on GitHub. The MCP Handler offers the same as `graph_ask`, `graph_show`,
+`graph_relations` and `graph_path`, which only read, so they are offered whatever else is
+allowed.
 
 ## Simplified Launch Control
 

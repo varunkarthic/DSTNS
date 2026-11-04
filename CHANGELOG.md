@@ -37,6 +37,37 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
 - **Dynamic Fastboot** removes a used world's city, and what was kept beside it, once a world in another city takes
   over.
 
+### The knowledge graph
+
+- **A map of the code**, on the documentation's new **Graph** tab: every file, class, function and documentation
+  section, and what contains, calls, imports and refers to what, laid out as islands of what belongs together. It is
+  built by [graphify](https://github.com/safishamsi/graphify)'s AST extraction (no model, no key) on every
+  documentation build, laid out at build time, and served as one compact file, so it draws at once.
+- **Searched in plain words**, in the page and with no model: code names split, typos forgiven, DSTNS's own terms
+  widened, and questions read as relations (*who calls physics_step*, *what does next_world.cpp import*, *functions in
+  the launcher*), with operators (`in:`, `type:`, `file:`, `community:`, `rel:`) for exact searches.
+- **A side panel** that says what a node is, where it is (with its line, opening it on GitHub), what it contains,
+  calls, depends on and is used by, each row going to that node; and filters by kind, part, folder and connection.
+- **In a clone too**: `data/graph/dstns-graph.json`, which the new **Knowledge graph** workflow rebuilds after every
+  push. `./launcher graph` asks it, the MCP Handler offers it as `graph_ask`, `graph_show`, `graph_relations` and
+  `graph_path`, and a **Claude skill** (`skills/dstns-graph`, and a download on the Graph page) asks it from Claude.
+- **Questions answered in the launcher**: one typed at the prompt, or to `ask`, is answered in a few sentences from what
+  the graph says, by the launcher's model where there is one, each naming the file and line it comes from.
+
+### The command bar's output
+
+- Each command is a card: what ran, `✓ done` or `✗ exit N` and how long it took, and what it printed beside a rail.
+- The wheel scrolls the output when the pointer is over it, as do PgUp/PgDn and Shift+↑ ↓, with a scrollbar and a foot
+  that says where you are; Ctrl+Home and Ctrl+End go to the oldest and newest.
+- Its top edge is a handle: drag it, or press Ctrl+↑ ↓, to size the output, and it keeps that size.
+
+### Fixes
+
+- The container image builds again: its build stage copies the daemons and the alerts they build in.
+- An application that has unregistered, or been unloaded, can no longer change its interface (`409 APP_NOT_ACTIVE`),
+  rather than being told it had.
+- A server without a narrator reports the narrator's status with every field, so the API contract holds on Linux.
+
 ### The launcher, rewritten in Rust
 
 `./launcher` keeps its commands, options, exit codes, words and screens, and is now one Rust program in `LaunchKit/`,

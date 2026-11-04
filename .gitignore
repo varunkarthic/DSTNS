@@ -17,6 +17,7 @@ __pycache__/
 logs/*.json
 logs/command-history
 output/
+graphify-out/
 tmp/
 
 # Operator credentials and saved local configurations

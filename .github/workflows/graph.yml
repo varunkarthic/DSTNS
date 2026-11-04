@@ -1,0 +1,48 @@
+# The knowledge graph kept in the repository (data/graph/dstns-graph.json), so a clone has it for the launcher's
+# graph commands and the MCP Handler. The documentation builds its own on every build; this keeps the copy current.
+name: Knowledge graph
+
+on:
+  push:
+    branches: [main, v3]
+    paths-ignore:
+      - "data/graph/**"
+  workflow_dispatch:
+
+# One at a time per branch; a newer push supersedes an older run.
+concurrency:
+  group: graph-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  graph:
+    name: Rebuild the knowledge graph
+    # Its own commit changes only the graph, which is ignored above; this guards a manual run too.
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+      - name: Install graphify
+        run: pip install "$(grep -E '^graphifyy==' docs/requirements.txt)"
+      - name: Build the graph
+        run: python3 hooks/graph.py data/graph/dstns-graph.json
+      - name: Commit it, if the branch has not moved on
+        run: |
+          if git diff --quiet -- data/graph; then echo "The graph is current."; exit 0; fi
+          git fetch --depth=1 origin "$GITHUB_REF"
+          if [ "$(git rev-parse FETCH_HEAD)" != "$GITHUB_SHA" ]; then echo "The branch has moved on; its own run will update the graph."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/graph/dstns-graph.json
+          git commit -m "Update the knowledge graph for ${GITHUB_SHA::7}"
+          git push origin "HEAD:${GITHUB_REF#refs/heads/}"

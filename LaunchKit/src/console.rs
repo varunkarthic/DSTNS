@@ -40,6 +40,7 @@ pub const BUILTINS: &[(&str, &str, &str)] = &[
     ("ask", "ask REQUEST", "A request in plain words, as a line of commands to run, from the launcher's model; nothing is run"),
     ("model", "model [use PROVIDER [NAME] | key KEY | test]", "The model for plain-word requests: Apple's, Ollama's or Groq's"),
     ("daemon", "daemon [show NAME | on NAME | off NAME | queue emergency|notification]", "The daemons inside the server, and what they have said"),
+    ("graph", "graph [search|show|callers|callees|deps|users|members|path|update] …", "The knowledge graph: where code is, and what calls and depends on what"),
     ("uptime", "uptime", "How long the server has been up, and what it is doing"),
     ("grep", "grep [-i] [-v] [-c] PATTERN", "The lines of its input that match a pattern (a regular expression)"),
     ("wc", "wc [-l]", "Lines, words and characters in its input"),

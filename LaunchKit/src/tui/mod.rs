@@ -692,6 +692,11 @@ pub fn run(context: Context, initial: &str) -> std::io::Result<Outcome> {
                         }
                     }
                     Event::Mouse(mouse) => {
+                        // The output, under the page, first: its wheel scrolls it and its top edge sizes it.
+                        let (lines, natural) = app.scroll;
+                        if app.dialogs.is_empty() && app.help_open.is_none() && app.shell.mouse(mouse.kind, mouse.column, mouse.row, lines as usize, natural) {
+                            continue;
+                        }
                         if app.dialogs.is_empty() && app.help_open.is_none() {
                             let ui = &mut app.ui;
                             let action = match mouse.kind {

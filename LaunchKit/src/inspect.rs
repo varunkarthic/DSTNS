@@ -448,12 +448,67 @@ fn ask_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> {
     if request.trim().is_empty() {
         return Err("ask: say what you want, such as ask show me the api log's errors".into());
     }
-    let (suggestion, model) = crate::assistant::suggest(paths, &request)?;
-    eprintln!("Suggested by {}. Nothing has been run.", model.label());
-    for warning in &suggestion.warnings {
-        eprintln!("Note: {warning}");
+    match crate::assistant::respond(paths, &request)? {
+        (crate::assistant::Reply::Command(suggestion), by) => {
+            eprintln!("Suggested by {by}. Nothing has been run.");
+            for warning in &suggestion.warnings {
+                eprintln!("Note: {warning}");
+            }
+            Ok(vec![suggestion.line])
+        }
+        (crate::assistant::Reply::Answer(lines), by) => {
+            eprintln!("Answered by {by}.");
+            Ok(lines)
+        }
     }
-    Ok(vec![suggestion.line])
+}
+
+/// The knowledge graph: where things are, and how they connect. Read from the checkout; `update` builds it again.
+fn graph_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> {
+    let sub = rest.first().map(String::as_str).unwrap_or("stats");
+    let text = rest.get(1..).unwrap_or(&[]).join(" ");
+    if sub == "update" {
+        let status = std::process::Command::new("python3")
+            .arg(paths.root.join("hooks/graph.py"))
+            .arg(paths.root.join(crate::graph::FILE))
+            .current_dir(&paths.root)
+            .status()
+            .map_err(|e| format!("graph update: python3: {e}"))?;
+        return if status.success() { Ok(vec![format!("Built {}. The next launcher reads it.", crate::graph::FILE)]) } else { Err("graph update: the graph was not built. It needs graphify: pip install graphifyy".into()) };
+    }
+    let g = crate::graph::load(paths)?;
+    let need = |what: &str| if text.trim().is_empty() { Err(format!("graph {sub}: say {what}")) } else { Ok(()) };
+    let relation = |group: &str, direction: &str, name: &str| -> Result<Vec<String>, String> {
+        need("a name")?;
+        let node = g.subject(&text, Some((group, direction))).ok_or_else(|| format!("Nothing in the graph is called {text}."))?;
+        let items = g.around(node, group, direction);
+        let mut out = vec![format!("{name} {} ({}): {}", g.label(node), g.where_is(node), items.len())];
+        out.extend(items.iter().map(|i| format!("  {}", g.describe(*i))));
+        Ok(out)
+    };
+    match sub {
+        "stats" => Ok(vec![format!("{} nodes, {} edges, built from {} at {}", g.count(), g.edge_count(), g.repo, &g.commit[..g.commit.len().min(10)]), format!("From {}. The same graph is on the documentation's Graph page.", crate::graph::FILE)]),
+        "search" | "ask" | "find" => {
+            need("what to look for")?;
+            Ok(crate::graph::answer(g, &text, 25))
+        }
+        "show" => {
+            need("a name")?;
+            g.subject(&text, None).map(|n| g.show(n)).ok_or_else(|| format!("Nothing in the graph is called {text}."))
+        }
+        "callers" => relation("calls", "in", "Callers of"),
+        "callees" => relation("calls", "out", "Called by"),
+        "deps" => relation("imports", "out", "Dependencies of"),
+        "users" => relation("imports", "in", "Users of"),
+        "members" => relation("contains", "out", "Inside"),
+        "path" => {
+            let (a, b) = (rest.get(1).cloned().unwrap_or_default(), rest.get(2..).unwrap_or(&[]).join(" "));
+            let (Some(from), Some(to)) = (g.subject(&a, None), g.subject(&b, None)) else { return Err("graph path FROM TO: one of them is not in the graph".into()) };
+            g.path(from, to).map(|steps| steps.into_iter().map(|s| format!("  {s}")).collect()).ok_or_else(|| "They are not connected.".into())
+        }
+        // Anything else is a question.
+        _ => Ok(crate::graph::answer(g, &rest.join(" "), 25)),
+    }
 }
 
 fn model_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> {
@@ -556,6 +611,7 @@ pub fn run(name: &str, rest: &[String], input: Option<&[String]>, paths: &Paths)
         "ask" => ask_command(rest, paths),
         "model" => model_command(rest, paths),
         "daemon" | "daemons" => daemon_command(rest, paths),
+        "graph" => graph_command(rest, paths),
         "history" => Ok(std::fs::read_to_string(paths.logs().join("command-history")).unwrap_or_default().lines().enumerate().map(|(i, l)| format!("{:>5}  {l}", i + 1)).collect()),
         _ => return None,
     })

@@ -67,9 +67,12 @@ theme:
 
 hooks:
   - hooks/cachebust.py
+  # The Graph page's data: graphify reads the repository and the hook lays it out (docs/development/knowledge-graph.md).
+  - hooks/graph.py
 
 extra_css:
   - assets/extra.css
+  - assets/graph.css
 
 extra:
   social:
@@ -124,6 +127,7 @@ markdown_extensions:
 extra_javascript:
   - assets/search-ui.js
   - assets/site.js
+  - assets/graph.js
   - assets/mathjax.js
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
@@ -278,5 +282,7 @@ nav:
           - Building applications: development/webfabric-apps.md
           - Quality assurance: development/quality-assurance.md
           - Building the documentation: development/documentation.md
+          - The knowledge graph: development/knowledge-graph.md
       - Release notes: changelog.md
       - License: license.md
+  - Graph: graph.md

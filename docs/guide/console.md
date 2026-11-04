@@ -52,6 +52,7 @@ These run in the launcher itself, read its state, and print plain text:
 | `ask REQUEST` | A request in plain words, as a line of commands, from the launcher's model; it is printed, never run. See [Asking in plain words](operator-cli.md#asking-in-plain-words) |
 | `model` | Which model answers those requests, and whether Apple's is here; `model test` tries it |
 | `daemon`, `daemon show NAME`, `daemon queue emergency\|notification` | The [daemons](daemons.md): which run, what one reads, and what they have said |
+| `graph QUESTION`, `graph show\|callers\|callees\|deps\|users\|members NAME`, `graph path A B` | The [knowledge graph](operator-cli.md#the-knowledge-graph): where code is, and what calls and depends on what |
 | `uptime` | How long the server has been up, its state and clock, and its peak memory |
 | `about` | Version, copyright, licence and map-data attribution |
 | `docs [TOPIC]` | Opens the documentation (in a terminal) and prints its address. Topics: `launcher`, `console`, `mcp`, `fastboot`, `api`, `endpoints`, `config`, `apps`, `testing`, `troubleshooting` |
@@ -68,6 +69,7 @@ These change things, with the same checks as everywhere else:
 | `security on`, `security off`, `security verify` | Turn Advanced Security on or off (each asks the system first), or ask now, to try it |
 | `model use auto\|apple\|ollama\|groq\|off [NAME]`, `model key KEY` | Choose the model, and keep a Groq key in `config/launcher.env` |
 | `daemon on NAME`, `daemon off NAME` | Turn one daemon on or off until the server stops |
+| `graph update` | Build the knowledge graph again from the checkout (needs graphify) |
 
 And these filter what is piped to them:
 
@@ -147,8 +149,9 @@ reads `dstns·secure`.
 
 As you type, suggestions appear above the prompt with what each does, and the rest of the
 first is shown dimmed. **Tab** takes it, **↑ ↓** walk the suggestions while typing and
-the history otherwise, **Enter** runs, **Ctrl+C** stops a running command, **PgUp/PgDn**
-scroll the output, **Ctrl+L** clears it, and **Esc** closes. The history is kept between
+the history otherwise, **Enter** runs, **Ctrl+C** stops a running command, the wheel or **PgUp/PgDn** (or
+**Shift+↑ ↓**) scroll the output, **Ctrl+↑ ↓** or dragging its top edge size it,
+**Ctrl+L** clears it, and **Esc** closes. The history is kept between
 sessions in `logs/command-history` (the last 500 lines). A line with an operator in it runs
 as `dstns-launcher -c`, so a long pipeline never holds up the interface, and its output
 streams into its own block:
