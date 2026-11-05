@@ -208,6 +208,24 @@ Entered when Restricted also failed. The observer's GUI is **suspended**:
 Exactly four controls remain: play/pause, reset, terminate, and nothing else.
 The interface resumes on its own after 6 s of sustained health.
 
+### Long jumps
+
+A jump through the day of `kAsbJumpRestrictS` (half an hour) or more, back or forward, from the rail, Time Control
+or the API, is **Restricted** for its own sake, with `restriction` set to `"jump"`:
+
+- It is worked out in slices of about 20 ms, letting go of the engine's lock between them, as the playback loop
+  does. Status, snapshots, the daemons and a pause wait for one slice, never for the whole jump, and the clock can
+  be read moving towards the target. A second jump forward while one is under way sends it on to the new time.
+- While it is worked out, and after it lands, the applied speed is capped. It lands at `kAsbJumpFloor` (0.25×)
+  and the cap doubles every `kAsbJumpDoubleS` (2 s): about 4 s back to 1× and 11 s back to 10×. The operator's
+  requested speed is kept, and can still be changed; it is where the climb ends.
+- `motion_locked` is set for as long, so the map draws stills, and the observer's status reads **Restricted**.
+- Lag reports from the observer are set aside meanwhile: they describe how a burst of a day's state looked, not
+  whether the interface keeps up, so they never push the ladder above.
+- A jump that lands paused has no burst to pace, so its restriction ends where it lands.
+
+The ticks are the same ones in the same order whatever the slices or the speed, so a run's results are unchanged.
+
 ## API
 
 ### `GET /api/v1/system/backpressure`
@@ -257,6 +275,8 @@ Notes on the contract:
 - `rate_cap` and an action's `rate_before`/`rate_after` are `-1` when no ceiling
   is in force. JSON has no infinity, and `-1` is unambiguous against a domain
   that is always positive.
+- `restriction` says why the state is `RESTRICTED`: `"observer"` when the interface fell behind, `"jump"` while a
+  long jump settles (see [long jumps](#long-jumps)), and `""` otherwise.
 - `applied_tick_rate` is what the simulation is running at; `requested_tick_rate`
   is what the operator asked for. They differ exactly while ASB is governing.
 - `throughput` is the measured delivery rate of snapshots, which is what the

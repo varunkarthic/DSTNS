@@ -346,6 +346,8 @@ export interface Backpressure {
   gui_suspended: boolean;
   rate_capped: boolean;
   rate_cap: number;
+  /** Why it is Restricted: "observer" when the interface fell behind, "jump" after a long jump through the day. */
+  restriction?: "" | "observer" | "jump";
   applied_tick_rate: number;
   requested_tick_rate: number;
   stressed_for_s: number;

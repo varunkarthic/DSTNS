@@ -85,6 +85,7 @@ async function copyText(text: string): Promise<boolean> {
 
 const STATUS_LABEL: Record<RuntimeStatus, string> = {
   online: "Online",
+  restricted: "Restricted",
   degraded: "Degraded",
   offline: "Offline",
 };

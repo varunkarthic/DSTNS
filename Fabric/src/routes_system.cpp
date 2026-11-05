@@ -11,6 +11,9 @@
 
 #include <sys/resource.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#endif
 
 #include <array>
 #include <chrono>
@@ -56,21 +59,37 @@ void ApiServer::routes_system() {
     server_->Get("/api/v1/system/status", [this](const auto&, auto& r) { send(r, engine_.status()); });
     // When this server started, for its uptime.
     static const auto started = std::chrono::steady_clock::now();
-    server_->Get("/api/v1/system/info", [this](const auto&, auto& r) {
-        auto env = SumoBridge::detect();
+    // What the process holds now, the most it has held, and the processor time it has used: cheap enough to ask for
+    // every few seconds, for a chart of memory over a run.
+    const auto process = [] {
         rusage usage{};
         ::getrusage(RUSAGE_SELF, &usage);
 #if defined(__APPLE__)
         const auto peak = static_cast<std::uint64_t>(usage.ru_maxrss);
+        std::uint64_t resident = 0;
+        mach_task_basic_info info{};
+        mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+        if (::task_info(::mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&info), &count) == KERN_SUCCESS)
+            resident = info.resident_size;
 #else
         const auto peak = static_cast<std::uint64_t>(usage.ru_maxrss) * 1024;
+        std::uint64_t resident = 0, pages = 0;
+        if (std::ifstream statm("/proc/self/statm"); statm >> pages >> resident) resident *= static_cast<std::uint64_t>(::sysconf(_SC_PAGESIZE));
 #endif
+        return json{{"pid", ::getpid()},
+                    {"uptime_s", std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count()},
+                    {"rss_bytes", resident},
+                    {"peak_rss_bytes", std::max(peak, resident)},
+                    {"cpu_s", usage.ru_utime.tv_sec + usage.ru_stime.tv_sec + (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6}};
+    };
+    server_->Get("/api/v1/system/resources", [process](const auto&, auto& r) {
+        send(r, {{"process", process()}, {"hardware_threads", std::thread::hardware_concurrency()}});
+    });
+    server_->Get("/api/v1/system/info", [this, process](const auto&, auto& r) {
+        auto env = SumoBridge::detect();
         send(r, {
             // The process itself: what a supervisor or the launcher's console shows.
-            {"process", {{"pid", ::getpid()},
-                         {"uptime_s", std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count()},
-                         {"peak_rss_bytes", peak},
-                         {"cpu_s", usage.ru_utime.tv_sec + usage.ru_stime.tv_sec + (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6}}},
+            {"process", process()},
             {"ok", true},
             {"service", "dstns"},
             {"product", "Deterministic Spatiotemporal Transport Network Simulator"},
@@ -106,6 +125,7 @@ void ApiServer::routes_system() {
                 {{"GET","/api/v1","This index, at the API's root"}},
                 {{"GET","/api/v1/system/health","Liveness, with the engine's lifecycle state"}},
                 {{"GET","/api/v1/system/info","Service identity, version, the process (pid, uptime, memory) and SUMO availability"}},
+                {{"GET","/api/v1/system/resources","The process's memory now and at its peak, processor time and uptime"}},
                 {{"GET","/api/v1/system/status","The full run status"}},
                 {{"GET","/api/v1/system/endpoints","This index"}},
                 {{"GET","/api/v1/system/map-status","What map is loaded and where it came from"}},

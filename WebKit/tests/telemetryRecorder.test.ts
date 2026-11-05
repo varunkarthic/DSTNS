@@ -165,6 +165,11 @@ describe("runtimeStatus", () => {
     expect(runtimeStatus({ connected: true, stale: false, error: false, asb: asb({ rate_capped: true }) })).toBe("degraded");
     expect(runtimeStatus({ connected: true, stale: false, error: false, asb: asb({ synced: false }) })).toBe("degraded");
   });
+  it("is Restricted only while a long jump settles, even if the data is late meanwhile", () => {
+    expect(runtimeStatus({ connected: true, stale: true, error: false, asb: asb({ state: "RESTRICTED", restriction: "jump", rate_capped: true }) })).toBe("restricted");
+    expect(runtimeStatus({ connected: true, stale: false, error: false, asb: asb({ state: "RESTRICTED", restriction: "observer" }) })).toBe("degraded");
+    expect(runtimeStatus({ connected: false, stale: false, error: false, asb: asb({ state: "RESTRICTED", restriction: "jump" }) })).toBe("offline");
+  });
   it("is online otherwise", () => {
     expect(runtimeStatus({ connected: true, stale: false, error: false, asb: asb() })).toBe("online");
     expect(runtimeStatus({ connected: true, stale: false, error: false, asb: null })).toBe("online");

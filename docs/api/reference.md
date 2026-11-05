@@ -6,6 +6,7 @@ Version prefix remains `/api/v1`; read views return `{api_version, run_id, seed,
 |---|---|---|
 | GET | `/health`, `/api/v1/system/health` | Liveness/lifecycle |
 | GET | `/api/v1/system/info` | Product and optional SUMO availability |
+| GET | `/api/v1/system/resources` | The process's memory now and at its peak, processor time and uptime |
 | GET | `/api/v1/playback/status` | Lifecycle, clock, day, saved seed ID, map version, modules |
 | POST | `/api/v1/playback/start` | CLI operator credential required; HTTP 202, preparation/download continues in the background and is observed through status/map-status |
 | POST | `/api/v1/playback/pause`, `/play` | Pause/resume active run |

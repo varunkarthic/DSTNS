@@ -238,6 +238,16 @@ AsbStatus AdaptiveBackpressure::status(double now_s) const {
     out.observer_away = away_;
     out.rate_capped = state_ != AsbState::Normal || std::isfinite(cap_);
     out.rate_cap = out.rate_capped ? (state_ == AsbState::Normal ? cap_ : 1.0) : 0.0;
+    out.restriction = state_ == AsbState::Restricted ? "observer" : "";
+    // A jump's restriction shows as Restricted, with reduced motion and its ceiling, but leaves the operator's rate
+    // free to change: it is where the climb ends.
+    if (state_ == AsbState::Normal && (jumping_ || landed_at_ >= 0)) {
+        out.state = AsbState::Restricted;
+        out.restriction = "jump";
+        out.motion_locked = true;
+        out.rate_capped = true;
+        out.rate_cap = jump_cap(now_s);
+    }
     out.stressed_for_s = stressed_since_ < 0 ? 0.0 : now_s - stressed_since_;
     out.state_for_s = now_s - state_entered_;
 
@@ -253,12 +263,45 @@ AsbStatus AdaptiveBackpressure::status(double now_s) const {
 }
 
 double AdaptiveBackpressure::govern_tick_rate(double requested, double now_s) const {
-    (void)now_s;
     // Outside Normal the multiplier is pinned; inside it, ASB only ever lowers
-    // what was asked for, and never below real time.
-    if (state_ != AsbState::Normal) return 1.0;
-    if (!std::isfinite(cap_)) return requested;
-    return std::min(requested, std::max(cap_, 1.0));
+    // what was asked for, and never below real time. A jump's restriction goes
+    // lower than either, for as long as it lasts.
+    const double jump = jump_cap(now_s);
+    if (state_ != AsbState::Normal) return std::min(1.0, jump);
+    if (!std::isfinite(cap_)) return std::min(requested, jump);
+    return std::min({requested, std::max(cap_, 1.0), jump});
+}
+
+double AdaptiveBackpressure::jump_cap(double now_s) const {
+    if (jumping_) return kAsbJumpFloor;
+    if (landed_at_ < 0) return std::numeric_limits<double>::infinity();
+    return kAsbJumpFloor * std::exp2(std::max(0.0, now_s - landed_at_) / kAsbJumpDoubleS);
+}
+
+void AdaptiveBackpressure::begin_jump(double now_s) {
+    if (!jumping_) note("restrict", "long jump", now_s, -1, kAsbJumpFloor);
+    jumping_ = true;
+    landed_at_ = -1;
+}
+
+void AdaptiveBackpressure::land_jump(double now_s, bool playing) {
+    if (!jumping_) return;
+    jumping_ = false;
+    landed_at_ = playing ? now_s : -1;
+    if (!playing) note("release", "jump landed paused", now_s, kAsbJumpFloor, -1);
+}
+
+bool AdaptiveBackpressure::jump_restricted(double requested, double now_s) const {
+    return jumping_ || (landed_at_ >= 0 && jump_cap(now_s) < requested);
+}
+
+bool AdaptiveBackpressure::settle_jump(double requested, double now_s) {
+    if (jump_restricted(requested, now_s)) return true;
+    if (landed_at_ >= 0) {
+        note("release", "jump landed", now_s, kAsbJumpFloor, requested);
+        landed_at_ = -1;
+    }
+    return false;
 }
 
 void AdaptiveBackpressure::reset() {
@@ -276,6 +319,8 @@ void AdaptiveBackpressure::reset() {
     last_observed_ = 0;
     default_state_tried_ = false;
     cap_ = std::numeric_limits<double>::infinity();
+    jumping_ = false;
+    landed_at_ = -1;
     deliveries_.clear();
     actions_.clear();
 }

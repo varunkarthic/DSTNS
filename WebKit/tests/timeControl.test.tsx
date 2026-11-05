@@ -6,7 +6,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TimeFormatProvider } from "../src/preferences";
 import { describeDistance, fromFields, jumpTarget, LONG_PRESS_MS, TimeControl } from "../src/TimeControl";
-import { rollingTime } from "../src/SeekFilm";
+import { aimedTime, rollingTime } from "../src/SeekFilm";
 
 afterEach(() => {
   cleanup();
@@ -85,5 +85,16 @@ describe("a jump's clock", () => {
     expect(later).toBeLessThan(4600);
     expect(rollingTime(1000, 4600, 0.1, true)).toBe(4600);
     expect(rollingTime(4600, 1000, 3, false)).toBeLessThan(1600);
+  });
+
+  it("keeps going with the server past the estimate, never past the landing, and never backwards", () => {
+    const stalled = rollingTime(0, 57600, 30, false);
+    expect(aimedTime(0, 57600, stalled, 57000)).toBe(57000);
+    expect(aimedTime(0, 57600, stalled, 1000)).toBe(stalled);
+    expect(aimedTime(0, 57600, stalled, 60000)).toBe(57600);
+    expect(aimedTime(0, 57600, stalled, undefined)).toBe(stalled);
+    // Backwards: the server's reading before the jump began says nothing about it.
+    expect(aimedTime(50000, 1000, 40000, 52000)).toBe(40000);
+    expect(aimedTime(50000, 1000, 40000, 20000)).toBe(20000);
   });
 });

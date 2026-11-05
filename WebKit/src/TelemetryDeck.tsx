@@ -65,7 +65,7 @@ export function isIncident(item: News) {
   return incidentCategories.has(item.category) || incidentPattern.test(item.message);
 }
 
-const STATUS_TEXT: Record<RuntimeStatus, string> = { online: "Online", degraded: "Degraded", offline: "Offline" };
+const STATUS_TEXT: Record<RuntimeStatus, string> = { online: "Online", restricted: "Restricted", degraded: "Degraded", offline: "Offline" };
 
 export const TABS: { id: TelemetryTab; label: string; icon: IconName }[] = [
   { id: "stack", label: "Stack", icon: "stack" },

@@ -49,6 +49,13 @@ inline constexpr double kAsbCriticalScore = 0.85;    // above this, recovery is 
 inline constexpr double kAsbEscalateAfterS = 3.0;    // stressed for this long -> act
 inline constexpr double kAsbRestrictedHoldS = 5.0;   // minimum time in Restricted
 inline constexpr double kAsbRecoverAfterS = 3.0;     // healthy for this long -> relax
+// A long jump through the day: while it is worked out, and for a little while after it lands, the run is Restricted
+// for its own sake rather than the observer's. The rate starts at kAsbJumpFloor once it lands and doubles every
+// kAsbJumpDoubleS back to what the operator asked for, and motion stays reduced until it is there. A burst of a
+// day's news and state then reaches the observer at a pace it can draw, rather than all at once.
+inline constexpr double kAsbJumpRestrictS = 1800.0;  // a jump at least this far (simulated) is restricted
+inline constexpr double kAsbJumpFloor = 0.25;        // the rate a restricted jump lands at
+inline constexpr double kAsbJumpDoubleS = 2.0;       // the rate doubles this often (wall) until it is back
 
 // Damping.
 //
@@ -109,6 +116,8 @@ struct AsbStatus {
     // rate_capped says whether one is in force; rate_cap is that ceiling.
     bool rate_capped{false};
     double rate_cap{0.0};
+    // Why it is Restricted: "observer" for the ladder above, "jump" for a long jump through the day.
+    std::string restriction;
     double stressed_for_s{};
     double state_for_s{};
     // Observed data rate, so the operator can see what the link is sustaining.
@@ -138,6 +147,15 @@ public:
     // The multiplier the engine should actually apply, given the operator's
     // request and the current state.
     [[nodiscard]] double govern_tick_rate(double requested, double now_s) const;
+
+    // A long jump begins: Restricted, at the floor, until it lands.
+    void begin_jump(double now_s);
+    // It has landed: the rate climbs back from the floor if the run plays on. One that lands paused has no burst to
+    // pace, so its restriction ends there.
+    void land_jump(double now_s, bool playing);
+    // Once the rate is back to what was asked for, the jump's restriction ends. Returns whether it is still in force.
+    bool settle_jump(double requested, double now_s);
+    [[nodiscard]] bool jump_restricted(double requested, double now_s) const;
 
     [[nodiscard]] AsbState state() const { return state_; }
     [[nodiscard]] double score() const { return score_; }
@@ -172,6 +190,10 @@ private:
     // The ceiling ASB imposes. Infinity means "no limit": a healthy system must
     // run at exactly the multiplier the operator asked for.
     double cap_{std::numeric_limits<double>::infinity()};
+    // A long jump: under way, or landed at this time and climbing back. Negative when there is none.
+    bool jumping_{false};
+    double landed_at_{-1};
+    [[nodiscard]] double jump_cap(double now_s) const;
 
     struct Delivery { double at; std::size_t bytes; };
     std::deque<Delivery> deliveries_;

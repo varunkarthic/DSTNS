@@ -12,7 +12,8 @@ export const RECOVER_AFTER_MS = 10000;
 /** How long `next` must hold before replacing `shown`. Losing the server is shown at once. */
 export function holdFor(shown: RuntimeStatus, next: RuntimeStatus): number {
   // Coming up from nothing is not a recovery to be doubted.
-  if (next === shown || next === "offline" || shown === "offline") return 0;
+  // Restricted is the server's own decision, so it is believed at once, and so is its end.
+  if (next === shown || next === "offline" || shown === "offline" || next === "restricted" || shown === "restricted") return 0;
   return next === "degraded" ? DEGRADE_AFTER_MS : RECOVER_AFTER_MS;
 }
 

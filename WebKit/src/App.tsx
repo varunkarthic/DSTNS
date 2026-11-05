@@ -322,6 +322,8 @@ export default function App() {
   const suspended = asb?.gui_suspended === true;
   const rateLocked = asb?.rate_locked === true;
   const motionLocked = asb?.motion_locked === true;
+  // A long jump has just landed: the speed climbs back from a quarter, with motion reduced, on purpose.
+  const jumpRestricted = asb?.state === "RESTRICTED" && asb.restriction === "jump";
   // Falling behind costs the map its animation. The interface around it stays as it was.
   const reduceMotion = motionChoice;
   const mapStill = motionChoice || motionLocked;
@@ -383,10 +385,11 @@ export default function App() {
     : [
         catchingUp && ("returned" as const),
         suspended && ("async" as const),
-        asb?.state === "RESTRICTED" && ("restricted" as const),
+        jumpRestricted && ("jump" as const),
+        asb?.state === "RESTRICTED" && !jumpRestricted && ("restricted" as const),
         rateLocked && ("rate-locked" as const),
-        !rateLocked && !!asb && Math.abs(requestedRate - appliedRate) > 1e-6 && ("rate-governed" as const),
-        motionLocked && !motionChoice && ("motion-locked" as const),
+        !rateLocked && !jumpRestricted && !!asb && Math.abs(requestedRate - appliedRate) > 1e-6 && ("rate-governed" as const),
+        motionLocked && !motionChoice && !jumpRestricted && ("motion-locked" as const),
         lifecycle === "RUNNING" && appliedRate > 5 && ("large-steps" as const),
         reducedDetail && ("reduced-detail" as const),
         fabricApps.some((app) => app.state === "suspended" && !app.user_suspended) && ("app-lapsed" as const),
@@ -458,6 +461,38 @@ export default function App() {
     // Sampled once per delivered snapshot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sim.snapshot]);
+  // The server's memory and this page's, every few seconds while a run is open, for the report's resources chart.
+  const virtualRef = useRef(virtual);
+  virtualRef.current = virtual;
+  useEffect(() => {
+    if (!runId) return;
+    let stopped = false;
+    const read = () => {
+      api
+        .resources()
+        .then(({ process }) => {
+          if (stopped || recorder.current.runId !== runId) return;
+          const heap = (performance as Performance & { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+          recorder.current.resource({
+            virtual_s: virtualRef.current,
+            rss_bytes: process.rss_bytes,
+            peak_rss_bytes: process.peak_rss_bytes,
+            cpu_s: process.cpu_s,
+            heap_bytes: heap ? heap.usedJSHeapSize : null,
+            heap_limit_bytes: heap ? heap.jsHeapSizeLimit : null,
+          });
+        })
+        .catch(() => {
+          /* An older core without the route, or a moment without the server: the chart says what it has. */
+        });
+    };
+    read();
+    const timer = setInterval(read, 5000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [runId]);
   const logControl = useCallback(
     (action: string, detail = "") => recorder.current.control(action, detail, virtual),
     [virtual],
@@ -794,6 +829,10 @@ export default function App() {
         setReportError("");
         if (!sim.status || !sim.snapshot || !sim.topology) throw new Error("The report needs a loaded simulation.");
         try {
+          // The film takes the city from the map as it is on screen, so the whole of it is brought into view first,
+          // and the camera is given time to arrive.
+          mapControls.current?.fit();
+          await new Promise((settled) => setTimeout(settled, reduceMotion ? 60 : 1100));
           setReportFilm({ label: "Gathering the run", share: 0, ready: false });
           excuseBackpressure(12000);
           const [{ exportReport }, fullNews] = await Promise.all([
@@ -824,7 +863,7 @@ export default function App() {
           throw new Error(`Report generation failed. ${message}`);
         }
       }),
-    [action, sim.status, sim.snapshot, sim.topology, sim.news, history, asb, hour12, shownLayers, logControl],
+    [action, sim.status, sim.snapshot, sim.topology, sim.news, history, asb, hour12, shownLayers, logControl, reduceMotion],
   );
 
   const setMotion = (next: boolean) => {
@@ -1282,7 +1321,7 @@ export default function App() {
               onMapPick={fabric.deliverPick}
             />
             {webfabricOn && <FabricOverlay ref={overlay} topology={sim.topology} snapshot={sim.snapshot?.data ?? null} />}
-            <SeekFilm seek={seeking} reduceMotion={reduceMotion} />
+            <SeekFilm seek={seeking} reduceMotion={reduceMotion} reached={lifecycle === "SEEKING" ? sim.status?.clock.virtual_day_seconds : undefined} />
           </div>
 
           {interactive && webfabricOn && (

@@ -217,6 +217,12 @@ Errors: `409` if the run can't play from where it is.
 
 Jumps to a moment of the day, forward or back, by replaying from a checkpoint. Results are the same as having got there by playing.
 
+The answer comes once the jump has landed, but the server keeps answering everything else while it is worked out:
+`status` reads `SEEKING` with the clock moving towards the target. Another jump forward sent meanwhile sends the one
+under way on to the new time and answers at once with `"redirected": true`; a step, or a jump backward, is refused
+with `409` until it lands. A pause, a reset or a new world meanwhile stops the jump where it is, and it answers
+`409`. A jump of half an hour or more lands [Restricted](../concepts/backpressure.md#long-jumps).
+
 **Who:** The observer or the operator.
 
 Body:
@@ -1267,11 +1273,35 @@ Response `200`, from a real run:
 }
 ```
 
+### `GET /api/v1/system/resources`
+
+The server process's memory and processor time, and nothing else, so it is cheap to ask for often: the observer
+asks every few seconds and charts it in the report. `rss_bytes` is the memory held now, `peak_rss_bytes` the most
+held since the server started, `cpu_s` the processor time used and `hardware_threads` how many the machine has.
+
+**Who:** Anyone who can reach the port.
+
+Response `200`:
+
+```json
+{
+  "hardware_threads": 10,
+  "ok": true,
+  "process": {
+    "cpu_s": 12.4,
+    "peak_rss_bytes": 286261248,
+    "pid": 48211,
+    "rss_bytes": 272629760,
+    "uptime_s": 95.2
+  }
+}
+```
+
 ### `GET /api/v1/system/info`
 
 Version, build, the server process, and whether SUMO is available. `process` is the server
-itself: `pid`, `uptime_s`, `peak_rss_bytes` (the most memory it has held) and `cpu_s`
-(processor time used). The launcher's dashboard, `ps`, `uptime` and the prompt's live
+itself: `pid`, `uptime_s`, `rss_bytes` (the memory it holds now), `peak_rss_bytes` (the most
+it has held) and `cpu_s` (processor time used). The launcher's dashboard, `ps`, `uptime` and the prompt's live
 readings come from it.
 
 **Who:** Anyone who can reach the port.
@@ -1295,6 +1325,7 @@ Response `200`, from a real run:
     "cpu_s": 41.73,
     "peak_rss_bytes": 224395264,
     "pid": 48211,
+    "rss_bytes": 201457664,
     "uptime_s": 751.4
   },
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
@@ -1404,6 +1435,7 @@ Response `200`, from a real run:
   "rate_locked": false,
   "raw_score": 0.0,
   "requested_tick_rate": 1.0,
+  "restriction": "",
   "score": 0.0,
   "state": "NORMAL",
   "state_for_s": 10.058781291,

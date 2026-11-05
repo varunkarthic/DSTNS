@@ -68,3 +68,16 @@ it("asks only now and then while hidden, and at once on return, without a second
   await new Promise(r=>setTimeout(r,1300));
   expect(sn.mock.calls.length).toBe(asked+2);
 }, 8000);
+it("lets go of the old run's news the moment a new run is announced, before its map arrives", async () => {
+  const st=vi.spyOn(api,"status").mockResolvedValue(status("old","RUNNING"));
+  const sn=vi.spyOn(api,"snapshot").mockResolvedValue(snapshot("old"));
+  const tp=vi.spyOn(api,"topology").mockResolvedValue(topology("old"));
+  const item = { news_id: 7, event_id: 7, virtual_day_s: 60, category: "demand", severity: "info", template_id: "DEMAND_CHANGED", message: "Demand rising", data: {} };
+  vi.spyOn(api,"news").mockResolvedValue(envelope("old",{items:[item]}) as never);
+  const {result}=renderHook(()=>useSimulation());
+  await waitFor(()=>expect(result.current.news.length).toBe(1), {timeout:2500});
+  tp.mockImplementation(()=>new Promise(()=>{}));
+  st.mockResolvedValue(status("new","RUNNING")); sn.mockResolvedValue(snapshot("new"));
+  await waitFor(()=>expect(result.current.status?.run_id).toBe("new"), {timeout:2500});
+  expect(result.current.news).toEqual([]); expect(result.current.toasts).toEqual([]);
+});

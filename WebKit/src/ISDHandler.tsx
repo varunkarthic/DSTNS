@@ -17,7 +17,7 @@ import type { UiNotification } from "./notificationModel";
  * time on screen is up, and it stays in the notification history.
  */
 
-export type ISDCondition = "returned" | "async" | "restricted" | "rate-locked" | "rate-governed" | "motion-locked" | "reduced-detail" | "large-steps" | "app-lapsed";
+export type ISDCondition = "returned" | "async" | "jump" | "restricted" | "rate-locked" | "rate-governed" | "motion-locked" | "reduced-detail" | "large-steps" | "app-lapsed";
 
 export interface ISDNote {
   title: string;
@@ -45,6 +45,12 @@ export function isdNote(condition: ISDCondition, figures: ISDFigures): ISDNote {
         title: "Catching up after being away",
         why: "This tab was in the background, so the interface stopped drawing while the simulation carried on. Nothing was lost, and this is not counted against it.",
         next: ["No action is needed. It is back in step within a few seconds."],
+      };
+    case "jump":
+      return {
+        title: "Restricted while a long jump settles",
+        why: `A long jump through the day arrives as a burst of the day's state at once. The speed starts at ${rate(0.25)} and climbs back to ${rate(figures.requested)}, with map animation reduced, so the interface takes it at a pace it can draw. The results of the run are not affected.`,
+        next: ["No action is needed. Full speed and motion return on their own in a few seconds."],
       };
     case "restricted":
       return {

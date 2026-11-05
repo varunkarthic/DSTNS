@@ -1243,6 +1243,9 @@
 .strip-status.runtime-online {
   color: var(--ok);
 }
+.strip-status.runtime-restricted {
+  color: var(--accent);
+}
 .strip-status.runtime-degraded {
   color: var(--amber);
 }

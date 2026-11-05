@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import type { jsPDF } from "jspdf";
+import { drawIllustration, type Illustration } from "./reportIllustrations";
 
 /**
  * A small flowing-layout engine over jsPDF.
@@ -225,7 +226,7 @@ export class ReportDocument {
    * current one remains, so a section never opens at the foot of a page and
    * short sections do not leave pages mostly empty.
    */
-  sectionHeading(title: string, intro?: string, forceNewPage = false) {
+  sectionHeading(title: string, intro?: string, forceNewPage = false, illustration?: Illustration) {
     this.flush();
     if (forceNewPage || this.page === 0) this.newPage();
     this.section += 1;
@@ -241,6 +242,8 @@ export class ReportDocument {
           this.y += 8;
         }
         this.outline.push({ title, page: this.page, number });
+        // A still drawing of what the section is about, at the right of its title.
+        if (illustration) drawIllustration(this.pdf, illustration, this.W - this.M - 38, this.y - 4.5, 38, 22);
         this.line(`SECTION ${number}`, this.M, this.y, 7.5, PRINT.accent);
         this.y += 5;
         this.line(title, this.M, this.y, 18, PRINT.ink);

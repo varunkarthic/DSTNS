@@ -75,7 +75,33 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   that says where you are; Ctrl+Home and Ctrl+End go to the oldest and newest.
 - Its top edge is a handle: drag it, or press Ctrl+↑ ↓, to size the output, and it keeps that size.
 
+### Long jumps that keep answering
+
+- **A long jump through the day no longer freezes the run.** It is worked out in slices that let go of the engine
+  between them, as playback does, so status, snapshots and the daemons keep being answered: a jump to 16:00 that
+  left status unanswered for 13 s now answers it within 75 ms. A jump forward sent while one is under way sends it on.
+- **Restricted**, a new runtime status: a jump of half an hour or more lands at 0.25× and doubles back to the chosen
+  speed every two seconds, with map motion reduced, so a day's burst of state reaches the interface at a pace it can
+  draw. `GET /api/v1/system/backpressure` says why in `restriction`.
+- **The jump's clock follows the server** while it is worked out, easing towards how far it has really got, so it
+  never stops short of the target and waits. A jump's request no longer gives up after 15 s.
+
+### The report
+
+- **System Resources**, a new section: the server's memory over the observation and the interface's heap, processor
+  use, the change over the observation, and the system's parameters. `GET /api/v1/system/resources` reads the
+  server's memory cheaply; `/api/v1/system/info` reports `rss_bytes` beside the peak.
+- **Restricted, degraded and offline periods** say why each happened, and **Jumps through the day** lists every
+  jump and whether the run was Restricted after it.
+- Each section opens with a still line drawing of what it covers.
+- Before the export film, the map is brought to show the whole network, so the cover is made from all of it.
+
 ### Fixes
+
+- A new world starts with an empty notification tray: the last run's news was briefly read as the new one's
+  backlog, and kept as "Before this session".
+- The expanded notification has no close button, which did nothing; it closes with its head. An error keeps its own.
+- An empty Incidents or Notifications view fills the panel, with its drawing in the middle.
 
 - A WebFabric panel opened before its application may show it, such as a frame waiting for its grant, stays open
   and appears once allowed, rather than closing at the next update from any other application.

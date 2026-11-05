@@ -166,7 +166,8 @@ private:
     void check_playback_guard(const nlohmann::json& guard) const;
     std::uint64_t playback_revision_{}; // Never reset: distinguishes same-seed restarts.
     void loop(); void transition(Lifecycle next); void step_to(std::uint32_t target); void physics_step(std::uint32_t dt); void capture_checkpoint();
-    void restore_to(std::uint32_t target); void anchor_wall_clock(); void catch_up_to_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
+    void restore_to(std::uint32_t target);
+    void rewind_to_checkpoint(std::uint32_t target); void anchor_wall_clock(); void catch_up_to_wall_clock(); void add_news(std::uint64_t event_id,std::string category,std::string severity,std::string id,std::string message,nlohmann::json data={});
     void prefetch_narrations();
     [[nodiscard]] nlohmann::json news_json(const NewsItem& item,const char* time_key,bool realistic=false) const;
     [[nodiscard]] nlohmann::json clock_json() const; [[nodiscard]] nlohmann::json envelope(nlohmann::json data) const;
@@ -200,6 +201,9 @@ private:
     EventRuntime events_;
     mutable AdaptiveBackpressure asb_;
     double requested_tick_rate_{1.0};
+    // A jump under way: where it is going, and whether the run plays on once it is there.
+    std::optional<std::uint32_t> seek_target_;
+    bool seek_resume_{false};
     std::chrono::steady_clock::time_point asb_epoch_{std::chrono::steady_clock::now()};
     CongestionTracker congestion_;
     std::vector<const SignalPlan*> signal_by_node_;

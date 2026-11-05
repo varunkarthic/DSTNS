@@ -84,6 +84,7 @@ function telemetry(runs: number) {
     const state = i > 200 && i < 240 ? "RESTRICTED" : i >= 240 && i < 250 ? "ASYNC" : "NORMAL";
     r.sample({ ...sampleFrom({ snapshot: snapshot(topo, 60), virtual_s: i * 120, lifecycle: i === 100 ? "PAUSED" : "RUNNING", tick_rate: state === "NORMAL" ? 2 : 1, asb: asb(state === "NORMAL" ? 0.1 : 0.8, state), latency_ms: 20 + (i % 13), status: state === "NORMAL" ? "online" : "degraded" }), wall_ms: wall });
     if (i % 50 === 0) r.control("speed", "2x", i * 120);
+    if (i % 5 === 0) r.resource({ virtual_s: i * 120, rss_bytes: (180 + i * 0.2) * 1048576, peak_rss_bytes: (190 + i * 0.2) * 1048576, cpu_s: i * 0.4, heap_bytes: (60 + (i % 40)) * 1048576, heap_limit_bytes: 4096 * 1048576 });
   }
   return r.export();
 }
@@ -168,6 +169,7 @@ describe("report generation", () => {
       "Incident Analysis",
       "Simulation Event Timeline",
       "Performance and Telemetry",
+      "System Resources",
       "Determinism and Integrity",
       "Methodology and Definitions",
     ]);

@@ -174,7 +174,8 @@ export function NotificationCapsule(
                     {focused && <em className="capsule-following">Following</em>}
                     {current.source === "realistic" && <em className="capsule-realistic" title="Written on this device by Apple's Foundation Model">{REALISTIC_NEWS}</em>}
                   </span>
-                  {(!urgent || onDismissError) && <button type="button" className="capsule-icon-btn" aria-label={urgent ? "Dismiss error" : "Dismiss notification"} onClick={() => urgent ? onDismissError?.() : onDismiss(current)}>
+                  {/* A notification leaves on its own and closes with its head; only an error, which would stay, can be dismissed. */}
+                  {urgent && onDismissError && <button type="button" className="capsule-icon-btn" aria-label="Dismiss error" onClick={() => onDismissError()}>
                     <Icon name="close" size={14} />
                   </button>}
                 </div>

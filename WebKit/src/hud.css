@@ -542,6 +542,10 @@
   will-change: transform, opacity;
   animation: status-pulse 2.4s ease-out infinite;
 }
+.runtime-restricted {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
 .runtime-degraded {
   color: var(--amber);
   background: rgb(var(--warn-rgb) / 10%);

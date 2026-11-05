@@ -67,6 +67,11 @@ export function useSimulation(dwellMs = 7000, realistic = false) {
         if (run !== st.run_id || st.data.lifecycle === "PREPARING") {
           setTopology(null);
           setSnapshot(null);
+          // The news goes with the run that made it, at once: the new run is announced with this status, and what
+          // reads the news by run (the notification history, the capsule) must not take the old run's for its own.
+          setNews([]);
+          setToasts([]);
+          receivedAt.current.clear();
           // A same-seed preparation still needs a fresh topology afterwards.
           if (st.data.lifecycle === "PREPARING") run = "";
         }

@@ -1261,14 +1261,33 @@ paths:
         4XX:
           $ref: '#/components/responses/Error'
       security: []
+  /api/v1/system/resources:
+    get:
+      tags:
+      - System
+      operationId: systemResources
+      summary: The server process's memory now and at its peak, processor time and uptime
+      description: '`process.rss_bytes` is the memory held now and `process.peak_rss_bytes` the most held since the
+        server started; cheap enough to poll, and charted in the report.'
+      responses:
+        '200':
+          description: The process's resources.
+          content:
+            application/json:
+              schema:
+                type: object
+        4XX:
+          $ref: '#/components/responses/Error'
+      security: []
   /api/v1/system/info:
     get:
       tags:
       - System
       operationId: systemInfo
       summary: Version, build, the server process and SUMO availability
-      description: '`process` is the server itself: `pid`, `uptime_s`, `peak_rss_bytes` (the most memory it has held)
-        and `cpu_s` (processor time used), for a supervisor or the launcher''s dashboard.'
+      description: '`process` is the server itself: `pid`, `uptime_s`, `rss_bytes` (the memory it holds now),
+        `peak_rss_bytes` (the most it has held) and `cpu_s` (processor time used), for a supervisor or the launcher''s
+        dashboard.'
       responses:
         '200': *id002
         4XX:

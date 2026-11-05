@@ -237,12 +237,13 @@ the control is then disabled.
 
 ## Runtime status
 
-The rail shows **Online**, **Degraded** or **Offline** instead of a raw update
+The rail shows **Online**, **Restricted**, **Degraded** or **Offline** instead of a raw update
 rate (`runtimeStatus()` in `src/telemetryRecorder.ts`):
 
 | Status | Condition |
 |---|---|
 | Online | Data is current and backpressure is not intervening |
+| Restricted | A jump of half an hour or more through the day is being worked out, or has just landed: the speed is held low and map motion reduced, on purpose, until it is back to the request. See [long jumps](../concepts/backpressure.md#long-jumps) |
 | Degraded | Data is stale, or backpressure is Restricted or Async, is holding the speed below the request, or reports the interface out of sync |
 | Offline | The core cannot be reached or returned an error |
 

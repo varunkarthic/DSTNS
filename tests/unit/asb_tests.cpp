@@ -314,6 +314,28 @@ int main() {
         check(asb.state() != AsbState::Normal, "a real failure after returning is still acted on");
     }
 
+    {
+        // A long jump: Restricted at the floor while it is worked out, then the rate doubles back to the request.
+        AdaptiveBackpressure asb;
+        asb.begin_jump(10.0);
+        check(asb.status(10.0).state == AsbState::Restricted && asb.status(10.0).restriction == "jump", "a long jump is Restricted, and says why");
+        check(asb.status(10.0).motion_locked && !asb.status(10.0).rate_locked, "with reduced motion, and the operator's rate left free");
+        check(asb.govern_tick_rate(10.0, 30.0) == kAsbJumpFloor, "the floor holds for as long as the jump is worked out");
+        asb.land_jump(30.0, true);
+        check(asb.govern_tick_rate(10.0, 30.0) == kAsbJumpFloor, "it lands at the floor");
+        check(asb.govern_tick_rate(10.0, 30.0 + kAsbJumpDoubleS) == 2 * kAsbJumpFloor, "and doubles every few seconds");
+        check(asb.govern_tick_rate(0.5, 40.0) == 0.5, "never above what was asked for");
+        check(asb.settle_jump(10.0, 31.0), "still restricted on the way back");
+        const double back = 30.0 + kAsbJumpDoubleS * std::log2(10.0 / kAsbJumpFloor) + 0.01;
+        check(!asb.settle_jump(10.0, back) && asb.status(back).state == AsbState::Normal, "and Normal once it is back");
+        check(asb.govern_tick_rate(10.0, back + 1) == 10.0, "with the rate as asked for");
+
+        AdaptiveBackpressure paused;
+        paused.begin_jump(0.0);
+        paused.land_jump(1.0, false);
+        check(paused.status(1.0).state == AsbState::Normal && paused.govern_tick_rate(2.0, 1.0) == 2.0, "a jump that lands paused is not restricted after it");
+    }
+
     if (failures) {
         std::cerr << failures << " ASB assertion(s) failed\n";
         return 1;

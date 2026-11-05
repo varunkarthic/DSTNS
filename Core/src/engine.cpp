@@ -826,17 +826,61 @@ nlohmann::json SimulationEngine::reset() {
 }
 
 nlohmann::json SimulationEngine::seek(std::uint32_t target, bool resume) {
-    std::lock_guard lock(mutex_);
+    std::unique_lock lock(mutex_);
     if (!graph_ || target > day_s) throw std::invalid_argument("target time outside virtual day");
     if (lifecycle_ == Lifecycle::Terminating || lifecycle_ == Lifecycle::Preparing)
         throw std::logic_error("simulation cannot seek from current lifecycle");
+    // A jump already under way is sent on to the new time rather than queued
+    // behind it. It only runs forward, so a new time behind it waits its turn.
+    if (lifecycle_ == Lifecycle::Seeking && seek_target_ && target >= virtual_s_) {
+        seek_target_ = target;
+        seek_resume_ = seek_resume_ || resume;
+        return {
+            {"target_time", hhmmss(target)},
+            {"simulated_seconds", virtual_s_},
+            {"lifecycle", to_string(lifecycle_)},
+            {"redirected", true},
+            {"state_revision", graph_->state_revision()}
+        };
+    }
+    if (lifecycle_ == Lifecycle::Seeking) throw std::logic_error("a jump is under way");
     const auto was_running = lifecycle_ == Lifecycle::Running;
+    const auto from = virtual_s_;
+    const auto far = (target > from ? target - from : from - target) >= kAsbJumpRestrictS;
     transition(Lifecycle::Seeking);
-    if (target >= virtual_s_) step_to(target);
-    else restore_to(target);
+    if (far) asb_.begin_jump(asb_now());
+    seek_target_ = target;
+    seek_resume_ = resume || was_running;
+    if (target < virtual_s_) rewind_to_checkpoint(target);
+    // Forward in slices of about 20 ms, letting go of the lock between them,
+    // as the loop does: a status, a snapshot or a pause waits for one slice,
+    // not for the whole jump, and the clock can be read as it goes. The ticks
+    // are the same ones in the same order, so the run is unchanged.
+    while (graph_ && lifecycle_ == Lifecycle::Seeking && !terminate_requested_ && virtual_s_ < *seek_target_) {
+        const auto slice_end = std::chrono::steady_clock::now() + std::chrono::milliseconds(20);
+        do step_to(virtual_s_ + 1);
+        while (virtual_s_ < *seek_target_ && std::chrono::steady_clock::now() < slice_end);
+        if (virtual_s_ < *seek_target_) {
+            lock.unlock();
+            std::this_thread::yield();
+            lock.lock();
+        }
+    }
+    target = seek_target_.value_or(target);
+    const auto resume_after = seek_resume_;
+    seek_target_.reset();
+    if (far) asb_.land_jump(asb_now(), resume_after && lifecycle_ == Lifecycle::Seeking && virtual_s_ < day_s);
+    // Something else took over while the lock was let go: a pause, a reset,
+    // a new world or the end. It stands where it left the run.
+    if (!graph_ || lifecycle_ != Lifecycle::Seeking)
+        throw std::logic_error("the jump was interrupted");
+    if (far) {
+        tick_rate_ = asb_.govern_tick_rate(requested_tick_rate_, asb_now());
+        ++config_revision_;
+    }
     // The end of the day is the end of the run, however it was reached.
     if (virtual_s_ >= day_s) transition(Lifecycle::Completed);
-    else transition((resume || was_running) ? Lifecycle::Running : Lifecycle::Paused);
+    else transition(resume_after ? Lifecycle::Running : Lifecycle::Paused);
     anchor_wall_clock();
     cv_.notify_all();
     return {
@@ -853,6 +897,7 @@ nlohmann::json SimulationEngine::step(std::uint32_t seconds) {
     if (seconds == 0 || seconds > 3600) throw std::invalid_argument("step seconds must be in [1, 3600]");
     if (lifecycle_ == Lifecycle::Terminating || lifecycle_ == Lifecycle::Preparing)
         throw std::logic_error("simulation cannot step from current lifecycle");
+    if (lifecycle_ == Lifecycle::Seeking) throw std::logic_error("a jump is under way");
     if (virtual_s_ >= day_s) throw std::logic_error("simulation has reached the end of the virtual day");
     const auto from = virtual_s_;
     transition(Lifecycle::Seeking);
@@ -1212,6 +1257,10 @@ nlohmann::json SimulationEngine::report_backpressure(double virtual_lag_s, doubl
         asb_.reset();
         return backpressure_json();
     }
+    // A long jump, and the climb back after it, are restricted for their own
+    // sake: what the observer reports meanwhile says how a burst of a day
+    // looked, not whether it keeps up, so it is not held against it.
+    if (lifecycle_ == Lifecycle::Seeking || asb_.jump_restricted(requested_tick_rate_, now)) return backpressure_json();
     asb_.set_away(away, now);
     asb_.observe({virtual_lag_s, client_frame_s, since_poll_s, requested_tick_rate_}, now);
     // Apply whatever ASB now permits, without losing the operator's request.
@@ -1253,6 +1302,7 @@ nlohmann::json SimulationEngine::backpressure_json() const {
         {"observer_away", s.observer_away},
         {"rate_capped", s.rate_capped},
         {"rate_cap", std::isfinite(s.rate_cap) ? s.rate_cap : -1.0},
+        {"restriction", s.restriction},
         {"applied_tick_rate", tick_rate_},
         {"requested_tick_rate", requested_tick_rate_},
         {"stressed_for_s", s.stressed_for_s},
@@ -1682,6 +1732,11 @@ void SimulationEngine::capture_checkpoint() {
 }
 
 void SimulationEngine::restore_to(std::uint32_t target) {
+    rewind_to_checkpoint(target);
+    step_to(target);
+}
+
+void SimulationEngine::rewind_to_checkpoint(std::uint32_t target) {
     auto it = std::upper_bound(checkpoints_.begin(), checkpoints_.end(), target, [](auto t, const Checkpoint& c) {
         return t < c.virtual_s;
     });
@@ -1710,7 +1765,6 @@ void SimulationEngine::restore_to(std::uint32_t target) {
         es.manual_capacity_multiplier = manual[i].capacity;
         es.manual_closed = manual[i].closed;
     }
-    step_to(target);
 }
 
 void SimulationEngine::loop() {
@@ -1723,6 +1777,18 @@ void SimulationEngine::loop() {
         // The observer went away while the world was waiting for it.
         if (observer_hold_ && !observer_watching()) release_observer_hold();
 
+        // After a long jump the rate climbs back from the floor on its own,
+        // not only when the observer next reports.
+        if (lifecycle_ == Lifecycle::Running) {
+            const auto still = asb_.settle_jump(requested_tick_rate_, asb_now());
+            const auto governed = asb_.govern_tick_rate(requested_tick_rate_, asb_now());
+            if (governed != tick_rate_ && (still || governed > tick_rate_)) {
+                catch_up_to_wall_clock();
+                tick_rate_ = governed;
+                ++config_revision_;
+                anchor_wall_clock();
+            }
+        }
         if (lifecycle_ == Lifecycle::Running) {
             const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - anchor_wall_).count();
             const auto rate = day_s / double(graph_->scenario().config.playback_duration_s) * tick_rate_;

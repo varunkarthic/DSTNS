@@ -31,12 +31,25 @@ export function rollingTime(from: number, to: number, elapsedS: number, landed: 
 }
 
 /**
+ * Where the clock heads for: the estimate, or how far the server has really got if that is further, so a long jump
+ * keeps moving to the end rather than waiting at the estimate's last tenth. Never past where it lands.
+ */
+export function aimedTime(from: number, to: number, rolling: number, reached: number | undefined): number {
+  const forward = to >= from;
+  const real = reached === undefined || (forward ? reached < from : reached > from) ? rolling : reached;
+  const ahead = forward ? Math.max(rolling, real) : Math.min(rolling, real);
+  return forward ? Math.min(ahead, to) : Math.max(ahead, to);
+}
+
+/**
  * Faint particles streaming across the map while a jump is worked out, the way it goes, and the clock running with
  * them. A minute is a light drift; an hour, which takes longest, is a denser, faster stream with longer trails. The
  * stream gathers speed as it starts and slows to a stop once the jump has landed, so it never starts or stops dead.
  */
-export function SeekFilm({ seek, reduceMotion }: { seek: Seek | null; reduceMotion: boolean }) {
+export function SeekFilm({ seek, reduceMotion, reached }: { seek: Seek | null; reduceMotion: boolean; /** How far the server has got, while it works the jump out. */ reached?: number }) {
   const time = useTimeFormat();
+  const reachedRef = useRef(reached);
+  reachedRef.current = reached;
   const format = useRef(time.time);
   format.current = time.time;
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -90,6 +103,8 @@ export function SeekFilm({ seek, reduceMotion }: { seek: Seek | null; reduceMoti
     }));
     const started = performance.now();
     let flow = 0;
+    // The clock shown: it eases towards where it is aimed, never backwards, so it neither jumps nor stops.
+    let shownTime = shown.from ?? 0;
     let last = started;
     let frame = 0;
     const tick = (now: number) => {
@@ -125,8 +140,13 @@ export function SeekFilm({ seek, reduceMotion }: { seek: Seek | null; reduceMoti
         context.lineTo(x, py);
         context.stroke();
       }
-      if (clock.current && shown.from !== undefined && shown.to !== undefined)
-        clock.current.textContent = format.current(rollingTime(shown.from, shown.to, (now - started) / 1000, !live.current), { seconds: false });
+      if (clock.current && shown.from !== undefined && shown.to !== undefined) {
+        const rolling = rollingTime(shown.from, shown.to, (now - started) / 1000, !live.current);
+        const aim = live.current ? aimedTime(shown.from, shown.to, rolling, reachedRef.current) : shown.to;
+        const next = shownTime + (aim - shownTime) * (1 - Math.exp(-dt / 0.18));
+        shownTime = shown.to >= shown.from ? Math.max(shownTime, next) : Math.min(shownTime, next);
+        clock.current.textContent = format.current(shownTime, { seconds: false });
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);

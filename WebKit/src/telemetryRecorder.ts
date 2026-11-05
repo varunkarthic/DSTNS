@@ -17,7 +17,7 @@ import type { Backpressure, Snapshot } from "./types";
  * resolution while the recent past stays at full resolution.
  */
 
-export type RuntimeStatus = "online" | "degraded" | "offline";
+export type RuntimeStatus = "online" | "restricted" | "degraded" | "offline";
 
 export interface TelemetrySample {
   wall_ms: number;
@@ -62,12 +62,27 @@ export interface Transition {
   to: string;
 }
 
+/** What the server process and this page held in memory, read every few seconds. */
+export interface ResourceSample {
+  wall_ms: number;
+  virtual_s: number;
+  /** The server's resident memory now, and the most it has held, bytes. */
+  rss_bytes: number;
+  peak_rss_bytes: number;
+  /** Processor time the server has used, seconds. */
+  cpu_s: number;
+  /** This page's JavaScript heap in use, and its limit, where the browser says (Chromium does). */
+  heap_bytes: number | null;
+  heap_limit_bytes: number | null;
+}
+
 export interface TelemetryLog {
   runId: string;
   startedWall: number;
   samples: TelemetrySample[];
   controls: ControlRecord[];
   transitions: Transition[];
+  resources: ResourceSample[];
 }
 
 /** Summarize a snapshot into the scalar fields a sample stores. */
@@ -109,14 +124,14 @@ export class TelemetryRecorder {
 
   constructor(private readonly limit = 2400, now: () => number = Date.now) {
     this.now = now;
-    this.log = { runId: "", startedWall: now(), samples: [], controls: [], transitions: [] };
+    this.log = { runId: "", startedWall: now(), samples: [], controls: [], transitions: [], resources: [] };
   }
   private now: () => number;
 
   /** Start a fresh log for a new run. Calling with the current run is a no-op. */
   reset(runId: string) {
     if (runId === this.log.runId) return;
-    this.log = { runId, startedWall: this.now(), samples: [], controls: [], transitions: [] };
+    this.log = { runId, startedWall: this.now(), samples: [], controls: [], transitions: [], resources: [] };
     this.last.clear();
   }
 
@@ -142,6 +157,15 @@ export class TelemetryRecorder {
     this.log.samples = [...older, ...this.log.samples.slice(half)];
   }
 
+  resource(r: Omit<ResourceSample, "wall_ms">) {
+    this.log.resources.push({ ...r, wall_ms: this.now() });
+    // Thinned as the samples are: the whole run's shape, the recent past in full.
+    if (this.log.resources.length > this.limit) {
+      const half = Math.floor(this.log.resources.length / 2);
+      this.log.resources = [...this.log.resources.slice(0, half).filter((_, i) => i % 2 === 0), ...this.log.resources.slice(half)];
+    }
+  }
+
   control(action: string, detail: string, virtual_s: number) {
     this.log.controls.push({ wall_ms: this.now(), virtual_s, action, detail });
     if (this.log.controls.length > 2000) this.log.controls.splice(0, this.log.controls.length - 2000);
@@ -160,6 +184,7 @@ export class TelemetryRecorder {
       samples: [...this.log.samples],
       controls: [...this.log.controls],
       transitions: [...this.log.transitions],
+      resources: [...this.log.resources],
     };
   }
 }
@@ -221,8 +246,10 @@ export function runtimeStatus(options: {
   asb: Backpressure | null;
 }): RuntimeStatus {
   if (options.error || !options.connected) return "offline";
-  if (options.stale) return "degraded";
   const a = options.asb;
+  // Restricted on purpose, after a long jump, is not a fault, and it is shown at once rather than as staleness.
+  if (a?.state === "RESTRICTED" && a.restriction === "jump") return "restricted";
+  if (options.stale) return "degraded";
   if (a && (a.state !== "NORMAL" || a.rate_capped || !a.synced)) return "degraded";
   return "online";
 }

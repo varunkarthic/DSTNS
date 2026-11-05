@@ -235,7 +235,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 1 Executive summary
   // =========================================================================
   onProgress?.("Summarising the run", 0.1);
-  doc.sectionHeading("Executive Summary", "The run at a glance. Figures cover the whole run where the core keeps a complete record, and the observed session where only the interface measured them.", true);
+  doc.sectionHeading("Executive Summary", "The run at a glance. Figures cover the whole run where the core keeps a complete record, and the observed session where only the interface measured them.", true, "summary");
   doc.tiles([
     { label: "Simulation time", value: t(virtual), note: `${pct(virtual / DAY_SECONDS, 1)} of the virtual day` },
     { label: "Observed for", value: observedMs ? formatWallDuration(observedMs) : "Not recorded", note: "Wall-clock time" },
@@ -264,7 +264,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   const base = DAY_SECONDS / snapshot.clock.playback_duration_seconds;
   onProgress?.("Reading the configuration", 0.16);
-  doc.sectionHeading("Simulation Configuration", "The parameters the run was started with, as reported by the core.");
+  doc.sectionHeading("Simulation Configuration", "The parameters the run was started with, as reported by the core.", false, "configuration");
   doc.heading("Scenario");
   doc.keyValues([
     ["Seed", seed],
@@ -305,7 +305,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 3 Environment
   // =========================================================================
   onProgress?.("Noting the environment", 0.2);
-  doc.sectionHeading("Environment and Runtime", "Software versions and the environment the report was produced in. Filesystem paths are deliberately omitted.");
+  doc.sectionHeading("Environment and Runtime", "Software versions and the environment the report was produced in. Filesystem paths are deliberately omitted.", false, "environment");
   doc.keyValues([
     ["DSTNS core", resources.coreVersion ?? "Not reported"],
     ["Interface", input.uiVersion],
@@ -327,7 +327,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 4 Road network
   // =========================================================================
   onProgress?.("Measuring the road network", 0.28);
-  doc.sectionHeading("Road Network Analysis", "The static network the model runs on, and its state at report time.");
+  doc.sectionHeading("Road Network Analysis", "The static network the model runs on, and its state at report time.", false, "network");
   doc.tiles([
     { label: "Junctions", value: net.nodes.toLocaleString(), note: `${net.intersections.toLocaleString()} intersections` },
     { label: "Road directions", value: net.directions.toLocaleString(), note: `${net.syntheticReverse.toLocaleString()} synthetic reverse` },
@@ -401,7 +401,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 5 Traffic
   // =========================================================================
   onProgress?.("Charting the traffic", 0.42);
-  doc.sectionHeading("Traffic Analysis", "Traffic measures across the virtual day. The congestion history is kept by the core for the whole run; vehicle and speed series are the interface's samples.");
+  doc.sectionHeading("Traffic Analysis", "Traffic measures across the virtual day. The congestion history is kept by the core for the whole run; vehicle and speed series are the interface's samples.", false, "traffic");
   chartOrNote(
     history.length,
     () =>
@@ -550,7 +550,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   const signals = snapshot.data.signals;
   onProgress?.("Listing the signals", 0.52);
-  doc.sectionHeading("Signal Control", "Signalled junctions run their own fixed schedules, derived from the seed. These are the controllers as they stood at report time.");
+  doc.sectionHeading("Signal Control", "Signalled junctions run their own fixed schedules, derived from the seed. These are the controllers as they stood at report time.", false, "signals");
   const cycles = signals.map((c) => c.cycle_length).filter((c) => c > 0);
   doc.tiles([
     { label: "Controllers", value: signals.length.toLocaleString(), note: `${signals.filter((c) => c.enabled).length} enabled` },
@@ -580,7 +580,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 6 Weather
   // =========================================================================
   onProgress?.("Reading the weather", 0.58);
-  doc.sectionHeading("Weather Analysis", "Rain cells from the deterministic weather model. Start, peak and end times come from the core's event record for the whole run.");
+  doc.sectionHeading("Weather Analysis", "Rain cells from the deterministic weather model. Start, peak and end times come from the core's event record for the whole run.", false, "weather");
   doc.table(
     [
       { title: "Cell", width: 0.07, align: "right" },
@@ -645,7 +645,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 7 Flooding
   // =========================================================================
   onProgress?.("Reading the flooding", 0.63);
-  doc.sectionHeading("Flooding Analysis", "Flooding accumulates from rainfall at each junction according to its susceptibility, and drains over time, so it can persist after rain has cleared.");
+  doc.sectionHeading("Flooding Analysis", "Flooding accumulates from rainfall at each junction according to its susceptibility, and drains over time, so it can persist after rain has cleared.", false, "flooding");
   doc.tiles(
     [
       { label: "Flood onsets", value: floods.length.toLocaleString(), color: PRINT.blue },
@@ -697,7 +697,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 8 Incidents
   // =========================================================================
   onProgress?.("Registering the incidents", 0.68);
-  doc.sectionHeading("Incident Analysis", "Incidents are scheduled deterministically from the seed and restrict speed and capacity or close roads while active.");
+  doc.sectionHeading("Incident Analysis", "Incidents are scheduled deterministically from the seed and restrict speed and capacity or close roads while active.", false, "incidents");
   const severityCount = (s: string) => incidents.filter((i) => i.severity === s).length;
   doc.barChart(
     "Incidents by severity",
@@ -757,7 +757,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 9 Timeline
   // =========================================================================
   onProgress?.("Laying out the timeline", 0.74);
-  doc.sectionHeading("Simulation Event Timeline", `Significant events in simulation-time order: ${events.length} entries. Consecutive flood onsets within one minute are combined; demand changes are listed at their peaks.`);
+  doc.sectionHeading("Simulation Event Timeline", `Significant events in simulation-time order: ${events.length} entries. Consecutive flood onsets within one minute are combined; demand changes are listed at their peaks.`, false, "timeline");
   doc.table(
     [
       { title: "Time", width: 0.14, mono: true },
@@ -778,7 +778,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 10 Performance
   // =========================================================================
   onProgress?.("Plotting the performance", 0.82);
-  doc.sectionHeading("Performance and Telemetry", "How the simulation and the interface kept pace with each other during observation. These measures are the interface's own; times are wall-clock minutes and seconds since observation began.");
+  doc.sectionHeading("Performance and Telemetry", "How the simulation and the interface kept pace with each other during observation. These measures are the interface's own; times are wall-clock minutes and seconds since observation began.", false, "performance");
   const rated = samples.filter((s) => s.bytes_per_s !== null);
   const { unit, divisor } = throughputUnit(Math.max(0, ...rated.map((s) => s.bytes_per_s!)));
   const asbBands = intervals(telemetry.transitions, "asb", (v) => v !== "NORMAL", wallEnd).map((iv) => ({
@@ -889,17 +889,41 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     );
   }
   const statusIntervals = intervals(telemetry.transitions, "status", (v) => v !== "online", wallEnd);
-  doc.heading("Degraded and offline periods");
+  const STATUS_WHY: Record<string, string> = {
+    restricted: "Held at a lower speed with motion reduced, on purpose, while a long jump settled",
+    degraded: "Fresh state arrived late, or backpressure was acting",
+    offline: "The core did not answer",
+  };
+  doc.heading("Restricted, degraded and offline periods");
+  doc.paragraph("A jump through the day of half an hour or more is Restricted: it is worked out while the core keeps answering, lands at 0.25× and doubles back to the requested speed every two seconds, with map motion reduced until it is there.", { size: 8.5, color: PRINT.dim });
   doc.table(
     [
-      { title: "Status", width: 0.2 },
-      { title: "From", width: 0.2, mono: true },
-      { title: "To", width: 0.2, mono: true },
-      { title: "Duration", width: 0.4, align: "right" },
+      { title: "Status", width: 0.14 },
+      { title: "From", width: 0.11, mono: true },
+      { title: "To", width: 0.11, mono: true },
+      { title: "Duration", width: 0.13, align: "right" },
+      { title: "Why", width: 0.51 },
     ],
-    statusIntervals.map((iv) => [title(iv.value), wallTick(wallX(iv.from_ms)), wallTick(wallX(iv.to_ms)), formatWallDuration(iv.to_ms - iv.from_ms)]),
+    statusIntervals.map((iv) => [title(iv.value), wallTick(wallX(iv.from_ms)), wallTick(wallX(iv.to_ms)), formatWallDuration(iv.to_ms - iv.from_ms), STATUS_WHY[iv.value] ?? ""]),
     { empty: "The connection stayed Online throughout the observation." },
   );
+  const jumps = telemetry.controls.filter((c) => (c.action === "back" || c.action === "forward") && c.detail);
+  if (jumps.length) {
+    doc.heading("Jumps through the day");
+    doc.table(
+      [
+        { title: "Observed at", width: 0.18, mono: true },
+        { title: "From", width: 0.2, mono: true },
+        { title: "Jump", width: 0.32 },
+        { title: "Restricted after", width: 0.3 },
+      ],
+      jumps.map((c) => {
+        const after = statusIntervals.find((iv) => iv.value === "restricted" && iv.from_ms >= c.wall_ms - 500 && iv.from_ms - c.wall_ms < 5000);
+        return [wallTick(wallX(c.wall_ms)), t(c.virtual_s), `${title(c.action)} ${c.detail}`, after ? `Yes, for ${formatWallDuration(after.to_ms - after.from_ms)}` : "No"];
+      }),
+      { caption: "Each Back, Forward and Time Control jump, and whether the run was Restricted after it." },
+    );
+  }
   doc.heading("Operator controls and playback");
   const lifecycleRows = telemetry.transitions.filter((x) => x.kind === "lifecycle" && x.from);
   doc.table(
@@ -918,10 +942,83 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   );
 
   // =========================================================================
+  // System resources
+  // =========================================================================
+  onProgress?.("Measuring the resources", 0.86);
+  const res = telemetry.resources ?? [];
+  doc.sectionHeading("System Resources", "What the simulation server and this interface held in memory over the observation, and the processor time the server used, read every five seconds. The server's figures are its whole process; the interface's are this page's JavaScript heap where the browser reports it.", false, "resources");
+  const mb = (bytes: number) => bytes / (1024 * 1024);
+  const fmtMb = (bytes: number | null | undefined) => (bytes == null ? "Not recorded" : `${mb(bytes) >= 100 ? mb(bytes).toFixed(0) : mb(bytes).toFixed(1)} MB`);
+  const lastRes = res[res.length - 1];
+  const firstRes = res[0];
+  const heaps = res.filter((r) => r.heap_bytes !== null);
+  const cpuShare = firstRes && lastRes && lastRes.wall_ms > firstRes.wall_ms ? (lastRes.cpu_s - firstRes.cpu_s) / ((lastRes.wall_ms - firstRes.wall_ms) / 1000) : null;
+  const growth = firstRes && lastRes && lastRes !== firstRes ? lastRes.rss_bytes - firstRes.rss_bytes : null;
+  doc.tiles([
+    { label: "Server memory", value: fmtMb(lastRes?.rss_bytes), note: "At report time" },
+    { label: "Server peak", value: fmtMb(lastRes?.peak_rss_bytes), note: "Most held since it started" },
+    { label: "Change over observation", value: growth === null ? "Not recorded" : `${growth >= 0 ? "+" : "−"}${fmtMb(Math.abs(growth))}`, note: res.length ? `${res.length} readings` : undefined, color: growth !== null && growth > 256 * 1024 * 1024 ? PRINT.amber : undefined },
+    { label: "Server processor", value: cpuShare === null ? "Not recorded" : `${(cpuShare * 100).toFixed(0)}%`, note: "Of one core, on average" },
+    { label: "Interface heap", value: fmtMb(heaps[heaps.length - 1]?.heap_bytes), note: heaps.length ? `of ${fmtMb(heaps[heaps.length - 1]?.heap_limit_bytes)} allowed` : "Not reported by this browser" },
+    { label: "Interface heap peak", value: heaps.length ? fmtMb(Math.max(...heaps.map((r) => r.heap_bytes!))) : "Not recorded" },
+    { label: "Processor time", value: lastRes ? `${lastRes.cpu_s.toFixed(0)} s` : "Not recorded", note: "Used by the server" },
+    { label: "Logical processors", value: String(navigator.hardwareConcurrency || "Not reported"), note: "On this machine" },
+  ]);
+  chartOrNote(
+    res.length,
+    () =>
+      doc.lineChart({
+        title: "Memory over the observation",
+        question: "Did either side hold more and more memory as the run went on, or did it settle?",
+        xLabel: "Observation time (min:s)",
+        yLabel: "Memory (MB)",
+        xDomain: wallDomain,
+        xTicks: wallTicks(wallDomain[1]),
+        xTick: wallTick,
+        yTick: (v) => v.toFixed(0),
+        bands: asbBands,
+        series: [
+          { name: "Server resident memory (MB)", points: res.map((r) => ({ x: wallX(r.wall_ms), y: mb(r.rss_bytes) })) },
+          ...(heaps.length ? [{ name: "Interface heap (MB)", points: heaps.map((r) => ({ x: wallX(r.wall_ms), y: mb(r.heap_bytes!) })) }] : []),
+        ],
+      }),
+    "memory",
+  );
+  const cpuPoints = res.slice(1).map((r, i) => ({ x: wallX(r.wall_ms), y: Math.max(0, ((r.cpu_s - res[i].cpu_s) / Math.max(0.001, (r.wall_ms - res[i].wall_ms) / 1000)) * 100) }));
+  chartOrNote(
+    cpuPoints.length,
+    () =>
+      doc.lineChart({
+        title: "Server processor use",
+        question: "How hard did the server work, and when? A long jump shows as a burst.",
+        xLabel: "Observation time (min:s)",
+        yLabel: "Of one core (%)",
+        xDomain: wallDomain,
+        xTicks: wallTicks(wallDomain[1]),
+        xTick: wallTick,
+        yTick: (v) => v.toFixed(0),
+        bands: asbBands,
+        series: [{ name: "Processor use (% of one core)", points: cpuPoints }],
+      }),
+    "processor use",
+  );
+  doc.heading("System parameters");
+  doc.keyValues([
+    ["Playback", `${formatWallDuration(snapshot.clock.playback_duration_seconds * 1000)} of wall time per virtual day at 1×`],
+    ["Requested speed", asb ? `${asb.requested_tick_rate}×` : `${snapshot.clock.tick_rate}×`],
+    ["Applied speed", asb ? `${asb.applied_tick_rate}×${asb.rate_capped ? ", capped" : ""}` : `${snapshot.clock.tick_rate}×`],
+    ["Backpressure", asb ? `${title(asb.state.toLowerCase())}${asb.restriction ? ` (${asb.restriction === "jump" ? "after a long jump" : "the interface fell behind"})` : ""}, score ${pct(asb.score)}` : "Not reported"],
+    ["Backpressure thresholds", asb?.thresholds ? `in sync below ${pct(asb.thresholds.synced)}, stressed above ${pct(asb.thresholds.stressed)}, critical above ${pct(asb.thresholds.critical)}` : "Not reported"],
+    ["Long jumps", "Restricted from 30 minutes of simulated time; land at 0.25× and double every 2 s"],
+    ["Readings kept", `${samples.length.toLocaleString()} snapshot samples, ${res.length.toLocaleString()} resource readings, ${telemetry.controls.length.toLocaleString()} controls`],
+    ["Sampling", "One sample per snapshot delivered; resources every 5 s. Older halves are thinned to every other reading when a buffer fills."],
+  ]);
+
+  // =========================================================================
   // 11 Determinism and integrity
   // =========================================================================
   onProgress?.("Sealing the identifiers", 0.88);
-  doc.sectionHeading("Determinism and Integrity", "Identifiers that tie this report to a reproducible run.");
+  doc.sectionHeading("Determinism and Integrity", "Identifiers that tie this report to a reproducible run.", false, "integrity");
   doc.keyValues([
     ["Seed", seed],
     ["Run identifier", status.run_id],
@@ -950,7 +1047,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // =========================================================================
   if (resources.map) {
     onProgress?.("Printing the map", 0.92);
-  doc.sectionHeading("Map at Export", "The whole network at the moment of export, drawn afresh in print colours for reading on paper.");
+  doc.sectionHeading("Map at Export", "The whole network at the moment of export, drawn afresh in print colours for reading on paper.", false, "map");
     doc.image(resources.map.dataUrl, resources.map.aspect, 150, "Road colour shows state: clear, moderate, severe and flooded. Map data © OpenStreetMap contributors, ODbL 1.0.");
   }
 
@@ -958,7 +1055,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // Appendix
   // =========================================================================
   onProgress?.("Adding the definitions", 0.96);
-  doc.sectionHeading("Methodology and Definitions", "How the figures in this report are defined.");
+  doc.sectionHeading("Methodology and Definitions", "How the figures in this report are defined.", false, "methodology");
   const defs: [string, string][] = [
     ["Congestion index", "For each traversable road: 60% speed loss plus 25% halted share plus 15% occupancy, clamped to 0 to 1. Speed loss is one minus mean speed over free-flow speed. Closed roads score 1. The network index weights each road by length times lanes and is expressed in percent."],
     ["Vehicles", "The sum of modelled vehicle counts on all road directions. The traffic model is aggregate; vehicles are not individually tracked."],
