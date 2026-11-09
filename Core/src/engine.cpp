@@ -862,7 +862,11 @@ nlohmann::json SimulationEngine::seek(std::uint32_t target, bool resume) {
         while (virtual_s_ < *seek_target_ && std::chrono::steady_clock::now() < slice_end);
         if (virtual_s_ < *seek_target_) {
             lock.unlock();
-            std::this_thread::yield();
+            // A pause, not a yield: Linux's mutex does not hand over to a
+            // waiter, so after a yield this thread usually takes the lock
+            // straight back and a status request starves for the whole jump.
+            // A millisecond in twenty lets every waiter in, for about 5%.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             lock.lock();
         }
     }
@@ -1803,7 +1807,8 @@ void SimulationEngine::loop() {
                 while (virtual_s_ < target && std::chrono::steady_clock::now() < slice_end);
                 if (virtual_s_ < target) {
                     lock.unlock();
-                    std::this_thread::yield();
+                    // A pause rather than a yield, for the reason seek gives.
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
                     lock.lock();
                 }
             }
