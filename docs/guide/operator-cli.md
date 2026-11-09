@@ -631,13 +631,14 @@ same as `launcher_suggest` and `graph_ask`.
 
 | `model.provider` | Uses |
 |---|---|
-| `auto` | Apple's Foundation Models on a Mac with Apple silicon and macOS 27 or later, where they are available; else Ollama, if it answers; else Groq, if a key is kept |
-| `apple` | Apple's Foundation Models, on the device, through the `fm` command |
+| `auto` | Apple's Foundation Models where this Mac has them; else Ollama, if it answers; else Groq, if a key is kept |
+| `apple` | Apple's Foundation Models through the `fm` command: the model on the Mac (macOS 26 or later, Apple silicon), or, when that cannot answer and `model.apple_cloud` is on, Apple's larger model through Private Cloud Compute (macOS 27 or later) |
 | `ollama` | Any model Ollama has (`model.name`), at `model.ollama_url` |
 | `groq` | Any Groq model (`model.name`), with a key kept by `./launcher model key KEY` in `config/launcher.env` |
 | `off` | Nothing: requests in plain words are refused |
 
-`./launcher model` says which is in use, and `model test` asks it something. The news has its
+`./launcher model` says which is in use, and whether each of Apple's two models is available
+here and why not, as Apple's framework reports it. `model test` asks it something. The news has its
 own setting, [`narration.mode`](#settings-for-every-feature).
 
 ## The knowledge graph

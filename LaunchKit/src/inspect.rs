@@ -523,10 +523,12 @@ fn model_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> 
             let settings = config::load(paths).map_err(|e| e.message)?;
             let chosen = config::setting(&settings, "model.provider").as_str().unwrap_or("auto").to_string();
             let key = if std::env::var_os(crate::assistant::GROQ_KEY).is_some() { "kept" } else { "not kept" };
+            let apple = crate::assistant::apple_models(paths);
             Ok(vec![
                 format!("Chosen        {chosen}"),
                 format!("In use        {}", crate::assistant::resolve(paths).map(|m| m.label()).unwrap_or_else(|why| format!("none: {why}"))),
-                format!("Apple's model {}", if crate::assistant::apple_available() { "available" } else { "not available here" }),
+                format!("Apple, on Mac {}", apple.system.err().unwrap_or_else(|| "available".into())),
+                format!("Apple, cloud  {}{}", apple.cloud.err().unwrap_or_else(|| "available".into()), if config::flag(&settings, "model.apple_cloud") { "" } else { " (not allowed: model.apple_cloud is off)" }),
                 format!("Groq key      {key}"),
             ])
         }

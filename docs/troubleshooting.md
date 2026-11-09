@@ -268,9 +268,13 @@ few lines; or set `launcher.small_terminal` to `simplified` or `full` to stop it
 
 ## A request in plain words says there is no model
 
-`./launcher model` says which model is chosen, which is in use and why not. Apple's
-Foundation Models need a Mac with Apple silicon and macOS 27 or later, with the model
-available (`fm available`). For Ollama, start it, or set `model.ollama_url`. For Groq, keep a
+`./launcher model` says which model is chosen, which is in use and why not. It asks Apple's
+Foundation Models framework itself, through a small Swift helper the launcher builds on first
+use, so the Xcode Command Line Tools must be installed (`xcode-select --install`). The model on
+the Mac needs Apple silicon, macOS 26 or later and Apple Intelligence turned on in System
+Settings; it may also still be downloading. Private Cloud Compute needs macOS 27 or later and
+`model.apple_cloud` on, and it can refuse requests from some terminals inside other apps (use
+the Terminal app). For Ollama, start it, or set `model.ollama_url`. For Groq, keep a
 key with `./launcher model key KEY`. `model test` asks it something.
 
 ## A suggestion is refused

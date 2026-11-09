@@ -3,8 +3,8 @@
 
 //! The launcher's own model, and what it does: a request in plain words, turned into the console's commands.
 //!
-//! Which model: `model.provider` says. `auto` uses Apple's Foundation Models on a Mac with Apple silicon and macOS 27 or
-//! later, where they are available; else Ollama, if it answers; else Groq, if a key is kept (`model key`). `apple`,
+//! Which model: `model.provider` says. `auto` uses Apple's Foundation Models where the framework says this Mac has one
+//! (on the Mac first, then Private Cloud Compute if `model.apple_cloud` allows it); else Ollama, if it answers; else Groq, if a key is kept (`model key`). `apple`,
 //! `ollama` and `groq` insist on one; `off` turns it off. `model.name` chooses the model, for Ollama and Groq.
 //!
 //! A suggestion is never run by itself. It is checked first, as a console line: only commands that exist, joined by
@@ -39,6 +39,7 @@ pub struct Model {
 impl Model {
     pub fn label(&self) -> String {
         match self.provider {
+            Provider::Apple if self.name == "pcc" => "Apple Foundation Models, through Private Cloud Compute".into(),
             Provider::Apple => "Apple Foundation Models, on this Mac".into(),
             Provider::Ollama => format!("{} through Ollama ({})", self.name, self.url),
             Provider::Groq => format!("{} through Groq", self.name),
@@ -46,14 +47,62 @@ impl Model {
     }
 }
 
-/// Apple silicon, macOS 27 or later, and the system model there.
-pub fn apple_available() -> bool {
+const MODELS_SWIFT: &str = include_str!("../assets/models.swift");
+
+/// Apple's two models and whether each can answer here, as the Foundation Models framework reports it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AppleModels {
+    /// The model on this Mac: Ok, or why not, in plain words.
+    pub system: Result<(), String>,
+    /// Apple's larger model through Private Cloud Compute.
+    pub cloud: Result<(), String>,
+}
+
+/// Asks the framework through a small Swift helper, built on first use. The `fm` tool is not asked: its `available`
+/// command was renamed `models`, and either one fails as a whole when only Private Cloud Compute is missing.
+pub fn apple_models(paths: &Paths) -> AppleModels {
+    let none = |why: &str| AppleModels { system: Err(why.into()), cloud: Err(why.into()) };
     if !cfg!(target_os = "macos") || !cfg!(target_arch = "aarch64") {
-        return false;
+        return none("Apple's models need a Mac with Apple silicon.");
     }
-    let version = Command::new("sw_vers").arg("-productVersion").output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default();
-    let major: u32 = version.split('.').next().and_then(|m| m.parse().ok()).unwrap_or(0);
-    major >= 27 && Command::new("fm").arg("available").stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
+    // Built for macOS 26, where the framework first appears; the Private Cloud Compute check runs only on 27 and later.
+    let Some(helper) = crate::security::swift_program(paths, "dstns-models", MODELS_SWIFT, &["-target", "arm64-apple-macos26.0"]) else {
+        return none("Apple's models could not be checked: the Swift compiler is missing (xcode-select --install).");
+    };
+    let output = match Command::new(helper).stdin(Stdio::null()).stderr(Stdio::null()).output() {
+        Ok(output) if output.status.success() => output.stdout,
+        _ => return none("Apple's models could not be checked: this macOS has no Foundation Models (macOS 26 or later)."),
+    };
+    let report: Value = serde_json::from_slice(&output).unwrap_or(Value::Null);
+    AppleModels { system: apple_state(&report["system"]), cloud: apple_state(&report["pcc"]) }
+}
+
+/// "available", or "unavailable:REASON" with the framework's own reason, in plain words.
+fn apple_state(state: &Value) -> Result<(), String> {
+    let state = state.as_str().unwrap_or("unavailable:unknown");
+    if state == "available" {
+        return Ok(());
+    }
+    Err(match state.strip_prefix("unavailable:").unwrap_or(state) {
+        "deviceNotEligible" => "this Mac cannot run it".into(),
+        "appleIntelligenceNotEnabled" => "Apple Intelligence is turned off in System Settings".into(),
+        "modelNotReady" => "the model is still being downloaded or prepared".into(),
+        "systemNotReady" => "it is not ready in this context (it may work from the Terminal app)".into(),
+        "unsupportedOS" => "this macOS is too old for it".into(),
+        other => format!("not available ({other})"),
+    })
+}
+
+/// The Apple model to use, by the settings, or why there is none.
+fn apple_model(paths: &Paths, cloud_allowed: bool) -> Result<Model, String> {
+    let models = apple_models(paths);
+    let apple = |name: &str| Model { provider: Provider::Apple, name: name.into(), url: String::new() };
+    match (&models.system, &models.cloud) {
+        (Ok(()), _) => Ok(apple("system")),
+        (Err(_), Ok(())) if cloud_allowed => Ok(apple("pcc")),
+        (Err(why), Ok(())) => Err(format!("Apple's model on this Mac is not available: {why}. Private Cloud Compute is, but model.apple_cloud is off.")),
+        (Err(why), Err(cloud)) => Err(format!("Apple's model on this Mac is not available: {why}. Private Cloud Compute: {cloud}.")),
+    }
 }
 
 fn ollama_answers(url: &str) -> bool {
@@ -73,18 +122,19 @@ pub fn resolve(paths: &Paths) -> Result<Model, String> {
     let url = config::setting(&settings, "model.ollama_url").as_str().unwrap_or("http://127.0.0.1:11434").trim_end_matches('/').to_string();
     let ollama = |name: &str| Model { provider: Provider::Ollama, name: if name.is_empty() { OLLAMA_DEFAULT.into() } else { name.into() }, url: url.clone() };
     let groq = |name: &str| Model { provider: Provider::Groq, name: if name.is_empty() { GROQ_DEFAULT.into() } else { name.into() }, url: GROQ_URL.into() };
+    let apple = || apple_model(paths, config::flag(&settings, "model.apple_cloud"));
     match provider.as_str() {
         "off" => Err("The model is off: set model.provider to auto, apple, ollama or groq.".into()),
-        "apple" if apple_available() => Ok(Model { provider: Provider::Apple, name: "system".into(), url: String::new() }),
-        "apple" => Err("Apple's Foundation Models need a Mac with Apple silicon and macOS 27 or later, with the model available (fm available).".into()),
+        "apple" => apple(),
         "ollama" if ollama_answers(&url) => Ok(ollama(&name)),
         "ollama" => Err(format!("Ollama does not answer at {url}. Start it, or set model.ollama_url.")),
         "groq" if groq_key().is_some() => Ok(groq(&name)),
         "groq" => Err(format!("Groq needs a key: model key KEY keeps one in config/launcher.env as {GROQ_KEY}.")),
-        _ if apple_available() => Ok(Model { provider: Provider::Apple, name: "system".into(), url: String::new() }),
-        _ if ollama_answers(&url) => Ok(ollama(&name)),
-        _ if groq_key().is_some() => Ok(groq(&name)),
-        _ => Err("No model: Apple's Foundation Models are not here, Ollama does not answer, and no Groq key is kept (model key KEY).".into()),
+        _ => apple().or_else(|_| match () {
+            _ if ollama_answers(&url) => Ok(ollama(&name)),
+            _ if groq_key().is_some() => Ok(groq(&name)),
+            _ => Err("No model: Apple's Foundation Models are not here, Ollama does not answer, and no Groq key is kept (model key KEY).".into()),
+        }),
     }
 }
 
@@ -93,7 +143,7 @@ pub fn ask(model: &Model, instructions: &str, prompt: &str) -> Result<String, St
     match model.provider {
         Provider::Apple => {
             let output = Command::new("fm")
-                .args(["respond", "--no-stream", "--greedy", "-i", instructions, prompt])
+                .args(["respond", "--no-stream", "--greedy", "-m", &model.name, "-i", instructions, prompt])
                 .env("NO_COLOR", "1")
                 .stdin(Stdio::null())
                 .output()
@@ -349,6 +399,27 @@ pub fn is_request(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apple_states_read_as_the_framework_reports_them() {
+        assert_eq!(apple_state(&json!("available")), Ok(()));
+        assert!(apple_state(&json!("unavailable:appleIntelligenceNotEnabled")).unwrap_err().contains("System Settings"));
+        assert!(apple_state(&json!("unavailable:modelNotReady")).unwrap_err().contains("downloaded"));
+        assert!(apple_state(&json!("unavailable:somethingNew")).unwrap_err().contains("somethingNew"));
+        // Anything else, or nothing at all, is never read as available.
+        for odd in [json!(null), json!(true), json!("Available"), json!("available "), json!("")] {
+            assert!(apple_state(&odd).is_err(), "{odd}");
+        }
+    }
+
+    #[test]
+    #[ignore = "needs a Mac with Apple silicon and the Swift compiler"]
+    fn the_framework_is_asked_on_this_mac() {
+        let dir = std::env::temp_dir().join(format!("dstns-models-test-{}", std::process::id()));
+        let models = apple_models(&Paths::new(&dir));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!format!("{models:?}").contains("could not be checked"), "{models:?}");
+    }
 
     #[test]
     fn a_suggestion_is_checked_before_it_is_offered() {
