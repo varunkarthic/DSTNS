@@ -70,7 +70,11 @@ pub fn save(config: &Value, paths: &Paths) -> Result<()> {
         for field in fields() {
             let (was_value, now_value) = (field.get(&before), field.get(config));
             if was_value != now_value {
-                crate::log::info(&format!("settings: {} from {} to {}", field.key, field.display(&was_value), field.display(&now_value)));
+                if sensitive_setting(field.key) {
+                    crate::log::info(&format!("settings: {} changed", field.key));
+                } else {
+                    crate::log::info(&format!("settings: {} from {} to {}", field.key, field.display(&was_value), field.display(&now_value)));
+                }
             }
         }
     }
@@ -286,6 +290,11 @@ impl Field {
             _ => choice_text(value),
         }
     }
+}
+
+/// A setting whose value is logged only as changed: a credential, or an address that may carry one.
+pub fn sensitive_setting(key: &str) -> bool {
+    crate::log::secret_name(key) || key.ends_with("_url")
 }
 
 fn choice_text(value: &Value) -> String {

@@ -208,12 +208,18 @@ fn environment(paths: &Paths) -> Value {
     let mut out = serde_json::Map::new();
     for (key, value) in std::env::vars().filter(|(k, _)| k.starts_with("DSTNS_")) {
         let from = if kept.get(&key) == Some(&value) { "launcher.env" } else { "shell" };
-        out.insert(key, json!({"value": value, "from": from}));
+        let shown = shown_value(&key, &value);
+        out.insert(key, json!({"value": shown, "from": from}));
     }
     for (key, value) in &kept {
-        out.entry(key.clone()).or_insert_with(|| json!({"value": value, "from": "launcher.env"}));
+        out.entry(key.clone()).or_insert_with(|| json!({"value": shown_value(key, value), "from": "launcher.env"}));
     }
     Value::Object(out)
+}
+
+/// A secret's value is never shown, only that it is set.
+fn shown_value(name: &str, value: &str) -> String {
+    if crate::log::secret_name(name) { "(set, hidden)".into() } else { value.to_string() }
 }
 
 fn valid_name(name: &str) -> bool {
@@ -516,7 +522,7 @@ fn model_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> 
         None | Some("status") => {
             let settings = config::load(paths).map_err(|e| e.message)?;
             let chosen = config::setting(&settings, "model.provider").as_str().unwrap_or("auto").to_string();
-            let key = std::env::var(crate::assistant::GROQ_KEY).map(|k| format!("kept ({}…)", k.chars().take(4).collect::<String>())).unwrap_or_else(|_| "not kept".into());
+            let key = if std::env::var_os(crate::assistant::GROQ_KEY).is_some() { "kept" } else { "not kept" };
             Ok(vec![
                 format!("Chosen        {chosen}"),
                 format!("In use        {}", crate::assistant::resolve(paths).map(|m| m.label()).unwrap_or_else(|why| format!("none: {why}"))),

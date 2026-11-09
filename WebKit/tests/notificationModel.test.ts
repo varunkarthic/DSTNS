@@ -8,6 +8,7 @@ import {
   describeNews,
   districtOf,
   focusMatches,
+  incidentWordings,
   inPlainWords,
   orderForDisplay,
   pickWording,
@@ -89,7 +90,34 @@ describe("geography", () => {
   });
 });
 
+describe("incidentWordings", () => {
+  it("has its own wording for each kind the core sends", () => {
+    const fallback = incidentWordings("incident", "Main Street", "")[0];
+    for (const type of ["accident", "road_closure", "congestion", "vehicle_breakdown", "hazard_spill"]) {
+      const lines = incidentWordings(type, "Main Street", " in Old Town");
+      expect(lines.length, type).toBeGreaterThan(1);
+      expect(lines.every((l) => l.includes("Main Street") || l.includes("main Street")), type).toBe(true);
+      expect(lines[0], type).not.toBe(fallback);
+    }
+  });
+
+  it("reads any other name, however it is spelled, as a plain incident", () => {
+    const fallback = incidentWordings("incident", "Main Street", "");
+    for (const type of ["", "ACCIDENT", " accident", "constructor", "__proto__", "toString", "valueOf", "__defineGetter__", "a".repeat(10_000)]) {
+      expect(incidentWordings(type, "Main Street", ""), JSON.stringify(type.slice(0, 20))).toEqual(fallback);
+    }
+  });
+});
+
 describe("describeNews", () => {
+  it("describes an incident whose kind is not text", () => {
+    for (const type of [42, null, { toString: () => "accident" }, ["accident"]]) {
+      const n = describeNews(news({ category: "incident", severity: "warning", template_id: "INCIDENT_ACTIVATED", message: "[06:00:00] Lane blocked on Edge #0", data: { incident_id: 1, type, edge_id: 0 } as never }), topology);
+      expect(n.title).toBe("Incident");
+      expect(n.summary.length).toBeGreaterThan(0);
+    }
+  });
+
   it("describes an incident of a kind it has no wording for, whatever the kind is called", () => {
     // The kind comes from the event: one named like an Object property must not reach it.
     for (const type of ["constructor", "__proto__", "toString", "hasOwnProperty", "a new kind"]) {

@@ -135,8 +135,10 @@ int main(int argc, char** argv) {
         std::filesystem::create_directories(logs);
         const auto token_path=std::filesystem::path(logs)/"operator.token";
         const auto token=std::getenv("DSTNS_OPERATOR_TOKEN") ? std::string(std::getenv("DSTNS_OPERATOR_TOKEN")) : dstns::Seed128::secure().hex()+dstns::Seed128::secure().hex();
-        {std::ofstream token_file(token_path);if(!token_file)throw std::runtime_error("cannot write operator credential");token_file<<token;}
-        std::filesystem::permissions(token_path,std::filesystem::perms::owner_read|std::filesystem::perms::owner_write);
+        // Owner-only before the credential is written, so no other user can read it in between.
+        {std::ofstream token_file(token_path,std::ios::trunc);if(!token_file)throw std::runtime_error("cannot write operator credential");
+         std::filesystem::permissions(token_path,std::filesystem::perms::owner_read|std::filesystem::perms::owner_write);
+         token_file<<token;if(!token_file.flush())throw std::runtime_error("cannot write operator credential");}
         setenv("DSTNS_OPERATOR_TOKEN",token.c_str(),1);
         // Where the maps are, for the daemons that watch the disk and keep the cache.
         setenv("DSTNS_MAPS_DIR", maps.c_str(), 1);

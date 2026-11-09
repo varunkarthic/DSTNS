@@ -192,32 +192,38 @@ function edgeName(topology: Topology | null, id: unknown): string | undefined {
 // Copy
 // ---------------------------------------------------------------------------
 
-/** Standard wordings for an incident starting, beside the core's own description. */
-// A Map, not an object: the type comes from the event, and a name such as "constructor" must find nothing rather than
-// something on Object's prototype.
-const INCIDENT_WORDINGS = new Map<string, (road: string, inArea: string) => string[]>(Object.entries({
-  accident: (road, inArea) => [
-    `A collision on ${road} is holding up traffic${inArea}.`,
-    `Crash on ${road}${inArea}: a lane is blocked and emergency services are there.`,
-  ],
-  road_closure: (road, inArea) => [
-    `${capital(road)} is closed${inArea}; traffic is being turned away.`,
-    `Emergency closure on ${road}${inArea}. Find another route.`,
-  ],
-  congestion: (road, inArea) => [
-    `Traffic has backed up on ${road}${inArea}.`,
-    `Heavy, slow traffic on ${road}${inArea}; expect delays.`,
-  ],
-  vehicle_breakdown: (road, inArea) => [
-    `A broken-down vehicle is blocking a lane on ${road}${inArea}.`,
-    `Breakdown on ${road}${inArea}: expect delays while it is cleared.`,
-  ],
-  hazard_spill: (road, inArea) => [
-    `A spill on ${road}${inArea} has made the surface hazardous; traffic is crawling.`,
-    `Hazardous spill on ${road}${inArea}. Crews are cleaning up and speeds are well down.`,
-  ],
-  incident: (road, inArea) => [`An incident is affecting traffic on ${road}${inArea}.`],
-}));
+/**
+ * Standard wordings for an incident starting, beside the core's own description. The kind comes from the event, so it
+ * only ever selects a branch here: no name it carries can reach a function, and an unknown one reads as an incident.
+ */
+export function incidentWordings(type: string, road: string, inArea: string): string[] {
+  switch (type) {
+    case "accident":
+      return [
+        `A collision on ${road} is holding up traffic${inArea}.`,
+        `Crash on ${road}${inArea}: a lane is blocked and emergency services are there.`,
+      ];
+    case "road_closure":
+      return [
+        `${capital(road)} is closed${inArea}; traffic is being turned away.`,
+        `Emergency closure on ${road}${inArea}. Find another route.`,
+      ];
+    case "congestion":
+      return [`Traffic has backed up on ${road}${inArea}.`, `Heavy, slow traffic on ${road}${inArea}; expect delays.`];
+    case "vehicle_breakdown":
+      return [
+        `A broken-down vehicle is blocking a lane on ${road}${inArea}.`,
+        `Breakdown on ${road}${inArea}: expect delays while it is cleared.`,
+      ];
+    case "hazard_spill":
+      return [
+        `A spill on ${road}${inArea} has made the surface hazardous; traffic is crawling.`,
+        `Hazardous spill on ${road}${inArea}. Crews are cleaning up and speeds are well down.`,
+      ];
+    default:
+      return [`An incident is affecting traffic on ${road}${inArea}.`];
+  }
+}
 
 export const INCIDENT_TITLES: Record<string, string> = Object.assign(Object.create(null), {
   road_closure: "Road closure",
@@ -448,7 +454,7 @@ function describeTemplate(item: News, topology: Topology | null): Described {
       const summary = pickWording(
         [
           sentence(`${capital(head.trim() || kind)} on ${road}`) + (tail ? ` ${sentence(capital(tail))}` : ""),
-          ...(INCIDENT_WORDINGS.get(type) ?? INCIDENT_WORDINGS.get("incident")!)(road, inArea),
+          ...incidentWordings(type, road, inArea),
         ],
         item,
       );
