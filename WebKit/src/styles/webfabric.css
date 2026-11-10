@@ -468,3 +468,15 @@
 .reduce-motion :is(.fabric-status-item, .fabric-indicator, .fabric-panel, .settings-page, .settings-page-body, .fabric-progress i, .fabric-apps button) {
   transition: none;
 }
+
+/* A QR code: dark modules on a light plate in both themes, as a camera reads it, concentric with the card it is in. */
+.fabric-qr { display: grid; justify-items: center; gap: 10px; margin: 0; padding: 4px 0; }
+.fabric-qr svg { display: block; width: min(208px, 100%); aspect-ratio: 1; padding: 6px; border-radius: var(--r-sm); background: #fff; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%); }
+.fabric-qr path { fill: #0b1620; }
+.fabric-qr figcaption { display: grid; justify-items: center; gap: 2px; max-width: 100%; text-align: center; font-size: 12px; color: var(--text-dim); }
+.fabric-qr figcaption strong { font-size: 13px; font-weight: 600; color: var(--text); }
+.fabric-qr-text { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--text-faint); }
+/* An application's web interface on a phone: a sheet that divides from its bar and keeps inside its panel. */
+.floating.fabric-phone { width: min(320px, calc(100vw - 32px)); padding: 16px 16px 14px; }
+/* What a tab holds starts a row's gap below its tabs, as everything else on the panel's grid does. */
+.fabric-tab-body { margin-top: 12px; }

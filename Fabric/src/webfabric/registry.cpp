@@ -640,6 +640,12 @@ void check_widgets(const json& widgets, int depth) {
             if (!url.is_string() || !(url.get<std::string>().starts_with("http://") || url.get<std::string>().starts_with("https://")) || url.get<std::string>().size() > 2000)
                 throw Refusal(400, "INVALID_ELEMENT", "a link needs an http or https url");
         }
+        if (type == "qr") {
+            // What a QR code holds is drawn as a code of version 10 at most, which holds 213 bytes.
+            const json held = widget.contains("url") ? widget.at("url") : widget.value("text", json(nullptr));
+            if (!held.is_string() || held.get<std::string>().empty() || held.get<std::string>().size() > 213)
+                throw Refusal(400, "INVALID_ELEMENT", "a qr widget needs a url or text of 1 to 213 bytes");
+        }
         if (widget.contains("area")) {
             const auto& area = widget.at("area");
             if (!area.is_object()) throw Refusal(400, "INVALID_ELEMENT", "area must be an object");
@@ -1101,7 +1107,7 @@ json AppRegistry::discovery() {
         {"requires_api", kApiMajor},
         {"capabilities", {{"automatic", kAutomatic}, {"needs_a_person", kExplicit}}},
         {"slots", std::move(slots)},
-        {"widgets", {"text", "heading", "note", "stat", "stats", "keyvalues", "table", "gauge", "bars", "progress", "sparkline", "route", "chips", "list", "legend", "tabs", "input", "button", "toggle", "select", "slider"}},
+        {"widgets", {"text", "heading", "note", "stat", "stats", "metric", "keyvalues", "table", "gauge", "bars", "progress", "sparkline", "chart", "route", "timeline", "status", "chips", "list", "legend", "tabs", "card", "divider", "link", "qr", "input", "button", "toggle", "select", "slider"}},
         {"overlay_features", {"route", "path", "marker", "circle", "polygon", "line", "label", "heatmap"}},
         {"layout", {{"columns", {{"min", 1}, {"max", 12}, {"default", 6}}}, {"area", {"column", "row", "width", "height"}}}},
         {"switches", {{"applications", switches().applications}, {"launch_proposals", switches().launch_proposals}, {"require_signatures", switches().require_signatures}, {"disabled_capabilities", switches().disabled}}},

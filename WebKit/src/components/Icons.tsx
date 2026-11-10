@@ -354,6 +354,12 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M12 8v4.2l2.8 1.8" />
     </>
   ),
+  phone: (
+    <>
+      <rect x="7" y="3" width="10" height="18" rx="2.5" />
+      <path d="M11 17.5h2" />
+    </>
+  ),
   external: (
     <>
       <path d="M14 4.5h5.5V10M19.5 4.5L11 13" />

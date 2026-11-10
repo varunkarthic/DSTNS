@@ -55,6 +55,12 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   beneath it; on a short window they keep to their bars.
 - **One name between worlds.** Generating a new world flies the old roads into the name, and the new world's film
   carries on from that name as it stands, instead of blowing it into a mist and forming it again.
+- **WebFabric for planners.** A `qr` widget draws a code a phone's camera reads, from the observer's own encoder; an
+  application that declares a `web` page gets a button in its bar that shows that page's code in a sheet inside its
+  panel. Widgets in a tab can sit side by side on the grid, an application's sidebar scrolls within itself, and the
+  capabilities list names every widget the observer draws. The bus planner example follows a documented planner
+  template: a tab per algorithm, a replay of the network being built, and a journey picked on the map and planned by
+  both Dijkstra and A*.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:

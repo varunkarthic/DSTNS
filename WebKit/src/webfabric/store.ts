@@ -41,7 +41,7 @@ export interface FabricLegendItem {
 }
 
 export interface FabricWidget {
-  type: "route" | "sparkline" | "table" | "gauge" | "bars" | "keyvalues" | "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input" | "metric" | "card" | "chart" | "link" | "divider" | "status" | "timeline";
+  type: "qr" | "route" | "sparkline" | "table" | "gauge" | "bars" | "keyvalues" | "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input" | "metric" | "card" | "chart" | "link" | "divider" | "status" | "timeline";
   id?: string;
   /** For a route: its stops in order. */
   stops?: { id?: string; label: string; caption?: string; state?: "passed" | "current" | "next" }[];
@@ -71,7 +71,7 @@ export interface FabricWidget {
   options?: { value: string | number; label: string }[];
   /** Where it sits on its panel's grid, in columns and rows from 1. Absent: the whole width, in order. */
   area?: { column?: number; row?: number; width?: number; height?: number };
-  /** A link: where it opens, in a new tab. */
+  /** A link: where it opens, in a new tab. A QR code: what it holds, up to 213 bytes, such as a link for a phone. */
   url?: string;
   /** A metric: the change, and what it is measured in. */
   delta?: string | number;
@@ -593,10 +593,15 @@ export function useSlot(slot: Slot) {
   return useMemo(() => selectSlot(apps, slot), [apps, slot]);
 }
 
+/** Each notification received, numbered once: an application's own sequence starts again when it registers again. */
+const received = new WeakMap<FabricNotification, number>();
+let receivedCount = 0;
+
 /** An application's notifications as the capsule's records, attributed so none can pose as DSTNS. */
 export function toUiNotification(note: FabricNotification, virtual: number): UiNotification {
+  if (!received.has(note)) received.set(note, ++receivedCount);
   return {
-    id: `app:${note.sequence}`,
+    id: `app:${note.app_id}:${received.get(note)}`,
     newsIds: [],
     type: "APPLICATION",
     category: "system",

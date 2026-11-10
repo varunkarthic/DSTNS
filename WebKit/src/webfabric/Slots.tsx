@@ -8,8 +8,9 @@ import { Icon } from "../components/Icons";
 import { BrandLogo } from "../components/BrandLogo";
 import { Tooltip } from "../components/Tooltip";
 import { Dialog } from "../components/Dialog";
+import { qrModules } from "../components/qr";
 import { Switch } from "../components/settingsControls";
-import { Select } from "../components/Popover";
+import { Floating, Select, useDismiss } from "../components/Popover";
 import { settleTime, Spring, springEasing, SPRINGS } from "../CoreMotion/motion";
 import { AppFrame } from "./AppFrame";
 import { fabric, useFabricApps, useLaunchPlan, useOpenPanel, usePicking, useSlot, webOf } from "./store";
@@ -201,9 +202,8 @@ function FabricTabs({ app, element, widget }: { app: FabricApp; element: FabricE
         ))}
       </div>
       <div className="fabric-tab-body" key={current.id} role="tabpanel">
-        {(Array.isArray(current.widgets) ? current.widgets : []).map((child, i) => (
-          <Widget key={child.id ?? i} app={app} element={element} widget={child} />
-        ))}
+        {/* A tab is a canvas of its own, so what it holds can sit side by side as a panel's widgets can. */}
+        <WidgetGrid app={app} element={{ ...element, layout: undefined }} widgets={Array.isArray(current.widgets) ? current.widgets : []} />
       </div>
     </>
   );
@@ -222,6 +222,31 @@ function FabricInput({ widget, onSubmit }: { widget: FabricWidget; onSubmit: (va
 }
 
 /** A figure with its recent history. Drawn to the panel's width, in the application's series or tone. */
+/**
+ * A QR code an application asks to show, such as a link for a phone: dark on a light plate whatever the theme, since
+ * that is what a camera reads, with what it holds written under it.
+ */
+function FabricQr({ widget }: { widget: FabricWidget }) {
+  const content = text(widget.url) || text(widget.text);
+  const modules = content ? qrModules(content) : null;
+  if (!modules) return content ? <p className="fabric-note">This code is too long to show.</p> : null;
+  const quiet = 2;
+  const d = modules.flatMap((row, y) => row.map((dark, x) => (dark ? `M${x + quiet} ${y + quiet}h1v1h-1z` : ""))).join("");
+  const size = modules.length + quiet * 2;
+  return (
+    <figure className="fabric-qr">
+      <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`QR code: ${text(widget.label) || content}`} shapeRendering="crispEdges">
+        <path d={d} />
+      </svg>
+      <figcaption>
+        {widget.label ? <strong>{text(widget.label)}</strong> : null}
+        {widget.caption ? <span>{text(widget.caption)}</span> : null}
+        <span className="mono fabric-qr-text">{content}</span>
+      </figcaption>
+    </figure>
+  );
+}
+
 function FabricSparkline({ widget }: { widget: FabricWidget }) {
   const values = (Array.isArray(widget.values) ? widget.values : []).filter((v) => typeof v === "number" && Number.isFinite(v)).slice(-120);
   const low = Math.min(...values);
@@ -344,8 +369,26 @@ export function AppActions({ app, labelled = false }: { app: FabricApp; labelled
       </button>
     </Tooltip>
   );
+  // Its web interface on a phone: a code to scan, in a sheet that divides from this bar and stays inside the panel.
+  const [phone, setPhone] = useState(false);
+  const phoneButton = useRef<HTMLButtonElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
+  useDismiss(phone, () => setPhone(false), [phoneButton, sheet]);
   return (
     <div className="fabric-app-actions">
+      {web && (
+        <Tooltip label="On a phone" detail={`A code to scan for ${web.label}`} side={["bottom"]}>
+          <button ref={phoneButton} type="button" className={labelled ? "btn" : "icon-btn"} aria-label={`${web.label} on a phone, ${app.name}`} aria-expanded={phone} onClick={() => setPhone((v) => !v)}>
+            <Icon name="phone" size={labelled ? 14 : 15} />
+            {labelled && <span>On a phone</span>}
+          </button>
+        </Tooltip>
+      )}
+      {web && (
+        <Floating anchor={phoneButton} open={phone} preferred={["bottom"]} only within=".fabric-sidebar, .fabric-panel" className="fabric-phone" panelRef={sheet} label={`${web.label} on a phone`}>
+          <FabricQr widget={{ type: "qr", url: web.url, label: web.label, caption: "Scan with a phone's camera to open it there." }} />
+        </Floating>
+      )}
       {web && button("external", web.label, "In a new tab", () => void window.open(web.url, "_blank", "noopener,noreferrer"))}
       {button("reset", "Reload", "Its connection ends, and it connects again anew", () => void act(() => fabric.reload(app.id)))}
       {button("power", "Turn off", "It leaves the interface until you turn it on in Settings", () => void act(() => fabric.suspend(app.id, true)))}
@@ -460,6 +503,8 @@ function Widget({ app, element, widget }: { app: FabricApp; element: FabricEleme
         </a>
       ) : null;
     }
+    case "qr":
+      return <FabricQr widget={widget} />;
     case "divider":
       return <hr className="fabric-divider" />;
     case "status":

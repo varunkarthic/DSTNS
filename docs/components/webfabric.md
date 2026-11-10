@@ -124,11 +124,76 @@ With a person's grant, an application can say where the map looks and how close 
 
 An application asks, and the observer decides. None of it changes a person's settings, none of it is saved, and it ends when the application does. A person's move comes first, and reduced detail under load can't be undone. See the [API](../api/fabric-api.md#directing-the-view) and [security](../api/security.md#directing-the-view).
 
-## Widgets of its own
+## Widgets
 
-Besides the general widgets, two exist for this kind of application. `route` lists `stops` in order, each
-with a `label`, optional `caption` and a `state` of `passed`, `current` or `next`. `sparkline` shows a
-`label`, a `value` and recent `values`, in a `series` or `tone`.
+Every widget is drawn by the observer's own components, in its type, spacing and motion. An application says what to
+show, never how to draw it.
+
+| Kind | Widgets |
+|---|---|
+| Words | `heading`, `text`, `note`, `divider`, `link` (http or https only, opens in a tab of its own) |
+| Figures | `stat`, `stats`, `metric` (with `delta` and `unit`), `keyvalues`, `progress`, `gauge`, `status`, `table` |
+| Over time | `sparkline`, `chart` (`line`, `area` or `bars`), `bars`, `timeline` |
+| The network | `route` (stops in order, each `passed`, `current` or `next`), `list` rows with a `badge`, `share` bar, `value` and `series`, `legend` (a key, or a switch with `value`) |
+| Taking part | `button` (with `pick: true`, the next click on the map is reported as a place), `toggle`, `select`, `slider`, `input` (`text`, `time` or `number`), `chips` |
+| Arranging | `tabs` (each with an optional `caption` above its label), `card` (widgets inside it, three deep at most) |
+| A phone | `qr`: a code for a `url` or `text` of up to 213 bytes, with an optional `label` and `caption`, drawn dark on a light plate in either theme so a camera reads it |
+
+On a panel, a sidebar or inside a tab, widgets are laid out on a grid. Without `area` each takes the whole width in
+order; with `"area": {"column": 1, "width": 3}` (columns and rows from 1 to 12) two can sit side by side. Give the
+element `"layout": {"columns": 6}` to choose the grid; a tab with placed widgets uses six.
+
+An application that declares a `web` address in its manifest gets two buttons in its bar: one opens the page in a tab,
+and one shows a code to scan for it on a phone. The code opens in a sheet that divides from the bar and stays inside
+the application's panel, so nothing about it leaves WebFabric.
+
+## Templates
+
+These are arrangements of the widgets above that read well together. None needs anything beyond them.
+
+**A planner** (`sidebar`). One tab per algorithm, each `caption`ed with which it is. Each tab opens with a sentence of
+what the algorithm does, then its result as `stats` and a `progress`, then what it made as a `list`, then a way to
+watch or try it: a `button` and a `slider` side by side to replay its construction, or two `button`s with `pick: true`
+for the two ends of a journey and one to plan it, followed by `stats` that compare the algorithms. A `legend` closes
+the sidebar, with switches for what is drawn on the map. Its network is an `overlay` of `route`s and `marker`s in
+`series` colours, its vehicles a separate overlay of `path`s, and its answer a `path` with `"style": "flow"`.
+
+```json
+{"id": "planner", "slot": "sidebar", "title": "Bus planner", "label": "Built on Fabric", "widgets": [
+  {"type": "tabs", "id": "view", "tabs": [
+    {"id": "network", "caption": "Algorithm 1", "label": "The network", "widgets": [
+      {"type": "text", "text": "Each line starts at the busiest stop not yet served."},
+      {"type": "stats", "items": [{"label": "Demand covered", "value": "97%", "tone": "accent"}, {"label": "Lines", "value": "5/6"}]},
+      {"type": "progress", "label": "Stops served", "value": 0.97},
+      {"type": "list", "id": "lines", "rows": [{"id": "line-0", "badge": "R0", "title": "7 stops", "share": 0.2, "value": "20%", "series": 0}]},
+      {"type": "button", "id": "replay", "label": "Replay the construction", "area": {"column": 1, "width": 2}},
+      {"type": "slider", "id": "seek", "label": "Line", "min": 0, "max": 5, "step": 1, "value": 2, "area": {"column": 3, "width": 4}}]},
+    {"id": "journey", "caption": "Algorithm 2", "label": "A journey", "widgets": [
+      {"type": "button", "id": "pick-from", "label": "Choose where from", "pick": true, "area": {"column": 1, "width": 3}},
+      {"type": "button", "id": "pick-to", "label": "Choose where to", "pick": true, "area": {"column": 4, "width": 3}},
+      {"type": "button", "id": "plan", "label": "Plan the journey", "tone": "accent"},
+      {"type": "stats", "items": [{"label": "A* settled", "value": 973, "tone": "accent"}, {"label": "Dijkstra settled", "value": 2650, "tone": "warn"}]}]}]},
+  {"type": "legend", "legend": [{"label": "Bus line", "series": 0, "mark": "line"}, {"id": "moving", "label": "Moving buses", "value": true}]}]}
+```
+
+**A board** (`deck` or `panel`). A `metric` or `stats` row at the top, a `chart` or `sparkline` of how it has
+changed, then the detail as a `list` or `table`. Updated with `PUT .../ui/{element}` once a second at most.
+
+**Sharing to a phone** (`web` in the manifest, or a `qr` widget). For a page people should open on their own phones,
+such as ticketing, declare it as `web` and the code comes with the bar. To show a code for something else, a seat or
+a booking, put a `qr` in a `card`.
+
+`Fabric/examples/bus_planner.py` is the planner template running against any world, with `--web` to offer a page on a
+phone.
+
+## What is checked
+
+| | What |
+|---|---|
+| Refused (`400 INVALID_ELEMENT`) | An unknown slot or tone; a colour where a tone belongs; a link that is not http or https; an `area` outside 1 to 12; widgets nested more than three deep; a `qr` with nothing in it or more than 213 bytes; a custom motion that is too stiff, overshoots more than 12% or takes longer than 1.5 s to settle; a frame without its grant |
+| Refused (`413 UI_TOO_LARGE`) | More than 64 elements, or more than 4 MiB of declared interface |
+| Adjusted | A route or path's own colour is made legible against the map and given a pattern under a colour-vision palette; elements past a slot's limit wait their turn, in registration order; a grid asks for 1 to 12 columns; text is drawn as text, so markup in it stays visible |
+| Reported | An element that fails to draw hides its application and is reported as a failure; refusals, rate limits and lapsed leases are counted in the application's health in Settings |
 
 ## Where it lives
 

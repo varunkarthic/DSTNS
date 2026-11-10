@@ -61,28 +61,41 @@ def road_graph(network):
     return graph
 
 
-def shortest_path(graph, start, goal):
-    """The roads from start to goal, by length. Dijkstra, stopping at the goal."""
+def search(graph, start, goal, position=None):
+    """The roads from start to goal by length, and how many junctions were settled finding them. Dijkstra; with
+    junction positions, A*, guided by the straight line to the goal, which never overestimates a road's length."""
+    def guess(node):
+        if position is None:
+            return 0
+        a, b = position[node], position[goal]
+        return math.hypot(a["x_m"] - b["x_m"], a["y_m"] - b["y_m"])
     best = {start: 0}
     previous = {}
-    queue = [(0, start)]
+    queue = [(guess(start), start)]
+    settled = set()
     while queue:
-        cost, node = heapq.heappop(queue)
+        _, node = heapq.heappop(queue)
+        if node in settled:
+            continue
+        settled.add(node)
         if node == goal:
             path = []
             while node != start:
                 node, edge = previous[node]
                 path.append(edge)
-            return path[::-1]
-        if cost > best.get(node, math.inf):
-            continue
+            return path[::-1], len(settled)
         for neighbour, length, edge in graph.get(node, ()):
-            next_cost = cost + length
+            next_cost = best[node] + length
             if next_cost < best.get(neighbour, math.inf):
                 best[neighbour] = next_cost
                 previous[neighbour] = (node, edge)
-                heapq.heappush(queue, (next_cost, neighbour))
-    return None
+                heapq.heappush(queue, (next_cost + guess(neighbour), neighbour))
+    return None, len(settled)
+
+
+def shortest_path(graph, start, goal):
+    """The roads from start to goal, by length."""
+    return search(graph, start, goal)[0]
 
 
 def plan_lines(network, stops):
@@ -127,26 +140,63 @@ def buses(lines, settings, moving):
         for line in lines for i in range(int(settings["buses"]))]}
 
 
-def sidebar(lines, covered, moving):
+def sidebar(state):
+    """The planner template: one tab per algorithm, each opening with what it did in figures, then what it made, then
+    a way to watch or try it. Every widget here is one the observer already draws."""
+    lines, covered, moving = state["lines"], state["covered"], state["moving"]
     total = sum(line["demand"] for line in lines) or 1
+    share = covered / max(1, state["stops"])
+    shown = state["built"]
+    building = shown is not None
+    journey = state["journey"]
+    ends = state["ends"]
+    trying = [
+        {"type": "button", "id": "pick-from", "label": f"From junction {ends['from']}" if ends.get("from") is not None else "Choose where from", "pick": True,
+         "area": {"column": 1, "width": 3}},
+        {"type": "button", "id": "pick-to", "label": f"To junction {ends['to']}" if ends.get("to") is not None else "Choose where to", "pick": True,
+         "area": {"column": 4, "width": 3}},
+        {"type": "button", "id": "plan", "label": "Plan the journey", "tone": "accent"},
+    ]
+    if journey:
+        trying += [
+            {"type": "heading", "text": "A* against Dijkstra, same question"},
+            {"type": "stats", "items": [
+                {"label": "A* settled", "value": journey["astar"], "tone": "accent"},
+                {"label": "Dijkstra settled", "value": journey["dijkstra"], "tone": "warn"},
+            ]},
+            {"type": "note", "text": f"Both find the same {journey['metres']:.0f} m. A* looked at {100 * journey['astar'] / max(1, journey['dijkstra']):.0f}% as many junctions, because the straight line to the goal tells it which way to look first."},
+        ]
     return {
         "id": "planner", "slot": "sidebar", "title": "Bus planner", "label": "Built on Fabric", "motion": "slide",
         "widgets": [
             {"type": "tabs", "id": "view", "tabs": [
-                {"id": "network", "caption": "Step 1", "label": "The network", "widgets": [
+                {"id": "network", "caption": "Algorithm 1", "label": "The network", "widgets": [
                     {"type": "text", "text": "Each line starts at the busiest stop not yet served, then joins the nearest unserved stop along real roads."},
-                    {"type": "stats", "items": [{"label": "Lines", "value": len(lines)}, {"label": "Stops", "value": covered}]},
+                    {"type": "stats", "items": [
+                        {"label": "Demand covered", "value": f"{100 * share:.0f}%", "tone": "accent"},
+                        {"label": "Lines", "value": f"{len(lines)}/{LINES}"},
+                        {"label": "Stops", "value": covered},
+                    ]},
+                    {"type": "progress", "label": "Stops served", "value": share},
                     {"type": "heading", "text": "Lines"},
                     {"type": "list", "id": "lines", "rows": [
-                        {"id": f"line-{line['number']}", "badge": f"R{line['number']}", "subtitle": f"{len(line['stops'])} stops", "share": line["demand"] / total, "value": f"{100 * line['demand'] / total:.0f}%", "series": line["number"]}
+                        {"id": f"line-{line['number']}", "badge": f"R{line['number']}", "title": f"{len(line['stops'])} stops", "subtitle": f"Junction {line['stops'][0]['node']} onward",
+                         "share": line["demand"] / total, "value": f"{100 * line['demand'] / total:.0f}%", "series": line["number"]}
                         for line in lines]},
+                    {"type": "heading", "text": "Watch it being built"},
+                    {"type": "button", "id": "replay", "label": ("Pause" if state["playing"] else "Play") if building else "Replay the construction", "area": {"column": 1, "width": 2}},
+                    *([{"type": "slider", "id": "seek", "label": "Line", "min": 0, "max": len(lines), "step": 1, "value": shown, "area": {"column": 3, "width": 4}},
+                       {"type": "note", "text": f"Line R{lines[shown - 1]['number']}: from junction {lines[shown - 1]['stops'][0]['node']} through {len(lines[shown - 1]['stops'])} stops." if shown else "No lines yet: the busiest stop comes first."}]
+                      if building else []),
                 ]},
-                {"id": "journey", "caption": "Step 2", "label": "A journey", "widgets": [
-                    {"type": "note", "text": "Choose a place, and the nearest stop to it is reported."},
-                    {"type": "button", "id": "from", "label": "Choose a place on the map", "pick": True},
+                {"id": "journey", "caption": "Algorithm 2", "label": "A journey", "widgets": [
+                    {"type": "text", "text": "Choose two places on the map, and the shortest way between them is found twice: by Dijkstra, and by A*."},
+                    *trying,
                 ]},
             ]},
-            {"type": "legend", "legend": [{"label": "Bus line", "series": 0, "mark": "line"}, {"label": "Stop", "tone": "warn", "mark": "dot"}, {"id": "moving", "label": "Moving buses", "value": moving}]},
+            {"type": "legend", "legend": [
+                {"label": "Bus line", "series": 0, "mark": "line"}, {"label": "Your journey", "tone": "accent", "mark": "line"},
+                {"label": "Stop", "tone": "warn", "mark": "dot"}, {"id": "moving", "label": "Moving buses", "value": moving}]},
         ],
     }
 
@@ -155,6 +205,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--url", default="http://127.0.0.1:8090")
     parser.add_argument("--ticks", type=int, default=0, help="stop after this many updates; 0 runs until interrupted")
+    parser.add_argument("--web", help="the address of this planner's own web page, offered as a code to scan with a phone")
     args = parser.parse_args()
     fabric = Fabric(args.url)
 
@@ -163,6 +214,7 @@ def main():
         "id": APP, "name": "Bus planner", "version": "1.0.0", "description": "Plans bus lines along real roads, using the core's demand at each stop.",
         "capabilities": ["ui.sidebar", "ui.deck", "ui.overlays", "ui.notifications", "settings", "sim.read"],
         "lease_s": 30,
+        **({"web": {"url": args.web, "label": "Ticketing"}} if args.web else {}),
         "settings": {"version": 1, "groups": [{"id": "service", "label": "Service", "fields": [
             {"id": "buses", "label": "Buses per line", "type": "slider", "min": 1, "max": 4, "default": 2},
             {"id": "speed", "label": "Bus speed", "hint": "Metres of map per second of real time.", "type": "slider", "min": 20, "max": 200, "step": 10, "default": 80},
@@ -187,9 +239,19 @@ def main():
     depots = {"id": "depots", "slot": "overlay", "features": [
         {"type": "entity", "edge": line["depot"], "at": 0.5, "shape": "vehicle", "size": 4, "tone": "neutral"} for line in lines if line["depot"] is not None]}
     covered = sum(len(line["stops"]) for line in lines)
-    moving = True
+    state = {"lines": lines, "covered": covered, "stops": len(stops), "moving": True, "built": None, "playing": False, "journey": None, "ends": {}}
+    graph = road_graph(network)
+    position = {node["id"]: node["position"] for node in network["nodes"]}
     settings = fabric.app("GET", "/settings")["values"]
-    fabric.app("PUT", "/ui", [routes, stop_marks, depots, buses(lines, settings, moving), sidebar(lines, covered, moving)])
+    fabric.app("PUT", "/ui", [routes, stop_marks, depots, buses(lines, settings, state["moving"]), sidebar(state)])
+
+    def nearest_junction(place):
+        return min(position, key=lambda n: math.hypot(position[n]["x_m"] - place["x_m"], position[n]["y_m"] - place["y_m"]))
+
+    def show_built():
+        """The construction replay: the routes overlay shows the first lines only."""
+        upto = lines if state["built"] is None else lines[:state["built"]]
+        fabric.app("PUT", "/ui/routes", {**routes, "features": [{"type": "route", "series": line["number"], "width": 3, "nodes": line["nodes"]} for line in upto]})
     history = []
     fabric.app("POST", "/notifications", {"title": f"{len(lines)} lines planned", "body": f"{covered} stops are served along real roads."})
 
@@ -205,16 +267,40 @@ def main():
                 data = event["data"]
                 if event["type"] == "settings.changed":
                     settings = data["values"]
-                    fabric.app("PUT", "/ui/buses", buses(lines, settings, moving))
+                    fabric.app("PUT", "/ui/buses", buses(lines, settings, state["moving"]))
                 elif event["type"] == "ui.action" and data["element"] == "moving":
-                    moving = bool(data["value"])
-                    fabric.app("PUT", "/ui/planner", sidebar(lines, covered, moving))
-                    fabric.app("PUT", "/ui/buses", buses(lines, settings, moving))
+                    state["moving"] = bool(data["value"])
+                    fabric.app("PUT", "/ui/buses", buses(lines, settings, state["moving"]))
                 elif event["type"] == "ui.action" and data.get("action") == "pick":
-                    place = data["value"]
-                    nearest = min((s for line in lines for s in line["stops"]), key=lambda s: math.hypot(s["x_m"] - place["x_m"], s["y_m"] - place["y_m"]))
-                    metres = math.hypot(nearest["x_m"] - place["x_m"], nearest["y_m"] - place["y_m"])
-                    fabric.app("POST", "/notifications", {"title": "Nearest stop", "body": f"{metres:.0f} m away, at junction {nearest['node']}."})
+                    state["ends"]["from" if data["element"] == "pick-from" else "to"] = nearest_junction(data["value"])
+                    state["journey"] = None
+                elif event["type"] == "ui.action" and data["element"] == "plan" and len(state["ends"]) == 2:
+                    a, b = state["ends"]["from"], state["ends"]["to"]
+                    path, dijkstra = search(graph, a, b)
+                    _, astar = search(graph, a, b, position)
+                    if path:
+                        state["journey"] = {"astar": astar, "dijkstra": dijkstra, "metres": sum(edge.get("length_m", 0) for edge in path)}
+                        fabric.app("PUT", "/ui/journey", {"slot": "overlay", "features": [
+                            {"id": "journey", "type": "path", "nodes": [a] + [edge["to"] for edge in path], "style": "flow", "tone": "accent", "width": 4, "glow": True}]})
+                    else:
+                        fabric.app("POST", "/notifications", {"title": "No way through", "body": f"No road leads from junction {a} to junction {b}."})
+                elif event["type"] == "ui.action" and data["element"] == "replay":
+                    if state["built"] is None or state["built"] >= len(lines):
+                        state["built"], state["playing"] = 0, True
+                    else:
+                        state["playing"] = not state["playing"]
+                    show_built()
+                elif event["type"] == "ui.action" and data["element"] == "seek":
+                    state["built"], state["playing"] = int(data["value"]), False
+                    show_built()
+                if event["type"] == "ui.action" or event["type"] == "settings.changed":
+                    fabric.app("PUT", "/ui/planner", sidebar(state))
+            # A replay adds a line a second, then rests on the finished network.
+            if state["playing"]:
+                state["built"] += 1
+                state["playing"] = state["built"] < len(lines)
+                show_built()
+                fabric.app("PUT", "/ui/planner", sidebar(state))
 
             # The core's demand now, for the section on the right.
             everywhere = fabric.app("GET", "/stops")["items"]

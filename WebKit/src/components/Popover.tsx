@@ -63,6 +63,7 @@ export function Floating({
   id,
   only = false,
   edge = false,
+  within,
 }: {
   anchor: RefObject<HTMLElement | null>;
   open: boolean;
@@ -77,6 +78,8 @@ export function Floating({
   only?: boolean;
   /** Above or below, line up with the trigger's nearer edge and be at least as wide, as a pop-up menu does. */
   edge?: boolean;
+  /** Stay inside the nearest element this selector matches, 8px in from its sides: a sheet that belongs to a panel. */
+  within?: string;
 }) {
   const own = useRef<HTMLDivElement>(null);
   const ref = panelRef ?? own;
@@ -107,9 +110,11 @@ export function Floating({
       placed.left = Math.max(12, Math.min(window.innerWidth - width - 12, left));
       el.style.minWidth = `${a.width}px`;
     }
+    const room = within ? anchor.current?.closest(within)?.getBoundingClientRect() : null;
+    if (room) placed.left = Math.max(room.left + 8, Math.min(room.right - 8 - size.width, placed.left));
     setPlace(placed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchor, preferred.join(), only, edge]);
+  }, [anchor, preferred.join(), only, edge, within]);
   useLayoutEffect(() => {
     if (!open) {
       setPlace(null);
@@ -131,7 +136,7 @@ export function Floating({
   if (place) lastPlace.current = place;
   const shown = place ?? (open ? null : lastPlace.current);
   const still = document.documentElement.classList.contains("reduce-motion");
-  const parent = still ? null : anchor.current?.closest<HTMLElement>(".rail, .hud-pill");
+  const parent = still ? null : anchor.current?.closest<HTMLElement>(".rail, .hud-pill, .fabric-appbar");
   const budded = !!parent && (!shown || shown.side === "top" || shown.side === "bottom");
   const leaving = usePresence(open, still ? 0 : budded ? 700 : MOTION_MS.overlay);
   const membrane = useRef<SVGSVGElement>(null);

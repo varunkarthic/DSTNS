@@ -53,10 +53,12 @@ coast. Test the three modes, not only the full one.
 
 ## Curvature
 
-One scale, in `system.css`, and a test that fails on anything else. Floating surfaces (bars, panels, menus, cards)
-take `--r-lg` (18 px). What sits on them takes `--r-md` (14 px) or `--r-sm` (10 px), which is also every button and
-control. Small marks take `--r-xs` (6 px). Only badges, chips, switches and slider tracks are fully round, because
-that shape says what they are.
+One scale, in `system.css`: `--r-lg` 26 px for what floats over the map (bars, panels, menus, dialogs), `--r-md` 18 px
+for a card on one, `--r-sm` 12 px for a tile or a control in a card, `--r-xs` 8 px for a chip in a tile. Each sits 8,
+6 and 4 px inside the one before it, so every corner is concentric with the corner around it: a panel's cards are 8 px
+from its edge, a list's own bar of controls is 4 px inside its card with 28 px stadiums in it. A control a line tall
+is a stadium; whatever round sits in a stadium's end shares its centre. Icons, place glyphs and their wells are
+circles.
 
 ## Dynamic Edge Resistance
 
@@ -86,11 +88,26 @@ or `scrollIntoView` that moves one of those containers anyway is put straight ba
 
 ## Secondary panels
 
-Settings and search grow from the dock like a drop: a bead at the icon bulges out on a neck, the
-neck thins and lets go, and the drop swells upward and outward into a panel the height of the
-dock. Closing runs the same path backward. `FluidPanel.tsx` drives it all from one spring value,
-so it can reverse at any point, and neither panel closes when the map is used. There is one
-open at a time.
+A panel divides from the surface that asked for it, as a cell does: the edge swells into a bead at the control that
+was pressed, the bead is drawn out on a neck, the neck thins and parts, and the drop grows into the panel. Closing runs
+the same path backward, and opening and closing can interrupt each other anywhere, because it is all one spring value
+(`bud.ts`). Settings and Search divide from the dock and are its height; the collapsed telemetry strip's panel divides
+from the strip leftward and is the strip's height; the bar's menus divide from the bar; an application's sheet, such
+as its code for a phone, divides from its own bar and stays inside its panel. Under reduced motion each simply appears.
+
+## Dialogs
+
+Every dialog is one card (`Dialog.tsx`): a plate on its left with a figure that acts out what the dialog is about,
+and beside it a title, a few words and the answers side by side, the way out first and the named action last with its
+icon, tinted like the control that asked (Terminate, New World). It comes forward on a spring with the least give and
+leaves on a shorter, even ease, shrinking a little and softening as its scrim lifts. About is two panes. On a narrow
+window the plate goes back on top.
+
+## Figures
+
+The observer's line drawings (`Figure.tsx`): one 160 by 100 plate, four line weights of colour, drawn in stroke by
+stroke, then one slow movement that says what they mean. They lean a few degrees toward the pointer, their subject a
+little further than the rest, and draw themselves again when pressed. Under reduced motion they are pictures.
 
 Slider-like choices use `QuantizedSlider`: it follows the pointer and settles on the labelled
 stop its momentum reaches. Use a switch at the end of a row; put anything larger under the title

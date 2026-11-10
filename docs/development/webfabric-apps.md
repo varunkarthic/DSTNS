@@ -180,7 +180,12 @@ fabric.app("PUT", "/ui/found", {"slot": "overlay", "features": [
 
 Every option is listed under [On the road network](../components/webfabric.md#on-the-road-network).
 
-`Fabric/examples/bus_planner.py` does all of this and can be run against any world. It uses DSTNS's own
+The [planner template](../components/webfabric.md#templates) lays the sidebar out: a tab per algorithm, its result in
+figures, what it made as a list, a replay with a button and a slider side by side, and a journey chosen by picking two
+places, planned twice so the algorithms can be compared. A `web` address in the manifest puts a code to scan in the
+application's bar, for a page to open on a phone.
+
+`Fabric/examples/bus_planner.py` does all of this and can be run against any world, with `--web URL` for the phone. It uses DSTNS's own
 stops where a district has enough, otherwise naming well-connected junctions as stops, and shows the
 demand at them in a section on the right.
 

@@ -3253,7 +3253,7 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
    What scrolls under a panel's lower edge blurs a little as it fades, as if passing under frosted glass: a strip pinned
    to the bottom of the scroller, its blur strongest at the edge. Only 36px of it, so a scroll repaints almost nothing;
    none under reduced transparency, high contrast or reduced motion. */
-:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .layers-scroll)::after {
+:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .layers-scroll, .fabric-panel-body)::after {
   content: "";
   position: sticky;
   bottom: 0;
@@ -3266,4 +3266,9 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
   -webkit-backdrop-filter: blur(5px);
   mask-image: linear-gradient(to bottom, transparent, #000 85%);
 }
-:is(.reduce-transparency, .high-contrast, .reduce-motion) :is(.stream, .settings-scroll, .about-scroll, .place-search-results, .layers-scroll)::after { display: none; }
+:is(.reduce-transparency, .high-contrast, .reduce-motion) :is(.stream, .settings-scroll, .about-scroll, .place-search-results, .layers-scroll, .fabric-panel-body)::after { display: none; }
+
+/* An application's sidebar: its bar lines up with its title, and its body takes the rest of the height and scrolls
+   inside it, however much the application declares. */
+.fabric-sidebar > .fabric-appbar { flex: none; padding: 0 12px 8px 20px; }
+.fabric-sidebar-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }

@@ -48,12 +48,14 @@ void out_of_the_box() {
     const json good = {{"id", "board"}, {"slot", "panel"}, {"title", "Board"}, {"layout", {{"columns", 6}}}, {"widgets", {
         {{"type", "metric"}, {"label", "Buses"}, {"value", "12"}, {"area", {{"column", 1}, {"row", 1}, {"width", 3}, {"height", 1}}}},
         {{"type", "link"}, {"label", "Open"}, {"url", "https://example.org/"}, {"area", {{"column", 4}, {"width", 3}}}},
+        {{"type", "qr"}, {"label", "On your phone"}, {"url", "https://example.org/ticket?seat=12A"}},
         {{"type", "tabs"}, {"tabs", {{{"id", "a"}, {"label", "A"}, {"widgets", {{{"type", "chart"}, {"series", {{{"label", "x"}, {"points", {1, 2, 3}}}}}}}}}}}}}}};
     EXPECT(s.call("PUT", BASE + "/org.test.web/ui/board", good, token).status == 200);
     json nested = {{"type", "card"}, {"widgets", json::array()}};
     for (int depth = 0; depth < 4; ++depth) nested = {{"type", "card"}, {"widgets", {nested}}};
     for (const json& wrong : {json{{"layout", {{"columns", 13}}}}, json{{"widgets", {{{"type", "link"}, {"url", "javascript:x"}}}}}, json{{"widgets", {{{"type", "text"}, {"area", {{"column", 0}}}}}}},
-                              json{{"widgets", {{{"type", "text"}, {"area", {{"width", 13}}}}}}}, json{{"widgets", {{{"text", "no type"}}}}}, json{{"widgets", {nested}}}}) {
+                              json{{"widgets", {{{"type", "text"}, {"area", {{"width", 13}}}}}}}, json{{"widgets", {{{"text", "no type"}}}}}, json{{"widgets", {nested}}},
+                              json{{"widgets", {{{"type", "qr"}}}}}, json{{"widgets", {{{"type", "qr"}, {"text", std::string(214, 'x')}}}}}}) {
         const auto refused = s.call("PUT", BASE + "/org.test.web/ui/board", merged(good, wrong), token);
         EXPECT(refused.status == 400 && refused.code() == "INVALID_ELEMENT", wrong, refused);
     }
