@@ -20,8 +20,10 @@ mod graph;
 mod inspect;
 mod interface;
 mod log;
+
 mod logs;
 mod maintenance;
+mod markdown;
 mod modules;
 mod narration;
 mod output;

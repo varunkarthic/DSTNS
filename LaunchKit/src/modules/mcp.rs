@@ -318,6 +318,27 @@ pub fn graph_tools(paths: &Paths) -> Vec<Tool> {
 }
 
 /// The launcher's own: what is running, its settings, and, if allowed, starting and stopping.
+/// Questions about DSTNS, answered from its documentation and code. It only informs: it runs nothing and changes
+/// nothing, and an answer that calls for an action names the command for whoever asked.
+pub fn ask_tool(paths: &Paths) -> Tool {
+    let p = paths.clone();
+    Tool {
+        name: "dstns_ask".into(),
+        description: "Ask about DSTNS in plain words: what it does, what it needs, how to use a feature, what a setting means, how to fix a problem. The answer is Markdown, grounded in DSTNS's documentation (and its code, for questions about code), with the sources it cites. Pass conversation from a previous answer to ask a follow-up. It only informs: nothing is run or changed. AI-written: check anything that matters.".into(),
+        schema: json!({"type": "object", "properties": {
+            "question": {"type": "string", "description": "The question, in plain words"},
+            "conversation": {"type": "string", "description": "The conversation of an earlier answer, for a follow-up"}
+        }, "required": ["question"]}),
+        read_only: true,
+        handler: Box::new(move |a| {
+            let question = a.get("question").and_then(|v| v.as_str()).unwrap_or("");
+            let conversation = a.get("conversation").and_then(|v| v.as_str());
+            let answer = crate::assistant::answer(&p, question, conversation, None).map_err(LauncherError::config)?;
+            Ok(crate::assistant::answer_json(&answer))
+        }),
+    }
+}
+
 pub fn launcher_tools(paths: &Paths, policy: Policy, session: Arc<Session>) -> Vec<Tool> {
     let p = paths.clone();
     let mut tools = vec![
@@ -459,6 +480,9 @@ impl McpServer {
     pub fn tools(&self) -> Vec<Tool> {
         let mut tools = launcher_tools(&self.paths, self.policy, self.session.clone());
         tools.extend(graph_tools(&self.paths));
+        if crate::assistant::assist_enabled(&self.paths) {
+            tools.push(ask_tool(&self.paths));
+        }
         tools.push(request_tool(&self.paths, self.policy));
         tools.extend(route_tools(&self.paths, self.policy));
         tools

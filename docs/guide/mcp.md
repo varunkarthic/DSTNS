@@ -74,6 +74,7 @@ $ ./launcher mcp tools
 | `launcher_config_get` | reads | One setting, or all of them |
 | `launcher_seeds_list`, `launcher_apps_list` | reads | Saved seeds; the application catalogue |
 | `launcher_suggest` | reads | A request in plain words as a line of console commands, from the launcher's own model, checked as the command bar checks it. Nothing is run |
+| `dstns_ask` | reads | A question about DSTNS in plain words (what it does, what it needs, how to use a feature, how to fix a problem), answered in Markdown from its documentation, and its code for questions about code, with the sources cited and who wrote it. Pass `conversation` from an answer to ask a follow-up. It only informs: nothing is run or changed. Off with `assist.enabled` |
 | `graph_ask` | reads | A question about the code in plain words, answered from the [knowledge graph](operator-cli.md#the-knowledge-graph) with no model: *who calls physics_step*, *what does next_world.cpp import*, *functions in the launcher that save settings*. Each result has its file, line and GitHub link |
 | `graph_show`, `graph_relations`, `graph_path` | reads | One node and everything round it; its callers, callees, dependencies, users or members; the chain between two |
 | `launcher_start` | changes (with `mcp.allow_launcher`) | Start a simulation, with a seed, day type, speed and map |

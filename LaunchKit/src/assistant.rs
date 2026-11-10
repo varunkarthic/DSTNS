@@ -42,9 +42,9 @@ pub fn service(paths: &Paths) -> Result<coreai::serve::Service, String> {
     static SERVICE: std::sync::OnceLock<Result<coreai::serve::Service, String>> = std::sync::OnceLock::new();
     SERVICE
         .get_or_init(|| {
-            let paths = paths.clone();
-            let source: coreai::serve::SettingsSource = std::sync::Arc::new(move || settings(&paths).unwrap_or_default());
-            let started = coreai::serve::start(source, None).map_err(|e| format!("CoreAI's service could not start: {e}"));
+            let reading = paths.clone();
+            let source: coreai::serve::SettingsSource = std::sync::Arc::new(move || settings(&reading).unwrap_or_default());
+            let started = coreai::serve::start(source, Some(assist_routes(paths.clone()))).map_err(|e| format!("CoreAI's service could not start: {e}"));
             if let Ok(service) = &started {
                 crate::log::info(&format!("coreai: serving on 127.0.0.1:{}", service.port));
             }
@@ -201,64 +201,115 @@ pub fn check(answer: &str) -> Result<Suggestion, String> {
 }
 
 /// What the launcher says back to something typed in plain words: a line of commands to run, or an answer.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum Reply {
     Command(Suggestion),
-    /// Lines of an answer: the model's words, then what in the graph they come from.
-    Answer(Vec<String>),
+    /// An answer about DSTNS, in Markdown, with the passages it rests on.
+    Answer(coreai::assist::Answer),
 }
 
 /// A question rather than something to do: who, what, where, how, why, or anything that ends in a question mark.
 pub fn is_question(text: &str) -> bool {
     let first = text.split_whitespace().next().unwrap_or("").to_lowercase();
-    text.trim_end().ends_with('?') || matches!(first.as_str(), "who" | "what" | "where" | "which" | "how" | "why" | "when" | "explain" | "describe" | "does" | "is" | "are" | "can")
+    text.trim_end().ends_with('?') || matches!(first.as_str(), "who" | "what" | "where" | "which" | "how" | "why" | "when" | "explain" | "describe" | "does" | "is" | "are" | "can" | "tell")
 }
 
-/// A question answered from the knowledge graph: in the model's words where there is a model, kept to what the graph
-/// says; otherwise the graph's own matches. Either way, each answer says where in the source it comes from.
-pub fn answer(paths: &Paths, question: &str) -> Result<(Vec<String>, String), String> {
-    let graph = crate::graph::load(paths)?;
-    let found = crate::graph::answer(graph, question, 8);
-    if resolve(paths).is_err() {
-        let mut lines = vec!["No model, so here is what the knowledge graph has:".to_string()];
-        lines.extend(found);
-        return Ok((lines, "the knowledge graph".into()));
+/// Where the documentation is published, for the links in answers.
+pub const DOCS_URL: &str = "https://dstns.readthedocs.io/v3";
+
+/// The assistant, over this checkout's documentation, made once.
+pub fn assistant(paths: &Paths) -> &'static coreai::assist::Assistant {
+    static ASSISTANT: std::sync::OnceLock<coreai::assist::Assistant> = std::sync::OnceLock::new();
+    ASSISTANT.get_or_init(|| {
+        let passages = coreai::assist::markdown_passages(&paths.root.join("docs"), DOCS_URL);
+        crate::log::info(&format!("assistant: {} passages of documentation indexed", passages.len()));
+        coreai::assist::Assistant::new(coreai::assist::Index::new(passages))
+    })
+}
+
+/// What the knowledge graph knows that bears on a question about the code: a question it understands ("who calls
+/// X"), or one naming something in it (a file, a function). Not for questions about using DSTNS, where it is noise.
+fn graph_passage(paths: &Paths, question: &str) -> Option<coreai::assist::Passage> {
+    let graph = crate::graph::load(paths).ok()?;
+    let found = graph.ask(question, 8);
+    let names_code = question.split_whitespace().any(|w| w.contains('_') || w.contains("::") || [".rs", ".cpp", ".hpp", ".ts", ".tsx", ".py"].iter().any(|e| w.trim_end_matches(['?', '.', ',']).ends_with(e)));
+    if found.nodes.is_empty() || (found.understood.is_empty() && !names_code) {
+        return None;
     }
-    let instructions = "You answer questions about DSTNS, a deterministic traffic simulator, for someone at its launcher. \
-        Use only the facts given. Answer in at most four short sentences of plain words, naming files as path:line. \
-        If the facts do not answer the question, say so, and suggest graph show NAME or graph search WORDS to look further. \
-        Do not invent names, files or numbers.";
-    let prompt = format!("{question}\n\nFacts from DSTNS's knowledge graph:\n{}", graph.facts(question).join("\n"));
-    match ask(paths, instructions, &prompt) {
-        Ok((text, provenance)) => {
-            let mut lines: Vec<String> = text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
-            lines.push(String::new());
-            lines.push("From the knowledge graph:".into());
-            lines.extend(found.into_iter().skip_while(|l| l.starts_with("Read as")).take(6));
-            Ok((lines, label(&provenance)))
+    let text: String = graph.facts(question).join("\n").chars().take(1_500).collect();
+    let link = found.nodes.first().map(|i| graph.url(*i)).unwrap_or_default();
+    Some(coreai::assist::Passage { title: "DSTNS's source code, from its knowledge graph".into(), link, text })
+}
+
+/// Answer a question about DSTNS, from its documentation (and its code where the question is about code), in the
+/// conversation given. `on_text` receives the answer as it is written.
+pub fn answer(paths: &Paths, question: &str, conversation: Option<&str>, on_text: Option<&mut dyn FnMut(&str)>) -> Result<coreai::assist::Answer, String> {
+    let settings = settings(paths)?;
+    let extra: Vec<_> = graph_passage(paths, question).into_iter().collect();
+    crate::log::info(&format!("assistant: asked: {question}"));
+    let answer = assistant(paths).ask(&settings, question, conversation, extra, on_text).map_err(|e| e.to_string())?;
+    crate::log::info(&format!("assistant: answered by {}, citing {}", answer.provenance.as_ref().map(label).unwrap_or_else(|| "no model".into()), answer.sources.len()));
+    Ok(answer)
+}
+
+/// Whether questions about DSTNS are answered for other programs (the MCP tool, the service's /v1/assist).
+pub fn assist_enabled(paths: &Paths) -> bool {
+    config::load(paths).map(|c| config::flag(&c, "assist.enabled")).unwrap_or(true)
+}
+
+/// An answer as other programs receive it. `provenance` is null when no model wrote it; `informational` says that
+/// nothing was run or changed in answering.
+pub fn answer_json(answer: &coreai::assist::Answer) -> serde_json::Value {
+    serde_json::json!({
+        "answer": answer.text,
+        "format": "markdown",
+        "sources": answer.sources.iter().map(|s| serde_json::json!({"title": s.title, "link": s.link})).collect::<Vec<_>>(),
+        "conversation": answer.conversation,
+        "provenance": answer.provenance,
+        "notice": if answer.provenance.is_some() { coreai::NOTICE } else { "Passages from DSTNS's documentation: no model answered." },
+        "informational": true,
+    })
+}
+
+/// The service's routes for answers: POST /v1/assist {question, conversation?}, and POST /v1/assist/forget
+/// {conversation} to end one.
+fn assist_routes(paths: Paths) -> coreai::serve::Routes {
+    std::sync::Arc::new(move |method, path, body| {
+        if method != "POST" || !path.starts_with("/v1/assist") || !assist_enabled(&paths) {
+            return None;
         }
-        Err(problem) => {
-            let mut lines = vec![format!("The model did not answer ({problem}), so here is what the knowledge graph has:")];
-            lines.extend(found);
-            Ok((lines, "the knowledge graph".into()))
-        }
-    }
+        let conversation = body["conversation"].as_str();
+        Some(match path {
+            "/v1/assist" => match answer(&paths, body["question"].as_str().unwrap_or(""), conversation, None) {
+                Ok(a) => (200, answer_json(&a)),
+                Err(why) => (if why.contains("no question") || why.contains("There is no question") { 400 } else { 502 }, serde_json::json!({"error": {"message": why}})),
+            },
+            "/v1/assist/forget" => {
+                assistant(&paths).forget(conversation);
+                (200, serde_json::json!({"forgotten": conversation.is_some()}))
+            }
+            _ => (404, serde_json::json!({"error": {"message": "no such route"}})),
+        })
+    })
 }
 
 /// Something typed in plain words: a question is answered, anything else becomes a checked line of commands; a request
-/// no command does is answered from the graph instead, if it can be.
-pub fn respond(paths: &Paths, request: &str) -> Result<(Reply, String), String> {
+/// no command does is answered instead.
+pub fn respond(paths: &Paths, request: &str, conversation: Option<&str>, on_text: Option<&mut dyn FnMut(&str)>) -> Result<(Reply, String), String> {
+    let by = |a: &coreai::assist::Answer| a.provenance.as_ref().map(label).unwrap_or_else(|| "DSTNS's documentation".into());
     if is_question(request) {
-        if let Ok((lines, by)) = answer(paths, request) {
-            return Ok((Reply::Answer(lines), by));
-        }
+        let a = answer(paths, request, conversation, on_text)?;
+        let who = by(&a);
+        return Ok((Reply::Answer(a), who));
     }
     match suggest(paths, request) {
         Ok((suggestion, by)) => Ok((Reply::Command(suggestion), by)),
-        Err(why) => match answer(paths, request) {
-            Ok((lines, by)) if why.contains("did not find a command") => Ok((Reply::Answer(lines), by)),
-            _ => Err(why),
-        },
+        Err(why) if why.contains("did not find a command") => {
+            let a = answer(paths, request, conversation, on_text)?;
+            let who = by(&a);
+            Ok((Reply::Answer(a), who))
+        }
+        Err(why) => Err(why),
     }
 }
 

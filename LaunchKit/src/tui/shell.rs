@@ -151,8 +151,69 @@ pub struct Shell {
     /// How many lines the output had, last drawn, and how many showed: for the scrollbar and for scrolling to the end.
     drawn_lines: usize,
     shown_lines: usize,
-    /// A request in plain words, with the model: which output block is its, and the answer when it comes.
-    asking: Option<(usize, Receiver<Result<(crate::assistant::Reply, String), String>>)>,
+    /// A request in plain words, with the model: which output block is its, what has come back, and the words written
+    /// so far.
+    asking: Option<(usize, Receiver<Asked>, String)>,
+    /// The conversation questions belong to, so a follow-up is read with what came before. `ask new` starts another.
+    conversation: Option<String>,
+}
+
+/// What comes back from the model's thread: its words as they are written, then the whole reply.
+enum Asked {
+    Text(String),
+    Done(Result<(crate::assistant::Reply, String), String>),
+}
+
+/// Tones that are not colours: the lines of an answer, drawn as Markdown.
+const MD_TEXT: u32 = 0x0100_0000;
+const MD_HEADING: u32 = 0x0200_0000;
+const MD_CODE: u32 = 0x0300_0000;
+const MD_QUOTE: u32 = 0x0400_0000;
+
+/// An answer's Markdown as output lines, each with the tone that says how to draw it.
+fn answer_lines(text: &str, unicode: bool) -> Vec<(String, u32)> {
+    use crate::markdown::Kind;
+    crate::markdown::lines(text, unicode)
+        .into_iter()
+        .map(|(kind, line)| {
+            let tone = match kind {
+                Kind::Heading => MD_HEADING,
+                Kind::Code => MD_CODE,
+                Kind::Quote => MD_QUOTE,
+                Kind::Text | Kind::Item | Kind::Blank => MD_TEXT,
+            };
+            let line = match kind {
+                Kind::Code => format!("  {line}"),
+                Kind::Quote => format!("{}{line}", if unicode { "▏ " } else { "| " }),
+                _ => line,
+            };
+            (line, tone)
+        })
+        .collect()
+}
+
+/// One wrapped piece of an answer's line, styled. `open` carries bold or code begun earlier in the same line.
+fn markdown_spans(piece: &str, tone: u32, open: &mut crate::markdown::Open) -> Vec<Span<'static>> {
+    match tone {
+        MD_HEADING => vec![Span::styled(piece.replace("**", ""), bold(TEXT))],
+        MD_CODE => vec![Span::styled(piece.to_string(), fg(ACCENT))],
+        _ => crate::markdown::pieces(piece, open)
+            .into_iter()
+            .map(|(style, text)| {
+                let base = if tone == MD_QUOTE { TEXT2 } else { TEXT };
+                let look = if style.code {
+                    fg(ACCENT)
+                } else if style.link {
+                    fg(ACCENT).add_modifier(ratatui::style::Modifier::UNDERLINED)
+                } else if style.bold {
+                    bold(base)
+                } else {
+                    fg(base)
+                };
+                Span::styled(text, look)
+            })
+            .collect(),
+    }
 }
 
 /// Where the command history is kept between sessions: with the logs, on this machine only.
@@ -188,6 +249,7 @@ impl Shell {
             running: None,
             show_output: false,
             asking: None,
+            conversation: None,
             scroll_back: 0,
             rows: 0,
             pane: None,
@@ -547,45 +609,69 @@ impl Shell {
             let tone = if message["level"] == "warning" { WARN } else { ERR };
             return Action::Toast(format!("{}: {}", message["title"].as_str().unwrap_or(""), message["text"].as_str().unwrap_or("")), tone);
         }
-        // The model has answered: its suggestion goes on the prompt, to be run with Enter, or not.
-        if let Some((index, answer)) = &self.asking {
-            if let Ok(outcome) = answer.try_recv() {
-                let index = *index;
-                self.asking = None;
-                if let Some(block) = self.blocks.get_mut(index) {
-                    match outcome {
-                        Ok((crate::assistant::Reply::Answer(lines), by)) => {
-                            block.lines = vec![(format!("Answered by {by}."), TEXT2)];
-                            let mut sources = false;
-                            for line in lines {
-                                if line == "From the knowledge graph:" || line.ends_with("what the knowledge graph has:") {
-                                    sources = true;
-                                    block.lines.push((line, MUTED));
-                                } else {
-                                    block.lines.push((line, if sources { ACCENT } else { TEXT }));
+        // The model is answering: its words show as they come; then the answer, or its suggestion on the prompt.
+        let mut finished = None;
+        if let Some((index, events, streamed)) = &mut self.asking {
+            let mut changed = false;
+            while let Ok(event) = events.try_recv() {
+                match event {
+                    Asked::Text(text) => {
+                        streamed.push_str(&text);
+                        changed = true;
+                    }
+                    Asked::Done(outcome) => {
+                        finished = Some((*index, outcome));
+                        break;
+                    }
+                }
+            }
+            if changed && finished.is_none() {
+                if let Some(block) = self.blocks.get_mut(*index) {
+                    block.lines = vec![("Answering…".into(), TEXT2)];
+                    block.lines.extend(answer_lines(streamed, ui.unicode));
+                }
+            }
+        }
+        if let Some((index, outcome)) = finished {
+            self.asking = None;
+            if let Some(block) = self.blocks.get_mut(index) {
+                block.ended = Some(Instant::now());
+                match outcome {
+                    Ok((crate::assistant::Reply::Answer(answer), by)) => {
+                        self.conversation = Some(answer.conversation.clone());
+                        block.lines = vec![(
+                            if answer.provenance.is_some() { format!("Answered by {by}. AI can be wrong: check anything that matters.") } else { "From DSTNS's documentation: no model answered.".into() },
+                            TEXT2,
+                        )];
+                        block.lines.extend(answer_lines(&answer.text, ui.unicode));
+                        if !answer.sources.is_empty() {
+                            block.lines.push((String::new(), TEXT));
+                            block.lines.push(("Sources".into(), MUTED));
+                            for (n, source) in answer.sources.iter().enumerate() {
+                                block.lines.push((format!("[{}] {}", n + 1, source.title), ACCENT));
+                                if !source.link.is_empty() {
+                                    block.lines.push((format!("    {}", source.link), MUTED));
                                 }
                             }
-                            block.status = Some(0);
-                            block.ended = Some(Instant::now());
-                            crate::log::info(&format!("command bar: answered by {by}"));
                         }
-                        Ok((crate::assistant::Reply::Command(suggestion), model)) => {
-                            block.lines = vec![(format!("Suggested by {model}. Nothing has been run."), TEXT2), (suggestion.line.clone(), ACCENT)];
-                            block.lines.extend(suggestion.warnings.iter().map(|w| (format!("Note: {w}"), WARN)));
-                            block.lines.push(("Enter runs it, as it is or as you change it. Esc leaves it.".into(), MUTED));
-                            block.status = Some(0);
-                            block.ended = Some(Instant::now());
-                            crate::log::info(&format!("command bar: suggested {}", suggestion.line));
-                            self.input = suggestion.line;
-                            self.cursor = self.input.chars().count();
-                            self.open = true;
-                            self.suggesting = false;
-                        }
-                        Err(problem) => {
-                            block.lines = vec![(problem, ERR)];
-                            block.status = Some(1);
-                            block.ended = Some(Instant::now());
-                        }
+                        block.lines.push(("A follow-up question continues this conversation; ask new starts another.".into(), MUTED));
+                        block.status = Some(0);
+                        crate::log::info(&format!("command bar: answered by {by}"));
+                    }
+                    Ok((crate::assistant::Reply::Command(suggestion), model)) => {
+                        block.lines = vec![(format!("Suggested by {model}. Nothing has been run."), TEXT2), (suggestion.line.clone(), ACCENT)];
+                        block.lines.extend(suggestion.warnings.iter().map(|w| (format!("Note: {w}"), WARN)));
+                        block.lines.push(("Enter runs it, as it is or as you change it. Esc leaves it.".into(), MUTED));
+                        block.status = Some(0);
+                        crate::log::info(&format!("command bar: suggested {}", suggestion.line));
+                        self.input = suggestion.line;
+                        self.cursor = self.input.chars().count();
+                        self.open = true;
+                        self.suggesting = false;
+                    }
+                    Err(problem) => {
+                        block.lines = vec![(problem, ERR)];
+                        block.status = Some(1);
                     }
                 }
             }
@@ -623,15 +709,27 @@ impl Shell {
             self.say(request, vec![("The model is still answering the last request.".into(), WARN)], 1);
             return;
         }
+        if request == "new" {
+            if let Some(id) = self.conversation.take() {
+                crate::assistant::assistant(&ui.paths).forget(Some(&id));
+            }
+            self.say("ask new", vec![("A new conversation: the next question starts afresh.".into(), TEXT2)], 0);
+            return;
+        }
         let (tx, rx) = channel();
         let paths = ui.paths.clone();
         let wanted = request.to_string();
+        let conversation = self.conversation.clone();
         std::thread::spawn(move || {
-            let _ = tx.send(crate::assistant::respond(&paths, &wanted));
+            let words = tx.clone();
+            let mut on_text = |text: &str| {
+                let _ = words.send(Asked::Text(text.to_string()));
+            };
+            let _ = tx.send(Asked::Done(crate::assistant::respond(&paths, &wanted, conversation.as_deref(), Some(&mut on_text))));
         });
         self.blocks.push(Output { command: format!("ask {request}"), lines: vec![("Asking…".into(), TEXT2)], status: None, started: Instant::now(), ended: None });
         self.show_output = true;
-        self.asking = Some((self.blocks.len() - 1, rx));
+        self.asking = Some((self.blocks.len() - 1, rx, String::new()));
     }
 
     fn run(&mut self, line: &str, ui: &mut Ui, path: &str) -> Action {
@@ -1010,14 +1108,19 @@ impl Shell {
             for (text, tone) in &output.lines {
                 // A line keeps its indent when it wraps, so that indented JSON and tables still line up.
                 let lead = text.len() - text.trim_start().len();
+                // A list item's wrapped lines line up under its words, not its marker.
+                let marker = if *tone == MD_TEXT && (text.trim_start().starts_with("• ") || text.trim_start().starts_with("- ")) { 2 } else { 0 };
                 let indent = " ".repeat(lead.min(w / 2));
                 // A line that fits is left as it is, so the columns of a table stay columns.
-                let room = w.saturating_sub(indent.len() + 3).max(10);
-                let pieces = if widgets::width(text.trim_start()) <= room { vec![text.trim_start().to_string()] } else { widgets::wrap(text.trim_start(), room) };
-                for piece in pieces {
-                    let piece = format!("{indent}{piece}");
+                let room = w.saturating_sub(indent.len() + marker + 3).max(10);
+                let pieces = if widgets::width(text.trim_start()) <= room + marker { vec![text.trim_start().to_string()] } else { widgets::wrap(text.trim_start(), room) };
+                let mut open = crate::markdown::Open::default();
+                for (n, piece) in pieces.into_iter().enumerate() {
+                    let piece = format!("{indent}{}{piece}", if n > 0 { " ".repeat(marker) } else { String::new() });
                     let mut spans = vec![Span::styled(gutter, rail)];
-                    if json && *tone == TEXT {
+                    if *tone >= MD_TEXT {
+                        spans.extend(markdown_spans(&piece, *tone, &mut open));
+                    } else if json && *tone == TEXT {
                         spans.extend(json_spans(&piece));
                     } else {
                         spans.push(Span::styled(piece, fg(*tone)));
@@ -1153,6 +1256,21 @@ fn json_spans(line: &str) -> Vec<Span<'static>> {
 #[cfg(test)]
 mod tone_tests {
     use super::*;
+
+    #[test]
+    fn an_answer_is_drawn_as_markdown() {
+        let lines = answer_lines("## Ports\nSet **api.port** [1].\n```\n./launcher start\n```\n> careful", true);
+        assert_eq!(lines[0], ("Ports".to_string(), MD_HEADING));
+        assert_eq!(lines[1].1, MD_TEXT);
+        assert_eq!(lines[2], ("  ./launcher start".to_string(), MD_CODE));
+        assert_eq!(lines[3], ("▏ careful".to_string(), MD_QUOTE));
+        let mut open = crate::markdown::Open::default();
+        let spans = markdown_spans("Set **api.port** [1].", MD_TEXT, &mut open);
+        assert_eq!(spans.iter().map(|s| s.content.as_ref()).collect::<String>(), "Set api.port [1].");
+        assert!(spans[1].style.add_modifier.contains(ratatui::style::Modifier::BOLD));
+        // Every answer tone is told apart from a colour.
+        assert!([MD_TEXT, MD_HEADING, MD_CODE, MD_QUOTE].iter().all(|t| *t > 0xFF_FFFF));
+    }
 
     #[test]
     fn a_line_is_coloured_by_what_each_part_is() {

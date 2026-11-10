@@ -15,6 +15,7 @@
 //! - `serve`: the same, offered on 127.0.0.1 behind a token, for the engine and the observer.
 
 pub mod apple;
+pub mod assist;
 pub mod http;
 pub mod keys;
 pub mod providers;

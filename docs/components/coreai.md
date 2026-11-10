@@ -64,6 +64,32 @@ Every answer carries its provenance: the provider, the model as the provider nam
 whether it stayed on this machine, and the notice *Written by an AI model. It can be wrong:
 check anything that matters.* The launcher names the model beside each answer.
 
+## Answers about DSTNS
+
+`CoreAI/src/assist.rs` answers questions about DSTNS itself. It is built in stages; this is
+the first.
+
+1. **Retrieval by words.** The launcher cuts the documentation (`docs/`) into its sections,
+   each linked to where it is published, and CoreAI ranks them for a question by BM25, with a
+   section's title counting three times its text. A follow-up is searched together with the
+   question before it. For a question about the code, the launcher adds what the
+   [knowledge graph](../development/knowledge-graph.md) knows. Nothing is downloaded or sent
+   anywhere to search.
+2. **Grounded answer.** The model gets the closest passages, numbered and cut to fit its
+   context (about 4,500 characters for Apple's model on the Mac, 14,000 for others), the last
+   four questions and answers of the conversation, and the question. It is told to answer from
+   them, cite them as `[1]`, say when they do not cover it, and never claim to have run or
+   changed anything. Citations are renumbered in the order they appear, and only the cited
+   sources are returned.
+3. **Retrieval by meaning** (not built yet): when a model for embeddings is configured,
+   passages would also be ranked by meaning, which helps when a question uses none of the
+   documentation's words. Words alone answered the questions tried so far.
+
+Conversations are kept in memory only: at most 32, each its last eight messages, forgotten
+after an hour. With no model, the closest passages are the answer. Answers only inform; the
+[MCP Handler](../guide/mcp.md)'s tools that change things are separate, and keep their own
+permissions.
+
 ## The service
 
 For the parts of DSTNS that are not the launcher, CoreAI is offered as a small HTTP service on
@@ -76,6 +102,8 @@ for each start and handed to the engine in its environment (which the engine cle
 | `GET /v1/models` | One model, `dstns`: whichever the settings choose |
 | `POST /v1/chat/completions` | A Chat Completions request, answered by the settings' model. The reply is the usual one, with `provenance` added, and the header `X-DSTNS-Generated-By: provider/model` |
 | `/local/v1/...` | The same, but only models on this machine are asked, whatever the settings say |
+| `POST /v1/assist` | `{"question", "conversation"?}`: an answer about DSTNS, as `{"answer" (Markdown), "sources": [{"title", "link"}], "conversation", "provenance" (null when no model wrote it), "notice", "informational": true}`. Off with `assist.enabled` |
+| `POST /v1/assist/forget` | `{"conversation"}`: end a conversation |
 
 The engine's news writer already speaks Chat Completions, so with `narration.mode` set to
 `model` it is pointed at `/v1`, and with `auto` (when Apple's model is not there) at `/local`.

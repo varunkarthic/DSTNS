@@ -449,12 +449,22 @@ fn security_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, Strin
     }
 }
 
+/// The console's conversation, so that a follow-up in the same session is read with what came before.
+static CONVERSATION: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
 fn ask_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> {
     let request = rest.join(" ");
     if request.trim().is_empty() {
-        return Err("ask: say what you want, such as ask show me the api log's errors".into());
+        return Err("ask: say what you want, such as ask how do I change the port? (ask new starts a new conversation)".into());
     }
-    match crate::assistant::respond(paths, &request)? {
+    if request.trim() == "new" {
+        if let Some(id) = CONVERSATION.lock().unwrap().take() {
+            crate::assistant::assistant(paths).forget(Some(&id));
+        }
+        return Ok(vec!["A new conversation: the next question starts afresh.".into()]);
+    }
+    let conversation = CONVERSATION.lock().unwrap().clone();
+    match crate::assistant::respond(paths, &request, conversation.as_deref(), None)? {
         (crate::assistant::Reply::Command(suggestion), by) => {
             eprintln!("Suggested by {by}. Nothing has been run.");
             for warning in &suggestion.warnings {
@@ -462,8 +472,24 @@ fn ask_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> {
             }
             Ok(vec![suggestion.line])
         }
-        (crate::assistant::Reply::Answer(lines), by) => {
-            eprintln!("Answered by {by}.");
+        (crate::assistant::Reply::Answer(answer), by) => {
+            *CONVERSATION.lock().unwrap() = Some(answer.conversation.clone());
+            let tty = std::io::stdout().is_terminal();
+            let color = tty && std::env::var_os("NO_COLOR").is_none();
+            let unicode = crate::terminal::detect(!color).unicode;
+            let width = if tty { crossterm::terminal::size().map(|(w, _)| w as usize).unwrap_or(100).min(110) } else { 100 };
+            if answer.provenance.is_some() {
+                eprintln!("Answered by {by}. {}", coreai::NOTICE);
+            }
+            let mut lines = crate::markdown::terminal(&answer.text, width.saturating_sub(2), color, unicode);
+            if !answer.sources.is_empty() {
+                lines.push(String::new());
+                lines.push(if color { "\x1b[2mSources\x1b[0m".into() } else { "Sources".into() });
+                for (n, source) in answer.sources.iter().enumerate() {
+                    let link = if source.link.is_empty() { String::new() } else { format!("  {}", source.link) };
+                    lines.push(if color { format!("  [{}] {}\x1b[2m{link}\x1b[0m", n + 1, source.title) } else { format!("  [{}] {}{link}", n + 1, source.title) });
+                }
+            }
             Ok(lines)
         }
     }

@@ -386,7 +386,7 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `-c 'LINE'`, `shell` | The [console](console.md): a command line, or lines until `exit` |
 | `ls`, `cat`, `tail`, `head`, `ps [-a]`, `get`, `env`, `uptime`, `about`, `docs [TOPIC]`, `json`, `view`, `history` | The console's readers, run on their own: plain text to pipe. `docs mcp` opens that page; `json PLACE [PATH]` shows any state as JSON |
 | `set`, `unset`, `env set\|unset`, `edit`, `api` | The console's tools for changing things: a setting, a kept variable, a file in your editor, any route. See [the console](console.md) |
-| `ask "REQUEST"` | A request in plain words as a line of commands, printed and never run; see [Asking in plain words](#asking-in-plain-words) |
+| `ask "REQUEST"` | A request in plain words as a line of commands, printed and never run, or a question about DSTNS answered with its sources; `ask new` starts a new conversation; see [Asking in plain words](#asking-in-plain-words) |
 | `model [use PROVIDER [NAME]\|key KEY\|test]` | The launcher's model: Apple's Foundation Models, Ollama or Groq |
 | `daemon [show NAME\|on NAME\|off NAME\|queue emergency\|notification]` | The server's [daemons](daemons.md) |
 | `security [on\|off\|verify]` | [Advanced Security](#advanced-security) |
@@ -612,22 +612,35 @@ that leaves, resets, opens a shell, edits or writes files, changes variables or 
 Advanced Security; and a note for anything that starts, stops, deletes or changes a setting.
 A request it cannot turn into commands, such as *delete everything and quit*, gets nothing.
 
-A **question** is answered instead, in a few sentences, from the
-[knowledge graph](#the-knowledge-graph): anything that begins *who*, *what*, *where*, *which*,
-*how* or *why*, or ends in a question mark. The model is given only what the graph says about
-it, and the answer names each file and line it comes from. With no model, the graph's own
-matches are the answer.
+A **question** is answered instead: anything that begins *who*, *what*, *where*, *which*,
+*how*, *why* or *tell*, or ends in a question mark, and any request no command does. The answer
+comes from DSTNS's own documentation, each section of which the launcher indexes, and, for a
+question about the code, from the [knowledge graph](#the-knowledge-graph) too. The model is
+given the closest passages, numbered, and told to answer from them, to cite them, to say when
+they do not cover it, and never to claim it did anything: it can only name the command or
+setting for you to use. The answer appears as it is written, with its sources and their
+links beneath it, and the model that wrote it above it, since what a model writes can be wrong.
 
 ```text
-dstns ~ ❯ what calls physics_step?
-  Answered by Apple Foundation Models, on this Mac.
-  SimulationEngine::step_to() at Core/src/engine.cpp:1656 calls physics_step.
-  From the knowledge graph:
-  SimulationEngine::step_to()              function  Core/src/engine.cpp:1656
+dstns ~ ❯ how do I change the port the server listens on?
+  Answered by Apple Foundation Models, on this Mac. AI can be wrong: check anything that matters.
+  Set api.port, or pass --port to the server [1]. If the port is taken, the next free one
+  is used, and the launcher says which [2].
+  Sources
+  [1] Configuration › Server flags
+      https://dstns.readthedocs.io/v3/guide/configuration/#server-flags
+  [2] Troubleshooting › Port 8090 or 8443 already in use
+      https://dstns.readthedocs.io/v3/troubleshooting/#port-8090-or-8443-already-in-use
+dstns ~ ❯ and what if that one is taken too?
 ```
 
-`./launcher ask "…"` prints the line, or the answer, instead, and the MCP Handler offers the
-same as `launcher_suggest` and `graph_ask`.
+A question after an answer continues the conversation, so *that one* is read with what came
+before; the last four questions and answers are kept, and a conversation is forgotten after an
+hour. `ask new` starts another. With no model, the closest passages are the answer.
+
+`./launcher ask "…"` prints the line, or the answer, instead (in colour on a terminal, plain
+when piped). The MCP Handler offers the same as `launcher_suggest` and `dstns_ask`, and the
+knowledge graph's own matches, with no model, as `graph_ask`.
 
 | `model.provider` | Uses |
 |---|---|
