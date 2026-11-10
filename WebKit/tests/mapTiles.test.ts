@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it, vi } from "vitest";
-import { buildTiles, placeNameShows, sizeTier, streetNameShows, tierShows, tileOnScreen } from "../src/mapTiles";
+import { buildTiles, placeNameShows, sizeTier, streetNameShows, tierShows, tileOnScreen } from "../src/map/mapTiles";
 
 class FakePath {
   added = 0;

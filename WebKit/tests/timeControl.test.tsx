@@ -4,9 +4,9 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TimeFormatProvider } from "../src/preferences";
-import { describeDistance, fromFields, jumpTarget, LONG_PRESS_MS, TimeControl } from "../src/TimeControl";
-import { aimedTime, rollingTime } from "../src/SeekFilm";
+import { TimeFormatProvider } from "../src/core/preferences";
+import { describeDistance, fromFields, jumpTarget, LONG_PRESS_MS, TimeControl } from "../src/panels/TimeControl";
+import { aimedTime, rollingTime } from "../src/film/SeekFilm";
 
 afterEach(() => {
   cleanup();

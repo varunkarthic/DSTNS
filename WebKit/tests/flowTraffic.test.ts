@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { FlowTraffic } from "../src/flowTraffic";
-import type { RoadFlow } from "../src/flowTraffic";
-import type { TopologyEdge } from "../src/types";
+import { FlowTraffic } from "../src/map/flowTraffic";
+import type { RoadFlow } from "../src/map/flowTraffic";
+import type { TopologyEdge } from "../src/core/types";
 
 function road(id: number, from: number, to: number, a: [number, number], b: [number, number], twin = -1): TopologyEdge {
   const length_m = Math.hypot(b[0] - a[0], b[1] - a[1]);

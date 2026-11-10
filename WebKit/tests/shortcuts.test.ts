@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { assignShortcut, keyName, resolveBindings, shortcutsApply, SHORTCUTS } from "../src/shortcuts";
-import { mergeConfig, BUILT_IN, diffConfig } from "../src/uiConfig";
+import { assignShortcut, keyName, resolveBindings, shortcutsApply, SHORTCUTS } from "../src/core/shortcuts";
+import { mergeConfig, BUILT_IN, diffConfig } from "../src/core/uiConfig";
 
 const press = (key: string, extra = {}) => ({ key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...extra });
 

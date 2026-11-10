@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { daemonNotification } from "../src/daemons";
+import { daemonNotification } from "../src/simulation/daemons";
 
 const message = (level: "info" | "warning" | "alert" | "emergency") => ({
   sequence: 7, id: "rcs.over_beta", level, queue: level === "alert" || level === "emergency" ? "daemonEmergencyQueue" : "daemonNotificationQueue",

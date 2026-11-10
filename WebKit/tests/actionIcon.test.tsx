@@ -3,7 +3,7 @@
 
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { ActionIcon } from "../src/Icons";
+import { ActionIcon } from "../src/components/Icons";
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 it('acknowledges changes once and stays still across unrelated rerenders', () => {
   vi.useFakeTimers(); const {container, rerender}=render(<ActionIcon name="bell" signal={false}/>);

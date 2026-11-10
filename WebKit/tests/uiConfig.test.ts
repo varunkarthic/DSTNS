@@ -11,7 +11,7 @@ import {
   readOverrides,
   resolveReduceMotion,
   writeOverrides,
-} from "../src/uiConfig";
+} from "../src/core/uiConfig";
 import shipped from "../../config/ui-config.json?raw";
 
 beforeEach(() => clearOverrides());

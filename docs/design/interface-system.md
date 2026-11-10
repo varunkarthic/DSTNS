@@ -4,7 +4,7 @@ How the observer looks and moves, for anyone changing it.
 
 ## Motion
 
-Everything that moves is a damped spring, defined in `WebKit/src/motion.ts` by
+Everything that moves is a damped spring, defined in `WebKit/src/CoreMotion/motion.ts` by
 stiffness and damping rather than a duration and a curve. Motion should feel deliberate
 and physical, never decorative. If a transition does not explain hierarchy, cause,
 destination or continuity, it should not happen.

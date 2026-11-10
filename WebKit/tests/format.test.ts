@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { formatCompact } from "../src/format";
+import { formatCompact } from "../src/core/format";
 
 describe("formatCompact", () => {
   it.each([

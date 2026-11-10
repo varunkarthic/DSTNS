@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "../src/api";
-import { roadState, distanceToSegment, insideFootprint } from "../src/mapModel";
-import type { EdgeState, Point } from "../src/types";
+import { api } from "../src/core/api";
+import { roadState, distanceToSegment, insideFootprint } from "../src/core/mapModel";
+import type { EdgeState, Point } from "../src/core/types";
 afterEach(() => vi.restoreAllMocks());
 describe("Observer transport", () => {
   it("has no simulation creation or world manipulation methods", () => {

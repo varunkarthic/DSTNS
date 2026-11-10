@@ -286,7 +286,7 @@ Notes on the contract:
 
 ## Observer side
 
-`WebKit/src/useBackpressure.ts`:
+`WebKit/src/simulation/useBackpressure.ts`:
 
 - Frame cost is sampled from animation frames the browser is producing anyway —
   measurement never drives rendering.

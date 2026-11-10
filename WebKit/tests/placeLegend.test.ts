@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { PLACE_KINDS, UNCLASSIFIED, hasMarker, placeInspection, placeKind } from "../src/mapModel";
-import { demandDetail, demandSummary, placeCensus, placeLegend } from "../src/placeLegend";
-import type { MapFeature } from "../src/types";
+import { PLACE_KINDS, UNCLASSIFIED, hasMarker, placeInspection, placeKind } from "../src/core/mapModel";
+import { demandDetail, demandSummary, placeCensus, placeLegend } from "../src/map/placeLegend";
+import type { MapFeature } from "../src/core/types";
 
 const at = { x_m: 0, y_m: 0, lat: 0, lon: 0 };
 let n = 0;

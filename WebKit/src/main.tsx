@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import "./style.css";
+import "./styles/style.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import { installMotionTokens } from "./motion";
-import { applyLaunchDefaults } from "./uiConfig";
+import { installMotionTokens } from "./CoreMotion/motion";
+import { applyLaunchDefaults } from "./core/uiConfig";
 
 applyLaunchDefaults();
 installMotionTokens();

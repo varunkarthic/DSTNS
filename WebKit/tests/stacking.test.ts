@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 // the rules that guarantee it are checked directly.
 // Read from disk: Vitest's CSS pipeline empties "?raw" stylesheet imports, and
 // jsdom replaces URL, so the path is relative to the package root Vitest runs in.
-const css = (name: string): string => readFileSync(`src/${name}`, "utf8");
+const css = (name: string): string => readFileSync(`src/styles/${name}`, "utf8");
 const variable = (source: string, name: string) => Number(source.match(new RegExp(`--${name}:\\s*(\\d+)`))?.[1]);
 
 describe("dialog stacking", () => {

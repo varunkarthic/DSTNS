@@ -3,14 +3,14 @@
 
 import { Component, memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
-import { EmptyFigure } from "../EmptyFigure";
-import { Icon } from "../Icons";
-import { BrandLogo } from "../BrandLogo";
-import { Tooltip } from "../Tooltip";
-import { Scrim } from "../Dialogs";
-import { Switch } from "../settingsControls";
-import { Select } from "../Popover";
-import { settleTime, Spring, springEasing, SPRINGS } from "../motion";
+import { EmptyFigure } from "../CoreMotion/EmptyFigure";
+import { Icon } from "../components/Icons";
+import { BrandLogo } from "../components/BrandLogo";
+import { Tooltip } from "../components/Tooltip";
+import { Scrim } from "../panels/Dialogs";
+import { Switch } from "../components/settingsControls";
+import { Select } from "../components/Popover";
+import { settleTime, Spring, springEasing, SPRINGS } from "../CoreMotion/motion";
 import { AppFrame } from "./AppFrame";
 import { fabric, useFabricApps, useLaunchPlan, useOpenPanel, usePicking, useSlot, webOf } from "./store";
 import type { FabricApp, FabricElement, FabricRow, FabricWidget, SlotItem, Tone } from "./store";

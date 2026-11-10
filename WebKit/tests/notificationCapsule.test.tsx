@@ -3,8 +3,8 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { NotificationCapsule } from "../src/NotificationCapsule";
-import type { UiNotification } from "../src/notificationModel";
+import { NotificationCapsule } from "../src/notifications/NotificationCapsule";
+import type { UiNotification } from "../src/core/notificationModel";
 afterEach(cleanup);
 const event: UiNotification={id:'rain',type:'rain',category:'weather',severity:'alert',title:'Heavy rain',summary:'Rain over the district',timestamp:60,startedAt:60,newsIds:[1],details:[],technical:[],count:1};
 it('preempts an expanded event with a system error, and removes it on recovery',()=>{

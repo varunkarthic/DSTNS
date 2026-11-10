@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { appearance, applyAppearance, paletteFor, resolveTheme } from "../src/appearance";
-import type { ColorVision } from "../src/appearance";
-import { demandColor, stateColors } from "../src/mapModel";
+import { appearance, applyAppearance, paletteFor, resolveTheme } from "../src/core/appearance";
+import type { ColorVision } from "../src/core/appearance";
+import { demandColor, stateColors } from "../src/core/mapModel";
 
 // Machado, Oliveira and Fernandes (2009), severity 1.0, applied in linear RGB.
 const MATRICES: Record<string, number[][]> = {

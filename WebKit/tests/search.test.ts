@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { placeInspection, popularPlaces, searchPlaces } from "../src/mapModel";
-import { formatBytes, rateUnit, setByteUnits } from "../src/units";
-import { fluidFrame } from "../src/FluidPanel";
+import { placeInspection, popularPlaces, searchPlaces } from "../src/core/mapModel";
+import { formatBytes, rateUnit, setByteUnits } from "../src/core/units";
+import { fluidFrame } from "../src/CoreMotion/FluidPanel";
 
 const place = (id: string, name: string, amenity: string) => ({ id, name, category: amenity, polygon: false, tags: { amenity }, position: { x_m: 0, y_m: 0 } });
 const world = [

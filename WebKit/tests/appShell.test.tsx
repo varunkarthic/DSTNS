@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { RATES } from "../src/CommandRail";
+import { RATES } from "../src/panels/CommandRail";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, { worldErrorMessage } from "../src/App";
 
 // The canvas is exercised by the browser suites; here it only needs to mount,
 // and to expose what it was asked to draw and where the camera was sent.
-vi.mock("../src/NetworkMap", () => ({
+vi.mock("../src/map/NetworkMap", () => ({
   default: ({ layers, places, focus }: { places: Record<string, boolean>; layers: Record<string, boolean>; focus?: { bounds?: unknown; whole?: boolean; token: number } | null }) => (
     <div
       data-testid="map"

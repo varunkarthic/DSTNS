@@ -11,9 +11,9 @@ import {
   framingSignature,
   viewportFor,
   withMinimumSpan,
-} from "../src/autoFocus";
-import type { FocusTarget } from "../src/autoFocus";
-import type { Snapshot, Topology } from "../src/types";
+} from "../src/notifications/autoFocus";
+import type { FocusTarget } from "../src/notifications/autoFocus";
+import type { Snapshot, Topology } from "../src/core/types";
 
 const viewport = { width: 1200, height: 800, insets: { top: 60, right: 420, bottom: 120, left: 60 } };
 

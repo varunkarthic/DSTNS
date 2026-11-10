@@ -14,9 +14,9 @@ import {
   pickWording,
   shouldDisplayNotification,
   stripPrefix,
-} from "../src/notificationModel";
-import type { DisplayPolicy, UiNotification } from "../src/notificationModel";
-import type { News, Topology } from "../src/types";
+} from "../src/core/notificationModel";
+import type { DisplayPolicy, UiNotification } from "../src/core/notificationModel";
+import type { News, Topology } from "../src/core/types";
 
 /** A 2 km square network: nodes at the corners and centre, one named road. */
 const topology = {

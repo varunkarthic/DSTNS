@@ -3,10 +3,10 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ISD_DWELL_MS, isdNote, isdNotification, newlyBegun, useISDNotifications } from "../src/ISDHandler";
-import type { ISDCondition } from "../src/ISDHandler";
-import { orderForDisplay, shouldDisplayNotification } from "../src/notificationModel";
-import type { UiNotification } from "../src/notificationModel";
+import { ISD_DWELL_MS, isdNote, isdNotification, newlyBegun, useISDNotifications } from "../src/notifications/ISDHandler";
+import type { ISDCondition } from "../src/notifications/ISDHandler";
+import { orderForDisplay, shouldDisplayNotification } from "../src/core/notificationModel";
+import type { UiNotification } from "../src/core/notificationModel";
 
 const figures = { requested: 10, applied: 5 };
 const ALL: ISDCondition[] = ["async", "restricted", "rate-locked", "rate-governed", "motion-locked", "reduced-detail", "large-steps", "app-lapsed"];

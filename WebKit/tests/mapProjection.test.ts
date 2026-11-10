@@ -12,7 +12,7 @@ import {
   mapFitLayout,
   metresToGeographic,
   scaleBarFor,
-} from '../src/mapProjection';
+} from '../src/core/mapProjection';
 
 describe('geographic road projection', () => {
   it.each([0, 52.52, -33.87, 70])('preserves equal east/north distances at latitude %s', (lat) => {
@@ -129,7 +129,7 @@ describe('fit layout', () => {
 
 describe('map insets', () => {
   it('reserves the dock, deck and rail at each breakpoint', async () => {
-    const { mapInsets } = await import('../src/mapProjection');
+    const { mapInsets } = await import('../src/core/mapProjection');
     expect(mapInsets(1440, 900)).toEqual({ top: 10, left: 76, right: 504, bottom: 130 });
     expect(mapInsets(1200, 800)).toEqual({ top: 10, left: 76, right: 474, bottom: 130 });
     expect(mapInsets(1000, 800)).toEqual({ top: 10, left: 76, right: STRIP_SPACE + 24, bottom: 130 });

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { drivingRule, SIGNAL_RED } from "../flowTraffic";
-import { SPRINGS, stepSpring } from "../motion";
-import type { SpringPreset } from "../motion";
-import type { Point, Topology } from "../types";
+import { drivingRule, SIGNAL_RED } from "../map/flowTraffic";
+import { SPRINGS, stepSpring } from "../CoreMotion/motion";
+import type { SpringPreset } from "../CoreMotion/motion";
+import type { Point, Topology } from "../core/types";
 import type { OverlayFeature } from "./store";
 
 /**

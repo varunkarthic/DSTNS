@@ -3,12 +3,12 @@
 
 import { describe, expect, it } from "vitest";
 import fontDataUrl from "../src/assets/report-inter.ttf?inline";
-import { buildReport } from "../src/report";
-import type { ReportInput } from "../src/report";
-import { overlappingText } from "../src/pdfLayout";
-import { TelemetryRecorder, sampleFrom } from "../src/telemetryRecorder";
-import { defaultLayers } from "../src/types";
-import type { Backpressure, News, Snapshot, Topology } from "../src/types";
+import { buildReport } from "../src/report/report";
+import type { ReportInput } from "../src/report/report";
+import { overlappingText } from "../src/report/pdfLayout";
+import { TelemetryRecorder, sampleFrom } from "../src/simulation/telemetryRecorder";
+import { defaultLayers } from "../src/core/types";
+import type { Backpressure, News, Snapshot, Topology } from "../src/core/types";
 
 const font = String(fontDataUrl).replace(/^data:[^,]*,/, "");
 

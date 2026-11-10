@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import source from "../src/bootScenes.ts?raw";
+import source from "../src/film/bootScenes.ts?raw";
 import { describe, expect, it } from "vitest";
-import { DEMO_CHAPTERS, FILM_CHAPTERS, landingPoints, LANDING_MS, MAP_AT_MS, PANELS_AT_MS } from "../src/BootScene";
-import { buildDemoFormations, buildFormations, COUNT, KIND, onLand, STRIDE } from "../src/bootScenes";
-import { sunHeight } from "../src/CommandRail";
-import { BUILT_IN } from "../src/uiConfig";
-import { filterPlaces, PLACE_FILTERS } from "../src/mapModel";
+import { DEMO_CHAPTERS, FILM_CHAPTERS, landingPoints, LANDING_MS, MAP_AT_MS, PANELS_AT_MS } from "../src/film/BootScene";
+import { buildDemoFormations, buildFormations, COUNT, KIND, onLand, STRIDE } from "../src/film/bootScenes";
+import { sunHeight } from "../src/panels/CommandRail";
+import { BUILT_IN } from "../src/core/uiConfig";
+import { filterPlaces, PLACE_FILTERS } from "../src/core/mapModel";
 
 const road = (...points: [number, number][]) => points.map(([x_m, y_m]) => ({ x_m, y_m }));
 

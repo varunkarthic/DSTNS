@@ -3,8 +3,8 @@
 
 import { describe, expect, it } from "vitest";
 import { along, DriveRun, networkOf, PathRun, pathSpring, placeFeature, trackOf } from "../src/webfabric/spatial";
-import { SPRINGS } from "../src/motion";
-import type { Topology } from "../src/types";
+import { SPRINGS } from "../src/CoreMotion/motion";
+import type { Topology } from "../src/core/types";
 
 const point = (x_m: number, y_m: number) => ({ x_m, y_m, lat: 0, lon: 0 });
 // 0 -> 1 -> 2, 100 m each, along a straight road; nothing runs from 2 back to 1.

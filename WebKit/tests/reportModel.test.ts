@@ -14,10 +14,10 @@ import {
   stats,
   throughputUnit,
   timeline,
-} from "../src/reportModel";
-import { DAY_TICKS, niceTicks, wallTicks } from "../src/pdfLayout";
-import type { News, Topology } from "../src/types";
-import type { TelemetrySample } from "../src/telemetryRecorder";
+} from "../src/report/reportModel";
+import { DAY_TICKS, niceTicks, wallTicks } from "../src/report/pdfLayout";
+import type { News, Topology } from "../src/core/types";
+import type { TelemetrySample } from "../src/simulation/telemetryRecorder";
 
 let id = 1;
 const news = (p: Partial<News>): News => ({

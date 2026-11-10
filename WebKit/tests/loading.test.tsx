@@ -3,9 +3,9 @@
 
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { api } from "../src/api";
-import { useSimulation } from "../src/useSimulation";
-import type { Envelope, Snapshot, Status, Topology } from "../src/types";
+import { api } from "../src/core/api";
+import { useSimulation } from "../src/simulation/useSimulation";
+import type { Envelope, Snapshot, Status, Topology } from "../src/core/types";
 const envelope = <T,>(run: string, data: T): Envelope<T> => ({ run_id: run, data, clock: { virtual_day_seconds: 0 } } as Envelope<T>);
 const status = (run: string, lifecycle: string, preparation_error = "") => envelope(run, { lifecycle, preparation_error } as Status);
 const snapshot = (run: string) => envelope(run, { edges: [], signals: [], congestion: { current: 0 } } as unknown as Snapshot);

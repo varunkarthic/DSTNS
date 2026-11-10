@@ -2,14 +2,14 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EmptyFigure } from "../EmptyFigure";
-import { Icon } from "../Icons";
-import { Row, Section, Segmented, Switch } from "../settingsControls";
-import { BrandLogo } from "../BrandLogo";
-import { Select } from "../Popover";
+import { EmptyFigure } from "../CoreMotion/EmptyFigure";
+import { Icon } from "../components/Icons";
+import { Row, Section, Segmented, Switch } from "../components/settingsControls";
+import { BrandLogo } from "../components/BrandLogo";
+import { Select } from "../components/Popover";
 import { fabric, useFabricApps, useLaunchPlan, webOf } from "./store";
 import type { AppState, FabricApp, FabricHealth, FabricSecurity, SettingsField } from "./store";
-import { formatBytes } from "../units";
+import { formatBytes } from "../core/units";
 
 /**
  * Settings → WebFabric. Every application's settings are drawn here from its own

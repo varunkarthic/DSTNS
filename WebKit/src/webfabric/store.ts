@@ -3,7 +3,7 @@
 
 import type { Held, ViewRequest } from "./direction";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { UiNotification } from "../notificationModel";
+import type { UiNotification } from "../core/notificationModel";
 
 /**
  * The observer's side of WebFabric: one poll for everything applications have

@@ -3,7 +3,7 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
-import { LoadingSurface } from "../src/LoadingSurface";
+import { LoadingSurface } from "../src/film/LoadingSurface";
 afterEach(cleanup);
 it("leads the boot screen with the full logo, on one quiet line of progress",()=>{
   const {container}=render(<LoadingSurface mode="boot" title="Downloading map" reduceMotion={false} />);

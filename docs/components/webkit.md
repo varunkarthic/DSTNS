@@ -27,35 +27,31 @@ flowchart LR
     App --> Rep["report.ts → PDF"]
 ```
 
-## Modules
+## Subsystems
 
-| Module | Role |
-|---|---|
-| `api.ts` | Typed client; validates envelopes, maps errors to messages |
-| `useSimulation.ts` | Polls status every second, then snapshot and news; fetches topology once per `run_id`; resets the news cursor when time moves backwards |
-| `useBackpressure.ts` | Reports lag, frame time and poll interval; applies ASB's instructions |
-| `App.tsx` | The shell: layout, dialogs, world regeneration, Auto Focus, completion |
-| `NetworkMap.tsx`, `mapModel.ts`, `mapProjection.ts` | Canvas rendering: static and dynamic layers, viewport culling, insets for panels |
-| `CommandRail.tsx` | Playback, time, speed, seed, status, terminate |
-| `TelemetryDeck.tsx`, `telemetryModel.ts`, `telemetryRecorder.ts` | Live measures and lists |
-| `notificationModel.ts`, `notificationGroups.ts`, `notificationHistory.ts` | News to notifications: taxonomy, grouping, Do Not Disturb, history |
-| `autoFocus.ts`, `focusNotification.ts` | Choosing and framing events |
-| `Dialogs.tsx` | About, confirms, completion, suspension |
-| `Tutorial.tsx`, `tutorialSteps.ts`, `useTutorial.ts` | The guided tour |
-| `report.ts`, `reportModel.ts`, `pdfLayout.ts`, `reportWorker.ts` | The PDF report, built on a worker so that the interface keeps moving |
-| `reportCover.ts`, `reportMap.ts` | The cover and the map page, painted from the run's own map; see the [formulas](../design/motion-mathematics.md#the-cover) |
-| `ReportFilm.tsx` | The animation while a report is made |
-| `BootScene.tsx`, `bootScenes.ts`, `Splash.tsx` | The start-up film, and what surrounds it; see the [formulas](../design/motion-mathematics.md#the-film) |
-| `Legends.tsx`, `LayersPopover.tsx`, `placeLegend.ts`, `placeGlyphs.ts` | Roads, Places and Layers panels, and the marks for each kind of place |
-| `MapReadout.tsx`, `mapTiles.ts`, `Viewport.tsx` | Coordinates and scale; drawing the map in cached tiles; what's on screen |
-| `resistance.ts` | How anything with a limit gives when pushed past it |
-| `appearance.ts` | Themes and colour vision palettes |
-| `settingsControls.tsx`, `ShortcutSettings.tsx`, `SettingsDrawer.tsx` | Settings, and changing shortcuts |
-| `useSteadyStatus.ts` | A status that doesn't flicker between states |
-| `uiConfig.ts`, `preferences.tsx` | Operator defaults merged with this browser's preferences |
-| `motion.ts`, `motion.css` | The spring model and shared interaction physics; see the [interface system](../design/interface-system.md) |
-| `webfabric/` | Registered applications: state, slots, sandboxed frames, overlays and settings; see [WebFabric](webfabric.md) |
-| `theme.css`, `system.css`, `hud.css`, `style.css`, `webfabric.css` | Design tokens and layout |
+`WebKit/src` is divided into subsystems, each a folder with one responsibility. Lower ones never
+use higher ones, so a model or a motion primitive can be read, tested and reused without the
+interface around it; `tests/architecture.test.ts` holds the table and fails on any import across
+it that is not there on purpose.
+
+| Subsystem | Holds | May use |
+|---|---|---|
+| `CoreMotion/` | Motion shared by everything: the spring model and interaction physics (`motion.ts`, `motion.css`), how a limit gives when pushed (`resistance.ts`), keeping a surface mounted while it leaves (`presence.ts`), panels that grow and settle (`FluidPanel.tsx`), and the only door to the vendored Hairline figures (`EmptyFigure.tsx`); see the [interface system](../design/interface-system.md) | `vendor/` |
+| `core/` | What everything reads: the typed API client (`api.ts`), the server's types, features and configuration (`uiConfig.ts`, `preferences.tsx`, `shortcuts.ts`), units and time formats, themes (`appearance.ts`), and the plain models of the map and the news (`mapModel.ts`, `mapProjection.ts`, `notificationModel.ts`, `notificationGroups.ts`) | `CoreMotion/` |
+| `simulation/` | The live run: polling status, snapshots and news (`useSimulation.ts`), backpressure (`useBackpressure.ts`), steady status, the daemons, and the telemetry record (`telemetryModel.ts`, `telemetryRecorder.ts`) | `core/` |
+| `components/` | Building blocks with no knowledge of a run: popovers, tooltips, the quantized slider, icons, logos and the settings controls | `core/`, `CoreMotion/` |
+| `notifications/` | The notification capsule, history, the ISD handler, and choosing and framing events (`autoFocus.ts`, `focusNotification.ts`) | `core/`, `CoreMotion/`, `components/` |
+| `map/` | The map (`NetworkMap.tsx`), its dock, readout, legends, layers, tiles, traffic flow and place glyphs | the above, and `notifications/` |
+| `webfabric/` | Registered applications: state, slots, sandboxed frames, overlays and settings; see [WebFabric](webfabric.md) | `core/`, `CoreMotion/`, `components/`, `map/` |
+| `film/` | The start-up film (`BootScene.tsx`, `bootScenes.ts`), splash, loading surface, the jump film and Presentation | the above, and `webfabric/` |
+| `report/` | The PDF report, its cover, map and illustrations, built on a worker (`reportWorker.ts`), and the film while it is made | `core/`, `components/`, `simulation/`, `map/`, `film/` |
+| `tutorial/` | The guided tour | `core/`, `components/` |
+| `panels/` | The command rail, Time Control, the telemetry deck, Settings, shortcuts, dialogs and the viewport | everything above but `report/` and `map/` |
+| `styles/` | Design tokens and layout (`theme.css`, `system.css`, `hud.css`, `style.css`, `design.css`, `webfabric.css`) | |
+
+`App.tsx` composes them and `main.tsx` starts it. Two imports cross the table for now, and the
+test names them: an inspection tooltip draws a place's glyph from the map's legends, and an
+application's dialog shares the observer's scrim from `panels/Dialogs.tsx`.
 
 ## Principles
 

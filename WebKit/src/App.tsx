@@ -3,22 +3,22 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
-import NetworkMap from "./NetworkMap";
-import type { MapControls, MapTransform } from "./NetworkMap";
-import { TelemetryDeck } from "./TelemetryDeck";
-import { CommandRail } from "./CommandRail";
-import { LayersPopover } from "./LayersPopover";
-import { Floating } from "./Popover";
-import { MapDock } from "./MapDock";
-import { Logo } from "./Logo";
-import { Icon } from "./Icons";
-import { BootFailure, launchStage, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./Splash";
-import { reportEta } from "./eta";
-import { filmAvailable, mapCarry, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS } from "./BootScene";
-import { usePresence } from "./LoadingSurface";
-import { PlaceLegend, RoadLegend } from "./Legends";
-import { NotificationHistory } from "./notificationHistory";
-import { ViewportNotice, useViewportSize, viewportTooSmall } from "./Viewport";
+import NetworkMap from "./map/NetworkMap";
+import type { MapControls, MapTransform } from "./map/NetworkMap";
+import { TelemetryDeck } from "./panels/TelemetryDeck";
+import { CommandRail } from "./panels/CommandRail";
+import { LayersPopover } from "./map/LayersPopover";
+import { Floating } from "./components/Popover";
+import { MapDock } from "./map/MapDock";
+import { Logo } from "./components/Logo";
+import { Icon } from "./components/Icons";
+import { BootFailure, launchStage, ShutdownSurface, Splash, splashStageFor, useBootPhase, usePacedStages } from "./film/Splash";
+import { reportEta } from "./core/eta";
+import { filmAvailable, mapCarry, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS } from "./film/BootScene";
+import { usePresence } from "./CoreMotion/presence";
+import { PlaceLegend, RoadLegend } from "./map/Legends";
+import { NotificationHistory } from "./notifications/notificationHistory";
+import { ViewportNotice, useViewportSize, viewportTooSmall } from "./panels/Viewport";
 import {
   AboutCard,
   AutoFocusPrompt,
@@ -26,56 +26,56 @@ import {
   ConfirmCard,
   SuspendedOverlay,
   WorldGenerationOverlay,
-} from "./Dialogs";
-import type { CompletionSummary } from "./Dialogs";
-import { Tooltip } from "./Tooltip";
-import { ReportFilm } from "./ReportFilm";
-import type { ReportPreview } from "./ReportFilm";
-import { useISDNotifications } from "./ISDHandler";
-import { resolveBindings, useShortcuts } from "./shortcuts";
-import { useSteadyStatus } from "./useSteadyStatus";
-import { RATES, rateIndexOf } from "./CommandRail";
-import type { ISDCondition } from "./ISDHandler";
-import { Tutorial } from "./Tutorial";
-import { useTutorial } from "./useTutorial";
-import { NotificationCapsule } from "./NotificationCapsule";
-import { SettingsDrawer } from "./SettingsDrawer";
-import { useSimulation } from "./useSimulation";
-import { excuseBackpressure, useBackpressure, describeAsb, formatRate } from "./useBackpressure";
-import { api, UNREACHABLE } from "./api";
-import { SeekFilm, type Seek } from "./SeekFilm";
-import { useDaemonNotifications } from "./daemons";
-import { formatCoordinate } from "./mapProjection";
-import { MOTION_MS } from "./motion";
-import { applyAppearance, resolveTheme } from "./appearance";
-import { installEdgeResistance } from "./resistance";
-import { setByteUnits } from "./units";
-import { MapReadout } from "./MapReadout";
-import type { MapReadoutHandle } from "./MapReadout";
+} from "./panels/Dialogs";
+import type { CompletionSummary } from "./panels/Dialogs";
+import { Tooltip } from "./components/Tooltip";
+import { ReportFilm } from "./report/ReportFilm";
+import type { ReportPreview } from "./report/ReportFilm";
+import { useISDNotifications } from "./notifications/ISDHandler";
+import { resolveBindings, useShortcuts } from "./core/shortcuts";
+import { useSteadyStatus } from "./simulation/useSteadyStatus";
+import { RATES, rateIndexOf } from "./panels/CommandRail";
+import type { ISDCondition } from "./notifications/ISDHandler";
+import { Tutorial } from "./tutorial/Tutorial";
+import { useTutorial } from "./tutorial/useTutorial";
+import { NotificationCapsule } from "./notifications/NotificationCapsule";
+import { SettingsDrawer } from "./panels/SettingsDrawer";
+import { useSimulation } from "./simulation/useSimulation";
+import { excuseBackpressure, useBackpressure, describeAsb, formatRate } from "./simulation/useBackpressure";
+import { api, UNREACHABLE } from "./core/api";
+import { SeekFilm, type Seek } from "./film/SeekFilm";
+import { useDaemonNotifications } from "./simulation/daemons";
+import { formatCoordinate } from "./core/mapProjection";
+import { MOTION_MS } from "./CoreMotion/motion";
+import { applyAppearance, resolveTheme } from "./core/appearance";
+import { installEdgeResistance } from "./CoreMotion/resistance";
+import { setByteUnits } from "./core/units";
+import { MapReadout } from "./map/MapReadout";
+import type { MapReadoutHandle } from "./map/MapReadout";
 import { fabric, useFabricNotifications } from "./webfabric/store";
 import { FabricDialog, FabricDockItems, FabricHeader, FabricIndicators, FabricPanel, FabricSidebar, FabricStatus } from "./webfabric/Slots";
 import { FabricOverlay } from "./webfabric/Overlay";
 import { useFabricApps, useHeld, useLaunchPlan } from "./webfabric/store";
-import { useFeatures } from "./features";
-import { MusicControl, useFullscreen } from "./Presentation";
+import { useFeatures } from "./core/features";
+import { MusicControl, useFullscreen } from "./film/Presentation";
 import { heldOver, PERSON_HOLDS_CAMERA_MS, releaseKey, viewDeclined, viewTarget } from "./webfabric/direction";
 import type { FabricOverlayHandle } from "./webfabric/Overlay";
-import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./uiConfig";
-import type { UiConfig, AutoFocusStrategy } from "./uiConfig";
-import { AdvancedContext, TimeFormatProvider } from "./preferences";
-import { boundsOf, chooseTarget, focusTargets, framingSignature } from "./autoFocus";
-import type { Bounds } from "./autoFocus";
+import { BUILT_IN, clearOverrides, loadConfig, resolveReduceMotion, writeOverrides } from "./core/uiConfig";
+import type { UiConfig, AutoFocusStrategy } from "./core/uiConfig";
+import { AdvancedContext, TimeFormatProvider } from "./core/preferences";
+import { boundsOf, chooseTarget, focusTargets, framingSignature } from "./notifications/autoFocus";
+import type { Bounds } from "./notifications/autoFocus";
 import {
   buildNotifications,
   focusMatches,
   orderForDisplay,
   shouldDisplayNotification,
-} from "./notificationModel";
-import type { UiNotification } from "./notificationModel";
-import { focusNotification } from "./focusNotification";
-import { TelemetryRecorder, runtimeStatus, sampleFrom } from "./telemetryRecorder";
-import { DAY_SECONDS, formatDuration, formatSimulationTime } from "./timeFormat";
-import type { Congestion, Layers, MapFeature, NarratorStatus, News, PlaceVisibility, WorldStatus } from "./types";
+} from "./core/notificationModel";
+import type { UiNotification } from "./core/notificationModel";
+import { focusNotification } from "./notifications/focusNotification";
+import { TelemetryRecorder, runtimeStatus, sampleFrom } from "./simulation/telemetryRecorder";
+import { DAY_SECONDS, formatDuration, formatSimulationTime } from "./core/timeFormat";
+import type { Congestion, Layers, MapFeature, NarratorStatus, News, PlaceVisibility, WorldStatus } from "./core/types";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
@@ -87,13 +87,13 @@ import "@fontsource/jetbrains-mono/600.css";
 // style.css carries the map canvas and base rules; theme.css the shell;
 // hud.css the floating instrumentation; system.css the shared tokens and
 // redesigned surfaces, and wins overlaps.
-import "./style.css";
-import "./theme.css";
-import "./hud.css";
-import "./system.css";
-import "./motion.css";
-import "./webfabric.css";
-import "./design.css";
+import "./styles/style.css";
+import "./styles/theme.css";
+import "./styles/hud.css";
+import "./styles/system.css";
+import "./CoreMotion/motion.css";
+import "./styles/webfabric.css";
+import "./styles/design.css";
 
 export const VERSION = "3.1.0";
 
@@ -838,7 +838,7 @@ export default function App() {
           setReportFilm({ label: "Gathering the run", share: 0, ready: false });
           excuseBackpressure(12000);
           const [{ exportReport }, fullNews] = await Promise.all([
-            import("./report"),
+            import("./report/report"),
             api.allNews(sim.status.run_id).catch(() => sim.news),
           ]);
           reportFile.current = await exportReport(

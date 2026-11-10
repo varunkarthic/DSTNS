@@ -3,7 +3,7 @@
 
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SeekFilm } from "../src/SeekFilm";
+import { SeekFilm } from "../src/film/SeekFilm";
 
 afterEach(() => {
   cleanup();

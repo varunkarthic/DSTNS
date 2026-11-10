@@ -3,8 +3,8 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { Tutorial, placeTutorialCard } from "../src/Tutorial";
-import { tutorialSteps } from "../src/tutorialSteps";
+import { Tutorial, placeTutorialCard } from "../src/tutorial/Tutorial";
+import { tutorialSteps } from "../src/tutorial/tutorialSteps";
 afterEach(()=>{cleanup();vi.restoreAllMocks();});
 it('covers every telemetry view, measurements, notifications and error priority',()=>{
   for(const target of ['telemetry-roads','telemetry-vehicles','telemetry-incidents-metric','telemetry-weather','telemetry-congestion','telemetry-stack','telemetry-events','telemetry-queue','telemetry-incidents','telemetry-notifications','notifications','coords'])

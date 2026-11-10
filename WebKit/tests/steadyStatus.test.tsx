@@ -3,8 +3,8 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { DEGRADE_AFTER_MS, holdFor, RECOVER_AFTER_MS, useSteadyStatus } from "../src/useSteadyStatus";
-import type { RuntimeStatus } from "../src/telemetryRecorder";
+import { DEGRADE_AFTER_MS, holdFor, RECOVER_AFTER_MS, useSteadyStatus } from "../src/simulation/useSteadyStatus";
+import type { RuntimeStatus } from "../src/simulation/telemetryRecorder";
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());

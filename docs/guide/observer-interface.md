@@ -95,12 +95,12 @@ The map fills the window. Floating instrumentation sits over it:
   right. The zones never overlap each other, the rail, the map tools or telemetry.
 
 The map frames the network inside the region these panels leave free, using
-`mapInsets()` in `src/mapProjection.ts`. The same insets are used when Auto
+`mapInsets()` in `src/core/mapProjection.ts`. The same insets are used when Auto
 Focus frames an event, so a focused event is never hidden under a panel.
 
 ## Command rail
 
-`src/CommandRail.tsx`. One rounded bar, about 60 px tall:
+`src/panels/CommandRail.tsx`. One rounded bar, about 60 px tall:
 
 | Group | Controls |
 |---|---|
@@ -153,9 +153,9 @@ The accessible name carries the time, percentage and paused state, for example
 ### 12 and 24 hour time
 
 There is one preference, `clock.hour12`, and one formatter module,
-`src/timeFormat.ts`. State always holds canonical virtual seconds; formatting
+`src/core/timeFormat.ts`. State always holds canonical virtual seconds; formatting
 happens at display time through the `useTimeFormat()` hook
-(`src/preferences.tsx`). Every timestamp uses it: the rail, telemetry lists,
+(`src/core/preferences.tsx`). Every timestamp uses it: the rail, telemetry lists,
 notifications, the completion dialog, tooltips and the report.
 
 Messages composed by the core contain clock times as text ("Rain storm
@@ -238,7 +238,7 @@ the control is then disabled.
 ## Runtime status
 
 The rail shows **Online**, **Restricted**, **Degraded** or **Offline** instead of a raw update
-rate (`runtimeStatus()` in `src/telemetryRecorder.ts`):
+rate (`runtimeStatus()` in `src/simulation/telemetryRecorder.ts`):
 
 | Status | Condition |
 |---|---|
@@ -254,7 +254,7 @@ trip and any backpressure intervention. The deck header shows the same status.
 
 ### Model
 
-`src/notificationModel.ts` turns core news into structured records:
+`src/core/notificationModel.ts` turns core news into structured records:
 
 | Field | Meaning |
 |---|---|
@@ -285,7 +285,7 @@ grouped.
 
 ### Capsule
 
-`src/NotificationCapsule.tsx`. One fixed-height (48 px) capsule in the lower
+`src/notifications/NotificationCapsule.tsx`. One fixed-height (48 px) capsule in the lower
 HUD shows the most relevant notification: the Auto Focus event first, then
 the most severe, then the newest. The others are counted in a `+N` badge that
 updates live.
@@ -334,7 +334,7 @@ else hide if its category or its severity is muted
 
 ### History
 
-`src/notificationHistory.ts`. Every notification-worthy event is recorded once,
+`src/notifications/notificationHistory.ts`. Every notification-worthy event is recorded once,
 whether or not its toast was ever shown, with how it was delivered: **Shown**,
 **Silenced** (held back by DND), **Notifications off**, or **Before this
 session** for events already in the feed when the interface connected. An
@@ -351,7 +351,7 @@ Auto Focus, each with its count.
 
 ## Auto Focus
 
-`src/autoFocus.ts` describes each followable event by its real footprint:
+`src/notifications/autoFocus.ts` describes each followable event by its real footprint:
 
 | Event | Geometry | Framing |
 |---|---|---|
@@ -408,7 +408,7 @@ Sections:
 | Applications | [WebFabric](../components/webfabric.md): registered applications, their settings and permissions |
 | Reset | Returns settings, Layers, Places, shortcuts and the telemetry layout to their defaults |
 
-Each section is a self-contained block in `src/SettingsDrawer.tsx`, so new
+Each section is a self-contained block in `src/panels/SettingsDrawer.tsx`, so new
 settings are added without reorganising the drawer.
 
 ## Layers and legends
@@ -428,7 +428,7 @@ not.
 
 **Place legend**: every marker glyph the map draws, what it stands for, how
 many there are, and the demand the core models for it. The taxonomy is
-presentation only and lives in `src/mapModel.ts`; whether a place has demand is
+presentation only and lives in `src/core/mapModel.ts`; whether a place has demand is
 never inferred from it. The core reports each feature's `demand_type` (school,
 office, mall or store) and the snapshot carries its current multiplier, so the
 legend shows "Peak 1.62×", "At rest", or "Not modelled" for kinds the
@@ -490,7 +490,7 @@ A row in Stack, News, Queue or Incidents that is cut off opens when clicked, or 
 
 ## Tooltips
 
-`src/Tooltip.tsx` and `src/tooltipPlacement.ts`.
+`src/components/Tooltip.tsx` and `src/components/tooltipPlacement.ts`.
 
 Tooltips are compact (6 to 10 px padding, 12 px label, optional 11 px detail),
 dark and lightly frosted, and appear after 380 ms of hover (120 ms on keyboard
@@ -523,7 +523,7 @@ Map inspection cards use the same placement around the pointer.
 
 ## Tutorial
 
-`src/Tutorial.tsx`, `src/useTutorial.ts`, `src/tutorialSteps.ts`.
+`src/tutorial/Tutorial.tsx`, `src/tutorial/useTutorial.ts`, `src/tutorial/tutorialSteps.ts`.
 
 One card and one spotlight persist for the whole tour and glide between
 targets on a spring that does not overshoot, so the tour reads as one guide rather than separate pop-ups.
@@ -571,10 +571,10 @@ dialog follows when it closes.
 
 ## Report
 
-`src/report.ts` (composition), `src/reportModel.ts` (derivation, pure),
-`src/pdfLayout.ts` (layout engine), `src/reportMap.ts` (the map in print colours),
-`src/reportWorker.ts` (runs it off the page), `src/ReportFilm.tsx` (what is seen
-meanwhile), `src/telemetryRecorder.ts` (session telemetry).
+`src/report/report.ts` (composition), `src/report/reportModel.ts` (derivation, pure),
+`src/report/pdfLayout.ts` (layout engine), `src/report/reportMap.ts` (the map in print colours),
+`src/report/reportWorker.ts` (runs it off the page), `src/report/ReportFilm.tsx` (what is seen
+meanwhile), `src/simulation/telemetryRecorder.ts` (session telemetry).
 
 The report is built on a worker, so the interface keeps moving. Particles leave the
 map's roads and the panels and land on a sheet of paper where the report keeps those
@@ -671,7 +671,7 @@ along with the absence of any overlap at that size.
 
 ## Dialogs, errors and empty states
 
-Dialogs share one shell (`Scrim` in `src/Dialogs.tsx`): the map stays visible
+Dialogs share one shell (`Scrim` in `src/panels/Dialogs.tsx`): the map stays visible
 behind a light blur, focus is trapped and restored, Escape dismisses, and entry
 and exit are animated so nothing appears or disappears abruptly. Destructive
 confirmations (Terminate) use red; others use cyan.

@@ -2,11 +2,11 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { buildNotifications, shouldDisplayNotification } from "../src/notificationModel";
-import type { DisplayPolicy, UiNotification } from "../src/notificationModel";
-import { NotificationHistory, filterHistory } from "../src/notificationHistory";
-import type { DeliveryContext } from "../src/notificationHistory";
-import type { News } from "../src/types";
+import { buildNotifications, shouldDisplayNotification } from "../src/core/notificationModel";
+import type { DisplayPolicy, UiNotification } from "../src/core/notificationModel";
+import { NotificationHistory, filterHistory } from "../src/notifications/notificationHistory";
+import type { DeliveryContext } from "../src/notifications/notificationHistory";
+import type { News } from "../src/core/types";
 
 let nextId = 1;
 function news(partial: Partial<News>): News {

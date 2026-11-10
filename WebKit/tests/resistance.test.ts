@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resist, resistBound, resistClamp, installEdgeResistance, resistZoomOut, ZOOM_FLOOR, ZOOM_REST } from "../src/resistance";
+import { resist, resistBound, resistClamp, installEdgeResistance, resistZoomOut, ZOOM_FLOOR, ZOOM_REST } from "../src/CoreMotion/resistance";
 
 describe("Dynamic Edge Resistance", () => {
   it("gives, ever less, and never reaches its bound", () => {

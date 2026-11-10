@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { applyNarrations, mergeNews } from "../src/useSimulation";
-import type { News } from "../src/types";
+import { applyNarrations, mergeNews } from "../src/simulation/useSimulation";
+import type { News } from "../src/core/types";
 
 const item = (news_id: number, narrative?: string): News => ({
   news_id,

@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { computePlacement, intersectionArea } from "../src/tooltipPlacement";
-import type { Rect } from "../src/tooltipPlacement";
+import { computePlacement, intersectionArea } from "../src/components/tooltipPlacement";
+import type { Rect } from "../src/components/tooltipPlacement";
 
 const viewport = { width: 1280, height: 800 };
 const tip = { width: 160, height: 44 };

@@ -30,7 +30,7 @@ So a move built on it has no jolt where it starts or stops, and its speed peaks 
 
 ## Springs
 
-`WebKit/src/motion.ts`. Everything in the interface that moves is a damped harmonic oscillator with unit mass.
+`WebKit/src/CoreMotion/motion.ts`. Everything in the interface that moves is a damped harmonic oscillator with unit mass.
 
 $$
 \ddot{x} = -k(x - x_\text{target}) - c\dot{x}
@@ -130,7 +130,7 @@ The nearest snap point to that is the destination.
 
 ## Edges that give
 
-`WebKit/src/resistance.ts`. Whatever has a limit answers being pushed past it the same way: it follows at first, then gives less
+`WebKit/src/CoreMotion/resistance.ts`. Whatever has a limit answers being pushed past it the same way: it follows at first, then gives less
 and less, up to a bound it never reaches.
 
 $$
@@ -172,7 +172,7 @@ where \(f\) is the fit scale. The furthest in is a scale of 8 pixels per metre.
 
 ## The map
 
-`WebKit/src/NetworkMap.tsx`, `autoFocus.ts`, `mapProjection.ts`.
+`WebKit/src/map/NetworkMap.tsx`, `autoFocus.ts`, `mapProjection.ts`.
 
 ### View
 
@@ -242,7 +242,7 @@ $$
 
 ## Traffic on the map
 
-`WebKit/src/flowTraffic.ts`. The core's traffic model is aggregate: it reports how many vehicles a road has and their mean speed. Markers
+`WebKit/src/map/flowTraffic.ts`. The core's traffic model is aggregate: it reports how many vehicles a road has and their mean speed. Markers
 stand for those figures and don't feed back into anything.
 
 Each marker follows a rule from the same family as the Intelligent Driver Model:
@@ -368,7 +368,7 @@ A token bucket on the server: \(b \leftarrow \min(4, b + 2\Delta t)\), a request
 
 ## The film
 
-`WebKit/src/BootScene.tsx`, `bootScenes.ts`. 32,000 particles in WebGL2. Each has ten floats per scene: position (3), velocity (3), tint, kind, phase, hue.
+`WebKit/src/film/BootScene.tsx`, `bootScenes.ts`. 32,000 particles in WebGL2. Each has ten floats per scene: position (3), velocity (3), tint, kind, phase, hue.
 Everything about a scene is calculated in the vertex shader from these, the scene's age and the time, so a frame costs one draw call and
 nothing is uploaded per frame.
 
@@ -627,7 +627,7 @@ If a machine can't keep up, the film draws fewer particles rather than stutterin
 
 ## The report
 
-`WebKit/src/report.ts`, `reportMap.ts`, `ReportFilm.tsx`, `pdfLayout.ts`.
+`WebKit/src/report/report.ts`, `reportMap.ts`, `ReportFilm.tsx`, `pdfLayout.ts`.
 
 ### The cover
 
@@ -687,7 +687,7 @@ $$
 
 ### Putting it together
 
-`WebKit/src/ReportFilm.tsx`. The same language as the start-up film: soft points and timed easing, and one thing happening at a time. There are 18,000 particles in one draw call, and nothing is uploaded per frame, so the work on the worker can't disturb it.
+`WebKit/src/report/ReportFilm.tsx`. The same language as the start-up film: soft points and timed easing, and one thing happening at a time. There are 18,000 particles in one draw call, and nothing is uploaded per frame, so the work on the worker can't disturb it.
 
 Each particle has a place on a road on the map as it is now, and the same place on the same road as the cover draws it. Sampling along the roads is deterministic, so running it once with the map's view and once with the cover's turned frame gives two lists whose entries correspond. They land exactly on the cover's roads, and the cover then fades in under them, which is what the map does under its roads at the start.
 
@@ -733,7 +733,7 @@ The words beneath it keep pace with what's shown, not with the worker, which is 
 
 ## Shapes
 
-`WebKit/src/design.css`. Radii are a ladder, not one number, because what matters is how they look.
+`WebKit/src/styles/design.css`. Radii are a ladder, not one number, because what matters is how they look.
 
 | Token | Radius | For |
 |---|---|---|
@@ -755,7 +755,7 @@ The tutorial's outline takes its radius from what's actually on screen, not what
 
 ## Keeping up with the simulation
 
-`WebKit/src/useBackpressure.ts`. The score and the control law are in [Adaptive backpressure](../concepts/backpressure.md). What the observer contributes is measured passively, by asking for a pair of frames four times a second, and not for every frame, since that would itself keep the main thread busy. Frame cost is an exponential mean, which responds to a sustained stall and isn't moved by one slow frame:
+`WebKit/src/simulation/useBackpressure.ts`. The score and the control law are in [Adaptive backpressure](../concepts/backpressure.md). What the observer contributes is measured passively, by asking for a pair of frames four times a second, and not for every frame, since that would itself keep the main thread busy. Frame cost is an exponential mean, which responds to a sustained stall and isn't moved by one slow frame:
 
 $$
 \text{cost} \leftarrow 0.7\,\text{cost} + 0.3\min(\delta, 30)

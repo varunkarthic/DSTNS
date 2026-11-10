@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { createVelocityTracker, projectSnap, PURPOSES, settleTime, Spring, springEasing, springProgress, SPRINGS, stepSpring } from "../src/motion";
-import { stepRainCells } from "../src/mapModel";
+import { createVelocityTracker, projectSnap, PURPOSES, settleTime, Spring, springEasing, springProgress, SPRINGS, stepSpring } from "../src/CoreMotion/motion";
+import { stepRainCells } from "../src/core/mapModel";
 
 const peak = (preset: { k: number; c: number }) => {
   let most = 0;

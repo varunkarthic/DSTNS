@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { expect, it } from "vitest";
-import { waveLine } from "../src/Icons";
-import { paletteFor } from "../src/appearance";
+import { waveLine } from "../src/components/Icons";
+import { paletteFor } from "../src/core/appearance";
 
 const sheets = import.meta.glob<string>("../src/*.css", { query: "?raw", import: "default", eager: true });
 

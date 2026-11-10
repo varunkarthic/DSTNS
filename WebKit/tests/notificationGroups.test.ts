@@ -7,8 +7,8 @@ import {
   notificationBody,
   notificationKind,
   stackLabel,
-} from "../src/notificationGroups";
-import type { News } from "../src/types";
+} from "../src/core/notificationGroups";
+import type { News } from "../src/core/types";
 
 let nextId = 1;
 const news = (message: string, category = "flooding", time = "08:00:00"): News => ({

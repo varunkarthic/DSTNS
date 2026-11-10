@@ -9,7 +9,7 @@ import {
   formatWallDuration,
   localizeTimes,
   parseClock,
-} from "../src/timeFormat";
+} from "../src/core/timeFormat";
 
 describe("formatSimulationTime", () => {
   it("formats 24 hour time with seconds", () => {

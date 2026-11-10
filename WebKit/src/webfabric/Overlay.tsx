@@ -2,11 +2,11 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import { appearance } from "../appearance";
-import type { MapTransform } from "../NetworkMap";
-import { animate, SPRINGS, stepSpring } from "../motion";
-import type { SpringPreset } from "../motion";
-import type { Snapshot, Topology } from "../types";
+import { appearance } from "../core/appearance";
+import type { MapTransform } from "../map/NetworkMap";
+import { animate, SPRINGS, stepSpring } from "../CoreMotion/motion";
+import type { SpringPreset } from "../CoreMotion/motion";
+import type { Snapshot, Topology } from "../core/types";
 import { autoSeries, dashOf, legibleColour } from "./direction";
 import { along, DriveRun, networkOf, PathRun, placeFeature, trackOf } from "./spatial";
 import type { AnyRun } from "./spatial";

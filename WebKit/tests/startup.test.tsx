@@ -3,8 +3,8 @@
 
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LoadingSurface } from "../src/LoadingSurface";
-import { BootFailure, BOOT_STEPS, ShutdownSurface, Splash, splashStageFor } from "../src/Splash";
+import { LoadingSurface } from "../src/film/LoadingSurface";
+import { BootFailure, BOOT_STEPS, ShutdownSurface, Splash, splashStageFor } from "../src/film/Splash";
 
 afterEach(cleanup);
 

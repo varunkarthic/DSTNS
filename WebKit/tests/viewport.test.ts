@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { MIN_HEIGHT, MIN_WIDTH, shortfall, viewportTooSmall } from "../src/Viewport";
-import { mapFitLayout } from "../src/mapProjection";
-import { RATES } from "../src/CommandRail";
+import { MIN_HEIGHT, MIN_WIDTH, shortfall, viewportTooSmall } from "../src/panels/Viewport";
+import { mapFitLayout } from "../src/core/mapProjection";
+import { RATES } from "../src/panels/CommandRail";
 
 describe("minimum viewport", () => {
   it("accepts the sizes the HUD was laid out for", () => {

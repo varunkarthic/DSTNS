@@ -8,8 +8,8 @@ import {
   measureSnapshot,
   runtimeStatus,
   sampleFrom,
-} from "../src/telemetryRecorder";
-import type { Backpressure, Snapshot } from "../src/types";
+} from "../src/simulation/telemetryRecorder";
+import type { Backpressure, Snapshot } from "../src/core/types";
 
 const snapshot = {
   edges: [
