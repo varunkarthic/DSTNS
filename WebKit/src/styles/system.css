@@ -896,15 +896,6 @@
   gap: 6px;
   padding-right: 2px;
   outline: none;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(var(--line-rgb) / 18%) transparent;
-}
-.stream::-webkit-scrollbar {
-  width: 6px;
-}
-.stream::-webkit-scrollbar-thumb {
-  border-radius: 3px;
-  background: rgb(var(--line-rgb) / 18%);
 }
 .stream-card {
   border-radius: var(--r-md);
@@ -2125,7 +2116,6 @@
 .scroll-region {
   position: relative;
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 .legend-popover.places .place-rows {
   max-height: min(42vh, 420px);

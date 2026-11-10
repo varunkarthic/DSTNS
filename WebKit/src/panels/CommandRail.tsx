@@ -176,6 +176,7 @@ export function CommandRail(props: CommandRailProps) {
         onRate={props.onRate}
       />
 
+      <div className="rail-session" role="group" aria-label="Session">
       <SeedControl seed={props.seed} canRegenerate={props.canRegenerate && !pending} onRegenerate={props.onRegenerate} />
 
       <Tooltip label={`Runtime ${STATUS_LABEL[props.status]}`} detail={props.statusDetail.length ? props.statusDetail.join(" · ") : undefined}>
@@ -191,6 +192,7 @@ export function CommandRail(props: CommandRailProps) {
           <span>Terminate</span>
         </button>
       </Tooltip>
+      </div>
     </section>
   );
 }

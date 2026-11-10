@@ -61,11 +61,24 @@ export const FluidPanel = forwardRef<HTMLElement, {
     if (membrane.current && panel.current) bud.current = new Bud(membrane.current, panel.current, content.current, (at) => setResting(at ? "open" : "closed"), open ? 1 : 0);
     measure();
     window.addEventListener("resize", measure);
+    // Over the icon, the panel begins to bud before it is asked for.
+    const icon = document.querySelector<HTMLElement>(anchor);
+    const still = () => document.documentElement.classList.contains("reduce-motion") || !matchMedia("(hover: hover)").matches;
+    const enter = () => {
+      if (still()) return;
+      measure();
+      bud.current?.anticipate(true);
+    };
+    const leave = () => bud.current?.anticipate(false);
+    icon?.addEventListener("pointerenter", enter);
+    icon?.addEventListener("pointerleave", leave);
     const dock = document.querySelector(".map-dock");
     const observer = typeof ResizeObserver === "undefined" || !dock ? null : new ResizeObserver(measure);
     if (dock) observer?.observe(dock);
     return () => {
       window.removeEventListener("resize", measure);
+      icon?.removeEventListener("pointerenter", enter);
+      icon?.removeEventListener("pointerleave", leave);
       observer?.disconnect();
       bud.current?.destroy();
       bud.current = null;

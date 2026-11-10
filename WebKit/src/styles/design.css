@@ -1649,8 +1649,10 @@ html, body, #root {
   pointer-events: none;
   overflow: visible;
 }
-@keyframes bud-rest { from { border-color: var(--accent-line); } }
-.bud-line { fill: none; stroke: var(--accent-line); stroke-width: 2.4; }
+/* The drop is the panel's own material and nothing more: no outline while it divides, and the panel's edge comes
+   back as a soft fade once it has come to rest. */
+@keyframes bud-rest { from { border-color: transparent; } }
+.bud-line { display: none; }
 .bud-fill { fill: var(--surface-solid); }
 .fluid-content {
   flex: 1;
@@ -3004,28 +3006,47 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .reduce-motion .time-control .time-value { animation: none; }
 
 /* ---- Time Control ------------------------------------------------------------------------------------------- */
-.floating.time-menu { width: 356px; max-width: calc(100vw - 24px); max-height: none; padding: 4px 0 6px; overflow: visible; transform-origin: 50% 100%; }
-.time-menu-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 10px 10px 16px; }
-.time-menu-head h3 { margin: 0 0 2px; font-size: 13.5px; font-weight: 600; color: var(--text); }
-.time-menu-head .mono { font-size: 11.5px; color: var(--text-dim); }
-.time-menu-section { display: grid; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid var(--well-line); }
-.time-menu-section h4 { margin: 0; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+/* ---- Time Control -----------------------------------------------------------------------------------------------
+   The day as a line to put a finger on. Now is a dot on it; a press or drag anywhere moves the knob, and the head says
+   where that lands before it is chosen. Typing, times of day and quick jumps sit beneath; the clock's format last. */
+.floating.time-menu { width: 420px; max-width: calc(100vw - 24px); max-height: none; padding: 0; overflow: hidden; transform-origin: 50% 100%; }
+.time-menu-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 12px 6px 20px; }
+.time-menu-now { display: grid; gap: 2px; min-width: 0; }
+.time-menu-eyebrow { font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.time-menu-now strong { font-size: 30px; line-height: 1.05; font-weight: 500; letter-spacing: -0.01em; color: var(--text); font-variant-numeric: tabular-nums; }
+.time-menu-part { font-size: 12px; color: var(--text-dim); }
+.time-scrub { padding: 10px 20px 4px; }
+.time-scrub-track { position: relative; height: 36px; cursor: pointer; touch-action: none; outline: none; border-radius: var(--r-sm); }
+.time-scrub-track.disabled { cursor: default; opacity: 0.5; }
+.time-scrub-track:focus-visible { box-shadow: 0 0 0 2px var(--accent-line); }
+.time-scrub-track > i { position: absolute; display: block; pointer-events: none; }
+.time-scrub-line { left: 0; right: 0; top: 17px; height: 2px; border-radius: 1px; background: var(--well-line); }
+.time-scrub-span { top: 17px; height: 2px; border-radius: 1px; background: var(--accent); left: calc(min(var(--now), var(--pick)) * 100%); width: calc(abs(var(--now) - var(--pick)) * 100%); opacity: 0.6; }
+.time-scrub-tick { top: 15px; width: 1px; height: 6px; background: var(--well-line); }
+.time-scrub-tick.major { top: 13px; height: 10px; background: rgb(var(--line-rgb) / 35%); }
+.time-scrub-now { top: 14px; left: calc(var(--now) * 100%); width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--surface-solid); box-shadow: inset 0 0 0 2px var(--accent); }
+.time-scrub-knob { top: 9px; left: calc(var(--pick) * 100%); width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--surface-solid), 0 2px 8px rgb(0 0 0 / 25%); transition: left 120ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.time-scrub-track:active .time-scrub-knob { transition: none; transform: scale(1.15); }
+.time-scrub-hours { display: flex; justify-content: space-between; margin-top: 2px; font: 500 10px/1 var(--font-mono, monospace); color: var(--text-faint); }
 .time-menu-row { display: flex; align-items: center; gap: 8px; }
-.time-menu-row > .btn { margin-left: auto; min-width: 68px; height: 34px; }
-.time-menu-row .segmented { flex: none; width: 124px; }
+.time-menu-go { flex-wrap: wrap; padding: 10px 20px 0; }
+.time-menu-go > .btn.primary { margin-left: auto; min-width: 64px; height: 34px; }
 .time-fields { display: inline-flex; align-items: center; gap: 4px; color: var(--text-faint); }
-.time-fields small { font-size: 11px; margin-right: 2px; }
-.time-field { width: 42px; height: 34px; padding: 0; text-align: center; font-size: 16px; color: var(--text); background: var(--well); border: 1px solid var(--well-line); border-radius: var(--r-sm); outline: none; caret-color: var(--accent); transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
+.time-fields .segmented { margin-left: 6px; width: 96px; }
+.time-field { width: 42px; height: 34px; padding: 0; text-align: center; font-size: 15px; color: var(--text); background: var(--well); border: 1px solid var(--well-line); border-radius: var(--r-sm); outline: none; caret-color: var(--accent); transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
 .time-field:hover { background: var(--hover); }
 .time-field:focus { border-color: var(--accent-line, var(--accent)); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--surface-solid); }
-.time-presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
-.time-presets button { height: 28px; padding: 0 6px; font-size: 11.5px; color: var(--text-dim); background: var(--well); border: 1px solid var(--well-line); border-radius: var(--r-pill); transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), transform var(--motion-release-ms, 180ms) var(--motion-release, ease-out); }
-.time-presets button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
-.time-presets button:active:not(:disabled) { transform: scale(0.96); }
-.time-presets button:disabled { opacity: 0.45; }
-.time-menu-note { font-size: 12px; color: var(--text-dim); margin-top: -2px; }
-.time-menu-note b { color: var(--text); font-weight: 600; }
-.time-menu-tip { font-size: 11px; color: var(--text-faint); }
+.time-presets { display: inline-flex; gap: 4px; margin-left: 4px; }
+.time-presets button, .time-jump { height: 28px; padding: 0 10px; font-size: 11.5px; white-space: nowrap; color: var(--text-dim); background: var(--well); border: 1px solid var(--well-line); border-radius: var(--r-pill); transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), transform var(--spring-lively-ms, 180ms) var(--spring-lively, ease-out); }
+:is(.time-presets button, .time-jump):hover:not(:disabled) { background: var(--hover); color: var(--text); }
+:is(.time-presets button, .time-jump):active:not(:disabled) { transform: scale(0.96); }
+:is(.time-presets button, .time-jump):disabled { opacity: 0.45; }
+.time-presets button.on { color: var(--accent); border-color: rgb(var(--accent-rgb) / 45%); background: rgb(var(--accent-rgb) / 12%); }
+.time-menu-jumps { padding: 10px 20px 14px; border-bottom: 1px solid var(--well-line); }
+.time-menu-jumps .time-jump { flex: 1; padding: 0; }
+.time-menu-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px 16px; }
+.time-menu-foot .segmented { width: 180px; }
+.time-menu-tip { font-size: 11px; color: var(--text-faint); text-align: right; }
 
 /* ---- A jump's clock runs with the stream ------------------------------------------------------------------- */
 .seek-film-clock { margin-left: 10px; padding-left: 10px; border-left: 1px solid rgb(var(--line-rgb) / 16%); color: var(--text); font-variant-numeric: tabular-nums; }
@@ -3249,26 +3270,45 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
   .stack-view .trend { display: none; }
 }
 
-/* ---- A soft bottom edge -----------------------------------------------------------------------------------------------
-   What scrolls under a panel's lower edge blurs a little as it fades, as if passing under frosted glass: a strip pinned
-   to the bottom of the scroller, its blur strongest at the edge. Only 36px of it, so a scroll repaints almost nothing;
-   none under reduced transparency, high contrast or reduced motion. */
-:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .layers-scroll, .fabric-panel-body)::after {
-  content: "";
-  position: sticky;
-  bottom: 0;
-  display: block;
-  flex: none;
-  height: 36px;
-  margin-top: -36px;
-  pointer-events: none;
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  mask-image: linear-gradient(to bottom, transparent, #000 85%);
-}
-:is(.reduce-transparency, .high-contrast, .reduce-motion) :is(.stream, .settings-scroll, .about-scroll, .place-search-results, .layers-scroll, .fabric-panel-body)::after { display: none; }
+/* The soft edges of a scrolling region are its mask alone (above): a blur under its edge would be repainted on every
+   frame it is pulled past its end, and that is where scrolling must stay smoothest. */
 
 /* An application's sidebar: its bar lines up with its title, and its body takes the rest of the height and scrolls
    inside it, however much the application declares. */
 .fabric-sidebar > .fabric-appbar { flex: none; padding: 0 12px 8px 20px; }
 .fabric-sidebar-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+
+/* ---- Confirm cards -----------------------------------------------------------------------------------------------
+   Reset, New World and Terminate: an eyebrow for what is asked about, the question, a sentence, then what saying yes
+   does as three facts side by side, and the answers. */
+.confirm-dialog .eyebrow { font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.confirm-dialog.danger .eyebrow { color: var(--red); }
+.confirm-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; }
+.confirm-facts > div { padding: 8px 10px; }
+.confirm-facts dd { font-size: 12.5px; }
+
+/* A deck tab's new content comes in as its pill arrives, rather than appearing. */
+.stream-frame > .stream, .stream-frame > .deck-network { animation: tab-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes tab-in { from { opacity: 0; transform: translateY(5px); } }
+.reduce-motion .stream-frame > :is(.stream, .deck-network) { animation: none; }
+
+/* ---- The bottom bar: three groups, one height ------------------------------------------------------------------
+   Transport and the clock; the day and the speed; the session (seed, New World, status, Terminate). Everything in it
+   is 34px tall and centred, the speed slider has no caption of its own, and the groups keep an even gap. */
+.rail { gap: 14px; padding-inline: 8px 10px; }
+.rail > .tooltip-anchor, .rail > .rail-group, .rail > .runtime, .rail > .rail-terminate, .rail > .seed { display: inline-flex; align-items: center; }
+.rail-label:not(.reduced) { display: none; }
+.speed, .rail .speed { gap: 0; }
+.rail .runtime { min-width: 0; height: 34px; padding: 0 8px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; }
+.rail .seed-value { height: 34px; padding: 0 10px; font-size: 12px; }
+.rail-session { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.dialog.confirm-dialog { width: min(660px, 100%); grid-template-columns: 208px minmax(0, 1fr); }
+.confirm-facts > div { display: block; min-width: 0; }
+.confirm-facts dt { display: block; margin: 0 0 3px; font-size: 10.5px; color: var(--text-faint); white-space: nowrap; }
+.confirm-facts dd { display: block; margin: 0; font-size: 12.5px; line-height: 1.35; color: var(--text); overflow-wrap: break-word; }
+.floating.time-menu { width: 488px; }
+.time-menu-go { flex-wrap: nowrap; }
+.dialog .confirm-facts dd, .dialog .confirm-facts dt { text-align: left; font-family: var(--font-body); }
+.dialog .confirm-facts dd { font-weight: 500; }
+.confirm-dialog .eyebrow { font-family: var(--font-body); }

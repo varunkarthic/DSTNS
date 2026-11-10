@@ -168,6 +168,18 @@ export class Bud {
     if (this.spring.value > 0 && this.spring.value < 1) this.paint(this.spring.value);
   }
 
+  /**
+   * The pointer is over the control that opens this panel: a bead swells a little at the edge, so the panel is
+   * already on its way before the press, and settles back if the pointer leaves. Nothing while open or moving.
+   */
+  anticipate(on: boolean): void {
+    if (this.target !== 0) return;
+    if (!on && this.spring.value === 0) return;
+    this.spring.setPreset(BUD_CLOSE);
+    if (on) this.paint(Math.max(0.001, this.spring.value));
+    this.spring.set(on ? 0.07 : 0);
+  }
+
   set(open: boolean, still = false): void {
     this.target = open ? 1 : 0;
     if (still) {

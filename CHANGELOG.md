@@ -69,6 +69,16 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
 - **Knowing the link.** The interface estimates how fast its link to the server is from what it already downloads,
   through Resource Timing, with no requests of its own, and says about how long a new world's map will take to load
   when that wait is long enough to mention.
+- **Put away first.** Regenerating, terminating or starting over first closes whatever is open (Settings, Search,
+  a menu, a strip panel, the notifications), and asks only once it has gone.
+- **A new Time Control.** The day is a line to put a finger on: now is marked, a press or drag chooses a time, and the
+  head says where that lands and what part of the day it is before it is chosen. Times of day, typed hours and quick
+  jumps either way sit beneath it.
+- **Cards that say what happens.** Start over, New World and Terminate each say what they are about, ask, and set out
+  what confirming does as three facts before the answers.
+- **Smoother edges.** Panels divide without an outline, a panel begins to bud as the pointer reaches its icon, lists
+  have no scrollbars and no blur under their edge, a deck tab's content comes in with its pill, and the bottom bar
+  keeps its session controls together at its end.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:

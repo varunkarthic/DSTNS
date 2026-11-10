@@ -7,6 +7,7 @@ import { BrandLogo } from "../components/BrandLogo";
 import { Figure, type FigureName } from "../CoreMotion/Figure";
 import { Bud } from "../CoreMotion/bud";
 import { BudMembrane } from "../CoreMotion/FluidPanel";
+import { useSettle } from "../CoreMotion/settle";
 import { Icon, categoryIcon } from "../components/Icons";
 import type { IconName } from "../components/Icons";
 import { FabricDeck } from "../webfabric/Slots";
@@ -789,6 +790,7 @@ function TelemetryDeckImpl(props: Props) {
     setPanel(null);
     opener.current?.focus();
   }, []);
+  useSettle(panel !== null, closePanel);
   useEffect(() => {
     if (!panel) return;
     panelHeading.current?.focus({ preventScroll: true });

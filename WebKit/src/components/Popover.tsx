@@ -11,6 +11,7 @@ import { usePresence } from "../CoreMotion/presence";
 import { MOTION_MS } from "../CoreMotion/motion";
 import { Bud } from "../CoreMotion/bud";
 import { BudMembrane } from "../CoreMotion/FluidPanel";
+import { useSettle } from "../CoreMotion/settle";
 import type { Placement, Side } from "./tooltipPlacement";
 
 /**
@@ -27,6 +28,8 @@ import type { Placement, Side } from "./tooltipPlacement";
 export function useDismiss(open: boolean, onClose: () => void, inside: RefObject<HTMLElement | null>[]) {
   const close = useRef(onClose);
   close.current = onClose;
+  const closeNow = useCallback(() => close.current(), []);
+  useSettle(open, closeNow);
   useEffect(() => {
     if (!open) return;
     const onPointer = (e: PointerEvent) => {

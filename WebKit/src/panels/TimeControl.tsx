@@ -2,12 +2,14 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import { Icon } from "../components/Icons";
 import { Floating, useDismiss } from "../components/Popover";
 import { useTimeFormat } from "../core/preferences";
 import { Segmented } from "../components/settingsControls";
 import { DAY_SECONDS, formatDuration } from "../core/timeFormat";
+import { useSettle } from "../CoreMotion/settle";
 
 /** Holding the clock this long switches between 12- and 24-hour time, rather than opening Time Control. */
 export const LONG_PRESS_MS = 550;
@@ -23,6 +25,20 @@ export function jumpTarget(from: number, sign: 1 | -1, hours: number, minutes: n
 export function fromFields(hour: number, minute: number, hour12: boolean, pm: boolean): number {
   const h = hour12 ? (hour % 12) + (pm ? 12 : 0) : hour;
   return clampDay(h * 3600 + minute * 60);
+}
+
+/** What a time of day is, in a word or two, for the scrubber's caption. */
+export function partOfDay(seconds: number): string {
+  const h = seconds / 3600;
+  if (h < 5) return "Night";
+  if (h < 7) return "Dawn";
+  if (h < 10) return "Morning peak";
+  if (h < 12) return "Late morning";
+  if (h < 14) return "Midday";
+  if (h < 16.5) return "Afternoon";
+  if (h < 19) return "Evening peak";
+  if (h < 22) return "Evening";
+  return "Night";
 }
 
 /** How far a target is from now, in words. */
@@ -70,8 +86,9 @@ function NumberField({ value, min, max, label, onChange, onEnter }: { value: num
 /**
  * The clock, and Time Control behind it.
  *
- * A click opens Time Control: go to a time earlier or later in the day, jump by any number of hours and minutes, and
- * choose 12- or 24-hour time. Holding the clock switches 12- and 24-hour time straight away.
+ * A click opens Time Control: the day as a line to put a finger on, the time it would land at said before it is
+ * chosen, the hours typed if that is easier, quick jumps either way, and the clock's own format. Holding the clock
+ * switches 12- and 24-hour time straight away.
  */
 export function TimeControl({
   seconds,
@@ -96,41 +113,37 @@ export function TimeControl({
   const panel = useRef<HTMLDivElement>(null);
   const press = useRef<{ timer?: ReturnType<typeof setTimeout>; long: boolean }>({ long: false });
   useDismiss(open, () => setOpen(false), [trigger, panel]);
+  useSettle(open, () => setOpen(false));
   useEffect(() => () => clearTimeout(press.current.timer), []);
 
-  // What is typed starts at now, each time the menu opens.
+  // Where the finger is: starts at now each time it opens, and stays put while the clock runs on.
   const now = clampDay(seconds);
-  const [hour, setHour] = useState(0);
-  const [minute, setMinute] = useState(0);
-  const [pm, setPm] = useState(false);
-  const [sign, setSign] = useState<1 | -1>(1);
-  const [jumpHours, setJumpHours] = useState(1);
-  const [jumpMinutes, setJumpMinutes] = useState(0);
+  const [pick, setPick] = useState(now);
+  const [touched, setTouched] = useState(false);
   useEffect(() => {
     if (!open) return;
-    const h = Math.floor(now / 3600) % 24;
-    setHour(time.hour12 ? h % 12 || 12 : h);
-    setMinute(Math.floor((now % 3600) / 60));
-    setPm(h >= 12);
+    setPick(now);
+    setTouched(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-  // The fields follow the clock's format when it changes while open.
-  const wasHour12 = useRef(time.hour12);
-  useEffect(() => {
-    if (wasHour12.current === time.hour12) return;
-    wasHour12.current = time.hour12;
-    setHour((h) => (time.hour12 ? (h % 12 || 12) : (h % 12) + (pm ? 12 : 0)));
-  }, [time.hour12, pm]);
-
-  const target = fromFields(hour, minute, time.hour12, pm);
-  const landing = jumpTarget(now, sign, jumpHours, jumpMinutes);
+  const shown = touched ? pick : now;
+  const hour24 = Math.floor(shown / 3600) % 24;
+  const minute = Math.floor((shown % 3600) / 60);
+  const pm = hour24 >= 12;
+  const hour = time.hour12 ? hour24 % 12 || 12 : hour24;
+  const choose = (at: number) => {
+    setPick(clampDay(at));
+    setTouched(true);
+  };
   const go = (to: number) => {
     if (disabled || Math.abs(to - now) < 1) return;
     setOpen(false);
     onSeekTo(to);
   };
+  const delta = shown - now;
 
   const presets: [string, number][] = [["Start", 0], [time.hour12 ? "6 AM" : "06:00", 6 * 3600], ["Noon", 12 * 3600], [time.hour12 ? "6 PM" : "18:00", 18 * 3600], ["End", DAY_SECONDS]];
+  const jumps: [string, number][] = [["1 h earlier", -3600], ["15 min earlier", -900], ["15 min later", 900], ["1 h later", 3600]];
 
   return (
     <>
@@ -170,58 +183,109 @@ export function TimeControl({
       </button>
       <Floating anchor={trigger} open={open} preferred={["top"]} only className="time-menu" panelRef={panel} role="dialog" label="Time Control">
         <header className="time-menu-head">
-          <div>
-            <h3>Time Control</h3>
-            <span className="mono">{hasClock ? time.time(seconds) : "--:--:--"} · {percent.toFixed(0)}% of the day</span>
+          <div className="time-menu-now">
+            <span className="time-menu-eyebrow">{touched ? "Going to" : "Now"}</span>
+            <strong className="mono">{time.time(shown, { seconds: false })}</strong>
+            <span className="time-menu-part">{partOfDay(shown)}{touched ? ` · ${describeDistance(delta)}` : paused ? " · Paused" : ` · ${percent.toFixed(0)}% of the day`}</span>
           </div>
           <button type="button" className="icon-btn small" aria-label="Close Time Control" onClick={() => setOpen(false)}>
             <Icon name="close" size={14} />
           </button>
         </header>
 
-        <section className="time-menu-section" aria-label="Go to a time">
-          <h4>Go to</h4>
-          <div className="time-menu-row">
-            <div className="time-fields" role="group" aria-label="Target time">
-              <NumberField label="Hour" value={hour} min={time.hour12 ? 1 : 0} max={time.hour12 ? 12 : 23} onChange={setHour} onEnter={() => go(target)} />
-              <span aria-hidden="true">:</span>
-              <NumberField label="Minute" value={minute} min={0} max={59} onChange={setMinute} onEnter={() => go(target)} />
-            </div>
-            {time.hour12 && <Segmented label="Half of the day" value={pm ? "pm" : "am"} options={[{ value: "am", label: "AM" }, { value: "pm", label: "PM" }]} onChange={(v) => setPm(v === "pm")} />}
-            <button type="button" className="btn primary" disabled={disabled || Math.abs(target - now) < 1} onClick={() => go(target)}>Go</button>
+        <DayScrubber now={now} pick={shown} hour12={time.hour12} disabled={disabled} onPick={choose} onGo={go} />
+
+        <div className="time-menu-row time-menu-go">
+          <div className="time-fields" role="group" aria-label="Target time">
+            <NumberField label="Hour" value={hour} min={time.hour12 ? 1 : 0} max={time.hour12 ? 12 : 23} onChange={(h) => choose(fromFields(h, minute, time.hour12, pm))} onEnter={() => go(shown)} />
+            <span aria-hidden="true">:</span>
+            <NumberField label="Minute" value={minute} min={0} max={59} onChange={(m) => choose(fromFields(hour, m, time.hour12, pm))} onEnter={() => go(shown)} />
+            {time.hour12 && <Segmented label="Half of the day" value={pm ? "pm" : "am"} options={[{ value: "am", label: "AM" }, { value: "pm", label: "PM" }]} onChange={(v) => choose(fromFields(hour, minute, true, v === "pm"))} />}
           </div>
-          <span className="time-menu-note">{describeDistance(target - now)}</span>
           <div className="time-presets" role="group" aria-label="Times of day">
             {presets.map(([name, at]) => (
-              <button key={name} type="button" disabled={disabled || at === now} onClick={() => go(at)}>{name}</button>
+              <button key={name} type="button" className={at === shown ? "on" : ""} disabled={disabled} onClick={() => choose(at)}>{name}</button>
             ))}
           </div>
-        </section>
+          <button type="button" className="btn primary" disabled={disabled || Math.abs(shown - now) < 1} onClick={() => go(shown)}>Go</button>
+        </div>
 
-        <section className="time-menu-section" aria-label="Jump by">
-          <h4>Jump by</h4>
-          <div className="time-menu-row">
-            <Segmented label="Which way" value={sign} options={[{ value: -1, label: "Back" }, { value: 1, label: "Forward" }]} onChange={setSign} />
-            <div className="time-fields" role="group" aria-label="How far">
-              <NumberField label="Hours" value={jumpHours} min={0} max={23} onChange={setJumpHours} onEnter={() => go(landing)} />
-              <small>h</small>
-              <NumberField label="Minutes" value={jumpMinutes} min={0} max={59} onChange={setJumpMinutes} onEnter={() => go(landing)} />
-              <small>m</small>
-            </div>
-            <button type="button" className="btn" disabled={disabled || landing === now} onClick={() => go(landing)}>Jump</button>
-          </div>
-          <span className="time-menu-note">
-            Lands at <b className="mono">{time.time(landing, { seconds: false })}</b>
-            {landing !== now + sign * (jumpHours * 3600 + jumpMinutes * 60) && ", the day's edge"}
-          </span>
-        </section>
+        <div className="time-menu-row time-menu-jumps" role="group" aria-label="Jump from now">
+          {jumps.map(([name, by]) => (
+            <button key={name} type="button" className="time-jump" disabled={disabled || jumpTarget(now, by < 0 ? -1 : 1, 0, Math.abs(by) / 60) === now} onClick={() => go(jumpTarget(now, by < 0 ? -1 : 1, 0, Math.abs(by) / 60))}>
+              {name}
+            </button>
+          ))}
+        </div>
 
-        <section className="time-menu-section" aria-label="Clock">
-          <h4>Clock</h4>
+        <footer className="time-menu-foot">
           <Segmented label="Clock format" value={time.hour12 ? "12" : "24"} options={[{ value: "24", label: "24-hour" }, { value: "12", label: "12-hour" }]} onChange={(v) => (v === "12") !== time.hour12 && time.toggle()} />
           <small className="time-menu-tip">Hold the clock to switch at any time.</small>
-        </section>
+        </footer>
       </Floating>
     </>
+  );
+}
+
+/**
+ * The day as a line: now is marked on it, and a press or drag anywhere puts the finger at that time, snapped to five
+ * minutes, with the knob following. Arrow keys move it; Enter goes there.
+ */
+function DayScrubber({ now, pick, hour12, disabled, onPick, onGo }: { now: number; pick: number; hour12: boolean; disabled: boolean; onPick: (at: number) => void; onGo: (at: number) => void }) {
+  const track = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const at = (clientX: number) => {
+    const r = track.current?.getBoundingClientRect();
+    if (!r || r.width <= 0) return pick;
+    const share = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    return Math.round((share * DAY_SECONDS) / 300) * 300;
+  };
+  const hours = hour12 ? ["12 AM", "6 AM", "Noon", "6 PM", "12 AM"] : ["00", "06", "12", "18", "24"];
+  return (
+    <div className="time-scrub" style={{ "--now": now / DAY_SECONDS, "--pick": pick / DAY_SECONDS } as CSSProperties}>
+      <div
+        ref={track}
+        className={`time-scrub-track${disabled ? " disabled" : ""}`}
+        role="slider"
+        tabIndex={disabled ? -1 : 0}
+        aria-label="Time of day"
+        aria-valuemin={0}
+        aria-valuemax={DAY_SECONDS}
+        aria-valuenow={pick}
+        aria-valuetext={`${Math.floor(pick / 3600)}:${String(Math.floor((pick % 3600) / 60)).padStart(2, "0")}`}
+        onPointerDown={(e: PointerEvent<HTMLDivElement>) => {
+          if (disabled || e.button !== 0) return;
+          dragging.current = true;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          onPick(at(e.clientX));
+        }}
+        onPointerMove={(e: PointerEvent<HTMLDivElement>) => {
+          if (dragging.current) onPick(at(e.clientX));
+        }}
+        onPointerUp={() => (dragging.current = false)}
+        onPointerCancel={() => (dragging.current = false)}
+        onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+          const by = e.shiftKey ? 3600 : 300;
+          if (e.key === "ArrowRight" || e.key === "ArrowUp") (e.preventDefault(), onPick(pick + by));
+          else if (e.key === "ArrowLeft" || e.key === "ArrowDown") (e.preventDefault(), onPick(pick - by));
+          else if (e.key === "Home") (e.preventDefault(), onPick(0));
+          else if (e.key === "End") (e.preventDefault(), onPick(DAY_SECONDS));
+          else if (e.key === "Enter") (e.preventDefault(), onGo(pick));
+        }}
+      >
+        <i className="time-scrub-line" />
+        <i className="time-scrub-span" />
+        {Array.from({ length: 25 }, (_, h) => (
+          <i key={h} className={`time-scrub-tick${h % 6 === 0 ? " major" : ""}`} style={{ left: `${(h / 24) * 100}%` }} />
+        ))}
+        <i className="time-scrub-now" />
+        <i className="time-scrub-knob" />
+      </div>
+      <div className="time-scrub-hours" aria-hidden="true">
+        {hours.map((label, i) => (
+          <span key={i}>{label}</span>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -286,7 +286,7 @@ describe("command rail", () => {
     await ready();
     calls.length = 0;
     fireEvent.click(screen.getByLabelText("Reset simulation to the start of the day"));
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Reset the simulation?");
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Start the day over?");
     expect(calls).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -1138,10 +1138,10 @@ describe("a finished run's next move", () => {
     const dialog = await screen.findByRole("dialog", { name: "The day is complete" }, { timeout: 5000 });
     fireEvent.click(within(dialog).getByRole("button", { name: /Restart same simulation/ }));
     // The same seed and map: it confirms a replay, not a new world.
-    const confirm = await screen.findByRole("dialog", { name: /Reset the simulation/ }, { timeout: 4000 });
+    const confirm = await screen.findByRole("dialog", { name: /Start the day over/ }, { timeout: 4000 });
     expect(confirm).toHaveTextContent(/same day again/i);
     await new Promise((resolve) => setTimeout(resolve, 400));
-    expect(screen.getByRole("dialog", { name: /Reset the simulation/ })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /Start the day over/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start Over" }));
     await waitFor(() => expect(calls.some((c) => c.path.includes("/engine/seek"))).toBe(true));
   });

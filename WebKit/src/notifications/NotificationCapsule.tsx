@@ -3,7 +3,8 @@
 
 import { BrandLogo } from "../components/BrandLogo";
 import { Spring } from "../CoreMotion/motion";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useSettle } from "../CoreMotion/settle";
 import { Icon, categoryIcon } from "../components/Icons";
 import { focusMatches, SEVERITY_LABEL, REALISTIC_NEWS } from "../core/notificationModel";
 import type { UiNotification } from "../core/notificationModel";
@@ -66,6 +67,8 @@ export function NotificationCapsule(
   const time = useTimeFormat();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const closeCapsule = useCallback(() => setOpen(false), []);
+  useSettle(open, closeCapsule, 500);
   const [technical, setTechnical] = useState(false);
   const [held, setHeld] = useState<UiNotification[] | null>(null);
   const root = useRef<HTMLDivElement>(null);

@@ -2,9 +2,10 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { FluidPanel } from "../CoreMotion/FluidPanel";
+import { useSettle } from "../CoreMotion/settle";
 import { Figure } from "../CoreMotion/Figure";
 import { PlaceGlyph } from "./Legends";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { Icon, ActionIcon, MotionIcon } from "../components/Icons";
 import { Tooltip } from "../components/Tooltip";
@@ -162,6 +163,8 @@ function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean;
 
 export function MapDock(props: MapDockProps) {
   const [searchOpen, setSearchOpen] = useState(false);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
+  useSettle(searchOpen, closeSearch);
   const [menuOpen, setMenuOpen] = useState(false);
   const dockRef = useRef<HTMLDivElement>(null);
   const focusButton = useRef<HTMLButtonElement>(null);

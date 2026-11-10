@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TimeFormatProvider } from "../src/core/preferences";
-import { describeDistance, fromFields, jumpTarget, LONG_PRESS_MS, TimeControl } from "../src/panels/TimeControl";
+import { describeDistance, fromFields, jumpTarget, LONG_PRESS_MS, partOfDay, TimeControl } from "../src/panels/TimeControl";
 import { aimedTime, rollingTime } from "../src/film/SeekFilm";
 
 afterEach(() => {
@@ -49,15 +49,19 @@ describe("Time Control", () => {
     expect(onSeekTo).toHaveBeenCalledWith(14 * 3600 + 300);
   });
 
-  it("jumps by hours and minutes, either way", () => {
+  it("jumps either way from now, and the scrubber picks a time", () => {
     const onSeekTo = vi.fn();
     render(<Clock onSeekTo={onSeekTo} />);
     fireEvent.click(screen.getByRole("button", { name: /Simulation time/ }));
-    fireEvent.click(screen.getByRole("radio", { name: "Back" }));
-    fireEvent.change(screen.getByLabelText("Hours"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("Minutes"), { target: { value: "15" } });
-    fireEvent.click(screen.getByRole("button", { name: "Jump" }));
-    expect(onSeekTo).toHaveBeenCalledWith(8 * 3600 + 30 * 60 - (2 * 3600 + 15 * 60));
+    fireEvent.click(screen.getByRole("button", { name: "1 h earlier" }));
+    expect(onSeekTo).toHaveBeenCalledWith(8 * 3600 + 30 * 60 - 3600);
+    fireEvent.click(screen.getByRole("button", { name: /Simulation time/ }));
+    const slider = screen.getByRole("slider", { name: "Time of day" });
+    fireEvent.keyDown(slider, { key: "ArrowRight", shiftKey: true });
+    expect(screen.getByRole("dialog", { name: "Time Control" })).toHaveTextContent("1 h 00 min later than now.");
+    fireEvent.keyDown(slider, { key: "Enter" });
+    expect(onSeekTo).toHaveBeenLastCalledWith(9 * 3600 + 30 * 60);
+    expect(partOfDay(8 * 3600)).toBe("Morning peak");
   });
 
   it("switches to 12-hour time from the menu, or by holding the clock", () => {

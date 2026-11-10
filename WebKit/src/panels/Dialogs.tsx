@@ -201,10 +201,16 @@ export function ConfirmCard({
   confirmIcon,
   tone,
   figure,
+  eyebrow,
+  facts,
   onConfirm,
   onCancel,
   closing,
 }: {
+  /** What this is about, in a word above the title. */
+  eyebrow?: string;
+  /** What confirming does, as a few short facts set side by side. */
+  facts?: [string, string][];
   title: string;
   body: string;
   confirmLabel: string;
@@ -217,9 +223,20 @@ export function ConfirmCard({
   closing?: boolean;
 }) {
   return (
-    <Dialog onClose={onCancel} labelledBy="confirm-title" closing={closing} figure={figure} tone={tone}>
+    <Dialog onClose={onCancel} labelledBy="confirm-title" closing={closing} figure={figure} tone={tone} className="confirm-dialog">
+      {eyebrow && <span className="eyebrow">{eyebrow}</span>}
       <h2 id="confirm-title">{title}</h2>
       <p className="dialog-body">{body}</p>
+      {facts && (
+        <dl className="dialog-facts confirm-facts">
+          {facts.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       <div className="dialog-actions">
         <button className="btn" onClick={onCancel}>
           Cancel

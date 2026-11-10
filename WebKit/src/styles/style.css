@@ -786,11 +786,10 @@ progress::-webkit-progress-value {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
-/* The standard properties, because a ::-webkit-scrollbar is repainted on the main thread
-   on every frame of a scroll. */
+/* No scrollbars anywhere: every scrolling region fades at its edges where there is more (design.css), which says the
+   same without furniture that appears and disappears as a list moves. */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(var(--line-rgb) / 22%) transparent;
+  scrollbar-width: none;
 }
 /* The map is shortened in hud.css instead: giving its arrival back would replay it. */
 .reduce-motion *:not(.map-layer),
@@ -1067,7 +1066,6 @@ progress::-webkit-progress-value {
 .analysis-column {
   bottom: 145px;
   overflow: auto;
-  scrollbar-width: thin;
 }
 .analysis-column > section {
   flex-shrink: 0;

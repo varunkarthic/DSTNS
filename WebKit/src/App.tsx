@@ -16,6 +16,7 @@ import { BootFailure, launchStage, ShutdownSurface, Splash, splashStageFor, useB
 import { reportEta } from "./core/eta";
 import { filmAvailable, mapCarry, LANDING_MS, landingPoints, MAP_AT_MS, PANELS_AT_MS, QUICK_ARRIVAL, REJOIN_MIN_MS } from "./film/BootScene";
 import { usePresence } from "./CoreMotion/presence";
+import { settle, useSettle } from "./CoreMotion/settle";
 import { PlaceLegend, RoadLegend } from "./map/Legends";
 import { NotificationHistory } from "./notifications/notificationHistory";
 import { ViewportNotice, useViewportSize, viewportTooSmall } from "./panels/Viewport";
@@ -264,6 +265,11 @@ export default function App() {
   const layersTrigger = useRef<HTMLButtonElement>(null);
   const [preferencesEpoch, setPreferencesEpoch] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Anything open puts itself away before a dialog asks about the whole session.
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const closeLayers = useCallback(() => setLayersOpen(false), []);
+  useSettle(settingsOpen, closeSettings);
+  useSettle(layersOpen, closeLayers);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [dialogClosing, setDialogClosing] = useState(false);
   const [pending, setPending] = useState(false);
@@ -1537,8 +1543,8 @@ export default function App() {
                 void action(() => api.tick(rate));
               }}
               onReset={() => openDialog("reset")}
-              onRegenerate={() => openDialog("regenerate")}
-              onTerminate={() => openDialog("terminate")}
+              onRegenerate={() => void settle().then(() => openDialog("regenerate"))}
+              onTerminate={() => void settle().then(() => openDialog("terminate"))}
             />
           </div>
 
@@ -1563,8 +1569,10 @@ export default function App() {
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} narratorBadge={narratorBadge(narrator)} />}
           {dialog === "reset" && (
             <ConfirmCard
-              title="Reset the simulation?"
-              body="The day starts over from the beginning. The scenario, its seed and its map stay as they are, so you will see the same day again."
+              eyebrow="This day"
+              title="Start the day over?"
+              body="The same scenario plays again from midnight, with the same seed and map, so you see the same day again."
+              facts={[["Seed", seed ? (seed.length > 14 ? `${seed.slice(0, 12)}…` : seed) : "Not reported"], ["Map", location?.city ?? "Pinned map"], ["Begins at", "00:00"]]}
               confirmLabel="Start Over"
               confirmIcon="reset"
               figure="rewind"
@@ -1581,8 +1589,10 @@ export default function App() {
           )}
           {dialog === "regenerate" && (
             <ConfirmCard
+              eyebrow="New world"
               title="Generate a new world?"
-              body="A new seed picks a new district, which may need a map download. The current simulation stays where it is until the new world is ready, then hands over. The new world begins paused at the start of the day."
+              body="A new seed chooses a new district, which may need a map download. This world stays where it is until the new one is ready, then hands over."
+              facts={[["Leaving", location?.city ?? "Pinned map"], ["Arriving", "A new seed and district"], ["Begins at", "00:00, paused"]]}
               confirmLabel="Generate World"
               confirmIcon="reroll"
               figure="redraw"
@@ -1599,8 +1609,10 @@ export default function App() {
           )}
           {dialog === "terminate" && (
             <ConfirmCard
+              eyebrow="This session"
               title="Terminate this session?"
-              body="The run stops and the simulation server shuts down. A new run must be started from the CLI."
+              body="The run stops where it is and the simulation server shuts down. Nothing is saved; a new run is started from the launcher."
+              facts={[["The run", "Stops"], ["The server", "Shuts down"], ["To continue", "Start again from the launcher"]]}
               confirmLabel="Terminate"
               confirmIcon="power"
               tone="danger"
