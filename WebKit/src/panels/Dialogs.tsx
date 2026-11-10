@@ -398,7 +398,7 @@ export function CompletionDialog({
           </button>
         )}
         {onNewWorld && (
-          <button className="btn" onClick={onNewWorld} disabled={!canGenerate}>
+          <button className="btn tinted" onClick={onNewWorld} disabled={!canGenerate}>
             <Icon name="reroll" size={16} />
             Generate a new world
           </button>
