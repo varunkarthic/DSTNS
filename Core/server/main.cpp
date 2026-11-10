@@ -166,6 +166,8 @@ int main(int argc, char** argv) {
                 else if (narrator == "fm") throw std::invalid_argument("--narrator fm: the fm command was not found");
             } else if (narrator != "off" && narrator != "none") {
                 backend = dstns::make_chat_backend(narrator, narrator_model);
+                // The backend has read its token; nothing the server starts needs it.
+                unsetenv("DSTNS_NARRATOR_TOKEN");
             }
             if (backend) {
                 dstns::NarratorOptions options;

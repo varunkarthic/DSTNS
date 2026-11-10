@@ -38,7 +38,9 @@ jobs:
       - name: Native and HTTP suites
         run: ctest --test-dir build --output-on-failure
       - name: Launcher suites
-        run: cargo test --release --manifest-path LaunchKit/Cargo.toml
+        run: |
+          cargo test --release --manifest-path CoreAI/Cargo.toml
+          cargo test --release --manifest-path LaunchKit/Cargo.toml
       - name: Replay verification
         run: ./build/dstns_replay_verify 382923
       - name: Licence headers

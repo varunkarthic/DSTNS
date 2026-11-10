@@ -17,6 +17,7 @@ name = "dstns-launcher"
 path = "src/main.rs"
 
 [dependencies]
+dstns-coreai = { path = "../CoreAI" }
 ratatui = "0.30"
 crossterm = "0.29"
 serde = { version = "1", features = ["derive"] }

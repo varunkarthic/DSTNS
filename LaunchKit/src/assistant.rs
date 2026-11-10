@@ -3,9 +3,10 @@
 
 //! The launcher's own model, and what it does: a request in plain words, turned into the console's commands.
 //!
-//! Which model: `model.provider` says. `auto` uses Apple's Foundation Models where the framework says this Mac has one
-//! (on the Mac first, then Private Cloud Compute if `model.apple_cloud` allows it); else Ollama, if it answers; else Groq, if a key is kept (`model key`). `apple`,
-//! `ollama` and `groq` insist on one; `off` turns it off. `model.name` chooses the model, for Ollama and Groq.
+//! Which model: `model.provider` says, and CoreAI (the root CoreAI/ crate) asks it. `auto` uses Apple's Foundation
+//! Models where the framework says this Mac has one; else a model server on this machine (Ollama, LM Studio); else each
+//! cloud provider that has a key (`model key PROVIDER KEY`), in turn, until one answers. Naming a provider insists on
+//! it; `off` turns it off. `model.name` and `model.base_url` apply to the provider named.
 //!
 //! A suggestion is never run by itself. It is checked first, as a console line: only commands that exist, joined by
 //! `&&` or `|`; nothing that leaves, resets, runs a shell, edits files or changes Advanced Security; and a warning for
@@ -13,188 +14,69 @@
 
 use crate::config;
 use crate::paths::Paths;
-use serde_json::{json, Value};
-use std::process::{Command, Stdio};
 use std::time::Duration;
 
-pub const GROQ_KEY: &str = "DSTNS_GROQ_API_KEY";
-const GROQ_URL: &str = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_DEFAULT: &str = "llama-3.3-70b-versatile";
-const OLLAMA_DEFAULT: &str = "llama3.2";
+pub use coreai::apple::AppleModels;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Provider {
-    Apple,
-    Ollama,
-    Groq,
-}
-
-#[derive(Clone, Debug)]
-pub struct Model {
-    pub provider: Provider,
-    pub name: String,
-    pub url: String,
-}
-
-impl Model {
-    pub fn label(&self) -> String {
-        match self.provider {
-            Provider::Apple if self.name == "pcc" => "Apple Foundation Models, through Private Cloud Compute".into(),
-            Provider::Apple => "Apple Foundation Models, on this Mac".into(),
-            Provider::Ollama => format!("{} through Ollama ({})", self.name, self.url),
-            Provider::Groq => format!("{} through Groq", self.name),
-        }
-    }
-}
-
-const MODELS_SWIFT: &str = include_str!("../assets/models.swift");
-
-/// Apple's two models and whether each can answer here, as the Foundation Models framework reports it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AppleModels {
-    /// The model on this Mac: Ok, or why not, in plain words.
-    pub system: Result<(), String>,
-    /// Apple's larger model through Private Cloud Compute.
-    pub cloud: Result<(), String>,
-}
-
-/// Asks the framework through a small Swift helper, built on first use. The `fm` tool is not asked: its `available`
-/// command was renamed `models`, and either one fails as a whole when only Private Cloud Compute is missing.
-pub fn apple_models(paths: &Paths) -> AppleModels {
-    let none = |why: &str| AppleModels { system: Err(why.into()), cloud: Err(why.into()) };
-    if !cfg!(target_os = "macos") || !cfg!(target_arch = "aarch64") {
-        return none("Apple's models need a Mac with Apple silicon.");
-    }
-    // Built for macOS 26, where the framework first appears; the Private Cloud Compute check runs only on 27 and later.
-    let Some(helper) = crate::security::swift_program(paths, "dstns-models", MODELS_SWIFT, &["-target", "arm64-apple-macos26.0"]) else {
-        return none("Apple's models could not be checked: the Swift compiler is missing (xcode-select --install).");
-    };
-    let output = match Command::new(helper).stdin(Stdio::null()).stderr(Stdio::null()).output() {
-        Ok(output) if output.status.success() => output.stdout,
-        _ => return none("Apple's models could not be checked: this macOS has no Foundation Models (macOS 26 or later)."),
-    };
-    let report: Value = serde_json::from_slice(&output).unwrap_or(Value::Null);
-    AppleModels { system: apple_state(&report["system"]), cloud: apple_state(&report["pcc"]) }
-}
-
-/// "available", or "unavailable:REASON" with the framework's own reason, in plain words.
-fn apple_state(state: &Value) -> Result<(), String> {
-    let state = state.as_str().unwrap_or("unavailable:unknown");
-    if state == "available" {
-        return Ok(());
-    }
-    Err(match state.strip_prefix("unavailable:").unwrap_or(state) {
-        "deviceNotEligible" => "this Mac cannot run it".into(),
-        "appleIntelligenceNotEnabled" => "Apple Intelligence is turned off in System Settings".into(),
-        "modelNotReady" => "the model is still being downloaded or prepared".into(),
-        "systemNotReady" => "it is not ready in this context (it may work from the Terminal app)".into(),
-        "unsupportedOS" => "this macOS is too old for it".into(),
-        other => format!("not available ({other})"),
+/// The launcher's model settings, as CoreAI takes them.
+pub fn settings(paths: &Paths) -> Result<coreai::Settings, String> {
+    let config = config::load(paths).map_err(|e| e.message)?;
+    let text = |key: &str| config::setting(&config, key).as_str().unwrap_or("").trim().to_string();
+    let unless_default = |value: String| if value == "default" { String::new() } else { value };
+    Ok(coreai::Settings {
+        provider: text("model.provider"),
+        model: unless_default(text("model.name")),
+        base_url: unless_default(text("model.base_url")),
+        ollama_url: text("model.ollama_url"),
+        apple_cloud: config::flag(&config, "model.apple_cloud"),
+        key_store: if text("model.key_store") == "system" { coreai::KeyStore::System } else { coreai::KeyStore::Env },
+        local_only: false,
+        timeout: Duration::from_secs(config::setting(&config, "model.timeout_seconds").as_u64().unwrap_or(60).clamp(5, 600)),
+        cache_dir: paths.build(),
     })
 }
 
-/// The Apple model to use, by the settings, or why there is none.
-fn apple_model(paths: &Paths, cloud_allowed: bool) -> Result<Model, String> {
-    let models = apple_models(paths);
-    let apple = |name: &str| Model { provider: Provider::Apple, name: name.into(), url: String::new() };
-    match (&models.system, &models.cloud) {
-        (Ok(()), _) => Ok(apple("system")),
-        (Err(_), Ok(())) if cloud_allowed => Ok(apple("pcc")),
-        (Err(why), Ok(())) => Err(format!("Apple's model on this Mac is not available: {why}. Private Cloud Compute is, but model.apple_cloud is off.")),
-        (Err(why), Err(cloud)) => Err(format!("Apple's model on this Mac is not available: {why}. Private Cloud Compute: {cloud}.")),
-    }
-}
-
-fn ollama_answers(url: &str) -> bool {
-    crate::api::agent(Duration::from_millis(800)).get(&format!("{}/api/tags", url.trim_end_matches('/'))).call().map(|r| r.status().is_success()).unwrap_or(false)
-}
-
-fn groq_key() -> Option<String> {
-    std::env::var(GROQ_KEY).ok().or_else(|| std::env::var("GROQ_API_KEY").ok()).filter(|k| !k.trim().is_empty())
-}
-
-/// The model to use, by the settings, or why there is none.
-pub fn resolve(paths: &Paths) -> Result<Model, String> {
-    let settings = config::load(paths).map_err(|e| e.message)?;
-    let provider = config::setting(&settings, "model.provider").as_str().unwrap_or("auto").to_string();
-    let name = config::setting(&settings, "model.name").as_str().unwrap_or("").trim().to_string();
-    let name = if name == "default" { String::new() } else { name };
-    let url = config::setting(&settings, "model.ollama_url").as_str().unwrap_or("http://127.0.0.1:11434").trim_end_matches('/').to_string();
-    let ollama = |name: &str| Model { provider: Provider::Ollama, name: if name.is_empty() { OLLAMA_DEFAULT.into() } else { name.into() }, url: url.clone() };
-    let groq = |name: &str| Model { provider: Provider::Groq, name: if name.is_empty() { GROQ_DEFAULT.into() } else { name.into() }, url: GROQ_URL.into() };
-    let apple = || apple_model(paths, config::flag(&settings, "model.apple_cloud"));
-    match provider.as_str() {
-        "off" => Err("The model is off: set model.provider to auto, apple, ollama or groq.".into()),
-        "apple" => apple(),
-        "ollama" if ollama_answers(&url) => Ok(ollama(&name)),
-        "ollama" => Err(format!("Ollama does not answer at {url}. Start it, or set model.ollama_url.")),
-        "groq" if groq_key().is_some() => Ok(groq(&name)),
-        "groq" => Err(format!("Groq needs a key: model key KEY keeps one in config/launcher.env as {GROQ_KEY}.")),
-        _ => apple().or_else(|_| match () {
-            _ if ollama_answers(&url) => Ok(ollama(&name)),
-            _ if groq_key().is_some() => Ok(groq(&name)),
-            _ => Err("No model: Apple's Foundation Models are not here, Ollama does not answer, and no Groq key is kept (model key KEY).".into()),
-        }),
-    }
-}
-
-/// One answer, to `prompt`, following `instructions`.
-pub fn ask(model: &Model, instructions: &str, prompt: &str) -> Result<String, String> {
-    match model.provider {
-        Provider::Apple => {
-            let output = Command::new("fm")
-                .args(["respond", "--no-stream", "--greedy", "-m", &model.name, "-i", instructions, prompt])
-                .env("NO_COLOR", "1")
-                .stdin(Stdio::null())
-                .output()
-                .map_err(|e| format!("fm: {e}"))?;
-            if !output.status.success() {
-                return Err(format!("Apple's model did not answer: {}", String::from_utf8_lossy(&output.stderr).trim()));
+/// CoreAI's service for the rest of DSTNS (the engine's news, the observer), started on first use and kept for the
+/// launcher's life. It reads the settings on every request, so a change applies at once.
+pub fn service(paths: &Paths) -> Result<coreai::serve::Service, String> {
+    static SERVICE: std::sync::OnceLock<Result<coreai::serve::Service, String>> = std::sync::OnceLock::new();
+    SERVICE
+        .get_or_init(|| {
+            let paths = paths.clone();
+            let source: coreai::serve::SettingsSource = std::sync::Arc::new(move || settings(&paths).unwrap_or_default());
+            let started = coreai::serve::start(source, None).map_err(|e| format!("CoreAI's service could not start: {e}"));
+            if let Ok(service) = &started {
+                crate::log::info(&format!("coreai: serving on 127.0.0.1:{}", service.port));
             }
-            Ok(strip_ansi(&String::from_utf8_lossy(&output.stdout)).trim().to_string())
-        }
-        Provider::Ollama => {
-            let body = json!({"model": model.name, "stream": false, "options": {"temperature": 0}, "messages": [{"role": "system", "content": instructions}, {"role": "user", "content": prompt}]});
-            let reply: Value = crate::api::agent(Duration::from_secs(90))
-                .post(&format!("{}/api/chat", model.url))
-                .send_json(&body)
-                .map_err(|e| format!("Ollama: {e}"))?
-                .body_mut()
-                .read_json()
-                .map_err(|e| format!("Ollama: {e}"))?;
-            reply["message"]["content"].as_str().map(|s| s.trim().to_string()).ok_or_else(|| format!("Ollama did not answer: {}", reply["error"].as_str().unwrap_or("no message")))
-        }
-        Provider::Groq => {
-            let key = groq_key().ok_or("No Groq key is kept.")?;
-            let body = json!({"model": model.name, "temperature": 0, "messages": [{"role": "system", "content": instructions}, {"role": "user", "content": prompt}]});
-            let reply: Value = crate::api::agent(Duration::from_secs(60))
-                .post(GROQ_URL)
-                .header("Authorization", &format!("Bearer {key}"))
-                .send_json(&body)
-                .map_err(|e| format!("Groq: {e}"))?
-                .body_mut()
-                .read_json()
-                .map_err(|e| format!("Groq: {e}"))?;
-            reply["choices"][0]["message"]["content"].as_str().map(|s| s.trim().to_string()).ok_or_else(|| format!("Groq did not answer: {}", reply["error"]["message"].as_str().unwrap_or("no message")))
-        }
-    }
+            started
+        })
+        .clone()
 }
 
-fn strip_ansi(text: &str) -> String {
-    let mut out = String::new();
-    let mut chars = text.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\x1b' {
-            for d in chars.by_ref() {
-                if d.is_ascii_alphabetic() {
-                    break;
-                }
-            }
-        } else {
-            out.push(c);
-        }
+pub fn apple_models(paths: &Paths) -> AppleModels {
+    coreai::apple::models(&paths.build())
+}
+
+/// The model the settings choose: the first CoreAI would ask.
+pub fn resolve(paths: &Paths) -> Result<coreai::Target, String> {
+    let settings = settings(paths)?;
+    coreai::resolve(&settings).map(|mut found| found.remove(0)).map_err(|e| e.to_string())
+}
+
+/// One answer, to `prompt`, following `instructions`, from whichever model answers first; and who wrote it.
+pub fn ask(paths: &Paths, instructions: &str, prompt: &str) -> Result<(String, coreai::Provenance), String> {
+    let settings = settings(paths)?;
+    let request = coreai::Request { temperature: Some(0.0), ..coreai::Request::new(instructions, prompt) };
+    coreai::complete(&settings, &request, None).map(|reply| (reply.text, reply.provenance)).map_err(|e| e.to_string())
+}
+
+/// How a reply's writer is named on screen.
+pub fn label(provenance: &coreai::Provenance) -> String {
+    match (provenance.provider.as_str(), provenance.model.as_str()) {
+        ("apple", "pcc") => "Apple Foundation Models, through Private Cloud Compute".into(),
+        ("apple", _) => "Apple Foundation Models, on this Mac".into(),
+        (_, model) => format!("{model} through {}", provenance.provider_label),
     }
-    out
 }
 
 /// Commands as they are typed, and what each does: what the model chooses from. Written out, not generated from the
@@ -337,23 +219,23 @@ pub fn is_question(text: &str) -> bool {
 pub fn answer(paths: &Paths, question: &str) -> Result<(Vec<String>, String), String> {
     let graph = crate::graph::load(paths)?;
     let found = crate::graph::answer(graph, question, 8);
-    let Ok(model) = resolve(paths) else {
+    if resolve(paths).is_err() {
         let mut lines = vec!["No model, so here is what the knowledge graph has:".to_string()];
         lines.extend(found);
         return Ok((lines, "the knowledge graph".into()));
-    };
+    }
     let instructions = "You answer questions about DSTNS, a deterministic traffic simulator, for someone at its launcher. \
         Use only the facts given. Answer in at most four short sentences of plain words, naming files as path:line. \
         If the facts do not answer the question, say so, and suggest graph show NAME or graph search WORDS to look further. \
         Do not invent names, files or numbers.";
     let prompt = format!("{question}\n\nFacts from DSTNS's knowledge graph:\n{}", graph.facts(question).join("\n"));
-    match ask(&model, instructions, &prompt) {
-        Ok(text) => {
+    match ask(paths, instructions, &prompt) {
+        Ok((text, provenance)) => {
             let mut lines: Vec<String> = text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
             lines.push(String::new());
             lines.push("From the knowledge graph:".into());
             lines.extend(found.into_iter().skip_while(|l| l.starts_with("Read as")).take(6));
-            Ok((lines, model.label()))
+            Ok((lines, label(&provenance)))
         }
         Err(problem) => {
             let mut lines = vec![format!("The model did not answer ({problem}), so here is what the knowledge graph has:")];
@@ -372,7 +254,7 @@ pub fn respond(paths: &Paths, request: &str) -> Result<(Reply, String), String> 
         }
     }
     match suggest(paths, request) {
-        Ok((suggestion, model)) => Ok((Reply::Command(suggestion), model.label())),
+        Ok((suggestion, by)) => Ok((Reply::Command(suggestion), by)),
         Err(why) => match answer(paths, request) {
             Ok((lines, by)) if why.contains("did not find a command") => Ok((Reply::Answer(lines), by)),
             _ => Err(why),
@@ -381,12 +263,11 @@ pub fn respond(paths: &Paths, request: &str) -> Result<(Reply, String), String> 
 }
 
 /// A request in plain words, as a checked line of commands.
-pub fn suggest(paths: &Paths, request: &str) -> Result<(Suggestion, Model), String> {
-    let model = resolve(paths)?;
-    crate::log::info(&format!("assistant: asking {} about: {request}", model.label()));
-    let answer = ask(&model, &instructions(), request)?;
-    crate::log::info(&format!("assistant: it answered: {answer}"));
-    check(&answer).map(|s| (s, model))
+pub fn suggest(paths: &Paths, request: &str) -> Result<(Suggestion, String), String> {
+    crate::log::info(&format!("assistant: asking about: {request}"));
+    let (answer, provenance) = ask(paths, &instructions(), request)?;
+    crate::log::info(&format!("assistant: {} answered: {answer}", label(&provenance)));
+    check(&answer).map(|s| (s, label(&provenance)))
 }
 
 /// Whether a line typed at the prompt is a request in words rather than a command: its first word is not one. `ask …`
@@ -399,27 +280,6 @@ pub fn is_request(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn apple_states_read_as_the_framework_reports_them() {
-        assert_eq!(apple_state(&json!("available")), Ok(()));
-        assert!(apple_state(&json!("unavailable:appleIntelligenceNotEnabled")).unwrap_err().contains("System Settings"));
-        assert!(apple_state(&json!("unavailable:modelNotReady")).unwrap_err().contains("downloaded"));
-        assert!(apple_state(&json!("unavailable:somethingNew")).unwrap_err().contains("somethingNew"));
-        // Anything else, or nothing at all, is never read as available.
-        for odd in [json!(null), json!(true), json!("Available"), json!("available "), json!("")] {
-            assert!(apple_state(&odd).is_err(), "{odd}");
-        }
-    }
-
-    #[test]
-    #[ignore = "needs a Mac with Apple silicon and the Swift compiler"]
-    fn the_framework_is_asked_on_this_mac() {
-        let dir = std::env::temp_dir().join(format!("dstns-models-test-{}", std::process::id()));
-        let models = apple_models(&Paths::new(&dir));
-        let _ = std::fs::remove_dir_all(&dir);
-        assert!(!format!("{models:?}").contains("could not be checked"), "{models:?}");
-    }
 
     #[test]
     fn a_suggestion_is_checked_before_it_is_offered() {

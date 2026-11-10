@@ -324,7 +324,7 @@ fn narration_check(paths: &Paths) -> Outcome {
     let choice = narration::resolve(None, paths);
     match choice.fm_status() {
         narration::AVAILABLE => Outcome::new(State::Pass, narration::AVAILABLE).detail(format!("{}: news written on this Mac by the on-device model.", narration::BRAND)),
-        narration::UNAVAILABLE => Outcome::new(State::Warning, narration::UNAVAILABLE).detail(format!("{}. {} is used.", choice.reason, narration::DEFAULT_WORDING)).remedy(choice.remedy.clone()),
+        narration::UNAVAILABLE if !choice.enabled() => Outcome::new(State::Warning, narration::UNAVAILABLE).detail(format!("{}. {} is used.", choice.reason, narration::DEFAULT_WORDING)).remedy(choice.remedy.clone()),
         _ => {
             let detail = if choice.enabled() {
                 format!("{} via {}.", narration::BRAND, choice.label)

@@ -413,11 +413,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "dstns-coreai"
+version = "0.1.0"
+dependencies = [
+ "getrandom 0.3.4",
+ "serde",
+ "serde_json",
+ "sha2",
+ "ureq",
+]
+
+[[package]]
 name = "dstns-launcher"
 version = "2.2.0"
 dependencies = [
  "chrono",
  "crossterm",
+ "dstns-coreai",
  "flate2",
  "getrandom 0.3.4",
  "libc",

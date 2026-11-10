@@ -181,6 +181,9 @@ pub fn start_with(reporter: &dyn Reporter, paths: &Paths, build_first: bool, can
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0);
+    if let Some(token) = &choice.token {
+        command.env("DSTNS_NARRATOR_TOKEN", token);
+    }
     for (key, value) in paths.server_environment().into_iter().chain(switches(&config, paths, demo)) {
         command.env(key, value);
     }
@@ -256,6 +259,9 @@ pub fn run_foreground(paths: &Paths) -> Result<i32> {
     command
         .args(["--host", &host, "--port", &port.to_string(), "--logs", &paths.logs().to_string_lossy(), "--maps", &maps(paths).to_string_lossy(), "--narrator", &choice.server_argument])
         .current_dir(&paths.root);
+    if let Some(token) = &choice.token {
+        command.env("DSTNS_NARRATOR_TOKEN", token);
+    }
     for (key, value) in paths.server_environment().into_iter().chain(switches(&config, paths, false)) {
         command.env(key, value);
     }

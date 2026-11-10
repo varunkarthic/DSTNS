@@ -27,6 +27,16 @@ pub fn entries(paths: &Paths) -> Vec<(String, String)> {
 
 /// What config/launcher.env holds, into this process's environment, beneath anything already set.
 pub fn load_env(paths: &Paths) {
+    // A copy written before it was kept owner-only, by an older launcher, is made so now.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = fs::metadata(paths.launcher_env()) {
+            if meta.permissions().mode() & 0o077 != 0 {
+                let _ = fs::set_permissions(paths.launcher_env(), fs::Permissions::from_mode(0o600));
+            }
+        }
+    }
     for (key, value) in entries(paths) {
         if env::var_os(&key).is_none() {
             env::set_var(key, value);
@@ -55,7 +65,13 @@ pub fn save_entries(paths: &Paths, entries: &[(String, String)]) -> std::io::Res
         fs::create_dir_all(parent)?;
     }
     let temporary = path.with_extension("env.tmp");
-    fs::write(&temporary, text)?;
+    // It may hold API keys: readable by this account only, from the moment it exists.
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let _ = fs::remove_file(&temporary);
+    std::io::Write::write_all(&mut options.open(&temporary)?, text.as_bytes())?;
     fs::rename(temporary, path)
 }
 
@@ -77,6 +93,18 @@ pub fn forget(paths: &Paths) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn the_file_is_readable_by_its_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("dstns-env-mode-{}", std::process::id()));
+        let paths = Paths::new(&dir);
+        save_entries(&paths, &[("DSTNS_OPENAI_API_KEY".into(), "k".into())]).unwrap();
+        let mode = fs::metadata(paths.launcher_env()).unwrap().permissions().mode() & 0o777;
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(mode, 0o600);
+    }
 
     #[test]
     fn setup_is_remembered_and_forgotten() {

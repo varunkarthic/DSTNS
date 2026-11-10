@@ -631,14 +631,31 @@ same as `launcher_suggest` and `graph_ask`.
 
 | `model.provider` | Uses |
 |---|---|
-| `auto` | Apple's Foundation Models where this Mac has them; else Ollama, if it answers; else Groq, if a key is kept |
+| `auto` | Apple's Foundation Models where this Mac has them; else a model server on this machine (Ollama, LM Studio); else each cloud provider with a key, in turn, until one answers |
 | `apple` | Apple's Foundation Models through the `fm` command: the model on the Mac (macOS 26 or later, Apple silicon), or, when that cannot answer and `model.apple_cloud` is on, Apple's larger model through Private Cloud Compute (macOS 27 or later) |
-| `ollama` | Any model Ollama has (`model.name`), at `model.ollama_url` |
-| `groq` | Any Groq model (`model.name`), with a key kept by `./launcher model key KEY` in `config/launcher.env` |
+| `ollama`, `lmstudio` | A model server on this machine, at `model.ollama_url` or its usual address |
+| `anthropic`, `openai`, `gemini`, `groq`, `mistral`, `openrouter`, `huggingface` | That cloud provider, with a key kept by `model key PROVIDER KEY` |
+| `custom` | Any other Chat Completions server, at `model.base_url` (vLLM, llama.cpp, a company gateway) |
 | `off` | Nothing: requests in plain words are refused |
 
-`./launcher model` says which is in use, and whether each of Apple's two models is available
-here and why not, as Apple's framework reports it. `model test` asks it something. The news has its
+`model.name` picks the provider's model (`model list` shows them) and `model.base_url` its
+address, for the provider named. `model.timeout_seconds` is how long to wait before trying the
+next or giving up.
+
+| Command | Does |
+|---|---|
+| `model` | What is chosen and in use, and for every provider whether it could answer and why not |
+| `model use PROVIDER [NAME]` | Choose a provider, and a model of it |
+| `model list [PROVIDER]` | The models a provider offers |
+| `model key PROVIDER KEY` | Keep a key (`model key KEY` keeps Groq's, as before) |
+| `model forget PROVIDER` | Forget a kept key |
+| `model test` | Ask the model something |
+
+Keys go to `config/launcher.env` (readable by your account only) unless `model.key_store` is
+`system`, which keeps them in the macOS Keychain, Windows Credential Manager or the Secret
+Service keyring. A key in your shell's environment, under DSTNS's name or the provider's own
+(`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `HF_TOKEN`…), is always read too. No
+key is ever shown, logged or sent to anyone but its provider. The news has its
 own setting, [`narration.mode`](#settings-for-every-feature).
 
 ## The knowledge graph

@@ -506,6 +506,8 @@ class ChatCompletionsBackend final : public NarrationBackend {
 public:
     ChatCompletionsBackend(std::string endpoint, std::string model, std::chrono::milliseconds timeout)
         : endpoint_(std::move(endpoint)), model_(std::move(model)), timeout_(timeout) {
+        // A token for the endpoint, when it asks for one: the launcher's CoreAI service does.
+        if (const char* token = std::getenv("DSTNS_NARRATOR_TOKEN"); token && *token) token_ = token;
         if (endpoint_.rfind("unix:", 0) == 0) {
             socket_ = endpoint_.substr(5);
         } else {
@@ -586,10 +588,11 @@ private:
         client->set_connection_timeout(std::chrono::seconds(2));
         client->set_read_timeout(timeout);
         client->set_write_timeout(std::chrono::seconds(5));
+        if (!token_.empty()) client->set_bearer_token_auth(token_);
         return client;
     }
 
-    std::string endpoint_, model_, socket_, host_, prefix_;
+    std::string endpoint_, model_, socket_, host_, prefix_, token_;
     int port_{80};
     std::chrono::milliseconds timeout_;
     std::atomic<bool> cancelled_{false};

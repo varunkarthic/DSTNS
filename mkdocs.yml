@@ -267,6 +267,7 @@ nav:
           - Observer (WebKit): components/webkit.md
           - Fabric: components/fabric.md
           - WebFabric: components/webfabric.md
+          - CoreAI: components/coreai.md
       - Design:
           - design/index.md
           - Design decisions: design/decisions.md

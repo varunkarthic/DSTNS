@@ -75,6 +75,7 @@ holds simulation state of its own; both read what the core publishes.
 | `Core/src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
 | `WebKit/` | The observer: React 19, Vite, Vitest, jsPDF |
 | `LaunchKit/` | The launcher, in Rust: command line, console and its tools (`inspect.rs`), terminal interface (ratatui) and Simplified Launch Control, compatibility mode, application supervisor, the MCP Handler, Advanced Security (`security.rs`, with `assets/verify.swift`), the launcher's model for plain-word requests (`assistant.rs`) and its side of the daemons (`daemons.rs`) |
+| `CoreAI/` | DSTNS's model layer, in Rust: every provider (Apple's Foundation Models, Ollama, LM Studio, Anthropic, OpenAI, Gemini, Groq, Mistral, OpenRouter, Hugging Face, any Chat Completions server), their keys, typed errors and fallback, and a token-guarded service on 127.0.0.1 for the engine's news ([CoreAI](../components/coreai.md)) |
 | `launcher` | Builds the launcher when its sources change, then runs it |
 | `Core/src/next_world.cpp` | Dynamic Fastboot: the next world chosen and its city fetched while this one runs |
 | `Daemon/` | The daemons, `dstns_daemon`: the handler, the gateway and its two queues, the Resource Control Subsystem, the memory, disk and stall watchers, the auto cache handler, process and machine readings, and `messages.json`, the templates every message is made from. See [the daemons](../guide/daemons.md) |
@@ -296,7 +297,8 @@ serves five faces: single commands for scripts, the [console](../guide/console.m
 (command lines joined by `|`, `&&`, `||` and `;`), the terminal interface,
 [Simplified Launch Control](../guide/operator-cli.md#simplified-launch-control) for small
 terminals, and compatibility mode. Requests in plain words go to the launcher's own model
-(Apple's Foundation Models, Ollama or Groq), whose suggestion is checked and put on the
+(through [CoreAI](../components/coreai.md): Apple's Foundation Models, a local model server or
+a cloud provider), whose suggestion is checked and put on the
 prompt, never run by itself; [Advanced Security](../guide/operator-cli.md#advanced-security)
 can require the system's prompt before anything is changed. The [MCP Handler](../guide/mcp.md) offers the same operations, and every
 route of the API, to an AI client.

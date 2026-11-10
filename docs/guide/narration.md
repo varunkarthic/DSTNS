@@ -48,8 +48,16 @@ dstns_server --narrator off                                                # nev
 | `--narrator-model` | `DSTNS_NARRATOR_MODEL` | `system` | The model name sent to an endpoint (`fm` serves `system`) |
 | `--narrator-cache` | `DSTNS_NARRATOR_CACHE` | `<logs>/narrations.db` | Where items are kept between runs; `none` keeps them in memory only |
 
+Through the launcher there is more. With `auto`, when Apple's model on the Mac is
+not there, the launcher looks for a model server on this machine (Ollama, LM
+Studio) and has the server write through [CoreAI](../components/coreai.md), the
+launcher's model layer, which reaches it. It never turns to a cloud provider by
+itself: every news item is a request, and each would leave the machine and be
+paid for. `model` asks the launcher's own model instead, whichever
+[`./launcher model`](operator-cli.md) has chosen, cloud providers included.
+
 The launcher takes the same modes as `./launcher --narrator MODE` or
-`narration.mode` in `config/defaults.json`, checks them before starting the server
+`narration.mode` in `config/defaults.json`, plus `model`, checks them before starting the server
 (see [Operator CLI](operator-cli.md#narration)), and starts the server with
 narration off when the choice cannot be used. The observer's starting style is
 `news.style` in `config/ui-config.json` (see
@@ -125,5 +133,8 @@ work first. Either way the news keeps flowing in Standard wording.
 ## Privacy
 
 With `fm`, everything stays on the Mac: the model runs on device and the socket is
-private to the user. With a remote endpoint, the facts listed above - from a
-simulated day - are sent to it.
+private to the user. With `auto` through CoreAI, likewise: only models on this
+machine are asked. With `model` and a cloud provider, or a remote endpoint, the
+facts listed above - from a simulated day - are sent to it. CoreAI's service
+listens on 127.0.0.1 only, and answers only requests carrying the token the
+launcher made for that start and handed to the server.

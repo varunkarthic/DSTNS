@@ -22,3 +22,4 @@ docker/certificates
 WebKit/test-results
 WebKit/playwright-report
 LaunchKit/target
+CoreAI/target

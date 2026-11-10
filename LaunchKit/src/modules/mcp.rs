@@ -371,8 +371,8 @@ pub fn launcher_tools(paths: &Paths, policy: Policy, session: Arc<Session>) -> V
                 read_only: true,
                 handler: Box::new(move |arguments| {
                     let request = arguments.get("request").and_then(|r| r.as_str()).unwrap_or("");
-                    let (suggestion, model) = crate::assistant::suggest(&p, request).map_err(LauncherError::config)?;
-                    Ok(json!({"line": suggestion.line, "notes": suggestion.warnings, "model": model.label(), "run": false}))
+                    let (suggestion, by) = crate::assistant::suggest(&p, request).map_err(LauncherError::config)?;
+                    Ok(json!({"line": suggestion.line, "notes": suggestion.warnings, "model": by, "run": false}))
                 }),
             }
         },

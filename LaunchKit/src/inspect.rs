@@ -518,39 +518,80 @@ fn graph_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> 
 }
 
 fn model_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, String> {
+    let usage = "model, model use PROVIDER [NAME], model list [PROVIDER], model key [PROVIDER] KEY, model forget PROVIDER or model test";
+    let settings = crate::assistant::settings(paths)?;
+    let provider = |id: &str| coreai::providers::find(id).ok_or_else(|| format!("{id} is not a provider: {}", coreai::providers::choices().join(", ")));
     match rest.first().map(String::as_str) {
         None | Some("status") => {
-            let settings = config::load(paths).map_err(|e| e.message)?;
-            let chosen = config::setting(&settings, "model.provider").as_str().unwrap_or("auto").to_string();
-            let key = if std::env::var_os(crate::assistant::GROQ_KEY).is_some() { "kept" } else { "not kept" };
+            let mut out = vec![
+                format!("Chosen   {}", if settings.provider.is_empty() { "auto" } else { &settings.provider }),
+                format!("In use   {}", crate::assistant::resolve(paths).map(|t| t.label()).unwrap_or_else(|why| format!("none: {why}"))),
+                format!("Keys     kept in {}", if settings.key_store == coreai::KeyStore::System { coreai::keys::system_store_name() } else { "config/launcher.env" }),
+                String::new(),
+            ];
             let apple = crate::assistant::apple_models(paths);
-            Ok(vec![
-                format!("Chosen        {chosen}"),
-                format!("In use        {}", crate::assistant::resolve(paths).map(|m| m.label()).unwrap_or_else(|why| format!("none: {why}"))),
-                format!("Apple, on Mac {}", apple.system.err().unwrap_or_else(|| "available".into())),
-                format!("Apple, cloud  {}{}", apple.cloud.err().unwrap_or_else(|| "available".into()), if config::flag(&settings, "model.apple_cloud") { "" } else { " (not allowed: model.apple_cloud is off)" }),
-                format!("Groq key      {key}"),
-            ])
-        }
-        Some("use") => {
-            let provider = rest.get(1).ok_or("model use: auto, apple, ollama, groq or off")?;
-            let mut out = set_command("set", &["model.provider".into(), provider.clone()], paths)?;
-            if let Some(name) = rest.get(2) {
-                out.extend(set_command("set", &["model.name".into(), name.clone()], paths)?);
+            out.push(format!("{:<14}{}", "Apple, on Mac", apple.system.err().unwrap_or_else(|| "available".into())));
+            out.push(format!("{:<14}{}{}", "Apple, cloud", apple.cloud.err().unwrap_or_else(|| "available".into()), if settings.apple_cloud { "" } else { " (not allowed: model.apple_cloud is off)" }));
+            for status in coreai::status(&settings).into_iter().filter(|s| s.provider.id != "apple") {
+                let p = status.provider;
+                let line = match &status.ready {
+                    Ok(_) if p.local => format!("answers at {}", status.ready.as_ref().map(|t| t.base_url.clone()).unwrap_or_default()),
+                    Ok(_) => format!("key from {}", coreai::keys::source(p, &settings).unwrap_or_else(|| "nowhere".into())),
+                    Err(e) => e.message.clone(),
+                };
+                out.push(format!("{:<14}{line}", p.label.replace("Chat Completions server", "Custom server").replace("Google ", "")));
             }
             Ok(out)
         }
+        Some("use") => {
+            let chosen = rest.get(1).ok_or_else(|| format!("model use: {}", coreai::providers::choices().join(", ")))?;
+            if !coreai::providers::choices().contains(&chosen.as_str()) {
+                return Err(format!("model use: {chosen} is not one of {}", coreai::providers::choices().join(", ")));
+            }
+            let mut out = set_command("set", &["model.provider".into(), chosen.clone()], paths)?;
+            out.extend(set_command("set", &["model.name".into(), rest.get(2).cloned().unwrap_or_else(|| "default".into())], paths)?);
+            Ok(out)
+        }
+        Some("list") => {
+            let id = rest.get(1).cloned().unwrap_or_else(|| settings.provider.clone());
+            let target = if id.is_empty() || id == "auto" { crate::assistant::resolve(paths)? } else { coreai::target(provider(&id)?, &settings, id == settings.provider).map_err(|e| e.to_string())? };
+            let names = coreai::models(&target, std::time::Duration::from_secs(15)).map_err(|e| e.to_string())?;
+            Ok(std::iter::once(format!("{} offers {} models:", target.provider.label, names.len())).chain(names).collect())
+        }
         Some("key") => {
-            let key = rest.get(1).ok_or("model key: give the Groq API key")?;
-            env_command(&["set".into(), format!("{}={key}", crate::assistant::GROQ_KEY)], paths)?;
-            Ok(vec![format!("The Groq key is kept in config/launcher.env as {}, on this machine only.", crate::assistant::GROQ_KEY)])
+            // `model key KEY` is Groq's, as it always was; `model key PROVIDER KEY` names the provider.
+            let (p, key) = match (rest.get(1), rest.get(2)) {
+                (Some(id), Some(key)) => (provider(id)?, key),
+                (Some(key), None) => (provider("groq")?, key),
+                _ => return Err("model key: model key PROVIDER KEY".into()),
+            };
+            let name = p.key_names.first().ok_or_else(|| format!("{} takes no key", p.label))?;
+            if settings.key_store == coreai::KeyStore::System {
+                coreai::keys::system_set(p.id, key, &settings)?;
+                Ok(vec![format!("The {} key is kept in the {}, for this account only.", p.label, coreai::keys::system_store_name())])
+            } else {
+                env_command(&["set".into(), format!("{name}={key}")], paths)?;
+                std::env::set_var(name, key);
+                Ok(vec![format!("The {} key is kept in config/launcher.env as {name}, on this machine only.", p.label)])
+            }
+        }
+        Some("forget") => {
+            let p = provider(rest.get(1).ok_or("model forget: model forget PROVIDER")?)?;
+            let _ = coreai::keys::system_delete(p.id, &settings);
+            let kept: Vec<String> = p.key_names.iter().filter(|n| crate::setup::entries(paths).iter().any(|(k, _)| k == *n)).map(|n| n.to_string()).collect();
+            if !kept.is_empty() {
+                env_command(&std::iter::once("unset".to_string()).chain(kept.iter().cloned()).collect::<Vec<_>>(), paths)?;
+            }
+            for n in p.key_names {
+                std::env::remove_var(n);
+            }
+            Ok(vec![format!("The {} key is forgotten here. A key set in your shell's environment is still read.", p.label)])
         }
         Some("test") => {
-            let model = crate::assistant::resolve(paths)?;
-            let answer = crate::assistant::ask(&model, "Answer in one short sentence.", "Say that you are ready.")?;
-            Ok(vec![format!("{}: {answer}", model.label())])
+            let (answer, provenance) = crate::assistant::ask(paths, "Answer in one short sentence.", "Say that you are ready.")?;
+            Ok(vec![format!("{}: {answer}", crate::assistant::label(&provenance))])
         }
-        Some(other) => Err(format!("model: {other}? model, model use PROVIDER [NAME], model key KEY or model test")),
+        Some(other) => Err(format!("model: {other}? {usage}")),
     }
 }
 

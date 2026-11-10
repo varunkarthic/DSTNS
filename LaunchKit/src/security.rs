@@ -175,27 +175,7 @@ const SWIFT: &str = include_str!("../assets/verify.swift");
 
 /// The macOS helper, built from its Swift source the first time, and again whenever the source changes.
 fn helper(paths: &Paths) -> Option<PathBuf> {
-    swift_program(paths, "dstns-verify", SWIFT, &[])
-}
-
-/// A small macOS program built from embedded Swift source on first use, cached under `build/` by a digest of the source,
-/// so a changed source builds again. None when `swiftc` is missing or the build fails.
-pub fn swift_program(paths: &Paths, name: &str, source_text: &str, flags: &[&str]) -> Option<PathBuf> {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(source_text.as_bytes());
-    hasher.update(flags.join(" ").as_bytes());
-    let digest = crate::paths::hex(&hasher.finalize()[..6]);
-    let program = paths.build().join(format!("{name}-{digest}"));
-    if program.is_file() {
-        return Some(program);
-    }
-    std::fs::create_dir_all(paths.build()).ok()?;
-    let source = paths.build().join(format!("{name}-{digest}.swift"));
-    std::fs::write(&source, source_text).ok()?;
-    let built = Command::new("swiftc").args(["-O"]).args(flags).arg("-o").arg(&program).arg(&source).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false);
-    let _ = std::fs::remove_file(&source);
-    built.then_some(program)
+    coreai::apple::swift_program(&paths.build(), "dstns-verify", SWIFT, &[])
 }
 
 /// Windows Hello through PowerShell's WinRT bridge. Exit 0: verified; 1: refused; 2: not set up.

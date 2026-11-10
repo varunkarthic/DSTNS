@@ -316,14 +316,14 @@ fn dws_spacing(value: &Value, config: &Value) -> String {
 }
 
 pub fn valid_narration(value: &str) -> bool {
-    ["auto", "fm", "off"].contains(&value) || value.starts_with("http://") || value.starts_with("unix:/")
+    ["auto", "fm", "model", "off"].contains(&value) || value.starts_with("http://") || value.starts_with("unix:/")
 }
 
 fn narration_mode(value: &Value, _config: &Value) -> String {
     if value.as_str().map(valid_narration).unwrap_or(false) {
         String::new()
     } else {
-        "Use auto, fm, off, http://HOST:PORT or unix:/PATH.".into()
+        "Use auto, fm, model, off, http://HOST:PORT or unix:/PATH.".into()
     }
 }
 
@@ -403,7 +403,7 @@ pub fn fields() -> &'static [Field] {
                 "Realistic News",
                 "Server",
                 Text,
-                "Who writes the news: auto uses Apple Foundation Models where this Mac has them, fm insists on them, off keeps the plain wording, or give a Chat Completions endpoint (http://HOST:PORT, unix:/PATH). --narrator overrides it.",
+                "Who writes the news: auto uses Apple Foundation Models where this Mac has them, else a model server on this machine (Ollama, LM Studio), never a cloud provider; model uses the launcher's own model, cloud providers included (each news item is a request); fm insists on Apple's; off keeps the plain wording; or give a Chat Completions endpoint (http://HOST:PORT, unix:/PATH). --narrator overrides it.",
                 json!("auto"),
             )
             .extra(narration_mode),
@@ -493,11 +493,29 @@ pub fn fields() -> &'static [Field] {
             Field::new("mcp.allow_writes", "AI may change things", "MCP", Boolean, "An AI client may call routes that change the simulation (POST, PUT, DELETE). Turns the MCP Handler on.", json!(false)),
             Field::new("mcp.allow_launcher", "AI may start and stop runs", "MCP", Boolean, "An AI client may start and stop simulations and change settings through the launcher. Turns the MCP Handler on.", json!(false)),
             // The launcher's own model, for commands asked for in plain words
-            Field::new("model.provider", "Model", "Model", Choice, "Which model turns a request in plain words into commands at the prompt. Automatic uses Apple's Foundation Models where this Mac has them (macOS 26 or later on Apple silicon, or Private Cloud Compute when allowed); else Ollama, if it answers; else Groq, if a key is kept (model key KEY).", json!("auto"))
-                .choices(vec![("Automatic", json!("auto")), ("Apple Foundation Models", json!("apple")), ("Ollama", json!("ollama")), ("Groq", json!("groq")), ("Off", json!("off"))]),
-            Field::new("model.name", "Model name", "Model", Text, "Which model, for Ollama (llama3.2, qwen2.5…) or Groq (llama-3.3-70b-versatile…). default uses each one's own.", json!("default")),
+            Field::new("model.provider", "Model", "Model", Choice, "Which model answers requests in plain words, here and wherever DSTNS asks one. Automatic uses Apple's Foundation Models where this Mac has them; else a model server on this machine (Ollama, LM Studio); else each cloud provider with a key (model key PROVIDER KEY) in turn.", json!("auto"))
+                .choices(vec![
+                    ("Automatic", json!("auto")),
+                    ("Apple Foundation Models", json!("apple")),
+                    ("Ollama", json!("ollama")),
+                    ("LM Studio", json!("lmstudio")),
+                    ("Anthropic", json!("anthropic")),
+                    ("OpenAI", json!("openai")),
+                    ("Google Gemini", json!("gemini")),
+                    ("Groq", json!("groq")),
+                    ("Mistral", json!("mistral")),
+                    ("OpenRouter", json!("openrouter")),
+                    ("Hugging Face", json!("huggingface")),
+                    ("Another Chat Completions server", json!("custom")),
+                    ("Off", json!("off")),
+                ]),
+            Field::new("model.name", "Model name", "Model", Text, "Which model of the chosen provider (model list shows them). default uses each provider's own.", json!("default")),
+            Field::new("model.base_url", "Provider address", "Model", Text, "Where the chosen provider answers, for a server of your own or a regional endpoint; needed for Another Chat Completions server. default uses the provider's own.", json!("default")),
             Field::new("model.ollama_url", "Ollama address", "Model", Text, "Where Ollama answers.", json!("http://127.0.0.1:11434")),
             Field::new("model.apple_cloud", "Private Cloud Compute", "Model", Boolean, "When Apple's model on this Mac cannot answer, use Apple's larger model through Private Cloud Compute (macOS 27 or later). Requests leave the Mac for Apple's servers, which keep nothing.", json!(true)),
+            Field::new("model.key_store", "Where keys are kept", "Model", Choice, "Where model key keeps a provider's API key: config/launcher.env on this machine, or the system's credential store (macOS Keychain, Windows Credential Manager, Secret Service on Linux). Keys in the environment are always read too.", json!("env"))
+                .choices(vec![("config/launcher.env", json!("env")), ("System credential store", json!("system"))]),
+            Field::new("model.timeout_seconds", "Model time limit", "Model", Integer, "How long to wait for a model's answer before trying the next or giving up.", json!(60)).range(5.0, Some(600.0)),
             // The daemons, inside the server
             Field::new("daemon.enabled", "Daemons", "Daemons", Boolean, "Small watchers inside the server: the Resource Control Subsystem, memory, disk, a stalled run, and the cache handler. They say what they notice in the launcher and the observer, and on the daemon queues for applications.", json!(true)),
             Field::new("daemon.sustain_s", "Hold before alerting", "Daemons", Number, "How long a condition must hold before a daemon says anything, so that a brief spike is not an alarm.", json!(5)).unit("s").range(0.0, Some(300.0)),

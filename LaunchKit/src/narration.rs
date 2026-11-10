@@ -31,6 +31,8 @@ pub struct Choice {
     pub requested: String,
     /// The value passed to dstns_server --narrator.
     pub server_argument: String,
+    /// The bearer token for that endpoint, passed to the server as DSTNS_NARRATOR_TOKEN, when CoreAI serves it.
+    pub token: Option<String>,
     /// What is running, for display.
     pub label: String,
     /// Why narration is off or not what was asked for.
@@ -40,7 +42,7 @@ pub struct Choice {
 
 impl Choice {
     fn new(requested: &str, argument: &str, label: &str, reason: &str, remedy: &str) -> Self {
-        Self { requested: requested.into(), server_argument: argument.into(), label: label.into(), reason: reason.into(), remedy: remedy.into() }
+        Self { requested: requested.into(), server_argument: argument.into(), token: None, label: label.into(), reason: reason.into(), remedy: remedy.into() }
     }
     fn off(requested: &str, reason: impl Into<String>, remedy: &str) -> Self {
         Self::new(requested, "off", "off", &reason.into(), remedy)
@@ -62,6 +64,10 @@ impl Choice {
         }
     }
     pub fn summary(&self) -> String {
+        // The launcher's own model was asked for: Apple's on-device news path is not the question.
+        if self.requested == "model" {
+            return if self.enabled() { format!("{BRAND} via {}", self.label) } else { format!("{BRAND}: {UNAVAILABLE} ({}) · {DEFAULT_WORDING}", self.reason) };
+        }
         if self.enabled() {
             format!("Apple Foundation Models: {} · {BRAND} via {}", self.fm_status(), self.label)
         } else {
@@ -88,11 +94,7 @@ pub fn find_fm() -> Option<PathBuf> {
     })
 }
 
-fn first_line(text: &str) -> String {
-    text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("").chars().take(160).collect()
-}
-
-fn check_fm(requested: &str) -> Choice {
+fn check_fm(requested: &str, paths: &Paths) -> Choice {
     if !cfg!(target_os = "macos") {
         return Choice::off(requested, "Apple Foundation Models are only available on macOS", "Point --narrator at a Chat Completions endpoint (llama.cpp, Ollama) to narrate here.");
     }
@@ -100,11 +102,10 @@ fn check_fm(requested: &str) -> Choice {
         return Choice::off(requested, "the fm command was not found", "Apple Foundation Models need macOS 26 or later with Apple Intelligence on Apple silicon.");
     };
     let fm = fm.to_string_lossy().into_owned();
-    let (code, out, _) = capture(&[&fm, "available"], None, 15.0, &[("NO_COLOR", "1")]);
-    let lowered = out.to_lowercase();
-    if code != 0 || !lowered.contains("available") || lowered.contains("not available") || lowered.contains("unavailable") {
-        let shown = if first_line(&out).is_empty() { format!("exit {code}") } else { first_line(&out) };
-        return Choice::off(requested, format!("the on-device model is not available ({shown})"), "Turn on Apple Intelligence in System Settings and let the model finish downloading.");
+    // The framework itself says whether the model on the Mac is there; `fm available` fails whenever Private Cloud
+    // Compute is missing, even with this one ready.
+    if let Err(why) = coreai::apple::models(&paths.build()).system {
+        return Choice::off(requested, format!("the on-device model is not available ({why})"), "Turn on Apple Intelligence in System Settings and let the model finish downloading.");
     }
     let (code, out, _) = capture(&[&fm, "license", "--status"], None, 15.0, &[("NO_COLOR", "1")]);
     let lowered = out.to_lowercase();
@@ -133,15 +134,47 @@ fn check_endpoint(requested: &str) -> Choice {
     }
 }
 
+/// Through CoreAI's service: the launcher's own model, or with `local_only` only models on this machine.
+fn check_coreai(requested: &str, paths: &Paths, local_only: bool) -> Choice {
+    let settings = match crate::assistant::settings(paths) {
+        Ok(settings) => coreai::Settings { local_only, ..settings },
+        Err(why) => return Choice::off(requested, why, ""),
+    };
+    let target = match coreai::resolve(&settings) {
+        Ok(mut found) => found.remove(0),
+        Err(why) => return Choice::off(requested, why.message, if local_only { "Start Ollama or LM Studio, or set narration.mode to model to use the launcher's model." } else { "Choose a model: ./launcher model." }),
+    };
+    match crate::assistant::service(paths) {
+        Ok(service) => {
+            let endpoint = if local_only { format!("{}/local", service.url()) } else { service.url() };
+            let mut choice = Choice::new(requested, &endpoint, &target.label(), "", "");
+            choice.token = Some(service.token);
+            choice
+        }
+        Err(why) => Choice::off(requested, why, ""),
+    }
+}
+
 /// Decide what the server should use. Never fails: anything wrong means off.
 pub fn resolve(requested: Option<&str>, paths: &Paths) -> Choice {
     let requested = requested.map(String::from).unwrap_or_else(|| requested_mode(paths)).trim().to_string();
     match requested.as_str() {
         "off" | "none" => Choice::new("off", "off", "off", "turned off", ""),
-        "auto" | "fm" => check_fm(&requested),
+        "fm" => check_fm(&requested, paths),
+        // Apple's model on the Mac; else, through CoreAI, a model server on this machine. Never a cloud provider by
+        // itself: news is written for every event, and that would send each one away and pay for it.
+        "auto" => match check_fm(&requested, paths) {
+            choice if choice.enabled() => choice,
+            apple => match check_coreai(&requested, paths, true) {
+                choice if choice.enabled() => choice,
+                _ => apple,
+            },
+        },
+        // The launcher's own model, by its settings, cloud providers included.
+        "model" => check_coreai(&requested, paths, false),
         r if r.starts_with("http://") || r.starts_with("unix:/") => check_endpoint(r),
         r if r.starts_with("https://") => Choice::off(r, "the engine speaks plain HTTP only", "Use an http:// address, with a TLS proxy in front of a remote model."),
-        r => Choice::off(r, format!("\"{r}\" is not a narration mode"), "Use auto, fm, off, http://HOST:PORT or unix:/PATH."),
+        r => Choice::off(r, format!("\"{r}\" is not a narration mode"), "Use auto, fm, model, off, http://HOST:PORT or unix:/PATH."),
     }
 }
 
@@ -174,11 +207,11 @@ pub fn describe_server(status: Option<&Value>) -> (String, String) {
 
 /// Say, before the server starts, what narration it will use.
 pub fn announce(choice: &Choice, reporter: &dyn Reporter) {
-    let title = format!("Apple Foundation Models: {}", choice.fm_status());
+    let title = if choice.requested == "model" { BRAND.to_string() } else { format!("Apple Foundation Models: {}", choice.fm_status()) };
     let remedy = if choice.remedy.is_empty() { String::new() } else { format!(". {}", choice.remedy) };
     match choice.fm_status() {
         AVAILABLE => reporter.message(Level::Success, &title, &format!("{BRAND} on: news written on this Mac from each event and its context")),
-        UNAVAILABLE => reporter.message(Level::Warning, &title, &format!("{}{remedy} Using {DEFAULT_WORDING}.", choice.reason)),
+        UNAVAILABLE if !choice.enabled() => reporter.message(Level::Warning, &title, &format!("{}{remedy} Using {DEFAULT_WORDING}.", choice.reason)),
         _ if choice.enabled() => reporter.message(Level::Info, &title, &format!("{BRAND} via {}", choice.label)),
         _ if choice.fell_back() => reporter.message(Level::Warning, &format!("{title} · {BRAND} unavailable"), &format!("{}{remedy} Using {DEFAULT_WORDING}.", choice.reason)),
         _ => reporter.message(Level::Info, &title, &format!("turned off; {DEFAULT_WORDING}")),
