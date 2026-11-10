@@ -183,7 +183,7 @@ put("/api/v1/fabric/apps/org.example.planner/presentation", {"layers": {"traffic
 
 | An application can | |
 |---|---|
-| **Add to the interface** | Status lines, panels, a sidebar, map controls, notifications, dialogs, and its own page in a sandbox, from 30 widgets the observer draws in its own design, down to a QR code for a phone |
+| **Add to the interface** | Status lines, panels, a sidebar, map controls, notifications, dialogs, and its own page in a sandbox, from 29 widgets the observer draws in its own design, down to a QR code for a phone |
 | **Draw on the map** | Markers on junctions, vehicles on roads, and paths that animate along real routes with nothing sent per frame |
 | **Direct the view** | Say where the map looks and how close, and hold layers and places on or off |
 | **Follow the simulation** | Events, timers on the simulation's clock, its own storage, and messages to other applications |
