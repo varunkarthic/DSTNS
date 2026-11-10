@@ -51,7 +51,8 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     ("edit", "edit settings|ui|env|apps|FILE", "Edit in your editor; saved only if it still reads"),
     ("api", "api [METHOD] PATH [BODY|@FILE]", "Any route on the running server, as the operator"),
     ("security", "security [on|off|verify]", "Advanced Security: whether it's on, and how it asks"),
-    ("ask", "ask REQUEST  (or just type it)", "A request in plain words, as commands to run, from the launcher's model; nothing runs until Enter"),
+    ("ask", "ask REQUEST  (or just type it)", "A request in plain words, as commands to run, or a question answered with its sources; ask new starts a new conversation"),
+    ("state", "state [get [--world]|set CODE]", "This launcher's settings as one code another launcher takes to become the same; --world adds the world"),
     ("model", "model [use PROVIDER [NAME] | key KEY | test]", "The model for plain-word requests: Apple's, Ollama's or Groq's"),
     ("daemon", "daemon [show NAME | on NAME | off NAME | queue emergency|notification]", "The daemons inside the server, and what they have said"),
     ("graph", "graph [search|show|callers|callees|deps|users|members|path|update] …", "The knowledge graph: where code is, and what calls and depends on what"),
@@ -271,6 +272,19 @@ impl Shell {
         self.blocks.last().and_then(|b| b.status).map(|s| s != 0).unwrap_or(false)
     }
 
+    /// An answer in the output, as the model would leave it: for tests of how answers are drawn.
+    #[cfg(test)]
+    pub fn show_answer(&mut self, text: &str) {
+        self.say("ask a question", answer_lines(text, true), 0);
+        self.show_output = true;
+    }
+
+    /// The output's height as last drawn: for tests.
+    #[cfg(test)]
+    pub fn drawn_height(&self) -> u16 {
+        self.pane.map(|p| p.height).unwrap_or(0)
+    }
+
     pub fn has_output(&self) -> bool {
         self.show_output && !self.blocks.is_empty()
     }
@@ -345,8 +359,8 @@ impl Shell {
             key("↑↓", "Suggestions or history", "History", false),
         ];
         if self.has_output() {
-            keys.push(key("PgUp/PgDn", "Scroll the output", "Scroll", false));
-            keys.push(key("Ctrl+↑↓", "Size the output", "Size", false));
+            keys.push(key("Shift+↑↓", "Scroll the output", "Scroll", false));
+            keys.push(key("+ −", "Size the output", "Size", false));
         }
         keys.push(key("Ctrl+C", "Stop a command", "Stop", false));
         keys.push(key("Esc", "Close", "Close", true));
@@ -467,14 +481,20 @@ impl Shell {
                 self.suggesting = true;
                 self.accept(ui);
             }
-            KeyCode::Up if event.modifiers.contains(KeyModifiers::CONTROL) => self.resize(2),
-            KeyCode::Down if event.modifiers.contains(KeyModifiers::CONTROL) => self.resize(-2),
+            // Sizing and scrolling the output take keys every terminal passes on. + and − (on an empty line, where no
+            // command starts with them) size it; Ctrl+↑↓, which macOS keeps for Mission Control, and Alt+↑↓ do too
+            // where they arrive. Home and End on an empty line go to the oldest and newest output, since Terminal.app
+            // keeps Page Up, Page Down, Home and End for its own scrollback and a MacBook has none of them.
+            KeyCode::Up if event.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => self.resize(2),
+            KeyCode::Down if event.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => self.resize(-2),
+            KeyCode::Char('+' | '=') if self.input.is_empty() && self.has_output() => self.resize(2),
+            KeyCode::Char('-' | '_') if self.input.is_empty() && self.has_output() => self.resize(-2),
             KeyCode::Up if event.modifiers.contains(KeyModifiers::SHIFT) => self.scroll(true, 1),
             KeyCode::Down if event.modifiers.contains(KeyModifiers::SHIFT) => self.scroll(false, 1),
             KeyCode::PageUp => self.scroll(true, self.shown_lines.saturating_sub(2).max(3)),
             KeyCode::PageDown => self.scroll(false, self.shown_lines.saturating_sub(2).max(3)),
-            KeyCode::End if event.modifiers.contains(KeyModifiers::CONTROL) => self.scroll_back = 0,
-            KeyCode::Home if event.modifiers.contains(KeyModifiers::CONTROL) => self.scroll(true, usize::MAX / 2),
+            KeyCode::End if event.modifiers.contains(KeyModifiers::CONTROL) || self.input.is_empty() => self.scroll_back = 0,
+            KeyCode::Home if event.modifiers.contains(KeyModifiers::CONTROL) || self.input.is_empty() => self.scroll(true, usize::MAX / 2),
             KeyCode::Up => {
                 // Walking the history stays in the history until something is typed: a recalled command has its own
                 // suggestions, which must not take the arrows over.
@@ -1072,7 +1092,7 @@ impl Shell {
         // The top edge is a handle: a rule, what this is, and how to move and size it.
         let commands = self.blocks.len();
         let title = format!(" OUTPUT · {commands} {} ", if commands == 1 { "command" } else { "commands" });
-        let handle = if ui.unicode { " ⇕ drag or Ctrl+↑↓ to size " } else { " drag or Ctrl+Up/Down to size " };
+        let handle = if ui.unicode { " ⇕ drag, or + and − to size " } else { " drag, or + and - to size " };
         let rule = if ui.unicode { "─" } else { "-" };
         let fill = (rect.width as usize).saturating_sub(widgets::width(&title) + widgets::width(handle) + 2);
         let top = Line::from(vec![
@@ -1149,7 +1169,7 @@ impl Shell {
         let foot = if self.running.is_some() {
             " Ctrl+C stops it ".to_string()
         } else if self.scroll_back > 0 {
-            format!(" {} {} newer lines · Ctrl+End to the newest · Esc hides this ", if ui.unicode { "↓" } else { "v" }, self.scroll_back)
+            format!(" {} {} newer lines · End to the newest · Esc hides this ", if ui.unicode { "↓" } else { "v" }, self.scroll_back)
         } else if lines.len() > visible {
             " Wheel or PgUp/PgDn scrolls · Esc hides this ".to_string()
         } else {

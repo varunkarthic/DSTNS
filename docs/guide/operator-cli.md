@@ -300,11 +300,14 @@ is kept between sessions, in `logs/command-history`.
 
 Each command's output comes back as a card under the `OUTPUT` rule: the command, then
 `✓ done` or `✗ exit N` and how long it took, then what it printed beside a rail, red if it
-failed. The wheel scrolls it when the pointer is over it, as do **PgUp/PgDn** a page and
-**Shift+↑ ↓** a line; **Ctrl+Home** and **Ctrl+End** go to the oldest and the newest, and a
-scrollbar and the foot say where you are. Its top edge is a handle: drag it, or press
-**Ctrl+↑ ↓**, to make the output taller or shorter, and it keeps that size. The
-[Console](console.md) page has every command.
+failed. The wheel scrolls it when the pointer is over it, as do **Shift+↑ ↓** a line and
+**PgUp/PgDn** a page; **Home** and **End**, on an empty command line, go to the oldest and the
+newest, and a scrollbar and the foot say where you are. Its top edge is a handle: drag it, or
+press **+** and **−** on an empty command line, to make the output taller or shorter, and it
+keeps that size. These keys reach the launcher in every terminal. **Ctrl+↑ ↓**, **Alt+↑ ↓**,
+**Ctrl+Home** and **Ctrl+End** do the same where they arrive, but macOS keeps Ctrl+↑ ↓ for
+Mission Control, and Terminal.app keeps Home, End and the page keys for its own scrollback
+(a MacBook reaches them with Fn). The [Console](console.md) page has every command.
 
 ### Errors
 
@@ -387,7 +390,8 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `ls`, `cat`, `tail`, `head`, `ps [-a]`, `get`, `env`, `uptime`, `about`, `docs [TOPIC]`, `json`, `view`, `history` | The console's readers, run on their own: plain text to pipe. `docs mcp` opens that page; `json PLACE [PATH]` shows any state as JSON |
 | `set`, `unset`, `env set\|unset`, `edit`, `api` | The console's tools for changing things: a setting, a kept variable, a file in your editor, any route. See [the console](console.md) |
 | `ask "REQUEST"` | A request in plain words as a line of commands, printed and never run, or a question about DSTNS answered with its sources; `ask new` starts a new conversation; see [Asking in plain words](#asking-in-plain-words) |
-| `model [use PROVIDER [NAME]\|key KEY\|test]` | The launcher's model: Apple's Foundation Models, Ollama or Groq |
+| `model [use PROVIDER [NAME]\|list\|key PROVIDER KEY\|forget PROVIDER\|test]` | The launcher's model, through [CoreAI](../components/coreai.md): Apple's Foundation Models, a local model server or a cloud provider |
+| `state [get [--world]\|set CODE]` | This launcher's settings as one code, for another launcher to become the same; see [Launcher state](#launcher-state) |
 | `daemon [show NAME\|on NAME\|off NAME\|queue emergency\|notification]` | The server's [daemons](daemons.md) |
 | `security [on\|off\|verify]` | [Advanced Security](#advanced-security) |
 | `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, and forget the setup |
@@ -548,9 +552,15 @@ server's next start. The observer reads them back from `GET /api/v1/system/featu
 | | `mcp.allow_writes` | AI may change things | off | …and call routes that change things |
 | | `mcp.allow_launcher` | AI may start and stop runs | off | …and start and stop simulations, and change settings |
 | Security | `security.advanced` | Advanced Security | off | Touch ID or your system password before the launcher can be changed; see [Advanced Security](#advanced-security) |
-| Model | `model.provider` | Model | automatic | Which model turns requests in plain words into commands: automatic, Apple Foundation Models, Ollama, Groq or off. See [Asking in plain words](#asking-in-plain-words) |
-| | `model.name` | Model name | default | For Ollama or Groq; default is each one's own |
+| Model | `model.provider` | Model | automatic | Which model answers requests in plain words: automatic, Apple Foundation Models, Ollama, LM Studio, Anthropic, OpenAI, Gemini, Groq, Mistral, OpenRouter, Hugging Face, another Chat Completions server, or off. See [Asking in plain words](#asking-in-plain-words) and [CoreAI](../components/coreai.md) |
+| | `model.name` | Model name | default | The chosen provider's model; default is each one's own (`model list` shows them) |
+| | `model.base_url` | Provider address | default | Where the chosen provider answers; needed for another Chat Completions server |
 | | `model.ollama_url` | Ollama address | http://127.0.0.1:11434 | Where Ollama answers |
+| | `model.apple_cloud` | Private Cloud Compute | on | When Apple's model on the Mac cannot answer, use Apple's larger one through Private Cloud Compute |
+| | `model.key_store` | Where keys are kept | config/launcher.env | Or the system's credential store (Keychain, Credential Manager, Secret Service) |
+| | `model.timeout_seconds` | Model time limit | 60 | How long to wait for an answer before trying the next provider or giving up |
+| | `assist.enabled` | Answers for other programs | on | The MCP tool `dstns_ask` and CoreAI's `/v1/assist` answer questions about DSTNS |
+| Run | `worlds.keep_history` | Keep history across worlds | off | Off, a new world starts clean: the observer's notification history and the launcher's conversation begin again. On, both carry over |
 | Daemons | `daemon.enabled` | Daemons | on | The watchers inside the server. See [the daemons](daemons.md) |
 | | `daemon.sustain_s` | Hold before alerting | 5 | How long a condition holds before anything is said |
 | | `daemon.rcs`, `daemon.memory`, `daemon.disk`, `daemon.stall`, `daemon.cache` | Resource Control Subsystem… | on | One each |
@@ -697,6 +707,32 @@ kind of thing is wanted, and *in the launcher*, *in core*, *in the observer*, *i
 a link to that line on GitHub. The MCP Handler offers the same as `graph_ask`, `graph_show`,
 `graph_relations` and `graph_path`, which only read, so they are offered whatever else is
 allowed.
+
+## Launcher state
+
+A launcher's settings fit in one code: uppercase hexadecimal that another launcher takes to
+become the same. `state get` prints it; `state set CODE` applies it; `./launcher --state CODE`
+applies it before anything else, so a script or a colleague starts from exactly these settings.
+
+```text
+dstns ~ ❯ state get
+011D8D510EC3200C43AF82F8A63BC06E9382DB46A28092B069AA7AF765FBB39F2DFB8A0A336EBBC…
+```
+
+It carries every setting that differs from its default, and applying it puts every other one
+back to its default, so the result is the same launcher. Settings that hold a credential or an
+address (API keys, tokens, model addresses) are never put in a code and stay as they are on
+each machine; API keys are not settings at all and never leave. Under Advanced Security,
+applying one asks first.
+
+`state get --world` adds the world: the running one (or the seed set in the settings), with its
+day type, map rules and the moment of the day it is at. The next start without `--seed` of its
+own runs that world and jumps to that moment, once. DSTNS is deterministic, so this is the same
+world; what was done to it by hand (a road closed, a storm started) is not carried. A code made
+by a launcher with other map rules may choose another city for the same seed, and says so.
+
+The code is a version, the state as compressed JSON, and a checksum: a code cut short or
+mistyped is refused whole. Spaces, dashes, line breaks and lower case are forgiven.
 
 ## Simplified Launch Control
 

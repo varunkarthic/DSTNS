@@ -36,6 +36,7 @@ mod server;
 mod session;
 mod setup;
 mod signals;
+mod state;
 mod simulation;
 mod sumo;
 mod supervisor;

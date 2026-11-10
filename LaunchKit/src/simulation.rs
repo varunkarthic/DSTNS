@@ -291,6 +291,10 @@ pub fn start_run(port: u16, request: &Value, reporter: &dyn Reporter, paths: &Pa
         &format!("{} · {} · {}", if waiting { "Simulation ready, waiting for the observer" } else { "Simulation running" }, loaded.seed, loaded.day_name()),
         &format!("{} road nodes · {} buildings and places", thousands(loaded.nodes), thousands(loaded.places)),
     );
+    // A world copied with a state code is taken to the moment it was at, once.
+    if let Some(said) = crate::state::jump_after_start(port, &[loaded.seed.as_str(), seed.as_str()], paths) {
+        reporter.message(Level::Info, "Launcher state", &said);
+    }
     Ok(loaded)
 }
 

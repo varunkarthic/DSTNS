@@ -495,6 +495,30 @@ pub fn verify(paths: &Paths, reason: &str) -> Result<()> {
 pub fn run(argv: Vec<String>) -> i32 {
     let paths = Paths::default();
     crate::setup::load_env(&paths);
+    // --state CODE: become the launcher the code describes, then carry on with whatever else was asked.
+    let mut argv = argv;
+    if let Some(at) = argv.iter().position(|a| a == "--state" || a.starts_with("--state=")) {
+        let code = match argv[at].split_once('=') {
+            Some((_, code)) => code.to_string(),
+            None if at + 1 < argv.len() => argv.remove(at + 1),
+            None => {
+                eprintln!("--state needs a code: ./launcher --state CODE (state get prints one).");
+                return 2;
+            }
+        };
+        argv.remove(at);
+        if let Err(why) = crate::security::require(&paths, "apply a launcher state code") {
+            eprintln!("Advanced Security: {why}");
+            return 1;
+        }
+        match crate::state::set(&paths, &code) {
+            Ok(lines) => lines.iter().for_each(|l| eprintln!("{l}")),
+            Err(why) => {
+                eprintln!("{why}");
+                return 1;
+            }
+        }
+    }
     // The console: a line run as a shell would (-c), lines read until exit (shell), or one of its own commands, which
     // print plain text for a system shell to pipe. `help` stays the launcher's.
     match argv.first().map(String::as_str) {

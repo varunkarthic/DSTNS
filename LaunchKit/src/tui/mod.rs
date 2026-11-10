@@ -963,6 +963,33 @@ mod tests {
     }
 
     #[test]
+    fn an_answer_is_drawn_and_the_output_sized_with_keys_any_terminal_passes() {
+        let answer = "## Changing the port\nSet **api.port** with `set api.port 9000` [1], or pass [the flag](https://x.test/flag).\n- a list item long enough that it has to wrap at the narrowest of these terminal sizes\n```\n./launcher start\n```";
+        for (width, height) in [(120, 35), (80, 24), (60, 20)] {
+            let mut app = app(width, height, Box::new(screens::dashboard::DashboardScreen::new()));
+            press(&mut app, KeyCode::Char(':'));
+            app.shell.show_answer(answer);
+            let text = screen(&mut app, width, height);
+            // The newest lines show; a short terminal scrolls the heading above them.
+            assert!(text.contains("set api.port 9000") && text.contains("(https://x.test/flag)"), "{width}x{height}\n{text}");
+            assert!(height < 24 || (text.contains("Changing the port") && text.contains("./launcher start")), "{width}x{height}\n{text}");
+            assert!(!text.contains("**") && !text.contains('`') && !text.contains("## "), "marks are drawn, not shown: {width}x{height}\n{text}");
+            // + on an empty line makes the output taller, in every terminal, without Ctrl or Alt.
+            let before = app.shell.drawn_height();
+            press(&mut app, KeyCode::Char('+'));
+            screen(&mut app, width, height);
+            assert!(app.shell.drawn_height() > before, "{width}x{height}: {before} then {}", app.shell.drawn_height());
+            press(&mut app, KeyCode::Char('-'));
+            screen(&mut app, width, height);
+            assert_eq!(app.shell.drawn_height(), before, "{width}x{height}");
+            // Typed into a command, + is just a character.
+            typed(&mut app, "echo 1+");
+            screen(&mut app, width, height);
+            assert_eq!(app.shell.drawn_height(), before);
+        }
+    }
+
+    #[test]
     fn colour_comes_down_to_none_and_selection_still_shows() {
         let mut app = app(100, 30, Box::new(screens::dashboard::DashboardScreen::new()));
         theme::set_depth(Colors::None);

@@ -149,8 +149,10 @@ reads `dstns·secure`.
 
 As you type, suggestions appear above the prompt with what each does, and the rest of the
 first is shown dimmed. **Tab** takes it, **↑ ↓** walk the suggestions while typing and
-the history otherwise, **Enter** runs, **Ctrl+C** stops a running command, the wheel or **PgUp/PgDn** (or
-**Shift+↑ ↓**) scroll the output, **Ctrl+↑ ↓** or dragging its top edge size it,
+the history otherwise, **Enter** runs, **Ctrl+C** stops a running command, the wheel or **Shift+↑ ↓**
+(or **PgUp/PgDn**) scroll the output, **Home** and **End** on an empty line go to its oldest and
+newest, **+** and **−** on an empty line (or **Ctrl+↑ ↓** and **Alt+↑ ↓**, where the terminal
+passes them on) or dragging its top edge size it,
 **Ctrl+L** clears it, and **Esc** closes. The history is kept between
 sessions in `logs/command-history` (the last 500 lines). A line with an operator in it runs
 as `dstns-launcher -c`, so a long pipeline never holds up the interface, and its output

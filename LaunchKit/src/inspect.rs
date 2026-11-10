@@ -684,6 +684,11 @@ pub fn run(name: &str, rest: &[String], input: Option<&[String]>, paths: &Paths)
         "api" => api_command(rest, paths),
         "security" => security_command(rest, paths),
         "ask" => ask_command(rest, paths),
+        "state" => match rest.first().map(String::as_str) {
+            None | Some("get") => crate::state::get(paths, rest.iter().any(|w| w == "--world")).map(|code| vec![code]),
+            Some("set") => crate::state::set(paths, &rest[1..].join("")),
+            Some(other) => Err(format!("state: {other}? state get [--world] or state set CODE")),
+        },
         "model" => model_command(rest, paths),
         "daemon" | "daemons" => daemon_command(rest, paths),
         "graph" => graph_command(rest, paths),

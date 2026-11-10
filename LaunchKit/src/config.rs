@@ -515,6 +515,7 @@ pub fn fields() -> &'static [Field] {
             Field::new("model.apple_cloud", "Private Cloud Compute", "Model", Boolean, "When Apple's model on this Mac cannot answer, use Apple's larger model through Private Cloud Compute (macOS 27 or later). Requests leave the Mac for Apple's servers, which keep nothing.", json!(true)),
             Field::new("model.key_store", "Where keys are kept", "Model", Choice, "Where model key keeps a provider's API key: config/launcher.env on this machine, or the system's credential store (macOS Keychain, Windows Credential Manager, Secret Service on Linux). Keys in the environment are always read too.", json!("env"))
                 .choices(vec![("config/launcher.env", json!("env")), ("System credential store", json!("system"))]),
+            Field::new("worlds.keep_history", "Keep history across worlds", "Run", Boolean, "Off, a new world starts clean: the observer's notification history and the launcher's conversation with its model begin again, as the report and its list of jumps always do. On, both carry over from one world to the next.", json!(false)),
             Field::new("assist.enabled", "Answers for other programs", "Model", Boolean, "Other programs may ask about DSTNS too: the MCP tool dstns_ask (when the MCP Handler is on) and POST /v1/assist on CoreAI's service. Answers only inform; nothing is run or changed. The command bar and ask always answer.", json!(true)),
             Field::new("model.timeout_seconds", "Model time limit", "Model", Integer, "How long to wait for a model's answer before trying the next or giving up.", json!(60)).range(5.0, Some(600.0)),
             // The daemons, inside the server
@@ -662,6 +663,7 @@ pub fn presentation(config: &Value, demo: bool) -> Value {
         "map_fps": as_int(&setting(config, "performance.map_fps")).unwrap_or(0),
         "render_scale": as_number(&setting(config, "performance.render_scale")).unwrap_or(2.0),
         "film_particles": as_int(&setting(config, "performance.film_particles")).unwrap_or(32000),
+        "keep_history": flag(config, "worlds.keep_history"),
     })
 }
 
@@ -768,6 +770,8 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
         let cache = map.get("cache_dir").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
         let seed = match &options.seed {
             Some(seed) => normalise_seed(seed)?,
+            // A world brought by a launcher state code, waiting for this start.
+            None if crate::state::pending_seed().is_some() => normalise_seed(&crate::state::pending_seed().unwrap_or_default())?,
             // Dynamic Fastboot: the world the last run prepared, whose city is on disk already.
             None if source == "auto" && flag(&defaults, "startup.dynamic_fastboot") => prepared_seed(&paths.map_cache(cache)).unwrap_or_else(fresh_seed),
             None => fresh_seed(),

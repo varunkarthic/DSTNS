@@ -144,4 +144,24 @@ describe("notification history", () => {
     expect(h.size).toBe(0);
     expect(h.runId).toBe("run-2");
   });
+
+  it("keeps the last world's history when asked, apart from the new world's", () => {
+    const h = new NotificationHistory();
+    h.reset("run-1");
+    deliver(h, [rain], open);
+    const before = h.list().map((e) => e.newsId);
+    h.reset("run-2", true);
+    expect(h.size).toBe(before.length);
+    expect(h.list().every((e) => e.key.startsWith("run:run-1:"))).toBe(true);
+    // The new world's events are numbered from 1 again, and still recorded beside the old ones.
+    deliver(h, [rain], open);
+    expect(h.size).toBe(before.length * 2);
+    // Kept twice, the old entries are not renamed again.
+    h.reset("run-3", true);
+    expect(h.list().filter((e) => e.key.startsWith("run:run-1:run:")).length).toBe(0);
+    // The same run again is not a new world.
+    const size = h.size;
+    h.reset("run-3", true);
+    expect(h.size).toBe(size);
+  });
 });

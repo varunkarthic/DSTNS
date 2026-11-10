@@ -241,9 +241,28 @@ fn graph_passage(paths: &Paths, question: &str) -> Option<coreai::assist::Passag
     Some(coreai::assist::Passage { title: "DSTNS's source code, from its knowledge graph".into(), link, text })
 }
 
+/// A new world starts the conversations again, unless worlds.keep_history keeps them: the run the server is on is
+/// checked before each question.
+fn forget_on_new_world(paths: &Paths) {
+    static LAST_RUN: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+    let Some(port) = crate::server::active_port(paths) else { return };
+    let run = crate::simulation::status(port, paths).run_id;
+    if run.is_empty() {
+        return;
+    }
+    let mut last = LAST_RUN.lock().unwrap();
+    let keep = config::load(paths).map(|c| config::flag(&c, "worlds.keep_history")).unwrap_or(false);
+    if !last.is_empty() && *last != run && !keep {
+        assistant(paths).forget(None);
+        crate::log::info("assistant: a new world, so a new conversation");
+    }
+    *last = run;
+}
+
 /// Answer a question about DSTNS, from its documentation (and its code where the question is about code), in the
 /// conversation given. `on_text` receives the answer as it is written.
 pub fn answer(paths: &Paths, question: &str, conversation: Option<&str>, on_text: Option<&mut dyn FnMut(&str)>) -> Result<coreai::assist::Answer, String> {
+    forget_on_new_world(paths);
     let settings = settings(paths)?;
     let extra: Vec<_> = graph_passage(paths, question).into_iter().collect();
     crate::log::info(&format!("assistant: asked: {question}"));

@@ -30,6 +30,8 @@ export interface Features {
     render_scale: number;
     /** How many particles the film has. */
     film_particles: number;
+    /** A new world keeps the last one's notification history (the launcher's worlds.keep_history). Absent: it doesn't. */
+    keep_history?: boolean;
   };
 }
 

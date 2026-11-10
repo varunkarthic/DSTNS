@@ -69,10 +69,24 @@ export class NotificationHistory {
 
   constructor(private readonly limit = HISTORY_LIMIT) {}
 
-  reset(runId: string) {
+  /**
+   * A new run. Its history starts empty, unless `keep` (the launcher's worlds.keep_history): then the last run's
+   * entries stay, under keys that name their run, so the new run's events (numbered from 1 again) never meet them.
+   */
+  reset(runId: string, keep = false) {
+    if (keep && this.runId && this.runId !== runId) {
+      const kept = new Map<string, HistoryEntry>();
+      for (const [key, entry] of this.entries) {
+        const named = key.startsWith("run:") ? key : `run:${this.runId}:${key}`;
+        kept.set(named, { ...entry, key: named });
+      }
+      this.entries = kept;
+      this.ordered = null;
+    } else if (!keep || this.runId !== runId) {
+      this.entries.clear();
+      this.ordered = [];
+    }
     this.runId = runId;
-    this.entries.clear();
-    this.ordered = [];
     this.revision += 1;
   }
 

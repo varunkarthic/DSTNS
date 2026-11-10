@@ -637,8 +637,10 @@ export default function App() {
   const historyStore = useRef(new NotificationHistory());
   const [historyRevision, setHistoryRevision] = useState(0);
   useEffect(() => {
-    historyStore.current.reset(runId);
+    // A new world starts clean, unless the launcher's worlds.keep_history keeps the history across them.
+    historyStore.current.reset(runId, features.presentation.keep_history ?? false);
     setHistoryRevision(historyStore.current.revision);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
   useEffect(() => {
     const store = historyStore.current;
