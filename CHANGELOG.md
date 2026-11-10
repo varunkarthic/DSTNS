@@ -82,6 +82,8 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
 - **Tampering noticed before a start.** With Advanced Security on, the launcher keeps digests of the settings and the
   server program, refuses to start a server when any changed outside it, and `security accept` is the override: it
   asks, then records who accepted what in `logs/security-audit.log`.
+- **No storm of warnings.** A daemon saying the same thing again while its notification is still showing, as a memory
+  reading wavers about its threshold, updates that one notification and counts up instead of adding another.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:

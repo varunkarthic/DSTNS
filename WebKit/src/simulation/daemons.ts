@@ -33,12 +33,34 @@ export function daemonNotification(message: DaemonMessage, virtual: number): UiN
   };
 }
 
+export interface Dwelling {
+  note: UiNotification;
+  until: number;
+  /** The daemon and its message: the same warning again is the same notification. */
+  key?: string;
+}
+
+/**
+ * New messages into those still showing. A message that is already showing (the same daemon saying the same thing,
+ * as a reading wavers about its threshold) replaces it, keeps its place and counts up, so a wavering reading is one
+ * notification and never a storm of them.
+ */
+export function coalesce(showing: Dwelling[], arriving: Dwelling[]): Dwelling[] {
+  const next = [...showing];
+  for (const item of arriving) {
+    const at = item.key ? next.findIndex((old) => old.key === item.key) : -1;
+    if (at < 0) next.push(item);
+    else next[at] = { ...item, note: { ...item.note, id: next[at].note.id, count: (next[at].note.count ?? 1) + 1 } };
+  }
+  return next.slice(-100);
+}
+
 /**
  * The daemons' queues, heard from now on: what they notice, as notifications from System, each for its dwell. Off, or
  * on a server without them, it does nothing.
  */
 export function useDaemonNotifications(dwellMs: number, virtual: number) {
-  const [items, setItems] = useState<{ note: UiNotification; until: number }[]>([]);
+  const [items, setItems] = useState<Dwelling[]>([]);
   const clock = useRef(virtual);
   clock.current = virtual;
   useEffect(() => {
@@ -59,7 +81,7 @@ export function useDaemonNotifications(dwellMs: number, virtual: number) {
           cursor[queue] = read.latest_sequence;
           if (cancelled || !read.items.length) continue;
           const until = performance.now() + dwellMs * (queue === "emergency" ? 2 : 1);
-          setItems((old) => [...old, ...read.items.map((m) => ({ note: daemonNotification(m, clock.current), until }))].slice(-100));
+          setItems((old) => coalesce(old, read.items.map((m) => ({ note: daemonNotification(m, clock.current), until, key: `${m.daemon}:${m.id}` }))));
         }
       } catch {
         // A server without daemons, or not answering: asked again in a moment.
