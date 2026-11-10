@@ -37,24 +37,31 @@
   transition-duration: var(--spring-lively-ms, 200ms);
 }
 
-/* Dialogs and their scrim. */
+/* Dialogs and their scrim. A dialog comes forward on a spring with the least give, and leaves the way a sheet is put
+ * down: a shorter, even ease that shrinks it a little, softens it and lets the scrim go with it, never a cut. The exit
+ * time is MOTION_MS.dismiss, which keeps the dialog mounted until it has gone. */
 .scrim {
-  transition:
-    opacity var(--spring-effectsDefault-ms, 180ms) var(--spring-effectsDefault, ease-out),
-    backdrop-filter var(--spring-effectsDefault-ms, 180ms) var(--spring-effectsDefault, ease-out);
+  transition: opacity 260ms cubic-bezier(0.2, 0, 0, 1);
 }
 .dialog {
   transition:
-    transform var(--spring-spatialDefault-ms, 220ms) var(--spring-spatialDefault, ease-out),
-    opacity var(--spring-effectsDefault-ms, 180ms) var(--spring-effectsDefault, ease-out);
+    transform var(--spring-expressiveDefault-ms, 320ms) var(--spring-expressiveDefault, ease-out),
+    opacity 220ms cubic-bezier(0.2, 0, 0, 1),
+    filter 220ms cubic-bezier(0.2, 0, 0, 1);
 }
 .scrim.closing {
   opacity: 0;
   pointer-events: none;
+  transition: opacity 240ms cubic-bezier(0.4, 0, 0.6, 1) 40ms;
 }
 .scrim.closing .dialog {
   opacity: 0;
-  transform: translateY(8px) scale(0.985);
+  transform: scale(0.955);
+  filter: blur(3px);
+  transition:
+    transform 260ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 200ms cubic-bezier(0.4, 0, 0.6, 1) 40ms,
+    filter 220ms cubic-bezier(0.4, 0, 0.6, 1);
 }
 @starting-style {
   .scrim {
@@ -62,13 +69,17 @@
   }
   .dialog {
     opacity: 0;
-    transform: translateY(14px) scale(0.975);
+    transform: scale(0.92);
+    filter: blur(4px);
   }
 }
 .reduce-motion .scrim,
-.reduce-motion .dialog {
+.reduce-motion .dialog,
+.reduce-motion .scrim.closing,
+.reduce-motion .scrim.closing .dialog {
   transition: opacity 120ms linear;
   transform: none;
+  filter: none;
 }
 
 /* Popovers and menus rise from their anchor. */
@@ -159,5 +170,21 @@
   22%, 78% { stroke-dashoffset: 0; }
   to { stroke-dashoffset: -1; }
 }
+/* Leaning toward the pointer (Figure.tsx sets --fx and --fy, from -1 to 1): the plate turns a few degrees and its
+   subject moves a little further than the rest, so the drawing has depth. Slow to follow, like something with weight. */
+.figure {
+  transform: perspective(520px) rotateY(calc(var(--fx, 0) * 9deg)) rotateX(calc(var(--fy, 0) * -7deg));
+  transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.figure :is(.hi, .dot) {
+  translate: calc(var(--fx, 0) * 3px) calc(var(--fy, 0) * 2.4px);
+  transition: translate 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.figure :is(.lo, .dash) {
+  translate: calc(var(--fx, 0) * -1.4px) calc(var(--fy, 0) * -1px);
+  transition: translate 800ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.dialog-plate:has(.figure), .figure-host { cursor: default; }
+.reduce-motion .figure, .reduce-motion .figure * { transform: none; translate: none; transition: none; }
 .reduce-motion .figure * { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .figure * { animation: none !important; } }

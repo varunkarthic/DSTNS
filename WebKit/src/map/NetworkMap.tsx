@@ -30,6 +30,7 @@ import {
   demandColor,
   distanceToSegment,
   insideFootprint,
+  footprintOf,
   hasMarker,
   placeInspection,
   placeKind,
@@ -207,7 +208,7 @@ function NetworkMap({
   const [size, setSize] = useState({ w: 1000, h: 700 }),
     [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
   // The place last chosen from search, marked on the map until the map is next touched.
-  const [found, setFound] = useState<{ feature: MapFeature; at: number } | null>(null);
+  const [found, setFound] = useState<{ feature: MapFeature; at: number; outline: Point[] | null } | null>(null);
   const [hover, setHover] = useState<{
     info: Inspection;
     x: number;
@@ -705,7 +706,8 @@ function NetworkMap({
           ctx.lineTo(x + cx * to * halfLength - cy * side * halfWidth, y + cy * to * halfLength + cx * side * halfWidth);
           ctx.lineTo(x + cx * to * halfLength + cy * side * halfWidth, y + cy * to * halfLength - cx * side * halfWidth);
           ctx.lineTo(x + cx * from * halfLength + cy * side * halfWidth, y + cy * from * halfLength - cx * side * halfWidth);
-          ctx.closePath();
+          // Only ever filled, and a fill closes each shape itself: closing thousands of them by hand was the map's
+          // single largest cost.
         };
         const sx = (m: { x: number; angle: number }) => m.x * view.scale + view.x + Math.sin(m.angle) * lane;
         const sy = (m: { y: number; angle: number }) => -m.y * view.scale + view.y + Math.cos(m.angle) * lane;
@@ -764,30 +766,34 @@ function NetworkMap({
         const p = screen(found.feature.position);
         // Three flashes, then it stays lit.
         const lit = age < FOUND_FLASH_MS ? 0.35 + 0.65 * Math.abs(Math.cos((age / FOUND_FLASH_MS) * Math.PI * 3)) : 1;
-        ctx.strokeStyle = `rgba(${FOUND_RGB},${lit})`;
-        ctx.fillStyle = `rgba(${FOUND_RGB},${lit * 0.22})`;
-        ctx.lineWidth = 2.5;
-        if (found.feature.polygon && found.feature.geometry.length > 2) {
+        if (found.outline) {
+          // The whole building, traced round its walls as it is found, then lit, with a soft glow while it flashes.
+          const corners = found.outline.map(screen);
+          let perimeter = 0;
+          corners.forEach((q, i) => (perimeter += Math.hypot(q.x - corners[(i + 1) % corners.length].x, q.y - corners[(i + 1) % corners.length].y)));
+          const traced = reduceMotion ? 1 : 1 - (1 - Math.min(1, age / 700)) ** 3;
           ctx.beginPath();
-          found.feature.geometry.forEach((point, i) => {
-            const q = screen(point);
-            if (i) ctx.lineTo(q.x, q.y);
-            else ctx.moveTo(q.x, q.y);
-          });
+          corners.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
           ctx.closePath();
+          ctx.fillStyle = `rgba(${FOUND_RGB},${0.2 * traced * lit})`;
           ctx.fill();
+          ctx.save();
+          ctx.lineJoin = "round";
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = `rgba(${FOUND_RGB},${0.55 + 0.45 * lit})`;
+          if (flashing) {
+            ctx.shadowColor = `rgba(${FOUND_RGB},${0.6 * lit})`;
+            ctx.shadowBlur = 16;
+          }
+          if (traced < 1) ctx.setLineDash([perimeter * traced, perimeter]);
           ctx.stroke();
-        }
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        if (flashing) {
-          const phase = ((age / FOUND_FLASH_MS) * 3) % 1;
+          ctx.restore();
+        } else {
+          // A place with no building of its own: a ring concentric with its marker, and nothing larger.
+          ctx.strokeStyle = `rgba(${FOUND_RGB},${0.55 + 0.45 * lit})`;
+          ctx.lineWidth = 2.5;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, 22 + phase * 34, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(${FOUND_RGB},${(1 - phase) * 0.7})`;
-          ctx.lineWidth = 1.6;
+          ctx.roundRect(p.x - 13, p.y - 13, 26, 26, 13);
           ctx.stroke();
         }
       }
@@ -1251,7 +1257,7 @@ function NetworkMap({
         // gliding to, rather than at a stale pointer position.
         const layout = mapFitLayout(size.w, size.h, compactRef.current, leftRef.current);
         const rect = host.current?.getBoundingClientRect();
-        setFound({ feature, at: performance.now() });
+        setFound({ feature, at: performance.now(), outline: footprintOf(feature, topology?.features ?? []) });
         setHover({
           info: placeInspection(feature, state.demand.get(feature.id)),
           x: (rect?.left ?? 0) + layout.centerX + 18,

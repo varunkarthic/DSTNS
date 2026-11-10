@@ -454,13 +454,14 @@ function SeedControl({ seed, canRegenerate, onRegenerate }: { seed: string; canR
       <Tooltip label="Generate new world" detail="A new seed selects a new district. The current run is replaced. Asks first.">
         <button
           type="button"
-          className="rail-btn reroll"
+          className="rail-reroll"
           data-tutorial="regenerate"
           aria-label="Generate new world"
           onClick={onRegenerate}
           disabled={!canRegenerate}
         >
-          <Icon name="reroll" size={16} />
+          <Icon name="reroll" size={14} />
+          <span>New World</span>
         </button>
       </Tooltip>
     </div>

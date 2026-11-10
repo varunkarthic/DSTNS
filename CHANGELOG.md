@@ -38,10 +38,22 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   mast with nothing to send, a filter nothing passes, a plug short of its socket, a row of empty tiles, a glass over
   the map and a pin with nowhere to land, drawn as DSTNS's own line figures in one hand, each with one small motion
   that stops for reduced motion.
-- **One dialog.** About, Reset, Generate a new world, Terminate, the Auto Focus offer, the end of the day, a suspended
-  interface and an application's dialog share one card: a plate with a line figure that acts out what the answer
-  does (a day wound back, a district redrawn, a breaker thrown), then a title, a few words, and the answers side by
-  side with the way out first and the action named. Danger is in the figure and the button, not a red title.
+- **One dialog.** Every dialog is the same wide card: a figure on a plate at its left that acts out what it is about,
+  and beside it a title, a few words, and the answers side by side, the way out first and the action named with its
+  icon. About is two panes, who made it on the left and this run on the right. A dialog comes forward on a spring and
+  leaves as smoothly, shrinking a little and softening as its scrim lifts.
+- **Figures that answer.** The line figures lean a few degrees toward the pointer, their subject a little further than
+  the rest, and draw themselves again when pressed.
+- **New World beside the seed** is a labelled button tinted like Terminate, and so is the action that confirms one.
+- **A found building is outlined.** Choosing a place in Search traces round the walls of its building, or the building
+  it stands in, and lights it; a place with no building gets a ring the size of its marker.
+- **Even edges.** A panel's cards sit 8px inside it with corners concentric to its own, in the strip's side panel too;
+  Queue's view and category and Notifications' filters are a bar across the top of their card, and a pop-up menu
+  lines up with the edge of the control that opened it. Scrolling lists blur a little as they pass under a panel's
+  lower edge.
+- **A Stack that fills its card.** Its rows share the deck's height, each with the last minute of its figure drawn
+  beneath it; on a short window they keep to their bars.
+- **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:
   a bead, a neck that thins and parts, and a drop that grows into the panel; closing runs it backward, and either can

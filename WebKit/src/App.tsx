@@ -790,7 +790,7 @@ export default function App() {
       dialogCloseTimer.current = null;
       setDialog(null);
       setDialogClosing(false);
-    }, MOTION_MS.overlay);
+    }, MOTION_MS.dismiss);
   }, [cancelDialogClose]);
   /** Open a dialog, replacing any that is open or still leaving. */
   const openDialog = useCallback(
@@ -1566,6 +1566,7 @@ export default function App() {
               title="Reset the simulation?"
               body="The day starts over from the beginning. The scenario, its seed and its map stay as they are, so you will see the same day again."
               confirmLabel="Start Over"
+              confirmIcon="reset"
               figure="rewind"
               closing={dialogClosing}
               onCancel={closeDialog}
@@ -1583,6 +1584,7 @@ export default function App() {
               title="Generate a new world?"
               body="A new seed picks a new district, which may need a map download. The current simulation stays where it is until the new world is ready, then hands over. The new world begins paused at the start of the day."
               confirmLabel="Generate World"
+              confirmIcon="reroll"
               figure="redraw"
               closing={dialogClosing}
               onCancel={closeDialog}
@@ -1591,7 +1593,7 @@ export default function App() {
                 closeDialog();
                 // Let the dialog finish leaving before the world overlay
                 // arrives, so the two are never on screen together.
-                window.setTimeout(() => void requestWorld(), MOTION_MS.overlay);
+                window.setTimeout(() => void requestWorld(), MOTION_MS.dismiss);
               }}
             />
           )}
@@ -1600,6 +1602,7 @@ export default function App() {
               title="Terminate this session?"
               body="The run stops and the simulation server shuts down. A new run must be started from the CLI."
               confirmLabel="Terminate"
+              confirmIcon="power"
               tone="danger"
               figure="breaker"
               closing={dialogClosing}

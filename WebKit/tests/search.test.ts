@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { describe, expect, it } from "vitest";
-import { placeInspection, popularPlaces, searchPlaces } from "../src/core/mapModel";
+import { footprintOf, placeInspection, popularPlaces, searchPlaces } from "../src/core/mapModel";
 import { formatBytes, rateUnit, setByteUnits } from "../src/core/units";
 import { budFrame, budShape } from "../src/CoreMotion/bud";
 
@@ -103,5 +103,20 @@ describe("a panel dividing from its parent", () => {
         expect(shape.clip).not.toMatch(/NaN|-\d/);
       }
     }
+  });
+});
+
+describe("a found place's outline", () => {
+  const at = (x_m: number, y_m: number) => ({ x_m, y_m, lat: 0, lon: 0 });
+  const square = (x: number, y: number, size: number) => [at(x, y), at(x + size, y), at(x + size, y + size), at(x, y + size)];
+  const building = (id: string, geometry: ReturnType<typeof at>[]) => ({ id, name: id, category: "yes", polygon: true, position: geometry[0], geometry, tags: {} });
+  const campus = building("campus", square(0, 0, 100));
+  const hall = building("hall", square(40, 40, 20));
+  const point = { ...place("p", "Ticket office", "ticket"), geometry: [], position: at(50, 50) };
+  it("is the place's own walls, or the smallest building it stands in, or nothing", () => {
+    expect(footprintOf(hall, [campus, hall])).toBe(hall.geometry);
+    expect(footprintOf(point, [campus, hall])).toBe(hall.geometry);
+    expect(footprintOf({ ...point, position: at(10, 10) }, [campus, hall])).toBe(campus.geometry);
+    expect(footprintOf({ ...point, position: at(500, 500) }, [campus, hall])).toBeNull();
   });
 });

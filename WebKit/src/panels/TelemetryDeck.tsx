@@ -116,6 +116,7 @@ function StreamRow({
   meta,
   metaRight,
   meter,
+  trend,
   alert,
 }: {
   icon: IconName;
@@ -126,6 +127,8 @@ function StreamRow({
   meta?: ReactNode;
   metaRight?: ReactNode;
   meter?: number;
+  /** Recent values, oldest first, drawn as a line under the row. */
+  trend?: readonly number[];
   alert?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -167,9 +170,46 @@ function StreamRow({
             <i style={{ transform: `translateX(${Math.min(100, Math.max(0, meter * 100)) - 100}%)` }} />
           </div>
         )}
+        {trend && trend.length > 1 && <Trend values={trend} tone={tone} />}
       </div>
     </div>
   );
+}
+
+/** A line of recent values under a row, its area faintly filled, scaled to its own range so a change is visible. */
+function Trend({ values, tone }: { values: readonly number[]; tone: string }) {
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const span = hi - lo || 1;
+  const step = 100 / (values.length - 1);
+  const points = values.map((v, i) => `${(i * step).toFixed(2)},${(26 - ((v - lo) / span) * 22).toFixed(2)}`);
+  return (
+    <svg className={`trend ${tone}`} viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+      <path className="trend-area" d={`M0,28L${points.join("L")}L100,28Z`} />
+      <polyline className="trend-line" points={points.join(" ")} />
+    </svg>
+  );
+}
+
+/** The last minute or so of each figure the Stack draws a line for, kept across tab changes and forgotten with the run. */
+const TREND_SAMPLES = 72;
+const trends = { run: "", series: new Map<string, number[]>() };
+function useTrends(run: string, at: unknown, values: Record<string, number>): Record<string, readonly number[]> {
+  const last = useRef<unknown>(null);
+  if (trends.run !== run) {
+    trends.run = run;
+    trends.series.clear();
+  }
+  if (at && last.current !== at) {
+    last.current = at;
+    for (const [key, value] of Object.entries(values)) {
+      const list = trends.series.get(key) ?? [];
+      list.push(value);
+      if (list.length > TREND_SAMPLES) list.shift();
+      trends.series.set(key, list);
+    }
+  }
+  return Object.fromEntries(Object.keys(values).map((key) => [key, [...(trends.series.get(key) ?? [])]]));
 }
 
 function Empty({ icon, figure, children }: { icon: IconName; figure?: FigureName; children: ReactNode }) {
@@ -257,12 +297,14 @@ function Overview({ snapshot, topology, congestion }: Pick<Props, "snapshot" | "
   );
 }
 
-function StackView({ status, snapshot, topology, asb, virtualTime }: Pick<Props, "status" | "snapshot" | "topology" | "asb" | "virtualTime">) {
+function StackView({ status, snapshot, topology, asb, virtualTime, runId }: Pick<Props, "status" | "snapshot" | "topology" | "asb" | "virtualTime" | "runId">) {
   const time = useTimeFormat();
   const f = useMemo(() => networkFigures(snapshot, topology), [snapshot, topology]);
   const weather = useMemo(() => weatherSummary(snapshot?.active_weather), [snapshot]);
+  // ponytail: a sample per snapshot in render; a recorder-fed history if the Stack ever needs more than a minute.
+  const trend = useTrends(runId, snapshot, { vehicles: f.vehicles, cells: weather.cells, pressure: asb?.score ?? 0 });
   return (
-    <>
+    <div className="stack-view">
       <StreamRow
         icon="network"
         tone="cyan"
@@ -281,6 +323,7 @@ function StackView({ status, snapshot, topology, asb, virtualTime }: Pick<Props,
         meta={`${f.flowingEdges.toLocaleString()} edges carrying flow`}
         metaRight={`${f.vehicles.toLocaleString()} veh`}
         meter={snapshot?.edges.length ? f.flowingEdges / snapshot.edges.length : undefined}
+        trend={trend.vehicles}
       />
       <StreamRow
         icon="rain"
@@ -290,6 +333,7 @@ function StackView({ status, snapshot, topology, asb, virtualTime }: Pick<Props,
         tagTone={status?.modules?.dws ? "mint" : "grey"}
         meta={`${weather.cells} rain cell${weather.cells === 1 ? "" : "s"}`}
         metaRight={weather.rate}
+        trend={trend.cells}
       />
       <StreamRow
         icon="gauge"
@@ -300,6 +344,7 @@ function StackView({ status, snapshot, topology, asb, virtualTime }: Pick<Props,
         meta={asb ? `${(asb.score * 100).toFixed(0)}% pressure · ${(asb.throughput?.snapshots_per_s ?? 0).toFixed(1)} snapshots/s` : "Not reporting"}
         metaRight={asb ? (asb.rate_capped ? `${asb.applied_tick_rate}× of ${asb.requested_tick_rate}×` : `${asb.applied_tick_rate}×`) : undefined}
         meter={asb ? asb.score : undefined}
+        trend={asb ? trend.pressure : undefined}
       />
       <StreamRow
         icon="signal"
@@ -310,7 +355,7 @@ function StackView({ status, snapshot, topology, asb, virtualTime }: Pick<Props,
         meta={`${snapshot?.signals.length ?? 0} junctions scheduled`}
         metaRight={time.time(virtualTime)}
       />
-    </>
+    </div>
   );
 }
 
@@ -583,7 +628,7 @@ function DetailView({ view, props, state }: { view: PanelView; props: Props; sta
     case "overview":
       return <Overview snapshot={props.snapshot} topology={props.topology} congestion={props.congestion} />;
     case "stack":
-      return <StackView status={props.status} snapshot={props.snapshot} topology={props.topology} asb={props.asb} virtualTime={props.virtualTime} />;
+      return <StackView status={props.status} snapshot={props.snapshot} topology={props.topology} asb={props.asb} virtualTime={props.virtualTime} runId={props.runId} />;
     case "events":
       return <NewsView news={props.news} topology={props.topology} />;
     case "incidents":

@@ -123,6 +123,8 @@ const durationMs = (name: SpringName) => Math.round(settleTime(SPRINGS[name]) * 
  */
 export const MOTION_MS = {
   overlay: durationMs("spatialDefault"),
+  /** A dialog leaving: its exit in motion.css runs this long. */
+  dismiss: 300,
   boot: durationMs("effectsSlow") + 120,
 };
 

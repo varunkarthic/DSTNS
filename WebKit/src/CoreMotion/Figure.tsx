@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 /**
@@ -217,15 +217,48 @@ export const FIGURE_NAMES = Object.keys(FIGURES) as FigureName[];
 
 export function Figure({ name, className = "" }: { name: FigureName; className?: string }) {
   const svg = useRef<SVGSVGElement>(null);
+  // Pressed, it draws itself again.
+  const [drawing, setDrawing] = useState(0);
   // Each stroke is drawn in after the one before it.
   useLayoutEffect(() => {
     svg.current?.querySelectorAll<SVGElement>("path, rect, circle, ellipse").forEach((el, i) => {
       el.style.setProperty("--i", String(i));
       if (!el.matches(".dash, .dot")) el.setAttribute("pathLength", "1");
     });
+  }, [name, drawing]);
+  // It leans toward the pointer over what holds it, its one subject a little further than the rest, and settles back
+  // when the pointer leaves. Nothing moves under reduced motion.
+  useEffect(() => {
+    const host = svg.current?.parentElement;
+    if (!host || document.documentElement.classList.contains("reduce-motion") || matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0;
+    const lean = (x: number, y: number) => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        svg.current?.style.setProperty("--fx", x.toFixed(3));
+        svg.current?.style.setProperty("--fy", y.toFixed(3));
+      });
+    };
+    const move = (e: PointerEvent) => {
+      const r = host.getBoundingClientRect();
+      lean(Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width) * 2 - 1)), Math.max(-1, Math.min(1, ((e.clientY - r.top) / r.height) * 2 - 1)));
+    };
+    const leave = () => lean(0, 0);
+    const press = (e: PointerEvent) => {
+      if (e.button === 0 && !(e.target as Element).closest?.("button, a, input")) setDrawing((n) => n + 1);
+    };
+    host.addEventListener("pointermove", move);
+    host.addEventListener("pointerleave", leave);
+    host.addEventListener("pointerdown", press);
+    return () => {
+      cancelAnimationFrame(frame);
+      host.removeEventListener("pointermove", move);
+      host.removeEventListener("pointerleave", leave);
+      host.removeEventListener("pointerdown", press);
+    };
   }, [name]);
   return (
-    <svg ref={svg} key={name} className={`figure figure-${name} ${className}`} viewBox="0 0 160 100" aria-hidden="true" focusable="false">
+    <svg ref={svg} key={`${name}-${drawing}`} className={`figure figure-${name} ${className}`} viewBox="0 0 160 100" aria-hidden="true" focusable="false">
       {FIGURES[name]}
     </svg>
   );

@@ -62,6 +62,7 @@ export function Floating({
   label,
   id,
   only = false,
+  edge = false,
 }: {
   anchor: RefObject<HTMLElement | null>;
   open: boolean;
@@ -74,6 +75,8 @@ export function Floating({
   id?: string;
   /** Keep to the preferred sides, whatever they cover. */
   only?: boolean;
+  /** Above or below, line up with the trigger's nearer edge and be at least as wide, as a pop-up menu does. */
+  edge?: boolean;
 }) {
   const own = useRef<HTMLDivElement>(null);
   const ref = panelRef ?? own;
@@ -88,8 +91,7 @@ export function Floating({
     const bar = anchor.current?.closest(".rail")?.getBoundingClientRect();
     const top = bar ? bar.top : a.top;
     const height = bar ? bar.height : a.height;
-    setPlace(
-      computePlacement({
+    const placed = computePlacement({
         anchor: { left: a.left, top, width: a.width, height },
         tip: { width: size.width, height: size.height },
         viewport: { width: window.innerWidth, height: window.innerHeight },
@@ -98,10 +100,16 @@ export function Floating({
         only,
         gap: 8,
         margin: 12,
-      }),
-    );
+      });
+    if (edge && (placed.side === "top" || placed.side === "bottom")) {
+      const width = Math.max(size.width, a.width);
+      const left = a.left + a.width / 2 > window.innerWidth / 2 ? a.right - width : a.left;
+      placed.left = Math.max(12, Math.min(window.innerWidth - width - 12, left));
+      el.style.minWidth = `${a.width}px`;
+    }
+    setPlace(placed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchor, preferred.join(), only]);
+  }, [anchor, preferred.join(), only, edge]);
   useLayoutEffect(() => {
     if (!open) {
       setPlace(null);
@@ -267,7 +275,7 @@ export function Select<T extends string>({
         <span className="select-trigger-text">{options[selected]?.label}</span>
         <Icon name="chevronDown" size={14} />
       </button>
-      <Floating anchor={trigger} open={open} preferred={["bottom", "top"]} only className="menu" panelRef={menu} role="presentation">
+      <Floating anchor={trigger} open={open} preferred={["bottom", "top"]} only edge className="menu" panelRef={menu} role="presentation">
         <div
           id={listId}
           role="listbox"

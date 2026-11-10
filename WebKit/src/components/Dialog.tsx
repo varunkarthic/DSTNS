@@ -32,7 +32,7 @@ export function Dialog({
   className?: string;
   scrimClassName?: string;
   role?: "dialog" | "alertdialog";
-  /** Drawn on a plate above the words: what the dialog is about, acted out. */
+  /** Drawn on a plate beside the words: what the dialog is about, acted out. */
   figure?: FigureName;
   tone?: "danger";
 }) {
@@ -92,12 +92,16 @@ export function Dialog({
         aria-labelledby={labelledBy}
         tabIndex={-1}
       >
-        {figure && (
-          <div className="dialog-plate">
-            <Figure name={figure} />
-          </div>
+        {figure ? (
+          <>
+            <div className="dialog-plate">
+              <Figure name={figure} />
+            </div>
+            <div className="dialog-main">{children}</div>
+          </>
+        ) : (
+          children
         )}
-        {children}
       </div>
     </div>
   );

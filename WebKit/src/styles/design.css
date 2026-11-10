@@ -3120,19 +3120,22 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .place-search-empty:has(.figure) { display: grid; justify-items: center; gap: 6px; text-align: center; }
 
 /* ---- Dialogs ----
-   One card for everything that stops the work to ask or to tell. A plate at the top holds a figure that acts out what
-   the dialog is about; under it a title, a few words, and the answers side by side: the way out leading, the named
-   action trailing. A dangerous one says so in its figure and its button, not in a red title. */
+   One card for everything that stops the work to ask or to tell. A plate on the left holds a figure that acts out what
+   the dialog is about; beside it a title, a few words, and the answers side by side: the way out leading, the named
+   action trailing. A dangerous one says so in its figure and its button, not in a red title. It uses the width, so it
+   is never a tall narrow column; on a narrow window the plate goes back on top. */
 .scrim { padding: 16px; }
-.dialog { --dialog-pad: 20px; position: relative; width: min(400px, 100%); max-width: none; max-height: calc(100vh - 32px); padding: var(--dialog-pad); overflow: hidden auto; }
-.dialog-plate { flex: none; display: grid; place-items: center; height: 136px; margin: calc(-1 * var(--dialog-pad)) calc(-1 * var(--dialog-pad)) 18px; background: var(--well); border-bottom: 1px solid var(--well-line); }
-.dialog-plate .figure { --figure-ground: var(--well); width: 192px; margin: 0; }
+.dialog { --dialog-pad: 24px; position: relative; width: min(400px, 100%); max-width: none; max-height: calc(100vh - 32px); padding: var(--dialog-pad); overflow: hidden auto; }
+.dialog:has(> .dialog-plate) { display: grid; grid-template-columns: 196px minmax(0, 1fr); width: min(588px, 100%); padding: 0; overflow: hidden; }
+.dialog-plate { display: grid; place-items: center; min-height: 208px; background: var(--well); border-right: 1px solid var(--well-line); }
+.dialog-plate .figure { --figure-ground: var(--well); width: 164px; margin: 0; }
+.dialog-main { min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: var(--dialog-pad); overflow: hidden auto; }
 .dialog.danger .figure { --figure-hi: var(--danger); }
-.dialog h2, .dialog h2.danger { margin: 0 0 6px; font-family: var(--font-body); font-size: 17px; font-weight: 600; line-height: 1.3; letter-spacing: 0; color: var(--text); }
+.dialog h2, .dialog h2.danger { margin: 0 0 8px; font-family: var(--font-body); font-size: 18px; font-weight: 600; line-height: 1.3; letter-spacing: -0.005em; color: var(--text); }
 .dialog .eyebrow { display: block; margin: 0 0 6px; }
-.dialog-body, .dialog-body.muted { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.dialog-body, .dialog-body.muted { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-dim); }
 .dialog-body + .dialog-body { margin-top: 8px; }
-.dialog-actions, .world-dialog .dialog-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin-top: 20px; }
+.dialog-actions, .world-dialog .dialog-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin-top: 22px; }
 .dialog-actions .btn { min-width: 0; min-height: 36px; justify-content: center; white-space: nowrap; }
 .dialog-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 16px 0 0; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); }
 .dialog-facts > div { padding: 9px 12px; }
@@ -3140,22 +3143,34 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .dialog-facts dt { font-size: 10.5px; color: var(--text-faint); }
 .dialog-facts dd { margin: 2px 0 0; font-size: 13px; color: var(--text); }
 .dialog-error { margin: 12px 0 0; }
-.dialog.suspended-dialog { width: min(460px, 100%); }
-.dialog.done-dialog { --dialog-pad: 20px; padding: var(--dialog-pad); }
+.dialog.suspended-dialog { width: min(680px, 100%); grid-template-columns: 216px minmax(0, 1fr); }
+.dialog.done-dialog { width: min(680px, 100%); grid-template-columns: 216px minmax(0, 1fr); }
 .done-dialog .done-stats { margin-top: 16px; }
-.dialog.about-dialog { --dialog-pad: 0px; overflow: hidden; }
-.about-dialog .dialog-plate { height: 128px; margin-bottom: 0; }
-.about-dialog .about-close { position: absolute; top: 10px; right: 10px; z-index: 1; }
-.about-hero { position: static; }
 .fabric-dialog-from { margin: -2px 0 8px; }
 
+/* About: the plate and who made it on the left, what this run is and what it is built on on the right. */
+.dialog.about-dialog { width: min(900px, calc(100vw - 32px)); height: min(600px, calc(100vh - 48px)); grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.about-dialog .dialog-main { display: contents; }
+.about-dialog .dialog-plate { grid-column: 1; grid-row: 1; min-height: 0; height: 176px; border-bottom: 1px solid var(--well-line); }
+.about-dialog .about-hero { grid-column: 1; grid-row: 2; position: static; padding: 22px 22px 20px; border-right: 1px solid var(--well-line); border-bottom: 0; background: var(--well); }
+.about-hero .about-links { flex-direction: column; align-items: stretch; margin-top: 18px; }
+.about-hero .about-links a { height: 34px; }
+.dialog.about-dialog .about-scroll { grid-column: 2; grid-row: 1 / 3; max-height: none; padding: 22px 24px 24px; }
+.about-dialog .about-close { position: absolute; top: 12px; right: 12px; z-index: 1; }
+
+@media (max-width: 640px) {
+  .dialog:has(> .dialog-plate), .dialog.about-dialog { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; height: auto; }
+  .dialog-plate { min-height: 132px; border-right: 0; border-bottom: 1px solid var(--well-line); }
+  .about-dialog .about-hero, .dialog.about-dialog .about-scroll { grid-column: 1; grid-row: auto; border-right: 0; }
+}
+
 /* ---- Search: one left edge ---------------------------------------------------------------------
-   The field, the filters, the heading and each result's glyph begin on the same line, 16px in. */
-.place-search-field { width: auto; margin: 8px 8px 0; }
-.place-filters { padding: 10px 8px 2px; gap: 6px; }
-.place-search-heading { margin: 10px 8px 4px; }
-.place-search-results { padding: 0 0 8px; }
-.place-search-results button { padding: 6px 16px 6px 8px; }
+   The field, the filters, the heading and each result's row begin on the same line, the panel's 8px in. */
+.place-search-field { width: auto; margin: 0; }
+.place-filters { padding: 10px 0 2px; gap: 6px; }
+.place-search-heading { margin: 10px 2px 4px; }
+.place-search-results { padding: 0 0 2px; }
+.place-search-results button { padding: 6px 16px 6px 6px; }
 /* Settings: the title begins where the sections beneath it do. */
 .settings-head { padding-left: 22px; }
 
@@ -3173,3 +3188,82 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 /* The tour comes over the interface as the interface came over the map: the dimming and the card ease in together. */
 .tour { animation: fade-in 420ms ease-out both; }
 .tour.still { animation: none; }
+
+/* ---- Tinted actions ---------------------------------------------------------------------------------------------
+   An action with consequences wears its tone as a tint with its own outline, as Terminate does: New World beside the
+   seed, and the answer in a dialog that confirms one. */
+.rail-reroll, .btn.tinted {
+  --tint: var(--accent-rgb);
+  --tint-text: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgb(var(--tint) / 35%);
+  background: rgb(var(--tint) / 9%);
+  color: var(--tint-text);
+  font-weight: 600;
+}
+:is(.rail-reroll, .btn.tinted):hover:not(:disabled) { background: rgb(var(--tint) / 18%); border-color: rgb(var(--tint) / 60%); }
+:is(.rail-reroll, .btn.tinted):focus-visible { outline: 2px solid rgb(var(--tint) / 70%); outline-offset: 2px; }
+.btn.tinted.danger { --tint: var(--danger-rgb); --tint-text: var(--red); }
+.rail-reroll { flex: none; height: 34px; padding: 0 12px; border-radius: 999px; font-size: 11.5px; }
+.rail-reroll:disabled { opacity: 0.45; }
+.rail-reroll:active:not(:disabled) { transform: scale(0.96); }
+.high-contrast :is(.rail-reroll, .btn.tinted) { border-color: rgb(var(--tint)); }
+
+/* ---- Bars inside a card ---------------------------------------------------------------------------------------------
+   A list's own controls (Queue's view and category, Notifications' filters) sit in a bar across the top of its card,
+   4px in, as stadiums 28px tall: concentric with the card's 18px corner. The bar is divided from the list by a line. */
+.stream-frame .view-filters, .stream .view-filters { flex: none; flex-wrap: nowrap; gap: 6px; padding: 4px; border-bottom: 1px solid var(--well-line); }
+.view-filters .seg.small { height: 28px; padding: 2px; }
+.view-filters .seg.small button { height: 24px; padding: 0 12px; font-size: 11.5px; }
+.view-filters .select-trigger { height: 28px; min-height: 28px; padding: 0 10px 0 12px; border-radius: 14px; font-size: 12px; max-width: 52%; }
+.view-filters .chips { margin: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.view-filters .chip-filter { height: 28px; padding: 0 10px; border-radius: 14px; }
+.stream .chips { margin: 0; }
+
+/* The strip's side panel holds its card the same 8px in as Settings does, and its title lines up with the card's text. */
+.deck-panel { padding: 8px; gap: 6px; }
+.deck-panel header { padding: 6px 4px 0 10px; }
+
+/* ---- The Stack ------------------------------------------------------------------------------------------------------
+   Its card takes the deck's height and its rows share it, each part of the system with the last minute of its figure
+   drawn under it, so the tab is full of what is happening rather than ending halfway down. */
+.stream-frame:has(.stack-view) { flex: 1 1 auto; }
+.stream:has(.stack-view) { display: flex; flex-direction: column; }
+.stack-view { flex: 1; display: flex; flex-direction: column; }
+.stack-view .stream-card { flex: 1 0 auto; align-items: center; }
+.trend { display: block; width: 100%; height: 26px; margin-top: 8px; overflow: visible; color: var(--text-dim); }
+.trend-line { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.trend-area { fill: currentColor; opacity: 0.1; }
+.trend.cyan { color: var(--cyan); }
+.trend.mint { color: var(--ok); }
+.trend.blue { color: var(--state-flooded); }
+.trend.amber { color: var(--amber); }
+.trend.violet { color: #c6adff; }
+.row-main:has(.trend) .meter { display: none; }
+/* On a short window the rows keep to their bar, so the whole Stack stays in view. */
+@media (max-height: 820px) {
+  .row-main:has(.trend) .meter { display: block; }
+  .stack-view .trend { display: none; }
+}
+
+/* ---- A soft bottom edge -----------------------------------------------------------------------------------------------
+   What scrolls under a panel's lower edge blurs a little as it fades, as if passing under frosted glass: a strip pinned
+   to the bottom of the scroller, its blur strongest at the edge. Only 36px of it, so a scroll repaints almost nothing;
+   none under reduced transparency, high contrast or reduced motion. */
+:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .layers-scroll)::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  display: block;
+  flex: none;
+  height: 36px;
+  margin-top: -36px;
+  pointer-events: none;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  mask-image: linear-gradient(to bottom, transparent, #000 85%);
+}
+:is(.reduce-transparency, .high-contrast, .reduce-motion) :is(.stream, .settings-scroll, .about-scroll, .place-search-results, .layers-scroll)::after { display: none; }

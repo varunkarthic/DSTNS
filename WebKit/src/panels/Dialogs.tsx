@@ -9,7 +9,7 @@ import { api } from "../core/api";
 import { useEffect, useRef, useState } from "react";
 import { Dialog } from "../components/Dialog";
 import type { FigureName } from "../CoreMotion/Figure";
-import { Icon } from "../components/Icons";
+import { Icon, type IconName } from "../components/Icons";
 import { Logo } from "../components/Logo";
 import { LoadingSurface } from "../film/LoadingSurface";
 import { filmAvailable, REJOIN_AT_MS } from "../film/BootScene";
@@ -197,6 +197,7 @@ export function ConfirmCard({
   title,
   body,
   confirmLabel,
+  confirmIcon,
   tone,
   figure,
   onConfirm,
@@ -206,6 +207,8 @@ export function ConfirmCard({
   title: string;
   body: string;
   confirmLabel: string;
+  /** Drawn before the action's name, as the control that asked for it draws it. */
+  confirmIcon?: IconName;
   tone?: "danger";
   figure: FigureName;
   onConfirm: () => void;
@@ -220,7 +223,8 @@ export function ConfirmCard({
         <button className="btn" onClick={onCancel}>
           Cancel
         </button>
-        <button className={`btn ${tone === "danger" ? "danger-solid" : "primary"}`} onClick={onConfirm}>
+        <button className={`btn tinted${tone === "danger" ? " danger" : ""}`} onClick={onConfirm}>
+          {confirmIcon && <Icon name={confirmIcon} size={14} />}
           {confirmLabel}
         </button>
       </div>

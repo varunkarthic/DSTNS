@@ -10,6 +10,7 @@ import type {
   TopologyEdge,
   WeatherState,
   Point,
+  MapFeature,
 } from "./types";
 export const stateColors = {
   get flooded() { return appearance.meaning.flooded; },
@@ -134,6 +135,30 @@ export function distanceToSegment(
     Math.min(1, ((x - a) * dx + (y - b) * dy) / (dx * dx + dy * dy || 1)),
   );
   return Math.hypot(x - a - p * dx, y - b - p * dy);
+}
+
+/** The walls to outline for a found place: its own, or else the smallest building it stands in. */
+export function footprintOf(feature: MapFeature, features: readonly MapFeature[]): Point[] | null {
+  if (feature.polygon && feature.geometry.length > 2) return feature.geometry;
+  const { x_m: x, y_m: y } = feature.position;
+  let best: Point[] | null = null;
+  let bestArea = Infinity;
+  for (const f of features) {
+    if (!f.polygon || f.geometry.length < 3) continue;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, area = 0;
+    f.geometry.forEach((a, i) => {
+      const b = f.geometry[(i + 1) % f.geometry.length];
+      minX = Math.min(minX, a.x_m); maxX = Math.max(maxX, a.x_m); minY = Math.min(minY, a.y_m); maxY = Math.max(maxY, a.y_m);
+      area += a.x_m * b.y_m - b.x_m * a.y_m;
+    });
+    area = Math.abs(area / 2);
+    if (x < minX || x > maxX || y < minY || y > maxY || area >= bestArea) continue;
+    if (insideFootprint(x, -y, f.geometry)) {
+      best = f.geometry;
+      bestArea = area;
+    }
+  }
+  return best;
 }
 
 export function insideFootprint(x: number, y: number, points: Point[]) {
