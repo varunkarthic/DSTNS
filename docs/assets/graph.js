@@ -439,6 +439,7 @@
       [filterBtn, keyBtn, helpBtn].forEach(function (b) { b.setAttribute("aria-expanded", String(b.dataset.panel === openSheet)); b.classList.toggle("on", b.dataset.panel === openSheet); });
       var changed = !isFresh();
       badge.hidden = !changed;
+      if (typeof legend !== "undefined") legend.hidden = !!openSheet;
       if (!openSheet) { sheet.classList.remove("open"); sheet.hidden = true; return; }
       var scroll = sheet.scrollTop, hadFocus = document.activeElement === folder;
       var focused = sheet.contains(document.activeElement) && document.activeElement.tagName === "BUTTON" ? document.activeElement.textContent : null;
@@ -451,6 +452,13 @@
       if (hadFocus) folder.focus();
       requestAnimationFrame(function () { sheet.classList.add("open"); });
     }
+    // What the colours mean, always at hand at the foot of the map while no sheet is open; it opens the full key.
+    var legend = el("button", { type: "button", class: "dg-legend", "aria-label": "What the colours mean", title: "What the colours mean" },
+      data.areas.filter(function (v) { return areaCount[v]; }).sort(function (p, q) { return areaCount[q] - areaCount[p]; }).slice(0, 6).map(function (v) {
+        return el("span", { class: "dg-legend-item" }, [el("i", { class: "dg-dot", style: "--c:" + (COLOURS[v] || "#a9b6c2") }), el("span", { text: AREA_NAMES[v] || v })]);
+      }));
+    legend.addEventListener("click", function () { toggleSheet("key"); });
+    root.appendChild(legend);
     function toggleSheet(name) {
       var was = openSheet;
       openSheet = openSheet === name ? "" : name;
@@ -551,6 +559,7 @@
     function pill(c, x, y, w, h) { var r = h / 2; c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
     var centreOf = function () { return state.selected >= 0 ? state.selected : state.hover; };
     function paintBase() {
+      var halo = colour("--dg-bg", "#eef1f4");
       var c = bctx, fg = colour("--dg-fg", "#16242e"), line = colour("--dg-line", "rgba(16,32,44,0.10)"), grain = colour("--dg-grain", "rgba(16,32,44,0.08)"), labelBg = colour("--dg-label-bg", "rgba(255,255,255,0.9)");
       var islandAlpha = Number(colour("--dg-island-alpha", "0.07")), accent = colour("--dg-accent", "#086578");
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -609,12 +618,16 @@
         for (var n = 0; n < count; n++) if (shownNode[n] && inView(n, 0) && (cam.s >= 1.3 ? !focus || near[n] : near[n] || matched[n])) order.push(n);
         order.sort(function (p, q) { return (q === centre) - (p === centre) || (near[q] - near[p]) || (matched[q] - matched[p]) || (N.degree[q] - N.degree[p]); });
         var drawn = 0;
-        for (var o = 0; o < order.length && drawn < 220; o++) {
+        for (var o = 0; o < order.length && drawn < 160; o++) {
           var m = order[o], pt = toScreen(N.x[m], N.y[m]), text = shortName[m].length > 34 ? shortName[m].slice(0, 32) + "…" : shortName[m], tw = c.measureText(text).width;
           var y = pt[1] + dot(m) + 11;
-          if (!free(pt[0] - tw / 2 - 6, y - 9, tw + 12, 18)) continue;
+          if (!free(pt[0] - tw / 2 - 9, y - 11, tw + 18, 22)) continue;
           c.globalAlpha = dim(m) ? 0.35 : 1;
           if (focus && near[m]) { c.fillStyle = labelBg; pill(c, pt[0] - tw / 2 - 6, y - 9, tw + 12, 18); c.fill(); }
+          else {
+            // A halo of the page's own colour, so a name stays legible over the dots and links beneath it.
+            c.lineWidth = 3.5; c.lineJoin = "round"; c.strokeStyle = halo; c.strokeText(text, pt[0], y + 0.5);
+          }
           c.fillStyle = m === centre ? accent : fg;
           c.fillText(text, pt[0], y + 0.5); drawn++;
         }

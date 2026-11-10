@@ -277,3 +277,13 @@ body:has(.dg) .md-content__inner::before { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .dg *, .dg *::before, .dg *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---- The colour key at the foot of the map ---------------------------------------------------------------------- */
+/* The six largest parts of DSTNS by colour, at the bottom left, clear of the dock; the full key opens from it. */
+.dg-legend { position: absolute; left: 14px; bottom: 14px; z-index: 4; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; max-width: calc(100% - 320px); padding: 9px 16px; border-radius: 999px; background: var(--dg-panel); border: 1px solid var(--dg-edge); color: var(--dg-dim); font: 500 12px/1.2 Inter, system-ui, sans-serif; cursor: pointer; }
+.dg-legend:hover { color: var(--dg-fg); }
+.dg-legend-item { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.dg-legend[hidden] { display: none; }
+/* The hint sits at the bottom right, clear of the key, and gives way on a narrow page. */
+.dg-hint { left: auto; right: 14px; transform: none; }
+@media (max-width: 1100px) { .dg-hint { display: none; } }
