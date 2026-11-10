@@ -66,7 +66,7 @@ These change things, with the same checks as everywhere else:
 | `env set NAME=VALUE…`, `env unset NAME…` | Keep a variable in `config/launcher.env` for every later start, or forget it. Names are capital letters, digits and `_` |
 | `edit settings\|ui\|env\|apps\|FILE` | Open it in `$VISUAL`, `$EDITOR`, nano or vi. A copy is edited, and saved only if it still reads: JSON that parses, settings that pass their checks, `NAME=VALUE` lines, a catalogue that loads. Otherwise nothing changes and the draft's path is printed |
 | `api [METHOD] PATH [BODY\|@FILE]` | Any route on the running server, as the operator, its reply as indented JSON; a status other than 2xx is printed first |
-| `security on`, `security off`, `security verify` | Turn Advanced Security on or off (each asks the system first), or ask now, to try it |
+| `security on`, `security off`, `security verify`, `security accept` | Turn Advanced Security on or off (each asks the system first), ask now to try it, or accept files changed outside the launcher (asks, then records it in `logs/security-audit.log`) |
 | `model use auto\|apple\|ollama\|groq\|off [NAME]`, `model key KEY` | Choose the model, and keep a Groq key in `config/launcher.env` |
 | `daemon on NAME`, `daemon off NAME` | Turn one daemon on or off until the server stops |
 | `graph update` | Build the knowledge graph again from the checkout (needs graphify) |

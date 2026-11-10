@@ -82,6 +82,7 @@ pub fn save(config: &Value, paths: &Paths) -> Result<()> {
     let temporary = paths.config().with_extension("json.tmp");
     fs::write(&temporary, text)?;
     fs::rename(&temporary, paths.config())?;
+    crate::security::seal(paths);
     Ok(())
 }
 

@@ -79,6 +79,9 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
 - **Smoother edges.** Panels divide without an outline, a panel begins to bud as the pointer reaches its icon, lists
   have no scrollbars and no blur under their edge, a deck tab's content comes in with its pill, and the bottom bar
   keeps its session controls together at its end.
+- **Tampering noticed before a start.** With Advanced Security on, the launcher keeps digests of the settings and the
+  server program, refuses to start a server when any changed outside it, and `security accept` is the override: it
+  asks, then records who accepted what in `logs/security-audit.log`.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:

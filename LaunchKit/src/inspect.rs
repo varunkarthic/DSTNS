@@ -442,10 +442,18 @@ fn security_command(rest: &[String], paths: &Paths) -> Result<Vec<String>, Strin
             format!("Advanced Security  {}", if crate::security::enabled(paths) { "on" } else { "off" }),
             format!("Asks with          {}", crate::security::method()),
             format!("This session       {}", if crate::security::verified() { "verified" } else { "not verified" }),
+            format!("Sealed files       {}", match crate::security::enabled(paths) {
+                false => "not checked".to_string(),
+                true => {
+                    let changed = crate::security::tampered(paths);
+                    if changed.is_empty() { "as the launcher left them".to_string() } else { format!("changed outside the launcher: {}", changed.join(", ")) }
+                }
+            }),
         ]),
+        Some("accept") => crate::security::accept(paths),
         Some("on") | Some("off") => set_command("set", &[crate::security::KEY.into(), rest[0].clone()], paths),
         Some("verify") => crate::security::authenticate(paths, "verify Advanced Security").map(|_| vec!["Verified.".into()]),
-        Some(other) => Err(format!("security: {other}? security, security on, security off or security verify")),
+        Some(other) => Err(format!("security: {other}? security, security on, security off, security verify or security accept")),
     }
 }
 

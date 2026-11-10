@@ -180,6 +180,10 @@ pub fn ensure_built(reporter: &dyn Reporter, paths: &Paths, force_ui: bool, canc
     let core: Vec<&Step> = built.steps.iter().filter(|s| !s.observer).collect();
     let observer: Vec<&Step> = built.steps.iter().filter(|s| s.observer).collect();
     execute(&core, reporter, paths, cancel)?;
+    // The launcher built this server itself, so it is what is sealed.
+    if !core.is_empty() {
+        crate::security::seal(paths);
+    }
     if !observer.is_empty() {
         if let Err(error) = execute(&observer, reporter, paths, cancel) {
             if error.is_cancelled() {

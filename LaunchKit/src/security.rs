@@ -83,6 +83,85 @@ fn mark_verified() {
     std::env::set_var(VERIFIED_BY, std::process::id().to_string());
 }
 
+// ---- The seal ---------------------------------------------------------------------------------------------------
+//
+// With Advanced Security on, the launcher keeps a digest of the files that decide what a run does. It writes them when
+// it changes those files itself (saving settings, building the server). Before it starts a server it checks them, and
+// a file changed by anything else stops the start until the person here accepts it with `security accept`, which asks
+// as every change does and is written to an audit log with what changed. Off, none of this happens.
+
+/// What decides a run: its settings, the observer's settings, and the server program itself.
+const SEALED: &[&str] = &["config/defaults.json", "config/ui-config.json", "build/dstns_server"];
+
+fn seal_file(paths: &Paths) -> PathBuf {
+    paths.root.join("config").join(".launcher-seal")
+}
+
+fn audit_file(paths: &Paths) -> PathBuf {
+    paths.logs().join("security-audit.log")
+}
+
+/// Each sealed file and its SHA-256, or "absent".
+pub fn fingerprint(paths: &Paths) -> Vec<(String, String)> {
+    use sha2::{Digest, Sha256};
+    SEALED
+        .iter()
+        .map(|name| {
+            let digest = std::fs::read(paths.root.join(name)).map(|bytes| format!("{:x}", Sha256::digest(&bytes))).unwrap_or_else(|_| "absent".into());
+            (name.to_string(), digest)
+        })
+        .collect()
+}
+
+fn recorded(paths: &Paths) -> Option<Vec<(String, String)>> {
+    let text = std::fs::read_to_string(seal_file(paths)).ok()?;
+    Some(text.lines().filter_map(|line| line.split_once(' ').map(|(d, n)| (n.to_string(), d.to_string()))).collect())
+}
+
+fn audit(paths: &Paths, what: &str) {
+    use std::io::Write;
+    let _ = std::fs::create_dir_all(paths.logs());
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(audit_file(paths)) {
+        let _ = writeln!(file, "{} {what}", chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z"));
+    }
+}
+
+/// Record the files as they are now. The launcher calls this after it changes them itself.
+pub fn seal(paths: &Paths) {
+    if !enabled(paths) {
+        return;
+    }
+    let text: String = fingerprint(paths).iter().map(|(name, digest)| format!("{digest} {name}\n")).collect();
+    let _ = std::fs::write(seal_file(paths), text);
+}
+
+/// The sealed files changed by something other than the launcher, by name. Empty when nothing has, or when
+/// Advanced Security is off. With no seal yet, the files as they are become it.
+pub fn tampered(paths: &Paths) -> Vec<String> {
+    if !enabled(paths) {
+        return Vec::new();
+    }
+    let Some(was) = recorded(paths) else {
+        seal(paths);
+        audit(paths, "sealed for the first time");
+        return Vec::new();
+    };
+    let now = fingerprint(paths);
+    now.iter().filter(|(name, digest)| was.iter().find(|(n, _)| n == name).map(|(_, d)| d != digest).unwrap_or(true)).map(|(name, _)| name.clone()).collect()
+}
+
+/// The person here accepts what changed: asked as any change is, then written down, then sealed again.
+pub fn accept(paths: &Paths) -> Result<Vec<String>, String> {
+    let changed = tampered(paths);
+    if changed.is_empty() {
+        return Ok(vec!["Nothing has changed outside the launcher.".into()]);
+    }
+    authenticate(paths, "accept changes made outside the DSTNS launcher")?;
+    audit(paths, &format!("accepted by the person at this machine ({}): {}", method(), changed.join(", ")));
+    seal(paths);
+    Ok(vec![format!("Accepted: {}. Recorded in {}.", changed.join(", "), audit_file(paths).display())])
+}
+
 /// With Advanced Security on, verify once for this process, unless it already is. Off, it does nothing.
 pub fn require(paths: &Paths, reason: &str) -> Result<(), String> {
     if !enabled(paths) || verified() {
@@ -248,5 +327,33 @@ mod tests {
     #[test]
     fn windows_hello_keeps_the_reason_out_of_the_script() {
         assert!(!windows_hello("x'; Remove-Item C:\\ -Recurse; '").contains("x';"));
+    }
+}
+
+#[cfg(test)]
+mod seal_tests {
+    use super::*;
+
+    #[test]
+    fn a_change_outside_the_launcher_is_found_and_one_inside_is_not() {
+        let dir = std::env::temp_dir().join(format!("dstns-seal-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("config")).unwrap();
+        std::fs::create_dir_all(dir.join("build")).unwrap();
+        // The repository's own settings, with Advanced Security on.
+        let mut config: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/defaults.json")).unwrap()).unwrap();
+        config["security"]["advanced"] = serde_json::Value::Bool(true);
+        std::fs::write(dir.join("config/defaults.json"), config.to_string()).unwrap();
+        std::fs::write(dir.join("build/dstns_server"), b"one").unwrap();
+        let paths = Paths::new(&dir);
+        assert!(tampered(&paths).is_empty(), "the first look seals what is there");
+        std::fs::write(dir.join("build/dstns_server"), b"two").unwrap();
+        assert_eq!(tampered(&paths), vec!["build/dstns_server".to_string()]);
+        seal(&paths);
+        assert!(tampered(&paths).is_empty(), "the launcher's own change is sealed");
+        config["security"]["advanced"] = serde_json::Value::Bool(false);
+        std::fs::write(dir.join("config/defaults.json"), config.to_string()).unwrap();
+        assert!(tampered(&paths).is_empty(), "with Advanced Security off nothing is checked");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

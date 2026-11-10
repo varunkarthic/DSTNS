@@ -775,8 +775,16 @@ the system's own prompt, before the launcher can be changed:
 ./launcher security on          # asks, then turns it on
 ./launcher security             # on or off, how this machine asks, and whether this session is verified
 ./launcher security verify      # ask now, to try it
+./launcher security accept      # accept files changed outside the launcher: asks, then records it
 ./launcher security off         # asks again
 ```
+
+**Changes made outside the launcher.** While it is on, the launcher keeps a SHA-256 of the files that decide what a
+run does: `config/defaults.json`, `config/ui-config.json` and the server program, `build/dstns_server`. It records them
+when it changes them itself, by saving a setting or building the server. Before it starts a server it checks them
+again, and if any changed some other way it does not start, and names the files. If you made the change, `./launcher
+security accept` asks as any change does, writes who accepted what and when to `logs/security-audit.log`, and records
+the files as they are now. `./launcher security` says whether they are as the launcher left them.
 
 | On | It asks with |
 |---|---|
@@ -786,7 +794,8 @@ the system's own prompt, before the launcher can be changed:
 
 It guards the launcher's own ways in: its interface, its commands and the MCP Handler. It is
 not a sandbox. A program running as the same user can still edit `config/defaults.json`
-itself, so keep such programs away from the checkout if that matters. A command the
+itself; the launcher then notices before the next start, but can't prevent it, so keep such programs away from the
+checkout if that matters. A command the
 interface runs for you is verified because the interface started it; a shell that only
 claims to have verified is not.
 

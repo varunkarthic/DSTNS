@@ -169,6 +169,11 @@ pub fn start_with(reporter: &dyn Reporter, paths: &Paths, build_first: bool, can
         port = replacement;
     }
 
+    // Advanced Security: what decides the run must be as the launcher left it.
+    let changed = crate::security::tampered(paths);
+    if !changed.is_empty() {
+        return Err(LauncherError::start(format!("Changed outside the launcher: {}", changed.join(", "))).remedy("If you made these changes, accept them with ./launcher security accept, which asks first and records it."));
+    }
     let choice = narration::resolve(None, paths);
     narration::announce(&choice, reporter);
     check()?;

@@ -83,3 +83,4 @@ config/launcher.env
 # Local AI development context, and the local-only document generator
 context/
 dstns_local_services.py
+config/.launcher-seal
