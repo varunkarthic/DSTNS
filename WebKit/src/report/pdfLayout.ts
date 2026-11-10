@@ -113,11 +113,14 @@ export class ReportDocument {
   readonly top = 26;
   readonly bottom = 297 - 20;
   readonly boxes: LayoutBox[] = [];
-  readonly outline: { title: string; page: number; number: string }[] = [];
+  readonly outline: { title: string; page: number; number: string; part?: boolean }[] = [];
   page = 0;
   y = 26;
   private section = 0;
   private sub = 0;
+  private parts = 0;
+  /** Just under a part's opening band, which already separates what follows. */
+  private opened = false;
   /** Headings waiting to see whether what they introduce fits under them. */
   private held: { height: number; draw: () => void }[] = [];
 
@@ -236,14 +239,16 @@ export class ReportDocument {
     this.held.push({
       height: 14 + 20 + introLines * lineHeight(9.5) + 4.5,
       draw: () => {
-        if (this.y > this.top + 0.5) {
+        if (this.y > this.top + 0.5 && !this.opened) {
           this.y += 6;
           this.rule(this.y, this.M, this.W - this.M, PRINT.rule, 0.3);
           this.y += 8;
         }
+        const under = this.opened;
+        this.opened = false;
         this.outline.push({ title, page: this.page, number });
-        // A still drawing of what the section is about, at the right of its title.
-        if (illustration) drawIllustration(this.pdf, illustration, this.W - this.M - 38, this.y - 4.5, 38, 22);
+        // A still drawing of what the section is about, at the right of its title, unless its part's band has one.
+        if (illustration && !under) drawIllustration(this.pdf, illustration, this.W - this.M - 38, this.y - 4.5, 38, 22);
         this.line(`SECTION ${number}`, this.M, this.y, 7.5, PRINT.accent);
         this.y += 5;
         this.line(title, this.M, this.y, 18, PRINT.ink);
@@ -254,6 +259,131 @@ export class ReportDocument {
         this.y += 2;
       },
     });
+  }
+
+  /**
+   * A part of the report: it always begins a page, under a band that names it and says in a sentence or two what it
+   * covers, so that a reader leafing through finds each part where it starts.
+   */
+  part(title: string, summary: string, illustration?: Illustration) {
+    this.flush();
+    this.newPage();
+    this.parts += 1;
+    const numeral = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][this.parts] ?? String(this.parts);
+    this.outline.push({ title, page: this.page, number: numeral, part: true });
+    const textW = this.width - (illustration ? 58 : 14);
+    const lines = this.wrap(summary, textW, 10);
+    const h = Math.max(44, 25 + lines.length * lineHeight(10) + 7);
+    this.rect(this.M, this.y, this.width, h, PRINT.accentSoft, 3);
+    this.rect(this.M, this.y, 2.2, h, PRINT.accent, 0);
+    if (illustration) drawIllustration(this.pdf, illustration, this.W - this.M - 48, this.y + (h - 27) / 2, 42, 27);
+    this.line(`PART ${numeral}`, this.M + 8, this.y + 7, 7.5, PRINT.accent);
+    this.line(title, this.M + 8, this.y + 12, 21, PRINT.ink);
+    lines.forEach((l, i) => this.line(l, this.M + 8, this.y + 24 + i * lineHeight(10), 10, PRINT.dim));
+    this.y += h + 7;
+    this.opened = true;
+  }
+
+  /** The one sentence a reader should leave with, set large beside an accent bar. */
+  headline(text: string) {
+    const size = 13.5;
+    const lh = lineHeight(size) * 1.04;
+    const lines = this.wrap(text, this.width - 7, size);
+    this.start(lines.length * lh + 6);
+    this.rect(this.M, this.y + 0.6, 1.4, lines.length * lh - 1.2, PRINT.accent, 0.7);
+    lines.forEach((l, i) => this.line(l, this.M + 6, this.y + i * lh, size, PRINT.ink));
+    this.y += lines.length * lh + 6;
+  }
+
+  /**
+   * Numbered findings as cards, two to a row: a short title, what it rests on, and where it comes from. Each pair is
+   * as tall as the taller of the two, and a pair is never split across pages.
+   */
+  insights(items: { title: string; body: string; kind: Provenance }[]) {
+    const gap = 4;
+    const w = (this.width - gap) / 2;
+    const pad = 4.5;
+    const textW = w - pad * 2 - 9;
+    const measure = (item: (typeof items)[number]) =>
+      pad + this.wrap(item.title, textW, 10).length * lineHeight(10) + 1.2 + this.wrap(item.body, textW, 8.6).length * lineHeight(8.6) + 3.5 + lineHeight(6.4) + pad;
+    for (let i = 0; i < items.length; i += 2) {
+      const pair = items.slice(i, i + 2);
+      const h = Math.max(...pair.map(measure));
+      if (i === 0) this.start(h + gap);
+      this.ensure(h + gap);
+      pair.forEach((item, j) => {
+        const x = this.M + j * (w + gap);
+        const color = item.kind === "Observed" ? PRINT.accent : item.kind === "Derived" ? PRINT.violet : PRINT.amber;
+        this.rect(x, this.y, w, h, PRINT.panel, 2.4);
+        this.rect(x + pad, this.y + pad, 6, 6, color, 3);
+        this.line(String(i + j + 1), x + pad + 3, this.y + pad + 1.15, 8, "#ffffff", "center");
+        let y = this.y + pad;
+        for (const l of this.wrap(item.title, textW, 10)) {
+          this.line(l, x + pad + 9, y, 10, PRINT.ink);
+          y += lineHeight(10);
+        }
+        y += 1.2;
+        for (const l of this.wrap(item.body, textW, 8.6)) {
+          this.line(l, x + pad + 9, y, 8.6, PRINT.dim);
+          y += lineHeight(8.6);
+        }
+        this.line(item.kind.toUpperCase(), x + pad + 9, this.y + h - pad - lineHeight(6.4), 6.4, color);
+      });
+      this.y += h + gap;
+    }
+    this.y += 2;
+  }
+
+  /** Shares of a whole as a ring, with each part named, sized and given its share beside it. */
+  donut(title: string, rows: { label: string; value: number; color?: string }[], unit = "", question?: string) {
+    const parts = rows.filter((r) => r.value > 0);
+    const titleH = lineHeight(10) + (question ? lineHeight(8) : 0) + 3;
+    const legendH = parts.length * 6.4;
+    const h = titleH + Math.max(52, legendH) + 4;
+    this.start(h);
+    this.ensure(h);
+    this.line(title, this.M, this.y, 10, PRINT.ink);
+    this.y += lineHeight(10);
+    if (question) {
+      this.line(this.fit(question, this.width, 8), this.M, this.y, 8, PRINT.dim);
+      this.y += lineHeight(8);
+    }
+    this.y += 3;
+    const total = parts.reduce((sum, r) => sum + r.value, 0);
+    if (!total) {
+      this.line("No records.", this.M, this.y, 8.2, PRINT.dim);
+      this.y += lineHeight(8.2) + 3;
+      return;
+    }
+    const R = 24;
+    const r = 15;
+    const cx = this.M + R + 2;
+    const cy = this.y + 26;
+    let from = -Math.PI / 2;
+    parts.forEach((part, i) => {
+      const to = from + (part.value / total) * Math.PI * 2;
+      const steps = Math.max(2, Math.ceil(((to - from) / (Math.PI * 2)) * 96));
+      const points: [number, number][] = [];
+      for (let k = 0; k <= steps; k++) points.push([cx + R * Math.cos(from + ((to - from) * k) / steps), cy + R * Math.sin(from + ((to - from) * k) / steps)]);
+      for (let k = steps; k >= 0; k--) points.push([cx + r * Math.cos(from + ((to - from) * k) / steps), cy + r * Math.sin(from + ((to - from) * k) / steps)]);
+      const deltas = points.slice(1).map(([x, y], k) => [x - points[k][0], y - points[k][1]]);
+      this.pdf.setFillColor(part.color ?? SERIES[i % SERIES.length]);
+      this.pdf.lines(deltas, points[0][0], points[0][1], [1, 1], "F", true);
+      from = to;
+    });
+    this.boxes.push({ page: this.page, x: cx - R, y: cy - R, w: R * 2, h: R * 2, kind: "graphic" });
+    const totalText = `${Math.round(total).toLocaleString()}${unit}`;
+    this.line(totalText, cx, cy - 3.6, this.textWidth(totalText, 11) > r * 1.8 ? 8.5 : 11, PRINT.ink, "center");
+    this.line("TOTAL", cx, cy + 1.6, 5.8, PRINT.faint, "center");
+    const lx = this.M + R * 2 + 14;
+    parts.forEach((part, i) => {
+      const y = this.y + 4 + i * 6.4;
+      this.rect(lx, y + 0.6, 3, 3, part.color ?? SERIES[i % SERIES.length], 0.8);
+      this.line(this.fit(part.label, 70, 8.6), lx + 5.5, y, 8.6, PRINT.ink);
+      this.line(`${Math.round(part.value).toLocaleString()}${unit}`, this.W - this.M - 18, y, 8.6, PRINT.dim, "right");
+      this.line(`${((part.value / total) * 100).toFixed(0)}%`, this.W - this.M, y, 8.6, PRINT.ink, "right");
+    });
+    this.y += Math.max(52, legendH) + 4;
   }
 
   /** Subsection heading, which waits to go on the same page as what it introduces. */

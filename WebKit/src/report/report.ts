@@ -119,7 +119,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   const incidents = incidentRecords(news);
   const floods = news.filter((n) => n.template_id === "FLOOD_STARTED");
   const floodRoads = new Set(floods.map((n) => (n.data as Record<string, unknown>)?.edge_id)).size;
-  const events = timeline(news, 60, topology);
+  const events = timeline(news, 900, topology);
   const history = congestion.history ?? [];
   const samples = telemetry.samples;
   const simSamples = latestByVirtual(samples);
@@ -232,33 +232,81 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   const contentsTop = doc.y + 7;
 
   // =========================================================================
-  // 1 Executive summary
+  // I At a glance
   // =========================================================================
   onProgress?.("Summarising the run", 0.1);
-  doc.sectionHeading("Executive Summary", "The run at a glance. Figures cover the whole run where the core keeps a complete record, and the observed session where only the interface measured them.", true, "summary");
+  doc.part("At a glance", "What this simulated day came to, in one sentence, in figures and in a few findings, before the detail of each part that follows.", "summary");
+  doc.sectionHeading("Executive Summary", "Figures cover the whole run where the core keeps a complete record, and the observed session where only the interface measured them.");
+  const closures = incidents.filter((i) => i.closed).length;
+  const started = incidents.filter((i) => i.start !== null);
+  const rainsStarted = rains.filter((r) => r.start !== null).length;
+  const clauses = [
+    peakCongestion ? `congestion peaked at ${peakCongestion.current.toFixed(0)}% at ${tShort(peakCongestion.virtual_s)}` : "",
+    started.length ? `${started.length} incident${started.length === 1 ? "" : "s"} ${closures ? `closed ${closures} road${closures === 1 ? "" : "s"}` : "slowed traffic without closing a road"}` : "no incidents occurred",
+    rainsStarted ? `${rainsStarted} rain cell${rainsStarted === 1 ? "" : "s"} passed over${floods.length ? `, flooding ${floodRoads.toLocaleString()} road${floodRoads === 1 ? "" : "s"}` : ""}` : "the weather stayed dry",
+  ].filter(Boolean);
+  const spoken = clauses.length > 1 ? `${clauses.slice(0, -1).join(", ")} and ${clauses[clauses.length - 1]}` : clauses[0];
+  doc.headline(`${lifecycle === "COMPLETED" ? "A full simulated day" : "A simulated day"} in ${location ? location.city : "this network"}, across ${Math.round(net.km).toLocaleString()} km of road: ${spoken}.`);
   doc.tiles([
-    { label: "Simulation time", value: t(virtual), note: `${pct(virtual / DAY_SECONDS, 1)} of the virtual day` },
-    { label: "Observed for", value: observedMs ? formatWallDuration(observedMs) : "Not recorded", note: "Wall-clock time" },
-    { label: "Incidents", value: String(incidents.filter((i) => i.start !== null).length), note: `${incidents.filter((i) => i.closed).length} closed a road`, color: PRINT.red },
-    { label: "Rain events", value: String(rains.filter((r) => r.start !== null).length), note: forecast !== undefined ? `${forecast} forecast` : undefined, color: PRINT.blue },
-    { label: "Flood onsets", value: String(floods.length), note: `${floodRoads} distinct roads`, color: PRINT.blue },
-    { label: "Peak congestion", value: peakCongestion ? `${peakCongestion.current.toFixed(1)}%` : "Not recorded", note: peakCongestion ? `at ${tShort(peakCongestion.virtual_s)}` : undefined, color: PRINT.amber },
+    { label: "Road network", value: `${Math.round(net.km).toLocaleString()} km`, note: `${net.nodes.toLocaleString()} junctions` },
     { label: "Peak vehicles", value: peakVehicles ? peakVehicles.vehicles.toLocaleString() : "Not recorded", note: peakVehicles ? `at ${tShort(peakVehicles.virtual_s)}` : "Observed samples" },
-    { label: "State", value: title(lifecycle.toLowerCase()), note: lifecycle === "COMPLETED" ? "Virtual day finished" : "At report time" },
+    { label: "Peak congestion", value: peakCongestion ? `${peakCongestion.current.toFixed(1)}%` : "Not recorded", note: peakCongestion ? `at ${tShort(peakCongestion.virtual_s)}` : undefined, color: PRINT.amber },
+    { label: "Mean speed", value: speedStats ? `${speedStats.mean.toFixed(0)} km/h` : "Not recorded", note: speedStats ? `${speedStats.min.toFixed(0)} to ${speedStats.max.toFixed(0)} km/h` : undefined },
+    { label: "Incidents", value: String(started.length), note: `${closures} closed a road`, color: PRINT.red },
+    { label: "Rain events", value: String(rainsStarted), note: forecast !== undefined ? `${forecast} forecast` : undefined, color: PRINT.blue },
+    { label: "Flood onsets", value: floods.length.toLocaleString(), note: `${floodRoads.toLocaleString()} distinct roads`, color: PRINT.blue },
+    { label: "Observed for", value: observedMs ? formatWallDuration(observedMs) : "Not recorded", note: "Wall-clock time" },
   ]);
-  doc.heading("Key observations");
-  doc.bullets([
-    `The seed selected ${location ? `${location.city}, ${location.country}, at ${location.anchor_lat.toFixed(4)}, ${location.anchor_lon.toFixed(4)}` : "an operator-pinned map file"}. The network has ${net.nodes.toLocaleString()} junctions and ${net.directions.toLocaleString()} road directions totalling ${net.km.toFixed(1)} km.`,
-    `The run reached ${t(virtual)} and is ${lifecycle === "COMPLETED" ? "complete" : `in the ${lifecycle.toLowerCase()} state`}.`,
-    `${incidents.length} incident${incidents.length === 1 ? " was" : "s were"} recorded, ${rains.length} rain event${rains.length === 1 ? "" : "s"} and ${floods.length} flood onset${floods.length === 1 ? "" : "s"} across ${floodRoads} road${floodRoads === 1 ? "" : "s"}.`,
-    peakCongestion
-      ? `The congestion index peaked at ${peakCongestion.current.toFixed(1)}% at ${t(peakCongestion.virtual_s)} and is ${snapshot.data.congestion.current.toFixed(1)}% now.`
-      : `The congestion index is ${snapshot.data.congestion.current.toFixed(1)}% now; no history was available.`,
-    asb
-      ? `Adaptive Simulation Backpressure is ${asb.state.toLowerCase()}, with ${asb.actions.length} recent intervention${asb.actions.length === 1 ? "" : "s"} recorded by the core.`
-      : "Backpressure reporting was not active for this session.",
-  ]);
+  chartOrNote(
+    history.length,
+    () =>
+      doc.lineChart({
+        title: "The day's congestion",
+        question: "When the network was busiest, from the core's record of the whole run.",
+        xLabel: "Simulation time",
+        yLabel: "Congestion index (%)",
+        xDomain: virtualDomain,
+        xTicks: DAY_TICKS,
+        yDomain: [0, Math.max(10, ...history.map((h) => h.current))],
+        xTick: vTick,
+        series: [{ name: "Congestion index", points: history.map((h) => ({ x: h.virtual_s, y: h.current })) }],
+      }),
+    "the congestion index",
+  );
+  // Findings: each says what was found and what it rests on, and is labelled by where it comes from.
+  const findings: { title: string; body: string; kind: "Observed" | "Derived" | "Interpretation" }[] = [];
+  const busy = history.length ? congestionPeriods(history, 35) : [];
+  const congested = stats(history.map((h) => h.current));
+  if (busy.length) {
+    const longest = busy.reduce((a, b) => (b.to - b.from > a.to - a.from ? b : a));
+    findings.push({ kind: "Derived", title: `Busiest from ${tShort(longest.from)} to ${tShort(longest.to)}`, body: `The congestion index stayed at or above 35% for ${formatDuration(longest.to - longest.from + 60)}, peaking at ${longest.peak.toFixed(1)}% at ${tShort(longest.peakAt)}. It was this busy ${busy.length === 1 ? "once" : `${busy.length} times`} in the day.` });
+  } else if (congested) {
+    findings.push({ kind: "Derived", title: "The network never reached moderate congestion", body: `Across ${congested.count} per-minute samples the index averaged ${congested.mean.toFixed(1)}% and its 95th percentile was ${congested.p95.toFixed(1)}%, below the 35% the map calls moderate.` });
+  }
+  if (peakVehicles && vehicleStats)
+    findings.push({ kind: "Observed", title: `${peakVehicles.vehicles.toLocaleString()} vehicles at the peak`, body: `Demand built to its peak at ${tShort(peakVehicles.virtual_s)}, against a mean of ${Math.round(vehicleStats.mean).toLocaleString()} and a low of ${vehicleStats.min.toLocaleString()} over the observed samples.` });
+  if (speedStats)
+    findings.push({ kind: "Observed", title: `Traffic moved at ${speedStats.mean.toFixed(0)} km/h on average`, body: `Vehicle-weighted mean speed ranged from ${speedStats.min.toFixed(1)} to ${speedStats.max.toFixed(1)} km/h. Where it fell, congestion, rain or an incident was holding traffic back.` });
+  if (started.length) {
+    const lasted = started.filter((i) => i.end !== null).map((i) => (i.end as number) - (i.start as number));
+    findings.push({ kind: "Observed", title: `${started.length} incident${started.length === 1 ? "" : "s"}, ${closures ? `${closures} closing a road` : "none closing a road"}`, body: lasted.length ? `Those that cleared lasted ${formatDuration(Math.round(lasted.reduce((a, b) => a + b, 0) / lasted.length))} on average. Each is listed with where and how long under Incident Analysis.` : "None had cleared by the end of the record. Each is listed under Incident Analysis." });
+  }
+  if (rainsStarted || floods.length) {
+    const r = pearson(simSamples.map((x) => x.rain_area_km2), simSamples.map((x) => x.flooded_edges));
+    findings.push({ kind: r !== null ? "Derived" : "Observed", title: floods.length ? `Rain flooded ${floodRoads.toLocaleString()} road${floodRoads === 1 ? "" : "s"}` : `${rainsStarted} rain cell${rainsStarted === 1 ? "" : "s"}, no flooding`, body: r !== null ? `Flooded roads followed the area under rain with a correlation of ${r.toFixed(2)}: flooding builds from rainfall and drains after it, so it can outlast the rain.` : "Rain cells passed without enough samples to relate them to flooding." });
+  }
+  if (asb)
+    findings.push({ kind: "Observed", title: asb.actions.length ? `The display was eased ${asb.actions.length} time${asb.actions.length === 1 ? "" : "s"}` : "The display kept pace throughout", body: asb.actions.length ? "Adaptive Simulation Backpressure lowered the playback rate when the interface fell behind, and raised it again once it caught up. The simulation itself is never slowed." : `Adaptive Simulation Backpressure stayed ${asb.state.toLowerCase()} with no intervention recorded.` });
+  if (findings.length) {
+    doc.heading("Findings");
+    doc.insights(findings.slice(0, 6));
+  }
+  if (resources.map) {
+    doc.heading("The network");
+    doc.image(resources.map.dataUrl, resources.map.aspect, 112, "The whole network when the report was made: road state, closures, rain and places. Part VI has it at full size.");
+  }
 
+  doc.part("The city", "Where the day was simulated: the scenario the seed chose, the road network the model runs on, and the signals that control its junctions.", "network");
   // =========================================================================
   // 2 Configuration
   // =========================================================================
@@ -302,28 +350,6 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   ]);
 
   // =========================================================================
-  // 3 Environment
-  // =========================================================================
-  onProgress?.("Noting the environment", 0.2);
-  doc.sectionHeading("Environment and Runtime", "Software versions and the environment the report was produced in. Filesystem paths are deliberately omitted.", false, "environment");
-  doc.keyValues([
-    ["DSTNS core", resources.coreVersion ?? "Not reported"],
-    ["Interface", input.uiVersion],
-    ["API version", status.api_version],
-    ["Build identifier", "Not embedded in this build"],
-    ["Traffic model", "DSTNS aggregate traffic model"],
-    ...((resources.platform ?? []).map((p) => {
-      const [k, ...v] = p.split(": ");
-      return [k, v.join(": ")] as [string, string];
-    })),
-    ["Observation started", samples.length ? new Date(wallStart).toLocaleString() : "Not recorded"],
-    ["Last sample", samples.length ? new Date(wallEnd).toLocaleString() : "Not recorded"],
-    ["Report generated", now.toLocaleString()],
-    ["State revision", String(snapshot.state_revision)],
-    ["Configuration revision", String(snapshot.config_revision)],
-  ]);
-
-  // =========================================================================
   // 4 Road network
   // =========================================================================
   onProgress?.("Measuring the road network", 0.28);
@@ -348,6 +374,14 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     "How connected is the network? Higher degrees indicate a denser grid of intersections.",
   );
   doc.heading("Road classes");
+  // The six longest classes as shares of the network, the rest together, then every class in detail.
+  const longest = [...net.classes].sort((a, b) => b.km - a.km);
+  doc.donut(
+    "Length of road by class",
+    [...longest.slice(0, 6).map((c) => ({ label: title(c.name), value: c.km })), ...(longest.length > 6 ? [{ label: "Other classes", value: longest.slice(6).reduce((sum, c) => sum + c.km, 0), color: PRINT.faint }] : [])],
+    " km",
+    "Which kinds of road make up the network the traffic runs on.",
+  );
   doc.table(
     [
       { title: "Class", width: 0.28 },
@@ -361,7 +395,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   );
   const byState = { clear: 0, moderate: 0, severe: 0, blocked: 0, flooded: 0 };
   for (const e of realEdges) byState[roadState(stateById.get(e.id)) as keyof typeof byState] += 1;
-  doc.heading("Road state at report time");
+  doc.heading("Road state when exported");
   doc.barChart(
     "Road directions by state",
     [
@@ -397,6 +431,38 @@ export async function buildReport(input: ReportInput, resources: ReportResources
       "Which places does the core schedule demand for?",
     );
 
+  // =========================================================================
+  // Signals
+  // =========================================================================
+  const signals = snapshot.data.signals;
+  onProgress?.("Listing the signals", 0.52);
+  doc.sectionHeading("Signal Control", "Signalled junctions run their own fixed schedules, derived from the seed. These are the controllers as they stood at report time.", false, "signals");
+  const cycles = signals.map((c) => c.cycle_length).filter((c) => c > 0);
+  doc.tiles([
+    { label: "Controllers", value: signals.length.toLocaleString(), note: `${signals.filter((c) => c.enabled).length} enabled` },
+    { label: "Shortest cycle", value: cycles.length ? `${Math.min(...cycles.slice(0, 5000)).toFixed(0)} s` : "Not recorded" },
+    { label: "Longest cycle", value: cycles.length ? `${Math.max(...cycles.slice(0, 5000)).toFixed(0)} s` : "Not recorded" },
+    { label: "Mean cycle", value: cycles.length ? `${(cycles.reduce((sum, c) => sum + c, 0) / cycles.length).toFixed(0)} s` : "Not recorded" },
+  ]);
+  doc.table(
+    [
+      { title: "Junction", width: 0.36 },
+      { title: "Phase", width: 0.2 },
+      { title: "In phase", width: 0.12, align: "right" },
+      { title: "Next change", width: 0.18, mono: true },
+      { title: "Cycle", width: 0.14, align: "right" },
+    ],
+    signals.slice(0, 24).map((c) => [
+      roadNearNode(topology, c.junction_id) ?? `Junction ${c.junction_id}`,
+      c.phase_name ? title(c.phase_name.toLowerCase().replace(/_/g, " ")) : `Phase ${c.phase}`,
+      c.time_in_phase !== null ? `${c.time_in_phase.toFixed(0)} s` : "",
+      c.next_transition_at !== null ? t(c.next_transition_at) : "",
+      `${c.cycle_length.toFixed(0)} s`,
+    ]),
+    { caption: signals.length > 24 ? `The first 24 of ${signals.length} controllers.` : undefined, empty: "This network has no signal controllers." },
+  );
+
+  doc.part("Traffic", "How demand built and fell through the day, where the network was most congested, and which roads and places drew the most traffic.", "traffic");
   // =========================================================================
   // 5 Traffic
   // =========================================================================
@@ -479,7 +545,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     .filter((r) => r.s && !r.s.closed && !r.s.incident_closed && r.s.vehicle_count > 0)
     .sort((a, b) => b.s!.congestion - a.s!.congestion || b.s!.vehicle_count - a.s!.vehicle_count)
     .slice(0, 15);
-  doc.heading("Most congested roads at report time");
+  doc.heading("Most congested roads when exported");
   doc.table(
     [
       { title: "Road", width: 0.34 },
@@ -545,37 +611,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     { caption: `${snapshot.data.demand.filter((d) => d.active).length} of ${snapshot.data.demand.length} demand-modelled places are active, the highest listed here.`, empty: "No place was drawing extra traffic at this moment." },
   );
 
-  // =========================================================================
-  // Signals
-  // =========================================================================
-  const signals = snapshot.data.signals;
-  onProgress?.("Listing the signals", 0.52);
-  doc.sectionHeading("Signal Control", "Signalled junctions run their own fixed schedules, derived from the seed. These are the controllers as they stood at report time.", false, "signals");
-  const cycles = signals.map((c) => c.cycle_length).filter((c) => c > 0);
-  doc.tiles([
-    { label: "Controllers", value: signals.length.toLocaleString(), note: `${signals.filter((c) => c.enabled).length} enabled` },
-    { label: "Shortest cycle", value: cycles.length ? `${Math.min(...cycles.slice(0, 5000)).toFixed(0)} s` : "Not recorded" },
-    { label: "Longest cycle", value: cycles.length ? `${Math.max(...cycles.slice(0, 5000)).toFixed(0)} s` : "Not recorded" },
-    { label: "Mean cycle", value: cycles.length ? `${(cycles.reduce((sum, c) => sum + c, 0) / cycles.length).toFixed(0)} s` : "Not recorded" },
-  ]);
-  doc.table(
-    [
-      { title: "Junction", width: 0.36 },
-      { title: "Phase", width: 0.2 },
-      { title: "In phase", width: 0.12, align: "right" },
-      { title: "Next change", width: 0.18, mono: true },
-      { title: "Cycle", width: 0.14, align: "right" },
-    ],
-    signals.slice(0, 24).map((c) => [
-      roadNearNode(topology, c.junction_id) ?? `Junction ${c.junction_id}`,
-      c.phase_name ? title(c.phase_name.toLowerCase().replace(/_/g, " ")) : `Phase ${c.phase}`,
-      c.time_in_phase !== null ? `${c.time_in_phase.toFixed(0)} s` : "",
-      c.next_transition_at !== null ? t(c.next_transition_at) : "",
-      `${c.cycle_length.toFixed(0)} s`,
-    ]),
-    { caption: signals.length > 24 ? `The first 24 of ${signals.length} controllers.` : undefined, empty: "This network has no signal controllers." },
-  );
-
+  doc.part("Disruptions", "What interrupted the day: rain from the weather model, the flooding it caused, scheduled incidents, and every significant event in order.", "incidents");
   // =========================================================================
   // 6 Weather
   // =========================================================================
@@ -757,7 +793,21 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // 9 Timeline
   // =========================================================================
   onProgress?.("Laying out the timeline", 0.74);
-  doc.sectionHeading("Simulation Event Timeline", `Significant events in simulation-time order: ${events.length} entries. Consecutive flood onsets within one minute are combined; demand changes are listed at their peaks.`, false, "timeline");
+  // Demand peaks are many and alike, so they are counted by hour; everything else is listed as it happened.
+  const peaks = events.filter((e) => e.category === "demand");
+  const notable = events.filter((e) => e.category !== "demand");
+  doc.sectionHeading("Simulation Event Timeline", `Weather, flooding, incidents and the system, in simulation-time order: ${notable.length} entr${notable.length === 1 ? "y" : "ies"}. Flood onsets within fifteen minutes of each other are combined. The ${peaks.length.toLocaleString()} peaks in demand at places are counted by hour.`, false, "timeline");
+  if (peaks.length) {
+    const byHour = new Map<number, number>();
+    for (const e of peaks) byHour.set(Math.floor(e.time / 3600), (byHour.get(Math.floor(e.time / 3600)) ?? 0) + 1);
+    const hours = [...byHour.keys()].sort((a, b) => a - b);
+    doc.barChart(
+      "Peaks in demand at places, by hour",
+      hours.map((h) => ({ label: tShort(h * 3600), value: byHour.get(h) ?? 0, color: PRINT.amber })),
+      "",
+      "When schools, offices and shops drew their extra traffic.",
+    );
+  }
   doc.table(
     [
       { title: "Time", width: 0.14, mono: true },
@@ -765,7 +815,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
       { title: "Severity", width: 0.11 },
       { title: "Event", width: 0.62 },
     ],
-    events.map((e) => [
+    notable.map((e) => [
       t(e.time),
       title(e.category),
       e.severity === "alert" ? "High" : e.severity === "warning" ? "Moderate" : "Low",
@@ -774,6 +824,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     { empty: "No significant events were recorded." },
   );
 
+  doc.part("How it ran", "How the simulation and the interface kept pace with each other, what they held in memory, and the software it ran on.", "performance");
   // =========================================================================
   // 10 Performance
   // =========================================================================
@@ -1015,6 +1066,29 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   ]);
 
   // =========================================================================
+  // 3 Environment
+  // =========================================================================
+  onProgress?.("Noting the environment", 0.2);
+  doc.sectionHeading("Environment and Runtime", "Software versions and the environment the report was produced in. Filesystem paths are deliberately omitted.", false, "environment");
+  doc.keyValues([
+    ["DSTNS core", resources.coreVersion ?? "Not reported"],
+    ["Interface", input.uiVersion],
+    ["API version", status.api_version],
+    ["Build identifier", "Not embedded in this build"],
+    ["Traffic model", "DSTNS aggregate traffic model"],
+    ...((resources.platform ?? []).map((p) => {
+      const [k, ...v] = p.split(": ");
+      return [k, v.join(": ")] as [string, string];
+    })),
+    ["Observation started", samples.length ? new Date(wallStart).toLocaleString() : "Not recorded"],
+    ["Last sample", samples.length ? new Date(wallEnd).toLocaleString() : "Not recorded"],
+    ["Report generated", now.toLocaleString()],
+    ["State revision", String(snapshot.state_revision)],
+    ["Configuration revision", String(snapshot.config_revision)],
+  ]);
+
+  doc.part("Reference", "What ties this report to a reproducible run, the whole network at export, and how every figure is defined.", "methodology");
+  // =========================================================================
   // 11 Determinism and integrity
   // =========================================================================
   onProgress?.("Sealing the identifiers", 0.88);
@@ -1082,18 +1156,39 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   doc.y += 5;
   doc.line("Contents", doc.M, doc.y, 18, PRINT.ink);
   doc.y += 12;
+  // Two columns, each part a heading over its sections, the first three parts on the left.
+  const groups: { part: (typeof doc.outline)[number]; sections: (typeof doc.outline)[number][] }[] = [];
   for (const entry of doc.outline) {
-    doc.line(entry.number, doc.M, doc.y, 10.5, PRINT.accent);
-    doc.line(entry.title, doc.M + 10, doc.y, 10.5, PRINT.ink);
-    doc.line(String(entry.page), doc.W - doc.M, doc.y, 10.5, PRINT.dim, "right");
-    const tw = doc.textWidth(entry.title, 10.5);
-    const pw = doc.textWidth(String(entry.page), 10.5);
+    if (entry.part) groups.push({ part: entry, sections: [] });
+    else groups[groups.length - 1]?.sections.push(entry);
+  }
+  const columnW = (doc.width - 10) / 2;
+  const columnTop = doc.y;
+  const leader = (x: number, y: number, from: number, to: number) => {
     pdf.setDrawColor("#c5cfd6");
     pdf.setLineDashPattern([0.4, 1.2], 0);
-    pdf.line(doc.M + 12 + tw, doc.y + 3.2, doc.W - doc.M - pw - 2, doc.y + 3.2);
+    pdf.line(from, y, to, y);
     pdf.setLineDashPattern([], 0);
-    doc.y += 7.6;
-  }
+  };
+  groups.forEach((group, g) => {
+    const x = doc.M + (g < Math.ceil(groups.length / 2) ? 0 : columnW + 10);
+    if (g === Math.ceil(groups.length / 2)) doc.y = columnTop;
+    const right = x + columnW;
+    doc.line(`PART ${group.part.number}`, x, doc.y, 6.5, PRINT.accent);
+    doc.y += 3.4;
+    doc.line(group.part.title, x, doc.y, 11.5, PRINT.ink);
+    doc.line(String(group.part.page), right, doc.y + 0.6, 10, PRINT.dim, "right");
+    doc.y += 7;
+    for (const entry of group.sections) {
+      doc.line(entry.number, x, doc.y, 9.2, PRINT.accent);
+      const name = doc.fit(entry.title, columnW - 18, 9.2);
+      doc.line(name, x + 7, doc.y, 9.2, PRINT.ink);
+      doc.line(String(entry.page), right, doc.y, 9.2, PRINT.dim, "right");
+      leader(x, doc.y + 2.9, x + 9 + doc.textWidth(name, 9.2), right - doc.textWidth(String(entry.page), 9.2) - 2);
+      doc.y += 5.8;
+    }
+    doc.y += 4.5;
+  });
   for (let p = 2; p <= pages; p++) {
     pdf.setPage(p);
     doc.page = p;
@@ -1107,7 +1202,10 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   }
 
   // Bookmarks, so that a reader can move about it, and everything a catalogue needs to know.
-  for (const entry of doc.outline) pdf.outline.add(null, `${entry.number}  ${entry.title}`, { pageNumber: entry.page });
+  let partMark: unknown = null;
+  for (const entry of doc.outline)
+    if (entry.part) partMark = pdf.outline.add(null, `Part ${entry.number}  ${entry.title}`, { pageNumber: entry.page });
+    else pdf.outline.add(partMark as never, `${entry.number}  ${entry.title}`, { pageNumber: entry.page });
   const ident = `Seed ${seed}, run ${status.run_id}`;
   pdf.setProperties({
     title: `DSTNS Simulation Report: ${place}`,

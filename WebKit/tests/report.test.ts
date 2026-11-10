@@ -156,23 +156,33 @@ describe("report generation", () => {
     expect(pages).toBeGreaterThanOrEqual(10);
     expect(pages).toBeLessThanOrEqual(40);
     verifyLayout(doc);
-    const titles = doc.outline.map((o) => o.title);
+    const titles = doc.outline.map((o) => (o.part ? `Part ${o.number}: ${o.title}` : o.title));
     expect(titles).toEqual([
+      "Part I: At a glance",
       "Executive Summary",
+      "Part II: The city",
       "Simulation Configuration",
-      "Environment and Runtime",
       "Road Network Analysis",
-      "Traffic Analysis",
       "Signal Control",
+      "Part III: Traffic",
+      "Traffic Analysis",
+      "Part IV: Disruptions",
       "Weather Analysis",
       "Flooding Analysis",
       "Incident Analysis",
       "Simulation Event Timeline",
+      "Part V: How it ran",
       "Performance and Telemetry",
       "System Resources",
+      "Environment and Runtime",
+      "Part VI: Reference",
       "Determinism and Integrity",
       "Methodology and Definitions",
     ]);
+    // Every part opens a page of its own.
+    doc.outline.forEach((o, i) => {
+      if (o.part && i > 0) expect(o.page).toBeGreaterThan(doc.outline[i - 1].page);
+    });
     // Section pages are in order.
     for (let i = 1; i < doc.outline.length; i++) expect(doc.outline[i].page).toBeGreaterThanOrEqual(doc.outline[i - 1].page);
     const bytes = pdf.output("arraybuffer");

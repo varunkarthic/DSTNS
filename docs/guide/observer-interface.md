@@ -608,28 +608,26 @@ simulation-time charts.
 
 ### Contents
 
-Cover and contents, then:
+Cover, about and contents, then six parts. Each part begins a new page under a band that names it and says what it
+covers, so a reader leafing through finds it where it starts.
 
-1. Executive Summary: tiles and key observations
-2. Simulation Configuration: scenario, map, systems and layers
-3. Environment and Runtime: versions, platform, observation times (no
-   filesystem paths)
-4. Road Network Analysis: connectivity, degree distribution, road classes,
-   road state, places
-5. Traffic Analysis: congestion across the day, congestion periods, vehicles,
-   mean speed, most congested roads
-6. Weather Analysis: rain event table, durations, activity and footprint charts
-7. Flooding Analysis: onsets by hour, flooded and closed roads, rain
-   correlation
-8. Incident Analysis: severity and type distributions, register, descriptions
-9. Simulation Event Timeline: every significant event in order
-10. Performance and Telemetry: data delivered, throughput (KiB/s or MiB/s),
-    snapshot rate, round trip, backpressure with intervention bands,
-    interventions, degraded periods, operator controls
-11. Determinism and Integrity: seed, run id, graph and scenario hashes,
-    lifecycle
-12. Map at Export (when the map is drawn)
-13. Methodology and Definitions
+- **I At a glance.** Executive Summary: the day in one sentence, whole-run figures (road length, peak vehicles,
+  peak congestion, mean speed, incidents, rain, flooding), the day's congestion, up to six numbered findings, each
+  labelled by where it comes from, and the network as a map.
+- **II The city.** Simulation Configuration (scenario, map, systems and layers); Road Network Analysis
+  (connectivity, junction degrees, road classes as a ring and a table, road state, places); Signal Control.
+- **III Traffic.** Congestion across the day and its periods, vehicles, mean speed, the most congested roads, traffic
+  by road class, places drawing extra traffic.
+- **IV Disruptions.** Weather (rain events, durations, activity and footprint); Flooding (onsets by hour, flooded and
+  closed roads, rain correlation); Incidents (severity, type, register, descriptions); the Event Timeline, which lists
+  weather, flooding, incidents and the system in order and counts peaks in demand at places by hour.
+- **V How it ran.** Performance and Telemetry (data delivered, throughput, snapshot rate, round trip, backpressure and
+  its interventions, degraded periods, operator controls); System Resources; Environment and Runtime (versions,
+  platform, observation times, no filesystem paths).
+- **VI Reference.** Determinism and Integrity (seed, run, graph and scenario hashes, lifecycle); the Map at Export;
+  Methodology and Definitions.
+
+The PDF's bookmarks follow the same parts, with their sections inside them.
 
 Statements are labelled **Observed**, **Derived** or **Interpretation**.
 Missing measures are reported as missing ("Not enough samples of throughput
@@ -637,7 +635,7 @@ were recorded"), never estimated. Every chart has a title, the question it
 answers, axis titles with units, a legend where there is more than one series,
 and clock-based ticks (every 3 hours for simulation time, round minutes for
 observation time). The report follows the 12 or 24 hour preference. A busy day
-produces about 20 to 30 pages; a short observation about 10.
+produces about 25 to 30 pages; a short observation about 18.
 
 ### Layout guarantees
 

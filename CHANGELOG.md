@@ -61,6 +61,11 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   capabilities list names every widget the observer draws. The bus planner example follows a documented planner
   template: a tab per algorithm, a replay of the network being built, and a journey picked on the map and planned by
   both Dijkstra and A*.
+- **A report in six parts.** The PDF is organised as At a glance, The city, Traffic, Disruptions, How it ran and
+  Reference, each beginning its own page under a band that says what it covers. The executive summary opens with the
+  day in one sentence and whole-run figures rather than the moment of export, follows them with the day's congestion,
+  numbered findings labelled by their source, and the network as a map. Road classes are drawn as a ring, and the
+  event timeline counts peaks in demand by hour instead of listing each one, which took it from nine pages to two.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:
