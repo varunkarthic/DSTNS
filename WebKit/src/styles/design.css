@@ -3312,3 +3312,10 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .dialog .confirm-facts dd, .dialog .confirm-facts dt { text-align: left; font-family: var(--font-body); }
 .dialog .confirm-facts dd { font-weight: 500; }
 .confirm-dialog .eyebrow { font-family: var(--font-body); }
+
+/* Figures on a dialog's plate are drawn larger and a little firmer, since the plate is theirs alone; the line stays a
+   hairline at any size because it does not scale with the drawing. */
+.dialog-plate .figure { width: min(184px, 88%); --figure-edge: rgb(var(--line-rgb) / 62%); --figure-mid: rgb(var(--line-rgb) / 36%); }
+.figure, .figure * { vector-effect: non-scaling-stroke; }
+.dialog-plate .figure { stroke-width: 1.4; }
+.figure { stroke-width: 1.25; }

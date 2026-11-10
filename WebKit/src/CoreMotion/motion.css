@@ -176,7 +176,6 @@
   transform: perspective(600px) rotateY(calc(var(--fx, 0) * 6deg)) rotateX(calc(var(--fy, 0) * -5deg));
   transform-origin: 50% 50%;
   transition: transform 900ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  backface-visibility: hidden;
 }
 .figure :is(.hi, .dot) {
   translate: calc(var(--fx, 0) * 3px) calc(var(--fy, 0) * 2.4px);
