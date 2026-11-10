@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { placeInspection, popularPlaces, searchPlaces } from "../src/core/mapModel";
 import { formatBytes, rateUnit, setByteUnits } from "../src/core/units";
-import { fluidFrame } from "../src/CoreMotion/FluidPanel";
+import { budFrame, budShape } from "../src/CoreMotion/bud";
 
 const place = (id: string, name: string, amenity: string) => ({ id, name, category: amenity, polygon: false, tags: { amenity }, position: { x_m: 0, y_m: 0 } });
 const world = [
@@ -63,29 +63,45 @@ describe("data sizes", () => {
   });
 });
 
-describe("the fluid panel's shape", () => {
-  const H = 430, W = 392, Y = 400;
-  it("starts as a bead at the icon, inside the dock's edge", () => {
-    const f = fluidFrame(0, H, W, Y);
-    expect(f.shiftX).toBeLessThan(0);
-    expect(H - f.top - f.bottom).toBeCloseTo(42, 0);
-    expect(W - f.right).toBeCloseTo(42, 0);
+describe("a panel dividing from its parent", () => {
+  const U = 392, V = 430, A = 300, GAP = 12, R = 24;
+  const at = (t: number) => budFrame(t, U, V, A, GAP, R);
+  it("starts as a bead inside the parent's edge, at the control", () => {
+    const f = at(0);
+    expect(f.body.u1).toBeLessThanOrEqual(0);
+    expect(f.body.v1 - f.body.v0).toBeCloseTo(44, 0);
+    expect((f.body.v0 + f.body.v1) / 2).toBeCloseTo(A, 5);
     expect(f.content).toBe(0);
   });
-  it("has a neck while it is leaving, and has let go by the time it is big", () => {
-    expect(fluidFrame(0.2, H, W, Y).neck).toBeGreaterThan(0);
-    expect(fluidFrame(0.7, H, W, Y).neck).toBe(0);
+  it("is joined by a neck that thins, parts, and is drawn back in", () => {
+    const joined = at(0.25);
+    expect(joined.neck.waist).toBeGreaterThan(0);
+    expect(joined.neck.tipParent).toBe(joined.neck.tipDrop);
+    const parted = at(0.6);
+    expect(parted.neck.waist).toBe(0);
+    expect(parted.neck.tipDrop).toBeGreaterThan(parted.neck.tipParent);
+    expect(at(0.8).neck.gone).toBe(true);
   });
-  it("grows from the bottom up, and ends as the whole panel", () => {
-    const mid = fluidFrame(0.4, H, W, Y);
-    expect(mid.top).toBeGreaterThan(mid.bottom);
-    const end = fluidFrame(1, H, W, Y);
-    expect([end.top, end.bottom, end.right, end.shiftX]).toEqual([0, 0, 0, 0]);
+  it("only ever grows, and ends as the whole panel", () => {
+    let last = -Infinity;
+    for (let t = 0; t <= 1.0001; t += 0.02) {
+      const { body } = at(t);
+      expect(body.u1).toBeGreaterThanOrEqual(last - 1e-9);
+      expect(body.v0).toBeGreaterThanOrEqual(-1e-9);
+      expect(body.v1).toBeLessThanOrEqual(V + 1e-9);
+      last = body.u1;
+    }
+    const end = at(1);
+    expect([end.body.u0, end.body.u1, end.body.v0, end.body.v1, end.body.r]).toEqual([GAP, GAP + U, 0, V, R]);
     expect(end.content).toBe(1);
   });
-  it("tolerates overshoot past the end", () => {
-    const over = fluidFrame(1.04, H, W, Y);
-    expect(over.top).toBe(0);
-    expect(over.right).toBe(0);
+  it("draws the same shape in every direction, with no broken numbers", () => {
+    for (const dir of ["right", "left", "up", "down"] as const) {
+      for (let t = 0.01; t < 1; t += 0.03) {
+        const shape = budShape(t, { dir, wall: 500, anchor: 300, rect: { left: 512, top: 100, width: 300, height: 400 }, radius: R }, GAP);
+        expect(shape.d).not.toMatch(/NaN|Infinity/);
+        expect(shape.clip).not.toMatch(/NaN|-\d/);
+      }
+    }
   });
 });

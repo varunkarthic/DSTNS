@@ -1511,6 +1511,15 @@ html, body, #root {
   pointer-events: none;
 }
 .reduce-motion .floating { transition: none; }
+/* A menu that divides from its bar is moved by its membrane (see CoreMotion/bud.ts), not by these transitions. */
+.floating.budded,
+.floating.budded.placed,
+.floating.budded.leaving { transition: none; transform: none; opacity: 1; }
+.floating.budded:not(.placed) { opacity: 0; }
+.floating.budded.placed:not(.budding, .leaving) { animation: bud-rest 700ms ease-out !important; }
+.floating.budded.leaving:not(.budding) { visibility: hidden; }
+.floating.budding > * { opacity: var(--bud-content, 0); }
+.floating.budded + .bud-membrane, .bud-membrane:has(+ .floating) { z-index: calc(var(--z-scrim) - 2); }
 .floating-title {
   display: flex;
   align-items: center;
@@ -1642,9 +1651,8 @@ html, body, #root {
 .fluid-panel,
 .settings-drawer.fluid-panel {
   position: fixed;
-  z-index: calc(var(--z-popover) + 1);
+  z-index: calc(var(--z-popover) + 4);
   width: 372px;
-  max-width: calc(100vw - 96px);
   opacity: 1;
   visibility: visible;
   display: flex;
@@ -1654,8 +1662,8 @@ html, body, #root {
   border: 1px solid var(--glass-line);
   border-radius: var(--r-lg);
   box-shadow: var(--glass-shadow);
-  transition: none;
-  will-change: clip-path, transform;
+  transition: box-shadow 260ms ease-out;
+  animation: bud-rest 700ms ease-out;
   right: auto;
   bottom: auto;
 }
@@ -1663,21 +1671,28 @@ html, body, #root {
 .settings-drawer.fluid-panel.fluid-closed {
   visibility: hidden;
 }
-.fluid-neck {
+/* While it divides, the outline is the membrane's; the panel is only what shows through the drop. */
+.budding { box-shadow: none !important; border-color: transparent !important; transition: none !important; animation: none !important; will-change: clip-path; }
+.bud-membrane {
   position: fixed;
-  z-index: var(--z-popover);
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: calc(var(--z-popover) + 1);
   pointer-events: none;
   overflow: visible;
 }
-.fluid-neck path { fill: var(--surface-solid); }
+@keyframes bud-rest { from { border-color: var(--accent-line); } }
+.bud-line { fill: none; stroke: var(--accent-line); stroke-width: 2.4; }
+.bud-fill { fill: var(--surface-solid); }
 .fluid-content {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  will-change: opacity, transform;
 }
-.reduce-motion .fluid-panel { will-change: auto; }
+.reduce-motion .fluid-panel { transition: opacity 120ms linear; }
+.reduce-motion .fluid-panel.fluid-closed { opacity: 0; }
 
 .settings-head { padding: 14px 12px 8px 20px; cursor: default; touch-action: auto; }
 .settings-head:active { cursor: default; }
