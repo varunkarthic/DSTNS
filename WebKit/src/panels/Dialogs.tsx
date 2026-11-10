@@ -6,6 +6,7 @@ import { BrandLogo } from "../components/BrandLogo";
 import { Spring, SPRINGS } from "../CoreMotion/motion";
 import { Badge } from "../components/settingsControls";
 import { api } from "../core/api";
+import { reloadSeconds } from "../core/linkEstimator";
 import { useEffect, useRef, useState } from "react";
 import { Dialog } from "../components/Dialog";
 import type { FigureName } from "../CoreMotion/Figure";
@@ -431,7 +432,12 @@ export function worldStage(status: WorldStatus | null, loaded: boolean): SplashS
     case "installing":
       return { step: 4, label: "Initializing simulation", detail: "Starting the new world" };
     case "ready":
-      return loaded ? { step: 4, label: "New world ready", detail: "The new world is loaded" } : { step: 4, label: "Initializing simulation", detail: "Loading the new map" };
+      if (loaded) return { step: 4, label: "New world ready", detail: "The new world is loaded" };
+      {
+        // How long the map took to arrive last time, over this link as it has been measured.
+        const seconds = reloadSeconds();
+        return { step: 4, label: "Initializing simulation", detail: seconds && seconds > 2 ? `Loading the new map, about ${seconds} s` : "Loading the new map" };
+      }
     default:
       return selecting;
   }

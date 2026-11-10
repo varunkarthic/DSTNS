@@ -66,6 +66,9 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   day in one sentence and whole-run figures rather than the moment of export, follows them with the day's congestion,
   numbered findings labelled by their source, and the network as a map. Road classes are drawn as a ring, and the
   event timeline counts peaks in demand by hour instead of listing each one, which took it from nine pages to two.
+- **Knowing the link.** The interface estimates how fast its link to the server is from what it already downloads,
+  through Resource Timing, with no requests of its own, and says about how long a new world's map will take to load
+  when that wait is long enough to mention.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:
