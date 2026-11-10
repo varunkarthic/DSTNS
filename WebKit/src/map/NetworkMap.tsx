@@ -62,7 +62,8 @@ export type MapControls = {
   inspectFeature: (id: string) => void;
 };
 const FOUND_FLASH_MS = 2400;
-const FOUND_RGB = "255,196,77";
+/** The found place's colour: the palette's warning colour, so it follows the colour-vision setting. */
+const foundRgb = () => appearance.meaning.warn.replace(/^#(..)(..)(..)$/i, (_, r, g, b) => `${parseInt(r, 16)},${parseInt(g, 16)},${parseInt(b, 16)}`);
 
 /** What the hover card says about an incident, in the same terms as a place. */
 function incidentInspection(incident: IncidentState, edge: TopologyEdge, edgeState: EdgeState | undefined, topology: Topology): Inspection {
@@ -765,6 +766,7 @@ function NetworkMap({
         const age = reduceMotion ? FOUND_FLASH_MS : performance.now() - found.at;
         const p = screen(found.feature.position);
         // Three flashes, then it stays lit.
+        const FOUND_RGB = foundRgb();
         const lit = age < FOUND_FLASH_MS ? 0.35 + 0.65 * Math.abs(Math.cos((age / FOUND_FLASH_MS) * Math.PI * 3)) : 1;
         if (found.outline) {
           // The whole building, traced round its walls as it is found, then lit, with a soft glow while it flashes.
