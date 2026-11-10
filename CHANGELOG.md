@@ -46,6 +46,8 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   strip's panel from the strip, and the bar's menus from the bar:
   a bead, a neck that thins and parts, and a drop that grows into the panel; closing runs it backward, and either can
   interrupt the other.
+- **A tour that waits its turn.** A tutorial set to open at start-up comes in once the roads have landed and the panels
+  are at rest, eased in over them, and Auto Focus does not move the map first.
 - **A start that runs in order.** A world ready while the title's logo is being taken apart waits for it to become the
   film's name, and a new world's mist has no hole at its middle.
 - **Dynamic Fastboot** removes a used world's city, and what was kept beside it, once a world in another city takes

@@ -3169,3 +3169,7 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 @media (max-height: 700px) {
   .deck-strip { padding-bottom: 22px; mask-image: linear-gradient(#000 calc(100% - 26px), transparent); }
 }
+
+/* The tour comes over the interface as the interface came over the map: the dimming and the card ease in together. */
+.tour { animation: fade-in 420ms ease-out both; }
+.tour.still { animation: none; }

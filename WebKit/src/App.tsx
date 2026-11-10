@@ -120,6 +120,9 @@ const NO_FEATURES: MapFeature[] = [];
 
 type FocusRequest = { whole?: boolean; zoomBy?: number; span_m?: number; bounds?: Bounds; x_m?: number; y_m?: number; scale?: number; padding?: number; token: number };
 
+/** How long the panels take to come to rest once they are let in. */
+const SETTLE_MS = 700;
+
 interface WorldJob {
   active: boolean;
   requestedSeed: string;
@@ -363,9 +366,11 @@ export default function App() {
   );
   // The tour waits for the start-up film to finish handing over.
   const startupOnScreen = useRef(false);
+  // The start-up has landed and its panels have come to rest; a tour that opens by itself waits for this.
+  const [settled, setSettled] = useState(false);
   const tutorial = useTutorial({
     config: config.tutorial,
-    ready: configLoaded && valid && !!sim.topology && ["RUNNING", "PAUSED"].includes(lifecycle) && !startupOnScreen.current,
+    ready: configLoaded && valid && !!sim.topology && ["RUNNING", "PAUSED"].includes(lifecycle) && !startupOnScreen.current && settled,
     runId,
     suspended: suspended || rateLocked,
     playbackRevision: status?.playback_revision,
@@ -1172,6 +1177,15 @@ export default function App() {
   // A new world lands as a start-up does: the particles build its roads, then the map comes in under them, then the
   // panels. Never on a reload's quicker timing, which would show the map before the particles had reached it.
   const arrival = useArrival(!!(showSplash || bootFailure || shutDown || serverGone || (world.active && !world.closing)), reduceMotion || !filmAvailable(), returning && !world.active);
+  const still = reduceMotion || !filmAvailable();
+  useEffect(() => {
+    if (arrival !== "all" || still) {
+      setSettled(arrival === "all");
+      return;
+    }
+    const t = setTimeout(() => setSettled(true), SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [arrival, still]);
   // Once a world has arrived, its landing is over: what the particles stood on is forgotten, so that the next ending
   // does not start from where this one's map was.
   useEffect(() => {
@@ -1310,7 +1324,7 @@ export default function App() {
               running={valid && lifecycle === "RUNNING" && !suspended}
               virtualTime={virtual}
               tickRate={clock?.tick_rate ?? 1}
-              focus={tutorial.busy || arrival !== "all" ? null : manualFocus ?? appFocus ?? autoFocusRequest}
+              focus={tutorial.busy || tutorial.pending || arrival !== "all" ? null : manualFocus ?? appFocus ?? autoFocusRequest}
               arriving={arrival !== "all"}
               onCameraTaken={takeCamera}
               controls={mapControls}

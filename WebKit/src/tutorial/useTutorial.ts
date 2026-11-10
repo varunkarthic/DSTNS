@@ -112,5 +112,9 @@ export function useTutorial(options: {
     void start();
   }, [options.config.show_on_startup, options.config.enabled, options.ready, options.blocked, options.suspended, start]);
 
-  return { phase, active: phase === "active", busy: phase !== "closed", start, finish };
+  // A tour that will open by itself once the start-up is over: nothing else should take the view first.
+  let pending = options.config.show_on_startup && options.config.enabled && !attempted.current;
+  try { if (pending && localStorage.getItem(DONE_KEY)) pending = false; } catch { /* Storage is optional. */ }
+
+  return { phase, active: phase === "active", busy: phase !== "closed", pending, start, finish };
 }
