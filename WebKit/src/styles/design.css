@@ -3112,25 +3112,44 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .loading-surface.boot.rejoin:not(.still) :is(.loading-card.film, .loading-licence) { animation: end-text 700ms var(--ease) 8600ms both; }
 .loading-surface.boot.rejoin.closing :is(.loading-card.film, .loading-licence) { animation: none; opacity: 0; }
 
-/* ---- Empty states: a small line drawing above the words (EmptyFigure.tsx, Hairline's figures) ---------------- */
-/* Its plates are filled with what it stands on, so they must be that colour; its strokes are the interface's lines. */
-.empty-figure {
-  --hairline-plate: var(--figure-ground, var(--surface-solid));
-  --hairline-hi: color-mix(in srgb, var(--accent) 88%, var(--text));
-  --hairline-edge: rgb(var(--line-rgb) / 46%);
-  --hairline-mid: rgb(var(--line-rgb) / 26%);
-  --hairline-lo: rgb(var(--line-rgb) / 13%);
-  --hairline-stroke: 1;
+/* ---- Figures: DSTNS's line drawings, above an empty state's words and at the head of a dialog (Figure.tsx) ---- */
+/* The rules here are the finished drawing; motion.css draws it in and keeps it moving. */
+.figure {
+  --figure-ground: var(--surface-solid);
+  --figure-hi: color-mix(in srgb, var(--accent) 88%, var(--text));
+  --figure-edge: rgb(var(--line-rgb) / 50%);
+  --figure-mid: rgb(var(--line-rgb) / 28%);
+  --figure-lo: rgb(var(--line-rgb) / 14%);
+  display: block;
   width: min(176px, 70%);
+  aspect-ratio: 160 / 100;
   margin: 4px auto 2px;
+  overflow: visible;
+  fill: none;
+  stroke: var(--figure-edge);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.high-contrast .empty-figure { --hairline-edge: rgb(var(--line-rgb) / 72%); --hairline-mid: rgb(var(--line-rgb) / 48%); --hairline-lo: rgb(var(--line-rgb) / 28%); --hairline-stroke: 1.3; }
-.stream-empty:has(.empty-figure) { flex-direction: column; text-align: center; gap: 8px; padding-block: 18px 22px; }
-.stream-frame .empty-figure { --figure-ground: var(--well); }
+.figure .mid { stroke: var(--figure-mid); }
+.figure .lo { stroke: var(--figure-lo); }
+.figure .hi { stroke: var(--figure-hi); }
+.figure .dash { stroke-dasharray: 2.6 3.4; }
+.figure .plate { fill: var(--figure-ground); }
+.figure .dot { fill: var(--figure-hi); stroke: none; }
+.figure .travel { offset-path: var(--path); offset-rotate: 0deg; offset-distance: 38%; }
+.figure .travel.back { offset-distance: 100%; }
+.figure .travel.stop { offset-distance: 100%; }
+.figure .swing { transform-origin: 62px 54px; transform: rotate(-26deg); }
+.figure .slide { transform: translateX(56px); }
+.figure .close { transform-origin: 80px 50px; transform: scale(0.84); }
+.high-contrast .figure { --figure-edge: rgb(var(--line-rgb) / 78%); --figure-mid: rgb(var(--line-rgb) / 52%); --figure-lo: rgb(var(--line-rgb) / 30%); stroke-width: 1.4; }
+.stream-empty:has(.figure) { flex-direction: column; text-align: center; gap: 8px; padding-block: 18px 22px; }
+.stream-frame .figure { --figure-ground: var(--well); }
 /* An empty view fills the panel below its tabs, and its drawing and words sit in the middle of it, not at its top. */
-.stream-frame:has(.stream-empty .empty-figure) { flex: 1 1 auto; }
-.stream-frame:has(.stream-empty .empty-figure) > .stream { flex: 1; display: flex; flex-direction: column; }
-.stream > .stream-empty:has(.empty-figure) { flex: 1; justify-content: center; align-items: center; padding-block: 12px 28px; }
-.stream > .stream-empty:has(.empty-figure) .empty-figure { width: min(188px, 62%); margin: 0 auto 4px; }
-.fabric-empty .empty-figure { width: min(168px, 64%); }
-.place-search-empty:has(.empty-figure) { display: grid; justify-items: center; gap: 6px; text-align: center; }
+.stream-frame:has(.stream-empty .figure) { flex: 1 1 auto; }
+.stream-frame:has(.stream-empty .figure) > .stream { flex: 1; display: flex; flex-direction: column; }
+.stream > .stream-empty:has(.figure) { flex: 1; justify-content: center; align-items: center; padding-block: 12px 28px; }
+.stream > .stream-empty:has(.figure) .figure { width: min(188px, 62%); margin: 0 auto 4px; }
+.fabric-empty .figure { width: min(168px, 64%); }
+.place-search-empty:has(.figure) { display: grid; justify-items: center; gap: 6px; text-align: center; }

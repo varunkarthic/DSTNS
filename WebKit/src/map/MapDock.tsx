@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { FluidPanel } from "../CoreMotion/FluidPanel";
-import { EmptyFigure } from "../CoreMotion/EmptyFigure";
+import { Figure } from "../CoreMotion/Figure";
 import { PlaceGlyph } from "./Legends";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
@@ -146,13 +146,13 @@ function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean;
       )}
       {needle && results.length === 0 && (
         <div className="place-search-empty">
-          <EmptyFigure figure="loupe" />
+          <Figure name="glass" />
           <p>No place here matches “{needle}”.</p>
         </div>
       )}
       {!needle && features.length === 0 && (
         <div className="place-search-empty">
-          <EmptyFigure figure="terrain" />
+          <Figure name="nowhere" />
           <p>No named places in this district.</p>
         </div>
       )}

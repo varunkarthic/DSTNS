@@ -4,7 +4,7 @@
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { BrandLogo } from "../components/BrandLogo";
-import { EmptyFigure, type EmptyFigureName } from "../CoreMotion/EmptyFigure";
+import { Figure, type FigureName } from "../CoreMotion/Figure";
 import { Icon, categoryIcon } from "../components/Icons";
 import type { IconName } from "../components/Icons";
 import { FabricDeck } from "../webfabric/Slots";
@@ -170,10 +170,10 @@ function StreamRow({
   );
 }
 
-function Empty({ icon, figure, children }: { icon: IconName; figure?: EmptyFigureName; children: ReactNode }) {
+function Empty({ icon, figure, children }: { icon: IconName; figure?: FigureName; children: ReactNode }) {
   return (
     <div className="stream-empty">
-      {figure ? <EmptyFigure figure={figure} /> : <Icon name={icon} size={16} />}
+      {figure ? <Figure name={figure} /> : <Icon name={icon} size={16} />}
       <span>{children}</span>
     </div>
   );
@@ -314,7 +314,7 @@ function StackView({ status, snapshot, topology, asb, virtualTime }: Pick<Props,
 
 function NewsView({ news, topology }: { news: News[]; topology: Topology | null }) {
   const time = useTimeFormat();
-  if (!news.length) return <Empty icon="info" figure="plot">No events recorded yet for this run.</Empty>;
+  if (!news.length) return <Empty icon="info" figure="dawn">No events recorded yet for this run.</Empty>;
   return (
     <>
       {news.slice(0, 120).map((item) => (
@@ -334,7 +334,7 @@ function NewsView({ news, topology }: { news: News[]; topology: Topology | null 
 function IncidentsView({ news, topology }: { news: News[]; topology: Topology | null }) {
   const time = useTimeFormat();
   const incidents = useMemo(() => news.filter(isIncident), [news]);
-  if (!incidents.length) return <Empty icon="check" figure="cones">No incidents on the network.</Empty>;
+  if (!incidents.length) return <Empty icon="check" figure="junction">No incidents on the network.</Empty>;
   return (
     <>
       {incidents.slice(0, 120).map((item) => {
@@ -421,7 +421,7 @@ function QueueView({ runId, filter, onFilter, topology }: { runId: string; filte
       </div>
       {error && <Empty icon="incident">{error}</Empty>}
       {!error && !queue && <Empty icon="clock">Loading scheduled events.</Empty>}
-      {queue?.items.length === 0 && <Empty icon="clock" figure="sieve">No {filter.view === "future" ? "pending" : "executed"} events in this category.</Empty>}
+      {queue?.items.length === 0 && <Empty icon="clock" figure="timeline">No {filter.view === "future" ? "pending" : "executed"} events in this category.</Empty>}
       {queue?.items.map((item) => (
         <StreamRow
           key={`${item.id}-${item.virtual_s}`}
@@ -552,7 +552,7 @@ function HistoryView({ history, filter, onFilter }: { history: HistoryFeed; filt
         </div>
       </div>
       {!list.length && (
-        <Empty icon="bell" figure={filter === "all" ? "drawer" : "sieve"}>{filter === "all" ? "No notifications yet for this run." : `No ${HISTORY_FILTERS.find((f) => f.id === filter)!.label.toLowerCase()} notifications.`}</Empty>
+        <Empty icon="bell" figure={filter === "all" ? "mast" : "filter"}>{filter === "all" ? "No notifications yet for this run." : `No ${HISTORY_FILTERS.find((f) => f.id === filter)!.label.toLowerCase()} notifications.`}</Empty>
       )}
       {list.slice(0, limit).map((entry) => (
         <HistoryRow key={entry.key} entry={entry} />

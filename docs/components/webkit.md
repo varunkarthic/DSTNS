@@ -36,7 +36,7 @@ it that is not there on purpose.
 
 | Subsystem | Holds | May use |
 |---|---|---|
-| `CoreMotion/` | Motion shared by everything: the spring model and interaction physics (`motion.ts`, `motion.css`), how a limit gives when pushed (`resistance.ts`), keeping a surface mounted while it leaves (`presence.ts`), panels that grow and settle (`FluidPanel.tsx`), and the only door to the vendored Hairline figures (`EmptyFigure.tsx`); see the [interface system](../design/interface-system.md) | `vendor/` |
+| `CoreMotion/` | Motion shared by everything: the spring model and interaction physics (`motion.ts`, `motion.css`), how a limit gives when pushed (`resistance.ts`), keeping a surface mounted while it leaves (`presence.ts`), panels that divide from the surface that asked for them (`bud.ts`, `FluidPanel.tsx`), and the observer's line figures (`Figure.tsx`); see the [interface system](../design/interface-system.md) | nothing |
 | `core/` | What everything reads: the typed API client (`api.ts`), the server's types, features and configuration (`uiConfig.ts`, `preferences.tsx`, `shortcuts.ts`), units and time formats, themes (`appearance.ts`), and the plain models of the map and the news (`mapModel.ts`, `mapProjection.ts`, `notificationModel.ts`, `notificationGroups.ts`) | `CoreMotion/` |
 | `simulation/` | The live run: polling status, snapshots and news (`useSimulation.ts`), backpressure (`useBackpressure.ts`), steady status, the daemons, and the telemetry record (`telemetryModel.ts`, `telemetryRecorder.ts`) | `core/` |
 | `components/` | Building blocks with no knowledge of a run: popovers, tooltips, the quantized slider, icons, logos and the settings controls | `core/`, `CoreMotion/` |

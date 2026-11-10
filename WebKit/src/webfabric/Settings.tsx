@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EmptyFigure } from "../CoreMotion/EmptyFigure";
+import { Figure } from "../CoreMotion/Figure";
 import { Icon } from "../components/Icons";
 import { Row, Section, Segmented, Switch } from "../components/settingsControls";
 import { BrandLogo } from "../components/BrandLogo";
@@ -429,7 +429,7 @@ export function WebFabricSettings({ onBack }: { onBack: () => void }) {
       )}
       {apps.length === 0 && (
         <div className="fabric-empty">
-          <EmptyFigure figure="plug" />
+          <Figure name="socket" />
           <strong>No applications connected</strong>
           <p>An application registers itself by calling the Fabric API. It appears here as soon as it does.</p>
         </div>

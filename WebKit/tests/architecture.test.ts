@@ -14,7 +14,7 @@ const SRC = "src";
 
 /** Each subsystem, and the subsystems it may import from (besides itself). App.tsx and main.tsx may use all. */
 const ALLOWED: Record<string, string[]> = {
-  CoreMotion: ["vendor"],
+  CoreMotion: [],
   core: ["CoreMotion"],
   simulation: ["core"],
   components: ["core", "CoreMotion", "assets"],
@@ -37,7 +37,7 @@ const EXCEPTIONS: Record<string, string> = {
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name: string) => {
     const full = path.join(dir, name);
-    if (statSync(full).isDirectory()) return name === "vendor" ? [] : files(full);
+    if (statSync(full).isDirectory()) return files(full);
     return /\.(ts|tsx)$/.test(name) ? [full] : [];
   });
 }
@@ -65,7 +65,7 @@ describe("the observer's architecture", () => {
   it("has every file in a subsystem, but the entry points", () => {
     const loose = all.filter((f) => !subsystem(f)).map((f) => path.basename(f));
     expect(loose.sort()).toEqual(["App.tsx", "main.tsx", "vite-env.d.ts"]);
-    const known = new Set([...Object.keys(ALLOWED), "assets", "vendor"]);
+    const known = new Set([...Object.keys(ALLOWED), "assets"]);
     expect(all.map(subsystem).filter((s) => s && !known.has(s))).toEqual([]);
   });
 

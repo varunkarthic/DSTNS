@@ -34,11 +34,10 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
 - **Time Control, tidied.** It has a close button and the day's progress in its heading; Go and Jump sit beside
   their fields; the distance reads "earlier than now" or "later than now"; scrolling over a field steps it. Menus
   from the bar clear the whole bar rather than its button.
-- **Empty states with a drawing**: cones with nothing to close off, an empty drawer, a loupe over a blank sheet, a
-  plug short of its socket, a hub with no applications, a chart with no data before the first news, a sieve where a
-  filter leaves nothing, and a plinth of pillars for a district with no named places, drawn as line figures that
-  answer the pointer ([Hairline](https://github.com/lucasmarkes/hairline), MIT; the cones are DSTNS's own on its
-  engine).
+- **Empty states with a drawing**: a quiet junction with nothing to report, a sun not yet up, an empty timeline, a
+  mast with nothing to send, a filter nothing passes, a plug short of its socket, a row of empty tiles, a glass over
+  the map and a pin with nowhere to land, drawn as DSTNS's own line figures in one hand, each with one small motion
+  that stops for reduced motion.
 - **A start that runs in order.** A world ready while the title's logo is being taken apart waits for it to become the
   film's name, and a new world's mist has no hole at its middle.
 - **Dynamic Fastboot** removes a used world's city, and what was kept beside it, once a world in another city takes
