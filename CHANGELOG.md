@@ -53,6 +53,8 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   lower edge.
 - **A Stack that fills its card.** Its rows share the deck's height, each with the last minute of its figure drawn
   beneath it; on a short window they keep to their bars.
+- **One name between worlds.** Generating a new world flies the old roads into the name, and the new world's film
+  carries on from that name as it stands, instead of blowing it into a mist and forming it again.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:

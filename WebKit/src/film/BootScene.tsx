@@ -47,6 +47,15 @@ const easeInOut = (t: number) => {
 };
 const POINTER = { k: 70, c: 15 };
 const BURST = { k: 16, c: 7.2 };
+// The end: the panels leave, the map goes from under its own roads, those roads fly into
+// the name, and the name is blown into a mint mist that thins into the light behind it.
+// Then nothing moves, and nothing is drawn. About as long as it always was.
+const END_ROADS_AT_S = 0.3;
+const END_GATHER_AT_S = 1.15;
+const END_GATHER_S = 2.3;
+const END_SCATTER_AT_S = 4.3;
+const END_THIN_AT_S = 5.1;
+const END_STILL_S = 10.5;
 /** When the map fades in under the roads the particles have just built. */
 export const MAP_AT_MS = Math.round((GATHER_S + LAND_S * 0.86) * 1000);
 /** When the panels come in around it. */
@@ -56,12 +65,13 @@ export const LANDING_MS = PANELS_AT_MS + 500;
 /** Coming back to a run already going, on reload: the same arrival, without the film or the wait. */
 const QUICK_LAND_S = 0.95;
 export const QUICK_ARRIVAL = { mapAt: 780, panelsAt: 1020, landing: 1500 } as const;
-/** A new world: how long the old one takes to leave, before the particles recollect. */
-export const REJOIN_AT_MS = 5800;
+/** A new world: how long the old one takes to leave. Its roads have flown into the name by then, and the new world's
+ * film carries on from that name as it stands, rather than blowing it away and forming it again. */
+export const REJOIN_AT_MS = Math.round((END_GATHER_AT_S + END_GATHER_S) * 1000) + 550;
 /** Whether this browser can draw the film at all. */
 export const filmAvailable = () => typeof WebGL2RenderingContext !== "undefined";
 /** And when a ready world may land: as soon as the name has formed again. */
-export const REJOIN_MIN_MS = REJOIN_AT_MS + 1500;
+export const REJOIN_MIN_MS = REJOIN_AT_MS + 1200;
 // With nothing to do, the network rests dimly, out of the way of what is on screen.
 const REST_DIM = 0.14;
 // The title's logo comes apart in a sweep from left to right, each part of it turning to
@@ -72,15 +82,6 @@ const DISSOLVE_HOLD_S = SWEEP_DELAY_S + SWEEP_S + 0.15;
 /** From the film's start to the particles standing as the film's own name, having taken the title's logo apart. A
  * world ready sooner waits for this, so that the logo becomes the name, and the name the roads, one after the other. */
 export const TITLE_HANDOVER_MS = Math.round((DISSOLVE_HOLD_S + DISSOLVE_S) * 1000);
-// The end: the panels leave, the map goes from under its own roads, those roads fly into
-// the name, and the name is blown into a mint mist that thins into the light behind it.
-// Then nothing moves, and nothing is drawn. About as long as it always was.
-const END_ROADS_AT_S = 0.3;
-const END_GATHER_AT_S = 1.15;
-const END_GATHER_S = 2.3;
-const END_SCATTER_AT_S = 4.3;
-const END_THIN_AT_S = 5.1;
-const END_STILL_S = 10.5;
 
 // One or two words and one short line, with no commas. Nothing here may suggest it is
 // happening now or for real: it is a simulation, and these are its features.
@@ -1002,7 +1003,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       gl.uniform1f(u.aspect, element.width / element.height);
       gl.uniform1f(u.burst, endScattered && !rejoined ? 1 : 0);
       // Drawn in before the burst; for a new world, let go again as the name gathers.
-      const inhaled = ending && started ? easeInOut((performance.now() / 1000 - endStart - (END_SCATTER_AT_S - 0.42)) / 0.42) : 0;
+      const inhaled = ending && started && !rejoin ? easeInOut((performance.now() / 1000 - endStart - (END_SCATTER_AT_S - 0.42)) / 0.42) : 0;
       gl.uniform1f(u.inhale, rejoined ? inhaled * (1 - easeInOut((performance.now() / 1000 - rejoinedAt) / 0.9)) : inhaled);
       // Particles landing follow the map's camera; leaving it, they do not, whatever the map does as it goes or is replaced.
       const following = !(ending && !rejoined);
@@ -1106,7 +1107,7 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
         // The end: off the roads and into the name, from the edges in, and then it is blown away.
         const t = now / 1000 - endStart;
         landing = 1 - easeInOut((t - END_GATHER_AT_S) / END_GATHER_S);
-        if (t > END_SCATTER_AT_S && !endScattered) {
+        if (t > END_SCATTER_AT_S && !endScattered && !rejoin) {
           endScattered = true;
           from = to;
           to = mist;
@@ -1126,20 +1127,22 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
       const endingDim = quietRef.current ? REST_DIM : ending && !rejoined ? (now / 1000 - endStart > END_THIN_AT_S ? (rejoin ? 0.55 : 0) : now / 1000 - endStart > END_ROADS_AT_S ? 1 : 0) : null;
       const dimTo = endingDim ?? (landed ? (closingFor > ((quick ? QUICK_ARRIVAL.mapAt : MAP_AT_MS) + (quick ? 220 : 500)) / 1000 ? 0 : 1) : closingRef.current || asleepRef.current ? 0 : playingRef.current ? 1 : REST_DIM);
       dim += (dimTo - dim) * Math.min(1, dt * (quietRef.current ? 1.6 : ending && !rejoined ? (now / 1000 - endStart > END_SCATTER_AT_S ? 0.72 : 5) : landed ? (quick ? 5 : 2.6) : dissolving ? 3.2 : playingRef.current && !closingRef.current ? 2.4 : 8));
-      // The old world's particles, blown apart, come back together as the name, and the
-      // film carries on from there as it does at start-up.
+      // The old world's particles, gathered into the name, are the new world's film from there on, as at start-up.
       if (rejoin && started && !rejoined && playingRef.current) {
         rejoined = true;
         rejoinHold = true;
         rejoinedAt = performance.now() / 1000;
-        from = to;
-        to = wordmark;
         scene = 0;
-        carry = NONE;
-        bind(from, to);
-        blend = 0;
-        morph = 0;
-        velocity = 0;
+        // Already standing as the name, it stays as it is: only what was blown apart is drawn back into it.
+        if (endScattered || to !== wordmark) {
+          from = to;
+          to = wordmark;
+          carry = NONE;
+          bind(from, to);
+          blend = 0;
+          morph = 0;
+          velocity = 0;
+        }
         held = 0;
         landing = 0;
         setChapter(0);
