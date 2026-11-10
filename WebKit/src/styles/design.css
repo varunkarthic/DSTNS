@@ -3148,3 +3148,24 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .about-dialog .about-close { position: absolute; top: 10px; right: 10px; z-index: 1; }
 .about-hero { position: static; }
 .fabric-dialog-from { margin: -2px 0 8px; }
+
+/* ---- Search: one left edge ---------------------------------------------------------------------
+   The field, the filters, the heading and each result's glyph begin on the same line, 16px in. */
+.place-search-field { width: auto; margin: 8px 8px 0; }
+.place-filters { padding: 10px 8px 2px; gap: 6px; }
+.place-search-heading { margin: 10px 8px 4px; }
+.place-search-results { padding: 0 0 8px; }
+.place-search-results button { padding: 6px 16px 6px 8px; }
+/* Settings: the title begins where the sections beneath it do. */
+.settings-head { padding-left: 22px; }
+
+/* ---- The collapsed telemetry strip ---------------------------------------------------------------
+   A count sits on its icon's corner, not over it; and on a short window the strip closes up before it scrolls, and
+   fades where there is more beneath. */
+.strip-badge { top: 0; right: -5px; }
+@media (max-height: 780px) {
+  .deck-strip { gap: 2px; padding-block: 6px; }
+}
+@media (max-height: 700px) {
+  .deck-strip { padding-bottom: 22px; mask-image: linear-gradient(#000 calc(100% - 26px), transparent); }
+}
