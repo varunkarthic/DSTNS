@@ -46,7 +46,7 @@ Flows and queues per road are what make a whole day of a 3,000-junction district
 
 A live map with telemetry, notifications and an Auto Focus camera that follows what matters. Place search, changeable shortcuts, light and dark themes, and palettes for colour vision.
 
-It's built on one physical model of motion, so that everything can be interrupted and nothing jumps. It keeps up with the simulation by itself, and tells you when it can't.
+It's built on one physical model of motion, so that everything can be interrupted and nothing jumps. Panels divide from the control that opened them like a cell, dialogs are one card with a line drawing that acts out their question, and every corner sits concentric with the one around it. It keeps up with the simulation by itself, and tells you when it can't.
 
 </td>
 </tr>
@@ -183,19 +183,19 @@ put("/api/v1/fabric/apps/org.example.planner/presentation", {"layers": {"traffic
 
 | An application can | |
 |---|---|
-| **Add to the interface** | Status lines, panels, a sidebar, map controls, notifications, dialogs, and its own page in a sandbox |
+| **Add to the interface** | Status lines, panels, a sidebar, map controls, notifications, dialogs, and its own page in a sandbox, from 30 widgets the observer draws in its own design, down to a QR code for a phone |
 | **Draw on the map** | Markers on junctions, vehicles on roads, and paths that animate along real routes with nothing sent per frame |
 | **Direct the view** | Say where the map looks and how close, and hold layers and places on or off |
 | **Follow the simulation** | Events, timers on the simulation's clock, its own storage, and messages to other applications |
 | **Act on it** | Playback, events and the world, each only with a person's permission, and each on the record |
 
-An application asks, and the observer decides. It can never change a person's settings: what it asks for is laid over their choices, a person's own move comes first, and it all ends when the application does. Tokens are hashed, requests can be signed, the audit log is a hash chain, and pages run in a sandbox with no way into the observer.
+A planner, such as a bus network planner, has a [template](https://dstns.readthedocs.io/en/v3/components/webfabric/#templates) to follow: a tab per algorithm, its results in figures, a replay of what it built, and a journey picked on the map; `Fabric/examples/bus_planner.py` runs it against any world. An application asks, and the observer decides. It can never change a person's settings: what it asks for is laid over their choices, a person's own move comes first, and it all ends when the application does. Tokens are hashed, requests can be signed, the audit log is a hash chain, and pages run in a sandbox with no way into the observer.
 
 ## The report
 
 <img src="docs/assets/screenshots/report-cover.png" alt="The cover of a DSTNS report: a dark page with the run's own map softening down toward the city's name, and the seed and when it was generated below" width="320" align="right">
 
-Export a report of any run as a PDF: the summary, traffic, signals, weather, incidents, the network, and how the observer kept up. Statements are labelled by where they come from, whether observed, derived or interpretation, and the report is put together on a worker, so that the interface keeps moving meanwhile.
+Export a report of any run as a PDF, in six parts that each begin a page: at a glance, the city, traffic, disruptions, how it ran, and reference. It opens with the day in one sentence, the figures that matter across the whole run, the day's congestion and a handful of numbered findings, then gives every part its charts, tables and maps. Statements are labelled by where they come from, whether observed, derived or interpretation, and the report is put together on a worker, so that the interface keeps moving meanwhile.
 
 The cover is drawn from the run itself: its city, how busy each street is at that moment, and even the hour.
 
