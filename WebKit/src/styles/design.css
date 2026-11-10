@@ -2978,6 +2978,9 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 
 /* ---- A collapsed deck's panels stand beside the strip, as tall as it and no taller ---------------------------- */
 .deck-panel, .deck-panel:has(.stream) { height: var(--strip-h, 100%); max-height: 100%; }
+/* It divides from the strip (see CoreMotion/bud.ts): the membrane moves it, and its edge settles as it comes to rest. */
+.deck-panel { animation: bud-rest 700ms ease-out; }
+.deck-panel.budding > * { opacity: var(--bud-content, 0); }
 .deck-network { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .deck-network > .stream-frame { min-height: 0; }
 /* Two by two, with room: nothing is cut short at this width. */

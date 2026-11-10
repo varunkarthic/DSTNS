@@ -39,7 +39,7 @@ it that is not there on purpose.
 | `CoreMotion/` | Motion shared by everything: the spring model and interaction physics (`motion.ts`, `motion.css`), how a limit gives when pushed (`resistance.ts`), keeping a surface mounted while it leaves (`presence.ts`), panels that divide from the surface that asked for them (`bud.ts`, `FluidPanel.tsx`), and the observer's line figures (`Figure.tsx`); see the [interface system](../design/interface-system.md) | nothing |
 | `core/` | What everything reads: the typed API client (`api.ts`), the server's types, features and configuration (`uiConfig.ts`, `preferences.tsx`, `shortcuts.ts`), units and time formats, themes (`appearance.ts`), and the plain models of the map and the news (`mapModel.ts`, `mapProjection.ts`, `notificationModel.ts`, `notificationGroups.ts`) | `CoreMotion/` |
 | `simulation/` | The live run: polling status, snapshots and news (`useSimulation.ts`), backpressure (`useBackpressure.ts`), steady status, the daemons, and the telemetry record (`telemetryModel.ts`, `telemetryRecorder.ts`) | `core/` |
-| `components/` | Building blocks with no knowledge of a run: popovers, tooltips, the quantized slider, icons, logos and the settings controls | `core/`, `CoreMotion/` |
+| `components/` | Building blocks with no knowledge of a run: the one dialog card (`Dialog.tsx`), popovers, tooltips, the quantized slider, icons, logos and the settings controls | `core/`, `CoreMotion/` |
 | `notifications/` | The notification capsule, history, the ISD handler, and choosing and framing events (`autoFocus.ts`, `focusNotification.ts`) | `core/`, `CoreMotion/`, `components/` |
 | `map/` | The map (`NetworkMap.tsx`), its dock, readout, legends, layers, tiles, traffic flow and place glyphs | the above, and `notifications/` |
 | `webfabric/` | Registered applications: state, slots, sandboxed frames, overlays and settings; see [WebFabric](webfabric.md) | `core/`, `CoreMotion/`, `components/`, `map/` |
@@ -49,9 +49,8 @@ it that is not there on purpose.
 | `panels/` | The command rail, Time Control, the telemetry deck, Settings, shortcuts, dialogs and the viewport | everything above but `report/` and `map/` |
 | `styles/` | Design tokens and layout (`theme.css`, `system.css`, `hud.css`, `style.css`, `design.css`, `webfabric.css`) | |
 
-`App.tsx` composes them and `main.tsx` starts it. Two imports cross the table for now, and the
-test names them: an inspection tooltip draws a place's glyph from the map's legends, and an
-application's dialog shares the observer's scrim from `panels/Dialogs.tsx`.
+`App.tsx` composes them and `main.tsx` starts it. One import crosses the table for now, and the
+test names it: an inspection tooltip draws a place's glyph from the map's legends.
 
 ## Principles
 

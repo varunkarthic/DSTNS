@@ -5,6 +5,8 @@ import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, 
 import type { KeyboardEvent, ReactNode } from "react";
 import { BrandLogo } from "../components/BrandLogo";
 import { Figure, type FigureName } from "../CoreMotion/Figure";
+import { Bud } from "../CoreMotion/bud";
+import { BudMembrane } from "../CoreMotion/FluidPanel";
 import { Icon, categoryIcon } from "../components/Icons";
 import type { IconName } from "../components/Icons";
 import { FabricDeck } from "../webfabric/Slots";
@@ -699,6 +701,41 @@ function TelemetryDeckImpl(props: Props) {
     if (!compact) setPanel(null);
   }, [compact]);
 
+  // The panel divides from the strip at the button that asked for it (see CoreMotion/bud.ts), and stays mounted, showing
+  // what it last showed, until it has been taken back up.
+  const [shown, setShown] = useState<PanelView | null>(null);
+  if (panel && shown !== panel) setShown(panel);
+  if (!compact && shown) setShown(null);
+  const membrane = useRef<SVGSVGElement>(null);
+  const bud = useRef<Bud | null>(null);
+  const mounted = shown !== null;
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    if (!mounted || !el || !membrane.current) return;
+    const b = new Bud(membrane.current, el, null, (open) => !open && setShown(null));
+    b.gap = 10;
+    b.cut = true;
+    bud.current = b;
+    return () => {
+      b.destroy();
+      bud.current = null;
+    };
+  }, [mounted]);
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    const wall = strip.current?.getBoundingClientRect();
+    if (!bud.current || !el || !wall) return;
+    const from = opener.current?.getBoundingClientRect();
+    bud.current.place({
+      dir: "left",
+      wall: wall.left,
+      anchor: from ? from.top + from.height / 2 : wall.top + 28,
+      rect: { left: wall.left - 10 - el.offsetWidth, top: wall.top, width: el.offsetWidth, height: el.offsetHeight },
+      radius: parseFloat(getComputedStyle(el).borderTopLeftRadius) || 20,
+    });
+    bud.current.set(panel !== null, document.documentElement.classList.contains("reduce-motion"));
+  }, [panel, mounted]);
+
   const openPanel = (view: PanelView, from: HTMLButtonElement) => {
     opener.current = from;
     setPanel((current) => (current === view ? null : view));
@@ -813,30 +850,31 @@ function TelemetryDeckImpl(props: Props) {
         ))}
       </nav>
 
-      {compact && panel && (
-        <section ref={panelRef} className="deck-panel" role="dialog" aria-labelledby={`${idPrefix}-panel-title`} data-tip-avoid>
+      <BudMembrane ref={membrane} />
+      {compact && shown && (
+        <section ref={panelRef} className="deck-panel" inert={!panel || undefined} role="dialog" aria-labelledby={`${idPrefix}-panel-title`} data-tip-avoid>
           <header>
-            {panel === "apps" ? <span aria-hidden="true"><BrandLogo name="webfabric-mark" height={12} /></span> : <Icon name={panel === "overview" ? "network" : TABS.find((t) => t.id === panel)!.icon} size={16} />}
+            {shown === "apps" ? <span aria-hidden="true"><BrandLogo name="webfabric-mark" height={12} /></span> : <Icon name={shown === "overview" ? "network" : TABS.find((t) => t.id === shown)!.icon} size={16} />}
             <h3 id={`${idPrefix}-panel-title`} ref={panelHeading} tabIndex={-1}>
-              {VIEW_TITLE[panel]}
+              {VIEW_TITLE[shown]}
             </h3>
-            <button type="button" className="icon-btn" aria-label={`Close ${VIEW_TITLE[panel]}`} onClick={closePanel}>
+            <button type="button" className="icon-btn" aria-label={`Close ${VIEW_TITLE[shown]}`} onClick={closePanel}>
               <Icon name="close" size={16} />
             </button>
           </header>
-          <div className="deck-panel-body" key={panel}>
-            {panel === "overview" ? (
+          <div className="deck-panel-body" key={shown}>
+            {shown === "overview" ? (
               // The strip's whole height is the panel's: the figures with room between them, then what each part of the
               // system is doing, as the full deck shows it.
               <div className="deck-network">
                 <Overview snapshot={snapshot} topology={topology} congestion={props.congestion} />
-                <StreamScroll resetKey={panel} labelledBy={`${idPrefix}-panel-title`}>
+                <StreamScroll resetKey={shown} labelledBy={`${idPrefix}-panel-title`}>
                   <DetailView view="stack" props={props} state={views} />
                 </StreamScroll>
               </div>
             ) : (
-              <StreamScroll resetKey={panel} labelledBy={`${idPrefix}-panel-title`}>
-                <DetailView view={panel} props={props} state={views} />
+              <StreamScroll resetKey={shown} labelledBy={`${idPrefix}-panel-title`}>
+                <DetailView view={shown} props={props} state={views} />
               </StreamScroll>
             )}
           </div>

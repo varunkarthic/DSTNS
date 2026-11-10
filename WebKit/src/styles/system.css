@@ -1311,17 +1311,9 @@
   border-radius: var(--r-lg);
   background: var(--glass-strong);
   pointer-events: auto;
-  transform-origin: top right;
-  animation: panel-in var(--t-pop) var(--ease);
 }
 .deck-panel:has(.stream) {
   height: min(620px, 100%);
-}
-@keyframes panel-in {
-  from {
-    opacity: 0;
-    transform: translateX(10px) scale(0.98);
-  }
 }
 .deck-panel header {
   display: flex;
@@ -1346,7 +1338,6 @@
   flex-direction: column;
   animation: fade-in var(--t-pick) var(--ease);
 }
-.reduce-motion .deck-panel,
 .reduce-motion .deck-panel-body {
   animation: none;
 }
