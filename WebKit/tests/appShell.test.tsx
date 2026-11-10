@@ -400,11 +400,11 @@ describe("world regeneration", () => {
     await ready();
     calls.length = 0;
     fireEvent.click(screen.getByLabelText("Generate new world"));
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Generate New World?");
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Generate a new world?");
     // With Dynamic Fastboot (on by default) the new world is prepared while the person decides: staged, never put in.
     await waitFor(() => expect(calls.some((c) => c.path.endsWith("/world/regenerate") && JSON.parse(c.body).stage === true)).toBe(true));
     expect(calls.every((c) => c.path.endsWith("/world/regenerate") && JSON.parse(c.body).stage === true)).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate World" }));
     await waitFor(() => expect(calls.some((c) => c.path.endsWith("/world/regenerate/commit"))).toBe(true));
 
     const overlay = await screen.findByRole("alertdialog");
@@ -432,7 +432,7 @@ describe("world regeneration", () => {
     render(<App />);
     await ready();
     fireEvent.click(screen.getByLabelText("Generate new world"));
-    fireEvent.click(await screen.findByRole("button", { name: "Generate" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Generate World" }));
     const overlay = await screen.findByRole("alertdialog");
     expect(await within(overlay).findByText("World generation failed", {}, { timeout: 3000 })).toBeInTheDocument();
     expect(overlay).toHaveTextContent(/could not be downloaded from OpenStreetMap\. Overpass returned HTTP 429/);
@@ -619,7 +619,7 @@ describe("auto focus", () => {
     mockApi({ uiConfig: ASKS_FIRST });
     render(<App />);
     expect(await screen.findByText("This simulation supports Auto Focus")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
+    fireEvent.click(screen.getByRole("button", { name: "Turn On" }));
     await waitFor(() => expect(screen.queryByText("This simulation supports Auto Focus")).not.toBeInTheDocument());
     expect(screen.getByLabelText("Auto Focus on live events")).toHaveAttribute("aria-pressed", "true");
     await new Promise((r) => setTimeout(r, 120));
@@ -1073,7 +1073,7 @@ describe("dialogs and suspension", () => {
     mockApi({ backpressure: { ...backpressure, state: "ASYNC", score: 1, synced: false, rate_locked: true, motion_locked: true, gui_suspended: true } });
     render(<App />);
     const alert = await screen.findByRole("alertdialog", {}, { timeout: 4000 });
-    expect(alert).toHaveTextContent(/suspended by the ASB/i);
+    expect(alert).toHaveTextContent(/Adaptive Simulation Backpressure\s*Interface suspended/i);
     expect(alert).toHaveTextContent(/still running and still streaming/i);
     const button = (name: RegExp) => Array.from(alert.querySelectorAll("button")).find((b) => name.test(b.textContent ?? ""));
     expect(button(/^Terminate session$/)).toBeEnabled();

@@ -346,39 +346,6 @@ dd .status-badge {
 .done-dialog {
   width: min(560px, 100%);
 }
-.done-hero {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.done-hero h2 {
-  margin: 0 0 2px;
-}
-.done-hero .dialog-body {
-  margin: 0;
-}
-.done-check {
-  flex: none;
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.done-check circle {
-  stroke: rgb(var(--ok-rgb) / 35%);
-  stroke-width: 2.5;
-  fill: rgb(var(--ok-rgb) / 10%);
-}
-.done-check path {
-  stroke: var(--ok);
-  stroke-width: 3.5;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 0;
-  transition: stroke-dashoffset 420ms var(--spring-spatialSlow, ease-out) 120ms;
-  @starting-style {
-    stroke-dashoffset: 1;
-  }
-}
 .done-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
@@ -2282,10 +2249,6 @@ html, body, #root {
 
 /* ---- The day is complete ------------------------------------------------------------------------ */
 .dialog.done-dialog { width: min(520px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 32px); padding: 20px; overflow-y: auto; }
-.done-dialog .done-hero { display: flex; align-items: center; gap: 14px; margin: 0 0 16px; }
-.done-dialog .done-hero h2 { margin: 0; font-size: 18px; }
-.done-dialog .done-hero .dialog-body { margin: 2px 0 0; font-size: 13px; }
-.done-dialog .done-check { flex: none; width: 40px; height: 40px; }
 .done-dialog .done-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 0 0 12px; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); overflow: hidden; }
 .done-dialog .done-stats > div { min-width: 0; padding: 10px 12px; background: none; border: 0; border-radius: 0; border-left: 1px solid var(--well-line); }
 .done-dialog .done-stats > div:first-child { border-left: 0; }
@@ -2449,7 +2412,6 @@ html, body, #root {
 .dialog.about-dialog { width: min(640px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 48px); padding: 0; display: flex; flex-direction: column; overflow: hidden; }
 .about-hero { position: relative; flex: none; padding: 20px 20px 14px; border-bottom: 1px solid var(--well-line); }
 .about-hero .dstns-logo { display: block; }
-.about-hero .about-close { position: absolute; top: 12px; right: 12px; }
 .about-hero .about-title { margin: 12px 0 2px; font-size: 15px; font-weight: 600; line-height: 1.3; }
 .about-byline { margin: 0; font-size: 12px; color: var(--text-dim); }
 .about-links { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
@@ -3153,3 +3115,33 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .stream > .stream-empty:has(.figure) .figure { width: min(188px, 62%); margin: 0 auto 4px; }
 .fabric-empty .figure { width: min(168px, 64%); }
 .place-search-empty:has(.figure) { display: grid; justify-items: center; gap: 6px; text-align: center; }
+
+/* ---- Dialogs ----
+   One card for everything that stops the work to ask or to tell. A plate at the top holds a figure that acts out what
+   the dialog is about; under it a title, a few words, and the answers side by side: the way out leading, the named
+   action trailing. A dangerous one says so in its figure and its button, not in a red title. */
+.scrim { padding: 16px; }
+.dialog { --dialog-pad: 20px; position: relative; width: min(400px, 100%); max-width: none; max-height: calc(100vh - 32px); padding: var(--dialog-pad); overflow: hidden auto; }
+.dialog-plate { flex: none; display: grid; place-items: center; height: 136px; margin: calc(-1 * var(--dialog-pad)) calc(-1 * var(--dialog-pad)) 18px; background: var(--well); border-bottom: 1px solid var(--well-line); }
+.dialog-plate .figure { --figure-ground: var(--well); width: 192px; margin: 0; }
+.dialog.danger .figure { --figure-hi: var(--danger); }
+.dialog h2, .dialog h2.danger { margin: 0 0 6px; font-family: var(--font-body); font-size: 17px; font-weight: 600; line-height: 1.3; letter-spacing: 0; color: var(--text); }
+.dialog .eyebrow { display: block; margin: 0 0 6px; }
+.dialog-body, .dialog-body.muted { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.dialog-body + .dialog-body { margin-top: 8px; }
+.dialog-actions, .world-dialog .dialog-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin-top: 20px; }
+.dialog-actions .btn { min-width: 0; min-height: 36px; justify-content: center; white-space: nowrap; }
+.dialog-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 16px 0 0; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); }
+.dialog-facts > div { padding: 9px 12px; }
+.dialog-facts > div + div { border-left: 1px solid var(--well-line); }
+.dialog-facts dt { font-size: 10.5px; color: var(--text-faint); }
+.dialog-facts dd { margin: 2px 0 0; font-size: 13px; color: var(--text); }
+.dialog-error { margin: 12px 0 0; }
+.dialog.suspended-dialog { width: min(460px, 100%); }
+.dialog.done-dialog { --dialog-pad: 20px; padding: var(--dialog-pad); }
+.done-dialog .done-stats { margin-top: 16px; }
+.dialog.about-dialog { --dialog-pad: 0px; overflow: hidden; }
+.about-dialog .dialog-plate { height: 128px; margin-bottom: 0; }
+.about-dialog .about-close { position: absolute; top: 10px; right: 10px; z-index: 1; }
+.about-hero { position: static; }
+.fabric-dialog-from { margin: -2px 0 8px; }

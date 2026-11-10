@@ -98,7 +98,7 @@ try {
   // This suite drives the camera itself, so Auto Focus is turned off: declined
   // if the deployment asks, switched off if it is enabled by default.
   await page.getByRole("button", { name: "Pause simulation" }).waitFor({ timeout: 60000 });
-  const offer = page.getByRole("button", { name: "Disable" });
+  const offer = page.getByRole("button", { name: "Not Now" });
   if (await offer.isVisible().catch(() => false)) await offer.click();
   const focusButton = page.getByRole("button", { name: "Auto Focus on live events" });
   if ((await focusButton.getAttribute("aria-pressed")) === "true") {

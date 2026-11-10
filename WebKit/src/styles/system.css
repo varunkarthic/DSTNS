@@ -1378,18 +1378,9 @@
   background: var(--glass-strong);
   border-color: var(--glass-line-strong);
 }
-.dialog-icon {
-  border-radius: var(--r-md);
-}
 .about-dialog {
   width: min(460px, 100%);
   padding: 18px 20px 18px;
-}
-.about-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 0 10px;
 }
 .dialog .about-title {
   margin: 0 0 10px;
@@ -1398,12 +1389,6 @@
   font-weight: 500;
   line-height: 20px;
   color: var(--text);
-}
-.about-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 14px;
 }
 .badge {
   display: inline-flex;

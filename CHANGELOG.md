@@ -38,6 +38,13 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   mast with nothing to send, a filter nothing passes, a plug short of its socket, a row of empty tiles, a glass over
   the map and a pin with nowhere to land, drawn as DSTNS's own line figures in one hand, each with one small motion
   that stops for reduced motion.
+- **One dialog.** About, Reset, Generate a new world, Terminate, the Auto Focus offer, the end of the day, a suspended
+  interface and an application's dialog share one card: a plate with a line figure that acts out what the answer
+  does (a day wound back, a district redrawn, a breaker thrown), then a title, a few words, and the answers side by
+  side with the way out first and the action named. Danger is in the figure and the button, not a red title.
+- **Panels divide from what opened them.** Settings and Search bud from the dock, and the bar's menus from the bar:
+  a bead, a neck that thins and parts, and a drop that grows into the panel; closing runs it backward, and either can
+  interrupt the other.
 - **A start that runs in order.** A world ready while the title's logo is being taken apart waits for it to become the
   film's name, and a new world's mist has no hole at its middle.
 - **Dynamic Fastboot** removes a used world's city, and what was kept beside it, once a world in another city takes

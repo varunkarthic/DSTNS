@@ -7,7 +7,8 @@ import { Spring, SPRINGS } from "../CoreMotion/motion";
 import { Badge } from "../components/settingsControls";
 import { api } from "../core/api";
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { Dialog } from "../components/Dialog";
+import type { FigureName } from "../CoreMotion/Figure";
 import { Icon } from "../components/Icons";
 import { Logo } from "../components/Logo";
 import { LoadingSurface } from "../film/LoadingSurface";
@@ -17,91 +18,6 @@ import type { SplashStage } from "../film/Splash";
 import { useTimeFormat } from "../core/preferences";
 import { formatDuration, formatWallDuration } from "../core/timeFormat";
 import type { Backpressure, WorldStatus, Envelope, Status, Topology } from "../core/types";
-
-/**
- * Modal surfaces.
- *
- * All of them share one shell: a blurred scrim that keeps the map legible
- * behind the dialog, a focus trap, Escape to dismiss, and a paired entry and
- * exit transition so nothing ever appears or vanishes abruptly.
- */
-
-export function Scrim({
-  onClose,
-  labelledBy,
-  children,
-  closing = false,
-  dismissible = true,
-  className = "",
-}: {
-  onClose: () => void;
-  labelledBy: string;
-  children: ReactNode;
-  closing?: boolean;
-  dismissible?: boolean;
-  className?: string;
-}) {
-  const panel = useRef<HTMLDivElement>(null);
-  const restore = useRef<Element | null>(null);
-
-  useEffect(() => {
-    restore.current = document.activeElement;
-    // Move focus into the dialog so keyboard users are not left behind it.
-    const first = panel.current?.querySelector<HTMLElement>(
-      "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
-    );
-    (first ?? panel.current)?.focus();
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && dismissible) {
-        e.stopPropagation();
-        onClose();
-        return;
-      }
-      if (e.key !== "Tab" || !panel.current) return;
-      const focusable = Array.from(
-        panel.current.querySelectorAll<HTMLElement>(
-          "button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
-        ),
-      );
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      document.removeEventListener("keydown", onKey, true);
-      (restore.current as HTMLElement | null)?.focus?.();
-    };
-  }, [onClose, dismissible]);
-
-  return (
-    <div
-      className={`scrim${closing ? " closing" : ""}`}
-      onPointerDown={(e) => {
-        if (dismissible && e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        ref={panel}
-        className={`dialog glass ${className}`.trim()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy}
-        tabIndex={-1}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
 
 /** A figure that counts up to its value on a spring, so the result arrives rather than appears. */
 function Stat({ label, value, digits = 0, suffix = "" }: { label: string; value: number; digits?: number; suffix?: string }) {
@@ -163,7 +79,7 @@ export function AboutCard({
     }
   };
   return (
-    <Scrim onClose={onClose} labelledBy="about-title" closing={closing} className="about-dialog">
+    <Dialog onClose={onClose} labelledBy="about-title" closing={closing} className="about-dialog" figure="city">
       <header className="about-hero">
         <Logo height={24} />
         <button type="button" className="icon-btn about-close" aria-label="Close About DSTNS" onClick={onClose}>
@@ -272,17 +188,17 @@ export function AboutCard({
       </div>
 
       </div>
-    </Scrim>
+    </Dialog>
   );
 }
 
-/** Confirmation before anything destructive. */
+/** Confirmation before anything that cannot be taken back. The figure acts out what confirming does. */
 export function ConfirmCard({
   title,
   body,
   confirmLabel,
-  tone = "default",
-  icon,
+  tone,
+  figure,
   onConfirm,
   onCancel,
   closing,
@@ -290,35 +206,25 @@ export function ConfirmCard({
   title: string;
   body: string;
   confirmLabel: string;
-  tone?: "default" | "danger";
-  icon?: string;
+  tone?: "danger";
+  figure: FigureName;
   onConfirm: () => void;
   onCancel: () => void;
   closing?: boolean;
 }) {
   return (
-    <Scrim onClose={onCancel} labelledBy="confirm-title" closing={closing}>
-      {icon && (
-        <span className={`dialog-icon${tone === "danger" ? " danger" : ""}`} aria-hidden="true">
-          <Icon name={icon} size={20} />
-        </span>
-      )}
-      <h2 id="confirm-title" className={tone === "danger" ? "danger" : ""}>
-        {title}
-      </h2>
+    <Dialog onClose={onCancel} labelledBy="confirm-title" closing={closing} figure={figure} tone={tone}>
+      <h2 id="confirm-title">{title}</h2>
       <p className="dialog-body">{body}</p>
       <div className="dialog-actions">
         <button className="btn" onClick={onCancel}>
           Cancel
         </button>
-        <button
-          className={`btn ${tone === "danger" ? "danger-solid" : "primary"}`}
-          onClick={onConfirm}
-        >
+        <button className={`btn ${tone === "danger" ? "danger-solid" : "primary"}`} onClick={onConfirm}>
           {confirmLabel}
         </button>
       </div>
-    </Scrim>
+    </Dialog>
   );
 }
 
@@ -336,7 +242,7 @@ export function AutoFocusPrompt({
   closing?: boolean;
 }) {
   return (
-    <Scrim onClose={onDecline} labelledBy="af-title" closing={closing}>
+    <Dialog onClose={onDecline} labelledBy="af-title" closing={closing} figure="viewfinder">
       <h2 id="af-title">This simulation supports Auto Focus</h2>
       <p className="dialog-body">
         The camera can follow incidents, flooding and rain on its own, framing
@@ -345,13 +251,13 @@ export function AutoFocusPrompt({
       </p>
       <div className="dialog-actions">
         <button className="btn" onClick={onDecline}>
-          Disable
+          Not Now
         </button>
         <button className="btn primary" onClick={onEnable}>
-          Enable
+          Turn On
         </button>
       </div>
-    </Scrim>
+    </Dialog>
   );
 }
 
@@ -376,45 +282,36 @@ export function SuspendedOverlay({
   pending: boolean;
 }) {
   return (
-    <div className="scrim suspended" role="alertdialog" aria-labelledby="asb-title">
-      <div className="dialog glass">
-        <span className="eyebrow">Adaptive Simulation Backpressure</span>
-        <h2 id="asb-title" className="danger">
-          Interface suspended
-        </h2>
-        <p className="dialog-body">
-          This simulation's interface has been suspended by the ASB (Adaptive
-          Simulation Backpressure) because the simulation and the GUI were out of
-          sync and failed to re-establish synchronization.
-        </p>
-        <p className="dialog-body muted">
-          The simulation itself is unaffected. It is still running and still
-          streaming data; only the display has been stood down. The interface
-          resumes on its own once synchronization holds again.
-        </p>
-        <dl className="about-facts">
-          <div>
-            <dt>Backpressure</dt>
-            <dd className="mono">{(asb.score * 100).toFixed(0)}%</dd>
-          </div>
-          <div>
-            <dt>Suspended for</dt>
-            <dd className="mono">{asb.state_for_s.toFixed(0)}s</dd>
-          </div>
-        </dl>
-        <div className="dialog-actions">
-          <button className="btn" onClick={onPlayPause} disabled={pending}>
-            {paused ? "Resume simulation" : "Pause simulation"}
-          </button>
-          <button className="btn" onClick={onReset} disabled={pending}>
-            Reset
-          </button>
-          <button className="btn danger-solid" onClick={onTerminate} disabled={pending}>
-            Terminate session
-          </button>
+    <Dialog labelledBy="asb-title" role="alertdialog" scrimClassName="suspended" className="suspended-dialog" figure="apart" tone="danger">
+      <span className="eyebrow">Adaptive Simulation Backpressure</span>
+      <h2 id="asb-title">Interface suspended</h2>
+      <p className="dialog-body">
+        The display fell out of step with the simulation and could not catch up, so it has been stood down. The simulation
+        is unaffected: it is still running and still streaming. The interface resumes on its own once the two hold together
+        again.
+      </p>
+      <dl className="dialog-facts">
+        <div>
+          <dt>Backpressure</dt>
+          <dd className="mono">{(asb.score * 100).toFixed(0)}%</dd>
         </div>
+        <div>
+          <dt>Suspended for</dt>
+          <dd className="mono">{asb.state_for_s.toFixed(0)}s</dd>
+        </div>
+      </dl>
+      <div className="dialog-actions">
+        <button className="btn" onClick={onPlayPause} disabled={pending}>
+          {paused ? "Resume simulation" : "Pause simulation"}
+        </button>
+        <button className="btn" onClick={onReset} disabled={pending}>
+          Reset
+        </button>
+        <button className="btn danger-solid" onClick={onTerminate} disabled={pending}>
+          Terminate session
+        </button>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -464,17 +361,9 @@ export function CompletionDialog({
 }) {
   const time = useTimeFormat();
   return (
-    <Scrim onClose={onClose} labelledBy="complete-title" closing={closing} className="done-dialog">
-      <div className="done-hero">
-        <svg className="done-check" viewBox="0 0 52 52" width="52" height="52" aria-hidden="true">
-          <circle cx="26" cy="26" r="24" pathLength={1} />
-          <path d="M15 27l8 8 14-16" pathLength={1} />
-        </svg>
-        <div>
-          <h2 id="complete-title">The day is complete</h2>
-          <p className="dialog-body">{summary.city ? `A full day in ${summary.city} has finished.` : "A full day has finished."}</p>
-        </div>
-      </div>
+    <Dialog onClose={onClose} labelledBy="complete-title" closing={closing} className="done-dialog" figure="arc">
+      <h2 id="complete-title">The day is complete</h2>
+      <p className="dialog-body">{summary.city ? `A full day in ${summary.city} has finished.` : "A full day has finished."}</p>
       <dl className="done-stats">
         {summary.peakCongestion !== null && <Stat label="Peak congestion" value={summary.peakCongestion} digits={1} suffix="%" />}
         {summary.incidents !== null && <Stat label="Incidents" value={summary.incidents} />}
@@ -513,7 +402,7 @@ export function CompletionDialog({
           Not Now
         </button>
       </div>
-    </Scrim>
+    </Dialog>
   );
 }
 

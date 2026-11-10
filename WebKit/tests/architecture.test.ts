@@ -31,7 +31,6 @@ const ALLOWED: Record<string, string[]> = {
 /** Imports that cross a boundary for now, each with why. */
 const EXCEPTIONS: Record<string, string> = {
   "components/Tooltip.tsx -> map/Legends.tsx": "an inspection tooltip draws a place's glyph",
-  "webfabric/Slots.tsx -> panels/Dialogs.tsx": "an application's dialog shares the observer's scrim, until dialogs share one primitive",
 };
 
 function files(dir: string): string[] {

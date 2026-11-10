@@ -473,7 +473,7 @@ try {
   check("world regeneration replaces the world", async () => {
     const before = (await call("/api/v1/playback/status")).body;
     await page.getByRole("button", { name: "Generate new world" }).click();
-    await page.getByRole("button", { name: "Generate", exact: true }).click();
+    await page.getByRole("button", { name: "Generate World", exact: true }).click();
     const overlay = page.getByRole("alertdialog");
     await overlay.waitFor();
     // The current world is paused for the swap and its controls rest.

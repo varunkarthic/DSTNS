@@ -7,7 +7,7 @@ import { Figure } from "../CoreMotion/Figure";
 import { Icon } from "../components/Icons";
 import { BrandLogo } from "../components/BrandLogo";
 import { Tooltip } from "../components/Tooltip";
-import { Scrim } from "../panels/Dialogs";
+import { Dialog } from "../components/Dialog";
 import { Switch } from "../components/settingsControls";
 import { Select } from "../components/Popover";
 import { settleTime, Spring, springEasing, SPRINGS } from "../CoreMotion/motion";
@@ -855,10 +855,10 @@ export function FabricDialog({ blocked }: { blocked: boolean }) {
   };
   return (
     <AppBoundary key={key} app={app}>
-      <Scrim onClose={() => answer("dismiss")} labelledBy="fabric-dialog-title">
+      <Dialog onClose={() => answer("dismiss")} labelledBy="fabric-dialog-title">
         <h2 id="fabric-dialog-title">{text(element.title) || app.name}</h2>
         <p className="fabric-dialog-from">From {app.name}</p>
-        <p>{text(element.body)}</p>
+        <p className="dialog-body">{text(element.body)}</p>
         <div className="dialog-actions">
           {(Array.isArray(element.actions) && element.actions.length ? element.actions : [{ id: "ok", label: "OK" }]).slice(0, 3).map((action) => (
             <button key={action.id} type="button" className={`btn${toneClass("tone" in action ? action.tone : undefined)}`} onClick={() => answer(action.id)}>
@@ -866,7 +866,7 @@ export function FabricDialog({ blocked }: { blocked: boolean }) {
             </button>
           ))}
         </div>
-      </Scrim>
+      </Dialog>
     </AppBoundary>
   );
 }

@@ -2025,20 +2025,6 @@ button:disabled {
 .btn.danger-solid:hover:not(:disabled) { background: var(--danger); color: var(--on-error); }
 a.btn { text-decoration: none; }
 
-.about-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin-bottom: var(--space-lg);
-}
-.about-head h2 { margin: 0; letter-spacing: 0.12em; }
-.about-head p {
-  margin: 2px 0 6px;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  color: var(--on-surface-variant);
-}
 .about-facts {
   display: grid;
   grid-template-columns: 1fr 1fr;

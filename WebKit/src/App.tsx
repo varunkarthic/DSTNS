@@ -1552,7 +1552,7 @@ export default function App() {
               title="Reset the simulation?"
               body="The day starts over from the beginning. The scenario, its seed and its map stay as they are, so you will see the same day again."
               confirmLabel="Start Over"
-              icon="reset"
+              figure="rewind"
               closing={dialogClosing}
               onCancel={closeDialog}
               onConfirm={() => {
@@ -1566,10 +1566,10 @@ export default function App() {
           )}
           {dialog === "regenerate" && (
             <ConfirmCard
-              title="Generate New World?"
+              title="Generate a new world?"
               body="A new seed picks a new district, which may need a map download. The current simulation stays where it is until the new world is ready, then hands over. The new world begins paused at the start of the day."
-              confirmLabel="Generate"
-              icon="reroll"
+              confirmLabel="Generate World"
+              figure="redraw"
               closing={dialogClosing}
               onCancel={closeDialog}
               onConfirm={() => {
@@ -1587,7 +1587,7 @@ export default function App() {
               body="The run stops and the simulation server shuts down. A new run must be started from the CLI."
               confirmLabel="Terminate"
               tone="danger"
-              icon="power"
+              figure="breaker"
               closing={dialogClosing}
               onCancel={closeDialog}
               onConfirm={() => {
