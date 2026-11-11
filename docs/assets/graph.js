@@ -996,12 +996,13 @@
     resize();
     refilter();
     renderSheet();
-    cam = fitView(minX, maxX, minY, maxY);
     var wanted = /node=([^&]+)/.exec(location.hash), asked = /[?&]q=([^&]+)/.exec(location.search);
     var found0 = wanted ? N.id.indexOf(decodeURIComponent(wanted[1])) : -1;
+    // The welcome opens first, so the whole graph is framed beside it rather than behind it.
+    if (!store.get("welcomed", false) && found0 < 0 && !asked) { openSheet = "help"; renderSheet(); store.set("welcomed", true); }
+    cam = fitView(minX, maxX, minY, maxY);
     if (found0 >= 0) select(found0, true);
     if (asked) { input.value = decodeURIComponent(asked[1].replace(/\+/g, " ")); search(true); }
-    if (!store.get("welcomed", false) && found0 < 0 && !asked) { openSheet = "help"; renderSheet(); store.set("welcomed", true); }
     version++;
     draw();
   }

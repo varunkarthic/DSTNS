@@ -18,6 +18,17 @@ widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on 
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`. The launcher is now a
 Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs Python to build, run or test.
 
+### The documentation site, redesigned
+
+- The observer's look carried over: one radius family, the section tabs as a capsule with the current one a
+  tinted pill, a navy glass header, sidebars where a section is a small heading and the current page a tinted
+  row, and contents on a hairline track that marks the section being read.
+- Pages keep a readable measure; tables are one rounded card with a tinted head; notes are tinted cards; code
+  sits in rounded wells; previous and next are two cards at the foot.
+- The home page opens with its promise, the figures as one strip, and a card with an icon for each part.
+- The Graph frames the whole map beside the welcome panel on a first visit, instead of behind it.
+- Nothing scrolls sideways on a phone.
+
 ### The launcher's settings, in sections
 
 - The Configuration page groups every category under a heading: Simulation, Start-up, Observer, Server,

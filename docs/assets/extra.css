@@ -1049,3 +1049,349 @@ html { scrollbar-gutter: stable; }
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
   clip-path: inset(50%); white-space: nowrap; border: 0;
 }
+
+/* ==========================================================================
+   v3: the observer's look, carried over. One radius family (8, 12, 18, 26 and
+   pills, as the observer's), glass where something floats over the page, a
+   tint of the one accent for whatever is current, hairlines instead of boxes,
+   and room around everything. The rules above stay as the base; these refine.
+   ========================================================================== */
+:root {
+  --dstns-r-xs: 8px;
+  --dstns-r-sm: 12px;
+  --dstns-r-md: 18px;
+  --dstns-r-lg: 26px;
+  --dstns-hair: rgb(127 160 180 / 16%);
+  --dstns-well: rgb(127 160 180 / 6%);
+  --dstns-ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+/* Tints of the accent are set where the accent is: on the scheme, not the root. */
+[data-md-color-scheme] {
+  --dstns-soft: rgb(var(--dstns-accent-rgb) / 10%);
+  --dstns-soft-strong: rgb(var(--dstns-accent-rgb) / 16%);
+}
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: #fbfcfd;
+  --md-code-bg-color: #f2f5f7;
+  --dstns-hair: rgb(16 40 56 / 10%);
+  --dstns-well: rgb(16 40 56 / 3.5%);
+}
+
+/* Header: navy glass over the page, in both schemes, as the observer's own bar. */
+.md-header {
+  background-color: rgb(7 19 28 / 84%);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  border-bottom: 1px solid rgb(127 160 180 / 14%);
+}
+.md-header--shadow { box-shadow: 0 10px 30px -18px rgb(0 0 0 / 60%); }
+/* Over a light page the glass would turn grey; it stays the observer's navy. */
+[data-md-color-scheme="default"] .md-header { background-color: rgb(9 24 35 / 95%); }
+
+/* Section tabs: one quiet capsule; the current section a tinted pill inside it. */
+@media screen and (min-width: 76.25em) {
+  .md-header .md-tabs__list {
+    gap: 0.1rem;
+    padding: 0.18rem;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 4.5%);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%);
+    width: max-content;
+  }
+  .md-header .md-tabs__link {
+    padding: 0.36rem 0.72rem;
+    border-radius: 999px;
+    transition: color 150ms ease, background-color 200ms var(--dstns-ease);
+  }
+  .md-header .md-tabs__link::after { display: none; }
+  .md-header .md-tabs__link:hover { background: rgb(255 255 255 / 6%) !important; color: #edf1f4; }
+  .md-header .md-tabs__item--active .md-tabs__link {
+    background: rgb(79 214 234 / 16%) !important;
+    box-shadow: inset 0 0 0 1px rgb(79 214 234 / 28%) !important;
+    color: #bff3fa;
+  }
+  .md-header .md-tabs__item--active .md-tabs__link:hover { color: #e6fbfe; }
+  .md-header .md-tabs__link:focus-visible { box-shadow: 0 0 0 2px #4fd6ea !important; }
+}
+
+/* The page: a readable measure, generous leading, headings that sit tight. */
+.md-main__inner { margin-top: 1.2rem; }
+/* A readable measure beside the sidebars; a page without them (the home page) keeps the whole width. */
+.md-main__inner:has(.md-sidebar--secondary:not([hidden])) .md-content { max-width: 50rem; }
+.md-content__inner { margin: 0 1.2rem 2.4rem; padding-top: 0.4rem; }
+.md-typeset { font-size: 0.8rem; line-height: 1.72; }
+.md-typeset h1 { color: var(--md-default-fg-color); font-size: 2.05rem; font-weight: 700; letter-spacing: -0.025em; line-height: 1.15; margin-bottom: 0.9em; }
+.md-typeset h2 {
+  font-size: 1.28rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 2.4em 0 0.7em;
+  padding-top: 1.4em;
+  border-top: 1px solid var(--dstns-hair);
+}
+.md-typeset h1 + h2, .md-typeset h1 + p + h2 { border-top: 0; padding-top: 0; }
+.md-typeset h3 { font-size: 0.98rem; font-weight: 650; letter-spacing: -0.01em; margin: 1.8em 0 0.5em; }
+.md-typeset h4 { font-size: 0.82rem; font-weight: 650; letter-spacing: 0; }
+.md-typeset h1 + p { font-size: 0.86rem; color: var(--md-default-fg-color--light); }
+.md-typeset a { text-underline-offset: 0.2em; }
+.md-typeset p > a:not(.md-button):hover { text-decoration: underline; text-decoration-color: rgb(var(--dstns-accent-rgb) / 55%); }
+
+/* Inline code: a soft tint, not a box. */
+.md-typeset :not(pre) > code {
+  padding: 0.08em 0.38em;
+  border-radius: 6px;
+  background: var(--dstns-well);
+  box-shadow: inset 0 0 0 1px var(--dstns-hair);
+  font-size: 0.84em;
+}
+
+/* Code blocks: a rounded well with a hairline, and room inside. */
+.md-typeset .highlight, .md-typeset pre { border-radius: var(--dstns-r-sm); }
+.md-typeset pre > code {
+  padding: 0.95em 1.15em;
+  border-radius: var(--dstns-r-sm);
+  box-shadow: inset 0 0 0 1px var(--dstns-hair);
+  font-size: 0.74rem;
+  line-height: 1.65;
+}
+.md-typeset .md-code__button, .md-clipboard { border-radius: var(--dstns-r-xs); }
+
+/* Tables: one rounded card, the head a tinted band, rows divided by hairlines. */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--dstns-hair);
+  border-radius: var(--dstns-r-md);
+  overflow: hidden;
+  box-shadow: none;
+  font-size: 0.72rem;
+}
+.md-typeset table:not([class]) th {
+  background: var(--dstns-well);
+  font-size: 0.66rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  border-bottom: 1px solid var(--dstns-hair);
+  padding: 0.75em 1.1em;
+}
+.md-typeset table:not([class]) td { padding: 0.8em 1.1em; border-top: 1px solid var(--dstns-hair); vertical-align: top; }
+.md-typeset table:not([class]) tr:first-child td { border-top: 0; }
+.md-typeset table:not([class]) tbody tr { transition: background-color 150ms ease; }
+.md-typeset table:not([class]) tbody tr:hover { background: var(--dstns-well); box-shadow: none; }
+
+/* Notes: a tinted card with the type's colour in its icon and a soft edge, no hard bar. */
+.md-typeset .admonition,
+.md-typeset details {
+  border: 1px solid color-mix(in srgb, var(--dstns-adm) 24%, transparent) !important;
+  border-left-width: 1px !important;
+  border-radius: var(--dstns-r-md);
+  background: color-mix(in srgb, var(--dstns-adm) 6%, transparent);
+  padding: 0.2rem 1rem 0.2rem 1rem;
+  font-size: 0.74rem;
+}
+.md-typeset details:not([open]) { background: var(--dstns-well); }
+
+/* Images and figures: the observer's large radius. */
+.md-typeset img.screenshot { border-radius: var(--dstns-r-md); border-color: var(--dstns-hair); }
+
+/* Left navigation: a section is a small heading; a page a rounded row; the current page a tinted pill. */
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--primary .md-nav__title { display: none; }
+  /* The section's own name is the tab above; the sidebar starts at its groups. */
+  .md-nav--primary > .md-nav__list > .md-nav__item--section > .md-nav__link { display: none; }
+  .md-sidebar--primary .md-nav--primary > .md-nav__list { padding: 0 0.4rem; }
+  .md-nav--primary .md-nav__item--section > .md-nav__link,
+  .md-nav--primary .md-nav__item--section > label.md-nav__link {
+    margin: 1.4em 0 0.35em 0.6rem;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--md-default-fg-color--lighter);
+  }
+  .md-nav--primary .md-nav__item--section:first-child > .md-nav__link { margin-top: 0.2em; }
+  .md-nav--primary .md-nav__item--section > .md-nav { margin-left: 0; }
+  .md-nav--primary .md-nav__link {
+    margin-top: 0.1em;
+    padding: 0.34rem 0.6rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    color: var(--md-default-fg-color--light);
+    transition: color 150ms ease, background-color 180ms var(--dstns-ease);
+  }
+  .md-nav--primary .md-nav__link[href]:hover { background: var(--dstns-well); color: var(--md-default-fg-color); }
+  .md-nav--primary .md-nav__link--active,
+  .md-nav--primary .md-nav__link--active:hover {
+    background: var(--dstns-soft);
+    color: var(--dstns-accent);
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px rgb(var(--dstns-accent-rgb) / 18%);
+  }
+}
+
+/* Contents on the right: a hairline track, the section being read marked on it. */
+.md-sidebar--secondary .md-nav__title {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--lighter);
+  background: none;
+  box-shadow: none;
+}
+.md-nav--secondary > .md-nav__list { border-left: 1px solid var(--dstns-hair); margin-left: 0.6rem; }
+.md-nav--secondary .md-nav__link {
+  position: relative;
+  margin-top: 0.15em;
+  padding: 0.16rem 0 0.16rem 0.75rem;
+  font-size: 0.66rem;
+  color: var(--md-default-fg-color--light);
+  transition: color 150ms ease;
+}
+.md-nav--secondary .md-nav .md-nav__link { padding-left: 1.35rem; font-size: 0.64rem; }
+.md-nav--secondary .md-nav__link::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--dstns-accent);
+  opacity: 0;
+  transform: scaleY(0.4);
+  transition: opacity 180ms ease, transform 240ms var(--dstns-ease);
+}
+.md-nav--secondary .md-nav__link:hover { color: var(--md-default-fg-color); }
+.md-nav--secondary .md-nav__link--active { color: var(--dstns-accent); font-weight: 600; }
+.md-nav--secondary .md-nav__link--active::before { opacity: 1; transform: none; }
+
+/* Previous and next: two cards at the foot of the page. */
+.md-footer__inner { gap: 0.8rem; padding: 1rem 1.2rem; }
+.md-footer__link {
+  flex: 1 1 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--dstns-r-md);
+  background: rgb(255 255 255 / 4%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
+  transition: background-color 180ms ease, box-shadow 180ms ease;
+}
+.md-footer__link:hover { background: rgb(79 214 234 / 9%); box-shadow: inset 0 0 0 1px rgb(79 214 234 / 30%); opacity: 1; }
+.md-footer__link--next { justify-content: flex-end; }
+.md-footer__direction { font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
+
+/* Buttons: pills, as every button in the observer. */
+.md-typeset .md-button { border-radius: 999px; padding: 0.62em 1.4em; }
+
+/* Content tabs (Docker / From source …): a capsule of pills over a rounded well. */
+.md-typeset .tabbed-set { border-radius: var(--dstns-r-md); }
+.md-typeset .tabbed-labels {
+  gap: 0.15rem;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.18rem;
+  border-radius: 999px;
+  background: var(--dstns-well);
+  box-shadow: inset 0 0 0 1px var(--dstns-hair);
+}
+.md-typeset .tabbed-labels::before { display: none; }
+.md-typeset .tabbed-labels > label {
+  padding: 0.38rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  color: var(--md-default-fg-color--light);
+  transition: color 150ms ease, background-color 200ms var(--dstns-ease);
+}
+.md-typeset .tabbed-set > input:nth-child(1):checked ~ .tabbed-labels > :nth-child(1),
+.md-typeset .tabbed-set > input:nth-child(2):checked ~ .tabbed-labels > :nth-child(2),
+.md-typeset .tabbed-set > input:nth-child(3):checked ~ .tabbed-labels > :nth-child(3),
+.md-typeset .tabbed-set > input:nth-child(4):checked ~ .tabbed-labels > :nth-child(4),
+.md-typeset .tabbed-set > input:nth-child(5):checked ~ .tabbed-labels > :nth-child(5),
+.md-typeset .tabbed-set > input:nth-child(6):checked ~ .tabbed-labels > :nth-child(6) {
+  background: var(--dstns-soft-strong);
+  color: var(--dstns-accent);
+  font-weight: 600;
+}
+.md-typeset .tabbed-content { margin-top: 0.6rem; }
+
+/* ---- Home ---- */
+.md-typeset .dstns-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 auto 1.1rem;
+  padding: 0.28rem 0.8rem 0.28rem 0.5rem;
+  border-radius: 999px;
+  background: var(--dstns-soft);
+  box-shadow: inset 0 0 0 1px rgb(var(--dstns-accent-rgb) / 24%);
+  color: var(--dstns-accent);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.md-typeset .dstns-eyebrow::before { content: ""; width: 0.42rem; height: 0.42rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px rgb(var(--dstns-accent-rgb) / 20%); }
+.dstns-hero { padding-top: 2.2rem; }
+.dstns-hero .dstns-lede { font-size: 0.9rem; line-height: 1.7; max-width: 60ch; }
+
+/* The figures: one glass strip divided by hairlines, not five boxes. */
+.dstns-stats {
+  gap: 0;
+  margin: 2.2rem auto 2.4rem;
+  max-width: 54rem;
+  border-radius: var(--dstns-r-lg);
+  background: var(--dstns-well);
+  box-shadow: inset 0 0 0 1px var(--dstns-hair);
+  overflow: hidden;
+}
+.md-typeset .dstns-first .dstns-stats { margin-left: auto; margin-right: auto; width: 100%; }
+.dstns-stats > div { border: 0; border-radius: 0; padding: 1rem 0.6rem; }
+.dstns-stats > div + div { box-shadow: inset 1px 0 0 var(--dstns-hair); }
+.dstns-stats strong { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+.dstns-stats span { font-size: 0.62rem; }
+
+/* The section cards: an icon, a title, a line, and the two pages most people want. */
+.md-typeset .dstns-cards { gap: 0.8rem; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+.md-typeset .dstns-card {
+  gap: 0.45rem;
+  padding: 1.05rem 1.1rem 1rem;
+  border: 0;
+  border-radius: var(--dstns-r-md);
+  background: var(--dstns-well);
+  box-shadow: inset 0 0 0 1px var(--dstns-hair);
+  transition: background-color 200ms ease, box-shadow 200ms ease, transform 260ms var(--dstns-ease);
+}
+.md-typeset .dstns-card:hover,
+.md-typeset .dstns-card:focus-within {
+  background: rgb(var(--dstns-accent-rgb) / 7%);
+  box-shadow: inset 0 0 0 1px rgb(var(--dstns-accent-rgb) / 34%), 0 14px 34px -22px rgb(var(--dstns-accent-rgb) / 60%);
+  transform: translateY(-2px);
+}
+.md-typeset .dstns-card .twemoji {
+  display: inline-grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  margin-bottom: 0.2rem;
+  border-radius: 10px;
+  background: var(--dstns-soft-strong);
+  color: var(--dstns-accent);
+}
+.md-typeset .dstns-card .twemoji svg { width: 1.05rem; height: 1.05rem; }
+.md-typeset .dstns-card p:first-child { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+.md-typeset .dstns-card__title { color: var(--md-default-fg-color); font-size: 0.86rem; letter-spacing: -0.01em; }
+.md-typeset .dstns-chip { padding: 0.16rem 0.65rem; background: rgb(var(--dstns-accent-rgb) / 6%); border-color: rgb(var(--dstns-accent-rgb) / 28%); }
+.md-typeset .dstns-chip:hover { background: var(--dstns-soft-strong); border-color: rgb(var(--dstns-accent-rgb) / 55%); }
+.md-typeset .dstns-shot img.screenshot { border-radius: var(--dstns-r-lg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .md-typeset .dstns-card, .md-nav__link, .md-nav__link::before, .md-header .md-tabs__link { transition: none !important; transform: none !important; }
+}
+/* On a phone Material lets the tab row bleed to the screen's edges; as a capsule it stays inside the column. */
+@media screen and (max-width: 44.984375em) {
+  .md-content__inner.md-typeset > .tabbed-set .tabbed-labels { margin: 0; padding: 0.18rem; max-width: 100%; }
+}
+/* Titles in full ink, as the observer's headings. */
+[data-md-color-scheme="slate"] .md-typeset :is(h1, h2) { color: #edf1f4; }
+[data-md-color-scheme="default"] .md-typeset :is(h1, h2) { color: #0b1c28; }

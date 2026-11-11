@@ -9,6 +9,8 @@ hide:
 
 <div class="dstns-hero" markdown>
 
+<p><span class="dstns-eyebrow">Same seed, same day, on any machine</span></p>
+
 <h1 class="dstns-hero__logo"><span class="dstns-wordmark" role="img" aria-label="DSTNS"></span></h1>
 
 <p class="dstns-hero__full">Deterministic Spatiotemporal Transport Network Simulator</p>
@@ -52,7 +54,7 @@ machine.
 <div class="dstns-cards" markdown>
 
 <div class="dstns-card" markdown>
-[Getting started](getting-started/index.md){ .dstns-card__title }
+:material-rocket-launch-outline: [Getting started](getting-started/index.md){ .dstns-card__title }
 
 Install, run with Docker, and take your first simulation.
 
@@ -60,7 +62,7 @@ Install, run with Docker, and take your first simulation.
 </div>
 
 <div class="dstns-card" markdown>
-[User guide](guide/index.md){ .dstns-card__title }
+:material-compass-outline: [User guide](guide/index.md){ .dstns-card__title }
 
 The operator CLI, the observer, playback, seeds and configuration.
 
@@ -68,7 +70,7 @@ The operator CLI, the observer, playback, seeds and configuration.
 </div>
 
 <div class="dstns-card" markdown>
-[Concepts](concepts/index.md){ .dstns-card__title }
+:material-lightbulb-on-outline: [Concepts](concepts/index.md){ .dstns-card__title }
 
 How a seed becomes a world and a day, with the equations.
 
@@ -76,7 +78,7 @@ How a seed becomes a world and a day, with the equations.
 </div>
 
 <div class="dstns-card" markdown>
-[API](api/index.md){ .dstns-card__title }
+:material-api: [API](api/index.md){ .dstns-card__title }
 
 Playback, control, view and streaming routes, schemas and examples.
 
@@ -84,7 +86,7 @@ Playback, control, view and streaming routes, schemas and examples.
 </div>
 
 <div class="dstns-card" markdown>
-[Deployment](deployment/index.md){ .dstns-card__title }
+:material-server-outline: [Deployment](deployment/index.md){ .dstns-card__title }
 
 Containers, TLS, security, logging and operations.
 
@@ -92,7 +94,7 @@ Containers, TLS, security, logging and operations.
 </div>
 
 <div class="dstns-card" markdown>
-[Reference](reference/index.md){ .dstns-card__title }
+:material-book-open-variant: [Reference](reference/index.md){ .dstns-card__title }
 
 Commands, variables, paths and limits; component internals; release notes.
 
@@ -100,7 +102,7 @@ Commands, variables, paths and limits; component internals; release notes.
 </div>
 
 <div class="dstns-card" markdown>
-[Design](design/index.md){ .dstns-card__title }
+:material-draw: [Design](design/index.md){ .dstns-card__title }
 
 The decisions behind the system, and its formal specifications.
 
@@ -108,7 +110,7 @@ The decisions behind the system, and its formal specifications.
 </div>
 
 <div class="dstns-card" markdown>
-[Help](troubleshooting.md){ .dstns-card__title }
+:material-lifebuoy: [Help](troubleshooting.md){ .dstns-card__title }
 
 Symptoms and remedies, common questions, known limitations, a glossary.
 
