@@ -68,7 +68,7 @@ export function NotificationCapsule(
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const closeCapsule = useCallback(() => setOpen(false), []);
-  useSettle(open, closeCapsule, 500);
+  useSettle(open, closeCapsule, 500, () => setOpen(true));
   const [technical, setTechnical] = useState(false);
   const [held, setHeld] = useState<UiNotification[] | null>(null);
   const root = useRef<HTMLDivElement>(null);

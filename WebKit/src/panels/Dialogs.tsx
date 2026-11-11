@@ -237,7 +237,7 @@ export function ConfirmCard({
 }
 
 /** The seed, with a button that copies it and says so. */
-export function SeedToCopy({ seed }: { seed: string }) {
+export function SeedToCopy({ seed, full = false }: { seed: string; /** All of it, where there is room. */ full?: boolean }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -256,7 +256,7 @@ export function SeedToCopy({ seed }: { seed: string }) {
           }, () => undefined);
         }}
       >
-        {seed.length > 16 ? `${seed.slice(0, 8)}…${seed.slice(-4)}` : seed}
+        {!full && seed.length > 16 ? `${seed.slice(0, 8)}…${seed.slice(-4)}` : seed}
         <Icon name={copied ? "check" : "copy"} size={12} />
       </button>
     </>
@@ -396,21 +396,38 @@ export function CompletionDialog({
 }) {
   const time = useTimeFormat();
   return (
-    <Dialog onClose={onClose} labelledBy="complete-title" closing={closing} className="done-dialog" figure="arc">
+    <Dialog onClose={onClose} labelledBy="complete-title" closing={closing} className="done-dialog">
+      <div className="done-hero" aria-hidden="true">
+        <svg className="done-ring" viewBox="0 0 120 120">
+          <circle className="done-track" cx="60" cy="60" r="52" />
+          <circle className="done-progress" cx="60" cy="60" r="52" pathLength={100} />
+          <g className="done-sun">
+            <circle cx="60" cy="8" r="5" />
+          </g>
+          <g className="done-burst">
+            {Array.from({ length: 10 }, (_, k) => (
+              <line key={k} x1="60" y1="2" x2="60" y2="-6" style={{ transform: `rotate(${k * 36}deg)` }} />
+            ))}
+          </g>
+          <path className="done-check" d="M44 61l11 11 22-24" pathLength={1} />
+        </svg>
+        <span className="done-clock mono">{time.time(summary.finalTime, { seconds: false })}</span>
+      </div>
       <h2 id="complete-title">The day is complete</h2>
-      <p className="dialog-body">{summary.city ? `A full day in ${summary.city} has finished.` : "A full day has finished."}</p>
+      <p className="dialog-body">{summary.city ? `A full day in ${summary.city} has run its course.` : "A full day has run its course."}</p>
       <dl className="done-stats">
         {summary.peakCongestion !== null && <Stat label="Peak congestion" value={summary.peakCongestion} digits={1} suffix="%" />}
         {summary.incidents !== null && <Stat label="Incidents" value={summary.incidents} />}
         {summary.significant !== null && <Stat label="Significant events" value={summary.significant} />}
         {summary.rainEvents !== null && <Stat label="Rain events" value={summary.rainEvents} />}
       </dl>
-      <dl className="done-facts">
-        <div><dt>Final time</dt><dd className="mono">{time.time(summary.finalTime)}</dd></div>
-        <div><dt>Simulated</dt><dd>{formatDuration(summary.simulatedSeconds)}</dd></div>
-        {summary.wallMs !== null && <div><dt>Observed for</dt><dd>{formatWallDuration(summary.wallMs)}</dd></div>}
-        <div className="done-seed"><dt>Seed</dt><dd className="mono">{summary.seed || "None"}</dd></div>
-      </dl>
+      <p className="done-line">
+        <span>{formatDuration(summary.simulatedSeconds)} simulated</span>
+        {summary.wallMs !== null && <span>{formatWallDuration(summary.wallMs)} watched</span>}
+        <span>
+          Final time <b className="mono">{time.time(summary.finalTime)}</b>
+        </span>
+      </p>
       {reportError && (
         <p className="dialog-error" role="alert">
           {reportError}
@@ -421,17 +438,24 @@ export function CompletionDialog({
           <Icon name="download" size={16} />
           {pending ? "Preparing report" : "Save Report"}
         </button>
-        {onReplay && (
-          <button className="btn" onClick={onReplay}>
-            <Icon name="reset" size={16} />
-            Restart same simulation
-          </button>
-        )}
-        {onNewWorld && (
-          <button className="btn tinted" onClick={onNewWorld} disabled={!canGenerate}>
-            <Icon name="reroll" size={16} />
-            Generate a new world
-          </button>
+        <div className="done-next">
+          {onReplay && (
+            <button className="btn tinted" onClick={onReplay}>
+              <Icon name="reset" size={15} />
+              Restart same simulation
+            </button>
+          )}
+          {onNewWorld && (
+            <button className="btn tinted" onClick={onNewWorld} disabled={!canGenerate}>
+              <Icon name="reroll" size={15} />
+              Generate a new world
+            </button>
+          )}
+        </div>
+        {summary.seed && (
+          <p className="done-seed-note">
+            <SeedToCopy seed={summary.seed} full />
+          </p>
         )}
         <button className="btn ghost done-later" onClick={onClose}>
           Not Now

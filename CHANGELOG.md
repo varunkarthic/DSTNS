@@ -105,6 +105,13 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   rather than a fold that showed as a line.
 - **Small fixes.** A row's time on the right is never cut off, and an incident's rings can no longer be drawn with a
   negative size (which threw) when the page's clock is behind the snapshot's.
+- **The day is complete, celebrated.** A ring for the day fills with a sun travelling round it and turns into a check;
+  the figures count up in comfortable tiles, and the next steps sit in clear rows with the seed to come back to.
+- **Starting over rewinds.** The day visibly streams back to 00:00 for at least a moment, however quick the jump.
+- **The report has the screen.** Saving a report first puts away the finished day's card and any open panel, and brings
+  them back once the report is saved.
+- **Roomier questions, a centred status.** New World and Terminate have more space and settle in part by part; Online
+  is a centred pill like its neighbours.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:

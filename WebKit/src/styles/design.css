@@ -3436,3 +3436,81 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 /* A row's own time or state on the right is never cut: the description gives way to it. */
 .stream-card .stream-meta > span:first-child { flex: 1 1 auto; min-width: 0; }
 .stream-card .stream-meta > span + span { flex: none; white-space: nowrap; }
+
+/* The status is a pill like its neighbours: the same 34px, its dot and word centred in the width it keeps for its
+   longest state, tinted by what it says. */
+.rail .runtime { min-width: 112px; height: 34px; padding: 0 14px; gap: 7px; justify-content: center; border-radius: 17px; background: rgb(var(--ok-rgb) / 9%); box-shadow: inset 0 0 0 1px rgb(var(--ok-rgb) / 24%); line-height: 1; }
+.rail .runtime i { flex: none; margin: 0; }
+.rail .runtime.runtime-restricted, .rail .runtime.runtime-degraded { background: rgb(var(--warn-rgb) / 10%); box-shadow: inset 0 0 0 1px rgb(var(--warn-rgb) / 28%); }
+.rail .runtime.runtime-offline { background: rgb(var(--danger-rgb) / 10%); box-shadow: inset 0 0 0 1px rgb(var(--danger-rgb) / 28%); }
+
+/* ---- Session cards, roomier ----------------------------------------------------------------------------------------
+   More air: 28px all round, a larger icon well, the question on its own line under it, the note set apart, and the
+   answers given room to breathe. Every part is centred on one column, so the card reads at a glance. */
+.dialog.confirm-dialog { width: min(440px, 100%); padding: 28px 28px 24px; }
+.confirm-head { grid-template-columns: none; justify-items: center; gap: 16px; text-align: center; }
+.confirm-icon { width: 52px; height: 52px; }
+.confirm-icon .icon { width: 22px; height: 22px; }
+.confirm-dialog h2 { margin: 0 0 8px; font-size: 18px; }
+.confirm-dialog .dialog-body { max-width: 34ch; margin-inline: auto; font-size: 13.5px; line-height: 1.6; }
+.confirm-note { justify-content: center; margin: 20px 0 0; padding: 11px 14px; font-size: 12.5px; line-height: 1.5; text-align: center; border-radius: var(--r-md); }
+.confirm-dialog .dialog-actions { margin-top: 24px; gap: 10px; }
+.confirm-dialog .dialog-actions .btn { min-height: 42px; border-radius: 21px; font-size: 13.5px; }
+/* Each part arrives a beat after the one before, so the card settles in rather than appearing at once. */
+.confirm-dialog > * { animation: confirm-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.confirm-dialog > :nth-child(2) { animation-delay: 50ms; }
+.confirm-dialog > :nth-child(3) { animation-delay: 100ms; }
+.confirm-dialog .confirm-icon { animation: confirm-icon-in 520ms cubic-bezier(0.34, 1.4, 0.5, 1) 60ms both; }
+@keyframes confirm-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes confirm-icon-in { from { opacity: 0; transform: scale(0.6); } }
+.reduce-motion .confirm-dialog > *, .reduce-motion .confirm-dialog .confirm-icon { animation: none; }
+.confirm-dialog .dialog-body { max-width: 40ch; text-wrap: balance; }
+
+/* ---- The day is complete -------------------------------------------------------------------------------------------
+   A ring for the day fills from midnight round to midnight with a sun travelling on it, then turns into a check with a
+   small burst; the figures count up beneath, and the next steps sit in comfortable rows. */
+.dialog.done-dialog { display: block; width: min(460px, 100%); padding: 30px 28px 22px; text-align: center; grid-template-columns: none; }
+.done-hero { position: relative; width: 132px; height: 132px; margin: 0 auto 18px; }
+.done-ring { width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
+.done-track, .done-progress { fill: none; stroke-width: 4; }
+.done-track { stroke: var(--well-line); }
+.done-progress { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; animation: done-fill 1500ms cubic-bezier(0.45, 0, 0.2, 1) 200ms forwards; }
+.done-sun { transform-origin: 60px 60px; animation: done-orbit 1500ms cubic-bezier(0.45, 0, 0.2, 1) 200ms both, done-sun-out 300ms ease-in 1650ms forwards; }
+.done-sun circle { fill: #ffd27a; filter: drop-shadow(0 0 6px rgb(255 200 110 / 70%)); }
+.done-burst { transform-origin: 60px 60px; opacity: 0; animation: done-burst 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 1700ms both; }
+.done-burst line { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; transform-origin: 60px 60px; }
+.done-check { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; transform: rotate(90deg); transform-origin: 60px 60px; animation: done-check 480ms cubic-bezier(0.3, 0, 0.1, 1) 1720ms forwards; }
+.done-clock { position: absolute; inset: 0; display: grid; place-items: center; font-size: 20px; font-weight: 600; color: var(--text); animation: done-clock-out 260ms ease-in 1600ms forwards; }
+@keyframes done-fill { to { stroke-dashoffset: 0; } }
+@keyframes done-orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes done-sun-out { to { opacity: 0; transform: rotate(360deg) scale(0.4); } }
+@keyframes done-burst { 0% { opacity: 0; transform: scale(0.82); } 40% { opacity: 1; } 100% { opacity: 0; transform: scale(1.12); } }
+@keyframes done-check { to { stroke-dashoffset: 0; } }
+@keyframes done-clock-out { to { opacity: 0; transform: scale(0.85); } }
+.done-dialog h2 { margin: 0 0 6px; font-size: 20px; }
+.done-dialog .dialog-body { margin: 0 auto; max-width: 36ch; font-size: 13.5px; }
+.done-dialog .done-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 22px 0 0; padding: 0; border: 0; background: none; }
+.done-dialog .done-stats > div, .done-dialog .done-stats > div:first-child { padding: 12px 14px; border: 0; border-radius: var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); text-align: left; }
+.done-dialog .done-stats dt { min-height: 0; font-size: 11px; color: var(--text-faint); }
+.done-dialog .done-stats dd { margin: 4px 0 0; font-size: 22px; font-weight: 500; }
+.done-line { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 16px; margin: 14px 0 0; font-size: 12px; color: var(--text-dim); }
+.done-line b { font-weight: 500; color: var(--text); }
+.done-actions { display: grid; gap: 10px; margin-top: 24px; }
+.done-actions .done-save { min-height: 44px; border-radius: 22px; font-size: 14px; justify-content: center; }
+.done-next { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.done-next .btn { min-height: 40px; border-radius: 20px; justify-content: center; font-size: 12.5px; white-space: nowrap; }
+.done-seed-note { margin: 4px 0 0; font-size: 12px; color: var(--text-faint); }
+.done-actions .done-later { justify-self: center; min-height: 32px; padding: 0 16px; color: var(--text-dim); }
+.done-dialog > :not(.done-hero) { animation: confirm-in 460ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.done-dialog > h2 { animation-delay: 120ms; }
+.done-dialog > .dialog-body { animation-delay: 170ms; }
+.done-dialog > .done-stats { animation-delay: 240ms; }
+.done-dialog > .done-line { animation-delay: 300ms; }
+.done-dialog > .done-actions { animation-delay: 360ms; }
+.reduce-motion .done-dialog *, .reduce-motion .done-dialog > * { animation: none !important; }
+.reduce-motion .done-progress, .reduce-motion .done-check { stroke-dashoffset: 0; }
+.reduce-motion .done-sun, .reduce-motion .done-clock { display: none; }
+.done-dialog .done-actions { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-flow: row; }
+.done-dialog .done-next { width: 100%; }
+.done-dialog .done-next .btn { width: 100%; padding: 0 12px; }
+.done-dialog .done-stats > div:last-child:nth-child(odd) { grid-column: 1 / -1; }

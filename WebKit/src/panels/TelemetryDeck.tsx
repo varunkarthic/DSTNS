@@ -792,7 +792,9 @@ function TelemetryDeckImpl(props: Props) {
     setPanel(null);
     opener.current?.focus();
   }, []);
-  useSettle(panel !== null, closePanel);
+  const lastPanel = useRef<PanelView | null>(null);
+  if (panel) lastPanel.current = panel;
+  useSettle(panel !== null, closePanel, 700, () => lastPanel.current && setPanel(lastPanel.current));
   useEffect(() => {
     if (!panel) return;
     panelHeading.current?.focus({ preventScroll: true });

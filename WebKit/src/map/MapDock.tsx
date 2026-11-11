@@ -164,7 +164,7 @@ function PlaceSearch({ open, features, city, onClose, onPick }: { open: boolean;
 export function MapDock(props: MapDockProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
-  useSettle(searchOpen, closeSearch);
+  useSettle(searchOpen, closeSearch, 700, () => setSearchOpen(true));
   const [menuOpen, setMenuOpen] = useState(false);
   const dockRef = useRef<HTMLDivElement>(null);
   const focusButton = useRef<HTMLButtonElement>(null);

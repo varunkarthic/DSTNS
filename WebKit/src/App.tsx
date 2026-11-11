@@ -269,8 +269,8 @@ export default function App() {
   // Anything open puts itself away before a dialog asks about the whole session.
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const closeLayers = useCallback(() => setLayersOpen(false), []);
-  useSettle(settingsOpen, closeSettings);
-  useSettle(layersOpen, closeLayers);
+  useSettle(settingsOpen, closeSettings, 700, () => setSettingsOpen(true));
+  useSettle(layersOpen, closeLayers, 700, () => setLayersOpen(true));
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [dialogClosing, setDialogClosing] = useState(false);
   const [pending, setPending] = useState(false);
@@ -762,6 +762,12 @@ export default function App() {
     setSeeking({ direction: delta < 0 ? -1 : 1, seconds: Math.abs(to - from), from, to });
     return api.seek(to).finally(() => setSeeking(null));
   }, []);
+  /** Back to the start of the day: the day rewinds before your eyes, for at least a moment however quick the jump. */
+  const rewindDay = useCallback((from: number, play: boolean) => {
+    const began = performance.now();
+    setSeeking({ direction: -1, seconds: Math.max(3600, from), from, to: 0 });
+    return api.seek(0, play).finally(() => setTimeout(() => setSeeking(null), Math.max(0, 1300 - (performance.now() - began))));
+  }, []);
   const action = useCallback(async (fn: () => Promise<unknown>) => {
     setPending(true);
     setActionError("");
@@ -822,7 +828,13 @@ export default function App() {
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 10000);
   }, []);
-  const closeReportFilm = useCallback(() => setReportFilm(null), []);
+  const closeReportFilm = useCallback(() => {
+    setReportFilm(null);
+    // Once the film has gone, what was open before it comes back.
+    const back = afterReport.current;
+    afterReport.current = null;
+    if (back) window.setTimeout(back, 260);
+  }, []);
   const reportView = useCallback(() => {
     const view = mapView.current;
     const box = document.querySelector(".static-map")?.getBoundingClientRect();
@@ -837,11 +849,16 @@ export default function App() {
     snapshot: sim.snapshot.data,
     virtualS: sim.snapshot.clock.virtual_day_seconds,
   };
+  // What was open before a report, brought back once it has been saved or put away.
+  const afterReport = useRef<(() => void) | null>(null);
   const report = useCallback(
     () =>
       action(async () => {
         setReportError("");
         if (!sim.status || !sim.snapshot || !sim.topology) throw new Error("The report needs a loaded simulation.");
+        // Whatever is open goes first (a finished day's card included), so the film has the screen to itself.
+        if (dialog) closeDialog();
+        afterReport.current = await settle();
         try {
           // The film takes the city from the map as it is on screen, so the whole of it is brought into view first,
           // and the camera is given time to arrive.
@@ -874,10 +891,12 @@ export default function App() {
           const message = e instanceof Error ? e.message : "The report could not be generated.";
           setReportError(message);
           setReportFilm(null);
+          afterReport.current?.();
+          afterReport.current = null;
           throw new Error(`Report generation failed. ${message}`);
         }
       }),
-    [action, sim.status, sim.snapshot, sim.topology, sim.news, history, asb, hour12, shownLayers, logControl, reduceMotion],
+    [action, sim.status, sim.snapshot, sim.topology, sim.news, history, asb, hour12, shownLayers, logControl, reduceMotion, dialog, closeDialog],
   );
 
   const setMotion = (next: boolean) => {
@@ -1005,8 +1024,9 @@ export default function App() {
   }, [lifecycle, runId, seed, virtual, history, congestion, location, sim.news]);
   // Shown as soon as nothing else occupies the dialog slot.
   useEffect(() => {
-    if (completion && !dialog && !world.active && !tutorial.busy && lifecycle === "COMPLETED") setDialog("complete");
-  }, [completion, dialog, world.active, tutorial.busy, lifecycle]);
+    // Not while a report is being made from it: the card has stepped aside for the film, and comes back after it.
+    if (completion && !dialog && !world.active && !tutorial.busy && !reportFilm && !pending && lifecycle === "COMPLETED") setDialog("complete");
+  }, [completion, dialog, world.active, tutorial.busy, lifecycle, reportFilm, pending]);
   useEffect(() => {
     if (lifecycle !== "COMPLETED") setCompletion(null);
   }, [lifecycle]);
@@ -1581,7 +1601,7 @@ export default function App() {
                 // A finished day replays at once; a running one keeps its play state.
                 const replay = lifecycle === "COMPLETED";
                 logControl(replay ? "restart" : "reset");
-                void action(() => api.seek(0, replay));
+                void action(() => rewindDay(virtual, replay));
               }}
             />
           )}
