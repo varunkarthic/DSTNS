@@ -210,13 +210,67 @@ export function startMusic(volume: number): Music | null {
   return music;
 }
 
+/**
+ * A file of the operator's own (MP3, M4A or WAV, which the server serves at one address), looped, through the same
+ * level and fades as the written score. If it can't be played, the score plays instead.
+ */
+export function startTrack(url: string, volume: number, fallback: () => Music | null): Music | null {
+  const Context = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Context) return null;
+  const audio = new Context();
+  const element = new Audio();
+  element.src = url;
+  element.loop = true;
+  element.preload = "auto";
+  const source = audio.createMediaElementSource(element);
+  const master = audio.createGain();
+  master.gain.value = 0;
+  source.connect(master).connect(audio.destination);
+  let replaced: Music | null = null;
+  let stopped = false;
+  element.addEventListener("error", () => {
+    // Not a file this browser can play after all: the written score instead.
+    if (stopped || replaced) return;
+    void audio.close().catch(() => undefined);
+    replaced = fallback();
+  }, { once: true });
+  const play = () => void element.play().catch(() => undefined);
+  play();
+  const music: Music = {
+    level(level, seconds = 1.5) {
+      if (replaced) return replaced.level(level, seconds);
+      master.gain.cancelScheduledValues(audio.currentTime);
+      master.gain.setValueAtTime(master.gain.value, audio.currentTime);
+      master.gain.linearRampToValueAtTime(Math.max(0, Math.min(1, level)), audio.currentTime + seconds);
+    },
+    stop(seconds = 2.5) {
+      stopped = true;
+      if (replaced) return replaced.stop(seconds);
+      music.level(0, seconds);
+      setTimeout(() => {
+        element.pause();
+        element.removeAttribute("src");
+        void audio.close().catch(() => undefined);
+      }, seconds * 1000 + 100);
+    },
+    running: () => (replaced ? replaced.running() : audio.state === "running" && !element.paused),
+    resume() {
+      if (replaced) return replaced.resume();
+      void audio.resume().catch(() => undefined);
+      if (element.paused) play();
+    },
+  };
+  music.level(volume, 3);
+  return music;
+}
+
 const MUTED_KEY = "dstns.music.muted";
 
 /**
  * Plays the music while `playing`, and fades it out when that ends. Shows a small mute button while it plays.
  * A browser that won't play sound before a person has touched the page starts it at their first touch.
  */
-export function MusicControl({ playing, volume }: { playing: boolean; volume: number }) {
+export function MusicControl({ playing, volume, track = false }: { playing: boolean; volume: number; /** The server has a file of the operator's own to play. */ track?: boolean }) {
   const music = useRef<Music | null>(null);
   const [on, setOn] = useState(false);
   const [muted, setMuted] = useState(() => {
@@ -231,7 +285,8 @@ export function MusicControl({ playing, volume }: { playing: boolean; volume: nu
 
   useEffect(() => {
     if (!playing) return;
-    const started = startMusic(mutedRef.current ? 0 : volume);
+    const level = mutedRef.current ? 0 : volume;
+    const started = track ? startTrack("/api/v1/system/music", level, () => startMusic(mutedRef.current ? 0 : volume)) : startMusic(level);
     if (!started) return;
     music.current = started;
     setOn(true);
@@ -245,7 +300,7 @@ export function MusicControl({ playing, volume }: { playing: boolean; volume: nu
       music.current = null;
       setOn(false);
     };
-  }, [playing, volume]);
+  }, [playing, volume, track]);
 
   const toggle = () => {
     const quiet = !muted;

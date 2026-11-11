@@ -129,7 +129,7 @@ The launcher reads command lines as a shell does, in its command bar, with `-c`,
 | **New worlds prepared ahead** | Ask the observer for a new world and it is prepared while you decide; *Generate* puts it in at once, *Cancel* forgets it |
 | **The adaptive film** | The start-up film plans itself by the server's estimate of when the world will be ready: as many scenes as fit, in a new order every time, always opening on the name and closing on the flight into the map |
 
-`./launcher demo` plays the film on a loop, full screen, with an original score, including scenes on time control, many worlds and AI, in whatever order you set.
+`./launcher demo` plays the film on a loop, full screen, with an original score, including scenes on time control, many worlds and AI, in whatever order you set. The score can be swapped for music of your own, an MP3, M4A or WAV file, for Demo Mode and the start-up film separately (`demo.music_file`, `presentation.music_file`).
 
 ## Daemons
 

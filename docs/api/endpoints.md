@@ -1551,7 +1551,7 @@ Response `200`, from a real run:
 
 What the operator has turned on and off for this server, and how the observer should present itself. It's set by whoever starts the server, through the launcher's settings or [environment variables](../reference/environment-variables.md#fabric-and-presentation), and nothing can change it while the server runs.
 
-`presentation` holds `webfabric`, `force_animate`, `fast_boot`, `demo`, `music`, `fullscreen` and `music_volume`, and how hard the observer works: `map_fps` (0 lets the map decide, or 60 or 30), `render_scale` (0.5 to 3) and `film_particles` (4,000 to 32,000). With `fast_boot`, `force_animate` is always false. `performance` reports the server's own: `compression`, `api_threads` and `engine_threads`.
+`presentation` holds `webfabric`, `force_animate`, `fast_boot`, `demo`, `music`, `music_track` (the server has a music file of the operator's own to play, from [`GET /api/v1/system/music`](#get-apiv1systemmusic)), `fullscreen` and `music_volume`, and how hard the observer works: `map_fps` (0 lets the map decide, or 60 or 30), `render_scale` (0.5 to 3) and `film_particles` (4,000 to 32,000). With `fast_boot`, `force_animate` is always false. `performance` reports the server's own: `compression`, `api_threads` and `engine_threads`.
 
 **Who:** Anyone who can reach the port.
 
@@ -1580,6 +1580,19 @@ Response `200`, from a real run:
   "ok": true
 }
 ```
+
+
+### `GET /api/v1/system/music`
+
+The film's music, when the operator chose a file of their own: the MP3, M4A or WAV named by
+`DSTNS_MUSIC_FILE` when the server started (the launcher sets it from `presentation.music_file`
+or `demo.music_file`), up to 64 MB, as `audio/mpeg`, `audio/mp4` or `audio/wav`. Range requests
+are answered with `206`, so the page can loop it. A request can't name a file: there is only the
+one the server was started with.
+
+**Who:** Anyone who can reach the port.
+
+`404 NO_MUSIC_FILE` when none was chosen, or the file is missing, of another type or too large.
 
 ### `POST /api/v1/system/terminate`
 

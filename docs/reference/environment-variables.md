@@ -115,6 +115,7 @@ Read by the server when it starts. The launcher sets them from its settings; see
 | `DSTNS_LAUNCH_PROPOSALS` | `1` | `0` stops applications proposing how to start them |
 | `DSTNS_REQUIRE_SIGNATURES` | `0` | `1` makes every application sign its requests |
 | `DSTNS_DISABLED_CAPABILITIES` | empty | Comma-separated capabilities nobody may be granted |
+| `DSTNS_MUSIC_FILE` | unset | An MP3, M4A or WAV file the film plays instead of the written score, served at `GET /api/v1/system/music`; the launcher sets it from `presentation.music_file` or `demo.music_file` |
 | `DSTNS_PRESENTATION` | `{}` | JSON for the observer: `webfabric`, `force_animate`, `fast_boot`, `dynamic_fastboot`, `dynamic_particles`, `demo`, `music`, `fullscreen` (true or false), `music_volume` (0 to 1), `map_fps` (0, 30 or 60), `render_scale` (0.5 to 3), `film_particles` (4,000 to 32,000) and `demo_scenes` (scene ids, in order). Anything else is ignored. `force_animate` is reported off whenever `fast_boot` or `dynamic_particles` is on |
 | `DSTNS_DYNAMIC_FASTBOOT` | `1` | `0` stops the server choosing the next world and fetching its city while a world runs; see [Dynamic Fastboot](../guide/fast-boot.md#dynamic-fastboot) |
 | `DSTNS_DAEMON` | `{}` | JSON for the [daemons](../guide/daemons.md), laid over their defaults: `enabled`, `sustain_s`, `daemons` (each on or off), `rcs.modules.MODULE.memory_mib` and `.cpu_percent` (α, β, γ), and `cache.interval_s`, `max_mib`, `stale_part_s`. The launcher writes it from its settings |

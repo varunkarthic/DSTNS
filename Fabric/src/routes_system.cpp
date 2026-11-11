@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/api.hpp"
+#include <algorithm>
 #include "dstns/build_info.hpp"
 #include "dstns/osm_fetch.hpp"
 #include "dstns/sumo_bridge.hpp"
@@ -24,6 +25,21 @@
 #include <thread>
 
 namespace dstns {
+namespace {
+// The film's music file named by whoever started the server, with its type, if it is one the observer can play.
+std::pair<std::filesystem::path, const char*> chosen_music() {
+    const char* chosen = std::getenv("DSTNS_MUSIC_FILE");
+    const std::filesystem::path path = chosen ? chosen : "";
+    std::string kind = path.extension().string();
+    std::transform(kind.begin(), kind.end(), kind.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const char* type = kind == ".mp3" ? "audio/mpeg" : kind == ".m4a" ? "audio/mp4" : kind == ".wav" ? "audio/wav" : nullptr;
+    std::error_code error;
+    const auto size = path.empty() || !type ? 0 : std::filesystem::file_size(path, error);
+    if (!type || error || size == 0 || size > 64ull * 1024 * 1024) return {path, nullptr};
+    return {path, type};
+}
+} // namespace
+
 using namespace fabric;
 
 // Service identity, health, lifecycle, licence and backpressure.
@@ -137,6 +153,7 @@ void ApiServer::routes_system() {
                 {{"POST","/api/v1/system/observer","An open observer reports whether a world should wait for it"}},
                 {{"GET","/api/v1/system/narrator","Narration model, queue and cache"}},
                 {{"GET","/api/v1/system/features","What the operator has turned on and off, and how the observer presents itself"}},
+                {{"GET","/api/v1/system/music","The film's music file, when the operator chose one"}},
                 {{"POST","/api/v1/system/terminate","Stop the simulation and exit the process"}},
                 {{"POST","/api/v1/system/sumo-simulate","Export, build and run SUMO, and return trip statistics"}}}),
             group("playback","Moving through simulated time",{
@@ -415,14 +432,31 @@ void ApiServer::routes_system() {
         send(r, engine_.backpressure());
     });
 
+    // The film's music, when the operator chose a file of their own: the one file named by whoever started the server
+    // (DSTNS_MUSIC_FILE), never a path a request names. An MP3, M4A or WAV, up to 64 MB; ranges are answered, so the
+    // page can loop and seek it.
+    server_->Get("/api/v1/system/music", [](const auto&, auto& r) {
+        const auto [path, type] = chosen_music();
+        if (!type) {
+            send(r, {{"error", {{"code", "NO_MUSIC_FILE"}, {"message", "No music file was chosen for this server, or it can't be played."}}}}, 404);
+            return;
+        }
+        std::ifstream in(path, std::ios::binary);
+        std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        r.set_header("Cache-Control", "no-store");
+        r.set_content(std::move(bytes), type);
+    });
+
     // What the operator has turned on and off, and how the observer should present itself. Read-only, and set
     // only by whoever starts the server: see docs/reference/environment-variables.md.
     server_->Get("/api/v1/system/features", [](const auto&, auto& r) {
         const auto& on = switches();
         const char* regeneration = std::getenv("DSTNS_DISABLE_WORLD_REGENERATION");
         auto presentation = json{{"webfabric", true}, {"force_animate", true}, {"fast_boot", false}, {"dynamic_fastboot", true}, {"dynamic_particles", true},
-                                 {"demo", false}, {"music", false}, {"fullscreen", false}, {"music_volume", 0.6}, {"map_fps", 0}, {"render_scale", 2.0}, {"film_particles", 32000}};
+                                 {"demo", false}, {"music", false}, {"music_track", false}, {"fullscreen", false}, {"music_volume", 0.6}, {"map_fps", 0}, {"render_scale", 2.0}, {"film_particles", 32000}};
         presentation.update(on.presentation);
+        // Whether there is a file of the operator's own to play is the server's to say, from the file itself.
+        presentation["music_track"] = chosen_music().second != nullptr;
         // The engine's own switch decides whether it fetches ahead; the observer is told what it does.
         if (!NextWorld::enabled()) presentation["dynamic_fastboot"] = false;
         // Fast Boot exists to skip the wait, and the dynamic film plans its own length, so in either case the film is not

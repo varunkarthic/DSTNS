@@ -3688,6 +3688,26 @@ paths:
           $ref: '#/components/responses/Ok'
         4XX:
           $ref: '#/components/responses/Error'
+  /api/v1/system/music:
+    get:
+      tags:
+      - System
+      operationId: music
+      summary: The film's music file, when the operator chose one
+      description: The MP3, M4A or WAV file named by DSTNS_MUSIC_FILE when the server started, up to 64 MB, with its
+        audio type. Ranges are answered with 206. 404 NO_MUSIC_FILE when none was chosen or it can't be played.
+      security: []
+      responses:
+        '200':
+          description: The file
+          content:
+            audio/mpeg: {}
+            audio/mp4: {}
+            audio/wav: {}
+        '206':
+          description: Part of the file, for a Range request
+        4XX:
+          $ref: '#/components/responses/Error'
   /api/v1/fabric/apps/{id}/reload:
     post:
       tags:

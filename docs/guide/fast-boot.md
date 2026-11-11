@@ -184,3 +184,15 @@ the top, in D minor, building over four phrases, breaking down, and building aga
 written in code and played by the browser, so there is nothing to license or download, and a
 small button at the bottom right mutes it. `demo.music` and `demo.fullscreen` turn either off
 for good; `--no-music` and `--no-fullscreen` for once.
+
+**Your own music.** `demo.music_file` (Demo Mode) and `presentation.music_file` (the start-up
+film) take an MP3, M4A or WAV file, up to 64 MB, instead of `score`, the written score. A path in
+the checkout or an absolute one; the launcher checks the file is there and of a kind it can play
+before it starts. It loops, with the same fade in and out, volume and mute button as the score,
+and if the browser can't play it after all, the score plays instead.
+
+```bash
+./launcher config set demo.music_file ~/Music/theme.m4a
+./launcher config set presentation.music_file music/arrival.mp3
+./launcher config set demo.music_file score        # back to the written score
+```

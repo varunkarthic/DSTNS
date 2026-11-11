@@ -121,6 +121,9 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   CODE` becomes it and starts from where it was: with `--world`, the same moment, play state, speed and the operator's
   own changes, made again at the moments they were made; with `--keys`, the API keys sealed with a passphrase. The
   engine's change history now includes what each change set.
+- **Your own music.** `presentation.music_file` and `demo.music_file` take an MP3, M4A or WAV file (up to 64 MB) for
+  the start-up film and Demo Mode, served at `GET /api/v1/system/music` with ranges; it loops with the score's fades,
+  volume and mute, and falls back to the written score if the browser can't play it.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:

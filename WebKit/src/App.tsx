@@ -1583,7 +1583,7 @@ export default function App() {
             />
           )}
           {/* The music belongs to the film: it fades as the map arrives. */}
-          <MusicControl playing={features.presentation.music && (demo || showSplash)} volume={features.presentation.music_volume} />
+          <MusicControl playing={features.presentation.music && (demo || showSplash)} volume={features.presentation.music_volume} track={!!features.presentation.music_track} />
           {reportFilm && reportPreview && <ReportFilm {...reportFilm} preview={reportPreview} view={reportView} reduceMotion={reduceMotion} onSave={saveReport} onDone={closeReportFilm} />}
           {(shutDown || serverGone) && <ShutdownSurface reduceMotion={reduceMotion} landing={landOnRoads} lost={serverGone && !shutDown} />}
 

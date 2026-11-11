@@ -534,7 +534,9 @@ server's next start. The observer reads them back from `GET /api/v1/system/featu
 | Presentation | `presentation.music` | Music | off | An original score during the start-up film |
 | | `presentation.fullscreen` | Full screen | off | Open the observer full screen |
 | | `presentation.music_volume` | Music volume | 0.6 | From 0 to 1 |
+| | `presentation.music_file` | Music file | `score` | `score`, or an MP3, M4A or WAV file of your own (up to 64 MB) |
 | Demo | `demo.music`, `demo.fullscreen` | Music / Full screen in Demo Mode | on | The same, in Demo Mode |
+| | `demo.music_file` | Demo Mode music file | `score` | `score`, or an MP3, M4A or WAV file |
 | | `demo.scenes` | Demo scenes and order | every scene | Which scenes Demo Mode plays, and in what order; see [Demo Mode](fast-boot.md#demo-mode) |
 | Performance | `performance.compression` | Compression | fast | How hard the server compresses large replies: fast, balanced, small or off |
 | | `performance.api_threads` | Request threads | 0 | Requests answered at once; 0 lets the server choose |

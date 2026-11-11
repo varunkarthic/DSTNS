@@ -90,7 +90,7 @@ pub fn dataless(path: &Path) -> bool {
     }
 }
 
-fn home() -> PathBuf {
+pub fn home() -> PathBuf {
     env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/tmp"))
 }
 

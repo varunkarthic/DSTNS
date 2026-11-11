@@ -24,6 +24,8 @@ export interface Features {
     music: boolean;
     fullscreen: boolean;
     music_volume: number;
+    /** The server plays a file of the operator's own, rather than the written score. */
+    music_track?: boolean;
     /** Frames a second for the map's continuous animation: 60, 30, or 0 to let the map decide by how it's coping. */
     map_fps: number;
     /** The most canvas pixels per CSS pixel the map draws at. */

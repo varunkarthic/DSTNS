@@ -346,6 +346,36 @@ fn demo_scenes(value: &Value, _config: &Value) -> String {
     }
 }
 
+/// The kinds of file the film can play, and how large one may be.
+pub const MUSIC_TYPES: [&str; 3] = ["mp3", "m4a", "wav"];
+const MUSIC_LIMIT: u64 = 64 * 1024 * 1024;
+
+/// A music file, from the checkout (relative paths) or anywhere (absolute ones), if it is one that can be played.
+pub fn music_file(value: &str) -> std::result::Result<Option<std::path::PathBuf>, String> {
+    let value = value.trim();
+    if value.is_empty() || value == "score" {
+        return Ok(None);
+    }
+    let expanded = value.strip_prefix("~/").map(|rest| crate::paths::home().join(rest)).unwrap_or_else(|| std::path::PathBuf::from(value));
+    let path = if expanded.is_absolute() { expanded } else { crate::paths::root().join(expanded) };
+    let kind = path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).unwrap_or_default();
+    if !MUSIC_TYPES.contains(&kind.as_str()) {
+        return Err("Use an MP3, M4A or WAV file, or score for the written score.".into());
+    }
+    let meta = std::fs::metadata(&path).map_err(|_| format!("There is no file at {}.", path.display()))?;
+    if !meta.is_file() {
+        return Err(format!("{} is not a file.", path.display()));
+    }
+    if meta.len() > MUSIC_LIMIT {
+        return Err("That file is larger than 64 MB.".into());
+    }
+    Ok(Some(path))
+}
+
+fn music(value: &Value, _config: &Value) -> String {
+    music_file(value.as_str().unwrap_or("")).err().unwrap_or_default()
+}
+
 fn volume(value: &Value, _config: &Value) -> String {
     if as_number(value).map(|v| (0.0..=1.0).contains(&v)).unwrap_or(false) {
         String::new()
@@ -461,8 +491,10 @@ pub fn fields() -> &'static [Field] {
             Field::new("presentation.music", "Music", "Presentation", Boolean, "An original score while the start-up film plays, with a button to mute it.", json!(false)),
             Field::new("presentation.fullscreen", "Full screen", "Presentation", Boolean, "Open the observer full screen, in a window of its own.", json!(false)),
             Field::new("presentation.music_volume", "Music volume", "Presentation", Number, "From 0 (silent) to 1.", json!(0.6)).range(0.0, Some(1.0)).extra(volume),
+            Field::new("presentation.music_file", "Music file", "Presentation", Text, "What the start-up film plays: score for the written score, or an MP3, M4A or WAV file (a path in this checkout, or an absolute one).", json!("score")).extra(music),
             // Demo
             Field::new("demo.music", "Music in Demo Mode", "Demo", Boolean, "Demo Mode plays its score. --no-music turns it off once.", json!(true)),
+            Field::new("demo.music_file", "Demo Mode music file", "Demo", Text, "What Demo Mode plays: score for the written score, or an MP3, M4A or WAV file.", json!("score")).extra(music),
             Field::new("demo.fullscreen", "Full screen in Demo Mode", "Demo", Boolean, "Demo Mode opens full screen. --no-fullscreen opens it in a window once.", json!(true)),
             Field::new(
                 "demo.scenes",
@@ -680,6 +712,8 @@ pub fn server_switches(config: &Value, demo: bool) -> Vec<(String, String)> {
         ("DSTNS_REQUIRE_SIGNATURES".to_string(), one("fabric.require_signatures")),
         ("DSTNS_DISABLED_CAPABILITIES".to_string(), disabled.join(",")),
         ("DSTNS_PRESENTATION".to_string(), presentation(config, demo).to_string()),
+        // The one file the server will play to the observer, or nothing.
+        ("DSTNS_MUSIC_FILE".to_string(), music_file(setting(config, if demo { "demo.music_file" } else { "presentation.music_file" }).as_str().unwrap_or("")).ok().flatten().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()),
         ("DSTNS_DYNAMIC_FASTBOOT".to_string(), one("startup.dynamic_fastboot")),
         ("DSTNS_DAEMON".to_string(), daemon_settings(config).to_string()),
     ];
@@ -832,6 +866,24 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_music_file_is_a_playable_file_or_the_score() {
+        let dir = std::env::temp_dir().join(format!("dstns-music-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let track = dir.join("Theme.M4A");
+        std::fs::write(&track, b"not checked for sound here").unwrap();
+        assert_eq!(music_file("score").unwrap(), None);
+        assert_eq!(music_file("").unwrap(), None);
+        assert_eq!(music_file(track.to_str().unwrap()).unwrap(), Some(track.clone()));
+        assert!(music_file(dir.join("missing.mp3").to_str().unwrap()).unwrap_err().contains("no file"));
+        let text = dir.join("notes.txt");
+        std::fs::write(&text, b"x").unwrap();
+        assert!(music_file(text.to_str().unwrap()).unwrap_err().contains("MP3, M4A or WAV"));
+        assert!(music_file(dir.to_str().unwrap()).is_err(), "a folder is not a file");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     use super::*;
 
     fn base() -> Value {
