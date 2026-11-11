@@ -646,6 +646,19 @@ void check_widgets(const json& widgets, int depth) {
             if (!held.is_string() || held.get<std::string>().empty() || held.get<std::string>().size() > 213)
                 throw Refusal(400, "INVALID_ELEMENT", "a qr widget needs a url or text of 1 to 213 bytes");
         }
+        // What the newer widgets carry is bounded, so one widget can't grow without end.
+        const auto bounded = [&](const char* key, std::size_t most, const char* what) {
+            if (widget.contains(key) && !(widget.at(key).is_array() && widget.at(key).size() <= most))
+                throw Refusal(400, "INVALID_ELEMENT", std::string(what) + " must be a list of at most " + std::to_string(most));
+        };
+        bounded("seats", 120, "seats");
+        bounded("choices", 2000, "choices");
+        bounded("fields", 12, "fields");
+        bounded("lines_text", 200, "lines_text");
+        if (type == "form" && widget.contains("fields"))
+            for (const auto& field : widget.at("fields"))
+                if (!field.is_object() || !field.value("id", json(nullptr)).is_string()) throw Refusal(400, "INVALID_ELEMENT", "each form field needs an id");
+        if (type == "countdown" && !widget.value("until", json(nullptr)).is_number()) throw Refusal(400, "INVALID_ELEMENT", "a countdown needs until, in milliseconds since the epoch");
         if (widget.contains("area")) {
             const auto& area = widget.at("area");
             if (!area.is_object()) throw Refusal(400, "INVALID_ELEMENT", "area must be an object");
@@ -1107,7 +1120,7 @@ json AppRegistry::discovery() {
         {"requires_api", kApiMajor},
         {"capabilities", {{"automatic", kAutomatic}, {"needs_a_person", kExplicit}}},
         {"slots", std::move(slots)},
-        {"widgets", {"text", "heading", "note", "stat", "stats", "metric", "keyvalues", "table", "gauge", "bars", "progress", "sparkline", "chart", "route", "timeline", "status", "chips", "list", "legend", "tabs", "card", "divider", "link", "qr", "input", "button", "toggle", "select", "slider"}},
+        {"widgets", {"text", "heading", "note", "stat", "stats", "metric", "keyvalues", "table", "gauge", "bars", "progress", "sparkline", "chart", "route", "timeline", "status", "chips", "list", "legend", "tabs", "card", "divider", "link", "qr", "input", "button", "toggle", "select", "slider", "seats", "combobox", "player", "form", "countdown", "notice", "code", "empty"}},
         {"overlay_features", {"route", "path", "marker", "circle", "polygon", "line", "label", "heatmap"}},
         {"layout", {{"columns", {{"min", 1}, {"max", 12}, {"default", 6}}}, {"area", {"column", "row", "width", "height"}}}},
         {"switches", {{"applications", switches().applications}, {"launch_proposals", switches().launch_proposals}, {"require_signatures", switches().require_signatures}, {"disabled_capabilities", switches().disabled}}},

@@ -480,3 +480,66 @@
 .floating.fabric-phone { width: min(320px, calc(100vw - 32px)); padding: 16px 16px 14px; }
 /* What a tab holds starts a row's gap below its tabs, as everything else on the panel's grid does. */
 .fabric-tab-body { margin-top: 12px; }
+
+/* ---- Widgets for applications that sell, seat and plan ----------------------------------------------------------- */
+.fabric-action .icon { flex: none; }
+/* Seats: a bus seen from above, its front named, a grid of 36px stadium-cornered seats. */
+.fabric-seats { display: grid; gap: 12px; }
+.fabric-seat-key { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; font-size: 11.5px; color: var(--text-dim); }
+.fabric-seat-key li { display: inline-flex; align-items: center; gap: 6px; }
+.fabric-seat-key i { width: 12px; height: 12px; border-radius: 4px; }
+.fabric-bus { justify-self: center; padding: 12px 14px 14px; border-radius: 22px 22px var(--r-md) var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); }
+.fabric-bus-front { margin: 0 0 10px; text-align: center; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+.fabric-seat-grid { display: grid; grid-template-columns: repeat(var(--columns), 36px); gap: 6px; }
+.fabric-seat { height: 36px; border-radius: 10px; font: 600 11.5px/1 var(--font-mono, monospace); transition: background var(--t-fast) var(--ease), transform var(--spring-lively-ms, 180ms) var(--spring-lively, ease-out), box-shadow var(--t-fast) var(--ease); }
+.fabric-seat:active:not(:disabled) { transform: scale(0.92); }
+.fabric-seat.is-free, .fabric-seat-key .is-free { color: var(--text); background: var(--surface-solid); box-shadow: inset 0 0 0 1px rgb(var(--line-rgb) / 22%); }
+.fabric-seat.is-free:hover { box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent); }
+.fabric-seat.is-mine, .fabric-seat-key .is-mine { color: var(--on-accent, #04212b); background: var(--accent); }
+.fabric-seat.is-held, .fabric-seat-key .is-held { color: var(--warn); background: rgb(var(--warn-rgb) / 16%); }
+.fabric-seat.is-taken, .fabric-seat-key .is-taken { color: var(--text-faint); background: rgb(var(--ink-rgb) / 7%); }
+.fabric-seat:disabled { cursor: default; }
+/* A combobox: a search stadium with its results in a card beneath. */
+.fabric-combobox { position: relative; display: grid; gap: 6px; }
+.fabric-combobox-label { font-size: 12px; color: var(--text-dim); }
+.fabric-combobox-field { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 19px; background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); color: var(--text-faint); }
+.fabric-combobox-field:focus-within { box-shadow: inset 0 0 0 1px var(--accent-line), 0 0 0 3px var(--accent-soft); }
+.fabric-combobox-field input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; outline: none; font-size: 13px; color: var(--text); }
+.fabric-combobox-field input::placeholder { color: var(--text-dim); }
+.fabric-combobox-list { position: absolute; z-index: 3; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 6px; list-style: none; border-radius: var(--r-md); background: var(--surface-solid); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--well-line); animation: confirm-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.fabric-combobox-list li { display: grid; gap: 1px; padding: 8px 12px; border-radius: 12px; cursor: pointer; }
+.fabric-combobox-list li.active { background: var(--hover); }
+.fabric-combobox-list strong { font-size: 13px; font-weight: 500; color: var(--text); }
+.fabric-combobox-list small { font-size: 11px; color: var(--text-dim); }
+/* A player: a round play button, a line to move along, where it is. */
+.fabric-player { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 14px 8px 8px; border-radius: 26px; background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); }
+.fabric-player-play { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: var(--on-accent, #04212b); background: var(--accent); }
+.fabric-player input[type="range"] { width: 100%; accent-color: var(--accent); }
+.fabric-player output { font-size: 11.5px; color: var(--text-dim); }
+.fabric-player-caption { grid-column: 1 / -1; margin: 0 6px 4px; font-size: 12px; color: var(--text-dim); }
+/* A form: its fields one under another, its button across the bottom. */
+.fabric-form { display: grid; gap: 10px; }
+.fabric-form .fabric-input { width: 100%; height: 36px; padding: 0 12px; border-radius: 12px; }
+.fabric-form-submit { min-height: 38px; border-radius: 19px; justify-content: center; }
+/* A countdown. */
+.fabric-countdown { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; padding: 10px 14px; border-radius: var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); font-size: 12.5px; color: var(--text-dim); }
+.fabric-countdown time { font-size: 16px; font-weight: 600; color: var(--text); }
+.fabric-countdown.soon time { color: var(--warn); }
+/* A notice, with its one action. */
+.fabric-notice { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 14px; border-radius: var(--r-md); background: rgb(var(--accent-rgb) / 8%); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 22%); font-size: 12.5px; color: var(--text); }
+.fabric-notice > .icon { flex: none; color: var(--accent); }
+.fabric-notice > span { flex: 1; min-width: 0; }
+.fabric-notice.tone-danger { background: rgb(var(--danger-rgb) / 9%); box-shadow: inset 0 0 0 1px rgb(var(--danger-rgb) / 28%); }
+.fabric-notice.tone-danger > .icon { color: var(--red); }
+.fabric-notice.tone-warn { background: rgb(var(--warn-rgb) / 9%); box-shadow: inset 0 0 0 1px rgb(var(--warn-rgb) / 28%); }
+.fabric-notice.tone-warn > .icon { color: var(--warn); }
+.fabric-notice.tone-ok > .icon { color: var(--ok); }
+.fabric-notice .btn.small { flex: none; height: 28px; padding: 0 12px; border-radius: 14px; font-size: 12px; }
+/* Code: what a program said, as it said it. */
+.fabric-code { max-height: 220px; margin: 0; padding: 12px 14px; overflow: auto; border-radius: var(--r-md); background: rgb(var(--ink-rgb) / 6%); box-shadow: inset 0 0 0 1px var(--well-line); font: 11.5px/1.55 var(--font-mono, monospace); color: var(--text-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* An empty state, with one of the observer's figures. */
+.fabric-empty-state { display: grid; justify-items: center; gap: 6px; padding: 18px 12px; text-align: center; }
+.fabric-empty-state strong { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.fabric-empty-state p { margin: 0; max-width: 32ch; font-size: 12.5px; color: var(--text-dim); }
+.reduce-motion .fabric-combobox-list { animation: none; }
+.fabric-combobox-field input::-webkit-search-cancel-button { display: none; }

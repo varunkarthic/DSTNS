@@ -114,6 +114,9 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   is a centred pill like its neighbours.
 - **Liquid division.** The dividing shape is drawn through a goo filter (blurred, then its edge sharpened again), so
   the bead, the neck and the panel meet in one continuous curve and a thin neck pinches off by itself; it holds 60 fps.
+- **Everything a ticketing app needs.** WebFabric adds `seats`, `combobox`, `player`, `form`, `countdown`, `notice`,
+  `code` and `empty` widgets and icons on buttons, so every element of the group-08 bus planner's portal, dashboard
+  and control room has a widget drawn in the observer's design; the WebFabric page maps each one.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:

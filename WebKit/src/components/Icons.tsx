@@ -19,6 +19,7 @@ import { Spring, SPRINGS } from "../CoreMotion/motion";
 
 const PATHS: Record<string, ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
+  swap: <path d="M7 7h12l-3.5-3.5M17 17H5l3.5 3.5" />,
   minus: <path d="M5 12h14" />,
   sound: <path d="M4 9.5v5h3.5L12 18V6L7.5 9.5H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />,
   soundOff: <path d="M4 9.5v5h3.5L12 18V6L7.5 9.5H4zM16 9.5l5 5M21 9.5l-5 5" />,

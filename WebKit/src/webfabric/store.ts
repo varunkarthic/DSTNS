@@ -41,7 +41,7 @@ export interface FabricLegendItem {
 }
 
 export interface FabricWidget {
-  type: "qr" | "route" | "sparkline" | "table" | "gauge" | "bars" | "keyvalues" | "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input" | "metric" | "card" | "chart" | "link" | "divider" | "status" | "timeline";
+  type: "seats" | "combobox" | "player" | "form" | "countdown" | "notice" | "code" | "empty" | "qr" | "route" | "sparkline" | "table" | "gauge" | "bars" | "keyvalues" | "text" | "heading" | "note" | "stat" | "stats" | "progress" | "button" | "toggle" | "select" | "slider" | "tabs" | "list" | "legend" | "chips" | "input" | "metric" | "card" | "chart" | "link" | "divider" | "status" | "timeline";
   id?: string;
   /** For a route: its stops in order. */
   stops?: { id?: string; label: string; caption?: string; state?: "passed" | "current" | "next" }[];
@@ -81,6 +81,28 @@ export interface FabricWidget {
   lines?: { label?: string; points: number[]; series?: number }[];
   /** A card: what is inside it. */
   widgets?: FabricWidget[];
+  /** A button or a link: one of the observer's own icons by name, drawn before its label. */
+  icon?: string;
+  /** Seats: the places to choose, laid out in `columns_count` with an aisle after column `aisle`, `caption` at the front. */
+  seats?: { id: string; label: string; state?: "free" | "mine" | "held" | "taken" }[];
+  columns_count?: number;
+  aisle?: number;
+  /** A combobox: what can be chosen, filtered as a person types. Its `value` is the chosen one. */
+  choices?: { value: string; label: string; caption?: string }[];
+  /** A player: how far through it is, of how many steps, and whether it is playing. */
+  position?: number;
+  steps?: number;
+  playing?: boolean;
+  /** A form: its fields, sent together on submit as { field id: value }. */
+  fields?: { id: string; label: string; kind?: "text" | "number" | "time" | "select"; value?: string | number; placeholder?: string; options?: { value: string; label: string }[] }[];
+  /** A countdown: when it ends, as milliseconds since the epoch. It ticks in the observer, with nothing sent. */
+  until?: number;
+  /** A notice: the label of its one action, such as "Try again". */
+  action?: string;
+  /** Code: its lines, shown as they are, the latest last. */
+  lines_text?: string[];
+  /** An empty state: which of the observer's figures to draw. */
+  figure?: string;
   /** A status: one of the tones' states. A timeline: its events. */
   state?: "ok" | "warn" | "danger" | "neutral" | "busy";
   events?: { time?: string; label: string; caption?: string; tone?: Tone }[];

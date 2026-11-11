@@ -138,6 +138,11 @@ show, never how to draw it.
 | Taking part | `button` (with `pick: true`, the next click on the map is reported as a place), `toggle`, `select`, `slider`, `input` (`text`, `time` or `number`), `chips` |
 | Arranging | `tabs` (each with an optional `caption` above its label), `card` (widgets inside it, three deep at most) |
 | A phone | `qr`: a code for a `url` or `text` of up to 213 bytes, with an optional `label` and `caption`, drawn dark on a light plate in either theme so a camera reads it |
+| Booking | `seats`: up to 120 places in `columns_count` columns with an `aisle`, each `free`, `mine`, `held` or `taken`, and a `caption` at the front; choosing a free one reports `select` with its id. `countdown`: time left until `until` (milliseconds since the epoch), ticking in the observer with nothing sent, then `text` |
+| Finding | `combobox`: up to 2,000 `choices` (`value`, `label`, `caption`) filtered as a person types; choosing reports `change` |
+| Replaying | `player`: play and pause, a line of `steps` at `position`, and a `caption` for the step; it reports `toggle` and `seek` |
+| Asking | `form`: up to 12 `fields` (`text`, `number`, `time` or `select`) sent together as `submit` with an object of values. `notice`: a line in a `tone` with one `action` button that reports `activate` |
+| Showing | `code`: up to 200 `lines_text`, as written. `empty`: one of the observer's figures with a `label` and `text`. Buttons and links take an `icon` from the observer's own set |
 
 On a panel, a sidebar or inside a tab, widgets are laid out on a grid. Without `area` each takes the whole width in
 order; with `"area": {"column": 1, "width": 3}` (columns and rows from 1 to 12) two can sit side by side. Give the
@@ -185,6 +190,32 @@ a booking, put a `qr` in a `card`.
 
 `Fabric/examples/bus_planner.py` is the planner template running against any world, with `--web` to offer a page on a
 phone.
+
+### From an existing application
+
+The group-08 bus route planner (a ticketing portal, an algorithm dashboard and a control room) uses these, and each has
+its widget:
+
+| In the application | In WebFabric |
+|---|---|
+| Algorithm tabs with a step caption | `tabs` with `caption` |
+| Figures (demand covered, lines, stops), A* against Dijkstra | `stats`, `metric` |
+| Coverage bar, a line's share | `progress`, `list` rows with `share` |
+| Lines with a coloured badge | `list` rows with `badge` and `series` |
+| Replay the construction | `player` |
+| From and to stops, searched | `combobox`, or `button` with `pick: true` to choose on the map |
+| Swap, random, re-plan | `button` with `icon` |
+| Next bus, ride length, walks | `metric`, `route`, `timeline` |
+| Seat map and its key | `seats` |
+| Seat held for you | `countdown` |
+| Journey summary, fare | `keyvalues` |
+| Conductor's validation form | `form` |
+| Errors with Try again | `notice` |
+| Phone link and ticket codes | `web` in the manifest, `qr` |
+| Control room logs | `code` |
+| No bookings yet | `empty` |
+| Legend with layer switches | `legend` |
+| Bus lines and buses on the map | `overlay` with `route`, `marker` and `path` |
 
 ## What is checked
 

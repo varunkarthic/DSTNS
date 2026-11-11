@@ -49,13 +49,23 @@ void out_of_the_box() {
         {{"type", "metric"}, {"label", "Buses"}, {"value", "12"}, {"area", {{"column", 1}, {"row", 1}, {"width", 3}, {"height", 1}}}},
         {{"type", "link"}, {"label", "Open"}, {"url", "https://example.org/"}, {"area", {{"column", 4}, {"width", 3}}}},
         {{"type", "qr"}, {"label", "On your phone"}, {"url", "https://example.org/ticket?seat=12A"}},
+        {{"type", "seats"}, {"caption", "Front"}, {"columns_count", 4}, {"aisle", 2}, {"seats", {{{"id", "s1"}, {"label", "1A"}, {"state", "free"}}, {{"id", "s2"}, {"label", "1B"}, {"state", "taken"}}}}},
+        {{"type", "combobox"}, {"label", "From"}, {"choices", {{{"value", "12"}, {"label", "Central"}, {"caption", "Stop 12"}}}}},
+        {{"type", "player"}, {"position", 2}, {"steps", 5}, {"playing", false}, {"caption", "Line 2 accepted"}},
+        {{"type", "form"}, {"submit", "Validate"}, {"fields", {{{"id", "ticket"}, {"label", "Ticket"}}, {{"id", "bus"}, {"label", "Bus"}, {"kind", "select"}, {"options", {{{"value", "1"}, {"label", "R1"}}}}}}}},
+        {{"type", "countdown"}, {"label", "Held for"}, {"until", 1893456000000.0}},
+        {{"type", "notice"}, {"tone", "danger"}, {"text", "The algorithm is not answering."}, {"action", "Try again"}},
+        {{"type", "code"}, {"lines_text", {"started", "listening on 8080"}}},
+        {{"type", "empty"}, {"figure", "junction"}, {"label", "No journeys yet"}},
         {{"type", "tabs"}, {"tabs", {{{"id", "a"}, {"label", "A"}, {"widgets", {{{"type", "chart"}, {"series", {{{"label", "x"}, {"points", {1, 2, 3}}}}}}}}}}}}}}};
     EXPECT(s.call("PUT", BASE + "/org.test.web/ui/board", good, token).status == 200);
     json nested = {{"type", "card"}, {"widgets", json::array()}};
     for (int depth = 0; depth < 4; ++depth) nested = {{"type", "card"}, {"widgets", {nested}}};
     for (const json& wrong : {json{{"layout", {{"columns", 13}}}}, json{{"widgets", {{{"type", "link"}, {"url", "javascript:x"}}}}}, json{{"widgets", {{{"type", "text"}, {"area", {{"column", 0}}}}}}},
                               json{{"widgets", {{{"type", "text"}, {"area", {{"width", 13}}}}}}}, json{{"widgets", {{{"text", "no type"}}}}}, json{{"widgets", {nested}}},
-                              json{{"widgets", {{{"type", "qr"}}}}}, json{{"widgets", {{{"type", "qr"}, {"text", std::string(214, 'x')}}}}}}) {
+                              json{{"widgets", {{{"type", "qr"}}}}}, json{{"widgets", {{{"type", "qr"}, {"text", std::string(214, 'x')}}}}},
+                              json{{"widgets", {{{"type", "countdown"}}}}}, json{{"widgets", {{{"type", "form"}, {"fields", {{{"label", "no id"}}}}}}}},
+                              json{{"widgets", {{{"type", "code"}, {"lines_text", "not a list"}}}}}}) {
         const auto refused = s.call("PUT", BASE + "/org.test.web/ui/board", merged(good, wrong), token);
         EXPECT(refused.status == 400 && refused.code() == "INVALID_ELEMENT", wrong, refused);
     }

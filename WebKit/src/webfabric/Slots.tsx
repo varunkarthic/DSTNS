@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { Component, memo, useCallback, useEffect, useRef, useState } from "react";
+import { Component, memo, useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
-import { Figure } from "../CoreMotion/Figure";
-import { Icon } from "../components/Icons";
+import { Figure, FIGURE_NAMES, type FigureName } from "../CoreMotion/Figure";
+import { Icon, type IconName } from "../components/Icons";
 import { BrandLogo } from "../components/BrandLogo";
 import { Tooltip } from "../components/Tooltip";
 import { Dialog } from "../components/Dialog";
@@ -222,6 +222,202 @@ function FabricInput({ widget, onSubmit }: { widget: FabricWidget; onSubmit: (va
 }
 
 /** A figure with its recent history. Drawn to the panel's width, in the application's series or tone. */
+/** One of the observer's own icons, by name; anything else draws nothing. */
+const WIDGET_ICONS = new Set<string>(["plus", "minus", "search", "close", "check", "play", "pause", "back", "forward", "reset", "reroll", "download", "external", "pin", "clock", "info", "incident", "vehicle", "layers", "swap", "copy", "phone", "fit", "settings", "network", "traffic", "rain", "flood", "signal", "building", "road", "history", "stack", "queue", "bell"]);
+function WidgetIcon({ name }: { name?: string }) {
+  return name && WIDGET_ICONS.has(name) ? <Icon name={name as IconName} size={15} /> : null;
+}
+
+/**
+ * Seats, or any set of places to choose one of: a grid of buttons, each free, yours, held or taken, with the front
+ * named above and an aisle where the application says. Choosing a free one reports it; the application decides.
+ */
+function FabricSeats({ widget, onPick }: { widget: FabricWidget; onPick: (id: string) => void }) {
+  const cells = Array.isArray(widget.seats) ? widget.seats.slice(0, 120) : [];
+  const columns = Math.max(1, Math.min(8, Math.trunc(widget.columns_count ?? 4)));
+  const aisle = Math.trunc(widget.aisle ?? 0);
+  return (
+    <div className="fabric-seats">
+      <ul className="fabric-seat-key" aria-label="What the colours mean">
+        <li><i className="is-free" />Free</li>
+        <li><i className="is-mine" />Yours</li>
+        <li><i className="is-held" />On hold</li>
+        <li><i className="is-taken" />Taken</li>
+      </ul>
+      <div className="fabric-bus">
+        {widget.caption && <p className="fabric-bus-front">{text(widget.caption)}</p>}
+        <div className="fabric-seat-grid" style={{ ["--columns" as string]: String(columns + (aisle > 0 && aisle < columns ? 1 : 0)) }}>
+          {cells.map((cell, i) => {
+            const state = ["mine", "held", "taken"].includes(cell.state ?? "") ? cell.state : "free";
+            const column = i % columns;
+            return (
+              <button
+                key={cell.id}
+                type="button"
+                className={`fabric-seat is-${state}`}
+                style={aisle > 0 && aisle < columns && column >= aisle ? { gridColumn: String(column + 2) } : { gridColumn: String(column + 1) }}
+                disabled={state === "held" || state === "taken"}
+                aria-pressed={state === "mine"}
+                aria-label={`Seat ${text(cell.label)}, ${state === "mine" ? "yours" : state === "free" ? "free" : state === "held" ? "on hold" : "taken"}`}
+                onClick={() => state === "free" && onPick(text(cell.id))}
+              >
+                {text(cell.label)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A search box with what it can find beneath it, filtered as a person types; arrows move, Enter chooses. */
+function FabricCombobox({ widget, onChoose }: { widget: FabricWidget; onChoose: (value: string) => void }) {
+  const choices = Array.isArray(widget.choices) ? widget.choices.slice(0, 2000) : [];
+  const chosen = choices.find((c) => c.value === text(widget.value));
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const id = `${useId().replace(/:/g, "")}-list`;
+  const q = query.trim().toLowerCase();
+  const shown = (q ? choices.filter((c) => text(c.label).toLowerCase().includes(q) || text(c.caption).toLowerCase().includes(q)) : choices).slice(0, 8);
+  const pick = (c: (typeof choices)[number]) => {
+    onChoose(text(c.value));
+    setQuery("");
+    setOpen(false);
+  };
+  return (
+    <div className="fabric-combobox">
+      {widget.label && <span className="fabric-combobox-label">{text(widget.label)}</span>}
+      <div className="fabric-combobox-field">
+        <Icon name="search" size={15} />
+        <input
+          type="search"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={id}
+          aria-autocomplete="list"
+          aria-label={text(widget.label) || "Search"}
+          placeholder={chosen ? text(chosen.label) : widget.placeholder ?? "Search"}
+          value={query}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 120)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActive(0);
+            setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") (e.preventDefault(), setActive((i) => Math.min(shown.length - 1, i + 1)));
+            else if (e.key === "ArrowUp") (e.preventDefault(), setActive((i) => Math.max(0, i - 1)));
+            else if (e.key === "Enter" && shown[active]) (e.preventDefault(), pick(shown[active]));
+            else if (e.key === "Escape") setOpen(false);
+          }}
+        />
+      </div>
+      {open && shown.length > 0 && (
+        <ul id={id} role="listbox" className="fabric-combobox-list">
+          {shown.map((c, i) => (
+            <li key={c.value} role="option" aria-selected={i === active} className={i === active ? "active" : ""} onPointerDown={(e) => e.preventDefault()} onClick={() => pick(c)} onPointerEnter={() => setActive(i)}>
+              <strong>{text(c.label)}</strong>
+              {c.caption && <small>{text(c.caption)}</small>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Play and pause, where it is of how many steps, and a line to move along; the application says what each step is. */
+function FabricPlayer({ widget, onToggle, onSeek }: { widget: FabricWidget; onToggle: () => void; onSeek: (at: number) => void }) {
+  const steps = Math.max(1, Math.trunc(widget.steps ?? 1));
+  const at = Math.max(0, Math.min(steps, Math.trunc(widget.position ?? 0)));
+  const [drag, setDrag] = useState<number | null>(null);
+  const shown = drag ?? at;
+  return (
+    <div className="fabric-player">
+      <button type="button" className="fabric-player-play" aria-label={widget.playing ? "Pause" : "Play"} onClick={onToggle}>
+        <Icon name={widget.playing ? "pause" : "play"} size={16} />
+      </button>
+      <input
+        type="range"
+        min={0}
+        max={steps}
+        step={1}
+        value={shown}
+        aria-label={text(widget.label) || "Position"}
+        style={{ ["--share" as string]: String(shown / steps) }}
+        onChange={(e) => setDrag(Number(e.currentTarget.value))}
+        onPointerUp={(e) => {
+          onSeek(Number(e.currentTarget.value));
+          setDrag(null);
+        }}
+        onKeyUp={(e) => {
+          if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") {
+            onSeek(Number(e.currentTarget.value));
+            setDrag(null);
+          }
+        }}
+      />
+      <output className="mono">{shown}/{steps}</output>
+      {widget.caption && <p className="fabric-player-caption" aria-live="polite">{text(widget.caption)}</p>}
+    </div>
+  );
+}
+
+/** Several fields sent together, as one form: text, numbers, times or a choice. */
+function FabricForm({ widget, onSubmit }: { widget: FabricWidget; onSubmit: (values: Record<string, string>) => void }) {
+  const fields = Array.isArray(widget.fields) ? widget.fields.slice(0, 12) : [];
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((f) => [f.id, text(f.value)])));
+  return (
+    <form
+      className="fabric-form"
+      aria-label={text(widget.label) || "Form"}
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit(values);
+      }}
+    >
+      {fields.map((field) => (
+        <label key={field.id} className="fabric-field">
+          <span>{text(field.label)}</span>
+          {field.kind === "select" ? (
+            <Select label={text(field.label)} value={values[field.id] ?? ""} onChange={(value) => setValues((v) => ({ ...v, [field.id]: value }))} options={(field.options ?? []).map((o) => ({ value: text(o.value), label: text(o.label) }))} />
+          ) : (
+            <input
+              className="fabric-input"
+              type={field.kind === "number" || field.kind === "time" ? field.kind : "text"}
+              value={values[field.id] ?? ""}
+              placeholder={field.placeholder}
+              onChange={(e) => setValues((v) => ({ ...v, [field.id]: e.target.value }))}
+            />
+          )}
+        </label>
+      ))}
+      <button type="submit" className="btn primary fabric-form-submit">{text(widget.submit) || "Submit"}</button>
+    </form>
+  );
+}
+
+/** Time left until a moment, ticking here with nothing sent; at zero it says so in the application's own words. */
+function FabricCountdown({ widget }: { widget: FabricWidget }) {
+  const [now, setNow] = useState(() => Date.now());
+  const until = Number(widget.until) || 0;
+  const left = Math.max(0, Math.ceil((until - now) / 1000));
+  useEffect(() => {
+    if (left <= 0) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [left]);
+  return (
+    <p className={`fabric-countdown${left <= 30 && left > 0 ? " soon" : ""}${toneClass(widget.tone)}`} role="timer" aria-live="off">
+      <span>{text(widget.label)}</span>
+      <time className="mono">{left > 0 ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : text(widget.text) || "Ended"}</time>
+    </p>
+  );
+}
+
 /**
  * A QR code an application asks to show, such as a link for a phone: dark on a light plate whatever the theme, since
  * that is what a camera reads, with what it holds written under it.
@@ -505,6 +701,38 @@ function Widget({ app, element, widget }: { app: FabricApp; element: FabricEleme
     }
     case "qr":
       return <FabricQr widget={widget} />;
+    case "seats":
+      return <FabricSeats widget={widget} onPick={(id) => send("select", id)} />;
+    case "combobox":
+      return <FabricCombobox widget={widget} onChoose={(value) => send("change", value)} />;
+    case "player":
+      return <FabricPlayer widget={widget} onToggle={() => send("toggle")} onSeek={(at) => send("seek", at)} />;
+    case "form":
+      return <FabricForm widget={widget} onSubmit={(values) => send("submit", values)} />;
+    case "countdown":
+      return <FabricCountdown widget={widget} />;
+    case "notice":
+      return (
+        <div className={`fabric-notice${toneClass(widget.tone)}`} role={widget.tone === "danger" || widget.tone === "warn" ? "alert" : "status"}>
+          <Icon name={widget.tone === "danger" ? "incident" : widget.tone === "ok" ? "check" : "info"} size={16} />
+          <span>{text(widget.text) || label}</span>
+          {widget.action && <button type="button" className="btn small" onClick={() => send("activate")}>{text(widget.action)}</button>}
+        </div>
+      );
+    case "code":
+      return (
+        <pre className="fabric-code" aria-label={label || "Output"} tabIndex={0}>
+          {(Array.isArray(widget.lines_text) ? widget.lines_text : []).slice(-200).map((line, i) => <span key={i}>{text(line)}{"\n"}</span>)}
+        </pre>
+      );
+    case "empty":
+      return (
+        <div className="fabric-empty-state">
+          <Figure name={FIGURE_NAMES.includes(widget.figure as FigureName) ? (widget.figure as FigureName) : "nowhere"} />
+          {label && <strong>{label}</strong>}
+          {widget.text && <p>{text(widget.text)}</p>}
+        </div>
+      );
     case "divider":
       return <hr className="fabric-divider" />;
     case "status":
@@ -673,8 +901,9 @@ function Widget({ app, element, widget }: { app: FabricApp; element: FabricEleme
     }
     case "button":
       return (
-        <button type="button" className={`btn fabric-action${toneClass(widget.tone)}`} onClick={() => (widget.pick ? fabric.armPick(app.id, name) : send("activate"))}>
-          {label || name}
+        <button type="button" className={`btn fabric-action${toneClass(widget.tone)}`} aria-label={label || name} onClick={() => (widget.pick ? fabric.armPick(app.id, name) : send("activate"))}>
+          <WidgetIcon name={widget.icon} />
+          {label && <span>{label}</span>}
         </button>
       );
     case "toggle":
