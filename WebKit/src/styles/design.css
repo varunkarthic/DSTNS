@@ -3325,3 +3325,50 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .figure, .figure * { vector-effect: non-scaling-stroke; }
 .dialog-plate .figure { stroke-width: 1.4; }
 .figure { stroke-width: 1.25; }
+
+/* ---- Confirm cards, compact ---------------------------------------------------------------------------------------
+   An icon in the action's tint beside the question and one line of what happens; one note worth knowing; the answers.
+   No figure plate: a question about the session is answered quickly, so it is small. */
+.dialog.confirm-dialog { width: min(420px, 100%); grid-template-columns: none; padding: 20px; display: block; }
+.confirm-head { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; }
+.confirm-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--accent); background: rgb(var(--accent-rgb) / 12%); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 25%); }
+.confirm-dialog.danger .confirm-icon { color: var(--red); background: rgb(var(--danger-rgb) / 12%); box-shadow: inset 0 0 0 1px rgb(var(--danger-rgb) / 28%); }
+.confirm-dialog h2 { margin: 2px 0 4px; font-size: 16px; }
+.confirm-dialog .dialog-body { font-size: 13px; }
+.confirm-note { display: flex; align-items: center; gap: 8px; margin: 14px 0 0 54px; padding: 8px 12px; border-radius: var(--r-sm); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); font-size: 12px; color: var(--text-dim); }
+.confirm-note > .icon { flex: none; color: var(--text-faint); }
+.confirm-seed { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; margin-left: 2px; border-radius: var(--r-pill); font-size: 11.5px; color: var(--text); background: var(--surface-solid); border: 1px solid var(--well-line); vertical-align: middle; }
+.confirm-seed:hover { border-color: var(--accent-line); color: var(--accent); }
+.confirm-dialog .dialog-actions { margin-top: 18px; }
+
+/* ---- Time Control, refit ------------------------------------------------------------------------------------------
+   Head, the day's line, then the time to go to as one capsule (hours, minutes, Go) that divides into a capsule per
+   part while it is being edited, then times of day and jumps as two even rows, then the clock's format. 400px wide,
+   every row on the same 20px edges, every control a stadium. */
+.floating.time-menu { width: 400px; }
+.time-menu-go { display: flex; align-items: center; gap: 12px; padding: 12px 20px 0; flex-wrap: nowrap; }
+.time-menu-distance { min-width: 0; font-size: 12px; line-height: 1.35; color: var(--text-dim); }
+.time-pill { --seg-h: 40px; --seg-r: calc(var(--seg-h) / 2); display: inline-flex; flex: none; gap: 0; transition: gap 360ms var(--spring-expressiveDefault, cubic-bezier(0.2, 0.8, 0.2, 1)); }
+.time-pill.editing { gap: 6px; }
+.time-seg { display: inline-flex; align-items: center; gap: 2px; height: var(--seg-h); padding: 0 10px 0 6px; background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); border-radius: 0; transition: border-radius 360ms var(--spring-expressiveDefault, cubic-bezier(0.2, 0.8, 0.2, 1)), background var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); cursor: text; }
+.time-seg:first-child { border-radius: var(--seg-r) 0 0 var(--seg-r); padding-left: 10px; }
+.time-seg:last-child { border-radius: 0 var(--seg-r) var(--seg-r) 0; padding-right: 14px; }
+.time-pill.editing .time-seg { border-radius: var(--seg-r); }
+.time-seg:focus-within { background: var(--surface-solid); box-shadow: inset 0 0 0 1px var(--accent-line), 0 0 0 3px var(--accent-soft); }
+.time-seg .time-field { width: 26px; height: auto; padding: 0; border: 0; background: none; box-shadow: none; font-size: 17px; font-weight: 600; text-align: right; color: var(--text); }
+.time-seg .time-field:focus { box-shadow: none; background: none; }
+.time-unit { font-size: 13px; font-weight: 500; color: var(--text-faint); }
+.time-half { cursor: pointer; padding: 0 12px; font-size: 12px; font-weight: 600; color: var(--text-dim); }
+.time-half:hover { color: var(--text); }
+.time-go { cursor: pointer; gap: 6px; padding: 0 14px 0 12px; font-size: 13px; font-weight: 600; color: var(--accent); background: rgb(var(--accent-rgb) / 12%); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 30%); }
+.time-go:hover:not(:disabled) { background: rgb(var(--accent-rgb) / 20%); }
+.time-go:disabled { cursor: default; color: var(--text-faint); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); }
+.time-presets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 12px 20px 0; }
+.time-presets button { padding: 0; }
+.time-menu-jumps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 8px 20px 16px; border-bottom: 1px solid var(--well-line); }
+.time-menu-jumps .time-jump { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 4px; font-size: 11px; }
+.time-menu-jumps .time-jump .icon { flex: none; opacity: 0.7; }
+.time-menu-foot .segmented { width: 160px; }
+.reduce-motion :is(.time-pill, .time-seg) { transition: none; }
+.time-menu-jumps .time-jump { font-size: 11.5px; gap: 6px; }
+.time-menu-tip { white-space: nowrap; }

@@ -203,6 +203,11 @@ export class Spring {
   velocity = 0;
   private target: number;
   private cancel: (() => void) | null = null;
+  /**
+   * Where it ends when aimed past them. Aimed a little beyond an end, it arrives there still moving and stops, rather
+   * than creeping the last part of the way.
+   */
+  bounds: [number, number] | null = null;
 
   constructor(
     initial: number,
@@ -218,7 +223,12 @@ export class Spring {
     if (velocity !== undefined) this.velocity = velocity;
     this.cancel ??= animate((dt) => {
       [this.value, this.velocity] = stepSpring(this.value, this.velocity, this.target, this.preset, dt);
-      const done = Math.abs(this.value - this.target) < this.epsilon && Math.abs(this.velocity) < this.epsilon * 10;
+      let done = Math.abs(this.value - this.target) < this.epsilon && Math.abs(this.velocity) < this.epsilon * 10;
+      if (this.bounds) {
+        const [lo, hi] = this.bounds;
+        if (this.target < lo && this.value <= lo) [this.target, done] = [lo, true];
+        else if (this.target > hi && this.value >= hi) [this.target, done] = [hi, true];
+      }
       if (done) {
         this.value = this.target;
         this.velocity = 0;

@@ -196,34 +196,78 @@ export function TimeControl({
         <DayScrubber now={now} pick={shown} hour12={time.hour12} disabled={disabled} onPick={choose} onGo={go} />
 
         <div className="time-menu-row time-menu-go">
-          <div className="time-fields" role="group" aria-label="Target time">
-            <NumberField label="Hour" value={hour} min={time.hour12 ? 1 : 0} max={time.hour12 ? 12 : 23} onChange={(h) => choose(fromFields(h, minute, time.hour12, pm))} onEnter={() => go(shown)} />
-            <span aria-hidden="true">:</span>
-            <NumberField label="Minute" value={minute} min={0} max={59} onChange={(m) => choose(fromFields(hour, m, time.hour12, pm))} onEnter={() => go(shown)} />
-            {time.hour12 && <Segmented label="Half of the day" value={pm ? "pm" : "am"} options={[{ value: "am", label: "AM" }, { value: "pm", label: "PM" }]} onChange={(v) => choose(fromFields(hour, minute, true, v === "pm"))} />}
-          </div>
-          <div className="time-presets" role="group" aria-label="Times of day">
-            {presets.map(([name, at]) => (
-              <button key={name} type="button" className={at === shown ? "on" : ""} disabled={disabled} onClick={() => choose(at)}>{name}</button>
-            ))}
-          </div>
-          <button type="button" className="btn primary" disabled={disabled || Math.abs(shown - now) < 1} onClick={() => go(shown)}>Go</button>
+          <TimePill
+            hour={hour}
+            minute={minute}
+            hour12={time.hour12}
+            pm={pm}
+            canGo={!disabled && Math.abs(shown - now) >= 1}
+            onChange={(h, m, p) => choose(fromFields(h, m, time.hour12, p))}
+            onGo={() => go(shown)}
+          />
+          <span className="time-menu-distance">{touched ? describeDistance(delta) : "Type a time, or choose one above."}</span>
         </div>
 
-        <div className="time-menu-row time-menu-jumps" role="group" aria-label="Jump from now">
+        <div className="time-presets" role="group" aria-label="Times of day">
+          {presets.map(([name, at]) => (
+            <button key={name} type="button" className={at === shown ? "on" : ""} disabled={disabled} onClick={() => choose(at)}>{name}</button>
+          ))}
+        </div>
+
+        <div className="time-menu-jumps" role="group" aria-label="Jump from now">
           {jumps.map(([name, by]) => (
-            <button key={name} type="button" className="time-jump" disabled={disabled || jumpTarget(now, by < 0 ? -1 : 1, 0, Math.abs(by) / 60) === now} onClick={() => go(jumpTarget(now, by < 0 ? -1 : 1, 0, Math.abs(by) / 60))}>
-              {name}
+            <button key={name} type="button" className="time-jump" aria-label={name} disabled={disabled || jumpTarget(now, by < 0 ? -1 : 1, 0, Math.abs(by) / 60) === now} onClick={() => go(jumpTarget(now, by < 0 ? -1 : 1, 0, Math.abs(by) / 60))}>
+              {by < 0 && <Icon name="back" size={13} />}
+              {Math.abs(by) >= 3600 ? "1 h" : "15 min"}
+              {by > 0 && <Icon name="forward" size={13} />}
             </button>
           ))}
         </div>
 
         <footer className="time-menu-foot">
           <Segmented label="Clock format" value={time.hour12 ? "12" : "24"} options={[{ value: "24", label: "24-hour" }, { value: "12", label: "12-hour" }]} onChange={(v) => (v === "12") !== time.hour12 && time.toggle()} />
-          <small className="time-menu-tip">Hold the clock to switch at any time.</small>
+          <small className="time-menu-tip">Or hold the clock</small>
         </footer>
       </Floating>
     </>
+  );
+}
+
+/**
+ * The time to go to, as one capsule: hours, minutes, and Go. Touched, it divides into a capsule for each part, the
+ * way the parts of a duration are pulled apart to be edited, and joins again when let go. Each part takes typing,
+ * arrow keys and the scroll wheel; Enter goes.
+ */
+function TimePill({ hour, minute, hour12, pm, canGo, onChange, onGo }: { hour: number; minute: number; hour12: boolean; pm: boolean; canGo: boolean; onChange: (hour: number, minute: number, pm: boolean) => void; onGo: () => void }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <div
+      className={`time-pill${editing ? " editing" : ""}`}
+      role="group"
+      aria-label="Target time"
+      onFocus={() => setEditing(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEditing(false);
+      }}
+    >
+      <label className="time-seg">
+        <NumberField label="Hour" value={hour} min={hour12 ? 1 : 0} max={hour12 ? 12 : 23} onChange={(h) => onChange(h, minute, pm)} onEnter={onGo} />
+        <span className="time-unit">h</span>
+      </label>
+      <label className="time-seg">
+        <NumberField label="Minute" value={minute} min={0} max={59} onChange={(m) => onChange(hour, m, pm)} onEnter={onGo} />
+        <span className="time-unit">m</span>
+      </label>
+      {hour12 && (
+        <button type="button" className="time-seg time-half" aria-label={pm ? "PM, switch to AM" : "AM, switch to PM"} onClick={() => onChange(hour, minute, !pm)}>
+          {pm ? "PM" : "AM"}
+        </button>
+      )}
+      <button type="button" className="time-seg time-go" aria-label="Go" disabled={!canGo} onClick={onGo}>
+        <span>Go</span>
+        <Icon name="forward" size={14} />
+      </button>
+    </div>
   );
 }
 

@@ -74,12 +74,27 @@ export function assignShortcut(overrides: ShortcutOverrides | undefined, id: Sho
   return next;
 }
 
-/** Typing in a field is typing, and Space on a control presses that control. */
+/**
+ * Typing in a field is typing. Space presses a control only when the keyboard brought the focus there: a button that
+ * was clicked keeps the focus, but Space after a click is meant for the simulation, not for that button again.
+ */
 export function shortcutsApply(target: EventTarget | null, key: string): boolean {
   if (!(target instanceof Element)) return true;
-  if (target.closest("input, textarea, select, [contenteditable='true'], [role='listbox'], [role='menu'], iframe")) return false;
-  if (key === "Space" && target.closest("button, a, [role='switch'], [role='slider'], [role='tab']")) return false;
+  if (target.closest("input:not([type='range']):not([type='checkbox']):not([type='radio']), textarea, select, [contenteditable='true'], [role='listbox'], [role='menu'], iframe")) return false;
+  if (key === "Space") {
+    const control = target.closest("button, a, input, [role='switch'], [role='slider'], [role='tab'], [role='radio'], [role='option']");
+    if (control && keyboardFocused(control)) return false;
+  }
   return true;
+}
+
+/** Whether the focus came by keyboard. Without :focus-visible, assume it did, so nothing is pressed by surprise. */
+function keyboardFocused(el: Element): boolean {
+  try {
+    return el.matches(":focus-visible");
+  } catch {
+    return true;
+  }
 }
 
 export function useShortcuts(bindings: Bindings, actions: Partial<Record<ShortcutId, () => void>>, enabled: boolean) {

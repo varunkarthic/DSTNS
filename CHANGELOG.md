@@ -88,6 +88,14 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   the panel now goes at once, and a division that is stopped part way leaves nothing drawn behind it.
 - **One body dividing.** A panel stays joined to what it grows from while it swells, and parts only once it is nearly
   its own size; the shape casts the panel's soft shadow instead of an outline, and a pill-shaped menu keeps its corners.
+- **Space plays.** Space and every other shortcut work after clicking a button; Space presses a control only when the
+  keyboard brought the focus to it.
+- **No flash on close.** A panel that has finished closing stays hidden instead of showing whole for a frame, closing
+  ends on its own momentum rather than leaving a bead at the edge, and opening leaves the edge at once.
+- **Small questions.** Start over, New World and Terminate are compact: an icon, the question, one line of what happens,
+  and one thing worth knowing (the seed to come back to, or exporting the report first).
+- **Time Control, refit.** The time to go to is one capsule of hours, minutes and Go that divides into a capsule per
+  part while it is edited; times of day and jumps are two even rows beneath.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:

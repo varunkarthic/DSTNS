@@ -32,12 +32,17 @@ describe("keyboard shortcuts", () => {
     expect(next["auto-focus"]).toBe("F");
   });
 
-  it("leaves typing alone, and lets Space press a focused control", () => {
+  it("leaves typing alone, and lets Space press a control only when the keyboard went there", () => {
     const input = document.createElement("input");
-    const button = document.createElement("button");
+    const clicked = document.createElement("button");
+    clicked.matches = ((query: string) => (query === ":focus-visible" ? false : Element.prototype.matches.call(clicked, query))) as never;
+    const tabbed = document.createElement("button");
+    tabbed.matches = ((query: string) => (query === ":focus-visible" ? true : Element.prototype.matches.call(tabbed, query))) as never;
     expect(shortcutsApply(input, "A")).toBe(false);
-    expect(shortcutsApply(button, "Space")).toBe(false);
-    expect(shortcutsApply(button, "A")).toBe(true);
+    expect(shortcutsApply(input, "Space")).toBe(false);
+    expect(shortcutsApply(clicked, "Space")).toBe(true);
+    expect(shortcutsApply(tabbed, "Space")).toBe(false);
+    expect(shortcutsApply(clicked, "A")).toBe(true);
     expect(shortcutsApply(document.body, "Space")).toBe(true);
   });
 

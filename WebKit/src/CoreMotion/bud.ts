@@ -31,8 +31,9 @@ export interface BudGeometry {
   radius: number;
 }
 
-export const BUD_OPEN: SpringPreset = { k: 40, c: 10.5 };
-export const BUD_CLOSE: SpringPreset = { k: 70, c: 15 };
+// Opening carries through without a long creep at its end; closing is quicker, as a panel put away is done with.
+export const BUD_OPEN: SpringPreset = { k: 70, c: 14.6 };
+export const BUD_CLOSE: SpringPreset = { k: 150, c: 23.3 };
 const BEAD = 22;
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
@@ -158,6 +159,7 @@ export class Bud {
   ) {
     this.target = initial;
     this.spring = new Spring(initial, BUD_OPEN, (t) => this.paint(t), 0.002);
+    this.spring.bounds = [0, 1];
   }
 
   /** Where the parent and the panel are now. Safe to call while moving. */
@@ -193,7 +195,11 @@ export class Bud {
     this.spring.setPreset(open ? BUD_OPEN : BUD_CLOSE);
     // Its first shape now, not a frame late, so the whole panel never shows before it has divided.
     this.paint(Math.max(0.001, Math.min(0.999, this.spring.value)));
-    this.spring.set(this.target);
+    // Aimed a little past the end, so it arrives moving and stops there: no last bead lingering at the edge, no panel
+    // creeping its last few pixels.
+    // From rest it leaves at once, as if the press had thrown it, rather than gathering speed at the edge.
+    const thrown = open && this.spring.value < 0.1 && Math.abs(this.spring.velocity) < 0.5 ? 2.6 : undefined;
+    this.spring.set(open ? 1.03 : -0.2, thrown);
   }
 
   private paint(t: number): void {
@@ -201,7 +207,8 @@ export class Bud {
     this.membrane.style.display = moving ? "" : "none";
     this.panel.classList.toggle("budding", moving);
     if (!moving || !this.geometry) {
-      this.panel.style.clipPath = "";
+      // Closed, it stays clipped to nothing until whatever holds it hides it, or it shows whole for a frame.
+      this.panel.style.clipPath = t >= 1 || !this.geometry ? "" : "inset(50%)";
       if (this.content) this.content.style.cssText = "";
       this.panel.style.removeProperty("--bud-content");
       this.rested(t >= 1);

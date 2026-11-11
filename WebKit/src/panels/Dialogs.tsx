@@ -8,6 +8,7 @@ import { Badge } from "../components/settingsControls";
 import { api } from "../core/api";
 import { reloadSeconds } from "../core/linkEstimator";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Dialog } from "../components/Dialog";
 import type { FigureName } from "../CoreMotion/Figure";
 import { Icon, type IconName } from "../components/Icons";
@@ -193,60 +194,86 @@ export function AboutCard({
   );
 }
 
-/** Confirmation before anything that cannot be taken back. The figure acts out what confirming does. */
+/**
+ * Confirmation before anything that cannot be taken back: an icon in the action's own tint, the question, one line of
+ * what happens, and, where there is one, the one thing worth knowing first (such as how to come back), then the answers.
+ */
 export function ConfirmCard({
   title,
   body,
+  icon,
+  note,
   confirmLabel,
-  confirmIcon,
   tone,
-  figure,
-  eyebrow,
-  facts,
   onConfirm,
   onCancel,
   closing,
 }: {
-  /** What this is about, in a word above the title. */
-  eyebrow?: string;
-  /** What confirming does, as a few short facts set side by side. */
-  facts?: [string, string][];
   title: string;
   body: string;
+  icon: IconName;
+  /** One more line worth knowing before saying yes, with its own icon; it may be a control, such as a copy button. */
+  note?: { icon: IconName; text: ReactNode };
   confirmLabel: string;
-  /** Drawn before the action's name, as the control that asked for it draws it. */
-  confirmIcon?: IconName;
   tone?: "danger";
-  figure: FigureName;
   onConfirm: () => void;
   onCancel: () => void;
   closing?: boolean;
 }) {
   return (
-    <Dialog onClose={onCancel} labelledBy="confirm-title" closing={closing} figure={figure} tone={tone} className="confirm-dialog">
-      {eyebrow && <span className="eyebrow">{eyebrow}</span>}
-      <h2 id="confirm-title">{title}</h2>
-      <p className="dialog-body">{body}</p>
-      {facts && (
-        <dl className="dialog-facts confirm-facts">
-          {facts.map(([label, value]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
+    <Dialog onClose={onCancel} labelledBy="confirm-title" closing={closing} tone={tone} className="confirm-dialog">
+      <div className="confirm-head">
+        <span className="confirm-icon" aria-hidden="true">
+          <Icon name={icon} size={18} />
+        </span>
+        <div>
+          <h2 id="confirm-title">{title}</h2>
+          <p className="dialog-body">{body}</p>
+        </div>
+      </div>
+      {note && (
+        <div className="confirm-note">
+          <Icon name={note.icon} size={14} />
+          <span>{note.text}</span>
+        </div>
       )}
       <div className="dialog-actions">
         <button className="btn" onClick={onCancel}>
           Cancel
         </button>
         <button className={`btn tinted${tone === "danger" ? " danger" : ""}`} onClick={onConfirm}>
-          {confirmIcon && <Icon name={confirmIcon} size={14} />}
+          <Icon name={icon} size={14} />
           {confirmLabel}
         </button>
       </div>
     </Dialog>
+  );
+}
+
+/** The seed, with a button that copies it and says so. */
+export function SeedToCopy({ seed }: { seed: string }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return (
+    <>
+      Return to this world with{" "}
+      <button
+        type="button"
+        className="confirm-seed mono"
+        aria-label={copied ? "Seed copied" : `Copy seed ${seed}`}
+        onClick={() => {
+          void navigator.clipboard?.writeText(seed).then(() => {
+            setCopied(true);
+            clearTimeout(timer.current);
+            timer.current = setTimeout(() => setCopied(false), 1500);
+          }, () => undefined);
+        }}
+      >
+        {seed.length > 16 ? `${seed.slice(0, 8)}…${seed.slice(-4)}` : seed}
+        <Icon name={copied ? "check" : "copy"} size={12} />
+      </button>
+    </>
   );
 }
 

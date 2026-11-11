@@ -25,6 +25,7 @@ import {
   AutoFocusPrompt,
   CompletionDialog,
   ConfirmCard,
+  SeedToCopy,
   SuspendedOverlay,
   WorldGenerationOverlay,
 } from "./panels/Dialogs";
@@ -1569,13 +1570,10 @@ export default function App() {
           {dialog === "about" && <AboutCard version={VERSION} closing={dialogClosing} onClose={closeDialog} location={location ?? null} seed={seed} status={sim.status} topology={sim.topology} narratorBadge={narratorBadge(narrator)} />}
           {dialog === "reset" && (
             <ConfirmCard
-              eyebrow="This day"
+              icon="reset"
               title="Start the day over?"
-              body="The same scenario plays again from midnight, with the same seed and map, so you see the same day again."
-              facts={[["Seed", seed ? (seed.length > 14 ? `${seed.slice(0, 12)}…` : seed) : "Not reported"], ["Map", location?.city ?? "Pinned map"], ["Begins at", "00:00"]]}
+              body="The same day plays again from 00:00, with the same seed and map."
               confirmLabel="Start Over"
-              confirmIcon="reset"
-              figure="rewind"
               closing={dialogClosing}
               onCancel={closeDialog}
               onConfirm={() => {
@@ -1589,13 +1587,11 @@ export default function App() {
           )}
           {dialog === "regenerate" && (
             <ConfirmCard
-              eyebrow="New world"
+              icon="reroll"
               title="Generate a new world?"
-              body="A new seed chooses a new district, which may need a map download. This world stays where it is until the new one is ready, then hands over."
-              facts={[["Leaving", location?.city ?? "Pinned map"], ["Arriving", "A new seed and district"], ["Begins at", "00:00, paused"]]}
+              body="A new seed picks a new city district. This one keeps running until the new world is ready."
+              note={seed ? { icon: "history", text: <SeedToCopy seed={seed} /> } : undefined}
               confirmLabel="Generate World"
-              confirmIcon="reroll"
-              figure="redraw"
               closing={dialogClosing}
               onCancel={closeDialog}
               onConfirm={() => {
@@ -1609,14 +1605,12 @@ export default function App() {
           )}
           {dialog === "terminate" && (
             <ConfirmCard
-              eyebrow="This session"
+              icon="power"
               title="Terminate this session?"
-              body="The run stops where it is and the simulation server shuts down. Nothing is saved; a new run is started from the launcher."
-              facts={[["The run", "Stops"], ["The server", "Shuts down"], ["To continue", "Start again from the launcher"]]}
+              body="The run stops and the simulation server shuts down. Start again with ./launcher start."
+              note={{ icon: "download", text: "Export Report first to keep a record of this run." }}
               confirmLabel="Terminate"
-              confirmIcon="power"
               tone="danger"
-              figure="breaker"
               closing={dialogClosing}
               onCancel={closeDialog}
               onConfirm={() => {

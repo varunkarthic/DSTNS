@@ -1139,7 +1139,7 @@ describe("a finished run's next move", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /Restart same simulation/ }));
     // The same seed and map: it confirms a replay, not a new world.
     const confirm = await screen.findByRole("dialog", { name: /Start the day over/ }, { timeout: 4000 });
-    expect(confirm).toHaveTextContent(/same day again/i);
+    expect(confirm).toHaveTextContent(/same day plays again/i);
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(screen.getByRole("dialog", { name: /Start the day over/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start Over" }));
