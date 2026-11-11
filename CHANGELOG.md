@@ -125,8 +125,7 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   the start-up film and Demo Mode, served at `GET /api/v1/system/music` with ranges; it loops with the score's fades,
   volume and mute, and falls back to the written score if the browser can't play it.
 - **Lighter division.** The liquid filter is used only while bead, neck and drop are joined, the content fades without
-  a blur, per-frame state is written only when it changes, panels are put together ahead when the page is idle (or as
-  the pointer reaches their icon), and the map draws one frame in three while a panel divides.
+  a blur, per-frame state is written only when it changes, and the map draws one frame in three while a panel divides.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:
