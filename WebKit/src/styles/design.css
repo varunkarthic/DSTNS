@@ -3372,3 +3372,64 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .reduce-motion :is(.time-pill, .time-seg) { transition: none; }
 .time-menu-jumps .time-jump { font-size: 11.5px; gap: 6px; }
 .time-menu-tip { white-space: nowrap; }
+
+/* ---- Reset, asked in place ------------------------------------------------------------------------------------------
+   One card the size of the row. Pressed, the row becomes the question in the same box, tinted as a danger; answered,
+   it becomes what was done, then the row again. Each face comes in from below as the last leaves upward. */
+.reset-morph { position: relative; display: grid; min-height: 64px; border-radius: var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); overflow: hidden; transition: background 320ms var(--ease), box-shadow 320ms var(--ease); }
+.reset-morph.is-asking { background: rgb(var(--danger-rgb) / 8%); box-shadow: inset 0 0 0 1px rgb(var(--danger-rgb) / 30%); }
+.reset-morph.is-done { background: rgb(var(--ok-rgb) / 8%); box-shadow: inset 0 0 0 1px rgb(var(--ok-rgb) / 28%); }
+.reset-face { grid-area: 1 / 1; display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px 10px 10px; text-align: left; background: none; border: 0; opacity: 0; transform: translateY(14px) scale(0.98); filter: blur(2px); pointer-events: none; transition: opacity 220ms var(--ease), transform 420ms var(--spring-expressiveDefault, cubic-bezier(0.2, 0.8, 0.2, 1)), filter 220ms var(--ease); }
+.reset-morph.is-idle .reset-idle, .reset-morph.is-asking .reset-asking, .reset-morph.is-done .reset-done { opacity: 1; transform: none; filter: none; pointer-events: auto; transition-delay: 60ms; }
+.reset-morph.is-asking .reset-idle, .reset-morph.is-done .reset-asking, .reset-morph.is-idle .reset-done { transform: translateY(-14px) scale(0.98); }
+.reset-idle { cursor: pointer; }
+.reset-morph.is-idle:hover { background: var(--hover); }
+.reset-asking { padding-left: 14px; }
+.reset-asking .settings-action-text strong { color: var(--red); }
+.reset-asking .btn.small { flex: none; height: 30px; padding: 0 12px; font-size: 12px; }
+.reset-done .settings-action-mark { color: var(--ok); background: rgb(var(--ok-rgb) / 14%); }
+.reduce-motion .reset-face { transition: opacity 120ms linear; transform: none !important; filter: none !important; }
+.reset-morph { height: 64px; }
+.reset-face .settings-action-text strong, .reset-face .settings-action-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- A list's own controls, refit -------------------------------------------------------------------------------
+   One material for all of them: a well-tinted stadium 32px tall with a hairline edge, the chosen part a raised pill
+   3px inside it. The bar has 8px all round and a line beneath, so the first row starts clear of it. */
+.stream-frame .view-filters, .stream .view-filters { gap: 8px; padding: 8px; }
+.view-filters .seg.small { height: 32px; padding: 3px; gap: 2px; border-radius: 16px; background: rgb(var(--ink-rgb) / 5%); box-shadow: inset 0 0 0 1px var(--well-line); }
+.view-filters .seg.small button { height: 26px; padding: 0 14px; border-radius: 13px; font-size: 12px; font-weight: 500; color: var(--text-dim); }
+.view-filters .seg.small button[aria-checked="true"] { color: var(--text); background: var(--surface-solid); box-shadow: 0 1px 2px rgb(0 0 0 / 18%), inset 0 0 0 1px var(--well-line); }
+.view-filters .select-trigger { height: 32px; min-height: 32px; gap: 8px; padding: 0 12px 0 14px; border: 0; border-radius: 16px; font-size: 12px; font-weight: 500; color: var(--text); background: rgb(var(--ink-rgb) / 5%); box-shadow: inset 0 0 0 1px var(--well-line); }
+.view-filters .select-trigger:hover, .view-filters .select-trigger.open { background: var(--hover); }
+.view-filters .select-trigger .icon { color: var(--text-faint); transition: transform 260ms var(--ease); }
+.view-filters .select-trigger.open .icon { transform: rotate(180deg); }
+.view-filters .chips { gap: 6px; }
+.view-filters .chip-filter { height: 30px; padding: 0 12px; gap: 6px; border-radius: 15px; font-size: 12px; background: rgb(var(--ink-rgb) / 5%); border: 0; box-shadow: inset 0 0 0 1px var(--well-line); }
+.view-filters .chip-filter[aria-checked="true"] { color: var(--accent); background: rgb(var(--accent-rgb) / 12%); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 38%); }
+.view-filters .chip-filter .mono { font-size: 10.5px; color: var(--text-faint); }
+.view-filters .chip-filter[aria-checked="true"] .mono { color: inherit; opacity: 0.75; }
+/* The menu a list's dropdown opens: the same 8px, its rows stadiums concentric with it. */
+.floating.menu { padding: 6px; }
+.floating.menu .menu-item { min-height: 32px; padding-inline: 12px; border-radius: 12px; font-size: 12.5px; }
+
+/* ---- About, refit ---------------------------------------------------------------------------------------------------
+   The facts in two columns, label over value, with the long ones (the network, the run, the graph hash) across both;
+   the licence set out as a section of its own at the end, so nothing is folded away into a sliver. */
+.dialog.about-dialog .about-scroll { gap: 22px; padding: 24px 24px 28px; }
+.about-section h3 { margin: 0 0 10px; }
+.about-section .about-facts, .about-dialog .about-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; padding: 0; }
+.about-section .about-facts > div, .about-section .about-facts > div:first-child { display: block; padding: 10px 14px; border-top: 1px solid var(--well-line); border-left: 0; }
+.about-section .about-facts > div:nth-child(-n + 2) { border-top: 0; }
+.about-section .about-facts > div:nth-child(even):not(.wide) { border-left: 1px solid var(--well-line); }
+.about-section .about-facts > div.wide { grid-column: 1 / -1; border-left: 0; }
+.about-section .about-facts dt { margin: 0 0 3px; font-size: 11px; color: var(--text-faint); }
+.about-section .about-facts dd { font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.about-licence-card { padding: 14px 16px; border-radius: var(--r-md); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-line); }
+.about-licence-card p { margin: 0; font-size: 12px; line-height: 1.55; color: var(--text-dim); }
+.about-licence-card p + p { margin-top: 8px; }
+.about-licence-card strong { color: var(--text); font-weight: 600; }
+.about-fineprint { margin-top: 10px; }
+/* Each fact draws the line above it and to its left; the card clips what falls on its own edge, so the lines always
+   meet however the facts fall into rows. */
+.about-section .about-facts { overflow: hidden; }
+.about-section .about-facts > div, .about-section .about-facts > div:first-child, .about-section .about-facts > div:nth-child(-n + 2), .about-section .about-facts > div:nth-child(even):not(.wide) { border: 0; box-shadow: 0 -1px 0 var(--well-line), -1px 0 0 var(--well-line); }

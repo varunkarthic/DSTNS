@@ -1028,11 +1028,10 @@ describe("dialogs and suspension", () => {
     expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute("href", "https://github.com/varunkarthic/DSTNS");
     expect(screen.getByRole("link", { name: "Documentation" })).toHaveAttribute("href", "https://dstns.readthedocs.io/");
     expect(within(dialog).queryByRole("button", { name: /Reset/ })).toBeNull();
-    // The licence is a custom disclosure, closed until asked for.
-    const licence = within(dialog).getByRole("button", { name: /Licence and attribution/ });
-    expect(licence).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(licence);
-    expect(licence).toHaveAttribute("aria-expanded", "true");
+    // The licence is set out in full, with the map's own licence beside it.
+    const licence = within(dialog).getByRole("region", { name: /Licence and attribution/ });
+    expect(licence).toHaveTextContent(/section 13/);
+    expect(licence).toHaveTextContent(/Open Database License/);
     expect(within(dialog).getByRole("button", { name: "Copy seed" })).toBeInTheDocument();
     expect(dialog).toHaveTextContent("Berlin, Germany");
     expect(dialog).toHaveTextContent("52.5050, 13.4235");
@@ -1188,6 +1187,9 @@ describe("preference resets", () => {
     render(<App/>); await ready();
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     fireEvent.click(await screen.findByRole("button", {name: "Reset settings"}));
+    // It asks in its own place first, and nothing is reset until it is answered.
+    expect(localStorage.getItem("dstns.ui-config.v1")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", {name: "Reset"}));
     expect(localStorage.getItem("dstns.ui-config.v1")).toBeNull();
     expect(localStorage.getItem("dstns.telemetry-tab.v1")).toBeNull();
     expect(localStorage.getItem("unrelated")).toBe("keep");

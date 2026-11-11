@@ -65,7 +65,6 @@ export function AboutCard({
     void api.systemInfo().then((info) => { if(!cancelled && typeof info?.version === "string")setSystem(info); }).catch(() => {});
     return () => { cancelled=true; };
   }, []);
-  const [licence, setLicence] = useState(false);
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -119,7 +118,7 @@ export function AboutCard({
           <div><dt>Network</dt><dd>{topology ? `${topology.nodes.length.toLocaleString()} nodes · ${topology.edges.length.toLocaleString()} edges · ${topology.features.length.toLocaleString()} places` : "Unavailable"}</dd></div>
           <div className="advanced-only"><dt>Coordinates</dt><dd className="mono">{topology?.location?.city ? `${topology.location.anchor_lat.toFixed(4)}, ${topology.location.anchor_lon.toFixed(4)}` : "Unavailable"}</dd></div>
           <div className="advanced-only"><dt>Run</dt><dd className="mono">{status?.run_id || "No run"}</dd></div>
-          <div className="advanced-only"><dt>Graph hash</dt><dd className="mono">{topology?.graph_hash || "Unavailable"}</dd></div>
+          <div className="advanced-only wide"><dt>Graph hash</dt><dd className="mono">{topology?.graph_hash || "Unavailable"}</dd></div>
           <div className="advanced-only"><dt>Map source</dt><dd>{topology?.source || "Unavailable"}</dd></div>
           <div className="advanced-only"><dt>Map selection</dt><dd>{topology?.map_selection_version || "Unavailable"}</dd></div>
         </dl>
@@ -160,35 +159,22 @@ export function AboutCard({
             <dt>SUMO adapter</dt>
             <dd>{system?.sumo?.available ? <Badge tone="ok">{system.sumo.version || "Available"}</Badge> : <Badge>{system ? "Not installed" : "Unavailable"}</Badge>}</dd>
           </div>
-          <div className="advanced-only"><dt>Compiler</dt><dd>{typeof system?.build?.compiler === "string" ? system.build.compiler : "Unavailable"}</dd></div>
           <div className="advanced-only"><dt>C++ standard</dt><dd>{typeof system?.build?.cpp_standard === "number" ? system.build.cpp_standard : "Unavailable"}</dd></div>
+          <div className="advanced-only wide"><dt>Compiler</dt><dd>{typeof system?.build?.compiler === "string" ? system.build.compiler : "Unavailable"}</dd></div>
         </dl>
       </section>
 
-      <div className={`disclosure${licence ? " open" : ""}`}>
-        <button type="button" className="disclosure-head" aria-expanded={licence} aria-controls="about-licence" onClick={() => setLicence((v) => !v)}>
-          <Icon name="info" size={16} />
-          <span>Licence and attribution</span>
-          <Icon name="chevronDown" size={14} className="disclosure-chevron" />
-        </button>
-        <div className="disclosure-body" id="about-licence" inert={!licence || undefined}>
-          <div>
-            <p>
-              Copyright © 2026 <strong>Varun Karthic</strong>. Released under the <strong>GNU Affero General Public License v3 or later</strong>.
-              This is free software: you may redistribute it under the terms of that licence, and it comes with <strong>absolutely no warranty</strong>.
-            </p>
-            <p>
-              Because DSTNS is operated over a network, section 13 applies: you are entitled to the complete corresponding source of the version
-              you are interacting with.
-            </p>
-            <p className="muted">
-              Map data © OpenStreetMap contributors, licensed under the Open Database License (ODbL) 1.0. That licence is separate from, and not
-              superseded by, this program's licence.
-            </p>
-          </div>
+      <section className="about-section about-licence" aria-label="Licence and attribution">
+        <h3>Licence</h3>
+        <div className="about-licence-card">
+          <p>
+            Copyright © 2026 <strong>Varun Karthic</strong>. Free software under the <strong>GNU Affero General Public License v3 or later</strong>,
+            with <strong>absolutely no warranty</strong>. Because DSTNS is used over a network, section 13 entitles you to the complete source of
+            the version you are using.
+          </p>
+          <p className="muted">Map data © OpenStreetMap contributors, under the Open Database License (ODbL) 1.0, which this program's licence does not replace.</p>
         </div>
-      </div>
-
+      </section>
       </div>
     </Dialog>
   );

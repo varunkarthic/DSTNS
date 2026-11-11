@@ -32,18 +32,25 @@ describe("keyboard shortcuts", () => {
     expect(next["auto-focus"]).toBe("F");
   });
 
-  it("leaves typing alone, and lets Space press a control only when the keyboard went there", () => {
+  it("leaves typing alone, and lets Space press a control only when the keyboard went there", async () => {
     const input = document.createElement("input");
     const clicked = document.createElement("button");
-    clicked.matches = ((query: string) => (query === ":focus-visible" ? false : Element.prototype.matches.call(clicked, query))) as never;
     const tabbed = document.createElement("button");
-    tabbed.matches = ((query: string) => (query === ":focus-visible" ? true : Element.prototype.matches.call(tabbed, query))) as never;
+    document.body.append(input, clicked, tabbed);
     expect(shortcutsApply(input, "A")).toBe(false);
     expect(shortcutsApply(input, "Space")).toBe(false);
+    clicked.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    clicked.focus();
+    clicked.dispatchEvent(new Event("pointerup", { bubbles: true }));
     expect(shortcutsApply(clicked, "Space")).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    tabbed.focus();
     expect(shortcutsApply(tabbed, "Space")).toBe(false);
     expect(shortcutsApply(clicked, "A")).toBe(true);
     expect(shortcutsApply(document.body, "Space")).toBe(true);
+    input.remove();
+    clicked.remove();
+    tabbed.remove();
   });
 
   it("survives saving and forgets what is unknown or malformed", () => {

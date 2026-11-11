@@ -88,13 +88,26 @@ export function shortcutsApply(target: EventTarget | null, key: string): boolean
   return true;
 }
 
-/** Whether the focus came by keyboard. Without :focus-visible, assume it did, so nothing is pressed by surprise. */
+/*
+ * How the focus arrived, recorded as it moves. :focus-visible cannot say: the browser turns it on as soon as a key is
+ * pressed, so at that keydown a clicked button looks just like one reached with Tab.
+ */
+let pressing = false;
+let pointerFocused: Element | null = null;
+if (typeof document !== "undefined") {
+  // A press moves the focus while the pointer is down; focus moved by code or by Tab at any other time is not a click.
+  document.addEventListener("pointerdown", () => (pressing = true), true);
+  const release = () => setTimeout(() => (pressing = false), 0);
+  document.addEventListener("pointerup", release, true);
+  document.addEventListener("pointercancel", release, true);
+  document.addEventListener("focusin", (event) => {
+    pointerFocused = pressing && event.target instanceof Element ? event.target : null;
+  }, true);
+}
+
+/** Whether the keyboard brought the focus to this control, rather than a click or a tap. */
 function keyboardFocused(el: Element): boolean {
-  try {
-    return el.matches(":focus-visible");
-  } catch {
-    return true;
-  }
+  return !(pointerFocused && (pointerFocused === el || el.contains(pointerFocused)));
 }
 
 export function useShortcuts(bindings: Bindings, actions: Partial<Record<ShortcutId, () => void>>, enabled: boolean) {

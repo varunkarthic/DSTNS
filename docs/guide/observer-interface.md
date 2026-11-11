@@ -406,9 +406,9 @@ Sections:
 | Do Not Disturb | Switch; muted categories with descriptions; muted severities; a note on the Auto Focus override |
 | Time and playback | 12 or 24 hour time; Back and Forward interval; fine control, which asks how far on each press; Step interval |
 | Units | Data sizes as KB, MB and GB (powers of 1,000) or KiB, MiB and GiB (powers of 1,024) |
-| Keyboard | Every shortcut, shown and changeable. Select one and press a key; a key already in use swaps. Resets separately, and with Reset all settings |
+| Keyboard | Every shortcut, shown and changeable. Select one and press a key; a key already in use swaps. Resets separately, and with Reset all settings. Shortcuts work wherever you clicked last: Space plays and pauses even after clicking a button, and presses a button only when you reached it with Tab |
 | Applications | [WebFabric](../components/webfabric.md): registered applications, their settings and permissions |
-| Reset | Returns settings, Layers, Places, shortcuts and the telemetry layout to their defaults |
+| Reset | Returns settings, Layers, Places, shortcuts and the telemetry layout to their defaults. It asks first, in the same card, before anything changes |
 
 Each section is a self-contained block in `src/panels/SettingsDrawer.tsx`, so new
 settings are added without reorganising the drawer.

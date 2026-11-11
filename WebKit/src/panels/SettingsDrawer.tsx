@@ -122,12 +122,13 @@ export function SettingsDrawer({
     [theme],
   );
   const [page, setPage] = useState<"main" | "webfabric" | "shortcuts">("main");
-  const [resetDone, setResetDone] = useState(false);
+  // Reset asks in its own place: the row becomes the question, then what was done, then the row again.
+  const [reset, setReset] = useState<"idle" | "asking" | "done">("idle");
   useEffect(() => {
-    if (!resetDone) return;
-    const timer = setTimeout(() => setResetDone(false), 1800);
+    if (reset !== "done") return;
+    const timer = setTimeout(() => setReset("idle"), 1800);
     return () => clearTimeout(timer);
-  }, [resetDone]);
+  }, [reset]);
   const apps = useFabricApps();
   const waitingApps = apps.filter((app) => app.capabilities.pending.length > 0 && app.state !== "unloaded").length;
   const panel = useRef<HTMLElement>(null);
@@ -434,21 +435,40 @@ export function SettingsDrawer({
         </Section>
 
         <Section title="Reset" icon="reset">
-          <button
-            type="button"
-            className="settings-action"
-            aria-label="Reset settings"
-            onClick={() => {
-              actions.onReset();
-              setResetDone(true);
-            }}
-          >
-            <span className="settings-action-mark" aria-hidden="true"><Icon name={resetDone ? "check" : "reset"} size={16} /></span>
-            <span className="settings-action-text" role="status">
-              <strong>{resetDone ? "Settings reset" : "Reset all settings"}</strong>
-              <small>{resetDone ? "Everything here is back to its default." : "Returns everything here to its default."}</small>
-            </span>
-          </button>
+          <div className={`reset-morph is-${reset}`} role="group" aria-label="Reset">
+            <button type="button" className="reset-face reset-idle" aria-label="Reset settings" tabIndex={reset === "idle" ? 0 : -1} aria-hidden={reset !== "idle"} onClick={() => setReset("asking")}>
+              <span className="settings-action-mark" aria-hidden="true"><Icon name="reset" size={16} /></span>
+              <span className="settings-action-text">
+                <strong>Reset all settings</strong>
+                <small>Returns everything here to its default.</small>
+              </span>
+            </button>
+            <div className="reset-face reset-asking" aria-hidden={reset !== "asking"}>
+              <span className="settings-action-text">
+                <strong>Reset everything here?</strong>
+                <small>This can’t be undone.</small>
+              </span>
+              <button type="button" className="btn small" tabIndex={reset === "asking" ? 0 : -1} onClick={() => setReset("idle")}>Cancel</button>
+              <button
+                type="button"
+                className="btn small tinted danger"
+                tabIndex={reset === "asking" ? 0 : -1}
+                onClick={() => {
+                  actions.onReset();
+                  setReset("done");
+                }}
+              >
+                Reset
+              </button>
+            </div>
+            <div className="reset-face reset-done" role="status" aria-hidden={reset !== "done"}>
+              <span className="settings-action-mark" aria-hidden="true"><Icon name="check" size={16} /></span>
+              <span className="settings-action-text">
+                <strong>{reset === "done" ? "Settings reset" : ""}</strong>
+                <small>Everything here is back to its default.</small>
+              </span>
+            </div>
+          </div>
         </Section>
         </>
         )}
