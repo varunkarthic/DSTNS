@@ -1657,7 +1657,9 @@ html, body, #root {
    bead can be seen leaving the dock before it is large. */
 .bud-fill { fill: var(--surface-solid); }
 :root:not([data-theme="light"]) .bud-fill { fill: color-mix(in srgb, var(--surface-solid) 95%, #ffffff); }
-.high-contrast .bud-membrane g { filter: none; }
+.high-contrast .bud-membrane g, .bud-membrane.parted g { filter: none; }
+/* Without the liquid filter's own shadow, the parted drop keeps a soft one. */
+.bud-membrane.parted .bud-fill { filter: drop-shadow(0 8px 14px rgb(0 0 0 / 28%)); }
 .fluid-content {
   flex: 1;
   min-height: 0;

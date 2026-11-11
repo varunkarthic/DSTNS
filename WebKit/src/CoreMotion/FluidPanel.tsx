@@ -50,6 +50,17 @@ export const FluidPanel = forwardRef<HTMLElement, {
   const content = useRef<HTMLDivElement>(null);
   const bud = useRef<Bud | null>(null);
   const [resting, setResting] = useState<"closed" | "moving" | "open">(open ? "open" : "closed");
+  const [warm, setWarm] = useState(false);
+  // Put together ahead, once the page has a quiet moment, so the first press has only to show it.
+  useEffect(() => {
+    const idle = (window as unknown as { requestIdleCallback?: (fn: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    const handle = idle ? idle(() => setWarm(true), { timeout: 5000 }) : window.setTimeout(() => setWarm(true), 2500);
+    return () => {
+      const cancel = (window as unknown as { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback;
+      if (idle && cancel) cancel(handle);
+      else clearTimeout(handle);
+    };
+  }, []);
   useImperativeHandle(ref, () => panel.current as HTMLElement, []);
 
   const measure = () => {
@@ -77,6 +88,8 @@ export const FluidPanel = forwardRef<HTMLElement, {
     const icon = document.querySelector<HTMLElement>(anchor);
     const still = () => document.documentElement.classList.contains("reduce-motion") || !matchMedia("(hover: hover)").matches;
     const enter = () => {
+      // What the panel holds is put together now, hidden, so the press has only to show it.
+      setWarm(true);
       if (still()) return;
       measure();
       bud.current?.anticipate(true);
@@ -122,7 +135,7 @@ export const FluidPanel = forwardRef<HTMLElement, {
         role="dialog"
       >
         <div ref={content} className="fluid-content">
-          {resting === "closed" && !open ? null : children}
+          {resting === "closed" && !open && !warm ? null : children}
         </div>
       </aside>
     </>

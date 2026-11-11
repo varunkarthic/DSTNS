@@ -144,6 +144,19 @@ export function budShape(t: number, g: BudGeometry, gap: number) {
  */
 export class Bud {
   private spring: Spring;
+  private liquid = true;
+  private moving = false;
+  /** Panels dividing now: while there are any, the page says so, so that heavy drawing can give way. */
+  private static moving = new Set<Bud>();
+  private static dividing(bud: Bud, on: boolean) {
+    const before = Bud.moving.size > 0;
+    if (on) Bud.moving.add(bud);
+    else Bud.moving.delete(bud);
+    // Only when it changes: touching the root's attributes every frame would restyle the whole page every frame.
+    if (before === Bud.moving.size > 0) return;
+    if (Bud.moving.size) document.documentElement.dataset.motion = "dividing";
+    else delete document.documentElement.dataset.motion;
+  }
   private geometry: BudGeometry | null = null;
   private target = 0;
   gap = 12;
@@ -204,8 +217,13 @@ export class Bud {
 
   private paint(t: number): void {
     const moving = t > 0 && t < 1;
-    this.membrane.style.display = moving ? "" : "none";
-    this.panel.classList.toggle("budding", moving);
+    // Each written only when it changes, for the same reason.
+    if (this.moving !== moving) {
+      this.moving = moving;
+      this.membrane.style.display = moving ? "" : "none";
+      this.panel.classList.toggle("budding", moving);
+    }
+    Bud.dividing(this, moving);
     if (!moving || !this.geometry) {
       // Closed, it stays clipped to nothing until whatever holds it hides it, or it shows whole for a frame.
       this.panel.style.clipPath = t >= 1 || !this.geometry ? "" : "inset(50%)";
@@ -217,18 +235,26 @@ export class Bud {
     // A spring may pass its target a little; the shape stops at it.
     const shape = budShape(Math.min(t, 0.9999), this.geometry, this.gap);
     for (const path of this.membrane.querySelectorAll("path")) path.setAttribute("d", shape.d);
+    // The liquid filter matters only while bead, neck and drop are joined; once the drop has parted it is a rounded
+    // rectangle, which needs no blur, so the large late frames are not blurred on the processor every frame.
+    const liquid = t < 0.8;
+    if (liquid !== this.liquid) {
+      this.liquid = liquid;
+      this.membrane.classList.toggle("parted", !liquid);
+    }
     this.panel.style.clipPath = shape.clip;
     if (!this.content) this.panel.style.setProperty("--bud-content", shape.content.toFixed(3));
     else {
+      // Fade and rise only: a blur here would repaint the whole of the panel's content every frame.
       this.content.style.opacity = shape.content.toFixed(3);
-      this.content.style.transform = `translateY(${((1 - shape.content) * 10).toFixed(1)}px)`;
-      this.content.style.filter = shape.content > 0.98 ? "" : `blur(${((1 - shape.content) * 4).toFixed(1)}px)`;
+      this.content.style.transform = `translate3d(0, ${((1 - shape.content) * 10).toFixed(1)}px, 0)`;
     }
   }
 
   /** Stops where it is and leaves nothing drawn: the shape is cleared and the panel shown whole or not at all. */
   destroy(): void {
     this.spring.stop();
+    Bud.dividing(this, false);
     this.membrane.style.display = "none";
     this.panel.classList.remove("budding");
     this.panel.style.clipPath = "";

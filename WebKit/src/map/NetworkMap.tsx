@@ -807,7 +807,11 @@ function NetworkMap({
       else if (running && !reduceMotion && (layers.vehicles || (snapshot?.active_incidents.length ?? 0) > 0)) {
         // Every frame while it can afford to; a heavy scene falls back to every other. The operator may fix either.
         const fps = currentFeatures().presentation.map_fps;
-        if (fps === 60 || (fps !== 30 && quality.current >= 0.7) || settling) frame = requestAnimationFrame(draw);
+        // While a panel divides, the map draws one frame in three: the motion the eye is following comes first. The
+        // vehicles move by the time that passed, so they do not slow, only draw less often for that moment.
+        const yielding = document.documentElement.dataset.motion === "dividing";
+        if (yielding) frame = requestAnimationFrame(() => (frame = requestAnimationFrame(() => (frame = requestAnimationFrame(draw)))));
+        else if (fps === 60 || (fps !== 30 && quality.current >= 0.7) || settling) frame = requestAnimationFrame(draw);
         else frame = requestAnimationFrame(() => (frame = requestAnimationFrame(draw)));
       } else if (settling) frame = requestAnimationFrame(draw);
     };
