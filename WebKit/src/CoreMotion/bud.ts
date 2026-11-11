@@ -48,12 +48,16 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
  * Pure, so it can be checked.
  */
 export function budFrame(t: number, U: number, V: number, a: number, gap: number, radius: number) {
+  // A stadium's corner is half its height, however it was declared: a pill of 999px is a radius of 20 here.
+  radius = Math.min(radius, U / 2, V / 2);
   const r = Math.min(BEAD, U / 2, V / 2);
   const at = Math.max(r, Math.min(V - r, a));
-  const out = smooth(t / 0.42);
-  const grow = smooth((t - 0.46) / 0.54);
-  const pinch = smooth((t - 0.28) / 0.2);
-  const retract = smooth((t - 0.48) / 0.2);
+  // Drawn out, then swelling into the panel while still joined, and only then letting go: one body dividing, never a
+  // drop that has already left before it has become anything.
+  const out = smooth(t / 0.36);
+  const grow = smooth((t - 0.32) / 0.6);
+  const pinch = smooth((t - 0.5) / 0.22);
+  const retract = smooth((t - 0.72) / 0.18);
   const centre = lerp(-r, gap + r, out);
   // Drawn out, the drop is longer than it is wide.
   const stretch = Math.sin(Math.PI * out) * r * 0.3;
@@ -215,7 +219,13 @@ export class Bud {
     }
   }
 
+  /** Stops where it is and leaves nothing drawn: the shape is cleared and the panel shown whole or not at all. */
   destroy(): void {
     this.spring.stop();
+    this.membrane.style.display = "none";
+    this.panel.classList.remove("budding");
+    this.panel.style.clipPath = "";
+    if (this.content) this.content.style.cssText = "";
+    this.panel.style.removeProperty("--bud-content");
   }
 }

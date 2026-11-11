@@ -77,10 +77,17 @@ describe("a panel dividing from its parent", () => {
     const joined = at(0.25);
     expect(joined.neck.waist).toBeGreaterThan(0);
     expect(joined.neck.tipParent).toBe(joined.neck.tipDrop);
-    const parted = at(0.6);
+    // Still joined while it swells into the panel, and only then parting.
+    expect(at(0.45).neck.waist).toBeGreaterThan(0);
+    expect(at(0.45).body.u1 - at(0.45).body.u0).toBeGreaterThan(44);
+    const parted = at(0.8);
     expect(parted.neck.waist).toBe(0);
     expect(parted.neck.tipDrop).toBeGreaterThan(parted.neck.tipParent);
-    expect(at(0.8).neck.gone).toBe(true);
+    expect(at(0.95).neck.gone).toBe(true);
+  });
+  it("keeps a pill's corner to half its height", () => {
+    const pill = budFrame(1, 40, 200, 100, 8, 999);
+    expect(pill.body.r).toBe(20);
   });
   it("only ever grows, and ends as the whole panel", () => {
     let last = -Infinity;

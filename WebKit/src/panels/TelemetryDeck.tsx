@@ -750,7 +750,9 @@ function TelemetryDeckImpl(props: Props) {
   // The panel divides from the strip at the button that asked for it (see CoreMotion/bud.ts), and stays mounted, showing
   // what it last showed, until it has been taken back up.
   const [shown, setShown] = useState<PanelView | null>(null);
-  if (panel && shown !== panel) setShown(panel);
+  // It follows the chosen view only while the strip is out; expanded, the deck shows everything and it goes at once.
+  const wanted = compact ? panel : null;
+  if (wanted && shown !== wanted) setShown(wanted);
   if (!compact && shown) setShown(null);
   const membrane = useRef<SVGSVGElement>(null);
   const bud = useRef<Bud | null>(null);

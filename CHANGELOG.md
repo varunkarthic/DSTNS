@@ -84,6 +84,10 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   asks, then records who accepted what in `logs/security-audit.log`.
 - **No storm of warnings.** A daemon saying the same thing again while its notification is still showing, as a memory
   reading wavers about its threshold, updates that one notification and counts up instead of adding another.
+- **No crash on expand.** Expanding telemetry while its strip panel was opening sent the interface into a render loop;
+  the panel now goes at once, and a division that is stopped part way leaves nothing drawn behind it.
+- **One body dividing.** A panel stays joined to what it grows from while it swells, and parts only once it is nearly
+  its own size; the shape casts the panel's soft shadow instead of an outline, and a pill-shaped menu keeps its corners.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:
