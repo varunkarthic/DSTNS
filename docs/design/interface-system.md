@@ -89,11 +89,17 @@ or `scrollIntoView` that moves one of those containers anyway is put straight ba
 ## Secondary panels
 
 A panel divides from the surface that asked for it, as a cell does: the edge swells into a bead at the control that
-was pressed, the bead is drawn out on a neck, the neck thins and parts, and the drop grows into the panel. Closing runs
+was pressed, the bead is drawn out on a neck, the drop swells toward the panel's size while still joined, and only then
+does the neck thin and part. The shape is the panel's own material with its soft shadow, never an outline. As the
+pointer reaches a dock icon the bead begins to swell, so the panel is already on its way before the press, and it
+settles back if the pointer moves on. A division stopped part way leaves nothing drawn. Closing runs
 the same path backward, and opening and closing can interrupt each other anywhere, because it is all one spring value
 (`bud.ts`). Settings and Search divide from the dock and are its height; the collapsed telemetry strip's panel divides
 from the strip leftward and is the strip's height; the bar's menus divide from the bar; an application's sheet, such
 as its code for a phone, divides from its own bar and stays inside its panel. Under reduced motion each simply appears.
+
+Before anything that asks about the whole session (starting over, a new world, terminating), every open surface puts
+itself away first, and the question comes once the last has gone (`settle.ts`).
 
 ## Dialogs
 
