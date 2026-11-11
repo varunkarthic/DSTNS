@@ -391,7 +391,8 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `set`, `unset`, `env set\|unset`, `edit`, `api` | The console's tools for changing things: a setting, a kept variable, a file in your editor, any route. See [the console](console.md) |
 | `ask "REQUEST"` | A request in plain words as a line of commands, printed and never run, or a question about DSTNS answered with its sources; `ask new` starts a new conversation; see [Asking in plain words](#asking-in-plain-words) |
 | `model [use PROVIDER [NAME]\|list\|key PROVIDER KEY\|forget PROVIDER\|test]` | The launcher's model, through [CoreAI](../components/coreai.md): Apple's Foundation Models, a local model server or a cloud provider |
-| `state [get [--world]\|set CODE]` | This launcher's settings as one code, for another launcher to become the same; see [Launcher state](#launcher-state) |
+| `launch-code [--world] [--keys]` | This launcher as one code; `./launcher launch CODE` elsewhere starts the same, from where it was; see [Launch codes](#launch-codes) |
+| `state [get [--world]\|set CODE]` | The same code without the keys, and applying one without starting; see [Launch codes](#launch-codes) |
 | `daemon [show NAME\|on NAME\|off NAME\|queue emergency\|notification]` | The server's [daemons](daemons.md) |
 | `security [on\|off\|verify]` | [Advanced Security](#advanced-security) |
 | `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, and forget the setup |
@@ -708,31 +709,46 @@ a link to that line on GitHub. The MCP Handler offers the same as `graph_ask`, `
 `graph_relations` and `graph_path`, which only read, so they are offered whatever else is
 allowed.
 
-## Launcher state
+## Launch codes
 
-A launcher's settings fit in one code: uppercase hexadecimal that another launcher takes to
-become the same. `state get` prints it; `state set CODE` applies it; `./launcher --state CODE`
-applies it before anything else, so a script or a colleague starts from exactly these settings.
+A launcher's whole state fits in one code: uppercase hexadecimal that another launcher takes to
+become the same, and to carry straight on from where this one was.
 
-```text
-dstns ~ ❯ state get
-011D8D510EC3200C43AF82F8A63BC06E9382DB46A28092B069AA7AF765FBB39F2DFB8A0A336EBBC…
+```bash
+./launcher launch-code                  # the settings
+./launcher launch-code --world          # and the world, where it is now
+./launcher launch-code --world --keys   # and the API keys, sealed with a passphrase
+./launcher launch CODE                  # become that launcher and start, from where it was
 ```
 
-It carries every setting that differs from its default, and applying it puts every other one
-back to its default, so the result is the same launcher. Settings that hold a credential or an
-address (API keys, tokens, model addresses) are never put in a code and stay as they are on
-each machine; API keys are not settings at all and never leave. Under Advanced Security,
-applying one asks first.
+`state get` prints the same code as `launch-code`, `state set CODE` applies it without starting,
+and `./launcher --state CODE` applies it before any other command.
 
-`state get --world` adds the world: the running one (or the seed set in the settings), with its
-day type, map rules and the moment of the day it is at. The next start without `--seed` of its
-own runs that world and jumps to that moment, once. DSTNS is deterministic, so this is the same
-world; what was done to it by hand (a road closed, a storm started) is not carried. A code made
-by a launcher with other map rules may choose another city for the same seed, and says so.
+| Part | What it carries |
+|---|---|
+| Settings | Every setting that differs from its default; applying it puts every other one back to its default, so the result is the same launcher. Settings that hold a token or an address (model addresses) never travel |
+| `--world` | The running world (or the seed set in the settings): its seed, day type, map rules and the moment of the day, whether it was playing or paused, its speed, and the operator's own changes: signals switched, roads closed or slowed, rain added, modules turned off or on, each with the moment it was made |
+| `--keys` | The API keys in `config/launcher.env`, sealed with a passphrase you choose |
+
+**A launch with a world.** The next start runs that seed, then goes through the day to the
+copied moment, making each of the operator's changes again at the moment it was made, sets the
+speed, and stops there playing or paused as it was. DSTNS is deterministic, so this is the same
+world in the same state; its checkpoints are rebuilt on the way rather than copied, since they
+would be megabytes and are the same when rebuilt. A demand surge is not yet recorded as a change,
+so it is not carried. A code made with other map rules may choose another city for the same
+seed, and says so.
+
+**Keys.** A code is meant to be pasted around, so keys in it are sealed: PBKDF2-HMAC-SHA256
+(210,000 rounds) turns the passphrase into keys, the API keys are enciphered with HMAC-SHA256 in
+counter mode, and the whole is authenticated with HMAC-SHA256, so a wrong passphrase or a changed
+character is refused rather than producing wrong keys. The passphrase is asked for twice when the
+code is made and once when it is used, without echoing; a script can set
+`DSTNS_LAUNCH_PASSPHRASE` instead. Under Advanced Security, making a code with keys and applying
+any code both ask first.
 
 The code is a version, the state as compressed JSON, and a checksum: a code cut short or
-mistyped is refused whole. Spaces, dashes, line breaks and lower case are forgiven.
+mistyped is refused whole. Spaces, dashes, line breaks and lower case are forgiven, and codes
+from older launchers still read.
 
 ## Simplified Launch Control
 

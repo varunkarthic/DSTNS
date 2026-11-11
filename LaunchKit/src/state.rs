@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-//! The launcher's state as one code: uppercase hexadecimal that another launcher takes to become the same.
+//! The launch code: the launcher's state as one code, uppercase hexadecimal, that another launcher takes to become the
+//! same, and with `./launcher launch CODE` to carry straight on from where this one was.
 //!
-//! `state get` prints it, `state set CODE` applies it, and `./launcher --state CODE` applies it before anything else.
+//! `launch-code` (or `state get`) prints it, `state set CODE` applies it, `./launcher --state CODE` applies it before
+//! anything else, and `./launcher launch CODE` applies it and starts.
 //! It carries every setting that differs from its default, so a launcher given it ends with exactly these settings,
 //! except those that hold a credential or an address (API keys, tokens, model addresses), which stay as they are on
 //! each machine and are never put in a code. API keys are not settings at all and never leave.
@@ -11,6 +13,17 @@
 //! `state get --world` adds the world: its seed, day type and map rules, and the moment of the day it is at. DSTNS is
 //! deterministic, so these make the same world again; the next start runs it and jumps to that moment, once. What an
 //! operator did to the world by hand (a road closed, a storm started) is not carried.
+//!
+//! `--world` also carries whether it was playing and how fast, and the operator's own changes (signals switched,
+//! roads closed or slowed, rain added, modules turned off or on), each with the moment it was made. A launch replays
+//! them at those moments on the way to the copied one, so the world arrives in the same state; the checkpoints are
+//! rebuilt along the way, as DSTNS is deterministic. A demand surge is not yet recorded as a change, so it is not
+//! carried.
+//!
+//! `--keys` adds the API keys from config/launcher.env, encrypted with a passphrase: a code is meant to be pasted
+//! around, and keys in it must not be readable by whoever sees it. The passphrase is asked for when the code is made
+//! and when it is used (or read from DSTNS_LAUNCH_PASSPHRASE). PBKDF2-HMAC-SHA256 (210,000 rounds) derives the keys;
+//! the keys are enciphered with HMAC-SHA256 in counter mode and authenticated with HMAC-SHA256, encrypt-then-MAC.
 //!
 //! The code is a version byte, the state as deflated JSON, and the first four bytes of its SHA-256, so a code cut
 //! short or mistyped is refused rather than half applied.
@@ -21,7 +34,14 @@ use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
 
-const VERSION: u8 = 1;
+const VERSION: u8 = 2;
+/// Older codes, read as before: settings and a world's seed and moment.
+const READS: [u8; 2] = [1, 2];
+/// A copied world's way back, for the next start: its moment, play state and the operator's changes in order.
+const PENDING_FILE: &str = ".launch-pending.json";
+/// Changes an operator made that a copy of the world can make again, and the route each takes.
+const REPLAYABLE: [&str; 4] = ["signal_toggle", "edge_override", "manual_weather", "module"];
+const ROUNDS: u32 = 210_000;
 /// Where a world's moment waits for the next start, in config/launcher.env: SEED@SECONDS.
 pub const PENDING_JUMP: &str = "DSTNS_STATE_JUMP";
 
@@ -54,7 +74,7 @@ pub fn decode(code: &str) -> Result<Value, String> {
     if Sha256::digest(body)[..4] != *check {
         return Err("That code does not check out: part of it is missing or mistyped. Copy it again, whole.".into());
     }
-    if body[0] != VERSION {
+    if !READS.contains(&body[0]) {
         return Err(format!("That code is from a launcher of another kind (version {}); this one reads version {VERSION}.", body[0]));
     }
     let mut text = String::new();
@@ -62,13 +82,130 @@ pub fn decode(code: &str) -> Result<Value, String> {
     serde_json::from_str(&text).map_err(|_| "That code could not be read.".into())
 }
 
+// ---- Keys, sealed with a passphrase --------------------------------------------------------------------------------
+
+fn hmac(key: &[u8], data: &[u8]) -> [u8; 32] {
+    let mut block = [0u8; 64];
+    if key.len() > 64 {
+        block[..32].copy_from_slice(&Sha256::digest(key));
+    } else {
+        block[..key.len()].copy_from_slice(key);
+    }
+    let pad = |byte: u8| block.iter().map(|b| b ^ byte).collect::<Vec<u8>>();
+    let inner = Sha256::new().chain_update(pad(0x36)).chain_update(data).finalize();
+    Sha256::new().chain_update(pad(0x5c)).chain_update(inner).finalize().into()
+}
+
+/// PBKDF2-HMAC-SHA256, two blocks: one key to encipher with, one to authenticate with.
+fn derive(passphrase: &str, salt: &[u8]) -> ([u8; 32], [u8; 32]) {
+    let block = |index: u32| {
+        let mut u = hmac(passphrase.as_bytes(), &[salt, &index.to_be_bytes()].concat());
+        let mut out = u;
+        for _ in 1..ROUNDS {
+            u = hmac(passphrase.as_bytes(), &u);
+            out.iter_mut().zip(u.iter()).for_each(|(o, x)| *o ^= x);
+        }
+        out
+    };
+    (block(1), block(2))
+}
+
+fn keystream(key: &[u8; 32], nonce: &[u8], length: usize) -> Vec<u8> {
+    (0..length.div_ceil(32) as u32).flat_map(|i| hmac(key, &[nonce, &i.to_be_bytes()].concat())).take(length).collect()
+}
+
+/// The keys, sealed: salt, nonce, the enciphered JSON, and its tag, as hexadecimal.
+pub fn seal_keys(keys: &Map<String, Value>, passphrase: &str) -> String {
+    let mut salt = [0u8; 16];
+    let mut nonce = [0u8; 16];
+    getrandom::fill(&mut salt).expect("the system's random source");
+    getrandom::fill(&mut nonce).expect("the system's random source");
+    let (cipher, mac) = derive(passphrase, &salt);
+    let plain = Value::Object(keys.clone()).to_string().into_bytes();
+    let sealed: Vec<u8> = plain.iter().zip(keystream(&cipher, &nonce, plain.len())).map(|(p, k)| p ^ k).collect();
+    let tag = hmac(&mac, &[&nonce[..], &sealed].concat());
+    [&salt[..], &nonce, &sealed, &tag].concat().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// The keys back, if the passphrase is the one they were sealed with and nothing was changed.
+pub fn open_keys(sealed: &str, passphrase: &str) -> Result<Map<String, Value>, String> {
+    let bytes: Vec<u8> = (0..sealed.len() / 2).filter_map(|i| u8::from_str_radix(sealed.get(i * 2..i * 2 + 2)?, 16).ok()).collect();
+    if bytes.len() < 64 {
+        return Err("The code's keys are damaged.".into());
+    }
+    let (salt, rest) = bytes.split_at(16);
+    let (nonce, rest) = rest.split_at(16);
+    let (body, tag) = rest.split_at(rest.len() - 32);
+    let (cipher, mac) = derive(passphrase, salt);
+    let expected = hmac(&mac, &[nonce, body].concat());
+    // Compared in full whatever differs, so the time taken says nothing about where.
+    if expected.iter().zip(tag).fold(0u8, |d, (a, b)| d | (a ^ b)) != 0 {
+        return Err("That passphrase does not open the code's keys.".into());
+    }
+    let plain: Vec<u8> = body.iter().zip(keystream(&cipher, nonce, body.len())).map(|(c, k)| c ^ k).collect();
+    serde_json::from_slice::<Value>(&plain).ok().and_then(|v| v.as_object().cloned()).ok_or_else(|| "The code's keys could not be read.".into())
+}
+
+/// The API keys kept in config/launcher.env.
+fn keys_here(paths: &Paths) -> Map<String, Value> {
+    crate::setup::entries(paths).into_iter().filter(|(name, value)| crate::log::secret_name(name) && !value.is_empty()).map(|(n, v)| (n, Value::String(v))).collect()
+}
+
+/// A passphrase: from DSTNS_LAUNCH_PASSPHRASE, or asked for at the terminal without echoing it.
+pub fn passphrase(prompt: &str, twice: bool) -> Result<String, String> {
+    if let Ok(given) = std::env::var("DSTNS_LAUNCH_PASSPHRASE") {
+        if !given.is_empty() {
+            return Ok(given);
+        }
+    }
+    use std::io::IsTerminal;
+    if !std::io::stdin().is_terminal() {
+        return Err("A passphrase is needed for the keys: run this at a terminal, or set DSTNS_LAUNCH_PASSPHRASE.".into());
+    }
+    let ask = |prompt: &str| -> Result<String, String> {
+        eprint!("{prompt}");
+        let _ = std::process::Command::new("stty").arg("-echo").stdin(std::process::Stdio::inherit()).status();
+        let mut line = String::new();
+        let read = std::io::stdin().read_line(&mut line);
+        let _ = std::process::Command::new("stty").arg("echo").stdin(std::process::Stdio::inherit()).status();
+        eprintln!();
+        read.map_err(|e| e.to_string())?;
+        Ok(line.trim_end_matches(['\n', '\r']).to_string())
+    };
+    let first = ask(prompt)?;
+    if first.chars().count() < 8 {
+        return Err("A passphrase for keys needs at least 8 characters.".into());
+    }
+    if twice && ask("Once more: ")? != first {
+        return Err("The two passphrases differ.".into());
+    }
+    Ok(first)
+}
+
 /// The world running now, or the one the settings would make; None when neither is fixed.
 fn world(paths: &Paths, config: &Value) -> Option<Value> {
     if let Some(port) = crate::server::active_port(paths) {
         let status = crate::simulation::status(port, paths);
         if status.reachable && !status.seed.is_empty() && status.lifecycle != "IDLE" {
-            let day = crate::api::get(port, "/api/v1/playback/status", 3.0, paths).data().and_then(|d| d.get("day").cloned()).unwrap_or(json!(0));
-            return Some(json!({"seed": status.seed, "day": day, "at": status.virtual_seconds.floor() as u64, "maps": config.pointer("/map/map_selection_version")}));
+            let playback = crate::api::get(port, "/api/v1/playback/status", 3.0, paths);
+            let data = playback.data().cloned().unwrap_or(Value::Null);
+            let day = data.get("day").cloned().unwrap_or(json!(0));
+            let playing = playback.body.pointer("/clock/playback_state").and_then(|v| v.as_str()) == Some("RUNNING");
+            let rate = playback.body.pointer("/clock/target_virtual_rate").or(playback.body.pointer("/clock/tick_rate")).cloned().unwrap_or(Value::Null);
+            // The operator's own changes still in effect, in the order they were made.
+            let history = crate::api::get(port, "/api/v1/control/history", 3.0, paths);
+            let changes: Vec<Value> = history
+                .data()
+                .and_then(|d| d.get("commands"))
+                .and_then(|c| c.as_array())
+                .map(|list| {
+                    list.iter()
+                        .filter(|c| c["status"] == "applied" && REPLAYABLE.contains(&c["type"].as_str().unwrap_or("")) && c.get("after").is_some_and(|a| a.is_object()))
+                        .map(|c| json!({"type": c["type"], "at": c["virtual_day_s"], "after": c["after"]}))
+                        .collect()
+                })
+                .unwrap_or_default();
+            return Some(json!({"seed": status.seed, "day": day, "at": status.virtual_seconds.floor() as u64, "maps": config.pointer("/map/map_selection_version"), "playing": playing, "rate": rate, "changes": changes}));
         }
     }
     let seed = config.get("seed").and_then(|s| s.as_str()).filter(|s| !s.is_empty() && *s != "auto")?;
@@ -77,6 +214,11 @@ fn world(paths: &Paths, config: &Value) -> Option<Value> {
 
 /// This launcher's state as a code, with the world if asked.
 pub fn get(paths: &Paths, with_world: bool) -> Result<String, String> {
+    launch_code(paths, with_world, None)
+}
+
+/// The launch code: settings, and the world and the API keys (sealed with `passphrase`) if asked.
+pub fn launch_code(paths: &Paths, with_world: bool, keys_passphrase: Option<&str>) -> Result<String, String> {
     let config = config::load(paths).map_err(|e| e.message)?;
     let mut settings = Map::new();
     for field in fields().iter().filter(|f| portable(f.key)) {
@@ -88,6 +230,13 @@ pub fn get(paths: &Paths, with_world: bool) -> Result<String, String> {
     let mut state = json!({"settings": settings});
     if with_world {
         state["world"] = world(paths, &config).ok_or("There is no world to copy yet: start a run, or set a seed, first.")?;
+    }
+    if let Some(passphrase) = keys_passphrase {
+        let keys = keys_here(paths);
+        if keys.is_empty() {
+            return Err("There are no API keys in config/launcher.env to include.".into());
+        }
+        state["keys"] = json!({"names": keys.keys().collect::<Vec<_>>(), "sealed": seal_keys(&keys, passphrase)});
     }
     Ok(encode(&state))
 }
@@ -120,6 +269,12 @@ pub fn set(paths: &Paths, code: &str) -> Result<Vec<String>, String> {
             out.push(format!("Its world was made by other map rules ({}); this launcher may choose another city for that seed.", world["maps"].as_str().unwrap_or("unknown")));
         }
         let at = world["at"].as_u64().unwrap_or(0);
+        // The rest of the way back (play state, rate, the operator's changes) waits in a file for the next start.
+        let _ = std::fs::write(paths.root.join("config").join(PENDING_FILE), json!({"seed": seed, "at": at, "playing": world["playing"], "rate": world["rate"], "changes": world["changes"]}).to_string());
+        let changes = world["changes"].as_array().map(|c| c.len()).unwrap_or(0);
+        if changes > 0 {
+            out.push(format!("{changes} change{} the operator made will be made again at the moments they were made.", if changes == 1 { "" } else { "s" }));
+        }
         let mut kept: Vec<(String, String)> = crate::setup::entries(paths).into_iter().filter(|(k, _)| k != PENDING_JUMP).collect();
         // The next start without a seed of its own runs this world (a plain start otherwise takes a prepared or
         // new one), and then jumps to its moment.
@@ -129,7 +284,21 @@ pub fn set(paths: &Paths, code: &str) -> Result<Vec<String>, String> {
         out.push(format!("The world: seed {seed}, a {}{}. The next start runs it.", if world["day"] == 1 { "weekend" } else { "weekday" }, if at > 0 { format!(", jumping to {}", clock(at)) } else { String::new() }));
     }
     config::save(&config, paths).map_err(|e| e.message)?;
-    out.push("API keys, tokens and model addresses were left as they are on this machine.".into());
+    if let Some(keys) = state.get("keys") {
+        let names: Vec<String> = keys["names"].as_array().map(|n| n.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
+        let opened = open_keys(keys["sealed"].as_str().unwrap_or(""), &passphrase(&format!("Passphrase for the code's keys ({}): ", names.join(", ")), false)?)?;
+        let mut kept: Vec<(String, String)> = crate::setup::entries(paths).into_iter().filter(|(k, _)| !opened.contains_key(k)).collect();
+        for (name, value) in &opened {
+            if crate::log::secret_name(name) {
+                kept.push((name.clone(), value.as_str().unwrap_or("").to_string()));
+                std::env::set_var(name, value.as_str().unwrap_or(""));
+            }
+        }
+        crate::setup::save_entries(paths, &kept).map_err(|e| e.to_string())?;
+        out.push(format!("API keys from the code: {}. Tokens and model addresses were left as they are.", names.join(", ")));
+    } else {
+        out.push("API keys, tokens and model addresses were left as they are on this machine.".into());
+    }
     for problem in &refused {
         out.push(format!("Kept the default for {problem}"));
     }
@@ -160,8 +329,44 @@ pub fn jump_after_start(port: u16, seeds: &[&str], paths: &Paths) -> Option<Stri
     if !seeds.contains(&wanted) || at == 0 {
         return None;
     }
-    let response = crate::api::post(port, "/api/v1/playback/seek", &json!({"target_time": clock(at), "play": true}), 300.0, paths);
-    Some(if response.ok() { format!("Jumped to {}, where the copied world was", clock(at)) } else { format!("Could not jump to {}: {}", clock(at), response.error_message()) })
+    let pending_file = paths.root.join("config").join(PENDING_FILE);
+    let plan: Value = std::fs::read_to_string(&pending_file).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+    let _ = std::fs::remove_file(&pending_file);
+    let playing = plan["playing"].as_bool().unwrap_or(true);
+    // The operator's changes, each at the moment it was made, on the way to the copied moment.
+    let mut replayed = 0;
+    let mut failed = vec![];
+    if plan["seed"].as_str() == Some(wanted) {
+        for change in plan["changes"].as_array().cloned().unwrap_or_default() {
+            let when = change["at"].as_u64().unwrap_or(0).min(at);
+            let _ = crate::api::post(port, "/api/v1/playback/seek", &json!({"target_time": clock(when), "play": false}), 300.0, paths);
+            let after = &change["after"];
+            let response = match change["type"].as_str().unwrap_or("") {
+                "signal_toggle" => crate::api::post(port, &format!("/api/v1/control/signals/{}/toggle", after["node"]), &json!({}), 30.0, paths),
+                "edge_override" => crate::api::put(port, &format!("/api/v1/control/edges/{}", after["edge"]), &json!({"speed_multiplier": after["speed_multiplier"], "capacity_multiplier": after["capacity_multiplier"], "closed": after["closed"]}), 30.0, paths),
+                "manual_weather" => crate::api::post(port, "/api/v1/control/events/weather", &json!({"epicenter_node": after["epicenter_node"], "intensity": after["intensity"], "radius_m": after["radius_m"], "duration_virtual_minutes": after["duration_virtual_minutes"], "flood_gain": after["flood_gain"]}), 30.0, paths),
+                "module" => crate::api::put(port, &format!("/api/v1/control/modules/{}", after["module"].as_str().unwrap_or("")), &json!({"enabled": after["enabled"]}), 30.0, paths),
+                _ => continue,
+            };
+            if response.ok() {
+                replayed += 1;
+            } else {
+                failed.push(change["type"].as_str().unwrap_or("change").to_string());
+            }
+        }
+        if let Some(rate) = plan["rate"].as_f64() {
+            let _ = crate::api::put(port, "/api/v1/control/tick-rate", &json!({"tick_rate": rate}), 30.0, paths);
+        }
+    }
+    let response = crate::api::post(port, "/api/v1/playback/seek", &json!({"target_time": clock(at), "play": playing}), 300.0, paths);
+    let mut said = if response.ok() { format!("Back at {}, where the copied world was{}", clock(at), if playing { "" } else { ", paused" }) } else { format!("Could not jump to {}: {}", clock(at), response.error_message()) };
+    if replayed > 0 {
+        said.push_str(&format!(", with {replayed} of the operator's change{} made again", if replayed == 1 { "" } else { "s" }));
+    }
+    if !failed.is_empty() {
+        said.push_str(&format!("; could not make again: {}", failed.join(", ")));
+    }
+    Some(said)
 }
 
 #[cfg(test)]
@@ -193,6 +398,35 @@ mod tests {
         let check = Sha256::digest(&other);
         other.extend_from_slice(&check[..4]);
         assert!(decode(&other.iter().map(|b| format!("{b:02X}")).collect::<String>()).unwrap_err().contains("version 9"));
+    }
+
+    #[test]
+    fn keys_open_only_with_their_passphrase_and_unchanged() {
+        let mut keys = Map::new();
+        keys.insert("GROQ_API_KEY".into(), json!("gsk_example_not_real"));
+        let sealed = seal_keys(&keys, "correct horse");
+        assert!(!sealed.contains("gsk"), "the key is not readable in the code");
+        assert_eq!(open_keys(&sealed, "correct horse").unwrap(), keys);
+        assert!(open_keys(&sealed, "wrong horse").unwrap_err().contains("passphrase"));
+        let mut tampered: Vec<char> = sealed.chars().collect();
+        let at = 70;
+        tampered[at] = if tampered[at] == '0' { '1' } else { '0' };
+        assert!(open_keys(&tampered.into_iter().collect::<String>(), "correct horse").is_err(), "a changed byte is refused");
+        // A version 1 code still reads.
+        let mut old = vec![1u8];
+        let mut deflated = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
+        deflated.write_all(br#"{"settings":{}}"#).unwrap();
+        old.extend(deflated.finish().unwrap());
+        let check = Sha256::digest(&old);
+        old.extend_from_slice(&check[..4]);
+        assert_eq!(decode(&old.iter().map(|b| format!("{b:02X}")).collect::<String>()).unwrap(), json!({"settings": {}}));
+    }
+
+    #[test]
+    fn hmac_matches_the_standard() {
+        // RFC 4231, test case 2.
+        let tag = hmac(b"Jefe", b"what do ya want for nothing?");
+        assert_eq!(tag.iter().map(|b| format!("{b:02x}")).collect::<String>(), "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
     }
 
     #[test]

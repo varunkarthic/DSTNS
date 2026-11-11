@@ -107,6 +107,10 @@ pub fn post(port: u16, route: &str, payload: &Value, timeout: f64, paths: &Paths
     call(port, route, "POST", Some(payload), timeout, paths)
 }
 
+pub fn put(port: u16, route: &str, payload: &Value, timeout: f64, paths: &Paths) -> Response {
+    call(port, route, "PUT", Some(payload), timeout, paths)
+}
+
 fn decode(text: &str) -> Value {
     if text.is_empty() {
         return json!({});

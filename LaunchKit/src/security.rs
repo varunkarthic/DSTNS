@@ -288,6 +288,8 @@ pub fn reads_only(words: &[String]) -> bool {
         // A suggestion is only printed; trying the model, or reading the daemons, changes nothing.
         "ask" => true,
         "state" => matches!(word(1), "" | "get"),
+        // A code that carries the API keys, even sealed, asks first.
+        "launch-code" => !words.iter().any(|w| w == "--keys"),
         "model" => matches!(word(1), "" | "status" | "test"),
         "daemon" | "daemons" => matches!(word(1), "" | "status" | "list" | "show" | "queue"),
         // Only building it again writes anything.

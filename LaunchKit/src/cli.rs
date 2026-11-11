@@ -495,8 +495,16 @@ pub fn verify(paths: &Paths, reason: &str) -> Result<()> {
 pub fn run(argv: Vec<String>) -> i32 {
     let paths = Paths::default();
     crate::setup::load_env(&paths);
-    // --state CODE: become the launcher the code describes, then carry on with whatever else was asked.
+    // launch CODE: become the launcher the code describes and start, carrying on from where it was.
     let mut argv = argv;
+    if argv.first().map(String::as_str) == Some("launch") {
+        let Some(code) = argv.get(1).cloned() else {
+            eprintln!("launch needs a code: ./launcher launch CODE (launch-code prints one).");
+            return 2;
+        };
+        argv = [vec!["--state".to_string(), code, "start".to_string()], argv[2..].to_vec()].concat();
+    }
+    // --state CODE: become the launcher the code describes, then carry on with whatever else was asked.
     if let Some(at) = argv.iter().position(|a| a == "--state" || a.starts_with("--state=")) {
         let code = match argv[at].split_once('=') {
             Some((_, code)) => code.to_string(),

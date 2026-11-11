@@ -38,6 +38,7 @@ pub const BUILTINS: &[(&str, &str, &str)] = &[
     ("security", "security [on|off|verify]", "Advanced Security: whether it's on, and how it asks"),
     ("history", "history", "Commands typed so far"),
     ("ask", "ask REQUEST", "A request in plain words, as a line of commands to run, or a question about DSTNS answered with its sources; nothing is run"),
+    ("launch-code", "launch-code [--world] [--keys]", "This launcher as one code: ./launcher launch CODE elsewhere starts the same, with the world where it was (--world) and the API keys sealed with a passphrase (--keys)"),
     ("state", "state [get [--world]|set CODE]", "This launcher's settings as one code another launcher takes to become the same; --world adds the world"),
     ("model", "model [use PROVIDER [NAME] | key KEY | test]", "The model for plain-word requests: Apple's, Ollama's or Groq's"),
     ("daemon", "daemon [show NAME | on NAME | off NAME | queue emergency|notification]", "The daemons inside the server, and what they have said"),

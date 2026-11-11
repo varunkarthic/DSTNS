@@ -1401,7 +1401,10 @@ nlohmann::json SimulationEngine::add_weather(NodeId epicenter, double intensity,
     const auto start = std::uint32_t(std::min(1.0, effective / graph_->scenario().config.playback_duration_s) * ppm);
     DwsEvent e{{next_event_id_++}, epicenter, start, std::min(ppm, start + std::uint32_t(duration / 1440.0 * ppm)), intensity, radius, gain, .12};
     manual_weather_.push_back(e);
-    auto& c = record("manual_weather", {{"active", false}, {"event_id", e.id.value}, {"intensity", 0.0}}, {{"active", true}, {"event_id", e.id.value}, {"intensity", intensity}});
+    // The request itself goes with what it did, so the same rain can be scheduled again in a copy of this world.
+    auto& c = record("manual_weather", {{"active", false}, {"event_id", e.id.value}, {"intensity", 0.0}},
+                     {{"active", true}, {"event_id", e.id.value}, {"intensity", intensity}, {"epicenter_node", epicenter.value},
+                      {"radius_m", radius}, {"duration_virtual_minutes", duration}, {"flood_gain", gain}});
     add_news(e.id.value, "weather", "info", "DWS_RAIN_SCHEDULED",
              "[" + hhmmss(virtual_s_) + "] Manual rain scheduled at Node " + std::to_string(epicenter.value),
              {{"epicenter", epicenter.value}, {"radius_m", radius}, {"intensity", intensity}});
@@ -2626,7 +2629,9 @@ nlohmann::json SimulationEngine::history() const {
             {"type", c.type},
             {"status", c.status},
             {"virtual_day_s", c.virtual_s},
-            {"undoable", true}
+            {"undoable", true},
+            // What it set, so a copy of this world can do the same at the same moment.
+            {"after", c.after}
         });
     }
     for (const auto& c : redo_) {

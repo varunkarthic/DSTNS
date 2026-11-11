@@ -692,6 +692,16 @@ pub fn run(name: &str, rest: &[String], input: Option<&[String]>, paths: &Paths)
         "api" => api_command(rest, paths),
         "security" => security_command(rest, paths),
         "ask" => ask_command(rest, paths),
+        "launch-code" => {
+            let world = rest.iter().any(|w| w == "--world");
+            let keys = rest.iter().any(|w| w == "--keys");
+            let unknown: Vec<&String> = rest.iter().filter(|w| *w != "--world" && *w != "--keys").collect();
+            if !unknown.is_empty() {
+                return Some(Err(format!("launch-code: {}? launch-code [--world] [--keys]", unknown.iter().map(|w| w.as_str()).collect::<Vec<_>>().join(" "))));
+            }
+            let sealed = if keys { match crate::state::passphrase("A passphrase to seal the API keys in this code: ", true) { Ok(p) => Some(p), Err(e) => return Some(Err(e)) } } else { None };
+            crate::state::launch_code(paths, world, sealed.as_deref()).map(|code| vec![code])
+        }
         "state" => match rest.first().map(String::as_str) {
             None | Some("get") => crate::state::get(paths, rest.iter().any(|w| w == "--world")).map(|code| vec![code]),
             Some("set") => crate::state::set(paths, &rest[1..].join("")),

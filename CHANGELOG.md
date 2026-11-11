@@ -117,6 +117,10 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
 - **Everything a ticketing app needs.** WebFabric adds `seats`, `combobox`, `player`, `form`, `countdown`, `notice`,
   `code` and `empty` widgets and icons on buttons, so every element of the group-08 bus planner's portal, dashboard
   and control room has a widget drawn in the observer's design; the WebFabric page maps each one.
+- **Launch codes.** `./launcher launch-code [--world] [--keys]` prints the launcher as one code and `./launcher launch
+  CODE` becomes it and starts from where it was: with `--world`, the same moment, play state, speed and the operator's
+  own changes, made again at the moments they were made; with `--keys`, the API keys sealed with a passphrase. The
+  engine's change history now includes what each change set.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:
