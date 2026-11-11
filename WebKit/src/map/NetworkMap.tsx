@@ -564,7 +564,8 @@ function NetworkMap({
       // One shared 0..1 clock so every animated overlay pulses in step.
       const pulse = reduceMotion
         ? 0
-        : ((performance.now() - received) / 2400) % 1;
+        // Never before the snapshot arrived: a clock that jumps back must not give a ring a negative radius.
+        : (Math.max(0, performance.now() - received) / 2400) % 1;
       const ctx = setup(dynamic.current);
       if (!ctx) return;
       const screen = (p: Point) => ({

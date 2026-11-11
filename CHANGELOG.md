@@ -103,6 +103,8 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   edge, with room around them, and a list's menu matches them.
 - **About, refit.** Its facts sit in two columns with long ones across both, and the licence is a section of its own
   rather than a fold that showed as a line.
+- **Small fixes.** A row's time on the right is never cut off, and an incident's rings can no longer be drawn with a
+  negative size (which threw) when the page's clock is behind the snapshot's.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:

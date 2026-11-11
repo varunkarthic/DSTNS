@@ -3433,3 +3433,6 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
    meet however the facts fall into rows. */
 .about-section .about-facts { overflow: hidden; }
 .about-section .about-facts > div, .about-section .about-facts > div:first-child, .about-section .about-facts > div:nth-child(-n + 2), .about-section .about-facts > div:nth-child(even):not(.wide) { border: 0; box-shadow: 0 -1px 0 var(--well-line), -1px 0 0 var(--well-line); }
+/* A row's own time or state on the right is never cut: the description gives way to it. */
+.stream-card .stream-meta > span:first-child { flex: 1 1 auto; min-width: 0; }
+.stream-card .stream-meta > span + span { flex: none; white-space: nowrap; }
