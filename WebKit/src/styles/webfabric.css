@@ -332,7 +332,7 @@
 .fabric-apps button:active {
   transform: scale(0.985);
 }
-.fabric-apps button > span {
+.fabric-apps button > .fabric-app-text {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -385,9 +385,11 @@
 .fabric-search {
   width: 100%;
 }
-.fabric-slider-row {
+/* Above the shared row's centring, which loads later: the label over a full-width slider. */
+.settings-row.fabric-slider-row {
   flex-direction: column;
   align-items: stretch;
+  gap: 8px;
 }
 .fabric-slider {
   display: flex;

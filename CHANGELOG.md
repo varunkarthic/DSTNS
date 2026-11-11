@@ -29,6 +29,10 @@ transitions and guards. The review fixed:
   checking in; resuming one that has stopped checking in shows it as not answering; one reloading reads Reloading.
 - A reload asked while a supervised application is still preparing no longer fails it.
 - The launch test expected the server's features without `music_track`, which the music change had added.
+- WebFabric's list of applications in Settings: an application's initial was stretched into a wide blur and its
+  description ran out of the panel; an application's own settings drew sliders centred and indented. Both now sit
+  in the column as the rest of Settings.
+- The screenshots in the README and the documentation are retaken from this version, at Retina resolution.
 
 ### The documentation site, redesigned
 
