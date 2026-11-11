@@ -1655,10 +1655,9 @@ html, body, #root {
 .bud-line { display: none; }
 /* No line round it: it stands off the map as the panel does, by a soft shadow, and a hair lighter in the dark so the
    bead can be seen leaving the dock before it is large. */
-.bud-fill { fill: var(--surface-solid); filter: drop-shadow(0 8px 22px rgb(0 0 0 / 34%)) drop-shadow(0 1px 2px rgb(0 0 0 / 25%)); }
+.bud-fill { fill: var(--surface-solid); }
 :root:not([data-theme="light"]) .bud-fill { fill: color-mix(in srgb, var(--surface-solid) 95%, #ffffff); }
-[data-theme="light"] .bud-fill { filter: drop-shadow(0 8px 22px rgb(16 32 44 / 16%)) drop-shadow(0 1px 2px rgb(16 32 44 / 12%)); }
-.high-contrast .bud-fill { filter: none; }
+.high-contrast .bud-membrane g { filter: none; }
 .fluid-content {
   flex: 1;
   min-height: 0;

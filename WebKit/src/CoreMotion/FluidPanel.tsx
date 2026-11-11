@@ -1,16 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, Ref } from "react";
 import { Bud } from "./bud";
 
 /** The moving outline a Bud draws: every shape stroked, then every shape filled over the strokes. */
 export function BudMembrane({ ref }: { ref: Ref<SVGSVGElement> }) {
+  const id = `bud-goo-${useId().replace(/:/g, "")}`;
   return (
     <svg ref={ref} className="bud-membrane" aria-hidden="true" style={{ display: "none" }}>
+      <defs>
+        {/* Liquid: the shape is blurred, then its edge drawn sharp again at half strength, so the bead, the neck and
+            the panel meet in one continuous curve and a thin neck pinches off by itself. The shadow comes after. */}
+        <filter id={id} x="-15%" y="-15%" width="130%" height="130%" colorInterpolationFilters="sRGB">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="soft" />
+          <feColorMatrix in="soft" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -11" result="goo" />
+          <feDropShadow in="goo" dx="0" dy="8" stdDeviation="10" floodColor="#000" floodOpacity="0.3" />
+        </filter>
+      </defs>
       <path className="bud-line" />
-      <path className="bud-fill" />
+      <g filter={`url(#${id})`}>
+        <path className="bud-fill" />
+      </g>
     </svg>
   );
 }

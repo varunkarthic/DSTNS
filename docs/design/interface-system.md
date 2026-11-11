@@ -90,7 +90,8 @@ or `scrollIntoView` that moves one of those containers anyway is put straight ba
 
 A panel divides from the surface that asked for it, as a cell does: the edge swells into a bead at the control that
 was pressed, the bead is drawn out on a neck, the drop swells toward the panel's size while still joined, and only then
-does the neck thin and part. The shape is the panel's own material with its soft shadow, never an outline. As the
+does the neck thin and part. The shape is the panel's own material with its soft shadow, never an outline, drawn through an SVG goo filter (a
+Gaussian blur, then an alpha threshold) so every join is one liquid curve and a thinning neck parts by itself. As the
 pointer reaches a dock icon the bead begins to swell, so the panel is already on its way before the press, and it
 settles back if the pointer moves on. A division stopped part way leaves nothing drawn. Closing runs
 the same path backward, and opening and closing can interrupt each other anywhere, because it is all one spring value

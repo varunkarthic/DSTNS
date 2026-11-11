@@ -112,6 +112,8 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   them back once the report is saved.
 - **Roomier questions, a centred status.** New World and Terminate have more space and settle in part by part; Online
   is a centred pill like its neighbours.
+- **Liquid division.** The dividing shape is drawn through a goo filter (blurred, then its edge sharpened again), so
+  the bead, the neck and the panel meet in one continuous curve and a thin neck pinches off by itself; it holds 60 fps.
 - **A lighter map.** Vehicles are drawn without closing each shape by hand, which had been the map's largest cost.
 - **Panels divide from what opened them.** Settings and Search bud from the dock, the collapsed telemetry
   strip's panel from the strip, and the bar's menus from the bar:
