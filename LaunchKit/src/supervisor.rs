@@ -306,6 +306,10 @@ impl Supervisor {
                 let id = item.get("app").and_then(|a| a.as_str()).unwrap_or("");
                 let slot = self.running.lock().unwrap().get(id).cloned();
                 if let Some(slot) = slot {
+                    // Still preparing, it is about to start afresh anyway; killing a preparation step would fail it.
+                    if slot.state.lock().unwrap().0 == Phase::Preparing {
+                        continue;
+                    }
                     let mut child = slot.child.lock().unwrap();
                     if let Some(child) = child.as_mut() {
                         if matches!(child.try_wait(), Ok(None)) {

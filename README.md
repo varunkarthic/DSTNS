@@ -207,6 +207,12 @@ The same seed, resolved configuration, map bytes and compatible build give the s
 
 DSTNS is for research, teaching, algorithm integration and demonstrations. It has no calibration or certification for controlling real traffic.
 
+## State machines
+
+The engine's lifecycle, the next world's preparation, backpressure, WebFabric applications, the launcher's supervised
+applications and the observer's start-up, tutorial, panels and reports are each a state machine, with their states,
+transitions and guards set out in [State machines](docs/design/state-machines.md).
+
 ## Tested
 
 Every test is C++, Rust or TypeScript: 33 engine and HTTP suites under ctest (each HTTP suite a program that starts a real server on a port of its own, with stand-ins for every upstream), 61 launcher tests, and 478 for the observer. The HTTP contract is replayed against a recorded baseline of 155 calls, and every route is fuzzed with hostile values on every run.

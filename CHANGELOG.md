@@ -18,6 +18,18 @@ widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on 
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`. The launcher is now a
 Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs Python to build, run or test.
 
+### State machines, reviewed
+
+Every explicit and implicit state machine is now set out in **State machines** (Design), with its states,
+transitions and guards. The review fixed:
+
+- A stop while a world was still being prepared, the first or the next, no longer lets it arrive afterwards and
+  start (or wait paused) by itself; a stop after termination began no longer reads as Stopped.
+- A WebFabric application that was unloaded can no longer revive itself by reporting a state; a report counts as
+  checking in; resuming one that has stopped checking in shows it as not answering; one reloading reads Reloading.
+- A reload asked while a supervised application is still preparing no longer fails it.
+- The launch test expected the server's features without `music_track`, which the music change had added.
+
 ### The documentation site, redesigned
 
 - The observer's look carried over: one radius family, the section tabs as a capsule with the current one a

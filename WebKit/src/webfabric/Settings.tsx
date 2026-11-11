@@ -23,6 +23,7 @@ const STATE_LABEL: Record<AppState, string> = {
   active: "Active",
   suspended: "Suspended",
   failed: "Failed",
+  reloading: "Reloading",
   unloaded: "Not running",
 };
 

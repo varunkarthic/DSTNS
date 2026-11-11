@@ -237,7 +237,7 @@ export interface SettingsSchema {
   groups: { id: string; label: string; fields: SettingsField[] }[];
 }
 
-export type AppState = "registered" | "initialized" | "active" | "suspended" | "failed" | "unloaded";
+export type AppState = "registered" | "initialized" | "active" | "suspended" | "failed" | "reloading" | "unloaded";
 
 export interface FabricApp {
   id: string;

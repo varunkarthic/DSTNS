@@ -272,6 +272,7 @@ nav:
           - design/index.md
           - Design decisions: design/decisions.md
           - Interface system: design/interface-system.md
+          - State machines: design/state-machines.md
           - Mathematical foundation: design/mathematical-foundation.md
           - Motion and graphics mathematics: design/motion-mathematics.md
           - System architecture: design/system-architecture-spec.md

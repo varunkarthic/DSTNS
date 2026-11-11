@@ -789,6 +789,18 @@ nlohmann::json SimulationEngine::play(const nlohmann::json& guard) {
 
 nlohmann::json SimulationEngine::stop() {
     std::lock_guard lock(mutex_);
+    // Ending the process is final: a stop on the way does not make it look stopped instead.
+    if (lifecycle_ == Lifecycle::Terminating) return {{"changed", false}, {"lifecycle", to_string(lifecycle_)}};
+    // A world still being prepared, first or next, is cancelled with the stop. Otherwise it would arrive afterwards
+    // and start, or wait paused, as if the stop had never been asked for.
+    ++compile_generation_;
+    if (lifecycle_ == Lifecycle::Preparing) {
+        preparing_stage_.store(0);
+        if (!graph_) {
+            transition(Lifecycle::Idle);
+            return {{"changed", true}, {"lifecycle", "IDLE"}};
+        }
+    }
     if (!graph_) return {{"changed", false}, {"lifecycle", to_string(lifecycle_)}};
     transition(Lifecycle::Stopping);
     transition(Lifecycle::Stopped);
@@ -1109,6 +1121,7 @@ nlohmann::json SimulationEngine::commit_world() {
         world_job_.stage = "failed";
         world_job_.error_code = "WORLD_CANCELLED";
         world_job_.error = *problem;
+        world_job_.finished = std::chrono::steady_clock::now();
     }
     return world_status();
 }

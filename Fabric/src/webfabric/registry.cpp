@@ -891,7 +891,10 @@ void AppRegistry::set_state(const std::string& id, const std::string& state, con
     if (!kReportedStates.count(state)) throw std::invalid_argument("state must be initialized, active or failed");
     std::lock_guard lock(mutex_);
     auto& app = find(id);
+    // An unloaded application registers again before it reports anything; a report is also a sign of life.
+    require_loaded(app.state);
     if (app.user_suspended) throw Refusal(409, "APP_SUSPENDED", "the viewer has suspended this application");
+    touch(app);
     app.state = state;
     app.detail = detail.substr(0, 280);
     mark(app);
@@ -902,8 +905,9 @@ void AppRegistry::suspend(const std::string& id, bool suspended) {
     auto& app = find(id);
     if (app.state == "unloaded") throw Refusal(409, "APP_NOT_ACTIVE", "this application is no longer running");
     app.user_suspended = suspended;
-    app.state = suspended ? "suspended" : "active";
-    app.detail = suspended ? "Suspended from Settings." : "";
+    // Resumed, one that has stopped checking in is still shown as not answering, not as active.
+    app.state = suspended || app.lease_lapsed ? "suspended" : "active";
+    app.detail = suspended ? "Suspended from Settings." : app.lease_lapsed ? "The application has not checked in." : "";
     if (suspended) app.presentation = nullptr;
     push_event(app, suspended ? "app.suspended" : "app.resumed", json::object());
     mark(app);

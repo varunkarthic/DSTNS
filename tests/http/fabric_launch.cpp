@@ -27,7 +27,7 @@ void out_of_the_box() {
     const auto features = s.call("GET", "/api/v1/system/features").data();
     EXPECT(features.at("applications") == true && features.at("legacy_api") == true && features.at("launch_proposals") == true && features.at("require_signatures") == false, features);
     EXPECT(features.at("presentation") == (json{{"webfabric", true}, {"force_animate", false}, {"fast_boot", false}, {"dynamic_fastboot", true}, {"dynamic_particles", true},
-                                                {"demo", false}, {"music", false}, {"fullscreen", false}, {"music_volume", 0.6}, {"map_fps", 0}, {"render_scale", 2.0},
+                                                {"demo", false}, {"music", false}, {"music_track", false}, {"fullscreen", false}, {"music_volume", 0.6}, {"map_fps", 0}, {"render_scale", 2.0},
                                                 {"film_particles", 32000}}), features);
     EXPECT(features.at("performance") == (json{{"compression", "fast"}, {"api_threads", "auto"}, {"engine_threads", "auto"}}), features);
     EXPECT(s.call("GET", "/api/v1/playback/status").status == 200);
