@@ -25,7 +25,17 @@ pub fn load(paths: &Paths) -> Result<Value> {
             .remedy("Correct the file, or restore it with git checkout -- config/defaults.json")
     })?;
     validate(&config)?;
+    let mut config = config;
+    // The observer's operator defaults live in their own file, which the server serves to the page; here they are one
+    // more part of the settings, under "ui", so that every setting is edited, checked and carried in the same way.
+    if let Some(object) = config.as_object_mut() {
+        object.insert("ui".into(), read_ui(paths));
+    }
     Ok(config)
+}
+
+fn read_ui(paths: &Paths) -> Value {
+    fs::read_to_string(paths.ui_config()).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).filter(|v| v.is_object()).unwrap_or_else(|| json!({}))
 }
 
 /// The checks the launcher has always made before a run.
@@ -78,7 +88,17 @@ pub fn save(config: &Value, paths: &Paths) -> Result<()> {
             }
         }
     }
-    let text = serde_json::to_string_pretty(config).unwrap() + "\n";
+    // The observer's part goes to its own file, and only when it changed; the rest to defaults.json.
+    let mut config = config.clone();
+    let ui = config.as_object_mut().and_then(|o| o.remove("ui"));
+    if let Some(ui) = ui.filter(|u| u.is_object()) {
+        if ui != read_ui(paths) {
+            let temporary = paths.ui_config().with_extension("json.tmp");
+            fs::write(&temporary, serde_json::to_string_pretty(&ui).unwrap() + "\n")?;
+            fs::rename(&temporary, paths.ui_config())?;
+        }
+    }
+    let text = serde_json::to_string_pretty(&config).unwrap() + "\n";
     let temporary = paths.config().with_extension("json.tmp");
     fs::write(&temporary, text)?;
     fs::rename(&temporary, paths.config())?;
@@ -579,8 +599,79 @@ pub fn fields() -> &'static [Field] {
                 "The launcher asks for Touch ID or your system password as it opens, and before any single command that changes something. No program can change the launcher or the engine through the MCP Handler. Turning it off asks again.",
                 json!(false),
             ),
+            // ---- The observer's operator defaults, kept in config/ui-config.json (see load and save) ----
+            // Appearance
+            Field::new("ui.accessibility.theme", "Theme", "Appearance", Choice, "Dark, light, or following each viewer's system. A viewer's own choice in their browser comes first.", json!("system"))
+                .choices(vec![("Follow the system", json!("system")), ("Dark", json!("dark")), ("Light", json!("light"))]),
+            Field::new("ui.accessibility.color_vision", "Colour vision", "Appearance", Choice, "Palettes for road and severity colours that do not rely on telling red from green, or blue from yellow.", json!("standard"))
+                .choices(vec![("Standard", json!("standard")), ("Protanopia", json!("protanopia")), ("Deuteranopia", json!("deuteranopia")), ("Tritanopia", json!("tritanopia")), ("Monochrome", json!("monochrome"))]),
+            Field::new("ui.reduce_motion", "Reduce motion", "Appearance", Choice, "Short fades instead of movement. Following the system uses each viewer's own setting.", json!("auto"))
+                .choices(vec![("Follow the system", json!("auto")), ("On", json!("on")), ("Off", json!("off"))]),
+            Field::new("ui.accessibility.reduce_transparency", "Reduce transparency", "Appearance", Boolean, "Solid surfaces instead of glass.", json!(false)),
+            Field::new("ui.accessibility.high_contrast", "High contrast", "Appearance", Boolean, "Text at full strength, firmer edges and outlines.", json!(false)),
+            Field::new("ui.accessibility.advanced", "Specialist detail", "Appearance", Boolean, "Off, measures meant for specialists (identifiers, hashes, coordinates) give way to plain language.", json!(true)),
+            // Notifications
+            Field::new("ui.notifications.enabled", "Notifications", "Notifications", Boolean, "What happens in the simulation appears over the map as it happens.", json!(true)),
+            Field::new("ui.notifications.dnd", "Do Not Disturb", "Notifications", Boolean, "Notifications are kept in history without being shown.", json!(false)),
+            Field::new("ui.notifications.important_first", "Important first", "Notifications", Boolean, "An alert goes ahead of what is waiting to be shown.", json!(true)),
+            Field::new("ui.notifications.max_visible", "Shown at once", "Notifications", Integer, "How many notifications the capsule holds before it groups the rest.", json!(3)).range(1.0, Some(8.0)),
+            Field::new("ui.notifications.dwell_ms", "Shown for", "Notifications", Integer, "How long a notification stays before it gives way.", json!(7000)).unit("ms").range(1000.0, Some(60000.0)),
+            // Auto Focus
+            Field::new("ui.auto_focus.mode", "Auto Focus", "Auto Focus", Choice, "Whether the camera follows what matters: offered once per run, on, or off.", json!("enable-force"))
+                .choices(vec![("On", json!("enable-force")), ("Offer once per run", json!("enable")), ("Off", json!("disable"))]),
+            Field::new("ui.auto_focus.strategy", "Order", "Auto Focus", Choice, "Which event the camera shows: each in turn, or always the latest.", json!("round-robin"))
+                .choices(vec![("Each in turn", json!("round-robin")), ("The latest", json!("latest"))]),
+            Field::new("ui.auto_focus.dwell_seconds", "Stays for", "Auto Focus", Number, "How long the camera stays on one event before the next, in turn.", json!(9)).unit("s").range(2.0, Some(120.0)),
+            Field::new("ui.auto_focus.zoom", "Closeness", "Auto Focus", Number, "How close the camera goes to an event: 1 frames it, more goes closer.", json!(1.6)).unit("×").range(0.2, Some(8.0)),
+            // Playback controls
+            Field::new("ui.playback.skip_seconds", "Back and Forward jump", "Playback controls", Choice, "How far the observer's Back and Forward buttons, and J and L, go.", json!(900))
+                .choices(vec![("1 minute", json!(60)), ("5 minutes", json!(300)), ("15 minutes", json!(900)), ("30 minutes", json!(1800)), ("1 hour", json!(3600))]),
+            Field::new("ui.playback.step_seconds", "Step", "Playback controls", Choice, "How far Step, and K, advance before holding.", json!(60))
+                .choices(vec![("1 second", json!(1)), ("10 seconds", json!(10)), ("1 minute", json!(60)), ("5 minutes", json!(300))]),
+            Field::new("ui.playback.fine_control", "Ask how far", "Playback controls", Boolean, "Back and Forward open a menu of distances each time, instead of one jump.", json!(false)),
+            // Clock and units
+            Field::new("ui.clock.hour12", "12-hour clock", "Clock, units and news", Boolean, "Times as 3:00 PM instead of 15:00. Holding the clock switches it at any time.", json!(false)),
+            Field::new("ui.display.byte_units", "Data sizes", "Clock, units and news", Choice, "Decimal (kB, MB, as drives are sold) or binary (KiB, MiB, as memory is counted).", json!("decimal"))
+                .choices(vec![("Decimal (MB)", json!("decimal")), ("Binary (MiB)", json!("binary"))]),
+            Field::new("ui.news.style", "News style", "Clock, units and news", Choice, "Realistic News, written by a model where one is available, or the standard plain lines.", json!("realistic"))
+                .choices(vec![("Realistic", json!("realistic")), ("Standard", json!("standard"))]),
+            // Map layers shown at first
+            Field::new("ui.layers.roads", "Roads", "Map layers", Boolean, "Shown when a viewer first opens the observer; each can change their own.", json!(true)),
+            Field::new("ui.layers.traffic", "Traffic", "Map layers", Boolean, "Roads coloured by how congested they are.", json!(true)),
+            Field::new("ui.layers.vehicles", "Flow markers", "Map layers", Boolean, "Vehicles moving along the roads.", json!(true)),
+            Field::new("ui.layers.signals", "Signals", "Map layers", Boolean, "Signalled junctions and their phases.", json!(true)),
+            Field::new("ui.layers.buildings", "Buildings and places", "Map layers", Boolean, "Footprints, and the places that draw traffic.", json!(true)),
+            Field::new("ui.layers.place_names", "Place names", "Map layers", Boolean, "Names beside places, as there is room.", json!(false)),
+            Field::new("ui.layers.other_places", "Unclassified places", "Map layers", Boolean, "Places with no kind of their own.", json!(false)),
+            Field::new("ui.layers.labels", "Street names", "Map layers", Boolean, "Names along the roads.", json!(false)),
+            Field::new("ui.layers.weather", "Weather", "Map layers", Boolean, "Rain cells as they cross the district.", json!(true)),
+            Field::new("ui.layers.flooding", "Flooding", "Map layers", Boolean, "Roads under water.", json!(true)),
+            Field::new("ui.layers.incidents", "Incidents", "Map layers", Boolean, "Collisions, breakdowns and closures.", json!(true)),
+            Field::new("ui.layers.events", "Demand", "Map layers", Boolean, "Places drawing extra traffic now.", json!(true)),
+            // Tutorial
+            Field::new("ui.tutorial.enabled", "Tutorial", "Tutorial", Boolean, "The guided tour is offered from the header.", json!(true)),
+            Field::new("ui.tutorial.show_on_startup", "Show at start-up", "Tutorial", Boolean, "The tour opens by itself, once, when a viewer first arrives.", json!(false)),
+            // Backpressure reporting
+            Field::new("ui.asb.enabled", "Report how it keeps up", "Backpressure", Boolean, "The observer tells the server how far behind it is, so Adaptive Simulation Backpressure can ease the rate before it falls behind.", json!(true)),
+            Field::new("ui.asb.report_interval_ms", "Report every", "Backpressure", Integer, "How often it reports.", json!(1000)).unit("ms").range(250.0, Some(10000.0)),
         ]
     })
+}
+
+/// The settings as a person finds them: sections, each a heading over its categories, in a sensible order.
+pub const SECTIONS: &[(&str, &[&str])] = &[
+    ("Simulation", &["Run", "Modules", "Weather", "Map"]),
+    ("Start-up", &["Startup", "Presentation", "Demo"]),
+    ("Observer", &["Appearance", "Notifications", "Auto Focus", "Playback controls", "Clock, units and news", "Map layers", "Tutorial", "Backpressure"]),
+    ("Server", &["Server", "Performance", "Resource Control", "Daemons"]),
+    ("Applications", &["Fabric", "WebFabric", "MCP"]),
+    ("Intelligence", &["Model"]),
+    ("Launcher", &["Launcher", "Security"]),
+];
+
+/// Where a category belongs: its section's name.
+pub fn section_of(category: &str) -> &'static str {
+    SECTIONS.iter().find(|(_, categories)| categories.contains(&category)).map(|(name, _)| *name).unwrap_or("Other")
 }
 
 /// α, β, γ: three numbers, each at least the one before.
@@ -617,7 +708,8 @@ pub fn daemon_settings(config: &Value) -> Value {
 }
 
 pub fn categories() -> Vec<&'static str> {
-    let mut out: Vec<&'static str> = vec![];
+    // In the order of their sections, then any a section does not name, so none is ever hidden.
+    let mut out: Vec<&'static str> = SECTIONS.iter().flat_map(|(_, c)| c.iter().copied()).filter(|c| fields().iter().any(|f| f.category == *c)).collect();
     for field in fields() {
         if !out.contains(&field.category) {
             out.push(field.category);
@@ -888,6 +980,28 @@ mod tests {
 
     fn base() -> Value {
         json!({"playback": {"duration_seconds": 3600, "tick_rate": 1}, "api": {"port": 8090, "host": "127.0.0.1"}})
+    }
+
+    #[test]
+    fn the_observer_settings_are_kept_in_their_own_file() {
+        let paths = Paths::new(std::env::temp_dir().join(format!("dstns-ui-{}", std::process::id())));
+        std::fs::create_dir_all(paths.config().parent().unwrap()).unwrap();
+        std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/defaults.json"), paths.config()).unwrap();
+        std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/ui-config.json"), paths.ui_config()).unwrap();
+        let mut config = load(&paths).unwrap();
+        assert_eq!(field("ui.auto_focus.mode").unwrap().get(&config), json!("enable-force"), "read from ui-config.json");
+        field("ui.layers.labels").unwrap().set(&mut config, json!(true));
+        field("ui.playback.fine_control").unwrap().set(&mut config, json!(true));
+        save(&config, &paths).unwrap();
+        let ui: Value = serde_json::from_str(&std::fs::read_to_string(paths.ui_config()).unwrap()).unwrap();
+        assert_eq!(ui.pointer("/layers/labels"), Some(&json!(true)));
+        assert_eq!(ui.pointer("/playback/fine_control"), Some(&json!(true)));
+        assert!(ui.get("_comment").is_some() && ui.get("_enums").is_some(), "what the file says about itself stays");
+        let rest: Value = serde_json::from_str(&std::fs::read_to_string(paths.config()).unwrap()).unwrap();
+        assert!(rest.get("ui").is_none(), "nothing of the observer's goes into defaults.json");
+        assert!(field("ui.auto_focus.zoom").unwrap().check(&json!(20)).len() > 0, "held to what the observer accepts");
+        assert!(categories().iter().all(|c| section_of(c) != "Other"), "every category has a section");
+        let _ = std::fs::remove_dir_all(&paths.root);
     }
 
     #[test]

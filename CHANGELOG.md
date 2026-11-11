@@ -18,6 +18,17 @@ widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on 
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`. The launcher is now a
 Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs Python to build, run or test.
 
+### The launcher's settings, in sections
+
+- The Configuration page groups every category under a heading: Simulation, Start-up, Observer, Server,
+  Applications, Intelligence and Launcher. The arrows pass over the headings; Home and End go to the first and
+  last category, never a heading.
+- The **Observer** section is new: thirty-seven of the observer's operator defaults (theme, colour vision, reduce
+  motion, notifications, Auto Focus, playback jumps, clock, data sizes, news style, the layers shown at first,
+  the tutorial, backpressure reporting), held to the same limits the observer applies. They are kept in
+  `config/ui-config.json`, which is written only when one of them changes, and travel in launch codes like
+  every other setting.
+
 ### Time Control, High Contrast and the observer's panels
 
 - **Time Control**, from the clock: go to a time earlier or later in the day, jump by any number of hours and minutes

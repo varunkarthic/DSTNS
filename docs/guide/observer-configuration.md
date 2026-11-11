@@ -14,7 +14,7 @@ Three layers, innermost first. Each one only overrides what it actually sets.
 | Layer | Source | Purpose |
 | --- | --- | --- |
 | 1. Built-in | `WebKit/src/core/uiConfig.ts` → `BUILT_IN` | The interface always has a complete, valid configuration, even with no server |
-| 2. Operator | `config/ui-config.json`, served at `/api/v1/system/ui-config` | The defaults for this deployment |
+| 2. Operator | `config/ui-config.json`, served at `/api/v1/system/ui-config`; edited in the launcher's Configuration page, section **Observer**, or with `./launcher config set ui.KEY VALUE` | The defaults for this deployment |
 | 3. Viewer | `localStorage["dstns.ui-config.v1"]` | This person's own choices |
 
 **Viewer overrides are stored as deltas**, not as a full snapshot. If a viewer

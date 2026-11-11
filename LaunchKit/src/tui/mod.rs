@@ -846,6 +846,32 @@ mod tests {
     }
 
     #[test]
+    fn settings_are_in_sections_and_headings_are_passed_over() {
+        let mut app = app(120, 40, Box::new(screens::configuration::ConfigurationScreen::new(None)));
+        let text = screen(&mut app, 120, 40);
+        assert!(text.contains("SIMULATION") && text.contains("OBSERVER") && text.contains("▸   Run"), "{text}");
+        assert_eq!(path(&app), "/config/Run", "the first category, not its heading");
+        for _ in 0..4 {
+            press(&mut app, KeyCode::Down);
+        }
+        assert_eq!(path(&app), "/config/Startup", "past the Start-up heading");
+        press(&mut app, KeyCode::Home);
+        assert_eq!(path(&app), "/config/Run");
+        for _ in 0..60 {
+            press(&mut app, KeyCode::Down);
+        }
+        assert_eq!(path(&app), "/config/Security", "the last, never a heading");
+        press(&mut app, KeyCode::Up);
+        assert_eq!(path(&app), "/config/Launcher");
+        if std::env::var("SHOW").is_ok() {
+            for _ in 0..12 {
+                press(&mut app, KeyCode::Up);
+            }
+            println!("{}", screen(&mut app, 120, 40));
+        }
+    }
+
+    #[test]
     fn every_page_opens_and_draws() {
         for page in ["start", "apps", "seeds", "config", "demo", "logs", "tests", "tools", "about", "setup"] {
             let mut app = app(120, 35, Box::new(screens::dashboard::DashboardScreen::new()));

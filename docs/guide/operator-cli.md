@@ -274,10 +274,22 @@ At 24:00:00 the launcher shows the run's summary and offers **Open the observer*
 
 ### Configuration
 
-Every setting, by category: **Run**, **Map**, **Modules**, **Weather**, **Launcher**,
-**Server**, **Fabric**, **WebFabric**, **Startup**, **Presentation**, **Demo**,
-**Performance** and **MCP**. Each is validated as you type, with its reason shown, and an
-invalid value is never written. The status line shows `! unsaved` while there are changes;
+Every setting, in sections, each a heading over its categories:
+
+| Section | Categories |
+|---|---|
+| Simulation | Run, Modules, Weather, Map |
+| Start-up | Startup, Presentation, Demo |
+| Observer | Appearance, Notifications, Auto Focus, Playback controls, Clock, units and news, Map layers, Tutorial, Backpressure |
+| Server | Server, Performance, Resource Control, Daemons |
+| Applications | Fabric, WebFabric, MCP |
+| Intelligence | Model |
+| Launcher | Launcher, Security |
+
+The arrows move between categories and pass over the headings. Each value is validated as you
+type, with its reason shown, and an invalid value is never written. The **Observer** section is
+kept in `config/ui-config.json`, the observer's operator defaults; the rest in
+`config/defaults.json`. The status line shows `! unsaved` while there are changes;
 **Ctrl+S** saves, and leaving with changes asks first. See
 [Settings for every feature](#settings-for-every-feature).
 
@@ -574,6 +586,36 @@ server's next start. The observer reads them back from `GET /api/v1/system/featu
 | | `launcher.natural_scrolling` | Natural scrolling | off | Content follows the fingers, as on a Mac's trackpad |
 | | `launcher.small_terminal` | Small terminals | ask | Too small for the full interface: ask, always use [Simplified Launch Control](#simplified-launch-control), or show the full interface anyway |
 | | `launcher.default_settings` | Observer at its defaults | off | Open the observer with its settings at their defaults, every time |
+
+#### The observer's defaults
+
+The **Observer** section edits `config/ui-config.json`: what each viewer sees until they choose
+otherwise in Settings, which their browser remembers and which comes first. They apply the next
+time a viewer opens the observer, without restarting the server. `config set ui.KEY VALUE`
+changes one from the command line.
+
+| Category | Setting | Label | Default | What it does |
+|---|---|---|---|---|
+| Appearance | `ui.accessibility.theme` | Theme | follow the system | Dark, light, or each viewer's system |
+| | `ui.accessibility.color_vision` | Colour vision | standard | Standard, protanopia, deuteranopia, tritanopia or monochrome palettes |
+| | `ui.reduce_motion` | Reduce motion | follow the system | Short fades instead of movement: on, off, or each viewer's system |
+| | `ui.accessibility.reduce_transparency`, `high_contrast` | Reduce transparency, High contrast | off | Solid surfaces; firmer text and edges |
+| | `ui.accessibility.advanced` | Specialist detail | on | Off, identifiers and coordinates give way to plain language |
+| Notifications | `ui.notifications.enabled`, `dnd`, `important_first` | Notifications, Do Not Disturb, Important first | on, off, on | Whether they show, are held back, and alerts go first |
+| | `ui.notifications.max_visible` | Shown at once | 3 | 1 to 8 |
+| | `ui.notifications.dwell_ms` | Shown for | 7000 ms | 1 to 60 seconds |
+| Auto Focus | `ui.auto_focus.mode` | Auto Focus | on | On, offered once per run, or off |
+| | `ui.auto_focus.strategy` | Order | each in turn | Each event in turn, or always the latest |
+| | `ui.auto_focus.dwell_seconds`, `zoom` | Stays for, Closeness | 9 s, 1.6× | 2 to 120 s; 0.2× to 8× |
+| Playback controls | `ui.playback.skip_seconds` | Back and Forward jump | 15 minutes | 1, 5, 15 or 30 minutes, or 1 hour |
+| | `ui.playback.step_seconds` | Step | 1 minute | 1 or 10 seconds, 1 or 5 minutes |
+| | `ui.playback.fine_control` | Ask how far | off | Back and Forward open a menu of distances |
+| Clock, units and news | `ui.clock.hour12` | 12-hour clock | off | 3:00 PM instead of 15:00 |
+| | `ui.display.byte_units` | Data sizes | decimal | MB, or MiB |
+| | `ui.news.style` | News style | realistic | Realistic News, or the standard lines |
+| Map layers | `ui.layers.roads`, `traffic`, `vehicles`, `signals`, `buildings`, `place_names`, `other_places`, `labels`, `weather`, `flooding`, `incidents`, `events` | Roads, Traffic… | as shipped | Which layers show when a viewer first arrives |
+| Tutorial | `ui.tutorial.enabled`, `show_on_startup` | Tutorial, Show at start-up | on, off | The guided tour, offered or opened by itself once |
+| Backpressure | `ui.asb.enabled`, `report_interval_ms` | Report how it keeps up, Report every | on, 1000 ms | The observer's reports to [Adaptive Simulation Backpressure](observer-configuration.md) |
 
 ### Settings that go together
 

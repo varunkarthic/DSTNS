@@ -245,22 +245,34 @@ impl Menu {
         if self.items.is_empty() {
             return;
         }
-        let mut position = self.index as i32;
-        for _ in 0..self.items.len() {
-            position = (position + delta).clamp(0, self.items.len() as i32 - 1);
-            if !self.items[position as usize].disabled || position == 0 || position == self.items.len() as i32 - 1 {
+        // As far as asked, then on past headings and anything unavailable; at an end with nothing there, stay.
+        let last = self.items.len() as i32 - 1;
+        let mut position = (self.index as i32 + delta).clamp(0, last);
+        let way = if delta < 0 { -1 } else { 1 };
+        while self.items[position as usize].disabled {
+            position += way;
+            if position < 0 || position > last {
+                position = (self.index as i32 + delta).clamp(0, last);
+                // Nothing further that way: the nearest available the other way, or where it was.
+                while self.items[position as usize].disabled && position != self.index as i32 {
+                    position -= way;
+                }
                 break;
             }
         }
         self.index = position as usize;
+    }
+    fn first_enabled(&self, from_end: bool) -> usize {
+        let found = if from_end { self.items.iter().rposition(|i| !i.disabled) } else { self.items.iter().position(|i| !i.disabled) };
+        found.unwrap_or(self.index)
     }
     pub fn handle(&mut self, event: &KeyEvent) -> MenuEvent {
         let before = self.index;
         match event.code {
             KeyCode::Up | KeyCode::Char('k') => self.step(-1),
             KeyCode::Down | KeyCode::Char('j') => self.step(1),
-            KeyCode::Home => self.index = 0,
-            KeyCode::End => self.index = self.items.len().saturating_sub(1),
+            KeyCode::Home => self.index = self.first_enabled(false),
+            KeyCode::End => self.index = self.first_enabled(true),
             KeyCode::PageUp => self.step(-10),
             KeyCode::PageDown => self.step(10),
             KeyCode::Enter => {
@@ -282,6 +294,9 @@ impl Menu {
         for (index, item) in self.items.iter().enumerate().skip(self.offset) {
             let height = if self.show_hints && !item.hint.is_empty() { 2 } else { 1 };
             if row >= position && row < position + height {
+                if item.disabled {
+                    return MenuEvent::None;
+                }
                 self.index = index;
                 return match self.current().filter(|i| !i.disabled) {
                     Some(item) => MenuEvent::Selected(item.key.clone()),

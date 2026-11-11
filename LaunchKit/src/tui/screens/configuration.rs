@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-//! Configuration: edit config/defaults.json, a category at a time.
+//! Configuration: every setting, in sections of categories; config/defaults.json, and the observer's config/ui-config.json.
 
 use crate::config::{self, FieldKind};
 use crate::environment::State;
 use crate::tui::theme::{bold, fg, ERR, MUTED, TEXT2, WARN};
-use crate::tui::widgets::{self, card, form_row, item, key, Editor, Form, Key, Menu, MenuEvent};
+use crate::tui::widgets::{self, card, form_row, item, key, Editor, Form, Key, Menu, MenuEvent, MenuItem};
 use crate::tui::{Action, Dialog, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
@@ -47,6 +47,23 @@ fn editor(field: &config::Field, value: &Value) -> Editor {
     }
 }
 
+/// Each section a heading, its categories beneath it; the first category chosen.
+fn sections() -> Menu {
+    let mut items = vec![];
+    let mut heading = "";
+    for category in config::categories() {
+        let section = config::section_of(category);
+        if section != heading {
+            heading = section;
+            items.push(MenuItem { key: format!("section:{section}"), label: section.to_uppercase(), hint: String::new(), disabled: true });
+        }
+        items.push(item(category, &format!("  {category}")));
+    }
+    let mut menu = Menu::new(items);
+    menu.index = menu.items.iter().position(|i| !i.disabled).unwrap_or(0);
+    menu
+}
+
 fn capitalise(text: &str) -> String {
     let mut chars = text.chars();
     chars.next().map(|c| c.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default()
@@ -55,7 +72,7 @@ fn capitalise(text: &str) -> String {
 impl ConfigurationScreen {
     pub fn new(category: Option<String>) -> Self {
         Self {
-            categories: Menu::new(config::categories().into_iter().map(|c| item(c, c)).collect()),
+            categories: sections(),
             form: Form::default(),
             current: Value::Null,
             saved: Value::Null,
@@ -200,7 +217,10 @@ impl Screen for ConfigurationScreen {
             frame.render_widget(block, content);
         }
         let inner = Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner };
-        let mut header = vec![Line::from(Span::styled("config/defaults.json", fg(MUTED)))];
+        // Where this category is kept, and the section it belongs to.
+        let category = self.categories.current_key().unwrap_or_default();
+        let file = if config::section_of(&category) == "Observer" { "config/ui-config.json · the observer's defaults; each viewer's own choices come first" } else { "config/defaults.json" };
+        let mut header = vec![Line::from(Span::styled(file, fg(MUTED)))];
         if !self.load_error.is_empty() {
             header.push(Line::from(Span::styled(self.load_error.clone(), fg(ERR))));
         }
@@ -209,7 +229,7 @@ impl Screen for ConfigurationScreen {
         } else if !self.notice.is_empty() && self.dirty() {
             Some(Line::from(Span::styled(format!("{}. Ctrl+S saves.", self.notice), fg(WARN))))
         } else if self.dirty() {
-            Some(Line::from(Span::styled("Unsaved changes. Ctrl+S saves them to config/defaults.json.", fg(WARN))))
+            Some(Line::from(Span::styled("Unsaved changes. Ctrl+S saves them.", fg(WARN))))
         } else {
             None
         };
