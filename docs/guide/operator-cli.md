@@ -98,7 +98,7 @@ label needs it, and the panel beside it is titled with what is chosen. Applicati
 what is registered, then what asks to join, with `running` written after one that is up.
 
 ```text
- DSTNS  ❯ dashboard                                         ◌ running  │  v2.2.0  │  14:02:11
+ DSTNS  ❯ dashboard                                         ◌ running  │  v3.0.0  │  14:02:11
   ENGINE ───────────────   SIMULATION ────────────   NEXT WORLD ───────────   SYSTEM ────────────
   state   online           state   running           mode    dynamic          checks  15/15 pass
   port    8090             clock   08:12:44          city    Lisbon           apps    1 up · 2 known
@@ -142,9 +142,9 @@ settled:
                               …
                   DETERMINISTIC SPATIOTEMPORAL TRANSPORT NETWORK SIMULATOR
 
-                                    v2.2.0  ·  boot: complete
+                                    v3.0.0  ·  boot: complete
               [  0.214] ✓ Map cache          3 cached extracts · 111 MiB
-              [  0.390] ✓ Simulation core    DSTNS 2.2.0
+              [  0.390] ✓ Simulation core    DSTNS 3.0.0
               [  0.512] ! Observer bundle    older than its sources
               [  0.640] ✓ API port           8090 available
 ```

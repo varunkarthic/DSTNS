@@ -5,9 +5,9 @@ All notable changes to DSTNS are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 DSTNS uses version numbers that identify three independently versioned parts:
 the engine (`DSTNS_VERSION`, set in `CMakeLists.txt`), the observer (`VERSION` in
-`WebKit/src/App.tsx`) and the HTTP API contract (`/api/v1`). From DSTNS v3, a
-release of the whole is also tagged on GitHub (`v3.0.0`), and each section here
-says which versions of the three parts it carries. Changes that
+`WebKit/src/App.tsx`) and the HTTP API contract (`/api/v1`). Each release is
+tagged on GitHub as `v` and the engine's version, and says which versions of the
+other two it carries. Changes that
 alter simulation results for an existing seed or map are called out explicitly,
 because the [reproducibility guarantee](https://dstns.readthedocs.io/concepts/reproducibility/) holds
 only within one version.
@@ -16,7 +16,7 @@ only within one version.
 
 ## [3.0.0] - 2026-11-12
 
-**DSTNS v3. Engine 2.2.0, observer 3.1.0, API contract 1.4.** Results for a seed are unchanged from engine 2.1.0, and
+**Release 3.0.0. Engine 3.0.0, observer 3.1.0, API contract 1.4.** Results for a seed are unchanged from engine 2.1.0, and
 every existing endpoint behaves as before, 155 recorded calls being replayed to prove it, with one deliberate
 widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on the rate. `api_version` in
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`. The launcher is now a

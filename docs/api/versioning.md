@@ -3,7 +3,7 @@
 | What | Version | Where reported |
 |---|---|---|
 | The API contract | `1.4`, under the `/api/v1` prefix | `api_version` in responses |
-| The engine | `2.2.0` | `version` in `/health` and `/system/info` |
+| The engine | `3.0.0` | `version` in `/health` and `/system/info` |
 | The observer | `3.1.0` | About |
 | Map selection | `urban-crfg-v3` | `map_selection_version` |
 | Algorithms | `DSTNS/1` | `/view/manifest` |
