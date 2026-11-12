@@ -117,7 +117,8 @@ it.
 | `data/seed-store/maps/` | Delete copies that no saved seed refers to |
 | Build outputs | `rm -rf build WebKit/dist` |
 
-`./launcher reset` asks for confirmation (or takes `--yes`) and never deletes the map
+`./launcher reset` asks for confirmation (or takes `--yes`, which it needs when there is
+no terminal to ask at), refuses while a server is running, and never deletes the map
 cache, saved seeds or configuration.
 
 ## Rolling back

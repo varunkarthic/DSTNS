@@ -32,10 +32,45 @@ if [ -n "$stale" ]; then
       exit 1
     fi
   else
-    echo "DSTNS: building the launcher, as its sources changed. This takes about a minute; cargo shows its progress." >&2
-    # Not quiet: a release build is long enough to look stuck without a progress bar, and cargo says so when it is
-    # waiting for another build to finish.
-    cargo build --release --manifest-path "$root/LaunchKit/Cargo.toml" >&2
+    echo "DSTNS: building the launcher, as its sources changed (about a minute)." >&2
+    # A bar that fills as each crate is compiled, out of the crates in Cargo.lock. Cargo's own messages go to a log,
+    # shown whole if the build fails. Without a terminal, cargo's plain output is shown instead.
+    if [ -t 2 ]; then
+      log="$(mktemp "${TMPDIR:-/tmp}/dstns-launcher-build.XXXXXX")"
+      # How many units the last build had, or, the first time, an estimate from the packages in Cargo.lock.
+      units="$target/.dstns-build-units"
+      total="$(cat "$units" 2>/dev/null || echo $(( $(grep -c '^\[\[package\]\]' "$root/LaunchKit/Cargo.lock" || echo 100) * 3 / 5 )))"
+      [ "$total" -gt 0 ] 2>/dev/null || total=100
+      started=$SECONDS
+      draw() {
+        local done=$1 name=$2 width=30 filled
+        filled=$(( done * width / total )); [ "$filled" -gt "$width" ] && filled=$width
+        local percent=$(( done * 100 / total )); [ "$percent" -gt 99 ] && percent=99
+        printf '\r\033[K  [%s%s] %3d%%  %3ds  %s' "$(printf '%*s' "$filled" '' | tr ' ' '#')" "$(printf '%*s' $(( width - filled )) '' | tr ' ' '-')" "$percent" $(( SECONDS - started )) "$name" >&2
+      }
+      count=0
+      draw 0 "starting"
+      if cargo build --release --message-format=json-render-diagnostics --manifest-path "$root/LaunchKit/Cargo.toml" 2>"$log" \
+        | { while IFS= read -r message; do
+            case "$message" in
+              *'"reason":"compiler-artifact"'*)
+                count=$(( count + 1 ))
+                name="${message#*\"name\":\"}"; name="${name%%\"*}"
+                draw "$count" "$name" ;;
+            esac
+          done; mkdir -p "$target"; echo "$count" > "$units"; }; then
+        printf '\r\033[K  [%s] 100%%  %3ds  done\n' "$(printf '%*s' 30 '' | tr ' ' '#')" $(( SECONDS - started )) >&2
+        rm -f "$log"
+      else
+        printf '\r\033[K' >&2
+        cat "$log" >&2
+        rm -f "$log"
+        echo "DSTNS: the launcher did not build. The errors are above." >&2
+        exit 1
+      fi
+    else
+      cargo build --release --manifest-path "$root/LaunchKit/Cargo.toml" >&2
+    fi
     echo "DSTNS: built. Starting the launcher." >&2
   fi
 fi

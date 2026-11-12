@@ -391,7 +391,11 @@ fn command_test(context: &Context) -> Result<i32> {
 
 fn command_reset(context: &Context) -> Result<i32> {
     let out = &context.out;
-    if !context.args.yes && context.caps.interactive {
+    // Without a terminal to ask at, nothing is deleted unless --yes says so.
+    if !context.args.yes && !context.caps.interactive {
+        return Err(LauncherError::runtime("A reset deletes runtime data, and there is no terminal to ask at.").remedy("Run ./launcher reset --yes to confirm it."));
+    }
+    if !context.args.yes {
         out.line("This deletes runtime logs, the SQLite journal, checkpoints, temporary");
         out.line("scenarios and SUMO runs, and forgets the launcher's setup. Maps, saved");
         out.line("seeds and configuration are kept.");
@@ -400,7 +404,7 @@ fn command_reset(context: &Context) -> Result<i32> {
             return Ok(EXIT_OK);
         }
     }
-    maintenance::reset(context.reporter.as_ref(), &context.paths);
+    maintenance::reset(context.reporter.as_ref(), &context.paths).map_err(LauncherError::runtime)?;
     Ok(EXIT_OK)
 }
 

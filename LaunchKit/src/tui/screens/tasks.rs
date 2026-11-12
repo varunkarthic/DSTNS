@@ -169,8 +169,10 @@ impl TaskScreen {
                         }
                     }
                     _ => {
-                        crate::maintenance::reset(reporter, &paths);
-                        (true, "Runtime data cleared, and the setup forgotten. Maps, saved seeds and configuration were kept.".into())
+                        match crate::maintenance::reset(reporter, &paths) {
+                            Ok(()) => (true, "Runtime data cleared, and the setup forgotten. Maps, saved seeds and configuration were kept.".into()),
+                            Err(why) => (false, why),
+                        }
                     }
                 };
                 let _ = finished.send(outcome);

@@ -414,7 +414,7 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `state [get [--world]\|set CODE]` | The same code without the keys, and applying one without starting; see [Launch codes](#launch-codes) |
 | `daemon [show NAME\|on NAME\|off NAME\|queue emergency\|notification]` | The server's [daemons](daemons.md) |
 | `security [on\|off\|verify]` | [Advanced Security](#advanced-security) |
-| `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, and forget the setup |
+| `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, and forget the setup. It asks first; without a terminal it needs `--yes`; it refuses while a server is running |
 | `help`, `version`, `license` | Usage, version and licence notice, the licence text |
 | `--mode=server` | Run `dstns_server` in the foreground with the configured host and port |
 

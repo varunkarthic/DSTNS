@@ -22,6 +22,18 @@ widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on 
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`. The launcher is now a
 Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs Python to build, run or test.
 
+### Safer resets, quieter logs, and images from every push
+
+- `./launcher reset` refuses while a server is running, since it would delete the journal and checkpoints that
+  server is writing, and without a terminal to ask at it needs `--yes`. The Tools page and the console's reset
+  follow the same rule.
+- The launcher no longer writes the chosen district's coordinates to its log; the district is named instead
+  (CodeQL `rust/cleartext-logging`).
+- Building the launcher shows a progress bar that fills as each crate is compiled, with the time taken; without a
+  terminal, cargo's own output is shown.
+- A push to `v3` now builds, tests and publishes a container image, tagged `:v3` and `:sha-<commit>` on the edge
+  channel; only `main` and the release tag move `stable` and `latest`.
+
 ### The knowledge graph page, redesigned
 
 - One sidebar holds the search and three tabs: **Explore** (the parts of DSTNS with their share of it, questions to

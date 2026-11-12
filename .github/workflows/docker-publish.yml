@@ -1,8 +1,10 @@
 name: Build and Publish Container
 
+# Every push to main or v3 builds, tests and publishes an image. Only main and the release tag move stable and
+# latest; a push to v3 publishes as edge, tagged :v3 and :sha-<commit>.
 on:
   push:
-    branches: [main]
+    branches: [main, v3]
     tags: ["v*"]
   workflow_dispatch:
 

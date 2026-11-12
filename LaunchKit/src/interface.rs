@@ -567,7 +567,7 @@ impl<'a> Compatibility<'a> {
                     self.out.muted(&format!("  {path}"));
                 }
                 if self.out.confirm("Delete these runtime files? Maps, saved seeds and configuration are kept.", false) {
-                    maintenance::reset(self.reporter(), paths);
+                    let _ = maintenance::reset(self.reporter(), paths);
                 }
             }
         }

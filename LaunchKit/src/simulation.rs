@@ -33,8 +33,6 @@ pub struct World {
     pub day: i64,
     pub city: String,
     pub country: String,
-    pub latitude: Option<f64>,
-    pub longitude: Option<f64>,
     pub downloaded: Option<bool>,
     pub nodes: usize,
     pub edges: usize,
@@ -153,8 +151,6 @@ pub fn world(port: u16, seed: &str, day: i64, paths: &Paths) -> Result<World> {
         day,
         city: text(location.get("city")),
         country: text(location.get("country")),
-        latitude: location.get("anchor_lat").and_then(|v| v.as_f64()),
-        longitude: location.get("anchor_lon").and_then(|v| v.as_f64()),
         downloaded: location.get("downloaded").and_then(|v| v.as_bool()),
         nodes: count("nodes"),
         edges: count("edges"),
@@ -276,13 +272,8 @@ pub fn start_run(port: u16, request: &Value, reporter: &dyn Reporter, paths: &Pa
         reporter.message(
             Level::Info,
             "District",
-            &format!(
-                "{} · {:.4}, {:.4}{}",
-                loaded.place(),
-                loaded.latitude.unwrap_or(0.0),
-                loaded.longitude.unwrap_or(0.0),
-                if loaded.downloaded.unwrap_or(false) { " (downloaded)" } else { " (cached)" }
-            ),
+            // The place by name only: its coordinates are in the observer, and are kept out of logs.
+            &format!("{}{}", loaded.place(), if loaded.downloaded.unwrap_or(false) { " (downloaded)" } else { " (cached)" }),
         );
     }
     let waiting = current.observer_hold;

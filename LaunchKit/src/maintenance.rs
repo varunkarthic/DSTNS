@@ -19,7 +19,14 @@ pub fn describe(paths: &Paths) -> Vec<String> {
     out
 }
 
-pub fn reset(reporter: &dyn Reporter, paths: &Paths) {
+/// Clears runtime data, unless a server is running: it writes to these files, and its run would lose its journal and
+/// checkpoints under it. Returns why it refused.
+pub fn reset(reporter: &dyn Reporter, paths: &Paths) -> Result<(), String> {
+    if let Some(port) = crate::server::active_port(paths) {
+        let why = format!("A DSTNS server is running on port {port}, and a reset would delete the files it is writing. Stop it first with ./launcher stop.");
+        reporter.message(Level::Error, "Nothing was reset", &why);
+        return Err(why);
+    }
     reporter.step_started("Clear runtime logs");
     for name in RUNTIME_FILES {
         let _ = fs::remove_file(paths.logs().join(name));
@@ -36,4 +43,5 @@ pub fn reset(reporter: &dyn Reporter, paths: &Paths) {
     crate::setup::forget(paths);
     reporter.step_finished("Forget the launcher's setup", true, "it runs again at the next start");
     reporter.message(Level::Success, "Runtime state reset", "map cache, saved seeds and configuration kept");
+    Ok(())
 }
