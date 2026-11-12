@@ -44,7 +44,7 @@ Flows and queues per road are what make a whole day of a 3,000-junction district
 
 **The observer**
 
-A live map with telemetry, notifications and an Auto Focus camera that follows what matters. Place search, changeable shortcuts, light and dark themes, and palettes for colour vision.
+A live map with telemetry, notifications and an Auto Focus camera that follows what matters. Place search, keyboard shortcuts you can change (each control's tooltip shows its key), light and dark themes, and palettes for colour vision.
 
 It's built on one physical model of motion, so that everything can be interrupted and nothing jumps. Panels divide from the control that opened them like a cell, dialogs are one card with a line drawing that acts out their question, and every corner sits concentric with the one around it. It keeps up with the simulation by itself, and tells you when it can't.
 
@@ -82,7 +82,7 @@ To build from source you need a C++20 compiler, CMake 3.22, SQLite, zlib and lib
 
 <img src="docs/assets/screenshots/launcher.png" alt="The DSTNS launcher's dashboard in a terminal" width="100%">
 
-The launcher checks your environment, builds what's needed, and runs everything from one place. It's a Rust program with a console's look: a status line, live readings of the engine, the simulation, the next world and the system, the server's own log as it's written, and a prompt at the foot of every page.
+The launcher checks your environment, builds what's needed, and runs everything from one place. It's a Rust program with a console's look: a status line, live readings of the engine, the simulation, the next world and the system, the server's own log as it's written, and a prompt at the foot of every page. Its menu is in four sections, **Simulation**, **Set up**, **Inspect** and **Help**, and its settings in seven, each with its own categories.
 
 ```bash
 ./launcher start --seed 382923 --day-type weekend --speed 3
@@ -130,6 +130,12 @@ The launcher reads command lines as a shell does, in its command bar, with `-c`,
 | **The adaptive film** | The start-up film plans itself by the server's estimate of when the world will be ready: as many scenes as fit, in a new order every time, always opening on the name and closing on the flight into the map |
 
 `./launcher demo` plays the film on a loop, full screen, with an original score, including scenes on time control, many worlds and AI, in whatever order you set. The score can be swapped for music of your own, an MP3, M4A or WAV file, for Demo Mode and the start-up film separately (`demo.music_file`, `presentation.music_file`).
+
+## The knowledge graph
+
+<img src="docs/assets/screenshots/graph.png" alt="The knowledge graph in the documentation: a sidebar with search and the parts of DSTNS, the map of the code, and a card for SimulationEngine listing what it holds" width="100%">
+
+The documentation's [Graph](https://dstns.readthedocs.io/en/v3/graph/) page maps every file, class, function and page of DSTNS and how they connect, rebuilt from the source with every documentation build. Search it in plain words (`what calls snapshot`, `functions in the launcher`, `what is inside App.tsx`), see a part on its own, and open anything on GitHub at its line. The same graph answers `./launcher graph`, the MCP Handler's `graph_*` tools and a Claude skill you can download from the page.
 
 ## Daemons
 
@@ -215,7 +221,7 @@ transitions and guards set out in [State machines](docs/design/state-machines.md
 
 ## Tested
 
-Every test is C++, Rust or TypeScript: 33 engine and HTTP suites under ctest (each HTTP suite a program that starts a real server on a port of its own, with stand-ins for every upstream), 61 launcher tests, and 478 for the observer. The HTTP contract is replayed against a recorded baseline of 155 calls, and every route is fuzzed with hostile values on every run.
+Every test is C++, Rust or TypeScript: 34 engine and HTTP suites under ctest (each HTTP suite a program that starts a real server on a port of its own, with stand-ins for every upstream), 85 launcher tests, and 500 for the observer. The HTTP contract is replayed against a recorded baseline of 155 calls, and every route is fuzzed with hostile values on every run.
 
 ```bash
 ./scripts/test.sh

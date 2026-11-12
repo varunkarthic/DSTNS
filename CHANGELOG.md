@@ -18,6 +18,18 @@ widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on 
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`. The launcher is now a
 Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs Python to build, run or test.
 
+### The knowledge graph page, redesigned
+
+- One sidebar holds the search and three tabs: **Explore** (the parts of DSTNS with their share of it, questions to
+  try, the kinds of thing), **Filters** (with a count of what is shown and Reset) and **Guide** (how to use it, the
+  questions it understands, its keys). Results take the sidebar's place while a search is open. It hides to give the
+  map the whole page.
+- The map's controls (zoom, show everything, names on or off) sit together at the bottom right, and the card for the
+  chosen item opens at the top right.
+- A new set of icons, drawn as one family, for the kinds of thing, the kinds of link, the tabs and the controls.
+- Standard types and borrowed symbols (`string`, `json`) are no longer named on the map unless chosen or found.
+- On a phone the sidebar and the card open as sheets over the foot of the map.
+
 ### The launcher's menus, and the observer's tooltips
 
 - The launcher's main menu is in sections, **Simulation**, **Set up**, **Inspect** and **Help**, with Exit

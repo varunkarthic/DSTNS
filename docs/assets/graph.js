@@ -28,7 +28,7 @@
   ];
   var groupOfRel = {};
   GROUPS.forEach(function (g) { g.out.forEach(function (r) { groupOfRel[r] = g.key; }); });
-  var EXAMPLES = ["Where is the simulation engine?", "What calls seek", "Functions in the launcher", "Docs about weather", "What is inside App.tsx"];
+  var EXAMPLES = ["Where is the simulation engine?", "What calls snapshot", "Functions in the launcher", "Docs about weather", "What is inside App.tsx"];
 
   // Plain-language search, in the page: no model, no server. Words are split as code names are (camelCase, snake_case,
   // paths), lightly stemmed, widened by a thesaurus of DSTNS's own terms, matched with a little tolerance for typos, and
@@ -101,32 +101,46 @@
     (children || []).forEach(function (c) { if (c != null) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
     return e;
   }
+  // One family: a 24 grid, round ends and joins, drawn at 1.75. Each says what it is without a word beside it, and
+  // never has to: every button carries its name too.
   var PATHS = {
-    search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
-    plus: '<path d="M12 5v14M5 12h14"/>', minus: '<path d="M5 12h14"/>',
-    fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', close: '<path d="M6 6l12 12M18 6L6 18"/>',
+    search: '<circle cx="10.5" cy="10.5" r="6.25"/><path d="M15.2 15.2L20 20"/>',
+    plus: '<path d="M12 5.5v13M5.5 12h13"/>', minus: '<path d="M5.5 12h13"/>',
+    fit: '<path d="M4.5 9V6.5a2 2 0 0 1 2-2H9M15 4.5h2.5a2 2 0 0 1 2 2V9M19.5 15v2.5a2 2 0 0 1-2 2H15M9 19.5H6.5a2 2 0 0 1-2-2V15"/><circle cx="12" cy="12" r="2.25"/>',
+    close: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
     github: '<path d="M9 19c-4 1.3-4-2-6-2.5M15 21v-3.4a3 3 0 0 0-.8-2.3c2.8-.3 5.8-1.4 5.8-6.3a4.9 4.9 0 0 0-1.3-3.4 4.6 4.6 0 0 0-.1-3.4s-1.1-.3-3.5 1.3a12 12 0 0 0-6.2 0C6.5 2.4 5.4 2.7 5.4 2.7a4.6 4.6 0 0 0-.1 3.4A4.9 4.9 0 0 0 4 9.5c0 4.9 3 6 5.8 6.3a3 3 0 0 0-.8 2.2V21"/>',
-    filter: '<path d="M4 6h16M7 12h10M10 18h4"/>', link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
-    external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
-    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
-    class: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
-    function: '<path d="M9 20c2 0 2.5-2 3-5l1.2-6c.5-2.5 1.2-4 3.3-4M8 11h7"/>',
-    section: '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M9 9h6M9 13h6"/>',
-    document: '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/>',
-    concept: '<circle cx="12" cy="10" r="5"/><path d="M10 17h4M10.5 20h3"/>',
-    other: '<path d="M8 7l-4 5 4 5M16 7l4 5-4 5"/>',
-    box: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/>',
-    call: '<path d="M5 12h12M13 7l5 5-5 5"/>', import: '<path d="M12 4v12M7 11l5 5 5-5M5 20h14"/>',
-    inherit: '<path d="M6 4v8a4 4 0 0 0 4 4h8M14 12l4 4-4 4"/>', ref: '<path d="M7 7h10v10H7z" /><path d="M10 10h4M10 14h4"/>',
-    spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>',
-    palette: '<circle cx="12" cy="12" r="8.5"/><circle cx="8.5" cy="10" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="15.5" cy="10" r="1.2"/><path d="M12 20.5a2.5 2.5 0 0 1 0-5h1.5a2 2 0 0 0 2-2"/>',
-    help: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.7M12 17h.01"/>',
-    download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', history: '<path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5M4 4v4.5h4.5M12 8v4l3 2"/>',
-    copy: '<rect x="8" y="8" width="11" height="11" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/>',
-    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', enter: '<path d="M19 6v5a3 3 0 0 1-3 3H6M10 10l-4 4 4 4"/>', group: '<circle cx="8" cy="9" r="3.5"/><circle cx="16" cy="9" r="3.5"/><circle cx="12" cy="16" r="3.5"/>',
+    link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+    external: '<path d="M13.5 4.5h6v6M19.5 4.5L11 13M17.5 14v4a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8A1.5 1.5 0 0 1 6 6.5h4"/>',
+    // Kinds of thing: a page with a folded corner, a block, a function's f, a page of lines, a bare page, a bulb, a tag.
+    file: '<path d="M13.5 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8.5z"/><path d="M13.5 3.5v5h5"/>',
+    class: '<path d="M12 3.5l7.5 4.25v8.5L12 20.5l-7.5-4.25v-8.5z"/><path d="M4.5 7.75L12 12l7.5-4.25M12 12v8.5"/>',
+    function: '<path d="M8.5 19.5c1.8 0 2.4-1.4 2.8-3.6l1.6-8.3c.4-2.1 1.2-3.1 3.1-3.1M8 10.5h7.5"/>',
+    section: '<path d="M6 4.5h9.5a2.5 2.5 0 0 1 2.5 2.5v12.5H8.5A2.5 2.5 0 0 1 6 17z"/><path d="M9.5 9h5M9.5 12.5h5M9.5 16h3"/>',
+    document: '<path d="M6 4.5h9.5a2.5 2.5 0 0 1 2.5 2.5v12.5H8.5A2.5 2.5 0 0 1 6 17z"/><path d="M6 17a2.5 2.5 0 0 1 2.5-2.5H18"/>',
+    concept: '<path d="M9.5 17.5h5M10.25 20.5h3.5"/><path d="M12 3.5a5.5 5.5 0 0 0-3.2 10c.5.4.7.9.7 1.5v.5h5V15c0-.6.2-1.1.7-1.5A5.5 5.5 0 0 0 12 3.5z"/>',
+    other: '<path d="M8.5 7L4 12l4.5 5M15.5 7L20 12l-4.5 5"/>',
+    // Kinds of link.
+    box: '<rect x="4" y="4" width="16" height="16" rx="3"/><rect x="8.5" y="8.5" width="7" height="7" rx="1.5"/>',
+    call: '<path d="M4.5 12h13M13 7l5 5-5 5"/>', import: '<path d="M12 4.5v11M7.5 11l4.5 4.5 4.5-4.5M5.5 19.5h13"/>',
+    inherit: '<path d="M6.5 4.5v7a4 4 0 0 0 4 4h8M15 12l3.5 3.5L15 19"/>',
+    ref: '<path d="M6.5 18.5h11M8 14.5l3-9.5h2l3 9.5M9.2 11h5.6"/>',
+    // The sidebar, its tabs and the map's controls.
+    graph: '<circle cx="6" cy="7" r="2.25"/><circle cx="18" cy="6" r="2.25"/><circle cx="12" cy="17.5" r="2.75"/><circle cx="18.5" cy="15" r="1.5"/><path d="M8 8l2.8 7.4M16 7.3l-2.9 8.1M8.2 7l7.6-.8M15 16.9l2.2-1.2"/>',
+    compass: '<circle cx="12" cy="12" r="8.25"/><path d="M15.2 8.8l-1.9 4.5-4.5 1.9 1.9-4.5z"/>',
+    sliders: '<path d="M4.5 7.5h7M15.5 7.5h4M4.5 16.5h3M11.5 16.5h8"/><circle cx="13.5" cy="7.5" r="2"/><circle cx="9.5" cy="16.5" r="2"/>',
+    book: '<path d="M12 6.5c-1.8-1.4-4.3-2-7.5-2v13c3.2 0 5.7.6 7.5 2 1.8-1.4 4.3-2 7.5-2v-13c-3.2 0-5.7.6-7.5 2zM12 6.5v13"/>',
+    sidebar: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/>',
+    tag: '<path d="M4.5 12.4V5.9c0-.8.6-1.4 1.4-1.4h6.5l7.1 7.1a1.4 1.4 0 0 1 0 2l-5.1 5.1a1.4 1.4 0 0 1-2 0z"/><circle cx="8.75" cy="8.75" r="1.25"/>',
+    arrow: '<path d="M5 12h13.5M13.5 7l5 5-5 5"/>',
+    spark: '<path d="M12 4l1.6 4.9a2 2 0 0 0 1.3 1.3L20 12l-5.1 1.8a2 2 0 0 0-1.3 1.3L12 20l-1.6-4.9a2 2 0 0 0-1.3-1.3L4 12l5.1-1.8a2 2 0 0 0 1.3-1.3z"/>',
+    download: '<path d="M12 4.5v10.5M7.5 10.5L12 15l4.5-4.5M5.5 19.5h13"/>',
+    history: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9M4.5 4.5V9H9M12 8.5V12l2.75 1.75"/>',
+    copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V7a2.5 2.5 0 0 0-2.5-2.5H7A2.5 2.5 0 0 0 4.5 7v6A2.5 2.5 0 0 0 7 15.5h1.5"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', enter: '<path d="M19 5.5V11a3 3 0 0 1-3 3H6M10 10l-4 4 4 4"/>',
+    group: '<circle cx="8" cy="9" r="3.25"/><circle cx="16" cy="9" r="3.25"/><circle cx="12" cy="16" r="3.25"/>',
   };
   function icon(name, size) {
-    return '<svg viewBox="0 0 24 24" width="' + (size || 16) + '" height="' + (size || 16) + '" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + (PATHS[name] || "") + "</svg>";
+    return '<svg viewBox="0 0 24 24" width="' + (size || 16) + '" height="' + (size || 16) + '" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">' + (PATHS[name] || "") + "</svg>";
   }
   var quiet = function () { return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; };
   var store = {
@@ -321,35 +335,48 @@
     var shownNode = new Uint8Array(count), shownEdge = new Uint8Array(edgeCount), near = new Uint8Array(count), matched = new Uint8Array(count), matching = false, shownCount = count;
     var version = 0; // changes whenever what the base layer draws changes
 
-    // ---- the page ----
+    // ---- the page: a sidebar to search and explore from, the map, its controls, and the card ----
     var canvas = el("canvas", { class: "dg-canvas", "aria-label": "The knowledge graph. Use the search to find something, or choose a dot.", role: "img" });
-    var input = el("input", { class: "dg-search-input", type: "search", placeholder: "Search the code and docs, or ask: what calls seek?", "aria-label": "Search the graph in plain words", autocomplete: "off", spellcheck: "false", role: "combobox", "aria-expanded": "false", "aria-controls": "dg-results", "aria-autocomplete": "list" });
+    var input = el("input", { class: "dg-search-input", type: "search", placeholder: "Search, or ask: what calls snapshot?", "aria-label": "Search the graph in plain words", autocomplete: "off", spellcheck: "false", role: "combobox", "aria-expanded": "false", "aria-controls": "dg-results", "aria-autocomplete": "list" });
     var clear = el("button", { class: "dg-clear", type: "button", "aria-label": "Clear the search", hidden: true, html: icon("close", 14) });
     var results = el("div", { class: "dg-results", id: "dg-results", hidden: true });
-    var searchBox = el("div", { class: "dg-search" }, [el("span", { class: "dg-search-icon", html: icon("search", 18) }), input, clear, el("kbd", { class: "dg-key", text: "/" }), results]);
+    var searchBox = el("div", { class: "dg-search" }, [el("span", { class: "dg-search-icon", html: icon("search", 17) }), input, clear, el("kbd", { class: "dg-key", text: "/" })]);
 
-    var brand = el("div", { class: "dg-brand" }, [
-      el("strong", { text: "Knowledge graph" }),
-      el("span", { class: "dg-counts" }, [el("b", { class: "dg-shown", text: count.toLocaleString() }), " items · " + edgeCount.toLocaleString() + " links"]),
+    var collapse = el("button", { type: "button", class: "dg-icon-btn dg-collapse", "aria-label": "Hide the sidebar", title: "Hide the sidebar", html: icon("sidebar", 18) });
+    var head = el("header", { class: "dg-side-head" }, [
+      el("span", { class: "dg-mark", html: icon("graph", 20) }),
+      el("div", { class: "dg-brand" }, [
+        el("strong", { text: "Knowledge graph" }),
+        el("span", { class: "dg-counts" }, [el("b", { class: "dg-shown", text: count.toLocaleString() }), " of " + count.toLocaleString() + " items · " + edgeCount.toLocaleString() + " links"]),
+      ]),
+      collapse,
     ]);
-    var repo = el("a", { class: "dg-button dg-repo", href: "https://github.com/" + data.repo + "/tree/" + data.commit, target: "_blank", rel: "noopener", title: "The source this graph was built from, at commit " + data.commit.slice(0, 7), html: icon("github") + "<span>" + data.repo.split("/").pop() + "</span><code>" + data.commit.slice(0, 7) + "</code>" });
-    var skill = el("a", { class: "dg-button", href: "../downloads/dstns-graph-skill.zip", download: "dstns-graph-skill.zip", title: "A Claude skill that asks this graph: where things are, what calls what, what depends on what", html: icon("download") + "<span>Claude skill</span>" });
-    var actions = el("div", { class: "dg-actions-top" }, [skill, repo]);
+    var TABS = [["explore", "Explore", "compass"], ["filters", "Filters", "sliders"], ["guide", "Guide", "book"]];
+    var badge = el("span", { class: "dg-badge", hidden: true, "aria-label": "Filters are on" });
+    var tabButtons = TABS.map(function (t) {
+      var b = el("button", { type: "button", role: "tab", class: "dg-tab", "data-tab": t[0], "aria-controls": "dg-pane", html: icon(t[2], 16) + "<span>" + t[1] + "</span>" });
+      if (t[0] === "filters") b.appendChild(badge);
+      b.addEventListener("click", function () { showTab(t[0]); });
+      return b;
+    });
+    var tabBar = el("nav", { class: "dg-tabbar", role: "tablist", "aria-label": "Sidebar" }, tabButtons);
+    var pane = el("div", { class: "dg-pane", id: "dg-pane", role: "tabpanel" });
+    var repo = el("a", { class: "dg-foot-link", href: "https://github.com/" + data.repo + "/tree/" + data.commit, target: "_blank", rel: "noopener", title: "The source this graph was built from", html: icon("github", 16) + "<span>Source</span><code>" + data.commit.slice(0, 7) + "</code>" });
+    var skill = el("a", { class: "dg-foot-link", href: "../downloads/dstns-graph-skill.zip", download: "dstns-graph-skill.zip", title: "A Claude skill that asks this graph: where things are, what calls what, what depends on what", html: icon("download", 16) + "<span>Claude skill</span>" });
+    var side = el("aside", { class: "dg-side", "aria-label": "Search and explore" }, [head, searchBox, results, tabBar, pane, el("footer", { class: "dg-side-foot" }, [skill, repo])]);
+    var reopen = el("button", { type: "button", class: "dg-reopen", "aria-label": "Show the sidebar", html: icon("sidebar", 18) + "<span>Search and explore</span>", hidden: true });
 
-    var dockButton = function (name, label, iconName) { return el("button", { type: "button", class: "dg-dock-btn", "aria-label": label, title: label, "data-panel": name, html: icon(iconName, 18) }); };
-    var filterBtn = dockButton("filters", "Filters", "filter"), keyBtn = dockButton("key", "Colours", "palette"), helpBtn = dockButton("help", "How to use it", "help");
-    var zoomIn = dockButton("", "Zoom in", "plus"), zoomOut = dockButton("", "Zoom out", "minus"), fitButton = dockButton("", "Show everything", "fit");
-    var badge = el("span", { class: "dg-badge", hidden: true });
-    filterBtn.appendChild(badge);
-    var dock = el("nav", { class: "dg-dock", "aria-label": "Graph tools" }, [filterBtn, keyBtn, helpBtn, el("i", { class: "dg-dock-sep" }), zoomIn, zoomOut, fitButton]);
-    var sheet = el("aside", { class: "dg-sheet", "aria-label": "Graph tools", hidden: true });
+    var control = function (label, iconName) { return el("button", { type: "button", class: "dg-ctl", "aria-label": label, title: label, html: icon(iconName, 18) }); };
+    var zoomOut = control("Zoom out", "minus"), zoomIn = control("Zoom in", "plus"), fitButton = control("Show everything", "fit");
+    var labelsButton = control("Names on the map", "tag");
+    var controls = el("div", { class: "dg-controls", role: "toolbar", "aria-label": "Map" }, [zoomOut, zoomIn, fitButton, el("i", { class: "dg-ctl-sep" }), labelsButton]);
     var details = el("aside", { class: "dg-details", "aria-label": "About the chosen item", hidden: true });
     var tip = el("div", { class: "dg-tip", hidden: true, "aria-hidden": "true" });
-    var hint = el("div", { class: "dg-hint", text: "Drag to move · scroll to zoom · choose a dot to see what it is" });
+    var hint = el("div", { class: "dg-hint", text: "Drag to move · scroll to zoom · choose a dot" });
     var live = el("div", { class: "dg-live", "aria-live": "polite" });
-    root.append(canvas, el("div", { class: "dg-top" }, [brand, searchBox, actions]), dock, sheet, details, tip, hint, live);
+    root.append(canvas, side, reopen, controls, details, tip, hint, live);
 
-    // ---- filters, colours and help: one sheet beside the dock ----
+    // ---- what the sidebar shows: explore, filters and the guide ----
     function tally(list, of) { var c = {}; list.forEach(function (v) { c[v] = 0; }); for (var i = 0; i < count; i++) c[of(i)] = (c[of(i)] || 0) + 1; return c; }
     var areaCount = tally(data.areas, areaOf), sortCount = tally(sorts, sortOf);
     var groupCount = {}; ALL_GROUPS.forEach(function (g) { groupCount[g] = 0; }); for (e = 0; e < edgeCount; e++) groupCount[groupOf(e)]++;
@@ -359,122 +386,127 @@
       { name: "Docs", areas: ["docs", "Concepts", "Other"], sorts: sorts },
     ];
     var same = function (set, list) { return set.size === list.length && list.every(function (v) { return set.has(v); }); };
-    var openSheet = "";
+    var tab = store.get("tab", "explore"), sideOpen = store.get("side", window.innerWidth > 900);
     function chip(text, on, onclick, mark, n) {
       return el("button", { type: "button", class: "dg-chip", "aria-pressed": String(on), onclick: onclick }, [mark || null, el("span", { text: text }), n != null ? el("small", { text: n.toLocaleString() }) : null]);
     }
-    function flip(set, v) { if (set.has(v)) set.delete(v); else set.add(v); refilter(); renderSheet(); }
-    function section(title, body, aside) { return el("section", { class: "dg-sheet-section" }, [el("div", { class: "dg-sheet-title" }, [el("span", { text: title }), aside || null]), body]); }
-    var folder = el("input", { class: "dg-field", type: "search", placeholder: "For example Core/src or WebKit/src", "aria-label": "Only inside a folder", spellcheck: "false" });
+    function flip(set, v) { if (set.has(v)) set.delete(v); else set.add(v); refilter(); renderPane(); }
+    function section(title, body, aside) { return el("section", { class: "dg-section" }, [el("h3", { class: "dg-section-title" }, [el("span", { text: title }), aside || null]), body]); }
+    var folder = el("input", { class: "dg-field", type: "search", placeholder: "For example Core/src", "aria-label": "Only inside a folder", spellcheck: "false" });
     folder.addEventListener("input", function () { state.folder = folder.value.trim().toLowerCase().replace(/^\.?\//, ""); refilter(); });
+    function renderExplore() {
+      var biggest = Math.max.apply(null, data.areas.map(function (v) { return areaCount[v] || 0; }));
+      var parts = el("ul", { class: "dg-parts" }, data.areas.filter(function (v) { return areaCount[v]; }).sort(function (p, q) { return areaCount[q] - areaCount[p]; }).map(function (v) {
+        var solo = state.areas.size === 1 && state.areas.has(v), off = !state.areas.has(v);
+        return el("li", {}, [el("button", { type: "button", class: "dg-part" + (off ? " off" : ""), "aria-pressed": String(solo), title: solo ? "Show every part again" : "Show only " + (AREA_NAMES[v] || v), onclick: function () { state.areas = solo ? new Set(data.areas) : new Set([v]); refilter(); renderPane(); } }, [
+          el("i", { class: "dg-dot", style: "--c:" + (COLOURS[v] || "#a9b6c2") }),
+          el("span", { class: "dg-part-name", text: AREA_NAMES[v] || v }),
+          el("span", { class: "dg-part-bar", style: "--w:" + Math.max(3, Math.round(areaCount[v] / biggest * 100)) + "%;--c:" + (COLOURS[v] || "#a9b6c2") }),
+          el("small", { text: areaCount[v].toLocaleString() }),
+        ])]);
+      }));
+      var tries = el("ul", { class: "dg-asks" }, EXAMPLES.map(function (x) {
+        return el("li", {}, [el("button", { type: "button", class: "dg-ask", onclick: function () { ask(x); } }, [el("span", { class: "dg-ask-icon", html: icon("spark", 15) }), el("span", { text: x }), el("span", { class: "dg-ask-go", html: icon("arrow", 15) })])]);
+      }));
+      var kinds = el("ul", { class: "dg-shapes" }, SORT_ORDER.filter(function (v) { return sortCount[v]; }).map(function (v) {
+        return el("li", {}, [el("span", { class: "dg-kind plain", html: icon(v, 15) }), el("span", { text: SORT_PLURAL[v] }), el("small", { text: sortCount[v].toLocaleString() })]);
+      }));
+      return [
+        el("p", { class: "dg-lede", text: "Every file, class, function and page of DSTNS. Things that work together sit together; a line means one uses, calls, holds or mentions the other." }),
+        section("Parts of DSTNS", parts, el("small", { text: "choose one to see only it" })),
+        section("Try asking", tries),
+        section("Kinds of thing", kinds),
+      ];
+    }
     function renderFilters() {
       var view = el("div", { class: "dg-seg", role: "radiogroup", "aria-label": "What to show" }, VIEWS.map(function (v) {
         var on = same(state.areas, v.areas) && same(state.sorts, v.sorts);
-        return el("button", { type: "button", role: "radio", "aria-checked": String(on), text: v.name, onclick: function () { state.areas = new Set(v.areas); state.sorts = new Set(v.sorts); refilter(); renderSheet(); } });
+        return el("button", { type: "button", role: "radio", "aria-checked": String(on), text: v.name, onclick: function () { state.areas = new Set(v.areas); state.sorts = new Set(v.sorts); refilter(); renderPane(); } });
       }));
       var kinds = el("div", { class: "dg-chips" }, SORT_ORDER.filter(function (v) { return sortCount[v]; }).map(function (v) {
-        return chip(SORT_PLURAL[v], state.sorts.has(v), function () { flip(state.sorts, v); }, el("span", { class: "dg-chip-icon", html: icon(v, 13) }), sortCount[v]);
+        return chip(SORT_PLURAL[v], state.sorts.has(v), function () { flip(state.sorts, v); }, el("span", { class: "dg-chip-icon", html: icon(v, 14) }), sortCount[v]);
       }));
       var parts = el("div", { class: "dg-chips" }, data.areas.filter(function (v) { return areaCount[v]; }).map(function (v) {
         return chip(AREA_NAMES[v] || v, state.areas.has(v), function () { flip(state.areas, v); }, el("i", { class: "dg-dot", style: "--c:" + (COLOURS[v] || "#a9b6c2") }), areaCount[v]);
       }));
       var links = el("div", { class: "dg-chips" }, ALL_GROUPS.filter(function (g) { return groupCount[g]; }).map(function (g) {
         var G = GROUPS.find(function (x) { return x.key === g; });
-        return chip(G ? G.name : "Other links", state.groups.has(g), function () { flip(state.groups, g); }, el("span", { class: "dg-chip-icon", html: icon(G ? G.icon : "link", 13) }), groupCount[g]);
+        return chip(G ? G.name : "Other links", state.groups.has(g), function () { flip(state.groups, g); }, el("span", { class: "dg-chip-icon", html: icon(G ? G.icon : "link", 14) }), groupCount[g]);
       }));
       var degree = el("input", { type: "range", min: "0", max: "20", value: String(state.minDegree), "aria-label": "Hide items with fewer links than this" });
       var degreeSays = el("output", { text: state.minDegree ? "At least " + state.minDegree + " links" : "Showing all" });
       degree.addEventListener("input", function () { state.minDegree = Number(degree.value); degreeSays.textContent = state.minDegree ? "At least " + state.minDegree + " links" : "Showing all"; refilter(); });
       var toggle = function (text, key) {
         var c = el("input", { type: "checkbox", role: "switch", checked: state[key] });
-        c.addEventListener("change", function () { state[key] = c.checked; store.set(key, c.checked); version++; draw(); });
+        c.addEventListener("change", function () { state[key] = c.checked; store.set(key, c.checked); version++; renderControls(); draw(); });
         return el("label", { class: "dg-switch" }, [el("span", { text: text }), c]);
       };
       return [
-        el("header", { class: "dg-sheet-head" }, [el("strong", { text: "Filters" }), el("span", { class: "dg-sheet-count", text: shownCount.toLocaleString() + " of " + count.toLocaleString() + " shown" })]),
+        el("div", { class: "dg-pane-head" }, [el("span", { class: "dg-pane-count", text: shownCount.toLocaleString() + " of " + count.toLocaleString() + " shown" }),
+          el("button", { type: "button", class: "dg-reset", disabled: isFresh(), html: icon("history", 14) + "<span>Reset</span>", onclick: function () { Object.assign(state, fresh()); folder.value = ""; refilter(); renderPane(); } })]),
         section("Show", view),
         section("Kinds of thing", kinds),
         section("Parts of DSTNS", parts),
-        section("Only inside a folder", folder),
         section("Kinds of link", links),
+        section("Only inside a folder", folder),
         section("Quiet items", el("label", { class: "dg-range" }, [degree, degreeSays])),
         section("On the map", el("div", { class: "dg-switches" }, [toggle("Names", "labels"), toggle("Curved links", "curves")])),
-        el("button", { type: "button", class: "dg-button dg-reset", disabled: isFresh(), html: icon("history", 15) + "<span>Reset filters</span>", onclick: function () { Object.assign(state, fresh()); folder.value = ""; refilter(); renderSheet(); } }),
       ];
     }
-    function renderKey() {
+    function renderGuide() {
+      var keyRow = function (keys, says) { return el("li", {}, [el("span", { class: "dg-keys" }, keys.map(function (k) { return el("kbd", { text: k }); })), el("span", { text: says })]); };
       return [
-        el("header", { class: "dg-sheet-head" }, [el("strong", { text: "What the colours mean" })]),
-        el("p", { class: "dg-sheet-note", text: "Each dot is one file, class, function or page. Its colour is the part of DSTNS it belongs to; a bigger dot has more links. Choose a colour to see only that part, and choose it again to see everything." }),
-        el("ul", { class: "dg-key-list" }, data.areas.filter(function (v) { return areaCount[v]; }).map(function (v) {
-          var solo = state.areas.size === 1 && state.areas.has(v);
-          return el("li", {}, [el("button", { type: "button", "aria-pressed": String(solo), onclick: function () { state.areas = solo ? new Set(data.areas) : new Set([v]); refilter(); renderSheet(); } }, [
-            el("i", { class: "dg-dot", style: "--c:" + (COLOURS[v] || "#a9b6c2") }), el("span", { text: AREA_NAMES[v] || v }), el("small", { text: areaCount[v].toLocaleString() }),
-          ])]);
-        })),
-        el("div", { class: "dg-sheet-title" }, [el("span", { text: "Shapes" })]),
-        el("ul", { class: "dg-key-list dg-key-kinds" }, SORT_ORDER.filter(function (v) { return sortCount[v]; }).map(function (v) {
-          return el("li", {}, [el("span", { class: "dg-key-kind" }, [el("span", { class: "dg-chip-icon", html: icon(v, 14) }), el("span", { text: SORT_PLURAL[v] })])]);
-        })),
-      ];
-    }
-    function renderHelp() {
-      var row = function (keys, says) { return el("li", {}, [el("span", { class: "dg-keys" }, keys.map(function (k) { return el("kbd", { text: k }); })), el("span", { text: says })]); };
-      return [
-        el("header", { class: "dg-sheet-head" }, [el("strong", { text: "How to use it" })]),
-        el("p", { class: "dg-sheet-note", text: "This is a map of DSTNS's source and documentation. Things that work together sit close together, and a line between two dots means one uses, calls, holds or mentions the other." }),
+        el("p", { class: "dg-lede", text: "A map of DSTNS's source and documentation, read from the repository when this site was built." }),
         el("ol", { class: "dg-steps" }, [
-          el("li", { text: "Search in plain words: a name, a topic, or a question such as “what calls seek”." }),
-          el("li", { text: "Choose a result or a dot. The card on the right says what it is, where it is, and what it is linked to." }),
-          el("li", { text: "Open it on GitHub at the exact line, or follow a link in the card to the next thing." }),
+          el("li", {}, [el("b", { text: "Search in plain words." }), " A name, a topic, or a question such as “what calls snapshot” or “functions in the launcher”."]),
+          el("li", {}, [el("b", { text: "Choose a result or a dot." }), " The card says what it is, where it is, and what it is linked to."]),
+          el("li", {}, [el("b", { text: "Follow it." }), " Open it on GitHub at the exact line, or choose a link in the card to go to the next thing."]),
         ]),
-        el("div", { class: "dg-sheet-title" }, [el("span", { text: "Try" })]),
-        el("div", { class: "dg-chips" }, EXAMPLES.map(function (x) { return el("button", { type: "button", class: "dg-chip", text: x, onclick: function () { ask(x); } }); })),
-        el("div", { class: "dg-sheet-title" }, [el("span", { text: "Keys" })]),
-        el("ul", { class: "dg-key-list dg-help-keys" }, [row(["/"], "Search"), row(["↑", "↓"], "Move through the results"), row(["↵"], "Open the highlighted result"), row(["Esc"], "Close the card or the search"), row(["+", "−"], "Zoom"), row(["0"], "Show everything")]),
+        section("Questions it understands", el("ul", { class: "dg-grammar" }, [
+          ["what calls X", "callers"], ["what does X call", "callees"], ["what depends on X", "users of a file"], ["what is inside X", "its members"], ["in:launcher type:class", "narrow a search"],
+        ].map(function (g) { return el("li", {}, [el("code", { text: g[0] }), el("span", { text: g[1] })]); }))),
+        section("Keys", el("ul", { class: "dg-help-keys" }, [keyRow(["/"], "Search"), keyRow(["↑", "↓"], "Move through the results"), keyRow(["↵"], "Open the highlighted result"), keyRow(["Esc"], "Close the card or the search"), keyRow(["+", "−"], "Zoom"), keyRow(["0"], "Show everything")])),
       ];
     }
     function isFresh() { var f = fresh(); return state.folder === "" && state.minDegree === 0 && same(state.areas, data.areas) && same(state.sorts, sorts) && state.groups.size === f.groups.size; }
-    function renderSheet() {
-      [filterBtn, keyBtn, helpBtn].forEach(function (b) { b.setAttribute("aria-expanded", String(b.dataset.panel === openSheet)); b.classList.toggle("on", b.dataset.panel === openSheet); });
-      var changed = !isFresh();
-      badge.hidden = !changed;
-      if (typeof legend !== "undefined") legend.hidden = !!openSheet;
-      if (!openSheet) { sheet.classList.remove("open"); sheet.hidden = true; return; }
-      var scroll = sheet.scrollTop, hadFocus = document.activeElement === folder;
-      var focused = sheet.contains(document.activeElement) && document.activeElement.tagName === "BUTTON" ? document.activeElement.textContent : null;
-      sheet.replaceChildren.apply(sheet, openSheet === "filters" ? renderFilters() : openSheet === "key" ? renderKey() : renderHelp());
-      // A chip pressed from the keyboard keeps the focus once the sheet is drawn again.
-      if (focused) Array.prototype.some.call(sheet.querySelectorAll("button"), function (b) { if (b.textContent === focused) { b.focus({ preventScroll: true }); return true; } });
-      sheet.setAttribute("aria-label", openSheet === "filters" ? "Filters" : openSheet === "key" ? "What the colours mean" : "How to use it");
-      sheet.hidden = false;
-      sheet.scrollTop = scroll;
+    function renderPane() {
+      tabButtons.forEach(function (b) { var on = b.dataset.tab === tab; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
+      badge.hidden = isFresh();
+      var scroll = pane.scrollTop, hadFocus = document.activeElement === folder;
+      var focused = pane.contains(document.activeElement) && document.activeElement.tagName === "BUTTON" ? document.activeElement.textContent : null;
+      pane.replaceChildren.apply(pane, tab === "filters" ? renderFilters() : tab === "guide" ? renderGuide() : renderExplore());
+      // A chip pressed from the keyboard keeps the focus once the pane is drawn again.
+      if (focused) Array.prototype.some.call(pane.querySelectorAll("button"), function (b) { if (b.textContent === focused) { b.focus({ preventScroll: true }); return true; } });
+      pane.setAttribute("aria-label", TABS.find(function (t) { return t[0] === tab; })[1]);
+      pane.scrollTop = scroll;
       if (hadFocus) folder.focus();
-      requestAnimationFrame(function () { sheet.classList.add("open"); });
     }
-    // What the colours mean, always at hand at the foot of the map while no sheet is open; it opens the full key.
-    var legend = el("button", { type: "button", class: "dg-legend", "aria-label": "What the colours mean", title: "What the colours mean" },
-      data.areas.filter(function (v) { return areaCount[v]; }).sort(function (p, q) { return areaCount[q] - areaCount[p]; }).slice(0, 6).map(function (v) {
-        return el("span", { class: "dg-legend-item" }, [el("i", { class: "dg-dot", style: "--c:" + (COLOURS[v] || "#a9b6c2") }), el("span", { text: AREA_NAMES[v] || v })]);
-      }));
-    legend.addEventListener("click", function () { toggleSheet("key"); });
-    root.appendChild(legend);
-    function toggleSheet(name) {
-      var was = openSheet;
-      openSheet = openSheet === name ? "" : name;
-      if (was && openSheet && was !== openSheet) sheet.classList.remove("open");
-      renderSheet();
+    function showTab(name) { if (tab !== name) pane.scrollTop = 0; tab = name; store.set("tab", name); renderPane(); }
+    tabBar.addEventListener("keydown", function (ev) {
+      var at0 = TABS.findIndex(function (t) { return t[0] === tab; }), to = ev.key === "ArrowRight" ? at0 + 1 : ev.key === "ArrowLeft" ? at0 - 1 : null;
+      if (to == null) return;
+      ev.preventDefault(); showTab(TABS[(to + TABS.length) % TABS.length][0]); tabButtons[TABS.findIndex(function (t) { return t[0] === tab; })].focus();
+    });
+    function setSide(open) {
+      sideOpen = open; store.set("side", open);
+      side.classList.toggle("closed", !open); reopen.hidden = open;
+      side.toggleAttribute("inert", !open);
+      if (open) collapse.focus({ preventScroll: true }); else reopen.focus({ preventScroll: true });
     }
-    [filterBtn, keyBtn, helpBtn].forEach(function (b) { b.addEventListener("click", function () { toggleSheet(b.dataset.panel); }); });
+    collapse.addEventListener("click", function () { setSide(false); });
+    reopen.addEventListener("click", function () { setSide(true); });
+    function renderControls() { labelsButton.setAttribute("aria-pressed", String(state.labels)); labelsButton.title = state.labels ? "Hide names on the map" : "Show names on the map"; }
+    labelsButton.addEventListener("click", function () { state.labels = !state.labels; store.set("labels", state.labels); renderControls(); if (tab === "filters") renderPane(); version++; draw(); });
 
     function refilter() {
       shownCount = 0;
       for (var i = 0; i < count; i++) { shownNode[i] = state.areas.has(areaOf(i)) && state.sorts.has(sortOf(i)) && N.degree[i] >= state.minDegree && (!state.folder || fileOf(i).toLowerCase().indexOf(state.folder) === 0) ? 1 : 0; shownCount += shownNode[i]; }
       for (var k = 0; k < edgeCount; k++) shownEdge[k] = shownNode[E[k * 3]] && shownNode[E[k * 3 + 1]] && state.groups.has(groupOf(k)) ? 1 : 0;
       root.querySelector(".dg-shown").textContent = shownCount.toLocaleString();
-      var countLine = sheet.querySelector(".dg-sheet-count");
+      var countLine = pane.querySelector(".dg-pane-count");
       if (countLine) countLine.textContent = shownCount.toLocaleString() + " of " + count.toLocaleString() + " shown";
       badge.hidden = isFresh();
+      var reset = pane.querySelector(".dg-reset"); if (reset) reset.disabled = isFresh();
       neighbourhood();
       if (input.value.trim()) search(true);
       version++;
@@ -487,10 +519,11 @@
     var at = function (list, q) { return list[Math.min(list.length - 1, Math.max(0, Math.round(q * (list.length - 1))))]; };
     var minX = at(sortedX, 0.01), maxX = at(sortedX, 0.99), minY = at(sortedY, 0.01), maxY = at(sortedY, 0.99);
     function fitView(x0, x1, y0, y1, pad) {
-      var left = dock.offsetWidth + 24 + (sheet.hidden ? 0 : sheet.offsetWidth + 12), right = details.hidden ? 0 : details.offsetWidth + 24, topRoom = 84;
-      var w = Math.max(80, W - left - right - 24), h = Math.max(80, H - topRoom - 48);
+      // The room the sidebar and the card leave; on a phone they lie over the foot of the map instead.
+      var phone = W <= 900, left = !phone && sideOpen ? side.offsetWidth + 28 : 16, right = !phone && !details.hidden ? details.offsetWidth + 28 : 16, topRoom = 16, foot = phone ? 90 : 72;
+      var w = Math.max(80, W - left - right), h = Math.max(80, H - topRoom - foot);
       var s = Math.min(w / Math.max(1, x1 - x0), h / Math.max(1, y1 - y0)) / (pad || 1.1);
-      return { s: Math.min(s, 6), x: (x0 + x1) / 2 - (left - right) / 2 / s, y: (y0 + y1) / 2 - (topRoom - 48) / 2 / s };
+      return { s: Math.min(s, 6), x: (x0 + x1) / 2 - (left - right) / 2 / s, y: (y0 + y1) / 2 - (topRoom - foot) / 2 / s };
     }
     function glide(to) {
       if (quiet()) { cam = to; version++; draw(); return; }
@@ -538,6 +571,11 @@
       }
       return best;
     }
+    // A name read at a glance: not a standard type or a symbol borrowed from elsewhere ("string", "json"), which are
+    // named only when chosen or found.
+    var COMMON = new Set("string int bool void json map vector array list set dict object number any char float double size_t uint8_t u8 u16 u32 u64 i32 i64 f32 f64 usize str self this value result option error none".split(" "));
+    var worthNaming = new Uint8Array(count);
+    for (var w0 = 0; w0 < count; w0++) worthNaming[w0] = sortOf(w0) !== "other" && shortName[w0].length > 2 && !COMMON.has(shortName[w0].toLowerCase().replace(/[^a-z0-9_]/g, "")) ? 1 : 0;
     // Each community is tinted by the part of DSTNS most of it belongs to.
     var tint = {};
     (function () {
@@ -615,7 +653,7 @@
       if (cam.s >= 1.3 || focus || matching) {
         c.font = "500 11px Inter, system-ui, sans-serif";
         var order = [];
-        for (var n = 0; n < count; n++) if (shownNode[n] && inView(n, 0) && (cam.s >= 1.3 ? !focus || near[n] : near[n] || matched[n])) order.push(n);
+        for (var n = 0; n < count; n++) if (shownNode[n] && inView(n, 0) && (cam.s >= 1.3 ? !focus || near[n] : near[n] || matched[n]) && (worthNaming[n] || n === centre || matched[n])) order.push(n);
         order.sort(function (p, q) { return (q === centre) - (p === centre) || (near[q] - near[p]) || (matched[q] - matched[p]) || (N.degree[q] - N.degree[p]); });
         var drawn = 0;
         for (var o = 0; o < order.length && drawn < 160; o++) {
@@ -637,6 +675,8 @@
         c.font = "600 12px Inter, system-ui, sans-serif";
         data.communities.slice().sort(function (p, q) { return q.r - p.r; }).forEach(function (cm) {
           var p = toScreen(cm.x, cm.y); if (p[0] < -100 || p[0] > W + 100 || p[1] < -40 || p[1] > H + 40 || cm.r * cam.s < 14) return;
+          // A group named after a standard type says nothing about it: such groups are left unnamed.
+          if (cm.name.length < 3 || COMMON.has(cm.name.toLowerCase().replace(/[^a-z0-9_]/g, ""))) return;
           var name = cm.name.length > 28 ? cm.name.slice(0, 26) + "…" : cm.name, w = c.measureText(name).width + 20;
           if (!free(p[0] - w / 2, p[1] - 12, w, 24)) return;
           c.globalAlpha = matching ? 0.55 : 1;
@@ -807,7 +847,7 @@
     // ---- search ----
     var hits = [], active = -1, lastQuery = null;
     function remember(text) { var recent = store.get("recent", []).filter(function (x) { return x !== text; }); recent.unshift(text); store.set("recent", recent.slice(0, 5)); }
-    function ask(text) { input.value = text; openSheet = ""; renderSheet(); input.focus(); search(); }
+    function ask(text) { if (!sideOpen) setSide(true); input.value = text; input.focus(); search(); }
     function suggestions() {
       results.replaceChildren();
       hits = []; active = -1;
@@ -823,7 +863,7 @@
       results.appendChild(list);
       showResults(true);
     }
-    function showResults(on) { results.hidden = !on; input.setAttribute("aria-expanded", String(on)); searchBox.classList.toggle("open", on); }
+    function showResults(on) { results.hidden = !on; input.setAttribute("aria-expanded", String(on)); searchBox.classList.toggle("open", on); side.classList.toggle("searching", on); }
     function search(silent) {
       var text = input.value;
       clear.hidden = !text;
@@ -866,7 +906,7 @@
         ]);
       };
       if (!found.length) {
-        list.appendChild(el("li", { class: "dg-none", role: "presentation" }, [el("strong", { text: "Nothing found" }), el("span", { text: isFresh() ? "Try fewer words, another name, or one of the questions in Help." : "A filter may be hiding it. Reset the filters, or try other words." })]));
+        list.appendChild(el("li", { class: "dg-none", role: "presentation" }, [el("strong", { text: "Nothing found" }), el("span", { text: isFresh() ? "Try fewer words, another name, or one of the questions in Explore." : "A filter may be hiding it. Reset the filters, or try other words." })]));
       } else {
         list.appendChild(el("li", { class: "dg-hit-head", role: "presentation", text: q.relation ? "Answer" : "Best match" }));
         list.appendChild(option(found[0][1], true));
@@ -934,8 +974,8 @@
     document.addEventListener("keydown", function (ev) {
       if (!document.body.contains(root)) return;
       var typing = /input|textarea|select/i.test(document.activeElement.tagName);
-      if (ev.key === "/" && !typing) { ev.preventDefault(); input.focus(); }
-      else if (ev.key === "Escape" && !typing) { if (state.selected >= 0) select(-1); else if (openSheet) toggleSheet(openSheet); }
+      if (ev.key === "/" && !typing) { ev.preventDefault(); if (!sideOpen) setSide(true); input.focus(); }
+      else if (ev.key === "Escape" && !typing) { if (state.selected >= 0) select(-1); }
       else if (!typing && !ev.metaKey && !ev.ctrlKey && (ev.key === "+" || ev.key === "=")) zoomIn.click();
       else if (!typing && !ev.metaKey && !ev.ctrlKey && ev.key === "-") zoomOut.click();
       else if (!typing && !ev.metaKey && !ev.ctrlKey && ev.key === "0") fitButton.click();
@@ -994,12 +1034,14 @@
     new MutationObserver(function () { css = getComputedStyle(root); version++; draw(); }).observe(document.body, { attributes: true, attributeFilter: ["data-md-color-scheme"] });
     document.addEventListener("visibilitychange", function () { if (!document.hidden) draw(); });
     resize();
+    side.classList.toggle("closed", !sideOpen); reopen.hidden = sideOpen; side.toggleAttribute("inert", !sideOpen);
     refilter();
-    renderSheet();
+    renderControls();
     var wanted = /node=([^&]+)/.exec(location.hash), asked = /[?&]q=([^&]+)/.exec(location.search);
     var found0 = wanted ? N.id.indexOf(decodeURIComponent(wanted[1])) : -1;
-    // The welcome opens first, so the whole graph is framed beside it rather than behind it.
-    if (!store.get("welcomed", false) && found0 < 0 && !asked) { openSheet = "help"; renderSheet(); store.set("welcomed", true); }
+    // A first visit opens on the guide; the whole graph is framed beside the sidebar rather than behind it.
+    if (!store.get("welcomed", false) && found0 < 0 && !asked) { tab = "guide"; store.set("welcomed", true); }
+    renderPane();
     cam = fitView(minX, maxX, minY, maxY);
     if (found0 >= 0) select(found0, true);
     if (asked) { input.value = decodeURIComponent(asked[1].replace(/\+/g, " ")); search(true); }

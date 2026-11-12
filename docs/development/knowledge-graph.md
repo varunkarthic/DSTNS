@@ -11,22 +11,34 @@ it, and what depends on it, without reading the source first.
 | On the map | What it is |
 |---|---|
 | A dot | One item: a source file, a class, a function or method, a document or one of its sections, or an idea |
-| Its colour | The part of DSTNS it belongs to: the engine, Fabric, the daemons, the launcher, the observer, the documentation, tests, tools or configuration. **Colours** in the dock lists them |
+| Its colour | The part of DSTNS it belongs to: the engine, Fabric, the daemons, the launcher, the observer, the documentation, tests, tools or configuration. **Explore** in the sidebar lists them, each with its share |
 | Its size | How many links it has |
-| A tinted cloud | A group: items that link more among themselves than to the rest, named after their most central member |
+| A tinted cloud | A group: items that link more among themselves than to the rest, named after their most central member (a group named after a standard type, such as `string`, is left unnamed) |
 | A line | A link: one item holds, calls, depends on, builds on or mentions the other |
+
+## The page
+
+| Where | What is there |
+|---|---|
+| The sidebar, on the left | The search, then three tabs. **Explore**: the parts of DSTNS with how much of it each is (choose one to see only it), questions to try, and the kinds of thing. **Filters**: what to show and hide, with a count of what is shown and **Reset**. **Guide**: how to use the page, the questions it understands, and its keys. At its foot, the Claude skill and the commit the graph was built from. The button beside the title hides it; **Search and explore** brings it back |
+| The map | Drag, scroll or pinch. Names appear on the parts worth naming as you come closer |
+| The controls, at the bottom right | Zoom out, zoom in, show everything, and names on the map on or off |
+| The card, on the right | What the chosen item is, where, and what it is linked to |
+
+On a phone the sidebar and the card open as sheets over the foot of the map, and the controls move to the top.
 
 ## Using it
 
 | To… | Do this |
 |---|---|
-| Find something | Type in the search bar, or press ++slash++ anywhere on the page. A name, a topic or a question all work: `SimulationEngine`, `docs about weather`, `what calls physics_step`, `what is inside App.tsx`. Results come as you type, a best match first and then the rest by kind, with the words you typed marked |
+| Find something | Type in the search at the top of the sidebar, or press ++slash++ anywhere on the page. Results take the sidebar's place while the search is open. A name, a topic or a question all work: `SimulationEngine`, `docs about weather`, `what calls physics_step`, `what is inside App.tsx`. Results come as you type, a best match first and then the rest by kind, with the words you typed marked |
 | Narrow a search | Say what you want in the words: `functions in the launcher`, `classes in core`, `files in the observer` |
 | Read about an item | Choose it in the results or on the map. The card says what it is and where, in one sentence, opens the source on GitHub at its line, and lists what it is linked to by kind of link |
 | See what it is linked to | The links flow along their lines from what uses to what is used. **Direct links**, **2 steps** or **3 steps** light more round it |
 | Share it | The copy button in the card: the address names the item, and opens on it |
-| Show less | **Filters** in the dock: everything, code or docs; kinds of thing; parts of DSTNS; one folder; kinds of link; and how many links an item needs to be shown |
-| Move and zoom | Drag, scroll or pinch; ++plus++ and ++minus++ zoom, and ++0++ shows everything |
+| Show less | **Filters** in the sidebar: everything, code or docs; kinds of thing; parts of DSTNS; one folder; kinds of link; and how many links an item needs to be shown |
+| See only one part | Choose it in **Explore**; choose it again to see everything |
+| Move and zoom | Drag, scroll or pinch; ++plus++ and ++minus++ zoom, and ++0++ shows everything, as the controls at the bottom right do |
 
 ## How it is built
 
