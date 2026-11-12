@@ -157,7 +157,7 @@ still Preparing is dropped, since it is about to start afresh; killing a prepara
 ### Checks (explicit)
 
 `environment::State`: **Pending** → **Running** → **Pass**, **Warning**, **Fail** or **Skipped**. Every check, at
-start-up and in `./launcher doctor`, moves once along this path; the symbol and word, never colour alone, show it.
+start-up and in Diagnostics (`./launcher ui diagnostics`), moves once along this path; the symbol and word, never colour alone, show it.
 
 ### The running page (explicit)
 
