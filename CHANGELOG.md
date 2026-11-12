@@ -45,6 +45,9 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
 - A new set of icons, drawn as one family, for the kinds of thing, the kinds of link, the tabs and the controls.
 - Standard types and borrowed symbols (`string`, `json`) are no longer named on the map unless chosen or found.
 - On a phone the sidebar and the card open as sheets over the foot of the map.
+- Every control has a tooltip in the page's own style, which comes at once when moving from one to the next. The
+  sidebar, the search results and the card open and close with motion, and results and questions to try have more
+  room.
 
 ### The launcher's menus, and the observer's tooltips
 

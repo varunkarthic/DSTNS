@@ -96,6 +96,8 @@
       else if (k === "text") e.textContent = attrs[k];
       else if (k === "html") e.innerHTML = attrs[k];
       else if (k.slice(0, 2) === "on") e.addEventListener(k.slice(2), attrs[k]);
+      // The page draws its own tooltips; the browser's would come late and in another style.
+      else if (k === "title") { if (attrs[k]) e.setAttribute("data-tip", attrs[k]); }
       else if (attrs[k] !== false && attrs[k] != null) e.setAttribute(k, attrs[k] === true ? "" : attrs[k]);
     }
     (children || []).forEach(function (c) { if (c != null) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
@@ -338,7 +340,7 @@
     // ---- the page: a sidebar to search and explore from, the map, its controls, and the card ----
     var canvas = el("canvas", { class: "dg-canvas", "aria-label": "The knowledge graph. Use the search to find something, or choose a dot.", role: "img" });
     var input = el("input", { class: "dg-search-input", type: "search", placeholder: "Search, or ask: what calls snapshot?", "aria-label": "Search the graph in plain words", autocomplete: "off", spellcheck: "false", role: "combobox", "aria-expanded": "false", "aria-controls": "dg-results", "aria-autocomplete": "list" });
-    var clear = el("button", { class: "dg-clear", type: "button", "aria-label": "Clear the search", hidden: true, html: icon("close", 14) });
+    var clear = el("button", { class: "dg-clear", type: "button", "aria-label": "Clear the search", title: "Clear the search", hidden: true, html: icon("close", 14) });
     var results = el("div", { class: "dg-results", id: "dg-results", hidden: true });
     var searchBox = el("div", { class: "dg-search" }, [el("span", { class: "dg-search-icon", html: icon("search", 17) }), input, clear, el("kbd", { class: "dg-key", text: "/" })]);
 
@@ -351,10 +353,10 @@
       ]),
       collapse,
     ]);
-    var TABS = [["explore", "Explore", "compass"], ["filters", "Filters", "sliders"], ["guide", "Guide", "book"]];
+    var TABS = [["explore", "Explore", "compass", "The parts of DSTNS, and questions to try"], ["filters", "Filters", "sliders", "Choose what the map shows"], ["guide", "Guide", "book", "How to use the graph, and its keys"]];
     var badge = el("span", { class: "dg-badge", hidden: true, "aria-label": "Filters are on" });
     var tabButtons = TABS.map(function (t) {
-      var b = el("button", { type: "button", role: "tab", class: "dg-tab", "data-tab": t[0], "aria-controls": "dg-pane", html: icon(t[2], 16) + "<span>" + t[1] + "</span>" });
+      var b = el("button", { type: "button", role: "tab", class: "dg-tab", "data-tab": t[0], "aria-controls": "dg-pane", title: t[3], html: icon(t[2], 16) + "<span>" + t[1] + "</span>" });
       if (t[0] === "filters") b.appendChild(badge);
       b.addEventListener("click", function () { showTab(t[0]); });
       return b;
@@ -364,7 +366,7 @@
     var repo = el("a", { class: "dg-foot-link", href: "https://github.com/" + data.repo + "/tree/" + data.commit, target: "_blank", rel: "noopener", title: "The source this graph was built from", html: icon("github", 16) + "<span>Source</span><code>" + data.commit.slice(0, 7) + "</code>" });
     var skill = el("a", { class: "dg-foot-link", href: "../downloads/dstns-graph-skill.zip", download: "dstns-graph-skill.zip", title: "A Claude skill that asks this graph: where things are, what calls what, what depends on what", html: icon("download", 16) + "<span>Claude skill</span>" });
     var side = el("aside", { class: "dg-side", "aria-label": "Search and explore" }, [head, searchBox, results, tabBar, pane, el("footer", { class: "dg-side-foot" }, [skill, repo])]);
-    var reopen = el("button", { type: "button", class: "dg-reopen", "aria-label": "Show the sidebar", html: icon("sidebar", 18) + "<span>Search and explore</span>", hidden: true });
+    var reopen = el("button", { type: "button", class: "dg-reopen", "aria-label": "Show the sidebar", title: "Show the search and the sidebar", html: icon("sidebar", 18) + "<span>Search and explore</span>", hidden: true });
 
     var control = function (label, iconName) { return el("button", { type: "button", class: "dg-ctl", "aria-label": label, title: label, html: icon(iconName, 18) }); };
     var zoomOut = control("Zoom out", "minus"), zoomIn = control("Zoom in", "plus"), fitButton = control("Show everything", "fit");
@@ -374,7 +376,39 @@
     var tip = el("div", { class: "dg-tip", hidden: true, "aria-hidden": "true" });
     var hint = el("div", { class: "dg-hint", text: "Drag to move · scroll to zoom · choose a dot" });
     var live = el("div", { class: "dg-live", "aria-live": "polite" });
-    root.append(canvas, side, reopen, controls, details, tip, hint, live);
+    var tooltip = el("div", { class: "dg-tooltip", role: "tooltip", hidden: true });
+    root.append(canvas, side, reopen, controls, details, tip, hint, live, tooltip);
+    (function () {
+      var timer = 0, current = null;
+      function hide() { clearTimeout(timer); current = null; tooltip.classList.remove("shown"); tooltip.hidden = true; }
+      function show(target) {
+        current = target;
+        tooltip.textContent = target.getAttribute("data-tip");
+        tooltip.hidden = false; tooltip.classList.remove("shown");
+        var box = root.getBoundingClientRect(), r = target.getBoundingClientRect(), w = tooltip.offsetWidth, h = tooltip.offsetHeight;
+        var below = r.top - box.top < h + 16;
+        var x = Math.max(8, Math.min(box.width - w - 8, r.left - box.left + r.width / 2 - w / 2));
+        var y = below ? r.bottom - box.top + 8 : r.top - box.top - h - 8;
+        tooltip.style.left = x + "px"; tooltip.style.top = y + "px";
+        tooltip.dataset.side = below ? "below" : "above";
+        requestAnimationFrame(function () { if (current === target) tooltip.classList.add("shown"); });
+      }
+      root.addEventListener("pointerover", function (ev) {
+        var t = ev.target.closest && ev.target.closest("[data-tip]");
+        if (!t || !root.contains(t) || ev.pointerType === "touch") return;
+        if (t === current) return;
+        clearTimeout(timer);
+        // Once one tooltip is showing, the next comes at once, as a toolbar's do.
+        var wait = tooltip.classList.contains("shown") ? 0 : 450;
+        timer = setTimeout(function () { show(t); }, wait);
+      });
+      root.addEventListener("pointerout", function (ev) { var t = ev.target.closest && ev.target.closest("[data-tip]"); if (t && !t.contains(ev.relatedTarget)) { clearTimeout(timer); timer = setTimeout(hide, 80); } });
+      root.addEventListener("focusin", function (ev) { var t = ev.target.closest && ev.target.closest("[data-tip]"); if (t && t.matches(":focus-visible")) { clearTimeout(timer); timer = setTimeout(function () { show(t); }, 200); } });
+      root.addEventListener("focusout", hide);
+      root.addEventListener("pointerdown", hide, true);
+      root.addEventListener("scroll", hide, true);
+      document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") hide(); });
+    })();
 
     // ---- what the sidebar shows: explore, filters and the guide ----
     function tally(list, of) { var c = {}; list.forEach(function (v) { c[v] = 0; }); for (var i = 0; i < count; i++) c[of(i)] = (c[of(i)] || 0) + 1; return c; }
@@ -388,7 +422,7 @@
     var same = function (set, list) { return set.size === list.length && list.every(function (v) { return set.has(v); }); };
     var tab = store.get("tab", "explore"), sideOpen = store.get("side", window.innerWidth > 900);
     function chip(text, on, onclick, mark, n) {
-      return el("button", { type: "button", class: "dg-chip", "aria-pressed": String(on), onclick: onclick }, [mark || null, el("span", { text: text }), n != null ? el("small", { text: n.toLocaleString() }) : null]);
+      return el("button", { type: "button", class: "dg-chip", "aria-pressed": String(on), title: (on ? "Hide " : "Show ") + text.toLowerCase(), onclick: onclick }, [mark || null, el("span", { text: text }), n != null ? el("small", { text: n.toLocaleString() }) : null]);
     }
     function flip(set, v) { if (set.has(v)) set.delete(v); else set.add(v); refilter(); renderPane(); }
     function section(title, body, aside) { return el("section", { class: "dg-section" }, [el("h3", { class: "dg-section-title" }, [el("span", { text: title }), aside || null]), body]); }
@@ -406,7 +440,7 @@
         ])]);
       }));
       var tries = el("ul", { class: "dg-asks" }, EXAMPLES.map(function (x) {
-        return el("li", {}, [el("button", { type: "button", class: "dg-ask", onclick: function () { ask(x); } }, [el("span", { class: "dg-ask-icon", html: icon("spark", 15) }), el("span", { text: x }), el("span", { class: "dg-ask-go", html: icon("arrow", 15) })])]);
+        return el("li", {}, [el("button", { type: "button", class: "dg-ask", title: "Search for this", onclick: function () { ask(x); } }, [el("span", { class: "dg-ask-icon", html: icon("spark", 15) }), el("span", { text: x }), el("span", { class: "dg-ask-go", html: icon("arrow", 15) })])]);
       }));
       var kinds = el("ul", { class: "dg-shapes" }, SORT_ORDER.filter(function (v) { return sortCount[v]; }).map(function (v) {
         return el("li", {}, [el("span", { class: "dg-kind plain", html: icon(v, 15) }), el("span", { text: SORT_PLURAL[v] }), el("small", { text: sortCount[v].toLocaleString() })]);
@@ -421,7 +455,7 @@
     function renderFilters() {
       var view = el("div", { class: "dg-seg", role: "radiogroup", "aria-label": "What to show" }, VIEWS.map(function (v) {
         var on = same(state.areas, v.areas) && same(state.sorts, v.sorts);
-        return el("button", { type: "button", role: "radio", "aria-checked": String(on), text: v.name, onclick: function () { state.areas = new Set(v.areas); state.sorts = new Set(v.sorts); refilter(); renderPane(); } });
+        return el("button", { type: "button", role: "radio", "aria-checked": String(on), text: v.name, title: v.name === "Everything" ? "Every file, class, function and page" : v.name === "Code" ? "Files, classes and functions only" : "Documentation and ideas only", onclick: function () { state.areas = new Set(v.areas); state.sorts = new Set(v.sorts); refilter(); renderPane(); } });
       }));
       var kinds = el("div", { class: "dg-chips" }, SORT_ORDER.filter(function (v) { return sortCount[v]; }).map(function (v) {
         return chip(SORT_PLURAL[v], state.sorts.has(v), function () { flip(state.sorts, v); }, el("span", { class: "dg-chip-icon", html: icon(v, 14) }), sortCount[v]);
@@ -443,7 +477,7 @@
       };
       return [
         el("div", { class: "dg-pane-head" }, [el("span", { class: "dg-pane-count", text: shownCount.toLocaleString() + " of " + count.toLocaleString() + " shown" }),
-          el("button", { type: "button", class: "dg-reset", disabled: isFresh(), html: icon("history", 14) + "<span>Reset</span>", onclick: function () { Object.assign(state, fresh()); folder.value = ""; refilter(); renderPane(); } })]),
+          el("button", { type: "button", class: "dg-reset", title: "Show everything again", disabled: isFresh(), html: icon("history", 14) + "<span>Reset</span>", onclick: function () { Object.assign(state, fresh()); folder.value = ""; refilter(); renderPane(); } })]),
         section("Show", view),
         section("Kinds of thing", kinds),
         section("Parts of DSTNS", parts),
@@ -481,7 +515,12 @@
       pane.scrollTop = scroll;
       if (hadFocus) folder.focus();
     }
-    function showTab(name) { if (tab !== name) pane.scrollTop = 0; tab = name; store.set("tab", name); renderPane(); }
+    function showTab(name) {
+      var changed = tab !== name;
+      if (changed) pane.scrollTop = 0;
+      tab = name; store.set("tab", name); renderPane();
+      if (changed && !quiet() && pane.animate) pane.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+    }
     tabBar.addEventListener("keydown", function (ev) {
       var at0 = TABS.findIndex(function (t) { return t[0] === tab; }), to = ev.key === "ArrowRight" ? at0 + 1 : ev.key === "ArrowLeft" ? at0 - 1 : null;
       if (to == null) return;
@@ -573,7 +612,9 @@
     }
     // A name read at a glance: not a standard type or a symbol borrowed from elsewhere ("string", "json"), which are
     // named only when chosen or found.
-    var COMMON = new Set("string int bool void json map vector array list set dict object number any char float double size_t uint8_t u8 u16 u32 u64 i32 i64 f32 f64 usize str self this value result option error none".split(" "));
+    var COMMON = new Set("string int bool void json map vector array list set dict object number any char float double size_t uint8_t u8 u16 u32 u64 i32 i64 f32 f64 usize str self this value result option error none iostream algorithm memory optional chrono thread mutex functional cstdint cmath until main view enabled data index".split(" "));
+    // A group whose name is punctuation first (".enabled", "[3.0.0] - 2026-11-12") is a fragment, not a name.
+    var fragment = function (name) { return /^[^A-Za-z]/.test(name); };
     var worthNaming = new Uint8Array(count);
     for (var w0 = 0; w0 < count; w0++) worthNaming[w0] = sortOf(w0) !== "other" && shortName[w0].length > 2 && !COMMON.has(shortName[w0].toLowerCase().replace(/[^a-z0-9_]/g, "")) ? 1 : 0;
     // Each community is tinted by the part of DSTNS most of it belongs to.
@@ -676,7 +717,7 @@
         data.communities.slice().sort(function (p, q) { return q.r - p.r; }).forEach(function (cm) {
           var p = toScreen(cm.x, cm.y); if (p[0] < -100 || p[0] > W + 100 || p[1] < -40 || p[1] > H + 40 || cm.r * cam.s < 14) return;
           // A group named after a standard type says nothing about it: such groups are left unnamed.
-          if (cm.name.length < 3 || COMMON.has(cm.name.toLowerCase().replace(/[^a-z0-9_]/g, ""))) return;
+          if (cm.name.length < 3 || fragment(cm.name) || COMMON.has(cm.name.toLowerCase().replace(/[^a-z0-9_]/g, ""))) return;
           var name = cm.name.length > 28 ? cm.name.slice(0, 26) + "…" : cm.name, w = c.measureText(name).width + 20;
           if (!free(p[0] - w / 2, p[1] - 12, w, 24)) return;
           c.globalAlpha = matching ? 0.55 : 1;
@@ -763,7 +804,12 @@
       state.selected = i; state.hover = -1;
       neighbourhood();
       version++;
-      if (i < 0) { details.classList.remove("open"); details.hidden = true; history.replaceState(null, "", location.pathname + location.search); draw(); return; }
+      if (i < 0) {
+        details.classList.remove("open");
+        // It leaves as it came, then is hidden.
+        setTimeout(function () { if (!details.classList.contains("open")) details.hidden = true; }, quiet() ? 0 : 240);
+        history.replaceState(null, "", location.pathname + location.search); draw(); return;
+      }
       history.replaceState(null, "", "#node=" + encodeURIComponent(N.id[i]));
       var file = fileOf(i), url = sourceUrl(i), tabs = [];
       GROUPS.forEach(function (g) {
@@ -797,7 +843,7 @@
         }
       }
       var tabRow = el("div", { class: "dg-tabs", role: "tablist", "aria-label": "Links" }, tabs.map(function (t) {
-        return el("button", { type: "button", role: "tab", "aria-selected": String(t.id === cardTab), onclick: function (ev) { cardTab = t.id; tabRow.querySelectorAll("[role=tab]").forEach(function (b) { b.setAttribute("aria-selected", String(b === ev.currentTarget)); }); fill(); } }, [
+        return el("button", { type: "button", role: "tab", "aria-selected": String(t.id === cardTab), title: t.name + ": " + t.list.length.toLocaleString(), onclick: function (ev) { cardTab = t.id; tabRow.querySelectorAll("[role=tab]").forEach(function (b) { b.setAttribute("aria-selected", String(b === ev.currentTarget)); }); fill(); } }, [
           el("span", { class: "dg-tab-icon", html: icon(t.icon, 13) }), el("span", { text: t.name }), el("small", { text: t.list.length.toLocaleString() }),
         ]);
       }));
@@ -808,7 +854,7 @@
         setTimeout(function () { copy.innerHTML = icon("copy", 16); copy.classList.remove("done"); }, 1400);
       } });
       var depth = el("div", { class: "dg-seg dg-seg-small", role: "radiogroup", "aria-label": "How much to light round it" }, [[1, "Direct links"], [2, "2 steps"], [3, "3 steps"]].map(function (d) {
-        return el("button", { type: "button", role: "radio", "aria-checked": String(state.depth === d[0]), text: d[1], onclick: function () { state.depth = d[0]; select(i, false); } });
+        return el("button", { type: "button", role: "radio", "aria-checked": String(state.depth === d[0]), text: d[1], title: d[0] === 1 ? "Light only what it links to directly" : "Light what is up to " + d[0] + " links away", onclick: function () { state.depth = d[0]; select(i, false); } });
       }));
       var crumbs = file ? file.split("/") : [];
       details.replaceChildren(
@@ -863,7 +909,16 @@
       results.appendChild(list);
       showResults(true);
     }
-    function showResults(on) { results.hidden = !on; input.setAttribute("aria-expanded", String(on)); searchBox.classList.toggle("open", on); side.classList.toggle("searching", on); }
+    var closingResults = 0;
+    function showResults(on) {
+      input.setAttribute("aria-expanded", String(on)); searchBox.classList.toggle("open", on);
+      clearTimeout(closingResults);
+      if (on) { results.classList.remove("closing"); results.hidden = false; side.classList.add("searching"); return; }
+      if (results.hidden) return;
+      // The results fade and settle, then the tabs come back in their place.
+      results.classList.add("closing");
+      closingResults = setTimeout(function () { results.hidden = true; results.classList.remove("closing"); side.classList.remove("searching"); }, quiet() ? 0 : 160);
+    }
     function search(silent) {
       var text = input.value;
       clear.hidden = !text;
