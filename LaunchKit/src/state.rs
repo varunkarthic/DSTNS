@@ -31,6 +31,7 @@
 use crate::config::{self, fields};
 use crate::paths::Paths;
 use serde_json::{json, Map, Value};
+use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
 
@@ -84,30 +85,20 @@ pub fn decode(code: &str) -> Result<Value, String> {
 
 // ---- Keys, sealed with a passphrase --------------------------------------------------------------------------------
 
+/// HMAC-SHA256, from the RustCrypto `hmac` crate.
 fn hmac(key: &[u8], data: &[u8]) -> [u8; 32] {
-    let mut block = [0u8; 64];
-    if key.len() > 64 {
-        block[..32].copy_from_slice(&Sha256::digest(key));
-    } else {
-        block[..key.len()].copy_from_slice(key);
-    }
-    let pad = |byte: u8| block.iter().map(|b| b ^ byte).collect::<Vec<u8>>();
-    let inner = Sha256::new().chain_update(pad(0x36)).chain_update(data).finalize();
-    Sha256::new().chain_update(pad(0x5c)).chain_update(inner).finalize().into()
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(key).expect("HMAC takes a key of any length");
+    mac.update(data);
+    mac.finalize().into_bytes().into()
 }
 
-/// PBKDF2-HMAC-SHA256, two blocks: one key to encipher with, one to authenticate with.
+/// PBKDF2-HMAC-SHA256 (RFC 8018), from the RustCrypto `pbkdf2` crate: 64 bytes, one key to encipher with and one to
+/// authenticate with. The same bytes as before it used the crate, so codes made earlier still open.
 fn derive(passphrase: &str, salt: &[u8]) -> ([u8; 32], [u8; 32]) {
-    let block = |index: u32| {
-        let mut u = hmac(passphrase.as_bytes(), &[salt, &index.to_be_bytes()].concat());
-        let mut out = u;
-        for _ in 1..ROUNDS {
-            u = hmac(passphrase.as_bytes(), &u);
-            out.iter_mut().zip(u.iter()).for_each(|(o, x)| *o ^= x);
-        }
-        out
-    };
-    (block(1), block(2))
+    let mut out = [0u8; 64];
+    pbkdf2::pbkdf2_hmac::<Sha256>(passphrase.as_bytes(), salt, ROUNDS, &mut out);
+    let (cipher, mac) = out.split_at(32);
+    (cipher.try_into().unwrap(), mac.try_into().unwrap())
 }
 
 fn keystream(key: &[u8; 32], nonce: &[u8], length: usize) -> Vec<u8> {
@@ -398,6 +389,15 @@ mod tests {
         let check = Sha256::digest(&other);
         other.extend_from_slice(&check[..4]);
         assert!(decode(&other.iter().map(|b| format!("{b:02X}")).collect::<String>()).unwrap_err().contains("version 9"));
+    }
+
+    #[test]
+    fn keys_sealed_before_the_crates_still_open() {
+        // Sealed by the hand-written PBKDF2 and HMAC this replaced; the crates must give the same bytes.
+        let sealed = "e95c72c335454197ab412eb1c5a20bd246aaed213949a392b06e8ffb5a8bb61e554768890840f2ecc3e6be85472abb646b2f7099f1d29f19348cf3973b849aa2b31255fc21cd77b33718d54edfbe730300eb05600ace83fbff1426bd13022bbdf833e8011cc619cdeceb77f751";
+        let keys = super::open_keys(sealed, "correct horse battery").expect("an older code opens");
+        assert_eq!(keys["GROQ_API_KEY"], "gsk_example_not_a_real_key");
+        assert!(super::open_keys(sealed, "wrong horse battery").is_err());
     }
 
     #[test]

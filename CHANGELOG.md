@@ -29,6 +29,9 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   follow the same rule.
 - The launcher no longer writes the chosen district's coordinates to its log; the district is named instead
   (CodeQL `rust/cleartext-logging`).
+- The passphrase that seals API keys in a launch code goes through the RustCrypto `pbkdf2` and `hmac` crates
+  (PBKDF2-HMAC-SHA256, 210,000 rounds) instead of a hand-written copy. The bytes are the same, so codes made
+  earlier still open, and a test proves it (CodeQL `rust/weak-sensitive-data-hashing`).
 - Building the launcher shows a progress bar that fills as each crate is compiled, with the time taken; without a
   terminal, cargo's own output is shown.
 - A push to `v3` now builds, tests and publishes a container image, tagged `:v3` and `:sha-<commit>` on the edge
