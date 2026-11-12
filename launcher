@@ -32,8 +32,11 @@ if [ -n "$stale" ]; then
       exit 1
     fi
   else
-    echo "DSTNS: building the launcher (only when its sources change)..." >&2
-    cargo build --release --quiet --manifest-path "$root/LaunchKit/Cargo.toml" >&2
+    echo "DSTNS: building the launcher, as its sources changed. This takes about a minute; cargo shows its progress." >&2
+    # Not quiet: a release build is long enough to look stuck without a progress bar, and cargo says so when it is
+    # waiting for another build to finish.
+    cargo build --release --manifest-path "$root/LaunchKit/Cargo.toml" >&2
+    echo "DSTNS: built. Starting the launcher." >&2
   fi
 fi
 exec "$program" "$@"
