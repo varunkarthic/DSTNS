@@ -33,6 +33,8 @@ Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs 
   terminal, cargo's own output is shown.
 - A push to `v3` now builds, tests and publishes a container image, tagged `:v3` and `:sha-<commit>` on the edge
   channel; only `main` and the release tag move `stable` and `latest`.
+- The container workflow's last step, which assembles the tested images into one and tags it, now builds the
+  release tool it runs; it ran on a machine without it and failed.
 
 ### The knowledge graph page, redesigned
 

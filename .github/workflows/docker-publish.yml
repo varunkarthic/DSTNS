@@ -118,6 +118,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # This job runs on a machine of its own, so it builds the release tool it uses to promote the image.
+      - name: Build the release tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libsqlite3-dev zlib1g-dev libcurl4-openssl-dev
+          cmake -S . -B build -DDSTNS_BUILD_TESTS=OFF && cmake --build build --target dstns_release -j"$(nproc)"
       - uses: actions/download-artifact@v4
         with:
           pattern: digest-*
