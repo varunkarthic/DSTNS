@@ -27,7 +27,7 @@ import urllib.request
 from collections import deque
 from pathlib import Path
 
-ONLINE = "https://dstns.readthedocs.io/en/latest/graph/data.json"
+ONLINE = "https://dstns.readthedocs.io/v3/graph/data.json"
 GROUPS = {
     "contains": ["contains", "defines", "method"],
     "calls": ["calls", "indirect_call"],

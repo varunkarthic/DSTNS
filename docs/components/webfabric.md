@@ -156,40 +156,67 @@ the application's panel, so nothing about it leaves WebFabric.
 
 These are arrangements of the widgets above that read well together. None needs anything beyond them.
 
-**A planner** (`sidebar`). One tab per algorithm, each `caption`ed with which it is. Each tab opens with a sentence of
-what the algorithm does, then its result as `stats` and a `progress`, then what it made as a `list`, then a way to
-watch or try it: a `button` and a `slider` side by side to replay its construction, or two `button`s with `pick: true`
-for the two ends of a journey and one to plan it, followed by `stats` that compare the algorithms. A `legend` closes
-the sidebar, with switches for what is drawn on the map. Its network is an `overlay` of `route`s and `marker`s in
-`series` colours, its vehicles a separate overlay of `path`s, and its answer a `path` with `"style": "flow"`.
+### A planner
+
+A planner lives in the `sidebar` slot, with one tab for each algorithm. Each tab, from top to bottom:
+
+1. A sentence on what the algorithm does, with a `caption` naming it (Algorithm 1, Algorithm 2).
+2. Its result, as `stats` and a `progress` bar.
+3. What it made, as a `list`.
+4. A way to watch or try it: a `button` and a `slider` side by side to replay how it was built, or two `button`
+   widgets with `pick: true` for the two ends of a journey and a third to plan it, followed by `stats` that compare
+   the algorithms.
+
+A `legend` closes the sidebar, with switches for what is drawn on the map. On the map, the network is an `overlay`
+of `route` and `marker` features in `series` colours, the vehicles are a separate overlay of `path` features, and the
+answer is a `path` with `"style": "flow"`.
 
 ```json
-{"id": "planner", "slot": "sidebar", "title": "Bus planner", "label": "Built on Fabric", "widgets": [
-  {"type": "tabs", "id": "view", "tabs": [
-    {"id": "network", "caption": "Algorithm 1", "label": "The network", "widgets": [
-      {"type": "text", "text": "Each line starts at the busiest stop not yet served."},
-      {"type": "stats", "items": [{"label": "Demand covered", "value": "97%", "tone": "accent"}, {"label": "Lines", "value": "5/6"}]},
-      {"type": "progress", "label": "Stops served", "value": 0.97},
-      {"type": "list", "id": "lines", "rows": [{"id": "line-0", "badge": "R0", "title": "7 stops", "share": 0.2, "value": "20%", "series": 0}]},
-      {"type": "button", "id": "replay", "label": "Replay the construction", "area": {"column": 1, "width": 2}},
-      {"type": "slider", "id": "seek", "label": "Line", "min": 0, "max": 5, "step": 1, "value": 2, "area": {"column": 3, "width": 4}}]},
-    {"id": "journey", "caption": "Algorithm 2", "label": "A journey", "widgets": [
-      {"type": "button", "id": "pick-from", "label": "Choose where from", "pick": true, "area": {"column": 1, "width": 3}},
-      {"type": "button", "id": "pick-to", "label": "Choose where to", "pick": true, "area": {"column": 4, "width": 3}},
-      {"type": "button", "id": "plan", "label": "Plan the journey", "tone": "accent"},
-      {"type": "stats", "items": [{"label": "A* settled", "value": 973, "tone": "accent"}, {"label": "Dijkstra settled", "value": 2650, "tone": "warn"}]}]}]},
-  {"type": "legend", "legend": [{"label": "Bus line", "series": 0, "mark": "line"}, {"id": "moving", "label": "Moving buses", "value": true}]}]}
+{
+  "id": "planner", "slot": "sidebar", "title": "Bus planner", "label": "Built on Fabric",
+  "widgets": [
+    {"type": "tabs", "id": "view", "tabs": [
+      {"id": "network", "caption": "Algorithm 1", "label": "The network", "widgets": [
+        {"type": "text", "text": "Each line starts at the busiest stop not yet served."},
+        {"type": "stats", "items": [
+          {"label": "Demand covered", "value": "97%", "tone": "accent"},
+          {"label": "Lines", "value": "5/6"}]},
+        {"type": "progress", "label": "Stops served", "value": 0.97},
+        {"type": "list", "id": "lines", "rows": [
+          {"id": "line-0", "badge": "R0", "title": "7 stops",
+           "share": 0.2, "value": "20%", "series": 0}]},
+        {"type": "button", "id": "replay", "label": "Replay the construction",
+         "area": {"column": 1, "width": 2}},
+        {"type": "slider", "id": "seek", "label": "Line", "min": 0, "max": 5,
+         "step": 1, "value": 2, "area": {"column": 3, "width": 4}}]},
+      {"id": "journey", "caption": "Algorithm 2", "label": "A journey", "widgets": [
+        {"type": "button", "id": "pick-from", "label": "Choose where from",
+         "pick": true, "area": {"column": 1, "width": 3}},
+        {"type": "button", "id": "pick-to", "label": "Choose where to",
+         "pick": true, "area": {"column": 4, "width": 3}},
+        {"type": "button", "id": "plan", "label": "Plan the journey", "tone": "accent"},
+        {"type": "stats", "items": [
+          {"label": "A* settled", "value": 973, "tone": "accent"},
+          {"label": "Dijkstra settled", "value": 2650, "tone": "warn"}]}]}]},
+    {"type": "legend", "legend": [
+      {"label": "Bus line", "series": 0, "mark": "line"},
+      {"id": "moving", "label": "Moving buses", "value": true}]}
+  ]
+}
 ```
 
-**A board** (`deck` or `panel`). A `metric` or `stats` row at the top, a `chart` or `sparkline` of how it has
-changed, then the detail as a `list` or `table`. Updated with `PUT .../ui/{element}` once a second at most.
+`Fabric/examples/bus_planner.py` runs this template against any world; `--web` also offers a page for a phone.
 
-**Sharing to a phone** (`web` in the manifest, or a `qr` widget). For a page people should open on their own phones,
-such as ticketing, declare it as `web` and the code comes with the bar. To show a code for something else, a seat or
-a booking, put a `qr` in a `card`.
+### A board
 
-`Fabric/examples/bus_planner.py` is the planner template running against any world, with `--web` to offer a page on a
-phone.
+A board lives in the `deck` or a `panel`: a `metric` or `stats` row at the top, a `chart` or `sparkline` of how it
+has changed, then the detail as a `list` or `table`. Update it with `PUT .../ui/{element}`, at most once a second.
+
+### Sharing to a phone
+
+For a page people should open on their own phones, such as ticketing, declare it as `web` in the manifest, and its
+code comes with the application's bar. To show a code for something else, such as a seat or a booking, put a `qr`
+widget in a `card`.
 
 ### From an existing application
 

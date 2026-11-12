@@ -8,7 +8,7 @@ description: Answer questions about the DSTNS codebase from its knowledge graph 
 DSTNS publishes a graph of every file, class, function and documentation section in the repository, and how they
 connect (`contains`, `calls`, `imports`, `references`, `inherits` and others), with each node's file and line. It is
 built by graphify's AST extraction from the repository as Git tracks it, and kept at `data/graph/dstns-graph.json`.
-The same graph is drawn at <https://dstns.readthedocs.io/en/latest/graph/>.
+The same graph is drawn at <https://dstns.readthedocs.io/v3/graph/>.
 
 Ask the graph first. It answers "where", "what calls" and "what depends on" in one step, with file and line, so read
 only the source it points to.

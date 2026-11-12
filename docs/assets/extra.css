@@ -1395,3 +1395,6 @@ html { scrollbar-gutter: stable; }
 /* Titles in full ink, as the observer's headings. */
 [data-md-color-scheme="slate"] .md-typeset :is(h1, h2) { color: #edf1f4; }
 [data-md-color-scheme="default"] .md-typeset :is(h1, h2) { color: #0b1c28; }
+
+/* The copy button sits in the top right of a code block; the code keeps clear of it. */
+.md-typeset pre > code { padding-right: 2.8em; }
