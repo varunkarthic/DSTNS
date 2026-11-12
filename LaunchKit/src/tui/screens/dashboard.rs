@@ -6,7 +6,7 @@
 use crate::environment::State;
 use crate::simulation::{self, Status};
 use crate::tui::theme::{fg, ACCENT, ERR, MUTED, OK, TEXT, TEXT2, WARN};
-use crate::tui::widgets::{self, card, item, key, row, row_state, status_lines, Key, Menu, MenuEvent, MenuItem, Row};
+use crate::tui::widgets::{self, card, heading, item, key, row, row_state, status_lines, Key, Menu, MenuEvent, MenuItem, Row};
 use crate::tui::{Action, Screen, Ui};
 use crate::version::{engine_version, DOCUMENTATION, FULL_NAME, LICENSE_SPDX, OSM_ATTRIBUTION};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -17,22 +17,29 @@ use ratatui::Frame;
 use std::sync::mpsc::{channel, Receiver};
 use std::time::{Duration, Instant};
 
+/// The dashboard's entries in sections: running a simulation, setting it up, looking into it, and help. A key that
+/// starts with `section:` is a heading; an empty heading is a blank line.
 const ITEMS: &[(&str, &str)] = &[
+    ("section:Simulation", "Simulation"),
     ("start", "Start simulation"),
     ("seeds", "Saved seeds"),
+    ("section:Set up", "Set up"),
     ("config", "Configuration"),
     ("diagnostics", "Diagnostics"),
+    ("section:Inspect", "Inspect"),
     ("logs", "Logs"),
     ("tests", "Tests"),
     ("tools", "Tools"),
+    ("section:Help", "Help"),
     ("docs", "Documentation"),
     ("about", "About"),
+    ("section:", ""),
     ("exit", "Exit"),
 ];
 
 /// The dashboard's own entries, with what each module adds in its place.
 pub fn menu_items() -> Vec<MenuItem> {
-    let mut items: Vec<MenuItem> = ITEMS.iter().map(|(k, l)| item(k, l)).collect();
+    let mut items: Vec<MenuItem> = ITEMS.iter().map(|(k, l)| if k.starts_with("section:") { heading(l) } else { item(k, l) }).collect();
     for page in crate::modules::pages() {
         let position = items.iter().position(|i| i.key == page.before).unwrap_or(1);
         items.insert(position, item(page.key, page.label));
@@ -62,11 +69,13 @@ pub struct DashboardScreen {
     polls: Option<Receiver<Telemetry>>,
     last_poll: Option<Instant>,
     scroll: u16,
+    /// How wide the menu was last drawn, for a click.
+    sidebar: u16,
 }
 
 impl DashboardScreen {
     pub fn new() -> Self {
-        Self { menu: Menu::new(menu_items()), port: None, status: None, process: None, next: None, log: vec![], polls: None, last_poll: None, scroll: 0 }
+        Self { menu: Menu::new(menu_items()), port: None, status: None, process: None, next: None, log: vec![], polls: None, last_poll: None, scroll: 0, sidebar: 30 }
     }
 
     fn poll(&mut self, ui: &Ui) {
@@ -97,7 +106,8 @@ impl DashboardScreen {
     fn refresh_menu(&mut self) {
         let mut items = menu_items();
         if self.live() {
-            items.insert(0, item("running", "Running simulation"));
+            let start = items.iter().position(|i| i.key == "start").unwrap_or(0);
+            items.insert(start, item("running", "Running simulation"));
         }
         if items.iter().map(|i| &i.key).ne(self.menu.items.iter().map(|i| &i.key)) {
             self.menu.set_items(items);
@@ -130,7 +140,7 @@ impl DashboardScreen {
                             }
                         }
                     }
-                    _ => rows.insert(0, row_state("Server", "not running", State::Skipped)),
+                    _ => rows.insert(0, row("Server", "not running")),
                 }
                 rows.push(row("Workspace", ui.paths.relative(&ui.paths.logs())));
                 if key == "running" {
@@ -324,8 +334,8 @@ impl Screen for DashboardScreen {
             self.cards(frame, parts[0], ui);
             body = parts[2];
         }
-        let sidebar_width = if ui.layout == crate::terminal::Layout::Medium { 24 } else { 28 };
-        let (side, content) = widgets::columns(body, sidebar_width, ui.small(), self.menu.items.len() as u16 + 1);
+        self.sidebar = widgets::list_width(&self.menu, body, ui.layout == crate::terminal::Layout::Medium);
+        let (side, content) = widgets::columns(body, self.sidebar, ui.small(), self.menu.items.len() as u16 + 1);
         if ui.small() {
             self.menu.render(frame, side, true, ui.unicode);
         } else {
@@ -374,8 +384,7 @@ impl Screen for DashboardScreen {
     fn click(&mut self, column: u16, row: u16, ui: &mut Ui) -> Action {
         // Below the status line, the line of air, the telemetry and the menu's own rule.
         let top = if !ui.medium_or_small() && ui.height > 20 { 2 + 6 + 1 + 1 } else { 2 + 1 };
-        let sidebar = if ui.layout == crate::terminal::Layout::Medium { 24 } else { 28 };
-        if column > 1 && column < sidebar + 2 && row >= top {
+        if column > 1 && column < self.sidebar + 2 && row >= top {
             if let MenuEvent::Selected(key) = self.menu.click(row - top) {
                 return self.open(&key, ui);
             }

@@ -187,17 +187,17 @@ export function MapDock(props: MapDockProps) {
   return (
     <>
     <nav className="map-dock" ref={dockRef} aria-label="Map tools" data-tutorial="zoom">
-      <Tooltip label="Zoom in" side={["right"]}>
+      <Tooltip label="Zoom in" shortcut="zoom-in" side={["right"]}>
         <button aria-label="Zoom in" onClick={props.onZoomIn} disabled={props.disabled}>
           <Icon name="plus" size={18} />
         </button>
       </Tooltip>
-      <Tooltip label="Zoom out" side={["right"]}>
+      <Tooltip label="Zoom out" shortcut="zoom-out" side={["right"]}>
         <button aria-label="Zoom out" onClick={props.onZoomOut} disabled={props.disabled}>
           <Icon name="minus" size={18} />
         </button>
       </Tooltip>
-      <Tooltip label="Fit network" side={["right"]}>
+      <Tooltip label="Fit network" shortcut="fit" side={["right"]}>
         <button aria-label="Fit network to viewport" onClick={props.onFit} disabled={props.disabled}>
           <Icon name="fit" size={18} />
         </button>
@@ -205,7 +205,7 @@ export function MapDock(props: MapDockProps) {
 
       <div className="divider" aria-hidden="true" />
 
-      <Tooltip label="Search places" side={["right"]} disabled={searchOpen}>
+      <Tooltip label="Search places" shortcut="search" side={["right"]} disabled={searchOpen}>
         <button
           data-tutorial="search"
           data-search-trigger
@@ -226,6 +226,7 @@ export function MapDock(props: MapDockProps) {
       <Tooltip
         label={props.autoFocusAvailable ? (props.autoFocus ? "Auto Focus on" : "Auto Focus off") : "Auto Focus unavailable"}
         detail={props.autoFocusAvailable ? "Double-click for Round-Robin or Latest." : "Disabled for this deployment."}
+        shortcut="auto-focus"
         side={["right"]}
         disabled={menuOpen}
       >
@@ -254,6 +255,7 @@ export function MapDock(props: MapDockProps) {
       <Tooltip
         label={props.dnd ? "Do Not Disturb on" : "Do Not Disturb"}
         detail="Mutes the categories chosen in Settings. Events are still recorded."
+        shortcut="dnd"
         side={["right"]}
       >
         <button
@@ -271,6 +273,7 @@ export function MapDock(props: MapDockProps) {
       <Tooltip
         label={props.motionLocked ? "Reduced motion held" : "Reduce motion"}
         detail={props.motionLocked ? "Held on by Adaptive Simulation Backpressure until the interface is in sync." : undefined}
+        shortcut="motion"
         side={["right"]}
       >
         <button
@@ -289,7 +292,7 @@ export function MapDock(props: MapDockProps) {
 
       <div className="divider" aria-hidden="true" />
 
-      <Tooltip label="Settings" side={["right"]} disabled={props.settingsOpen}>
+      <Tooltip label="Settings" shortcut="settings" side={["right"]} disabled={props.settingsOpen}>
         <button
           data-tutorial="settings"
           data-settings-trigger

@@ -494,10 +494,15 @@ A row in Stack, News, Queue or Incidents that is cut off opens when clicked, or 
 
 `src/components/Tooltip.tsx` and `src/components/tooltipPlacement.ts`.
 
-Tooltips are compact (6 to 10 px padding, 12 px label, optional 11 px detail),
-dark and lightly frosted, and appear after 380 ms of hover (120 ms on keyboard
-focus). They fade and slide 3 px in 140 ms. A pointer press, scroll or Escape
-closes them. They never replace accessible labels.
+Tooltips are a small solid stadium with no pointer, 10 px from the control: a
+13 px name and, when there is one, a 12 px sentence under it in the quieter
+colour, its lines balanced rather than left with one word alone. A control with
+a keyboard shortcut shows its key as a key cap after the name (Space for Pause,
+J for Back, D for Do Not Disturb), always the key set in Settings → Keyboard
+shortcuts, and gives the same key to screen readers as `aria-keyshortcuts`.
+They appear after 380 ms of hover (120 ms on keyboard focus), and grow out of the
+control by 4 px; with reduced motion they only fade. A pointer press, scroll or
+Escape closes them. They never replace accessible labels.
 
 ### Placement
 

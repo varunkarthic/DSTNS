@@ -843,7 +843,7 @@ function TelemetryDeckImpl(props: Props) {
             <i aria-hidden="true" />
             {STATUS_TEXT[runtime]}
           </span>
-          <Tooltip label="Collapse telemetry" detail="Keeps the key figures in a narrow strip." side={["bottom", "left"]}>
+          <Tooltip label="Collapse telemetry" shortcut="telemetry" detail="Keeps the key figures in a narrow strip." side={["bottom", "left"]}>
             <button type="button" className="icon-btn" aria-label="Collapse live telemetry" onClick={props.onCollapse}>
               <Icon name="panelCollapse" size={16} />
             </button>
@@ -857,7 +857,7 @@ function TelemetryDeckImpl(props: Props) {
       </div>
 
       <nav ref={strip} className="deck-strip" aria-label="Telemetry summary" data-tutorial={compact ? "telemetry" : undefined} inert={!compact || undefined} aria-hidden={!compact || undefined}>
-        <Tooltip label="Expand telemetry" side={["left", "bottom"]}>
+        <Tooltip label="Expand telemetry" shortcut="telemetry" side={["left", "bottom"]}>
           <button type="button" className="strip-expand" aria-label="Expand live telemetry" onClick={props.onExpand}>
             <Icon name="panelExpand" size={16} />
           </button>

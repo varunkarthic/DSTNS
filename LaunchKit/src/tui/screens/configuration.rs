@@ -6,7 +6,7 @@
 use crate::config::{self, FieldKind};
 use crate::environment::State;
 use crate::tui::theme::{bold, fg, ERR, MUTED, TEXT2, WARN};
-use crate::tui::widgets::{self, card, form_row, item, key, Editor, Form, Key, Menu, MenuEvent, MenuItem};
+use crate::tui::widgets::{self, card, form_row, heading, item, key, Editor, Form, Key, Menu, MenuEvent};
 use crate::tui::{Action, Dialog, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
@@ -50,18 +50,16 @@ fn editor(field: &config::Field, value: &Value) -> Editor {
 /// Each section a heading, its categories beneath it; the first category chosen.
 fn sections() -> Menu {
     let mut items = vec![];
-    let mut heading = "";
+    let mut current = "";
     for category in config::categories() {
         let section = config::section_of(category);
-        if section != heading {
-            heading = section;
-            items.push(MenuItem { key: format!("section:{section}"), label: section.to_uppercase(), hint: String::new(), disabled: true });
+        if section != current {
+            current = section;
+            items.push(heading(section));
         }
-        items.push(item(category, &format!("  {category}")));
+        items.push(item(category, category));
     }
-    let mut menu = Menu::new(items);
-    menu.index = menu.items.iter().position(|i| !i.disabled).unwrap_or(0);
-    menu
+    Menu::new(items)
 }
 
 fn capitalise(text: &str) -> String {
@@ -201,15 +199,14 @@ impl Screen for ConfigurationScreen {
         if !self.loaded {
             self.load(ui);
         }
-        let sidebar = if ui.layout == crate::terminal::Layout::Medium { 24 } else { 30 };
-        let (side, content) = widgets::columns(area, sidebar, ui.small(), 4);
+        let (side, content) = widgets::columns(area, widgets::list_width(&self.categories, area, ui.layout == crate::terminal::Layout::Medium), ui.small(), 4);
         if ui.small() {
             self.categories.render(frame, side, !self.in_form, ui.unicode);
         } else {
             let block = card("Settings", !self.in_form);
             let inner = block.inner(side);
             frame.render_widget(block, side);
-            self.categories.render(frame, Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner }, !self.in_form, ui.unicode);
+            self.categories.render(frame, inner, !self.in_form, ui.unicode);
         }
         let block = card(&self.categories.current_key().unwrap_or_default(), self.in_form);
         let inner = if ui.small() { content } else { block.inner(content) };

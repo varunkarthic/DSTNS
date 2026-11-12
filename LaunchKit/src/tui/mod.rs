@@ -826,8 +826,10 @@ mod tests {
     #[test]
     fn the_dashboard_is_driven_by_keyboard() {
         let mut app = app(120, 35, Box::new(screens::dashboard::DashboardScreen::new()));
-        screen(&mut app, 120, 35);
-        // Configuration is a few down, and Enter opens it.
+        let text = screen(&mut app, 120, 35);
+        assert!(text.contains("▸ Start simulation"), "the first entry is chosen, not the heading above it:\n{text}");
+        assert!(["SIMULATION", "SET UP", "INSPECT", "HELP"].iter().all(|h| text.contains(h)), "the menu is in sections:\n{text}");
+        // Configuration is a few down, past the Set up heading, and Enter opens it.
         for _ in 0..12 {
             if screen(&mut app, 120, 35).contains("▸ Configuration") {
                 break;
@@ -849,7 +851,7 @@ mod tests {
     fn settings_are_in_sections_and_headings_are_passed_over() {
         let mut app = app(120, 40, Box::new(screens::configuration::ConfigurationScreen::new(None)));
         let text = screen(&mut app, 120, 40);
-        assert!(text.contains("SIMULATION") && text.contains("OBSERVER") && text.contains("▸   Run"), "{text}");
+        assert!(text.contains("SIMULATION") && text.contains("OBSERVER") && text.contains("▸ Run"), "{text}");
         assert_eq!(path(&app), "/config/Run", "the first category, not its heading");
         for _ in 0..4 {
             press(&mut app, KeyCode::Down);

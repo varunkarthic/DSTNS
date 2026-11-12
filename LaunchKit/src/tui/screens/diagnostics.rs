@@ -4,7 +4,7 @@
 //! Diagnostics: every environment check, the terminal, the server and the paths.
 
 use crate::environment::{self, Check, State};
-use crate::tui::theme::{bold, fg, ERR, TEXT, TEXT2};
+use crate::tui::theme::{bold, fg, ERR, TEXT2};
 use crate::tui::widgets::{self, card, item, key, row, row_state, status_lines, Key, Menu, MenuEvent, Row};
 use crate::tui::{Action, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -97,12 +97,12 @@ impl Screen for DiagnosticsScreen {
         })
     }
     fn draw(&mut self, frame: &mut Frame, area: Rect, ui: &Ui) {
-        let (side, content) = widgets::columns(area, 30, ui.small(), 3);
+        let (side, content) = widgets::columns(area, widgets::list_width(&self.menu, area, ui.layout == crate::terminal::Layout::Medium), ui.small(), 3);
         let block = card("Run", true);
         let inner = block.inner(side);
         frame.render_widget(block, side);
-        self.menu.render(frame, Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner }, true, ui.unicode);
-        let block = card("", false);
+        self.menu.render(frame, inner, true, ui.unicode);
+        let block = card("Environment", false);
         let inner = block.inner(content);
         frame.render_widget(block, content);
         let inner = Rect { x: inner.x + 2, width: inner.width.saturating_sub(4), ..inner };
@@ -121,7 +121,7 @@ impl Screen for DiagnosticsScreen {
                 r
             })
             .collect();
-        let mut lines = vec![Line::from(Span::styled("ENVIRONMENT", bold(TEXT))), widgets::rule("", inner.width, ui.unicode)];
+        let mut lines = vec![Line::default()];
         lines.extend(status_lines(&rows, 30, inner.width, ui.unicode));
         for check in self.items.iter().filter(|c| c.outcome.state == State::Fail && !c.outcome.detail.is_empty()) {
             lines.push(Line::default());

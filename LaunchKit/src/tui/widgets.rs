@@ -206,6 +206,18 @@ pub fn item(key: &str, label: &str) -> MenuItem {
     MenuItem { key: key.into(), label: label.into(), hint: String::new(), disabled: false }
 }
 
+/// A section's name over the items that follow it: never selected, passed over by the keys. An empty name leaves a
+/// blank line.
+pub fn heading(label: &str) -> MenuItem {
+    MenuItem { key: format!("section:{label}"), label: label.to_uppercase(), hint: String::new(), disabled: true }
+}
+
+impl MenuItem {
+    pub fn is_heading(&self) -> bool {
+        self.key.starts_with("section:")
+    }
+}
+
 pub enum MenuEvent {
     None,
     Moved,
@@ -223,7 +235,13 @@ pub struct Menu {
 
 impl Menu {
     pub fn new(items: Vec<MenuItem>) -> Self {
-        Self { items, index: 0, show_hints: false, offset: 0 }
+        let mut menu = Self { items, index: 0, show_hints: false, offset: 0 };
+        menu.index = menu.first_enabled(false);
+        menu
+    }
+    /// The cells the widest label needs, with its marker.
+    pub fn width_needed(&self) -> u16 {
+        self.items.iter().map(|i| width(&i.label)).max().unwrap_or(0) as u16 + 2
     }
     pub fn current(&self) -> Option<&MenuItem> {
         self.items.get(self.index)
@@ -235,6 +253,9 @@ impl Menu {
         let keep = self.current_key();
         self.items = items;
         self.index = keep.and_then(|k| self.items.iter().position(|i| i.key == k)).unwrap_or_else(|| self.index.min(self.items.len().saturating_sub(1)));
+        if self.items.get(self.index).is_some_and(|i| i.disabled) {
+            self.step(1);
+        }
     }
     pub fn select(&mut self, key: &str) {
         if let Some(position) = self.items.iter().position(|i| i.key == key) {
@@ -310,8 +331,13 @@ impl Menu {
     pub fn render(&mut self, frame: &mut Frame, area: Rect, focused: bool, unicode: bool) {
         let w = area.width.max(4) as usize;
         let rows = area.height as usize;
-        if self.index < self.offset {
-            self.offset = self.index;
+        // The headings just above the selection stay in view with it.
+        let mut top = self.index;
+        while top > 0 && self.items[top - 1].is_heading() {
+            top -= 1;
+        }
+        if top < self.offset {
+            self.offset = top;
         }
         if rows > 0 && self.index >= self.offset + rows {
             self.offset = self.index + 1 - rows;
@@ -319,6 +345,11 @@ impl Menu {
         let mut lines = vec![];
         for (position, item) in self.items.iter().enumerate().skip(self.offset) {
             let chosen = position == self.index;
+            if item.is_heading() {
+                // Level with the marker, so the items beneath read as within it.
+                lines.push(Line::from(Span::styled(clip(&item.label, w, unicode), bold(TEXT2))));
+                continue;
+            }
             let label = clip(&item.label, w.saturating_sub(3), unicode);
             let marker = if !chosen { "  " } else if unicode { "▸ " } else { "> " };
             let text = format!("{marker}{label}");
@@ -373,6 +404,8 @@ pub fn status_lines(rows: &[Row], name_width: usize, area_width: u16, unicode: b
                 spans.push(symbol(state, unicode));
                 spans.push(Span::raw(" "));
                 value_text = clip(&value_text, value_w.saturating_sub(2), unicode);
+            } else {
+                value_text = clip(&value_text, value_w, unicode);
             }
         } else {
             value_text = clip(&value_text, value_w, unicode);
@@ -807,6 +840,12 @@ impl Form {
             y += h;
         }
     }
+}
+
+/// How wide a page's list runs: the same on every page, wider only for a label that would not fit, and never more
+/// than two fifths of the screen.
+pub fn list_width(menu: &Menu, area: Rect, medium: bool) -> u16 {
+    (menu.width_needed() + 3).max(if medium { 24 } else { 30 }).min(area.width * 2 / 5)
 }
 
 /// Splits an area into a sidebar and content, as the dashboard and the list screens do; stacked when small.

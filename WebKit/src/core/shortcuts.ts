@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useEffect, useRef } from "react";
+import { createContext, useEffect, useRef } from "react";
 
 /**
  * Keyboard shortcuts. A person can change any of them in Settings; only what differs
@@ -53,6 +53,9 @@ export function keyName(event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey"
   const shift = event.shiftKey && event.key.length > 1;
   return `${event.ctrlKey ? "Ctrl+" : ""}${event.metaKey ? "Cmd+" : ""}${event.altKey ? "Alt+" : ""}${shift ? "Shift+" : ""}${key}`;
 }
+
+/** The keys in force, so a tooltip can name the one for its control. */
+export const BindingsContext = createContext<Bindings | null>(null);
 
 export function resolveBindings(overrides: ShortcutOverrides | undefined): Bindings {
   const out = {} as Bindings;

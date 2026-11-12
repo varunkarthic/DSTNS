@@ -4,7 +4,7 @@
 //! Saved seeds: start, inspect or delete a saved configuration.
 
 use crate::config::RunOptions;
-use crate::tui::theme::{bold, fg, ERR, TEXT, TEXT2};
+use crate::tui::theme::{fg, ERR, TEXT2};
 use crate::tui::widgets::{self, card, item, key, row, status_lines, Key, Menu, MenuEvent};
 use crate::tui::{Action, Dialog, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -47,23 +47,21 @@ impl Screen for SeedsScreen {
         vec![key("Enter", "Start", "Start", true), key("d", "Delete", "Delete", false), key("Esc", "Back", "Back", true)]
     }
     fn draw(&mut self, frame: &mut Frame, area: Rect, ui: &Ui) {
-        let (side, content) = widgets::columns(area, 30, ui.small(), (self.menu.items.len() as u16 + 1).max(3));
+        let (side, content) = widgets::columns(area, widgets::list_width(&self.menu, area, ui.layout == crate::terminal::Layout::Medium), ui.small(), (self.menu.items.len() as u16 + 1).max(3));
         let block = card("Saved", true);
         let inner = block.inner(side);
         frame.render_widget(block, side);
-        self.menu.render(frame, Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner }, true, ui.unicode);
-        let block = card("", false);
+        self.menu.render(frame, inner, true, ui.unicode);
+        let block = card(&self.menu.current_key().unwrap_or_else(|| "No saved seeds".into()), false);
         let inner = block.inner(content);
         frame.render_widget(block, content);
         let inner = Rect { x: inner.x + 2, width: inner.width.saturating_sub(4), ..inner };
-        let mut lines = vec![];
+        let mut lines = vec![Line::default()];
         if !self.error.is_empty() {
             lines.push(Line::from(Span::styled(self.error.clone(), fg(ERR))));
         }
         match self.menu.current_key() {
             None => {
-                lines.push(Line::from(Span::styled("NO SAVED SEEDS", bold(TEXT))));
-                lines.push(Line::default());
                 lines.push(Line::from(Span::styled("Save a configuration from Start simulation (Save as), or with", fg(TEXT2))));
                 lines.push(Line::from(Span::styled("./launcher start --seed N --save-seed ID", fg(TEXT2))));
             }
@@ -72,8 +70,6 @@ impl Screen for SeedsScreen {
                 Ok(record) => {
                     let config: &Value = &record["config"];
                     let osm = config.pointer("/map/osm_file").and_then(|v| v.as_str()).unwrap_or("auto");
-                    lines.push(Line::from(Span::styled(id.to_uppercase(), bold(TEXT))));
-                    lines.push(Line::default());
                     let created = record["created_at"].as_str().unwrap_or("").chars().take(19).collect::<String>().replace('T', " ");
                     lines.extend(status_lines(
                         &[

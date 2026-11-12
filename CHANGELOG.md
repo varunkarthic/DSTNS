@@ -18,6 +18,23 @@ widening: `tick_rate` now accepts up to 10. Results for a seed do not depend on 
 responses reads `1.4`. The observer's folder is renamed from `ui-engine/` to `WebKit/`. The launcher is now a
 Rust program, every test is C++, Rust or TypeScript, and nothing in DSTNS needs Python to build, run or test.
 
+### The launcher's menus, and the observer's tooltips
+
+- The launcher's main menu is in sections, **Simulation**, **Set up**, **Inspect** and **Help**, with Exit
+  last, as Configuration's categories are. Headings sit level with the selection marker and the keys pass over
+  them; a heading stays in view above its first item when a long list scrolls.
+- Every page's list is the same width and widens for a long label instead of cutting it ("Delete downloaded
+  cities", "Clock, units and news"), and lines up at the same column on every page.
+- Each panel beside a list is titled with what is chosen (a task, a log, a saved seed, an application), where
+  some had an untitled rule and a heading inside.
+- Applications lists what is registered and what asks to join under their own headings, and says `running` in
+  words rather than with a dot.
+- A log page's message that it has nothing yet wraps instead of being cut, and narrow rows in Diagnostics stay
+  on one line.
+- Tooltips show the control's keyboard shortcut as a key cap, following the keys set in Settings, and give it
+  to screen readers. The name and its sentence are clearer apart, sentences break evenly, and a tooltip stands
+  a little further from its control.
+
 ### State machines, reviewed
 
 Every explicit and implicit state machine is now set out in **State machines** (Design), with its states,

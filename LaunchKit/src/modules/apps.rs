@@ -61,7 +61,7 @@ pub fn module() -> Module {
             summary: "The applications this launcher can start alongside a simulation",
             run,
         }],
-        pages: vec![Page { key: "apps", label: "Applications", before: "seeds" }],
+        pages: vec![Page { key: "apps", label: "Applications", before: "diagnostics" }],
     }
 }
 

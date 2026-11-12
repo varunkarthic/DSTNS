@@ -82,13 +82,20 @@ flowchart LR
     Setup -->|no| Dash
     Dash --> Start["Start simulation"] --> Run["Running simulation"] --> Done["Completed"]
     Done --> Dash
-    Dash --> Other["Applications · Saved seeds · Configuration · Demo and Fast Boot<br/>Diagnostics · Logs · Tests · Tools · About"]
+    Dash --> Other["Simulation: Saved seeds · Demo and Fast Boot<br/>Set up: Configuration · Applications · Diagnostics<br/>Inspect: Logs · Tests · Tools<br/>Help: Documentation · About"]
 ```
 
 ### Its look
 
 It is a console: a black field, one blue accent used sparingly, and thin rules between
 things rather than boxes around them.
+
+The menu is in four sections: **Simulation** (start one, saved seeds, Demo and Fast Boot),
+**Set up** (Configuration, Applications, Diagnostics), **Inspect** (Logs, Tests, Tools) and
+**Help** (Documentation, About), with Exit last. Section names sit level with the `▸` marker;
+the arrow keys pass over them. Every page's list is the same width, wider only when a
+label needs it, and the panel beside it is titled with what is chosen. Applications lists
+what is registered, then what asks to join, with `running` written after one that is up.
 
 ```text
  DSTNS  ❯ dashboard                                         ◌ running  │  v2.2.0  │  14:02:11
@@ -100,9 +107,9 @@ things rather than boxes around them.
   memory  214 MiB
 
  ▍MENU ─────────────────  RUNNING SIMULATION ─────────────────────────────────────────────
-  ▸ Running simulation
-    Start simulation      Server             port 8090 · running                  ✓ OK
-    Applications          Simulation time    08:12:44 (34%)
+  SIMULATION
+  ▸ Running simulation    Server             port 8090 · running                  ✓ OK
+    Start simulation      Simulation time    08:12:44 (34%)
     …
                           SYSTEM LOG ──────────────────────────────────────────────────────
                           14:02:09 [INFO] [world] World run_8b2e… ready
@@ -188,23 +195,23 @@ interface's own thread:
 
 Below, the menu on the left and what is selected on the right; with room, the tail of the
 server's `system.log` runs beneath it, coloured by level. When a simulation is running,
-**Running simulation** heads the menu.
+**Running simulation** heads the Simulation section.
 
-| Item | Opens |
-|---|---|
-| Running simulation | The live run, when there is one |
-| Start simulation | The start form |
-| Applications | Your programs, to start alongside a run; see [Applications](#applications) |
-| Saved seeds | Saved configurations: start, inspect or delete |
-| Configuration | Every setting, by category |
-| Demo and Fast Boot | Demo Mode, and downloading every city |
-| Diagnostics | Every check, optionally with the test suites; server, terminal and path details |
-| Logs | The system log and the API, operator-event and lifecycle journals |
-| Tests | The test stages, with live output |
-| Tools | The SUMO toolchain check, rebuilding the observer, resetting runtime data |
-| Documentation | This site, in your browser |
-| About | Version, copyright, licence and map-data attribution |
-| Exit | Leaves the launcher, stopping a simulation it started after confirmation |
+| Section | Item | Opens |
+|---|---|---|
+| Simulation | Running simulation | The live run, when there is one |
+| | Start simulation | The start form |
+| | Saved seeds | Saved configurations: start, inspect or delete |
+| | Demo and Fast Boot | Demo Mode, and downloading every city |
+| Set up | Configuration | Every setting, by section and category |
+| | Applications | Your programs, to start alongside a run; see [Applications](#applications) |
+| | Diagnostics | Every check, optionally with the test suites; server, terminal and path details |
+| Inspect | Logs | The system log and the API, operator-event and lifecycle journals |
+| | Tests | The test stages, with live output |
+| | Tools | The SUMO toolchain check, rebuilding the observer, resetting runtime data |
+| Help | Documentation | This site, in your browser |
+| | About | Version, copyright, licence and map-data attribution |
+| | Exit | Leaves the launcher, stopping a simulation it started after confirmation |
 
 ### Start simulation
 

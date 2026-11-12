@@ -3,7 +3,7 @@
 
 //! Logs: the server's system log and its SQLite journal.
 
-use crate::tui::theme::{bold, fg, ACCENT, ERR, TEXT, TEXT2, WARN};
+use crate::tui::theme::{bold, fg, ACCENT, ERR, MUTED, TEXT, TEXT2, WARN};
 use crate::tui::widgets::{self, card, item, key, Key, Menu, MenuEvent};
 use crate::tui::{Action, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -64,22 +64,28 @@ impl Screen for LogsScreen {
         vec![key(if ui.unicode { "↑↓" } else { "Up/Down" }, "Source", "Source", false), key("r", "Refresh", "Refresh", true), key("PgUp/PgDn", "Scroll", "Scroll", false), key("Esc", "Back", "Back", true)]
     }
     fn draw(&mut self, frame: &mut Frame, area: Rect, ui: &Ui) {
-        let (side, content) = widgets::columns(area, 30, ui.small(), 5);
+        let (side, content) = widgets::columns(area, widgets::list_width(&self.menu, area, ui.layout == crate::terminal::Layout::Medium), ui.small(), 5);
         let block = card("Sources", !self.in_view);
         let inner = block.inner(side);
         frame.render_widget(block, side);
-        self.menu.render(frame, Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner }, !self.in_view, ui.unicode);
-        let block = card("", self.in_view);
+        self.menu.render(frame, inner, !self.in_view, ui.unicode);
+        let (name, source) = self.title.split_once("  ·  ").unwrap_or((&self.title, ""));
+        let block = card(name, self.in_view);
         let inner = block.inner(content);
         frame.render_widget(block, content);
         let inner = Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner };
-        frame.render_widget(Paragraph::new(Line::from(Span::styled(self.title.clone(), bold(TEXT)))), Rect { height: 1, ..inner });
+        frame.render_widget(Paragraph::new(Line::from(Span::styled(source.to_string(), fg(MUTED)))), Rect { height: 1, ..inner });
         let view = Rect { y: inner.y + 2, height: inner.height.saturating_sub(2), ..inner };
         let total = self.lines.len();
         let visible = view.height as usize;
         let end = total.saturating_sub(self.scroll.min(total.saturating_sub(visible)));
         let start = end.saturating_sub(visible);
-        frame.render_widget(Paragraph::new(self.lines[start..end].to_vec()), view);
+        let mut text = Paragraph::new(self.lines[start..end].to_vec());
+        // A single line is a message about the log, not the log: wrapped, never cut.
+        if total == 1 {
+            text = text.wrap(ratatui::widgets::Wrap { trim: true });
+        }
+        frame.render_widget(text, view);
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {
         match event.code {

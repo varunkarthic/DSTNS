@@ -34,7 +34,7 @@ import { Tooltip } from "./components/Tooltip";
 import { ReportFilm } from "./report/ReportFilm";
 import type { ReportPreview } from "./report/ReportFilm";
 import { useISDNotifications } from "./notifications/ISDHandler";
-import { resolveBindings, useShortcuts } from "./core/shortcuts";
+import { BindingsContext, resolveBindings, useShortcuts } from "./core/shortcuts";
 import { useSteadyStatus } from "./simulation/useSteadyStatus";
 import { RATES, rateIndexOf } from "./panels/CommandRail";
 import type { ISDCondition } from "./notifications/ISDHandler";
@@ -1252,7 +1252,8 @@ export default function App() {
     const next = RATES[Math.max(0, Math.min(RATES.length - 1, rateIndexOf(requestedRate) + direction))];
     if (next !== requestedRate) void action(() => api.tick(next));
   };
-  useShortcuts(resolveBindings(config.shortcuts), {
+  const bindings = useMemo(() => resolveBindings(config.shortcuts), [config.shortcuts]);
+  useShortcuts(bindings, {
     play: () => interactive && ["RUNNING", "PAUSED"].includes(lifecycle) && void action(lifecycle === "PAUSED" ? api.play : api.pause),
     back: () => interactive && void action(() => seekBy(-config.playback.skip_seconds, virtual)),
     forward: () => interactive && void action(() => seekBy(config.playback.skip_seconds, virtual)),
@@ -1282,6 +1283,7 @@ export default function App() {
 
   return (
     <AdvancedContext.Provider value={access.advanced}>
+    <BindingsContext.Provider value={bindings}>
     <TimeFormatProvider hour12={hour12} onToggle={toggleHour12}>
       <div
         inert={tutorial.active || undefined}
@@ -1712,6 +1714,7 @@ export default function App() {
         />
       )}
     </TimeFormatProvider>
+    </BindingsContext.Provider>
     </AdvancedContext.Provider>
   );
 }

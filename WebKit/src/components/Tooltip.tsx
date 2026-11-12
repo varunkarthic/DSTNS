@@ -2,12 +2,14 @@
 // Copyright (C) 2026 Varun Karthic
 
 import { PlaceGlyph } from "../map/Legends";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { computePlacement } from "./tooltipPlacement";
 import type { Placement, Rect, Side } from "./tooltipPlacement";
 import type { Inspection } from "../core/types";
+import { BindingsContext } from "../core/shortcuts";
+import type { ShortcutId } from "../core/shortcuts";
 
 /**
  * Tooltips and map inspection cards.
@@ -49,6 +51,7 @@ function useMeasuredPlacement(
   anchorEl: () => Element | null,
   preferred: Side[] | undefined,
   deps: unknown[],
+  gap?: number,
 ) {
   const tip = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<Placement | null>(null);
@@ -64,6 +67,7 @@ function useMeasuredPlacement(
         viewport: { width: window.innerWidth, height: window.innerHeight },
         avoid: avoidRegions(anchorEl()),
         preferred,
+        gap,
       }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,6 +94,7 @@ export function Tooltip({
   side,
   delay = 380,
   disabled = false,
+  shortcut,
 }: {
   label: string;
   detail?: ReactNode;
@@ -98,8 +103,12 @@ export function Tooltip({
   side?: Side[];
   delay?: number;
   disabled?: boolean;
+  /** The shortcut for this control; its current key is shown beside the label. */
+  shortcut?: ShortcutId;
 }) {
   const id = useId();
+  const bindings = useContext(BindingsContext);
+  const keyName = shortcut && bindings ? bindings[shortcut] : undefined;
   const anchor = useRef<HTMLSpanElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [open, setOpen] = useState(false);
@@ -131,6 +140,13 @@ export function Tooltip({
   }, [open, hide]);
 
   const target = () => (anchor.current?.firstElementChild as HTMLElement | null) ?? anchor.current;
+  // Screen readers hear the key as well.
+  useEffect(() => {
+    const el = anchor.current?.firstElementChild;
+    if (!el) return;
+    if (keyName) el.setAttribute("aria-keyshortcuts", keyName);
+    else el.removeAttribute("aria-keyshortcuts");
+  }, [keyName]);
   const { tip, place } = useMeasuredPlacement(
     open,
     () => {
@@ -139,7 +155,8 @@ export function Tooltip({
     },
     target,
     side,
-    [label, detail, side],
+    [label, detail, side, keyName],
+    10,
   );
 
   return (
@@ -178,7 +195,14 @@ export function Tooltip({
               ["--arrow" as string]: `${place?.arrow ?? 0}px`,
             }}
           >
-            <span className="tip-label">{label}</span>
+            <span className="tip-head">
+              <span className="tip-label">{label}</span>
+              {keyName && (
+                <kbd className="tip-key" aria-hidden="true">
+                  {keyName}
+                </kbd>
+              )}
+            </span>
             {detail && <span className="tip-detail">{detail}</span>}
           </div>,
           document.body,

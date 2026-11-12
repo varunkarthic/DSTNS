@@ -6,8 +6,8 @@
 use crate::apps::{self as catalogue, App};
 use crate::environment::State;
 use crate::supervisor::Phase;
-use crate::tui::theme::{bold, fg, ACCENT, ERR, TEXT, TEXT2};
-use crate::tui::widgets::{self, card, form_row, item, key, row, row_state, status_lines, Editor, Form, Key, Menu, MenuEvent, MenuItem, Row};
+use crate::tui::theme::{fg, ACCENT, ERR, TEXT, TEXT2};
+use crate::tui::widgets::{self, card, form_row, heading, item, key, row, row_state, status_lines, Editor, Form, Key, Menu, MenuEvent, MenuItem, Row};
 use crate::tui::{Action, Dialog, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
@@ -56,18 +56,26 @@ impl AppsScreen {
         };
         self.error.clear();
         let supervisor = ui.session.supervisor();
-        let mut items: Vec<MenuItem> = entries
-            .values()
-            .map(|app| {
-                let running = supervisor.as_ref().and_then(|s| s.get(&app.id)).map(|s| s.phase == Phase::Ready).unwrap_or(false);
-                item(&format!("app:{}", app.id), &format!("{}{}", if running { if ui.unicode { "● " } else { "* " } } else { "  " }, app.title()))
-            })
-            .collect();
+        // In sections, and in words: what is registered and whether it runs, then what asks to join.
+        let mut items: Vec<MenuItem> = vec![];
+        if !entries.is_empty() {
+            items.push(heading("Registered"));
+        }
+        items.extend(entries.values().map(|app| {
+            let running = supervisor.as_ref().and_then(|s| s.get(&app.id)).map(|s| s.phase == Phase::Ready).unwrap_or(false);
+            item(&format!("app:{}", app.id), &format!("{}{}", app.title(), if running { " · running" } else { "" }))
+        }));
+        if !self.waiting.is_empty() {
+            items.push(heading("Asking to join"));
+        }
         for proposal in &self.waiting {
             let id = proposal["id"].as_str().unwrap_or("");
-            items.push(item(&format!("proposal:{id}"), &format!("? {id}")));
+            items.push(item(&format!("proposal:{id}"), id));
         }
-        items.push(item("add", "+ Add an application"));
+        if items.len() > 1 {
+            items.push(heading(""));
+        }
+        items.push(item("add", "Add an application"));
         if items.iter().map(|i| (&i.key, &i.label)).ne(self.menu.items.iter().map(|i| (&i.key, &i.label))) {
             self.menu.set_items(items);
         }
@@ -153,23 +161,21 @@ impl Screen for AppsScreen {
         if self.menu.items.is_empty() {
             self.rebuild(ui);
         }
-        let (side, content) = widgets::columns(area, 30, ui.small(), self.menu.items.len() as u16 + 1);
+        let (side, content) = widgets::columns(area, widgets::list_width(&self.menu, area, ui.layout == crate::terminal::Layout::Medium), ui.small(), self.menu.items.len() as u16 + 1);
         let block = card("Applications", true);
         let inner = block.inner(side);
         frame.render_widget(block, side);
-        self.menu.render(frame, Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner }, true, ui.unicode);
-        let block = card("Details", false);
+        self.menu.render(frame, inner, true, ui.unicode);
+        let described = self.menu.current_key().map(|current| self.describe(&current, ui));
+        let block = card(described.as_ref().map(|d| d.0.as_str()).unwrap_or("Details"), false);
         let inner = block.inner(content);
         frame.render_widget(block, content);
         let inner = Rect { x: inner.x + 2, width: inner.width.saturating_sub(4), ..inner };
-        let mut lines = vec![];
+        let mut lines = vec![Line::default()];
         if !self.error.is_empty() {
             lines.push(Line::from(Span::styled(self.error.clone(), fg(ERR))));
         }
-        if let Some(current) = self.menu.current_key() {
-            let (title, rows, hint) = self.describe(&current, ui);
-            lines.push(Line::from(Span::styled(title, bold(TEXT))));
-            lines.push(Line::default());
+        if let Some((_, rows, hint)) = described {
             lines.extend(status_lines(&rows, 18, inner.width, ui.unicode));
             lines.push(Line::default());
             lines.extend(widgets::wrap(&hint, inner.width as usize).into_iter().map(|l| Line::from(Span::styled(l, fg(TEXT2)))));

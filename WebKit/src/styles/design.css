@@ -2767,17 +2767,25 @@ html body *, html body *::before, html body *::after { backdrop-filter: none !im
 .disclosure-head { min-height: 44px; border: 0; border-radius: 0; background: none; box-shadow: none; }
 .disclosure.open .disclosure-head { box-shadow: 0 1px 0 var(--well-line); }
 
-/* ---- Tooltips: a small stadium with no pointer, which comes out of the control it describes ------- */
-.tip { max-width: 280px; gap: 3px; padding: 7px 14px; border-radius: var(--r-pill); background: var(--surface-solid); border: 1px solid var(--glass-line-strong); box-shadow: 0 12px 28px -10px rgb(0 0 0 / 45%), 0 2px 6px rgb(0 0 0 / 16%); backdrop-filter: none; transition: opacity 110ms ease-out, transform var(--motion-release-ms, 180ms) var(--motion-release, ease-out); }
-.tip:has(.tip-detail) { padding: 10px 14px; }
+/* ---- Tooltips: a small stadium with no pointer, which comes out of the control it describes. The name leads; a
+   sentence, when there is one, sits under it in the quieter colour; the control's key, when it has one, sits at the
+   end of the name as a key cap. ------------------------------------------------------------------------------------ */
+.tip { max-width: 300px; gap: 4px; padding: 7px 14px; border-radius: var(--r-pill); background: var(--surface-solid); border: 1px solid var(--glass-line-strong); box-shadow: 0 14px 32px -12px rgb(0 0 0 / 42%), 0 2px 6px rgb(0 0 0 / 12%), inset 0 1px 0 rgb(255 255 255 / 4%); backdrop-filter: none; transition: opacity 120ms ease-out, transform var(--motion-release-ms, 180ms) var(--motion-release, ease-out); }
+[data-theme="light"] .tip { box-shadow: 0 14px 30px -14px rgb(16 32 44 / 30%), 0 1px 4px rgb(16 32 44 / 8%); }
+.tip:has(.tip-key):not(:has(.tip-detail)) { padding: 5px 5px 5px 14px; }
+.tip:has(.tip-detail) { padding: 10px 14px 11px; }
 .tip::after { display: none; }
-.tip.tip-top { transform: translateY(3px) scale(0.97); transform-origin: 50% 100%; }
-.tip.tip-bottom { transform: translateY(-3px) scale(0.97); transform-origin: 50% 0; }
-.tip.tip-left { transform: translateX(3px) scale(0.97); transform-origin: 100% 50%; }
-.tip.tip-right { transform: translateX(-3px) scale(0.97); transform-origin: 0 50%; }
+.tip.tip-top { transform: translateY(4px) scale(0.97); transform-origin: 50% 100%; }
+.tip.tip-bottom { transform: translateY(-4px) scale(0.97); transform-origin: 50% 0; }
+.tip.tip-left { transform: translateX(4px) scale(0.97); transform-origin: 100% 50%; }
+.tip.tip-right { transform: translateX(-4px) scale(0.97); transform-origin: 0 50%; }
 .tip.shown { transform: none; }
-.tip-label { font-size: 12.5px; font-weight: 550; letter-spacing: -0.003em; }
-.tip-detail { font-size: 11.5px; line-height: 16px; }
+.reduce-motion .tip { transform: none; transition: opacity 90ms linear; }
+.tip-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 0; }
+.tip-label { font-size: 13px; line-height: 18px; font-weight: 590; letter-spacing: -0.006em; color: var(--text); }
+.tip-detail { font-size: 12px; line-height: 17px; color: var(--text-dim); text-wrap: pretty; overflow-wrap: break-word; }
+.tip-key { flex: none; display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 7px; border-radius: var(--r-pill); background: var(--well); border: 1px solid var(--glass-line-strong); color: var(--text-dim); font: 600 11px/1 var(--font-mono, monospace); letter-spacing: 0; }
+.tip:has(.tip-detail) .tip-key { border-radius: 6px; height: 20px; min-width: 20px; padding: 0 6px; }
 
 /* ---- What only reports moves as what can be moved does ---------------------------------------------
    Its fill slides inside a clipped track, so that its rounded end keeps its shape. */

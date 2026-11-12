@@ -8,7 +8,7 @@
 
 use crate::environment::State;
 use crate::reporting::Reporter;
-use crate::tui::theme::{bold, fg, ERR, MUTED, OK, TEXT, TEXT2};
+use crate::tui::theme::{fg, ERR, MUTED, OK, TEXT2};
 use crate::tui::widgets::{self, activity, card, key, row_state, status_lines, Key, Menu, MenuEvent, MenuItem, Row};
 use crate::tui::{reporter, Action, Dialog, Event_, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -230,16 +230,16 @@ impl Screen for TaskScreen {
         }
     }
     fn draw(&mut self, frame: &mut Frame, area: Rect, ui: &Ui) {
-        let (side, content) = widgets::columns(area, 30, ui.small(), self.menu.items.len() as u16 + 1);
+        let (side, content) = widgets::columns(area, widgets::list_width(&self.menu, area, ui.layout == crate::terminal::Layout::Medium), ui.small(), self.menu.items.len() as u16 + 1);
         let block = card(&self.title(), true);
         let inner = block.inner(side);
         frame.render_widget(block, side);
-        self.menu.render(frame, Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner }, true, ui.unicode);
-        let block = card("", false);
+        self.menu.render(frame, inner, true, ui.unicode);
+        let block = card(&self.title, false);
         let inner = block.inner(content);
         frame.render_widget(block, content);
         let inner = Rect { x: inner.x + 2, width: inner.width.saturating_sub(4), ..inner };
-        let mut lines = vec![Line::from(Span::styled(self.title.clone(), bold(TEXT))), widgets::rule("", inner.width, ui.unicode)];
+        let mut lines = vec![Line::default()];
         if let Some(label) = &self.busy {
             lines.push(activity(label, true, ui.motion, self.started));
         }

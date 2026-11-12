@@ -142,12 +142,12 @@ export function CommandRail(props: CommandRailProps) {
         </Tooltip>
         <span className="rail-sep" aria-hidden="true" />
         <SkipButton direction="back" label={skip} fine={props.fineControl} disabled={!live || virtual <= 0} reduceMotion={props.reduceMotion} onSkip={props.onBack} />
-        <Tooltip label={`Step ${step}`} detail="Advances by one step and holds, so each change can be inspected.">
+        <Tooltip label={`Step ${step}`} shortcut="step" detail="Advances by one step and holds, so each change can be inspected.">
           <button type="button" className="rail-btn" aria-label={`Step ${step}`} disabled={!live || virtual >= DAY_SECONDS || completed} onClick={props.onStep}>
             <Icon name="step" size={16} />
           </button>
         </Tooltip>
-        <Tooltip label={paused ? "Resume" : "Pause"}>
+        <Tooltip label={paused ? "Resume" : "Pause"} shortcut="play">
           <button
             type="button"
             className={`rail-btn play${paused ? " is-paused" : ""}`}
@@ -380,7 +380,7 @@ function SkipButton({ direction, label, fine, disabled, reduceMotion, onSkip }: 
   useDismiss(open, () => setOpen(false), [trigger, menu]);
   return (
     <>
-      <Tooltip label={fine ? (direction === "back" ? "Back by…" : "Forward by…") : `${direction === "back" ? "Back" : "Forward"} ${label}`} detail={direction === "back" ? "Restores the nearest checkpoint and replays deterministically." : "Advances the model by this interval."} disabled={open}>
+      <Tooltip label={fine ? (direction === "back" ? "Back by…" : "Forward by…") : `${direction === "back" ? "Back" : "Forward"} ${label}`} detail={direction === "back" ? "Restores the nearest checkpoint and replays deterministically." : "Advances the model by this interval."} shortcut={fine ? undefined : direction === "back" ? "back" : "forward"} disabled={open}>
         <button
           ref={trigger}
           type="button"
