@@ -9,6 +9,7 @@
 //   A platform with no recorded value fails, so a new one is recorded deliberately.
 // A difference fails the test. To record new values deliberately (a new algorithm version), run with
 // DSTNS_GOLDEN_WRITE=1 and say why in CHANGELOG.md.
+#include "dstns/core-ng/selection.hpp"
 #include "dstns/engine.hpp"
 #include "dstns/geo.hpp"
 #include "dstns/logging.hpp"
@@ -53,12 +54,14 @@ std::string exact(double value) {
 }
 
 std::string snapshot_hash(const Seed128& seed, const ScenarioConfig& cfg, const std::string& label) {
+    const bool ng = cfg.engine == core_ng::kEngineId;
     const auto directory = std::filesystem::temp_directory_path() / ("dstns-golden-" + label);
     std::filesystem::remove_all(directory);
     std::string hash;
     {
         RuntimeLogger logger(directory);
         SimulationEngine engine(logger);
+        if (ng) engine.register_engine(core_ng::kEngineId, core_ng::hooks());
         engine.prepare(seed, cfg);
         engine.seek(12'345, false);
         hash = sha256(engine.snapshot()["data"].dump());
@@ -69,7 +72,9 @@ std::string snapshot_hash(const Seed128& seed, const ScenarioConfig& cfg, const 
     return hash;
 }
 
-json actual() {
+// Every value, as one engine computes it. Both engines must give the same.
+json actual(const std::string& engine) {
+    const bool ng = engine == core_ng::kEngineId;
     json out;
     out["map_selection_version"] = "urban-crfg-v3";
     out["catalogue_size"] = city_catalog().size();
@@ -77,7 +82,8 @@ json actual() {
                                    "340282366920938463463374607431768211455"};
     for (int i = 100; i < 164; ++i) seeds.push_back(std::to_string(i * 7919));
     for (const auto& text : seeds) {
-        const auto location = select_map_location(Seed128::from_decimal(text));
+        const auto seed = Seed128::from_decimal(text);
+        const auto location = ng ? core_ng::select_location(seed, core_ng::SelectionPolicy{}, 5000.0) : select_map_location(seed);
         out["selection"][text] = {{"city", location.city}, {"country", location.country},
                                   {"anchor_lat", exact(location.anchor_lat)}, {"anchor_lon", exact(location.anchor_lon)},
                                   {"cache_key", location.cache_key()}};
@@ -87,23 +93,37 @@ json actual() {
     grid.grid_width = 7; grid.grid_height = 7; grid.dws_frequency = 4; grid.playback_duration_s = 600;
     ScenarioConfig osm = grid;
     osm.osm_file = "tests/fixtures/roads.osm.xml"; osm.max_nodes = 50;
+    // "auto": the seed chooses the city and anchor. The bundled district is planted in a private cache under each
+    // seed's city name, so the whole path from seed to district runs offline.
+    ScenarioConfig automatic = osm;
+    automatic.osm_file = "auto";
+    automatic.max_nodes = 50000;
+    automatic.map_cache_dir = (std::filesystem::temp_directory_path() / ("dstns-golden-cache-" + engine)).string();
+    std::filesystem::remove_all(automatic.map_cache_dir);
+    std::filesystem::create_directories(automatic.map_cache_dir);
+    for (const auto* text : {"42", "382923"})
+        std::filesystem::copy_file("data/fixtures/real_network.osm.xml", select_map_location(Seed128::from_decimal(text)).cache_path(automatic.map_cache_dir),
+                                   std::filesystem::copy_options::overwrite_existing);
     const ScenarioCompiler compiler;
-    for (const auto& [label, cfg] : std::vector<std::pair<std::string, ScenarioConfig>>{{"grid", grid}, {"osm", osm}}) {
+    const auto hooks = ng ? core_ng::hooks() : ScenarioCompiler::Hooks{};
+    for (auto [label, cfg] : std::vector<std::pair<std::string, ScenarioConfig>>{{"grid", grid}, {"osm", osm}, {"auto", automatic}}) {
+        cfg.engine = engine;
         for (const auto* text : {"42", "382923"}) {
             const auto seed = Seed128::from_decimal(text);
-            const auto s = compiler.compile(seed, cfg);
+            const auto s = compiler.compile(seed, cfg, {}, hooks);
             out["scenario"][label][text] = {{"map_hash", s.map_hash}, {"graph_hash", s.graph_hash},
                                             {"event_hash", s.event_hash}, {"scenario_hash", s.scenario_hash},
                                             {"snapshot_12345", {{platform(), snapshot_hash(seed, cfg, label + "-" + text)}}}};
         }
     }
+    std::filesystem::remove_all(automatic.map_cache_dir);
     return out;
 }
 } // namespace
 
 int main() {
     try {
-        auto now = actual();
+        auto now = actual("core-legacy");
         json frozen;
         if (std::ifstream in(kFixture); in) frozen = json::parse(in);
         if (const char* write = std::getenv("DSTNS_GOLDEN_WRITE"); write && std::string(write) == "1") {
@@ -120,18 +140,30 @@ int main() {
         }
         if (frozen.is_null()) throw std::runtime_error(std::string("missing ") + kFixture);
         // Compare this platform's snapshots only; the rest must match exactly.
+        std::vector<std::string> missing;
         for (auto& [label, seeds] : frozen["scenario"].items())
             for (auto& [seed, entry] : seeds.items()) {
                 auto& snapshots = entry["snapshot_12345"];
-                if (!snapshots.contains(platform()))
-                    throw std::runtime_error("no golden snapshot recorded for " + platform());
+                if (!snapshots.contains(platform())) {
+                    missing.push_back("/scenario/" + label + "/" + seed + " computes " +
+                                      now["scenario"][label][seed]["snapshot_12345"][platform()].dump());
+                    continue;
+                }
                 snapshots = json{{platform(), snapshots[platform()]}};
             }
-        if (now != frozen) {
-            for (const auto& entry : json::diff(frozen, now)) std::cerr << entry.dump() << "\n";
-            throw std::runtime_error("results differ from the golden fixtures");
+        if (!missing.empty()) {
+            for (const auto& line : missing) std::cerr << line << "\n";
+            throw std::runtime_error("no golden snapshot recorded for " + platform() + " (values above)");
         }
-        std::cout << "[golden] seed selection, compile hashes and runtime snapshots match\n";
+        // core-ng must give exactly what core-legacy recorded.
+        for (const auto& [engine, result] : {std::pair{std::string("core-legacy"), now},
+                                             std::pair{std::string(core_ng::kEngineId), actual(core_ng::kEngineId)}}) {
+            if (result != frozen) {
+                for (const auto& entry : json::diff(frozen, result)) std::cerr << engine << ": " << entry.dump() << "\n";
+                throw std::runtime_error(engine + " differs from the golden fixtures");
+            }
+        }
+        std::cout << "[golden] core-legacy and core-ng: seed selection, compile hashes and runtime snapshots match\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

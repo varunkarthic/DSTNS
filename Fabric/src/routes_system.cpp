@@ -115,6 +115,7 @@ void ApiServer::routes_system() {
                        {"channel", DSTNS_CHANNEL}, {"type", DSTNS_BUILD_TYPE},
                        {"architecture", DSTNS_BUILD_ARCH}}},
             {"lifecycle", to_string(engine_.lifecycle())},
+            {"engines", engine_.engines()},
             {"sumo", {
                 {"available", env.available},
                 {"version", env.sumo_version},

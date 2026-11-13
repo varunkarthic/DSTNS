@@ -347,7 +347,30 @@ void SimulationEngine::anchor_wall_clock() {
     anchor_virtual_s_ = virtual_s_;
 }
 
+void SimulationEngine::register_engine(const std::string& id, ScenarioCompiler::Hooks hooks) {
+    if (id.empty() || id == "core-legacy") throw std::invalid_argument("engine id is reserved");
+    engines_[id] = std::move(hooks);
+}
+
+std::vector<std::string> SimulationEngine::engines() const {
+    std::vector<std::string> out{"core-legacy"};
+    for (const auto& [id, hooks] : engines_) out.push_back(id);
+    return out;
+}
+
+// Checked before the lifecycle moves, so an unknown engine is refused at once instead of failing a preparation.
+void SimulationEngine::require_engine(const ScenarioConfig& config) const {
+    if (config.engine != "core-legacy" && !engines_.contains(config.engine))
+        throw std::invalid_argument("unknown engine: " + config.engine);
+}
+
+Scenario SimulationEngine::compile_scenario(Seed128 seed, const ScenarioConfig& config) {
+    const auto found = engines_.find(config.engine);
+    return compiler_.compile(seed, config, compile_progress(), found == engines_.end() ? ScenarioCompiler::Hooks{} : found->second);
+}
+
 nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& config) {
+    require_engine(config);
     auto compile_lease = std::make_shared<CompileLease>(compiling_);
     std::unique_lock lock(mutex_);
     if (terminate_requested_) throw std::logic_error("simulation is terminating");
@@ -359,7 +382,7 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
     preparation_error_.clear();
     try {
         lock.unlock();
-        auto scenario = compiler_.compile(seed, config, compile_progress());
+        auto scenario = compile_scenario(seed, config);
         lock.lock();
         if (generation != compile_generation_ || terminate_requested_)
             throw std::logic_error("world preparation cancelled by runtime change");
@@ -603,6 +626,7 @@ void SimulationEngine::install_scenario(Scenario scenario, double tick_rate, std
 }
 
 nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& config, std::uint32_t start) {
+    require_engine(config);
     auto compile_lease = std::make_shared<CompileLease>(compiling_);
     std::unique_lock lock(mutex_);
     if (terminate_requested_) throw std::logic_error("simulation is terminating");
@@ -614,7 +638,7 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
     preparation_error_.clear();
     try {
         lock.unlock();
-        auto scenario = compiler_.compile(seed, config, compile_progress());
+        auto scenario = compile_scenario(seed, config);
         lock.lock();
         if (generation != compile_generation_ || terminate_requested_)
             throw std::logic_error("world preparation cancelled by runtime change");
@@ -653,6 +677,7 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
 }
 
 nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig& config, std::uint32_t start) {
+    require_engine(config);
     auto compile_lease = std::make_shared<CompileLease>(compiling_);
     std::uint64_t generation;
     {
@@ -671,7 +696,7 @@ nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig&
     world_worker_ = std::jthread([this, seed, config, start, generation, compile_lease](std::stop_token) {
         set_thread_role(ThreadRole::Preparation);
         try {
-            auto scenario = compiler_.compile(seed, config, compile_progress());
+            auto scenario = compile_scenario(seed, config);
             std::lock_guard lock(mutex_);
             if (generation != compile_generation_ || terminate_requested_)
                 throw std::logic_error("world preparation cancelled by runtime change");
@@ -1030,7 +1055,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
             logger_.system("ERROR", "world", code + ": " + message);
         };
         try {
-            auto scenario = compiler_.compile(seed, config, compile_progress());
+            auto scenario = compile_scenario(seed, config);
             {
                 std::lock_guard l(world_mutex_);
                 if (world_job_.generation != generation) {
@@ -1976,6 +2001,7 @@ nlohmann::json SimulationEngine::status() const {
         {"day", graph_ ? graph_->scenario().config.day : -1},
         {"saved_seed_id", graph_ ? graph_->scenario().config.saved_seed_id : ""},
         {"map_selection_version", graph_ ? graph_->scenario().config.map_selection_version : ""},
+        {"engine", graph_ ? graph_->scenario().config.engine : ""},
         {"traffic_model", "DSTNS aggregate traffic model"},
         {"paused", lifecycle_ == Lifecycle::Paused},
         {"simulated_seconds", virtual_s_},
@@ -2328,7 +2354,9 @@ nlohmann::json SimulationEngine::manifest() const {
         {"event_hash", s.event_hash},
         {"scenario_hash", s.scenario_hash},
         {"map_source", s.config.osm_file.empty() ? "offline-deterministic-road-fixture" : "osm-xml"},
-        {"road_filter_version", "road-only/v1"}
+        {"road_filter_version", "road-only/v1"},
+        {"engine", s.config.engine},
+        {"map_selection_version", s.config.map_selection_version}
     });
 }
 

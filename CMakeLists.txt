@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.0.1 LANGUAGES CXX)
+project(dstns VERSION 3.1.0 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -104,9 +104,15 @@ target_include_directories(dstns_fabric PUBLIC Fabric/include PRIVATE Fabric/src
 target_link_libraries(dstns_fabric PUBLIC dstns_core dstns_daemon)
 target_compile_options(dstns_fabric PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 
+# core-ng: the next-generation engine, built beside core-legacy one module at a time.
+add_library(dstns_core_ng Core/core-ng/src/selection.cpp)
+target_include_directories(dstns_core_ng PUBLIC Core/core-ng/include)
+target_link_libraries(dstns_core_ng PUBLIC dstns_core)
+target_compile_options(dstns_core_ng PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Werror)
+
 add_executable(dstns_server Core/server/main.cpp Core/server/container.cpp)
 target_compile_definitions(dstns_server PRIVATE DSTNS_VERSION="${PROJECT_VERSION}")
-target_link_libraries(dstns_server PRIVATE dstns_fabric)
+target_link_libraries(dstns_server PRIVATE dstns_fabric dstns_core_ng)
 add_executable(dstns_scenario_export tools/scenario-inspect/main.cpp)
 target_link_libraries(dstns_scenario_export PRIVATE dstns_core)
 add_executable(dstns_road_index tools/road-index/main.cpp)
@@ -127,7 +133,7 @@ if(DSTNS_BUILD_TESTS)
   enable_testing()
   # The HTTP tests: each a program of its own, against a real server it starts on a port of its own.
   set(DSTNS_HTTP_TESTS api docs_coverage another_city termination loading fastboot hardening robustness fabric_contract narration observer_hold
-    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot daemon long_jump)
+    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot daemon long_jump engine_switch)
   foreach(name ${DSTNS_HTTP_TESTS})
     add_executable(dstns_http_${name} tests/http/${name}.cpp)
     target_link_libraries(dstns_http_${name} PRIVATE dstns_fabric)
@@ -179,7 +185,7 @@ if(DSTNS_BUILD_TESTS)
   set_tests_properties(dstns_map_sourcing PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_executable(dstns_golden_tests tests/unit/golden_tests.cpp)
-  target_link_libraries(dstns_golden_tests PRIVATE dstns_core)
+  target_link_libraries(dstns_golden_tests PRIVATE dstns_core dstns_core_ng)
   target_compile_options(dstns_golden_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_golden COMMAND dstns_golden_tests)
   set_tests_properties(dstns_golden PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")

@@ -58,6 +58,7 @@ Body:
 | `start_virtual_time` | seconds or `HH:MM:SS` | No | Default 0 | Where the day begins |
 | `saved_seed_id` | string | No | `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` | Name it was saved under |
 | `map_selection_version` | string | No | Only `urban-crfg-v3` | How districts are chosen |
+| `engine` | string | No | `core-legacy` (default) or `core-ng`; another is refused with 400 | Which engine prepares and runs the world. Results are the same; `/system/info` lists the engines (API 1.5) |
 | `map.osm_file` | string | No | A path, or `auto` | Use this file rather than downloading |
 | `map.city_extent_m` | number | No | 500 to 20000 | How wide a district is |
 | `map.district_nodes` | integer | No | 200 to 50000 | How many junctions |
@@ -132,6 +133,7 @@ Response `200`, from a real run:
   "data": {
     "checkpoint_count": 1,
     "day": 0,
+    "engine": "core-legacy",
     "lifecycle": "RUNNING",
     "map_selection_version": "urban-crfg-v3",
     "modules": {
@@ -1269,7 +1271,7 @@ Response `200`, from a real run:
   "ok": true,
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
-  "version": "3.0.1"
+  "version": "3.1.0"
 }
 ```
 
@@ -1337,7 +1339,7 @@ Response `200`, from a real run:
     "sumo_home": "/Users/varun/sumo",
     "version": ""
   },
-  "version": "3.0.1"
+  "version": "3.1.0"
 }
 ```
 
@@ -1400,7 +1402,7 @@ Response `200`, from a real run:
     },
     "program": "DSTNS",
     "source_offer": "You may obtain the complete corresponding source for this running version, under the terms…",
-    "version": "3.0.1"
+    "version": "3.1.0"
   },
   "ok": true
 }

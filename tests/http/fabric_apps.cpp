@@ -371,6 +371,6 @@ int main() {
     bool fabric_group = false;
     for (const auto& group : json(call("GET", "/api/v1/system/endpoints").body.at("groups"))) fabric_group = fabric_group || group.at("group") == "fabric";
     EXPECT(fabric_group);
-    EXPECT(call("GET", "/api/v1/system/source").body.at("api_version") == "1.4");
+    EXPECT(call("GET", "/api/v1/system/source").body.at("api_version") == "1.5");
     std::cout << "fabric apps ok\n";
 }

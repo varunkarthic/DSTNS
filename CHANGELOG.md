@@ -14,6 +14,38 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-13
+
+**Engine 3.1.0, observer 3.1.0, API contract 1.5.** Results for a seed are unchanged on both engines: the golden
+fixtures pass on `core-legacy` and on `core-ng`.
+
+### Added
+
+- **core-ng**, the next-generation engine, in `Core/core-ng` (library `dstns_core_ng`, namespace `dstns::core_ng`).
+  It is built beside `core-legacy` one module at a time. This release gives it map selection: a `SelectionPolicy`
+  with a SHA-256 fingerprint, and `select_location`. Only `urban-crfg-v3` exists so far, and core-ng reuses its frozen
+  catalogue and draws unchanged.
+- `engine` in `POST /api/v1/playback/start`: `core-legacy` (the default) or `core-ng`. Any other value is refused
+  with 400 before the lifecycle moves. The engine is reported as `engine` in `/api/v1/playback/status` and
+  `/api/v1/view/manifest` (which also gains `map_selection_version`), and `/api/v1/system/info` lists `engines`.
+  A regenerated world keeps the engine of the one it replaces. The launcher does not offer the choice yet.
+- `api_version` is `1.5`. Nothing from 1.4 changed.
+
+### Changed
+
+- `ScenarioCompiler::compile` takes optional hooks, the seam through which core-ng takes over one stage at a time.
+  Without hooks it is the 3.0 compile.
+
+### Tests
+
+- `dstns_golden` runs every fixture through both engines, and gains an `auto` case: the bundled Berlin district
+  planted in a private cache under the city names of seeds 42 and 382923, so the whole path from seed to district runs
+  offline. Its values were recorded from the untouched 3.0.1 code (`35c1a5f`) and match on macOS and Linux.
+- `dstns_http_engine_switch`: a Berlin seed on each engine gives identical hashes, each reports its engine, and an
+  unknown engine is refused with nothing started.
+
+Rollback: revert this release's commits, or start with `engine` left out.
+
 ## [3.0.1] - 2026-11-13
 
 **Engine 3.0.1, observer 3.1.0, API contract 1.4.** Results for a seed are unchanged: the golden fixtures pass.

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: DSTNS API
-  version: 1.4.0
+  version: 1.5.0
   description: 'Deterministic Spatiotemporal Transport Network Simulator runtime API.
 
 
@@ -4241,6 +4241,11 @@ components:
         map_selection_version:
           type: string
           const: urban-crfg-v3
+        engine:
+          type: string
+          enum: [core-legacy, core-ng]
+          default: core-legacy
+          description: Which engine prepares and runs the world. Both give the same results. Added in 1.5.
         day:
           default: 0
           oneOf:

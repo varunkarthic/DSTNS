@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "dstns/geo.hpp"
 #include "dstns/model.hpp"
 
 #include <filesystem>
@@ -19,8 +20,15 @@ public:
     // schedules.
     enum class Stage { Selecting, Acquiring, Building };
     using Progress = std::function<void(Stage)>;
+    // Seams through which core-ng takes over one stage at a time. An empty hook keeps core-legacy's own code, so a
+    // compile without hooks is exactly the 3.0 compile.
+    struct Hooks {
+        // Resolves the seed to a place when the map is "auto". It also validates the selection policy.
+        std::function<MapLocation(Seed128, const ScenarioConfig&)> select;
+    };
 
-    [[nodiscard]] Scenario compile(Seed128 seed, const ScenarioConfig& config, const Progress& progress = {}) const;
+    [[nodiscard]] Scenario compile(Seed128 seed, const ScenarioConfig& config, const Progress& progress = {},
+                                   const Hooks& hooks = {}) const;
     void export_sumo(const Scenario& scenario, const std::filesystem::path& directory) const;
 private:
     void build_canonical_grid(Scenario& scenario, const DeterministicRng& rng) const;

@@ -34,7 +34,7 @@ is empty.
 | `/view/weather`, `/view/events` | Scheduled and manual storms | Small | Occasionally |
 | `/view/incidents` | Every incident of the day | Small | Occasionally |
 | `/view/buildings`, `/view/bus-stops` | Node-level buildings; routable stops | Small | Once |
-| `/view/manifest` | Hashes and versions for reproducibility | Tiny | Once |
+| `/view/manifest` | Hashes and versions for reproducibility, the `engine` and the `map_selection_version` | Tiny | Once |
 | `/view/run`, `/view/config` | Same as `/playback/status` | Tiny | — |
 
 Aliases: `/api/v1/topology`, `/view/network` and `/view/map/full` serve the

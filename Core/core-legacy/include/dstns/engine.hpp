@@ -13,6 +13,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
@@ -41,6 +42,10 @@ public:
     SimulationEngine(const SimulationEngine&)=delete;
     SimulationEngine& operator=(const SimulationEngine&)=delete;
 
+    // Make another engine available by name, with the hooks that route compilation through it. Call before the
+    // API serves requests; the set is read without the lock afterwards. "core-legacy" is always available.
+    void register_engine(const std::string& id, ScenarioCompiler::Hooks hooks);
+    [[nodiscard]] std::vector<std::string> engines() const;
     nlohmann::json prepare(Seed128 seed,const ScenarioConfig& config);
     nlohmann::json start(Seed128 seed,const ScenarioConfig& config,std::uint32_t start_virtual_s=0);
     // Accept initial preparation immediately; compilation and map I/O continue
@@ -178,7 +183,9 @@ private:
     RuntimeLogger& logger_; mutable std::recursive_mutex mutex_; std::condition_variable_any cv_; std::jthread worker_;
     Lifecycle lifecycle_{Lifecycle::Idle};
     // Lock-free mirror of lifecycle_, written only by transition().
-    std::atomic<Lifecycle> lifecycle_mirror_{Lifecycle::Idle}; ScenarioCompiler compiler_; std::unique_ptr<GraphStore> graph_;
+    std::atomic<Lifecycle> lifecycle_mirror_{Lifecycle::Idle}; ScenarioCompiler compiler_; std::map<std::string, ScenarioCompiler::Hooks> engines_;
+    void require_engine(const ScenarioConfig& config) const;
+    [[nodiscard]] Scenario compile_scenario(Seed128 seed, const ScenarioConfig& config); std::unique_ptr<GraphStore> graph_;
     std::atomic<bool> compiling_{false}; // Concurrent compiles fail without occupying HTTP workers.
     std::uint64_t compile_generation_{}; // Guarded by mutex_; reset/terminate invalidate a pending install.
     std::string preparation_error_;

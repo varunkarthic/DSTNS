@@ -2,6 +2,28 @@
   "catalogue_size": 181,
   "map_selection_version": "urban-crfg-v3",
   "scenario": {
+    "auto": {
+      "382923": {
+        "event_hash": "sha256:e524d7164b5efc9b659e2b80d3c38cf7fcadb26a31493055553e411f4d033fa9",
+        "graph_hash": "sha256:438f743fc4f6426847d8bd9884008766b58392cf1b6e86dd9cbc19d7718bcf76",
+        "map_hash": "sha256:3b6397c089e41f7874b196d830b1bca05ce91ae3c92cf1010c735609dbd89363",
+        "scenario_hash": "sha256:57446dbcc395736ba8b61f6b0aafa38fe60b7040de3baa1bd0a4d7b8f356fecb",
+        "snapshot_12345": {
+          "darwin-arm64": "9dce3f1e7c4e5d43d7ece686204a16b69fba8da48e050c89ea34cedfa090d946",
+          "linux-x86_64": "94a3d8a30b347224513cc4b424a9106a27a42a15c0bfb7feb4f89977cd555058"
+        }
+      },
+      "42": {
+        "event_hash": "sha256:6a64dc6a6782946818d3d5bc134d2ce21303e8ee573e3cb91821ce5cead1fc0e",
+        "graph_hash": "sha256:dfbaca86ec22bcf6a9165418316eae765858ac21bb22307efc8e223baabebd02",
+        "map_hash": "sha256:3b6397c089e41f7874b196d830b1bca05ce91ae3c92cf1010c735609dbd89363",
+        "scenario_hash": "sha256:9f068844d31385cdb73d420064a552ac4a3c467205116643d9a1fe16a2eda858",
+        "snapshot_12345": {
+          "darwin-arm64": "5dbf0cfa5761db991a4dae5f2e2153ce05fd4f54b98940ef5e87910167f8218f",
+          "linux-x86_64": "aa2e14c81f7b3a43203bc135df4dbe360d2dc2ece3bbc8b4122fd0253c89cf2d"
+        }
+      }
+    },
     "grid": {
       "382923": {
         "event_hash": "sha256:0d502b9f5724124c517642fe3a6867bf924ec6b2f4a7dff24ad9fd5962bc953f",

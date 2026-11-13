@@ -33,7 +33,7 @@ enum class BuildingType { School, Office, Mall, Store };
 // speed buys a less trustworthy picture rather than a faster one.
 inline constexpr double kMaxTickRate = 10.0;
 // The HTTP API contract; additions raise the minor version, within /api/v1.
-inline constexpr const char* kApiVersion = "1.4";
+inline constexpr const char* kApiVersion = "1.5";
 enum class IncidentType { RoadClosure, Accident, Congestion, VehicleBreakdown, HazardSpill };
 enum class IncidentLifecycle { Scheduled, Active, Resolved };
 
@@ -108,6 +108,9 @@ struct ScenarioConfig {
     std::uint32_t grid_width{12}, grid_height{10}, max_nodes{50000};
     std::string osm_file;
     std::string saved_seed_id, map_selection_version{"urban-crfg-v3"};
+    // Which engine prepares and runs the world: "core-legacy" or "core-ng". It never changes results, so no hash
+    // covers it; the golden fixtures prove the two agree.
+    std::string engine{"core-legacy"};
     // On-demand OSM sourcing. The seed picks a city and an anchor inside it;
     // one extract of this side length is downloaded per city into map_cache_dir
     // and shared by every district of that city.

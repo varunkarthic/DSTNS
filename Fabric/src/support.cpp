@@ -297,6 +297,8 @@ ScenarioConfig config_from(const json& j) {
     c.saved_seed_id=j.value("saved_seed_id",std::string{});
     c.map_selection_version=j.value("map_selection_version",std::string("urban-crfg-v3"));
     if(c.map_selection_version!="urban-crfg-v3")throw std::invalid_argument("unsupported map selection version");
+    // Which engine runs the world; the engine refuses one it does not have.
+    c.engine=j.value("engine",std::string("core-legacy"));
     if(!c.saved_seed_id.empty()&&!std::regex_match(c.saved_seed_id,std::regex("[A-Za-z0-9][A-Za-z0-9_-]{0,63}")))throw std::invalid_argument("invalid saved seed ID");
     if (j.contains("modules")) {
         auto& m = j.at("modules");

@@ -36,10 +36,11 @@ constexpr std::uint32_t kMinimumSignalDegree = 3;
 // stop lines are typically within a few car lengths of the intersection.
 constexpr double kSignalSnapRadiusM = 45.0;
 
-Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& config,const Progress& progress)const{
+Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& config,const Progress& progress,const Hooks& hooks)const{
     const auto report=[&](Stage stage){ if(progress) progress(stage); };
     if(config.max_nodes<2||config.max_nodes>50000)throw std::invalid_argument("max_nodes must be in [2,50000]");
-    if(config.map_selection_version!="urban-crfg-v3")throw std::invalid_argument("unsupported map selection version");
+    // A selection hook checks its own policies; without one only the frozen legacy policy is known.
+    if(!hooks.select&&config.map_selection_version!="urban-crfg-v3")throw std::invalid_argument("unsupported map selection version");
     if(config.day < -1 || config.day>1)throw std::invalid_argument("invalid day type");
     if(config.demand_bin_virtual_s==0||config.demand_bin_virtual_s>86400)throw std::invalid_argument("invalid demand bin");
     if(config.playback_duration_s<60||config.playback_duration_s>3600)throw std::invalid_argument("playback_duration_s must be in [60,3600]");
@@ -52,7 +53,8 @@ Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& conf
     bool located = false, downloaded = false;
     if(effective_config.osm_file == "auto") {
         report(Stage::Selecting);
-        location = select_map_location(seed_value, effective_config.map_city_extent_m);
+        location = hooks.select ? hooks.select(seed_value, effective_config)
+                                : select_map_location(seed_value, effective_config.map_city_extent_m);
         located = true;
         report(Stage::Acquiring);
         const auto tile = acquire_map_tile(location, effective_config.map_cache_dir);

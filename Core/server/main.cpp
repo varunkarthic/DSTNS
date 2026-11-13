@@ -3,6 +3,7 @@
 
 #include "dstns/api.hpp"
 #include "dstns/build_info.hpp"
+#include "dstns/core-ng/selection.hpp"
 #include "dstns/logging.hpp"
 #include "dstns/narrator.hpp"
 #include "dstns/osm_fetch.hpp"
@@ -159,6 +160,7 @@ int main(int argc, char** argv) {
             logger.system("WARN", "maps", std::string("Cache sweep skipped: ") + e.what());
         }
         dstns::SimulationEngine engine(logger);
+        engine.register_engine(dstns::core_ng::kEngineId, dstns::core_ng::hooks());
         try {
             std::unique_ptr<dstns::NarrationBackend> backend;
             if (narrator == "auto" || narrator == "fm") {

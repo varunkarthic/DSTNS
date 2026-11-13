@@ -1,6 +1,6 @@
 # v3 core-ng migration plan
 
-Status: **releases 0–1 done**; release 2 next.
+Status: **releases 0–2 done**; release 3 next.
 
 Baseline: `v3` at `d29a2f6` (source) / `b828aa6` (graph). Engine `3.0.0`, observer `3.1.0`, API contract `1.4`,
 map selection `urban-crfg-v3`, algorithms `DSTNS/1`.
@@ -129,7 +129,7 @@ fields matches only the legacy policy, so old files stay safe. LaunchKit's `prep
 |---|---|---|---|
 | 0 | Baseline, this plan, golden fixtures (seed → city/anchor; grid and bundled-OSM hashes and snapshots) | ships in 3.0.1 | baseline green; fixtures match engine 3.0.0 |
 | 1 | Move the engine to `Core/core-legacy` | engine 3.0.1 | golden fixtures unchanged; full suite green |
-| 2 | `Core/core-ng` library; `engine.implementation` end to end (launcher setting, start request, server, manifest); core-ng map selection through `SelectionPolicy`, legacy policy only | engine 3.1.0, API 1.5, launcher | golden fixtures pass on both engines |
+| 2 | `Core/core-ng` library; `engine` in the start request, status, manifest and system info; core-ng map selection through `SelectionPolicy`, legacy policy only. The launcher setting waits for the integration phase | engine 3.1.0, API 1.5 | golden fixtures pass on both engines |
 | 3 | `urban-geo-v1` policy, validation, manifest fields; launcher selection settings | engine 3.2.0, API 1.6 | determinism, empty/invalid sets, fingerprint stability |
 | 4 | Label language fallback in WebKit; `ui.label_language` | observer 3.2.0 | raw names intact; graph and replay hashes unchanged |
 | 5 | World preparation and Fastboot guards (table above), core-ng | engine patch | cancel/restart/stale-pointer tests |
@@ -139,6 +139,41 @@ fields matches only the legacy policy, so old files stay safe. LaunchKit's `prep
 | last | `core-ng` becomes default; docs, Fabric, WebKit, end-to-end | engine minor | full start, regenerate, observe, save, replay |
 
 The launcher offers a setting only from the release in which the server honours it.
+
+### Phase order
+
+1. **core-ng** (releases 2, 3, 5, 6, 7 above). The server accepts `engine` in the start request; tests select
+   `core-ng` directly. The launcher does not offer the choice yet.
+2. **Launcher** (LaunchKit minor releases): a structured reset; SUMO settings, SUMO off by default; easier launch
+   codes; a setting for every engine and interface feature; MCP typed tools, safety annotations, resources and prompts.
+3. **Integration**: `engine.implementation` and the selection settings in the launcher, end-to-end tests.
+4. **The rest**: label language (release 4), measured optimisations (8+), `core-ng` as the default.
+
+### Reset scopes (launcher phase)
+
+| Command | Clears |
+|---|---|
+| `reset runtime` | logs, journal, checkpoints, temporary scenarios, SUMO runs |
+| `reset cache` | map cache, Fastboot's next world and downloaded cities |
+| `reset settings` | `config/defaults.json` and `config/ui-config.json` back to their defaults |
+| `reset setup` | the setup flag; setup runs again at the next start |
+| `reset seeds` | saved seeds |
+| `reset keys` | provider keys, in `config/launcher.env` and the OS credential store |
+| `reset apps` | connected applications (`config/apps.json`) |
+| `reset app-settings [ID]` | WebFabric settings and storage of one or every application |
+| `reset` | everything above except `apps` and `app-settings` |
+| `reset all` | everything above |
+
+Every scope refuses while a server runs, lists what it will delete, and asks first (`--yes` without a terminal).
+
+### State-machine rule for core-ng
+
+No implicit machines in core-ng: each state lives in one enum, changes through one transition function, and has a
+test for each allowed and each forbidden transition. Each core-ng release lists the implicit states it found in the
+code it replaces, and the faults fixed, in `docs/design/state-machines.md`.
+
+Found so far in core-legacy, to fix in release 5: `prepare()` can be entered while `Seeking` and moves the
+lifecycle `Seeking → Preparing`, which the lifecycle table does not allow.
 
 Each release: local `./scripts/test.sh` green, version and `CHANGELOG.md` in the same commits, push to the migration
 branch, CI dispatched (`gh workflow run ci.yml --ref <branch>`) and green, graph rebuilt locally. Integration into
