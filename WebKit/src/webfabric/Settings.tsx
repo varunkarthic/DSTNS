@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Figure } from "../CoreMotion/Figure";
 import { Icon } from "../components/Icons";
 import { Row, Section, Segmented, Switch } from "../components/settingsControls";
@@ -341,7 +341,7 @@ function SecurityPosture() {
   );
 }
 
-export function WebFabricSettings({ onBack }: { onBack: () => void }) {
+function WebFabricSettingsPage({ onBack }: { onBack: () => void }) {
   const apps = useFabricApps();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -464,3 +464,10 @@ export function WebFabricSettings({ onBack }: { onBack: () => void }) {
       </div>
   );
 }
+
+/**
+ * WebFabric in Settings. Memoised: the drawer is drawn again every time the observer polls the run (each second),
+ * and the applications' lists and permissions here, which change only when an application does, were drawn again
+ * with it, mid-scroll, which made scrolling them stutter. They now follow the WebFabric store alone.
+ */
+export const WebFabricSettings = memo(WebFabricSettingsPage);

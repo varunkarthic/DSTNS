@@ -14,6 +14,36 @@ only within one version.
 
 ## [Unreleased]
 
+## [Launcher 3.7.2, observer 3.2.1] - 2026-11-14
+
+**Engine 3.6.1, launcher 3.7.2, observer 3.2.1, API contract 1.8.** No engine change.
+
+### Changed
+
+- Every setting now says when a change applies and which settings are linked to it, as well as what it means, what
+  it accepts and its default:
+  - "Applies at once" for the launcher's own settings;
+  - "applies to observers opened from now on" for the observer's;
+  - "applies from the next start of the server" for the rest.
+
+  Linked settings come from the rules that already change them together. This text appears in the settings screen,
+  in the line-by-line editor, in each file's `_help`, and in the JSON Schemas.
+- Turning off the acknowledgment of an unstable engine (`engines.engines.ID.acknowledgment.enforce`) with
+  `config set` now says why it is a risk and asks first. Without a terminal it needs `--yes`.
+
+### Fixed
+
+- Scrolling the WebFabric pages in Settings stuttered. The drawer is drawn again every time the observer polls the
+  run, once a second, and each time it also redrew WebFabric's lists, permissions and details, often mid-scroll. The
+  WebFabric pages are now memoised, so they redraw only when an application changes. The settings scroll region also
+  contains its paint, and a scroll that reaches the end no longer moves the page and the map behind it.
+
+### Tests
+
+- The WebFabric page is not redrawn when the drawer around it is; the test fails without the memo.
+
+Rollback: revert this release's commit.
+
 ## [3.6.1] - 2026-11-14
 
 **Engine 3.6.1, launcher 3.7.1, observer 3.2.0, API contract 1.8.** Results for every seed are unchanged.

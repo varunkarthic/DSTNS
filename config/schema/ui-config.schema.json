@@ -29,7 +29,7 @@
       "properties": {
         "theme": {
           "title": "Theme",
-          "description": "Theme (Appearance). Dark, light, or following each viewer's system. A viewer's own choice in their browser comes first. Accepts: \"system\" (Follow the system), \"dark\" (Dark), \"light\" (Light). Default: \"system\".",
+          "description": "Theme (Appearance). Dark, light, or following each viewer's system. A viewer's own choice in their browser comes first. Accepts: \"system\" (Follow the system), \"dark\" (Dark), \"light\" (Light). Default: \"system\". Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": "system",
           "enum": [
             "system",
@@ -39,7 +39,7 @@
         },
         "color_vision": {
           "title": "Colour vision",
-          "description": "Colour vision (Appearance). Palettes for road and severity colours that do not rely on telling red from green, or blue from yellow. Accepts: \"standard\" (Standard), \"protanopia\" (Protanopia), \"deuteranopia\" (Deuteranopia), \"tritanopia\" (Tritanopia), \"monochrome\" (Monochrome). Default: \"standard\".",
+          "description": "Colour vision (Appearance). Palettes for road and severity colours that do not rely on telling red from green, or blue from yellow. Accepts: \"standard\" (Standard), \"protanopia\" (Protanopia), \"deuteranopia\" (Deuteranopia), \"tritanopia\" (Tritanopia), \"monochrome\" (Monochrome). Default: \"standard\". Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": "standard",
           "enum": [
             "standard",
@@ -51,19 +51,19 @@
         },
         "reduce_transparency": {
           "title": "Reduce transparency",
-          "description": "Reduce transparency (Appearance). Solid surfaces instead of glass. Accepts: true or false. Default: false.",
+          "description": "Reduce transparency (Appearance). Solid surfaces instead of glass. Accepts: true or false. Default: false. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": false,
           "type": "boolean"
         },
         "high_contrast": {
           "title": "High contrast",
-          "description": "High contrast (Appearance). Text at full strength, firmer edges and outlines. Accepts: true or false. Default: false.",
+          "description": "High contrast (Appearance). Text at full strength, firmer edges and outlines. Accepts: true or false. Default: false. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": false,
           "type": "boolean"
         },
         "advanced": {
           "title": "Specialist detail",
-          "description": "Specialist detail (Appearance). Off, measures meant for specialists (identifiers, hashes, coordinates) give way to plain language. Accepts: true or false. Default: true.",
+          "description": "Specialist detail (Appearance). Off, measures meant for specialists (identifiers, hashes, coordinates) give way to plain language. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         }
@@ -71,7 +71,7 @@
     },
     "reduce_motion": {
       "title": "Reduce motion",
-      "description": "Reduce motion (Appearance). Short fades instead of movement. Following the system uses each viewer's own setting. Accepts: \"auto\" (Follow the system), \"on\" (On), \"off\" (Off). Default: \"auto\".",
+      "description": "Reduce motion (Appearance). Short fades instead of movement. Following the system uses each viewer's own setting. Accepts: \"auto\" (Follow the system), \"on\" (On), \"off\" (Off). Default: \"auto\". Applies to observers opened from now on; a viewer's own choice comes first.",
       "default": "auto",
       "enum": [
         "auto",
@@ -84,25 +84,25 @@
       "properties": {
         "enabled": {
           "title": "Notifications",
-          "description": "Notifications (Notifications). What happens in the simulation appears over the map as it happens. Accepts: true or false. Default: true.",
+          "description": "Notifications (Notifications). What happens in the simulation appears over the map as it happens. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "dnd": {
           "title": "Do Not Disturb",
-          "description": "Do Not Disturb (Notifications). Notifications are kept in history without being shown. Accepts: true or false. Default: false.",
+          "description": "Do Not Disturb (Notifications). Notifications are kept in history without being shown. Accepts: true or false. Default: false. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": false,
           "type": "boolean"
         },
         "important_first": {
           "title": "Important first",
-          "description": "Important first (Notifications). An alert goes ahead of what is waiting to be shown. Accepts: true or false. Default: true.",
+          "description": "Important first (Notifications). An alert goes ahead of what is waiting to be shown. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "max_visible": {
           "title": "Shown at once",
-          "description": "Shown at once (Notifications). How many notifications the capsule holds before it groups the rest. Accepts: a whole number from 1 to 8. Default: 3.",
+          "description": "Shown at once (Notifications). How many notifications the capsule holds before it groups the rest. Accepts: a whole number from 1 to 8. Default: 3. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": 3,
           "type": "integer",
           "minimum": 1.0,
@@ -110,7 +110,7 @@
         },
         "dwell_ms": {
           "title": "Shown for",
-          "description": "Shown for (Notifications). How long a notification stays before it gives way. Accepts: a whole number from 1000 to 60000 ms. Default: 7000.",
+          "description": "Shown for (Notifications). How long a notification stays before it gives way. Accepts: a whole number from 1000 to 60000 ms. Default: 7000. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": 7000,
           "type": "integer",
           "minimum": 1000.0,
@@ -123,7 +123,7 @@
       "properties": {
         "mode": {
           "title": "Auto Focus",
-          "description": "Auto Focus (Auto Focus). Whether the camera follows what matters: offered once per run, on, or off. Accepts: \"enable-force\" (On), \"enable\" (Offer once per run), \"disable\" (Off). Default: \"enable-force\".",
+          "description": "Auto Focus (Auto Focus). Whether the camera follows what matters: offered once per run, on, or off. Accepts: \"enable-force\" (On), \"enable\" (Offer once per run), \"disable\" (Off). Default: \"enable-force\". Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": "enable-force",
           "enum": [
             "enable-force",
@@ -133,7 +133,7 @@
         },
         "strategy": {
           "title": "Order",
-          "description": "Order (Auto Focus). Which event the camera shows: each in turn, or always the latest. Accepts: \"round-robin\" (Each in turn), \"latest\" (The latest). Default: \"round-robin\".",
+          "description": "Order (Auto Focus). Which event the camera shows: each in turn, or always the latest. Accepts: \"round-robin\" (Each in turn), \"latest\" (The latest). Default: \"round-robin\". Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": "round-robin",
           "enum": [
             "round-robin",
@@ -142,7 +142,7 @@
         },
         "dwell_seconds": {
           "title": "Stays for",
-          "description": "Stays for (Auto Focus). How long the camera stays on one event before the next, in turn. Accepts: a number from 2 to 120 s. Default: 9.",
+          "description": "Stays for (Auto Focus). How long the camera stays on one event before the next, in turn. Accepts: a number from 2 to 120 s. Default: 9. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": 9,
           "type": "number",
           "minimum": 2.0,
@@ -150,7 +150,7 @@
         },
         "zoom": {
           "title": "Closeness",
-          "description": "Closeness (Auto Focus). How close the camera goes to an event: 1 frames it, more goes closer. Accepts: a number from 0.2 to 8 ×. Default: 1.6.",
+          "description": "Closeness (Auto Focus). How close the camera goes to an event: 1 frames it, more goes closer. Accepts: a number from 0.2 to 8 ×. Default: 1.6. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": 1.6,
           "type": "number",
           "minimum": 0.2,
@@ -163,7 +163,7 @@
       "properties": {
         "skip_seconds": {
           "title": "Back and Forward jump",
-          "description": "Back and Forward jump (Playback controls). How far the observer's Back and Forward buttons, and J and L, go. Accepts: 60 (1 minute), 300 (5 minutes), 900 (15 minutes), 1800 (30 minutes), 3600 (1 hour). Default: 900.",
+          "description": "Back and Forward jump (Playback controls). How far the observer's Back and Forward buttons, and J and L, go. Accepts: 60 (1 minute), 300 (5 minutes), 900 (15 minutes), 1800 (30 minutes), 3600 (1 hour). Default: 900. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": 900,
           "enum": [
             60,
@@ -175,7 +175,7 @@
         },
         "step_seconds": {
           "title": "Step",
-          "description": "Step (Playback controls). How far Step, and K, advance before holding. Accepts: 1 (1 second), 10 (10 seconds), 60 (1 minute), 300 (5 minutes). Default: 60.",
+          "description": "Step (Playback controls). How far Step, and K, advance before holding. Accepts: 1 (1 second), 10 (10 seconds), 60 (1 minute), 300 (5 minutes). Default: 60. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": 60,
           "enum": [
             1,
@@ -186,7 +186,7 @@
         },
         "fine_control": {
           "title": "Ask how far",
-          "description": "Ask how far (Playback controls). Back and Forward open a menu of distances each time, instead of one jump. Accepts: true or false. Default: false.",
+          "description": "Ask how far (Playback controls). Back and Forward open a menu of distances each time, instead of one jump. Accepts: true or false. Default: false. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": false,
           "type": "boolean"
         }
@@ -197,7 +197,7 @@
       "properties": {
         "hour12": {
           "title": "12-hour clock",
-          "description": "12-hour clock (Clock, units and news). Times as 3:00 PM instead of 15:00. Holding the clock switches it at any time. Accepts: true or false. Default: false.",
+          "description": "12-hour clock (Clock, units and news). Times as 3:00 PM instead of 15:00. Holding the clock switches it at any time. Accepts: true or false. Default: false. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": false,
           "type": "boolean"
         }
@@ -208,7 +208,7 @@
       "properties": {
         "byte_units": {
           "title": "Data sizes",
-          "description": "Data sizes (Clock, units and news). Decimal (kB, MB, as drives are sold) or binary (KiB, MiB, as memory is counted). Accepts: \"decimal\" (Decimal (MB)), \"binary\" (Binary (MiB)). Default: \"decimal\".",
+          "description": "Data sizes (Clock, units and news). Decimal (kB, MB, as drives are sold) or binary (KiB, MiB, as memory is counted). Accepts: \"decimal\" (Decimal (MB)), \"binary\" (Binary (MiB)). Default: \"decimal\". Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": "decimal",
           "enum": [
             "decimal",
@@ -222,7 +222,7 @@
       "properties": {
         "style": {
           "title": "News style",
-          "description": "News style (Clock, units and news). Realistic News, written by a model where one is available, or the standard plain lines. Accepts: \"realistic\" (Realistic), \"standard\" (Standard). Default: \"realistic\".",
+          "description": "News style (Clock, units and news). Realistic News, written by a model where one is available, or the standard plain lines. Accepts: \"realistic\" (Realistic), \"standard\" (Standard). Default: \"realistic\". Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": "realistic",
           "enum": [
             "realistic",
@@ -236,73 +236,73 @@
       "properties": {
         "roads": {
           "title": "Roads",
-          "description": "Roads (Map layers). Shown when a viewer first opens the observer; each can change their own. Accepts: true or false. Default: true.",
+          "description": "Roads (Map layers). Shown when a viewer first opens the observer; each can change their own. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "traffic": {
           "title": "Traffic",
-          "description": "Traffic (Map layers). Roads coloured by how congested they are. Accepts: true or false. Default: true.",
+          "description": "Traffic (Map layers). Roads coloured by how congested they are. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "vehicles": {
           "title": "Flow markers",
-          "description": "Flow markers (Map layers). Vehicles moving along the roads. Accepts: true or false. Default: true.",
+          "description": "Flow markers (Map layers). Vehicles moving along the roads. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "signals": {
           "title": "Signals",
-          "description": "Signals (Map layers). Signalled junctions and their phases. Accepts: true or false. Default: true.",
+          "description": "Signals (Map layers). Signalled junctions and their phases. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "buildings": {
           "title": "Buildings and places",
-          "description": "Buildings and places (Map layers). Footprints, and the places that draw traffic. Accepts: true or false. Default: true.",
+          "description": "Buildings and places (Map layers). Footprints, and the places that draw traffic. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "place_names": {
           "title": "Place names",
-          "description": "Place names (Map layers). Names beside places, as there is room. Accepts: true or false. Default: false.",
+          "description": "Place names (Map layers). Names beside places, as there is room. Accepts: true or false. Default: false. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": false,
           "type": "boolean"
         },
         "other_places": {
           "title": "Unclassified places",
-          "description": "Unclassified places (Map layers). Places with no kind of their own. Accepts: true or false. Default: false.",
+          "description": "Unclassified places (Map layers). Places with no kind of their own. Accepts: true or false. Default: false. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": false,
           "type": "boolean"
         },
         "labels": {
           "title": "Street names",
-          "description": "Street names (Map layers). Names along the roads. Accepts: true or false. Default: false.",
+          "description": "Street names (Map layers). Names along the roads. Accepts: true or false. Default: false. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": false,
           "type": "boolean"
         },
         "weather": {
           "title": "Weather",
-          "description": "Weather (Map layers). Rain cells as they cross the district. Accepts: true or false. Default: true.",
+          "description": "Weather (Map layers). Rain cells as they cross the district. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "flooding": {
           "title": "Flooding",
-          "description": "Flooding (Map layers). Roads under water. Accepts: true or false. Default: true.",
+          "description": "Flooding (Map layers). Roads under water. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "incidents": {
           "title": "Incidents",
-          "description": "Incidents (Map layers). Collisions, breakdowns and closures. Accepts: true or false. Default: true.",
+          "description": "Incidents (Map layers). Collisions, breakdowns and closures. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "events": {
           "title": "Demand",
-          "description": "Demand (Map layers). Places drawing extra traffic now. Accepts: true or false. Default: true.",
+          "description": "Demand (Map layers). Places drawing extra traffic now. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         }
@@ -313,13 +313,13 @@
       "properties": {
         "enabled": {
           "title": "Tutorial",
-          "description": "Tutorial (Tutorial). The guided tour is offered from the header. Accepts: true or false. Default: true.",
+          "description": "Tutorial (Tutorial). The guided tour is offered from the header. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "show_on_startup": {
           "title": "Show at start-up",
-          "description": "Show at start-up (Tutorial). The tour opens by itself, once, when a viewer first arrives. Accepts: true or false. Default: false.",
+          "description": "Show at start-up (Tutorial). The tour opens by itself, once, when a viewer first arrives. Accepts: true or false. Default: false. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": false,
           "type": "boolean"
         }
@@ -330,13 +330,13 @@
       "properties": {
         "enabled": {
           "title": "Report how it keeps up",
-          "description": "Report how it keeps up (Backpressure). The observer tells the server how far behind it is, so Adaptive Simulation Backpressure can ease the rate before it falls behind. Accepts: true or false. Default: true.",
+          "description": "Report how it keeps up (Backpressure). The observer tells the server how far behind it is, so Adaptive Simulation Backpressure can ease the rate before it falls behind. Accepts: true or false. Default: true. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": true,
           "type": "boolean"
         },
         "report_interval_ms": {
           "title": "Report every",
-          "description": "Report every (Backpressure). How often it reports. Accepts: a whole number from 250 to 10000 ms. Default: 1000.",
+          "description": "Report every (Backpressure). How often it reports. Accepts: a whole number from 250 to 10000 ms. Default: 1000. Applies to observers opened from now on; a viewer's own choice comes first.",
           "default": 1000,
           "type": "integer",
           "minimum": 250.0,

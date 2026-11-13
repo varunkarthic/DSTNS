@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { FluidPanel } from "../CoreMotion/FluidPanel";
 import { QuantizedSlider } from "../components/QuantizedSlider";
 import { Select } from "../components/Popover";
@@ -122,6 +122,8 @@ export function SettingsDrawer({
     [theme],
   );
   const [page, setPage] = useState<"main" | "webfabric" | "shortcuts">("main");
+  // Stable, so the WebFabric pages (memoised) are not drawn again each time the observer polls.
+  const backToMain = useCallback(() => setPage("main"), []);
   // Reset asks in its own place: the row becomes the question, then what was done, then the row again.
   const [reset, setReset] = useState<"idle" | "asking" | "done">("idle");
   useEffect(() => {
@@ -164,7 +166,7 @@ export function SettingsDrawer({
 
       <div className="settings-scroll scroll-region" tabIndex={0} aria-label="Settings preferences">
         {page === "webfabric" ? (
-          <WebFabricSettings onBack={() => setPage("main")} />
+          <WebFabricSettings onBack={backToMain} />
         ) : page === "shortcuts" ? (
           <ShortcutSettings overrides={values.shortcuts} onChange={actions.onShortcuts} onBack={() => setPage("main")} />
         ) : (

@@ -66,7 +66,7 @@ pub fn help_line(field: &Field) -> String {
 }
 
 fn property(field: &Field) -> Value {
-    let mut out = json!({"title": field.label, "description": help_line(field), "default": field.default});
+    let mut out = json!({"title": field.label, "description": config::guidance(field), "default": field.default});
     match field.kind {
         FieldKind::Boolean => out["type"] = json!("boolean"),
         FieldKind::Text => out["type"] = json!("string"),
@@ -157,7 +157,7 @@ pub fn help(file: &str) -> Value {
     let (_, prefix, ..) = FILES.iter().find(|(f, ..)| *f == file).expect("a launcher file");
     let mut out = Map::new();
     for field in config::fields().iter().filter(|f| belongs(f, prefix)) {
-        out.insert(field.key.strip_prefix(prefix).unwrap_or(field.key).to_string(), json!(help_line(field)));
+        out.insert(field.key.strip_prefix(prefix).unwrap_or(field.key).to_string(), json!(config::guidance(field)));
     }
     if prefix.is_empty() {
         for key in config::INFORMATIONAL.iter().filter(|k| **k != "schema_version") {

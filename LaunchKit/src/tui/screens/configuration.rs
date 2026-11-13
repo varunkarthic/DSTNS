@@ -112,7 +112,8 @@ impl ConfigurationScreen {
             .map(|f| {
                 let mut r = form_row(f.key, f.label, editor(f, &f.get(&self.current)));
                 r.unit = f.unit.into();
-                r.hint = f.help.into();
+                // Its meaning, what it accepts, its default, when it applies, and what it is linked to.
+                r.hint = config::guidance(f);
                 r
             })
             .collect();

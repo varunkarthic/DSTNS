@@ -545,3 +545,7 @@
 .fabric-empty-state p { margin: 0; max-width: 32ch; font-size: 12.5px; color: var(--text-dim); }
 .reduce-motion .fabric-combobox-list { animation: none; }
 .fabric-combobox-field input::-webkit-search-cancel-button { display: none; }
+
+/* Scrolling Settings (WebFabric's lists and permissions above all) repaints only the panel: its paint is contained,
+   and a scroll that reaches the end stops there instead of moving the page and the map behind it. */
+.settings-scroll { contain: paint; overscroll-behavior: contain; }

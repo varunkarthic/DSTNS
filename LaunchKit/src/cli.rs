@@ -353,6 +353,13 @@ pub fn command_config(context: &Context) -> Result<i32> {
             if !problem.is_empty() {
                 return Err(LauncherError::config(format!("{}: {problem}", field.label)));
             }
+            // Removing the protection of an unstable engine is confirmed, and said to be a risk.
+            if let Some(risk) = config::risky_change(field, &value) {
+                out.message(Level::Warning, "This is a risk", &risk);
+                if !context.args.yes && !(context.caps.interactive && out.confirm("Change it anyway?", false)) {
+                    return Err(LauncherError::config("Not changed.").remedy(format!("./launcher config set {key} {text} --yes changes it without asking.")));
+                }
+            }
             let also = field.set(&mut current, value.clone());
             config::save(&current, paths)?;
             out.message(Level::Success, &format!("{} is now {}", field.label, field.display(&value)), &key);

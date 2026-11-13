@@ -991,6 +991,50 @@ pub const RULES: &[(&str, &str, &str, &str)] = &[
     ("engines.engines.core-ng.acknowledgment.enforce", "false", "engines.engines.core-ng.acknowledgment.ui", "false"),
 ];
 
+/// Why a change is a risk, if it is: one that removes the protection of an unstable engine's runs.
+pub fn risky_change(field: &Field, value: &Value) -> Option<String> {
+    (field.key.ends_with(".acknowledgment.enforce") && value == &json!(false)).then(|| {
+        "Runs on this engine will start without anyone accepting the risk of an engine that is not stable, and applications and API clients will no longer be held while a run waits.".to_string()
+    })
+}
+
+/// When a change to this setting takes effect.
+pub fn applies(field: &Field) -> &'static str {
+    match (section_of(field.category), field.category) {
+        ("Observer", _) => "Applies to observers opened from now on; a viewer's own choice comes first.",
+        (_, "Launcher") | (_, "Security") => "Applies at once.",
+        (_, "Model") => "Applies at the next request to a model.",
+        (_, "MCP") => "Applies when an MCP client next connects.",
+        _ => "Applies from the next start of the server (./launcher start).",
+    }
+}
+
+/// The settings this one changes, or is changed by (RULES), in words.
+pub fn linked(field: &Field) -> Vec<String> {
+    let label = |key: &str| self::field(key).map(|f| f.label).unwrap_or("?");
+    let value = |key: &str, json: &str| self::field(key).map(|f| f.display(&serde_json::from_str(json).unwrap_or(Value::Null))).unwrap_or_default();
+    let mut out = vec![];
+    for (when, becomes, other, to) in RULES {
+        if *when == field.key {
+            out.push(format!("Set to {}, it sets {} to {}.", value(when, becomes), label(other), value(other, to)));
+        } else if *other == field.key {
+            out.push(format!("Set to {} when {} is set to {}.", value(other, to), label(when), value(when, becomes)));
+        }
+    }
+    out
+}
+
+/// Everything a person needs about a setting: what it is, what it accepts, its default, when it applies, and the
+/// settings linked to it.
+pub fn guidance(field: &Field) -> String {
+    let mut out = format!("{} {}", crate::schema::help_line(field), applies(field));
+    for line in linked(field) {
+        out.push(' ');
+        out.push_str(&line);
+    }
+    out
+}
+
 /// How the observer should present itself, as the server will tell it.
 pub fn presentation(config: &Value, demo: bool) -> Value {
     let fast = flag(config, "startup.fast_boot");

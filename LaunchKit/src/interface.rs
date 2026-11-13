@@ -393,7 +393,7 @@ impl<'a> Compatibility<'a> {
     }
 
     fn edit_field(&self, field: &config::Field, current: &mut serde_json::Value) {
-        self.out.muted(field.help);
+        self.out.muted(&config::guidance(field));
         let hint = match field.kind {
             FieldKind::Choice => field.choices.iter().map(|(l, _)| *l).collect::<Vec<_>>().join("/"),
             FieldKind::Boolean => "on/off".into(),

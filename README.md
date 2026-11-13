@@ -181,7 +181,7 @@ DSTNS is a single-operator tool. It listens on loopback only, refuses cross-site
 
 ## Versions
 
-Engine **3.6.1** · Observer **3.2.0** · API contract **1.8**. `./build/dstns_server --version` and `/api/v1/system/info` report what is running. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Engine **3.6.1** · Observer **3.2.1** · API contract **1.8**. `./build/dstns_server --version` and `/api/v1/system/info` report what is running. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 DSTNS is for research, teaching, algorithm integration and demonstrations. It is not calibrated or certified for controlling real traffic.
 
