@@ -1,11 +1,54 @@
 {
-  "description": "The alerts the daemons raise, each by a reading crossing a line. message is a template in Daemon/messages.json; recovered, if given, is sent once the reading is back. sustain_s, if given, is how long the reading must stay over the line first; otherwise the launcher's setting (daemon.sustain_s) applies. The Resource Control Subsystem's own limits, α, β and γ for each module, are settings of their own (rcs.*).",
-  "version": 1,
+  "$schema": "./schema/daemon-alerts.schema.json",
+  "schema_version": 2,
+  "_about": "The alerts the daemons raise, each by a reading crossing a line. message is a template in Daemon/messages.json; recovered, if given, is sent once the reading is back. sustain_s, if given, is how long the reading must stay over the line first; otherwise the launcher's setting (daemon.sustain_s) applies. The Resource Control Subsystem's own limits, α, β and γ for each module, are settings of their own (rcs.*).",
+  "_help": {
+    "alerts[].daemon": "Which daemon watches the reading. Accepts: memory, disk, stall.",
+    "alerts[].reading": "What is measured. Accepts: available_percent (memory: percent of memory available), free_mib (disk: MiB free where the logs and maps are), stalled_s (stall: seconds a running clock has not moved).",
+    "alerts[].below": "Raise the alert when the reading falls below this. Accepts: a number in the reading's unit. Give below or above, not both.",
+    "alerts[].above": "Raise the alert when the reading rises above this. Accepts: a number in the reading's unit. Give below or above, not both.",
+    "alerts[].message": "The message template, by its key in Daemon/messages.json, such as memory.low. Accepts: a key that exists there.",
+    "alerts[].recovered": "Optional. The template sent once the reading is back over the line.",
+    "alerts[].sustain_s": "Optional. Seconds the reading must stay over the line before the alert; without it, the launcher's daemon.sustain_s applies (default 5). Accepts: a number from 0 to 300."
+  },
   "alerts": [
-    { "daemon": "memory", "reading": "available_percent", "below": 5, "message": "memory.critical", "recovered": "memory.recovered", "sustain_s": 2 },
-    { "daemon": "memory", "reading": "available_percent", "below": 12, "message": "memory.low", "recovered": "memory.recovered" },
-    { "daemon": "disk", "reading": "free_mib", "below": 512, "message": "disk.critical", "recovered": "disk.recovered", "sustain_s": 1 },
-    { "daemon": "disk", "reading": "free_mib", "below": 2048, "message": "disk.low", "recovered": "disk.recovered" },
-    { "daemon": "stall", "reading": "stalled_s", "above": 15, "message": "engine.stalled", "recovered": "engine.recovered", "sustain_s": 0 }
+    {
+      "daemon": "memory",
+      "reading": "available_percent",
+      "below": 5,
+      "message": "memory.critical",
+      "recovered": "memory.recovered",
+      "sustain_s": 2
+    },
+    {
+      "daemon": "memory",
+      "reading": "available_percent",
+      "below": 12,
+      "message": "memory.low",
+      "recovered": "memory.recovered"
+    },
+    {
+      "daemon": "disk",
+      "reading": "free_mib",
+      "below": 512,
+      "message": "disk.critical",
+      "recovered": "disk.recovered",
+      "sustain_s": 1
+    },
+    {
+      "daemon": "disk",
+      "reading": "free_mib",
+      "below": 2048,
+      "message": "disk.low",
+      "recovered": "disk.recovered"
+    },
+    {
+      "daemon": "stall",
+      "reading": "stalled_s",
+      "above": 15,
+      "message": "engine.stalled",
+      "recovered": "engine.recovered",
+      "sustain_s": 0
+    }
   ]
 }

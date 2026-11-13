@@ -115,6 +115,33 @@ int main() {
         unknown.map_selection_version = "urban-geo-v9";
         refuses(unknown, "an unknown policy");
 
+        // Exclusions: left out of whatever the mode allows, and named in the fingerprint only when present.
+        const auto without = [&](ScenarioConfig config, std::vector<std::string> countries, std::vector<std::string> cities = {}) {
+            config.map_exclude_countries = std::move(countries);
+            config.map_exclude_cities = std::move(cities);
+            return config;
+        };
+        const auto not_india = policy_of(without(geo("global"), {"in"}));
+        check(not_india.canonical() == "policy=urban-geo-v1;mode=global;countries=;cities=;exclude_countries=IN", not_india.canonical());
+        check(policy_of(geo("global")).canonical().find("exclude") == std::string::npos, "no exclusion, the fingerprint is as before");
+        for (int i = 0; i < 400; ++i)
+            check(select_location(Seed128::from_decimal(std::to_string(i * 7919)), not_india, 5000.0).country != "India", "India left out");
+        const auto india_not_mumbai = policy_of(without(geo("countries", {"IN"}), {}, {"mumbai"}));
+        bool other_indian_city = false;
+        for (int i = 0; i < 400; ++i) {
+            const auto location = select_location(Seed128::from_decimal(std::to_string(i)), india_not_mumbai, 5000.0);
+            check(location.country == "India" && location.city != "Mumbai", "India without Mumbai: " + location.city);
+            other_indian_city = true;
+        }
+        check(other_indian_city && india_not_mumbai.fingerprint() != india.fingerprint(), "an exclusion is a different policy");
+        refuses(without(geo("countries", {"IN"}), {"IN"}), "a country both chosen and left out");
+        refuses(without(geo("fixed_city", {}, {"mumbai"}), {"AE"}), "a fixed city with exclusions");
+        refuses(without(geo("global"), {"XX"}), "an unknown excluded country");
+        refuses(without(geo("countries", {"AE"}), {}, {"dubai", "abu-dhabi"}), "an exclusion that leaves no city");
+        ScenarioConfig legacy_excluding;
+        legacy_excluding.map_exclude_countries = {"IN"};
+        refuses(legacy_excluding, "exclusions on urban-crfg-v3");
+
         std::cout << "[selection-ng] policies, validation, fingerprints and draws passed\n";
         return 0;
     } catch (const std::exception& e) {

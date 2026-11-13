@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dstns.readthedocs.io/config/schema/road_types.schema.json",
+  "title": "config/road_types.json",
+  "description": "Reference: the free-flow speed and capacity of each OpenStreetMap road class, as the engine models them. Informational in this release: the engine holds these values in code (Core/core-legacy/src/osm.cpp and scenario.cpp, where they are part of every world's hashes), and this file documents them; changing it changes nothing.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "This file's JSON Schema, for editors."
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "The layout of this file."
+    },
+    "_about": {
+      "type": "string",
+      "description": "What this file is. Not read by any program."
+    },
+    "_help": {
+      "type": "object",
+      "description": "Each editable value: what it means, what it accepts, its default. Not read by any program.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "speed_mps": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "description": "Free-flow speed, in metres a second (16.67 is 60 km/h). Accepts: a number above 0."
+      },
+      "capacity_vph": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "description": "Capacity, in vehicles an hour. Accepts: a number above 0."
+      }
+    }
+  }
+}

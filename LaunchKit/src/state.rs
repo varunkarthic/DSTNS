@@ -204,11 +204,11 @@ fn world(paths: &Paths, config: &Value) -> Option<Value> {
             // The rules and the engine the world was made by, as the server reports them, not as the settings are now.
             let made_by = |key: &str| data.get(key).filter(|v| v.as_str().is_some_and(|s| !s.is_empty())).cloned();
             return Some(json!({"seed": status.seed, "day": day, "at": status.virtual_seconds.floor() as u64, "maps": made_by("map_selection_version").unwrap_or_else(|| maps(config)),
-                               "engine": made_by("engine").unwrap_or_else(|| config::setting(config, "engine.implementation")), "playing": playing, "rate": rate, "changes": changes}));
+                               "engine": made_by("engine").unwrap_or_else(|| config::setting(config, "engines.selected")), "playing": playing, "rate": rate, "changes": changes}));
         }
     }
     let seed = config.get("seed").and_then(|s| s.as_str()).filter(|s| !s.is_empty() && *s != "auto")?;
-    Some(json!({"seed": seed, "day": config.get("day").cloned().unwrap_or(json!(0)), "at": 0, "maps": maps(config), "engine": config::setting(config, "engine.implementation")}))
+    Some(json!({"seed": seed, "day": config.get("day").cloned().unwrap_or(json!(0)), "at": 0, "maps": maps(config), "engine": config::setting(config, "engines.selected")}))
 }
 
 /// This launcher's state as a code, with the world if asked.
@@ -343,8 +343,8 @@ pub fn set(paths: &Paths, code: &str) -> Result<Vec<String>, String> {
         config["day"] = world["day"].clone();
         // The world runs on the engine that made it (a run may have chosen one with --engine).
         if let Some(engine) = world["engine"].as_str().filter(|e| config::ENGINES.contains(e)) {
-            if config::setting(&config, "engine.implementation") != json!(engine) {
-                if let Some(field) = config::field("engine.implementation") {
+            if config::setting(&config, "engines.selected") != json!(engine) {
+                if let Some(field) = config::field("engines.selected") {
                     field.set(&mut config, json!(engine));
                     out.push(format!("Its world runs on {engine}, so the engine is now {engine}."));
                 }
@@ -581,7 +581,7 @@ mod tests {
         std::fs::create_dir_all(paths.config().parent().unwrap()).unwrap();
         std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/defaults.json"), paths.config()).unwrap();
         let out = set(&paths, &blocks).unwrap();
-        assert_eq!(config::setting(&config::load(&paths).unwrap(), "engine.implementation"), json!("core-ng"), "{out:?}");
+        assert_eq!(config::setting(&config::load(&paths).unwrap(), "engines.selected"), json!("core-ng"), "{out:?}");
         assert!(out.iter().any(|l| l.contains("runs on core-ng")));
         std::env::remove_var(PENDING_JUMP);
         let _ = std::fs::remove_dir_all(&root);

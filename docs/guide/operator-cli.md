@@ -432,7 +432,7 @@ For `start` and `seeds save`:
 | `--duration S` | Integer 60 to 3600 | Wall-clock seconds per virtual day at 1× |
 | `--speed X` | 0.01 to 10 | Initial speed multiplier |
 | `--max-nodes N` | Integer 2 to 50000 | Graph size cap |
-| `--engine NAME` | `core-legacy` or `core-ng` | The engine for this run only; `engine.implementation` otherwise. `core-legacy` is refused when `map.selection_mode` is not `global` |
+| `--engine NAME` | `core-legacy` or `core-ng` | The engine for this run only; `engines.selected` otherwise. `core-legacy` is refused when `map.selection_mode` is not `global` |
 | `--osm-file PATH` | Existing file | Pin a map instead of letting the seed choose |
 | `--apps ID,ID`, `--no-apps` | | Start these applications with the run (it waits until they are ready), or none |
 | `--default-settings` | | Open the observer with its settings at their defaults |

@@ -94,6 +94,7 @@ impl Session {
     fn launch_inner(&self, options: &RunOptions, reporter: Arc<dyn Reporter>, open_browser: bool, cancel: &Cancel) -> Result<Option<World>> {
         cancel.check()?;
         let request = simulation::prepare_request(options, &self.paths)?;
+        simulation::ACCEPT_RISK.store(options.accept_risk, std::sync::atomic::Ordering::Relaxed);
         let handle = Arc::new(server::start(reporter.as_ref(), &self.paths, true, Some(cancel), false)?);
         {
             let mut current = self.handle.lock().unwrap();

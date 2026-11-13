@@ -82,6 +82,14 @@ of failure always looks the same whichever route raised it.
 | `NOT_ON_NETWORK` | 422 | A junction or road that isn't in this world, or nodes that aren't joined by a road |
 | `RATE_LIMITED` | 429 | Too many notifications, messages or changes to the view |
 | `APP_LIMIT_REACHED`, `TOO_MANY_PROPOSALS` | 429 | 64 applications, none of which can make way; 64 proposals waiting |
+| `APPROVAL_REQUIRED` | 409 | A start on an alpha or beta engine waits for acknowledgment, so a request that would run the engine was not done. `data` has `approval_id`, `request_id` (your Idempotency-Key) and how to wait; retry once the approval is accepted |
+| `APPROVAL_PENDING` | 409 | Another start already waits for acknowledgment; decide or stop it first |
+| `APPROVAL_DECIDED` | 409 | That start was already decided the other way |
+| `APPROVAL_NOT_FOUND` | 404 | No start waits under that approval ID |
+| `ACKNOWLEDGE_IN_LAUNCHER` | 403 | This engine's runs are acknowledged by the operator, in the launcher |
+| `ENGINE_DISABLED` | 403 | The engine is installed but disabled in config/engines.json |
+| `ENGINE_NOT_OFFERED` | 400 | Regeneration asked for an engine that is not an enabled stable real engine |
+| `BAD_DECISION` | 400 | `decision` must be accept or reject; `then` terminate or regenerate |
 | `SUMO_FAILED` | 503 | SUMO failed, or its files couldn't be written |
 | `SUMO_DISABLED` | 403 | SUMO is turned off (`DSTNS_SUMO=0`, the launcher's `sumo.enabled`) |
 

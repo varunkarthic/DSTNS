@@ -35,6 +35,19 @@ enum class Lifecycle { Booting, Idle, Preparing, Ready, Running, Paused, Seeking
 struct NewsItem { std::uint64_t news_id{}, event_id{}; std::uint32_t virtual_s{}; std::string category,severity,template_id,message; nlohmann::json data; std::string narration_key; };
 struct AppliedCommand { std::uint64_t id{}; std::string type,status{"applied"}; std::uint32_t virtual_s{}; nlohmann::json before,after; };
 
+// What an engine is, as every layer reports it: its own version, whether it is a real engine or a pseudo-engine
+// that delegates, its release channel, which parts of a run it owns and which it shares, and what changed in this
+// version.
+struct EngineIdentity {
+    std::string version;
+    std::string kind{"real"};      // real or pseudo
+    std::string channel{"stable"}; // alpha, beta or stable
+    std::vector<std::string> owns, shared, changes;
+    [[nodiscard]] nlohmann::json to_json(const std::string& id) const {
+        return {{"id", id}, {"version", version}, {"kind", kind}, {"channel", channel}, {"owns", owns}, {"shared", shared}, {"changes", changes}};
+    }
+};
+
 class SimulationEngine {
 public:
     explicit SimulationEngine(RuntimeLogger& logger);
@@ -44,8 +57,14 @@ public:
 
     // Make another engine available by name, with the hooks that route compilation through it. Call before the
     // API serves requests; the set is read without the lock afterwards. "core-legacy" is always available.
-    void register_engine(const std::string& id, ScenarioCompiler::Hooks hooks);
+    void register_engine(const std::string& id, ScenarioCompiler::Hooks hooks, EngineIdentity identity = {});
+    // What an engine is (core-legacy's identity is set by the server, which knows the build's version).
+    void set_identity(const std::string& id, EngineIdentity identity);
     [[nodiscard]] std::vector<std::string> engines() const;
+    [[nodiscard]] nlohmann::json identity(const std::string& id) const;
+    [[nodiscard]] nlohmann::json catalogue() const;
+    // Refuses an engine this server does not have, or a policy it cannot run, before anything starts.
+    void check_engine(const ScenarioConfig& config) const { require_engine(config); }
     // Checks every lifecycle transition. One it refuses is still made, so a run is never wedged, but it is logged as an
     // error and counted. Set before the API serves requests.
     void set_transition_guard(std::function<bool(Lifecycle, Lifecycle)> guard);
@@ -189,7 +208,7 @@ private:
     RuntimeLogger& logger_; mutable std::recursive_mutex mutex_; std::condition_variable_any cv_; std::jthread worker_;
     Lifecycle lifecycle_{Lifecycle::Idle};
     // Lock-free mirror of lifecycle_, written only by transition().
-    std::atomic<Lifecycle> lifecycle_mirror_{Lifecycle::Idle}; ScenarioCompiler compiler_; std::map<std::string, ScenarioCompiler::Hooks> engines_;
+    std::atomic<Lifecycle> lifecycle_mirror_{Lifecycle::Idle}; ScenarioCompiler compiler_; std::map<std::string, ScenarioCompiler::Hooks> engines_; std::map<std::string, EngineIdentity> identities_;
     void require_engine(const ScenarioConfig& config) const;
     // Where a seed goes under the configuration's engine and selection policy.
     [[nodiscard]] MapLocation locate(Seed128 seed, const ScenarioConfig& config) const;

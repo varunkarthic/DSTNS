@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dstns.readthedocs.io/config/schema/daemon-alerts.schema.json",
+  "title": "config/daemon-alerts.json",
+  "description": "The alerts the daemons raise, each by a reading crossing a line. message is a template in Daemon/messages.json; recovered, if given, is sent once the reading is back. sustain_s, if given, is how long the reading must stay over the line first; otherwise the launcher's setting (daemon.sustain_s) applies. The Resource Control Subsystem's own limits, α, β and γ for each module, are settings of their own (rcs.*).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "This file's JSON Schema, for editors."
+    },
+    "schema_version": {
+      "const": 2,
+      "description": "The layout of this file."
+    },
+    "_about": {
+      "type": "string",
+      "description": "What this file is. Not read by any program."
+    },
+    "_help": {
+      "type": "object",
+      "description": "Each editable value: what it means, what it accepts, its default. Not read by any program.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "description": "The alerts, each a reading crossing a line.",
+      "items": {
+        "type": "object",
+        "required": [
+          "daemon",
+          "reading",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "daemon": {
+            "enum": [
+              "memory",
+              "disk",
+              "stall"
+            ],
+            "description": "Which daemon watches the reading. Accepts: memory, disk, stall."
+          },
+          "reading": {
+            "enum": [
+              "available_percent",
+              "free_mib",
+              "stalled_s"
+            ],
+            "description": "What is measured. Accepts: available_percent (memory: percent of memory available), free_mib (disk: MiB free where the logs and maps are), stalled_s (stall: seconds a running clock has not moved)."
+          },
+          "below": {
+            "type": "number",
+            "description": "Raise the alert when the reading falls below this. Accepts: a number in the reading's unit. Give below or above, not both."
+          },
+          "above": {
+            "type": "number",
+            "description": "Raise the alert when the reading rises above this. Accepts: a number in the reading's unit. Give below or above, not both."
+          },
+          "message": {
+            "type": "string",
+            "description": "The message template, by its key in Daemon/messages.json, such as memory.low. Accepts: a key that exists there."
+          },
+          "recovered": {
+            "type": "string",
+            "description": "Optional. The template sent once the reading is back over the line."
+          },
+          "sustain_s": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 300,
+            "description": "Optional. Seconds the reading must stay over the line before the alert; without it, the launcher's daemon.sustain_s applies (default 5). Accepts: a number from 0 to 300."
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "below"
+            ]
+          },
+          {
+            "required": [
+              "above"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

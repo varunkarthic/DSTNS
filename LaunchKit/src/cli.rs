@@ -72,6 +72,7 @@ pub fn parse(argv: &[String]) -> Result<Arguments> {
             "--no-open" => args.open = false,
             "--default-settings" => args.run.default_settings = true,
             "--no-apps" => args.run.no_apps = true,
+            "--accept-risk" => args.run.accept_risk = true,
             "--help" | "-h" => positional.push("help".into()),
             "--version" | "-V" => positional.push("version".into()),
             "--license" | "--licence" => positional.push("license".into()),
@@ -162,7 +163,7 @@ Commands
                          Open the observer, run its dev server, build or install it
   logs [system|api|event|playback]
                          Show the server's logs
-  config [get KEY|set KEY VALUE]
+  config [get KEY|set KEY VALUE|docs]
                          Edit config/defaults.json; or read or change one setting
   test [all|unit|api|replay|benchmark|sumo|ui|launcher]
                          Run test stages
@@ -182,7 +183,9 @@ Run options (start, seeds save)
   --duration SECONDS     60 to 3600: wall-clock length of the day at 1x
   --speed X              0.01 to 10
   --max-nodes N          2 to 50000
-  --engine NAME          core-legacy or core-ng, for this run (engine.implementation otherwise)
+  --engine NAME          core-legacy or core-ng, for this run (engines.selected otherwise)
+  --accept-risk          Accept, for this run, the risk of an alpha or beta engine instead of acknowledging it in
+                         the observer
   --osm-file PATH        Run this map instead of letting the seed choose
   --default-settings     Open the observer with its settings at their defaults
   --apps ID,ID           Start these applications with the run. The run waits until they are ready
@@ -327,6 +330,13 @@ pub fn command_config(context: &Context) -> Result<i32> {
     let out = &context.out;
     let paths = &context.paths;
     match context.args.topic.as_deref() {
+        // The schemas in config/schema/ and each file's _help, from the settings table; values are left as they are.
+        Some("docs") => {
+            for line in crate::schema::write(paths)? {
+                out.message(Level::Success, "Written", &line);
+            }
+            Ok(EXIT_OK)
+        }
         Some("get") => {
             let key = context.args.item.clone().ok_or_else(|| LauncherError::config("Usage: ./launcher config get KEY"))?;
             let field = config::field(&key).ok_or_else(|| LauncherError::config(format!("No setting {key}.")).remedy("./launcher config lists them."))?;

@@ -58,7 +58,7 @@ Body:
 | `start_virtual_time` | seconds or `HH:MM:SS` | No | Default 0 | Where the day begins |
 | `saved_seed_id` | string | No | `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` | Name it was saved under |
 | `map_selection_version` | string | No | `urban-crfg-v3` (default); `urban-geo-v1` with engine `core-ng` | How districts are chosen. See [Deterministic seeding](../concepts/deterministic-seeding.md#choosing-countries-or-cities-urban-geo-v1) |
-| `map_selection` | object | No | `mode`: `global`, `countries`, `cities` or `fixed_city`; `countries`: ISO 3166-1 alpha-2 codes; `cities`: city IDs such as `mumbai`; at most 200 of each | Only with `urban-geo-v1` (API 1.6) |
+| `map_selection` | object | No | `mode`: `global`, `countries`, `cities` or `fixed_city`; `countries`: ISO 3166-1 alpha-2 codes; `cities`: city IDs such as `mumbai`; `exclude_countries`, `exclude_cities`: left out of what the mode allows (API 1.7); at most 200 of each | Only with `urban-geo-v1` (API 1.6). A policy that leaves out nothing has the same fingerprint as before exclusions existed |
 | `engine` | string | No | `core-legacy` (default) or `core-ng`; another is refused with 400 | Which engine prepares and runs the world. Results are the same; `/system/info` lists the engines (API 1.5) |
 | `map.osm_file` | string | No | A path, or `auto` | Use this file rather than downloading |
 | `map.city_extent_m` | number | No | 500 to 20000 | How wide a district is |
@@ -1272,7 +1272,7 @@ Response `200`, from a real run:
   "ok": true,
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
-  "version": "3.5.0"
+  "version": "3.6.0"
 }
 ```
 
@@ -1299,6 +1299,53 @@ Response `200`:
   }
 }
 ```
+
+### `GET /api/v1/engine`
+
+The running engine and every installed one, with the engine policy (config/engines.json) and the approval. See
+[Engine governance](../design/engine-governance.md).
+
+```json
+{"ok": true, "data": {
+  "running": {"id": "core-ng", "version": "0.6.0", "kind": "real", "channel": "alpha", "owns": ["…"], "shared": ["physics step", "…"], "changes": ["…"]},
+  "catalogue": [{"id": "core-legacy", "version": "3.6.0", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
+  "config": {"schema_version": 1, "selected": "core-legacy", "default": "core-legacy", "auto_switch": "offer", "engines": {"core-ng": {"enabled": true, "acknowledgment": {"ui": true, "enforce": true}}}},
+  "approval": {"state": "none", "revision": 0}}}
+```
+
+### `GET /api/v1/engine/approval`
+
+Whether a start waits for acknowledgment. `state` is `none`, `pending`, `accepted`, `rejected` or `cancelled`;
+`revision` increases with each change. With a start waiting or rejected, `approval` names it and `alternatives` lists
+the enabled stable real engines a rejection may start the seed on (empty when `auto_switch` is `off`).
+
+```json
+{"ok": true, "data": {"state": "pending", "revision": 3,
+  "approval": {"id": "9f1c…", "engine": {"id": "core-ng", "version": "0.6.0", "channel": "alpha", "kind": "real"}, "seed": "42",
+               "requested_at": "2026-11-13T18:00:00Z", "acknowledge_in": "observer", "decision": "", "then": "", "reason": ""},
+  "alternatives": [{"id": "core-legacy", "version": "3.6.0", "channel": "stable", "kind": "real"}]}}
+```
+
+### `GET /api/v1/engine/approval/wait`
+
+A long poll for clients that were told to wait: returns as soon as `revision` is past `since`, or after `timeout`
+seconds (default 25, at most 30), with the same body as `GET /api/v1/engine/approval`.
+
+### `POST /api/v1/engine/approval`
+
+Accept or reject a start that waits, from the observer (`X-DSTNS-Host`) or the operator. When the engine's
+acknowledgment is set to the launcher, only the operator may decide (`403 ACKNOWLEDGE_IN_LAUNCHER`).
+
+```json
+{"approval_id": "9f1c…", "decision": "reject", "then": "regenerate", "engine": "core-legacy"}
+```
+
+`accept` runs the held start, once. `reject` starts nothing, or with `then: "terminate"` ends the server, or with
+`then: "regenerate"` starts the same seed, and only the seed, on `engine` (one of the alternatives): a new world,
+which may differ from the one the rejected engine would have made. The same decision again returns the same answer.
+
+Errors: `400 BAD_DECISION`, `400 ENGINE_NOT_OFFERED`, `401 AUTHORIZATION_REQUIRED`, `403 ACKNOWLEDGE_IN_LAUNCHER`,
+`404 APPROVAL_NOT_FOUND`, `409 APPROVAL_DECIDED`.
 
 ### `GET /api/v1/system/info`
 
@@ -1341,7 +1388,7 @@ Response `200`, from a real run:
     "sumo_home": "/Users/varun/sumo",
     "version": ""
   },
-  "version": "3.5.0"
+  "version": "3.6.0"
 }
 ```
 
@@ -1404,7 +1451,7 @@ Response `200`, from a real run:
     },
     "program": "DSTNS",
     "source_offer": "You may obtain the complete corresponding source for this running version, under the terms…",
-    "version": "3.5.0"
+    "version": "3.6.0"
   },
   "ok": true
 }

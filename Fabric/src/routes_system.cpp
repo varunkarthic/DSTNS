@@ -125,6 +125,8 @@ void ApiServer::routes_system() {
                        {"architecture", DSTNS_BUILD_ARCH}}},
             {"lifecycle", to_string(engine_.lifecycle())},
             {"engines", engine_.engines()},
+            // Each engine as it describes itself: version, real or pseudo, release channel, what it owns.
+            {"engine_catalogue", engine_.catalogue()},
             {"sumo", {
                 {"enabled", sumo_on},
                 {"available", env.available},
@@ -147,6 +149,11 @@ void ApiServer::routes_system() {
             return nlohmann::json{{"group",name},{"purpose",purpose},{"endpoints",std::move(items)}};
         };
         return nlohmann::json::array({
+            group("engine","The engines: what is installed and running, and the acknowledgment an unstable engine's run waits for",{
+                {{"GET","/api/v1/engine","The running engine, every installed engine, engine policy and the approval"}},
+                {{"GET","/api/v1/engine/approval","Whether a start waits for acknowledgment, and what it is"}},
+                {{"GET","/api/v1/engine/approval/wait","Long poll: returns when the approval changes past since"}},
+                {{"POST","/api/v1/engine/approval","Accept or reject a start that waits (the observer or the operator)"}}}),
             group("system","Service identity, health and lifecycle",{
                 {{"GET","/health","Liveness, for probes and load balancers"}},
                 {{"GET","/api/v1","This index, at the API's root"}},
@@ -338,27 +345,7 @@ void ApiServer::routes_system() {
             {"status", "TERMINATING"},
             {"message", "DSTNS server is shutting down gracefully."}
         });
-        // Terminating means quitting: the process goes away, not just the run.
-        //
-        // The request is made lock-free because a scenario compile can hold the
-        // engine lock for the length of a map download, and an operator who has
-        // asked to quit should not wait that out. The listener is then stopped
-        // so main() can return normally, and a backstop guarantees the process
-        // exits even if a long-running compile is still unwinding.
-        engine_.request_terminate();
-        logger_.system("INFO", "api", "Termination requested; shutting down");
-        if (termination_started_.exchange(true)) return;
-        shutdown_worker_ = std::thread([this]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(150));
-            stop();
-        });
-        // No captured object: this fallback can outlive ApiServer safely. The
-        // owned downloader group was already cancelled before starting it.
-        std::thread([] {
-            std::this_thread::sleep_for(std::chrono::seconds(3));
-            std::fflush(nullptr);
-            std::_Exit(0);
-        }).detach();
+        terminate_now();
     };
     // POST only: a GET that shuts the server down can be triggered by any
     // page the operator happens to open, through an image or a link.
@@ -484,4 +471,28 @@ void ApiServer::routes_system() {
         send(r, {{"ok", true}, {"data", engine_.narrator_status()}});
     });
 }
+void ApiServer::terminate_now() {
+        // Terminating means quitting: the process goes away, not just the run.
+        //
+        // The request is made lock-free because a scenario compile can hold the
+        // engine lock for the length of a map download, and an operator who has
+        // asked to quit should not wait that out. The listener is then stopped
+        // so main() can return normally, and a backstop guarantees the process
+        // exits even if a long-running compile is still unwinding.
+        engine_.request_terminate();
+        logger_.system("INFO", "api", "Termination requested; shutting down");
+        if (termination_started_.exchange(true)) return;
+        shutdown_worker_ = std::thread([this]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(150));
+            stop();
+        });
+        // No captured object: this fallback can outlive ApiServer safely. The
+        // owned downloader group was already cancelled before starting it.
+        std::thread([] {
+            std::this_thread::sleep_for(std::chrono::seconds(3));
+            std::fflush(nullptr);
+            std::_Exit(0);
+        }).detach();
+}
+
 } // namespace dstns

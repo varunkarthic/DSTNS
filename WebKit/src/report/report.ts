@@ -112,6 +112,10 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   const place = location ? `${location.city}, ${location.country}` : "Explicit map file";
   const seed = status.seed || status.global_seed;
   const shortSeed = seed.length > 14 ? `${seed.slice(0, 12)}…` : seed;
+  // The engine that made this world, as it describes itself. A server from before engines described themselves ran
+  // core-legacy, the only engine there was.
+  const engine = status.data.engine_identity ?? null;
+  const engineText = engine ? `${engine.id} ${engine.version} (${engine.channel}, ${engine.kind === "pseudo" ? "pseudo-engine" : "real engine"})` : `${status.data.engine || "core-legacy"} (not described by this server)`;
 
   // ---- Derived records -----------------------------------------------------
   const net = networkStats(topology);
@@ -317,6 +321,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   doc.keyValues([
     ["Seed", seed],
     ["Saved configuration", status.data.saved_seed_id || "Not saved"],
+    ["Engine", engineText],
     ["Day type", status.data.day === 1 ? "Weekend" : "Weekday"],
     ["Virtual day", "24 hours, 00:00:00 to 24:00:00"],
     ["Playback duration", `${snapshot.clock.playback_duration_seconds} s of wall time per virtual day at 1×`],
@@ -1071,7 +1076,9 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   onProgress?.("Noting the environment", 0.2);
   doc.sectionHeading("Environment and Runtime", "Software versions and the environment the report was produced in. Filesystem paths are deliberately omitted.", false, "environment");
   doc.keyValues([
-    ["DSTNS core", resources.coreVersion ?? "Not reported"],
+    ["DSTNS server", resources.coreVersion ?? "Not reported"],
+    ["Engine", engineText],
+    ...(engine && engine.channel !== "stable" ? [["Engine release channel", `${engine.channel}: not a stable engine; its results may change in later versions`] as [string, string]] : []),
     ["Interface", input.uiVersion],
     ["API version", status.api_version],
     ["Build identifier", "Not embedded in this build"],
@@ -1099,6 +1106,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     ["Graph hash", topology.graph_hash],
     ["Scenario hash", typeof scenarioHash === "string" ? scenarioHash : "Not recorded"],
     ["Map selection version", topology.map_selection_version],
+    ["Engine", engineText],
     ["Playback revision", String(status.data.playback_revision ?? "Not reported")],
     ["Reproduction", "Starting the same seed with the same configuration reproduces this network, schedule, weather and incidents exactly. Playback speed changes pacing only, never physics."],
     ["Verification", "This report carries no cryptographic signature. The hashes above identify the run; they do not authenticate this document."],
@@ -1211,7 +1219,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
     title: `DSTNS Simulation Report: ${place}`,
     subject: `Simulation of ${place} to ${t(virtual)} (${pct(virtual / DAY_SECONDS, 1)} of the day). ${ident}.`,
     author: "Varun Karthic",
-    creator: `DSTNS Interface ${input.uiVersion}, engine ${resources.coreVersion ?? "not reported"}, API ${status.api_version}`,
+    creator: `DSTNS Interface ${input.uiVersion}, server ${resources.coreVersion ?? "not reported"}, engine ${engineText}, API ${status.api_version}`,
     keywords: ["DSTNS", "traffic simulation", "transport network", "deterministic", "OpenStreetMap", place, `seed ${seed}`, status.run_id, "AGPL-3.0-or-later"].join(", "),
   });
   pdf.setCreationDate(now);
@@ -1230,7 +1238,11 @@ export async function buildReport(input: ReportInput, resources: ReportResources
       `<dstns:run>${xml(status.run_id)}</dstns:run>`,
       `<dstns:state>${xml(lifecycle)}</dstns:state>`,
       `<dstns:virtualSeconds>${Math.round(virtual)}</dstns:virtualSeconds>`,
-      `<dstns:engine>${xml(resources.coreVersion ?? "not reported")}</dstns:engine>`,
+      `<dstns:server>${xml(resources.coreVersion ?? "not reported")}</dstns:server>`,
+      `<dstns:engine>${xml(engine?.id ?? status.data.engine ?? "core-legacy")}</dstns:engine>`,
+      `<dstns:engineVersion>${xml(engine?.version ?? "not reported")}</dstns:engineVersion>`,
+      `<dstns:engineChannel>${xml(engine?.channel ?? "not reported")}</dstns:engineChannel>`,
+      `<dstns:engineKind>${xml(engine?.kind ?? "not reported")}</dstns:engineKind>`,
       `<dstns:interface>${xml(input.uiVersion)}</dstns:interface>`,
       `<dstns:api>${xml(status.api_version)}</dstns:api>`,
       `<dstns:mapSelection>${xml(topology.map_selection_version)}</dstns:mapSelection>`,

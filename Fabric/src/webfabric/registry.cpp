@@ -1053,6 +1053,11 @@ void AppRegistry::post_event(const std::string& id, const std::string& type, con
     push_event(app, type, data);
 }
 
+void AppRegistry::broadcast(const std::string& type, const json& data) {
+    std::lock_guard lock(mutex_);
+    for (auto& [id, app] : apps_) push_event(app, type, data);
+}
+
 json AppRegistry::settings(const std::string& id) {
     std::lock_guard lock(mutex_);
     const auto& app = find(id);

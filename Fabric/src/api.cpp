@@ -4,6 +4,7 @@
 #include "dstns/api.hpp"
 #include "dstns/daemon.hpp"
 #include "dstns/webfabric/registry.hpp"
+#include "gate.hpp"
 
 #include <httplib.h>
 
@@ -39,6 +40,15 @@ ApiServer::ApiServer(SimulationEngine& e, RuntimeLogger& l)
         const auto threads = static_cast<std::size_t>(std::min(std::atoi(value), 256));
         server_->new_task_queue = [threads] { return new httplib::ThreadPool(threads); };
     }
+    // config/engines.json (or DSTNS_ENGINE_CONFIG): which engines may run, and how a run on an unstable one is
+    // acknowledged. The gate tells every application when an approval changes, so it can retry what was deferred.
+    const char* engines_file = std::getenv("DSTNS_ENGINE_CONFIG");
+    auto engine_config = fabric::EngineConfig::load(engines_file && *engines_file ? engines_file : "config/engines.json");
+    for (const auto& warning : engine_config.warnings) logger_.system("WARN", "engines", warning);
+    gate_ = std::make_unique<fabric::EngineGate>(std::move(engine_config), [this](const nlohmann::json& event) {
+        registry_->broadcast("engine.approval", event);
+        logger_.system("INFO", "engines", "approval " + event.value("state", std::string()) + " " + event.value("approval_id", std::string()));
+    });
     install_guards();
     routes_static();
     routes_system();
@@ -49,6 +59,7 @@ ApiServer::ApiServer(SimulationEngine& e, RuntimeLogger& l)
     routes_observation();
     routes_apps();
     routes_daemon();
+    routes_engine();
     daemons_ = make_daemons(engine_, logger_);
     daemons_->start();
 }

@@ -313,6 +313,7 @@ ScenarioConfig config_from(const json& j) {
             return out;
         };
         c.map_countries=ids("countries");c.map_cities=ids("cities");
+        c.map_exclude_countries=ids("exclude_countries");c.map_exclude_cities=ids("exclude_cities");
     }
     // Which engine runs the world; the engine refuses one it does not have.
     c.engine=j.value("engine",std::string("core-legacy"));

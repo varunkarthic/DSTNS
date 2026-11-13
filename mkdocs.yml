@@ -274,6 +274,7 @@ nav:
           - Interface system: design/interface-system.md
           - State machines: design/state-machines.md
           - core-ng migration: design/v3-core-ng-migration.md
+          - Engine governance: design/engine-governance.md
           - Mathematical foundation: design/mathematical-foundation.md
           - Motion and graphics mathematics: design/motion-mathematics.md
           - System architecture: design/system-architecture-spec.md

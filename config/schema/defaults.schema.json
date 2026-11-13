@@ -1,0 +1,856 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dstns.readthedocs.io/config/schema/defaults.schema.json",
+  "title": "config/defaults.json",
+  "description": "The simulation's and the launcher's settings. The launcher edits this file (./launcher config, or Settings in its interface) and checks every value; edit it by hand with the same care. Most values apply from the next start. Values marked informational are fixed by the engine and only described here.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "This file's JSON Schema, for editors."
+    },
+    "schema_version": {
+      "const": 2,
+      "description": "The layout of this file. A launcher refuses one newer than it reads."
+    },
+    "_about": {
+      "type": "string",
+      "description": "What this file is. Not read by any program."
+    },
+    "_help": {
+      "type": "object",
+      "description": "Each editable value: what it means, what it accepts, its default. Not read by any program; ./launcher config docs writes it.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "day": {
+      "title": "Day type",
+      "description": "Day type (Run). Which demand profile the day follows: a working weekday, or a weekend's later, flatter one. --day-type overrides it for a run. Accepts: 0 (weekday), 1 (weekend). Default: 0.",
+      "default": 0,
+      "enum": [
+        0,
+        1
+      ]
+    },
+    "playback": {
+      "type": "object",
+      "properties": {
+        "duration_seconds": {
+          "title": "Length of a day",
+          "description": "Length of a day (Run). Wall-clock seconds one simulated day lasts at 1× speed. 3600 plays a day in an hour. Accepts: a whole number from 60 to 3600 seconds. Default: 3600.",
+          "default": 3600,
+          "type": "integer",
+          "minimum": 60.0,
+          "maximum": 3600.0
+        },
+        "tick_rate": {
+          "title": "Starting speed",
+          "description": "Starting speed (Run). How fast a run plays when it starts, as a multiple of the length of a day. The observer changes it while it runs. Accepts: a number above 0 and at most 10 ×. Default: 1.0.",
+          "default": 1.0,
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "maximum": 10.0
+        },
+        "checkpoint_virtual_seconds": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        }
+      }
+    },
+    "map": {
+      "type": "object",
+      "properties": {
+        "selection_mode": {
+          "title": "Where worlds are",
+          "description": "Where worlds are (Engine). Which cities a seed may choose: every city in the catalogue (the same city for a seed as always), only the countries or cities in Places, or always the one city in Places. With every city, anything listed in Places still applies: two-letter codes are countries, other names cities. Anything but every city needs core-ng, which this turns on. Accepts: \"global\" (Every city), \"countries\" (Countries), \"cities\" (Cities), \"fixed_city\" (One city). Default: \"global\".",
+          "default": "global",
+          "enum": [
+            "global",
+            "countries",
+            "cities",
+            "fixed_city"
+          ]
+        },
+        "places": {
+          "title": "Places",
+          "description": "Places (Engine). Countries (two-letter codes, such as IN, AE) or cities (IDs, such as mumbai, new-york), separated by commas. A - before one leaves it out: -IN is everywhere but India; IN, AE, -dubai is India and the UAE but not Dubai. all when worlds may be anywhere. Needs core-ng. Accepts: text. Default: \"all\".",
+          "default": "all",
+          "type": "string"
+        },
+        "max_nodes": {
+          "title": "Largest network",
+          "description": "Largest network (Map). The most junctions a district's road network may have. Lower keeps big cities light. Accepts: a whole number from 2 to 50000 junctions. Default: 50000.",
+          "default": 50000,
+          "type": "integer",
+          "minimum": 2.0,
+          "maximum": 50000.0
+        },
+        "city_extent_m": {
+          "title": "City extract",
+          "description": "City extract (Map). The side of the square of city downloaded around a seed's anchor. Larger holds more of the city and takes longer to download; the default is the one every seed's city was chosen with. Accepts: a whole number from 500 to 20000 m. Default: 5000.",
+          "default": 5000,
+          "type": "integer",
+          "minimum": 500.0,
+          "maximum": 20000.0
+        },
+        "district_nodes": {
+          "title": "District size",
+          "description": "District size (Map). How many junctions the district grown from the anchor aims for, within the extract. Accepts: a whole number from 200 to 50000 junctions. Default: 3000.",
+          "default": 3000,
+          "type": "integer",
+          "minimum": 200.0,
+          "maximum": 50000.0
+        },
+        "cache_policy": {
+          "title": "Map cache at start",
+          "description": "Map cache at start (Map). What the server does with the map cache as it starts: keep every city, prune to the most recent few, or clear it. Accepts: \"prune\" (Prune), \"keep\" (Keep), \"clear\" (Clear). Default: \"prune\".",
+          "default": "prune",
+          "enum": [
+            "prune",
+            "keep",
+            "clear"
+          ]
+        },
+        "cache_keep": {
+          "title": "Cities kept when pruning",
+          "description": "Cities kept when pruning (Map). How many of the most recently used cities pruning keeps. Accepts: a whole number from 0 to 1000 cities. Default: 1.",
+          "default": 1,
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 1000.0
+        },
+        "download_stall_s": {
+          "title": "Download stall limit",
+          "description": "Download stall limit (Map). How long a map download may receive nothing before it is given up and the next server is tried. Accepts: a whole number from 10 to 3600 s. Default: 200.",
+          "default": 200,
+          "type": "integer",
+          "minimum": 10.0,
+          "maximum": 3600.0
+        },
+        "cache_dir": {
+          "title": "Map cache folder",
+          "description": "Map cache folder (Map). Where downloaded city extracts are kept, relative to the checkout. Dynamic Fastboot's next city is kept here too. Accepts: text. Default: \"data/maps\".",
+          "default": "data/maps",
+          "type": "string"
+        },
+        "source": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        },
+        "on_demand": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        },
+        "min_nodes": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        },
+        "max_anchor_attempts": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        },
+        "min_compactness": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        },
+        "map_selection_version": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        }
+      }
+    },
+    "sumo": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "SUMO",
+          "description": "SUMO (SUMO). Eclipse SUMO, for exporting a world and running it microscopically (POST /api/v1/export/sumo and /api/v1/system/sumo-simulate). Off, the server refuses both and does not look for SUMO. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "home": {
+          "title": "SUMO folder",
+          "description": "SUMO folder (SUMO). Where SUMO is installed (its SUMO_HOME). auto looks in SUMO_HOME, ~/sumo, Homebrew and the system's folders. Accepts: text. Default: \"auto\".",
+          "default": "auto",
+          "type": "string"
+        }
+      }
+    },
+    "modules": {
+      "type": "object",
+      "properties": {
+        "traffic": {
+          "title": "Traffic demand",
+          "description": "Traffic demand (Modules). Base and hotspot demand on every road. Off, the roads stay empty. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "signals": {
+          "title": "Signal timing",
+          "description": "Signal timing (Modules). Signal controllers at junctions, each on its own schedule. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "buildings": {
+          "title": "Places and trips",
+          "description": "Places and trips (Modules). Demand drawn by schools, offices, shops and other places. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "dws": {
+          "title": "Weather",
+          "description": "Weather (Modules). Rain cells, scheduled and called up by hand. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "flooding": {
+          "title": "Flooding",
+          "description": "Flooding (Modules). Standing water on low roads under rain, and the closures it causes. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "news": {
+          "title": "News feed",
+          "description": "News feed (Modules). A running feed of what happens in the district. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "dws": {
+      "type": "object",
+      "properties": {
+        "frequency": {
+          "title": "Storms a day",
+          "description": "Storms a day (Weather). How many storms are scheduled across a simulated day. 0 leaves only those called up by hand. Accepts: a whole number, at least 0 storms. Default: 3.",
+          "default": 3,
+          "type": "integer",
+          "minimum": 0.0
+        },
+        "min_start_gap_playback_seconds": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        },
+        "min_duration_virtual_min": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        },
+        "max_duration_virtual_min": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        }
+      }
+    },
+    "launcher": {
+      "type": "object",
+      "properties": {
+        "default_settings": {
+          "title": "Observer at its defaults",
+          "description": "Observer at its defaults (Launcher). Every launch opens the observer with its own settings back at their defaults, forgetting what this browser chose. --default-settings does it once. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "command_bar": {
+          "title": "Command bar",
+          "description": "Command bar (Launcher). The prompt at the foot of the terminal interface, where commands are typed as in a shell, joined with | && || and ;. : or / goes to it. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "scroll_lines": {
+          "title": "Scroll speed",
+          "description": "Scroll speed (Launcher). How many lines one notch of the mouse wheel or trackpad scrolls a list or the command output. Accepts: a whole number from 1 to 20 lines. Default: 3.",
+          "default": 3,
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 20.0
+        },
+        "natural_scrolling": {
+          "title": "Natural scrolling",
+          "description": "Natural scrolling (Launcher). Content moves the way the fingers do, as on a Mac's trackpad. Off, the wheel moves the view instead. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "small_terminal": {
+          "title": "Small terminals",
+          "description": "Small terminals (Launcher). What happens when the terminal is too small for the full interface: ask (Simplified Launch Control, or leave), always use Simplified Launch Control, or show the full interface anyway. Accepts: \"ask\" (Ask), \"simplified\" (Simplified), \"full\" (Full anyway). Default: \"ask\".",
+          "default": "ask",
+          "enum": [
+            "ask",
+            "simplified",
+            "full"
+          ]
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "title": "Listen address",
+          "description": "Listen address (Server). 127.0.0.1 keeps the server to this machine; 0.0.0.0 opens it to the network, which needs a gateway in front (see Deployment). Accepts: text. Default: \"127.0.0.1\".",
+          "default": "127.0.0.1",
+          "type": "string"
+        },
+        "allowed_hosts": {
+          "title": "Other host names",
+          "description": "Other host names (Server). Host names besides localhost that may reach a server on this machine, separated by commas (DNS rebinding protection refuses the rest). none for none. Accepts: text. Default: \"none\".",
+          "default": "none",
+          "type": "string"
+        },
+        "allowed_origins": {
+          "title": "Other origins",
+          "description": "Other origins (Server). Web origins besides the server's own that may change things, separated by commas, such as https://example.org. none for none. Accepts: text. Default: \"none\".",
+          "default": "none",
+          "type": "string"
+        },
+        "port": {
+          "title": "Port",
+          "description": "Port (Server). The port to listen on. If it is taken, the next free one is used, and the launcher says which. Accepts: a whole number from 1 to 65535. Default: 8090.",
+          "default": 8090,
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 65535.0
+        }
+      }
+    },
+    "narration": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "title": "Realistic News",
+          "description": "Realistic News (Server). Who writes the news: auto uses Apple Foundation Models where this Mac has them, else a model server on this machine (Ollama, LM Studio), never a cloud provider; model uses the launcher's own model, cloud providers included (each news item is a request); fm insists on Apple's; off keeps the plain wording; or give a Chat Completions endpoint (http://HOST:PORT, unix:/PATH). --narrator overrides it. Accepts: text. Default: \"auto\".",
+          "default": "auto",
+          "type": "string"
+        }
+      }
+    },
+    "fabric": {
+      "type": "object",
+      "properties": {
+        "applications": {
+          "title": "Applications may connect",
+          "description": "Applications may connect (Fabric). Programs may register through the Fabric API. Off, nothing can, and WebFabric is off too. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "legacy_api": {
+          "title": "Legacy routes",
+          "description": "Legacy routes (Fabric). The older /playback and /control routes still answer. They take no credential, so turning them off leaves only the Fabric API. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "launch_proposals": {
+          "title": "Launch proposals",
+          "description": "Launch proposals (Fabric). Applications may propose how to start them, for a person to read and approve here. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "require_signatures": {
+          "title": "Signed requests only",
+          "description": "Signed requests only (Fabric). Every application must sign every request with its key (HMAC-SHA-256), not only present its token. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "world_regeneration": {
+          "title": "New worlds from the observer",
+          "description": "New worlds from the observer (Fabric). A person in the observer may ask for a new world. The seed is still the server's choice. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "allow_frames": {
+          "title": "Embedded pages",
+          "description": "Embedded pages (Fabric). Applications may show a page of their own inside the observer, sandboxed, from the origins they declare. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "allow_dialogs": {
+          "title": "Dialogs",
+          "description": "Dialogs (Fabric). Applications may ask a person a question in a dialog. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "allow_camera": {
+          "title": "Camera direction",
+          "description": "Camera direction (Fabric). Applications may ask the map to look somewhere, once a person allows it. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "allow_layers": {
+          "title": "Layer control",
+          "description": "Layer control (Fabric). Applications may hold map layers and places on or off, once a person allows it. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "allow_control": {
+          "title": "Simulation control",
+          "description": "Simulation control (Fabric). Applications may play, pause, seek and change the run, once a person allows it. Every action is on the audit log. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "allow_notifications": {
+          "title": "Notifications",
+          "description": "Notifications (Fabric). Applications may send notifications, within a rate limit. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "allow_messages": {
+          "title": "Messages between applications",
+          "description": "Messages between applications (Fabric). Applications may send each other messages. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "allow_storage": {
+          "title": "Storage",
+          "description": "Storage (Fabric). Applications may keep a little data of their own across restarts. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "webfabric": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "WebFabric",
+          "description": "WebFabric (WebFabric). Applications' panels, controls and overlays appear in the observer. Off, they can still connect, but nothing of theirs is shown. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "startup": {
+      "type": "object",
+      "properties": {
+        "dynamic_fastboot": {
+          "title": "Dynamic Fastboot",
+          "description": "Dynamic Fastboot (Startup). While a world runs, the next one is chosen, in another city, and its map fetched in the background. A new world, or the next start, then takes seconds; only the first ever start downloads while you wait. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "dynamic_particles": {
+          "title": "Adaptive start-up film",
+          "description": "Adaptive start-up film (Startup). The film plans itself by the server's estimate of when the world will be ready: as many scenes as fit, in a new order, then straight to the map. Turns Play the whole film off. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "fast_boot": {
+          "title": "Fast Boot",
+          "description": "Fast Boot (Startup). Use every city downloaded in advance (./launcher fastboot download), and open with the name alone. Turns Play the whole film off. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "force_animate": {
+          "title": "Play the whole film",
+          "description": "Play the whole film (Startup). Every scene of the start-up film plays before the map, even when the world is ready sooner. Turns the adaptive film and Fast Boot off. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "properties": {
+        "music": {
+          "title": "Music",
+          "description": "Music (Presentation). An original score while the start-up film plays, with a button to mute it. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "fullscreen": {
+          "title": "Full screen",
+          "description": "Full screen (Presentation). Open the observer full screen, in a window of its own. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "music_volume": {
+          "title": "Music volume",
+          "description": "Music volume (Presentation). From 0 (silent) to 1. Accepts: a number from 0 to 1. Default: 0.6.",
+          "default": 0.6,
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "music_file": {
+          "title": "Music file",
+          "description": "Music file (Presentation). What the start-up film plays: score for the written score, or an MP3, M4A or WAV file (a path in this checkout, or an absolute one). Accepts: text. Default: \"score\".",
+          "default": "score",
+          "type": "string"
+        }
+      }
+    },
+    "demo": {
+      "type": "object",
+      "properties": {
+        "music": {
+          "title": "Music in Demo Mode",
+          "description": "Music in Demo Mode (Demo). Demo Mode plays its score. --no-music turns it off once. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "music_file": {
+          "title": "Demo Mode music file",
+          "description": "Demo Mode music file (Demo). What Demo Mode plays: score for the written score, or an MP3, M4A or WAV file. Accepts: text. Default: \"score\".",
+          "default": "score",
+          "type": "string"
+        },
+        "fullscreen": {
+          "title": "Full screen in Demo Mode",
+          "description": "Full screen in Demo Mode (Demo). Demo Mode opens full screen. --no-fullscreen opens it in a window once. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "scenes": {
+          "title": "Demo scenes and order",
+          "description": "Demo scenes and order (Demo). Which scenes Demo Mode plays, and in what order. Space turns one on or off, Shift+↑↓ moves it. The name always opens the loop. As text: ids separated by commas. Accepts: text. Default: \"streets, signals, demand, rush-hour, incidents, weather, cities, repeatable, auto-focus, webfabric, time-control, many-worlds, ai-ready\".",
+          "default": "streets, signals, demand, rush-hour, incidents, weather, cities, repeatable, auto-focus, webfabric, time-control, many-worlds, ai-ready",
+          "type": "string"
+        }
+      }
+    },
+    "performance": {
+      "type": "object",
+      "properties": {
+        "compression": {
+          "title": "Compression",
+          "description": "Compression (Performance). How hard the server compresses large replies. Fast costs least processor time; small saves bytes on a slow link; off sends them as they are. Accepts: \"fast\" (Fast), \"balanced\" (Balanced), \"small\" (Small), \"off\" (Off). Default: \"fast\".",
+          "default": "fast",
+          "enum": [
+            "fast",
+            "balanced",
+            "small",
+            "off"
+          ]
+        },
+        "api_threads": {
+          "title": "Request threads",
+          "description": "Request threads (Performance). How many requests the server answers at once. 0 lets it choose from the processor count. Accepts: a whole number from 0 to 256. Default: 0.",
+          "default": 0,
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 256.0
+        },
+        "engine_threads": {
+          "title": "Snapshot threads",
+          "description": "Snapshot threads (Performance). Threads that write a large snapshot in parallel. 0 lets it choose; 1 keeps it to one. Accepts: a whole number from 0 to 64. Default: 0.",
+          "default": 0,
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 64.0
+        },
+        "map_fps": {
+          "title": "Map frame rate",
+          "description": "Map frame rate (Performance). How often the map's moving traffic is redrawn. Automatic drops to 30 a second when the map struggles. Accepts: 0 (Automatic), 60 (60 a second), 30 (30 a second). Default: 0.",
+          "default": 0,
+          "enum": [
+            0,
+            60,
+            30
+          ]
+        },
+        "render_scale": {
+          "title": "Render scale",
+          "description": "Render scale (Performance). The most pixels the map draws per point on a high-density screen. Lower is lighter on the graphics processor. Accepts: a number from 0.5 to 3. Default: 2.",
+          "default": 2,
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 3.0
+        },
+        "film_particles": {
+          "title": "Film particles",
+          "description": "Film particles (Performance). How many particles the start-up film draws. Fewer is lighter; a struggling page draws fewer by itself. Accepts: a whole number from 4000 to 32000. Default: 32000.",
+          "default": 32000,
+          "type": "integer",
+          "minimum": 4000.0,
+          "maximum": 32000.0
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "MCP Handler",
+          "description": "MCP Handler (MCP). An AI client may connect through the Model Context Protocol (./launcher mcp serve) and read. No agent is included: this opens the door, which is closed by default. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "allow_writes": {
+          "title": "AI may change things",
+          "description": "AI may change things (MCP). An AI client may call routes that change the simulation (POST, PUT, DELETE). Turns the MCP Handler on. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "allow_launcher": {
+          "title": "AI may start and stop runs",
+          "description": "AI may start and stop runs (MCP). An AI client may start and stop simulations and change settings through the launcher. Turns the MCP Handler on. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "title": "Model",
+          "description": "Model (Model). Which model answers requests in plain words, here and wherever DSTNS asks one. Automatic uses Apple's Foundation Models where this Mac has them; else a model server on this machine (Ollama, LM Studio); else each cloud provider with a key (model key PROVIDER KEY) in turn. Accepts: \"auto\" (Automatic), \"apple\" (Apple Foundation Models), \"ollama\" (Ollama), \"lmstudio\" (LM Studio), \"anthropic\" (Anthropic), \"openai\" (OpenAI), \"gemini\" (Google Gemini), \"groq\" (Groq), \"mistral\" (Mistral), \"openrouter\" (OpenRouter), \"huggingface\" (Hugging Face), \"custom\" (Another Chat Completions server), \"off\" (Off). Default: \"auto\".",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "apple",
+            "ollama",
+            "lmstudio",
+            "anthropic",
+            "openai",
+            "gemini",
+            "groq",
+            "mistral",
+            "openrouter",
+            "huggingface",
+            "custom",
+            "off"
+          ]
+        },
+        "name": {
+          "title": "Model name",
+          "description": "Model name (Model). Which model of the chosen provider (model list shows them). default uses each provider's own. Accepts: text. Default: \"default\".",
+          "default": "default",
+          "type": "string"
+        },
+        "base_url": {
+          "title": "Provider address",
+          "description": "Provider address (Model). Where the chosen provider answers, for a server of your own or a regional endpoint; needed for Another Chat Completions server. default uses the provider's own. Accepts: text. Default: \"default\".",
+          "default": "default",
+          "type": "string"
+        },
+        "ollama_url": {
+          "title": "Ollama address",
+          "description": "Ollama address (Model). Where Ollama answers. Accepts: text. Default: \"http://127.0.0.1:11434\".",
+          "default": "http://127.0.0.1:11434",
+          "type": "string"
+        },
+        "apple_cloud": {
+          "title": "Private Cloud Compute",
+          "description": "Private Cloud Compute (Model). When Apple's model on this Mac cannot answer, use Apple's larger model through Private Cloud Compute (macOS 27 or later). Requests leave the Mac for Apple's servers, which keep nothing. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "key_store": {
+          "title": "Where keys are kept",
+          "description": "Where keys are kept (Model). Where model key keeps a provider's API key: config/launcher.env on this machine, or the system's credential store (macOS Keychain, Windows Credential Manager, Secret Service on Linux). Keys in the environment are always read too. Accepts: \"env\" (config/launcher.env), \"system\" (System credential store). Default: \"env\".",
+          "default": "env",
+          "enum": [
+            "env",
+            "system"
+          ]
+        },
+        "timeout_seconds": {
+          "title": "Model time limit",
+          "description": "Model time limit (Model). How long to wait for a model's answer before trying the next or giving up. Accepts: a whole number from 5 to 600. Default: 60.",
+          "default": 60,
+          "type": "integer",
+          "minimum": 5.0,
+          "maximum": 600.0
+        }
+      }
+    },
+    "worlds": {
+      "type": "object",
+      "properties": {
+        "keep_history": {
+          "title": "Keep history across worlds",
+          "description": "Keep history across worlds (Run). Off, a new world starts clean: the observer's notification history and the launcher's conversation with its model begin again, as the report and its list of jumps always do. On, both carry over from one world to the next. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
+    "assist": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Answers for other programs",
+          "description": "Answers for other programs (Model). Other programs may ask about DSTNS too: the MCP tool dstns_ask (when the MCP Handler is on) and POST /v1/assist on CoreAI's service. Answers only inform; nothing is run or changed. The command bar and ask always answer. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "daemon": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Daemons",
+          "description": "Daemons (Daemons). Small watchers inside the server: the Resource Control Subsystem, memory, disk, a stalled run, and the cache handler. They say what they notice in the launcher and the observer, and on the daemon queues for applications. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "sustain_s": {
+          "title": "Hold before alerting",
+          "description": "Hold before alerting (Daemons). How long a condition must hold before a daemon says anything, so that a brief spike is not an alarm. Accepts: a number from 0 to 300 s. Default: 5.",
+          "default": 5,
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 300.0
+        },
+        "rcs": {
+          "title": "Resource Control Subsystem",
+          "description": "Resource Control Subsystem (Daemons). Each module's memory and processor against its α, β and γ (Resource Control). Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "memory": {
+          "title": "Memory watch",
+          "description": "Memory watch (Daemons). The machine's available memory: a warning when it is low, an emergency when it is critical. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "disk": {
+          "title": "Disk watch",
+          "description": "Disk watch (Daemons). Free space where the logs and maps are kept. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "stall": {
+          "title": "Stall watch",
+          "description": "Stall watch (Daemons). A run that should be running but whose clock has stopped. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        },
+        "cache": {
+          "title": "Auto cache handler",
+          "description": "Auto cache handler (Daemons). Clears what nothing needs: old cities beyond the cache's budget, abandoned downloads, stray files. Never the running world's city or the next one. Accepts: true or false. Default: true.",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "cache": {
+      "type": "object",
+      "properties": {
+        "max_mib": {
+          "title": "Map cache budget",
+          "description": "Map cache budget (Daemons). The most the map cache may hold; the cities least recently used go first. Accepts: a whole number from 0 to 1048576 MiB. Default: 2048.",
+          "default": 2048,
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 1048576.0
+        },
+        "interval_min": {
+          "title": "Cache sweep every",
+          "description": "Cache sweep every (Daemons). How often the cache handler looks; it also looks at once when disk space is low. Accepts: a whole number from 1 to 1440 min. Default: 10.",
+          "default": 10,
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1440.0
+        }
+      }
+    },
+    "rcs": {
+      "type": "object",
+      "properties": {
+        "engine": {
+          "type": "object",
+          "properties": {
+            "memory": {
+              "title": "Engine memory",
+              "description": "Engine memory (Resource Control). α, β, γ in MiB: the least the engine should use while it works, where it is using a lot (a warning), and the most it ever should (an alert). Accepts: text. Default: \"4, 2048, 4096\".",
+              "default": "4, 2048, 4096",
+              "type": "string"
+            },
+            "cpu": {
+              "title": "Engine processor",
+              "description": "Engine processor (Resource Control). α, β, γ as a percentage of one core. Below α while the run is running, something may be wrong. Accepts: text. Default: \"0.2, 180, 380\".",
+              "default": "0.2, 180, 380",
+              "type": "string"
+            }
+          }
+        },
+        "downloads": {
+          "type": "object",
+          "properties": {
+            "memory": {
+              "title": "Map downloads memory",
+              "description": "Map downloads memory (Resource Control). α, β, γ in MiB, for the map downloads while they run. Accepts: text. Default: \"0, 768, 2048\".",
+              "default": "0, 768, 2048",
+              "type": "string"
+            },
+            "cpu": {
+              "title": "Map downloads processor",
+              "description": "Map downloads processor (Resource Control). α, β, γ as a percentage of one core. Accepts: text. Default: \"0, 150, 300\".",
+              "default": "0, 150, 300",
+              "type": "string"
+            }
+          }
+        },
+        "launcher": {
+          "type": "object",
+          "properties": {
+            "memory": {
+              "title": "Launcher memory",
+              "description": "Launcher memory (Resource Control). α, β, γ in MiB, for this launcher. Accepts: text. Default: \"1, 256, 1024\".",
+              "default": "1, 256, 1024",
+              "type": "string"
+            },
+            "cpu": {
+              "title": "Launcher processor",
+              "description": "Launcher processor (Resource Control). α, β, γ as a percentage of one core. Accepts: text. Default: \"0, 60, 150\".",
+              "default": "0, 60, 150",
+              "type": "string"
+            }
+          }
+        },
+        "applications": {
+          "type": "object",
+          "properties": {
+            "memory": {
+              "title": "Applications memory",
+              "description": "Applications memory (Resource Control). α, β, γ in MiB, for the applications this launcher starts, together. Accepts: text. Default: \"0, 1024, 4096\".",
+              "default": "0, 1024, 4096",
+              "type": "string"
+            },
+            "cpu": {
+              "title": "Applications processor",
+              "description": "Applications processor (Resource Control). α, β, γ as a percentage of one core, together. Accepts: text. Default: \"0, 200, 400\".",
+              "default": "0, 200, 400",
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "advanced": {
+          "title": "Advanced Security",
+          "description": "Advanced Security (Security). The launcher asks for Touch ID or your system password as it opens, and before any single command that changes something. No program can change the launcher or the engine through the MCP Handler. Turning it off asks again. Accepts: true or false. Default: false.",
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
+    "seed": {
+      "description": "Informational: the engine fixes this value; it is only described here."
+    },
+    "bus_stops": {
+      "description": "Informational: the engine fixes this value; it is only described here."
+    },
+    "traffic": {
+      "description": "Informational: the engine fixes this value; it is only described here."
+    },
+    "logging": {
+      "description": "Informational: the engine fixes this value; it is only described here."
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        },
+        "osm_background": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "properties": {
+        "implementation": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        }
+      }
+    }
+  }
+}

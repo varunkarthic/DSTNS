@@ -5,17 +5,34 @@
 #include "dstns/webfabric/registry.hpp"
 #include "dstns/osm_fetch.hpp"
 #include "support.hpp"
+#include "gate.hpp"
 #include "dstns/rng.hpp"
 
 namespace dstns {
 using namespace fabric;
+
+namespace {
+// Requests that would run the engine. While a start waits for acknowledgment they are deferred, for everyone:
+// starting (decided by the gate itself), stopping, resetting and reading are not.
+bool runs_engine(const std::string& method, const std::string& path) {
+    if (method == "GET" || method == "HEAD" || method == "OPTIONS") return false;
+    for (const std::string base : {std::string("/api/v1/playback/"), std::string(kEngineBase) + "/"}) {
+        if (path.starts_with(base)) {
+            const auto name = path.substr(base.size());
+            return name != "start" && name != "prepare" && name != "stop" && name != "reset";
+        }
+    }
+    if (path.starts_with("/api/v1/control/") || path.starts_with("/api/v1/world/")) return true;
+    return path.starts_with("/api/v1/fabric/apps/") && path.ends_with("/control");
+}
+} // namespace
 
 
 // What every request passes through, whichever module answers it.
 void ApiServer::install_guards() {
     const std::string operator_token=std::getenv("DSTNS_OPERATOR_TOKEN")?std::getenv("DSTNS_OPERATOR_TOKEN"):"";
     const auto loopback_only=loopback_only_;
-    server_->set_pre_routing_handler([operator_token,loopback_only](const auto& req,auto& r){
+    server_->set_pre_routing_handler([this,operator_token,loopback_only](const auto& req,auto& r){
         // DNS rebinding: see host_allowed. Applies to reads as well as writes,
         // since a rebound page could otherwise read the whole run.
         if (loopback_only->load() && !host_allowed(req.get_header_value("Host"))) {
@@ -45,6 +62,13 @@ void ApiServer::install_guards() {
         // the view is; an application acts through its own capability-checked route, and is recorded.
         if (req.path.starts_with(kEngineBase) && req.method != "GET" && req.method != "HEAD" && req.method != "OPTIONS" && !is_host(req)) {
             send(r,{{"ok",false},{"error",{{"code","AUTHORIZATION_REQUIRED"},{"message","This route answers to the observer and the operator. An application acts through /api/v1/fabric/apps/{id}/control, with its token and the capability it was granted."}}}},401);
+            return httplib::Server::HandlerResponse::Handled;
+        }
+        // A start waits for a person to acknowledge its unstable engine: nothing runs the engine meanwhile. The
+        // answer says so, and how to learn when to retry; the request itself is not kept or run later.
+        if (gate_->pending() && runs_engine(req.method, req.path)) {
+            send(r,{{"ok",false},{"api_version",kApiVersion},{"error",{{"code","APPROVAL_REQUIRED"},{"message","A start on an unstable engine is waiting for acknowledgment; nothing was done. Retry once it is accepted."}}},
+                    {"data",gate_->deferred(req.get_header_value("Idempotency-Key"))}},409);
             return httplib::Server::HandlerResponse::Handled;
         }
         const auto engine_start = std::string(kEngineBase) + "/start", engine_prepare = std::string(kEngineBase) + "/prepare";

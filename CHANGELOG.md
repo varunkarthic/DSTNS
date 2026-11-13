@@ -14,6 +14,80 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-11-13
+
+**Engine 3.6.0, launcher 3.7.0, observer 3.2.0, API contract 1.7.** Results for every existing seed and policy are
+unchanged: the golden fixtures pass on both engines. See [Engine governance](docs/design/engine-governance.md).
+
+### Added
+
+- **Engine identity.** Each engine describes itself with its id, its own version, its kind (real or pseudo), its
+  release channel (alpha, beta or stable), what it owns, what it still shares, and what changed. core-legacy is
+  stable at the build's version. core-ng is alpha at 0.6.0, because physics, checkpoints, operator commands and the
+  API are still shared (#15). The identity is reported in several places:
+  - `engine_identity` in the playback status, from the world itself;
+  - `GET /api/v1/engine` and `engine_catalogue` in `/system/info`;
+  - About in the observer;
+  - downloaded reports.
+- **`config/engines.json`.** The one source of engine policy, which the launcher edits and the server reads. It says
+  which engine is selected, the default engine (core-legacy, which cannot be disabled), whether each engine is
+  enabled, what a rejection offers, and, per engine, whether runs are held until acknowledged (`enforce`) and whether
+  the observer asks (`ui`). Turning enforcement off turns the observer's acknowledgment off with it. The setting
+  `engine.implementation` in `defaults.json`, from launchers 3.1 to 3.6, moves to `engines.selected` the first time
+  the launcher reads it.
+- **The unstable-engine gate.**
+  - A start on an alpha or beta engine whose acknowledgment is enforced is held: `202` with
+    `state: approval_required`. Nothing is compiled or downloaded until a person accepts the risk.
+  - While it waits, everything that would run the engine is `409 APPROVAL_REQUIRED`, for applications and API
+    clients alike. Such requests are not queued: clients retry once `GET /api/v1/engine/approval` (or the long poll
+    `/wait`, or the `engine.approval` event) says accepted.
+  - Stop and reset cancel a waiting start. Each run is acknowledged afresh, and the approval exists only on the
+    server.
+- **The risk dialog in the observer.** It appears above everything once the interface is ready, and the tour and
+  notifications wait. Alpha is marked in orange to red, Beta in yellow, each also named in words.
+  - **Accept** starts the run.
+  - **Reject** offers three choices: start the same seed, and only the seed, on an enabled stable engine; start
+    nothing; or end the session.
+  - The dialog shows the engine's changes, opened at once when the version is new to that browser.
+  - A new version of a stable engine is announced once, in a notice at the lower left that needs no answer.
+- `./launcher start --accept-risk`, and **Accept engine risk** on the Start screen, accept the risk for one run.
+  Without them, the launcher waits for the observer, or stops with a remedy when the acknowledgment is set to the
+  launcher.
+- **Country and city exclusions** in `urban-geo-v1`: `exclude_countries` and `exclude_cities`, written as `-IN` or
+  `IN, -mumbai` in the launcher's Places. A policy with no exclusions keeps its fingerprint and its seeds.
+- **Every file in `config/` has the same shape:** `$schema`, `schema_version`, `_about`, `_help`, then the values.
+  Each file has a JSON Schema in `config/schema/`. For the launcher's files, the schemas and `_help` are generated
+  from its settings table by `./launcher config docs`. `defaults.json` and `ui-config.json` move to schema version
+  2. `daemon-alerts.json`'s `description` and `version` become `_about` and `schema_version`, and the reference
+  files `building_profiles.json` and `road_types.json` gain the same header.
+
+### Fixed
+
+- Places in the launcher was ignored while "Where worlds are" was every city, so `IN` alone limited nothing. Places
+  now applies: two-letter codes are countries, other names cities. Setting core-legacy clears Places.
+- The engine policy parser read a destroyed temporary (`items()` over `value()`'s result), so it saw no engines
+  at all. This was found by the new HTTP test before release.
+- Launcher tests that copied `config/defaults.json` depended on the settings of the machine they ran on. They now
+  start from every setting's default.
+
+### Tests
+
+- `dstns_http_engine_gate`:
+  - holding a start, and deferring play, regeneration and application control while it waits;
+  - one pending start at a time, idempotency, and the long poll;
+  - accept, and deciding twice;
+  - reject and regenerate on core-legacy with the seed alone, and core-ng never offered;
+  - a stop cancelling the waiting start;
+  - a disabled engine, enforcement off, and acknowledgment in the launcher only.
+- `dstns_selection_ng`: exclusions (400 seeds never reach India; India without Mumbai), refusals, and unchanged
+  fingerprints.
+- Observer: the risk dialog's readiness, accepting, rejecting and its choices, an acknowledgment set to the launcher,
+  and the stable version notice. Reports name the engine and warn about an unstable one.
+- Launcher: exclusions and Places inference, the engine policy settings, the generated schemas and `_help`, and the
+  header of every file in `config/`.
+
+Rollback: revert this release's commit. `config/engines.json` is then ignored, and every run starts at once.
+
 ## [Launcher 3.6.0] - 2026-11-13
 
 **Engine 3.5.0, launcher 3.6.0, observer 3.1.0, API contract 1.6.** No engine change.

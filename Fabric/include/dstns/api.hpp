@@ -13,7 +13,7 @@
 namespace httplib { class Server; }
 
 namespace dstns {
-namespace fabric { class AppRegistry; }
+namespace fabric { class AppRegistry; class EngineGate; }
 namespace daemon { class Handler; }
 
 class ApiServer {
@@ -35,8 +35,13 @@ private:
     void routes_observation();
     void routes_apps();
     void routes_daemon();
+    void routes_engine();
+    // Quit the process, as POST /api/v1/system/terminate does.
+    void terminate_now();
     SimulationEngine& engine_; RuntimeLogger& logger_; std::unique_ptr<httplib::Server> server_; std::atomic_bool stopping_{};
     std::unique_ptr<fabric::AppRegistry> registry_;
+    // The unstable-engine gate and config/engines.json (Fabric/src/gate.hpp).
+    std::unique_ptr<fabric::EngineGate> gate_;
     // The daemons: watchers on threads of their own, from the server's start to its end.
     std::unique_ptr<daemon::Handler> daemons_;
     std::atomic_bool termination_started_{};

@@ -51,7 +51,8 @@ nlohmann::json selection_key(const nlohmann::json& selection) {
     const auto list = [&](const char* key) { return selection.is_object() && selection.contains(key) ? selection.at(key) : nlohmann::json::array(); };
     return {{"policy", selection.is_object() ? selection.value("policy", "urban-crfg-v3") : "urban-crfg-v3"},
             {"mode", selection.is_object() ? selection.value("mode", "global") : "global"},
-            {"countries", list("countries")}, {"cities", list("cities")}};
+            {"countries", list("countries")}, {"cities", list("cities")},
+            {"exclude_countries", list("exclude_countries")}, {"exclude_cities", list("exclude_cities")}};
 }
 
 } // namespace

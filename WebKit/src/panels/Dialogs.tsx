@@ -10,6 +10,7 @@ import { reloadSeconds } from "../core/linkEstimator";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Dialog } from "../components/Dialog";
+import { channelName, engineLabel } from "./EngineGate";
 import type { FigureName } from "../CoreMotion/Figure";
 import { Icon, type IconName } from "../components/Icons";
 import { Logo } from "../components/Logo";
@@ -115,6 +116,17 @@ export function AboutCard({
             </dd>
           </div>
           <div><dt>Lifecycle</dt><dd>{status?.data.lifecycle || "Unavailable"}</dd></div>
+          <div className="wide">
+            <dt>Engine</dt>
+            <dd>
+              {status?.data.engine_identity ? (
+                <>
+                  {engineLabel(status.data.engine_identity)}{" "}
+                  {status.data.engine_identity.channel !== "stable" && <Badge tone="warn">{channelName(status.data.engine_identity.channel)}</Badge>}
+                </>
+              ) : "No run"}
+            </dd>
+          </div>
           <div><dt>Network</dt><dd>{topology ? `${topology.nodes.length.toLocaleString()} nodes · ${topology.edges.length.toLocaleString()} edges · ${topology.features.length.toLocaleString()} places` : "Unavailable"}</dd></div>
           <div className="advanced-only"><dt>Coordinates</dt><dd className="mono">{topology?.location?.city ? `${topology.location.anchor_lat.toFixed(4)}, ${topology.location.anchor_lon.toFixed(4)}` : "Unavailable"}</dd></div>
           <div className="advanced-only"><dt>Run</dt><dd className="mono">{status?.run_id || "No run"}</dd></div>
@@ -148,7 +160,8 @@ export function AboutCard({
       <section className="about-section">
         <h3>The system</h3>
         <dl className="about-facts">
-          <div><dt>Engine</dt><dd>{system?.version || "Unavailable"}</dd></div>
+          <div><dt>Server</dt><dd>{system?.version || "Unavailable"}</dd></div>
+          <div className="wide"><dt>Engines installed</dt><dd>{system?.engine_catalogue?.length ? system.engine_catalogue.map(engineLabel).join("; ") : "Unavailable"}</dd></div>
           <div><dt>Interface</dt><dd>{version}</dd></div>
           <div><dt>API</dt><dd>{status?.api_version || "Unavailable"}</dd></div>
           <div>
@@ -157,7 +170,7 @@ export function AboutCard({
           </div>
           <div>
             <dt>SUMO adapter</dt>
-            <dd>{system?.sumo?.available ? <Badge tone="ok">{system.sumo.version || "Available"}</Badge> : <Badge>{system ? "Not installed" : "Unavailable"}</Badge>}</dd>
+            <dd>{system?.sumo?.enabled === false ? <Badge>Turned off</Badge> : system?.sumo?.available ? <Badge tone="ok">{system.sumo.version || "Available"}</Badge> : <Badge>{system ? "Not installed" : "Unavailable"}</Badge>}</dd>
           </div>
           <div className="advanced-only"><dt>C++ standard</dt><dd>{typeof system?.build?.cpp_standard === "number" ? system.build.cpp_standard : "Unavailable"}</dd></div>
           <div className="advanced-only wide"><dt>Compiler</dt><dd>{typeof system?.build?.compiler === "string" ? system.build.compiler : "Unavailable"}</dd></div>

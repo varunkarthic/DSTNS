@@ -1076,30 +1076,6 @@
 "body": {
 "api_version": "string",
 "data": {
-"_comment": "string",
-"_enums": {
-"auto_focus.mode": [
-"string"
-],
-"auto_focus.strategy": [
-"string"
-],
-"notifications.dnd_categories": [
-"string"
-],
-"notifications.dnd_severities": [
-"string"
-],
-"playback.skip_seconds": [
-"number"
-],
-"playback.step_seconds": [
-"number"
-],
-"reduce_motion": [
-"string"
-]
-},
 "asb": {
 "enabled": "boolean",
 "report_interval_ms": "number"
@@ -1145,7 +1121,7 @@
 "step_seconds": "number"
 },
 "reduce_motion": "string",
-"schema_version": "string",
+"schema_version": "number",
 "tutorial": {
 "enabled": "boolean",
 "show_on_startup": "boolean"
@@ -2765,30 +2741,6 @@
 "body": {
 "api_version": "string",
 "data": {
-"_comment": "string",
-"_enums": {
-"auto_focus.mode": [
-"string"
-],
-"auto_focus.strategy": [
-"string"
-],
-"notifications.dnd_categories": [
-"string"
-],
-"notifications.dnd_severities": [
-"string"
-],
-"playback.skip_seconds": [
-"number"
-],
-"playback.step_seconds": [
-"number"
-],
-"reduce_motion": [
-"string"
-]
-},
 "asb": {
 "enabled": "boolean",
 "report_interval_ms": "number"
@@ -2834,7 +2786,7 @@
 "step_seconds": "number"
 },
 "reduce_motion": "string",
-"schema_version": "string",
+"schema_version": "number",
 "tutorial": {
 "enabled": "boolean",
 "show_on_startup": "boolean"

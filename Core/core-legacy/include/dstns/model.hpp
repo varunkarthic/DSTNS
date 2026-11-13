@@ -33,7 +33,7 @@ enum class BuildingType { School, Office, Mall, Store };
 // speed buys a less trustworthy picture rather than a faster one.
 inline constexpr double kMaxTickRate = 10.0;
 // The HTTP API contract; additions raise the minor version, within /api/v1.
-inline constexpr const char* kApiVersion = "1.6";
+inline constexpr const char* kApiVersion = "1.7";
 enum class IncidentType { RoadClosure, Accident, Congestion, VehicleBreakdown, HazardSpill };
 enum class IncidentLifecycle { Scheduled, Active, Resolved };
 
@@ -115,6 +115,8 @@ struct ScenarioConfig {
     // codes, city IDs such as "mumbai". urban-crfg-v3 always uses mode "global" and no lists.
     std::string map_selection_mode{"global"};
     std::vector<std::string> map_countries, map_cities;
+    // Left out of whatever the mode allows (urban-geo-v1).
+    std::vector<std::string> map_exclude_countries, map_exclude_cities;
     // On-demand OSM sourcing. The seed picks a city and an anchor inside it;
     // one extract of this side length is downloaded per city into map_cache_dir
     // and shared by every district of that city.

@@ -30,6 +30,7 @@ mod output;
 mod paths;
 mod process;
 mod reporting;
+mod schema;
 mod security;
 mod seeds;
 mod server;

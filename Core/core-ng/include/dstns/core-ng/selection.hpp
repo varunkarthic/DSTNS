@@ -9,7 +9,9 @@
 //   urban-crfg-v3  the frozen legacy policy: every city in the catalogue, exactly as engine 3.0 chose.
 //   urban-geo-v1   opt-in: the operator narrows the catalogue to countries or cities, or fixes one city. The
 //                  eligible cities keep the catalogue's order, and one bounded draw picks among them. With mode
-//                  "global" it chooses exactly what urban-crfg-v3 chooses.
+//                  "global" it chooses exactly what urban-crfg-v3 chooses. Countries and cities may also be left
+//                  out (exclude_countries, exclude_cities) of whatever the mode allows; a policy with none left out
+//                  has the same fingerprint as before exclusions existed.
 
 #include "dstns/geo.hpp"
 #include "dstns/model.hpp"
@@ -30,6 +32,7 @@ struct SelectionPolicy {
     std::string id{kLegacyPolicy};
     std::string mode{"global"};                  // global | countries | cities | fixed_city
     std::vector<std::string> countries, cities;  // canonical IDs, sorted and unique
+    std::vector<std::string> exclude_countries, exclude_cities;
     // The canonical text the fingerprint is taken of. Equal policies have equal text.
     [[nodiscard]] std::string canonical() const;
     // "sha256:" and the SHA-256 of canonical().

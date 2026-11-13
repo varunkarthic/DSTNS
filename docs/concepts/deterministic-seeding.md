@@ -306,9 +306,15 @@ The eligible cities keep the catalogue's order. One bounded draw picks among the
 locale. With mode `global` the draw is the legacy draw: every seed resolves to the same city and anchor as under
 `urban-crfg-v3`. The anchor is drawn exactly as before, from `map.anchor`.
 
+Any mode except `fixed_city` may also **leave places out**: `exclude_countries` and `exclude_cities` remove cities
+from what the mode allows. `global` with `exclude_countries: ["IN"]` is every city except India's; `countries: ["IN"]`
+with `exclude_cities: ["mumbai"]` is India without Mumbai. A place both chosen and left out, an unknown ID, or an
+exclusion that leaves no city is refused. In the launcher, Places writes them with a minus sign: `-IN`, `IN, -mumbai`.
+
 IDs are normalised (country codes upper case, city IDs lower case, sorted, repeats removed), and the policy's
 canonical text, for example `policy=urban-geo-v1;mode=countries;countries=IN,PK;cities=`, gives its
-**fingerprint**, `sha256:` and the SHA-256 of that text. An unknown mode or ID, or a list the mode does not use, is
+**fingerprint**, `sha256:` and the SHA-256 of that text. Exclusions are added to the text only when there are any
+(`;exclude_countries=IN`), so every policy from before exclusions keeps its fingerprint and its seeds. An unknown mode or ID, or a list the mode does not use, is
 refused before anything starts. `urban-crfg-v3` refuses lists altogether, and engine `core-legacy` refuses any
 other policy.
 

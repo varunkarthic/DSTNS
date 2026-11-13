@@ -186,6 +186,64 @@ pub fn map_recovery(paths: &Paths, message: &str) -> String {
     lines.join("\n")
 }
 
+/// --accept-risk: the operator accepts, for this run, the risk of an alpha or beta engine whose acknowledgment is
+/// enforced, instead of a person accepting it in the observer. Set by the session from the run's options.
+pub static ACCEPT_RISK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// A start held by the server's gate (docs/design/engine-governance.md): accepted here when the operator said so,
+/// otherwise waited for until a person decides in the observer. Rejecting may start the same seed on a stable
+/// engine, which this then waits for as any other start.
+fn await_approval(port: u16, held: &Value, reporter: &dyn Reporter, paths: &Paths, cancel: Option<&Cancel>) -> Result<()> {
+    let engine = &held["engine"];
+    let label = format!("{} {} ({})", engine["id"].as_str().unwrap_or("?"), engine["version"].as_str().unwrap_or("?"), engine["channel"].as_str().unwrap_or("?"));
+    let id = held["approval_id"].as_str().unwrap_or("").to_string();
+    let decide = |decision: &str| {
+        let answer = api::post(port, "/api/v1/engine/approval", &json!({"approval_id": id, "decision": decision}), 60.0, paths);
+        if !answer.ok() {
+            return Err(LauncherError::start(format!("The acknowledgment was not recorded: {}", answer.error_message())));
+        }
+        match answer.data().and_then(|d| d.get("start_error")).and_then(Value::as_str) {
+            Some(why) => Err(LauncherError::start(format!("Startup failed: {why}"))),
+            None => Ok(()),
+        }
+    };
+    if ACCEPT_RISK.load(std::sync::atomic::Ordering::Relaxed) {
+        reporter.message(Level::Warning, &format!("{label} is not a stable engine"), "--accept-risk accepted the risk for this run: it may fail, or change, in ways a stable engine does not.");
+        return decide("accept");
+    }
+    if held["acknowledge_in"] == "launcher" {
+        let _ = decide("reject");
+        return Err(LauncherError::start(format!("{label} is not a stable engine, and its runs are acknowledged in the launcher."))
+            .remedy("Start again with --accept-risk to accept the risk for that run, or choose a stable engine (Settings, Simulation, Engine)."));
+    }
+    reporter.message(Level::Warning, &format!("{label} is not a stable engine"), "Accept or reject the risk in the observer. Nothing runs until a person decides there.");
+    let mut since = 0u64;
+    loop {
+        if cancel.map(|c| c.is_set()).unwrap_or(false) {
+            api::post(port, "/api/v1/fabric/engine/stop", &json!({}), 5.0, paths);
+            return Err(LauncherError::start("Start-up was cancelled."));
+        }
+        let waited = api::get(port, &format!("/api/v1/engine/approval/wait?since={since}&timeout=2"), 10.0, paths);
+        let Some(state) = waited.data().cloned() else {
+            return Err(LauncherError::start(format!("The server stopped answering while it waited for acknowledgment: {}", waited.error_message())));
+        };
+        since = state["revision"].as_u64().unwrap_or(since);
+        match state["state"].as_str().unwrap_or("") {
+            "pending" => continue,
+            "accepted" => {
+                reporter.message(Level::Info, "Risk accepted in the observer", &label);
+                return Ok(());
+            }
+            "rejected" if state.pointer("/approval/then") == Some(&json!("regenerate")) => {
+                reporter.message(Level::Info, "Rejected in the observer", "The same seed is starting on a stable engine; nothing else of that world is kept.");
+                return Ok(());
+            }
+            "rejected" => return Err(LauncherError::start(format!("{label} was rejected in the observer, so nothing was started."))),
+            other => return Err(LauncherError::start(format!("The start was {other} before anyone decided."))),
+        }
+    }
+}
+
 /// Start a run and wait until the world is live, reporting real progress. With an observer open, a failed download is
 /// not the end: its screen offers another city, so this keeps waiting until cancelled.
 pub fn start_run(port: u16, request: &Value, reporter: &dyn Reporter, paths: &Paths, cancel: Option<&Cancel>, observer_can_retry: bool) -> Result<World> {
@@ -205,8 +263,12 @@ pub fn start_run(port: u16, request: &Value, reporter: &dyn Reporter, paths: &Pa
         return Err(match response.error_code().as_str() {
             "MAP_FETCH_FAILED" => LauncherError::start(message.clone()).remedy(map_recovery(paths, &message)),
             "CLI_START_REQUIRED" => LauncherError::start(message).remedy("The operator credential in logs/operator.token does not match this server."),
+            "ENGINE_DISABLED" => LauncherError::start(message).remedy("Enable it under Settings, Simulation, Engine, or choose another engine."),
             _ => LauncherError::start(format!("Startup failed: {message}")),
         });
+    }
+    if let Some(held) = response.data().filter(|d| d["state"] == "approval_required") {
+        await_approval(port, held, reporter, paths, cancel)?;
     }
     let mut deadline = Instant::now() + Duration::from_secs_f64(PREPARE_LIMIT);
     let mut drew = false;

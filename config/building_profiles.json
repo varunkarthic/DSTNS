@@ -1,1 +1,53 @@
-{"school":{"tmax":[[0.291667,0.375],[0.625,0.6875]],"weekend_impact_multiplier":0.1},"office":{"tmax":[[0.3125,0.416667],[0.6875,0.8125]],"weekend_impact_multiplier":0.35},"mall":{"tmax":[[0.4375,0.9375]],"weekend_impact_multiplier":1.25},"store":{"tmax":[[0.354167,0.895833]],"weekend_impact_multiplier":1.15}}
+{
+  "$schema": "./schema/building_profiles.schema.json",
+  "schema_version": 1,
+  "_about": "Reference: when each kind of building draws its trips, as the engine models them. Informational in this release: the scenario compiler holds these values in code (Core/core-legacy/src/scenario.cpp and Core/core-ng/src/network.cpp, where they are part of every world's hashes), and this file documents them; changing it changes nothing.",
+  "_help": {
+    "<kind>.tmax": "The windows of a day when the building draws most, each [start, end] as a fraction of the day (0.375 is 09:00). Accepts: a list of pairs of numbers from 0 to 1, start before end.",
+    "<kind>.weekend_impact_multiplier": "How much of its weekday draw the building keeps at the weekend. Accepts: a number, at least 0 (1 is the same as a weekday)."
+  },
+  "school": {
+    "tmax": [
+      [
+        0.291667,
+        0.375
+      ],
+      [
+        0.625,
+        0.6875
+      ]
+    ],
+    "weekend_impact_multiplier": 0.1
+  },
+  "office": {
+    "tmax": [
+      [
+        0.3125,
+        0.416667
+      ],
+      [
+        0.6875,
+        0.8125
+      ]
+    ],
+    "weekend_impact_multiplier": 0.35
+  },
+  "mall": {
+    "tmax": [
+      [
+        0.4375,
+        0.9375
+      ]
+    ],
+    "weekend_impact_multiplier": 1.25
+  },
+  "store": {
+    "tmax": [
+      [
+        0.354167,
+        0.895833
+      ]
+    ],
+    "weekend_impact_multiplier": 1.15
+  }
+}

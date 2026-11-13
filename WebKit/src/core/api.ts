@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import type { Envelope, Status, Topology, Snapshot, News, EventPage, Congestion, Backpressure, WorldStatus, NewsPage, NarratorStatus } from "./types";
+import type { Envelope, Status, Topology, Snapshot, News, EventPage, Congestion, Backpressure, WorldStatus, NewsPage, NarratorStatus, EngineApproval, EngineIdentity } from "./types";
 const base =
   (import.meta.env.VITE_DSTNS_API_URL as string | undefined)?.replace(
     /\/$/,
@@ -66,7 +66,7 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 15000): 
 export type PlaybackGuard = { expected_run_id?: string; expected_playback_revision?: number; require_asb_normal?: boolean };
 export const api = {
   resources: () => request<{ process: { rss_bytes: number; peak_rss_bytes: number; cpu_s: number; uptime_s: number; pid: number }; hardware_threads: number }>("/api/v1/system/resources"),
-  systemInfo: () => request<{version?: string; build?: {compiler?: string; cpp_standard?: number}; sumo?: {available?: boolean; version?: string}}>("/api/v1/system/info"),
+  systemInfo: () => request<{version?: string; build?: {compiler?: string; cpp_standard?: number}; sumo?: {available?: boolean; enabled?: boolean; version?: string}; engine_catalogue?: EngineIdentity[]}>("/api/v1/system/info"),
   status: () => request<Envelope<Status>>("/api/v1/fabric/engine/status"),
   topology: () => request<Envelope<Topology>>("/api/v1/view/topology"),
   // The observer shows three demand causes for a road, and they are most of a snapshot's bytes.
@@ -107,6 +107,10 @@ export const api = {
     }),
   // Ask the core for a new world from a fresh seed. Progress is polled.
   // With stage, it is prepared without replacing this world, until commitWorld or discardWorld.
+  engineApproval: () => request<{ data: EngineApproval }>("/api/v1/engine/approval"),
+  /** Accept or reject the start that waits; a rejection may end the server or start the same seed on a stable engine. */
+  decideEngine: (approval_id: string, decision: "accept" | "reject", then = "", engine = "") =>
+    request<{ data: EngineApproval & { start_error?: string } }>("/api/v1/engine/approval", { method: "POST", body: JSON.stringify({ approval_id, decision, then, engine }) }),
   regenerateWorld: (expected_run_id?: string, stage = false) =>
     request<{ data: WorldStatus }>("/api/v1/world/regenerate", {
       method: "POST",

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dstns.readthedocs.io/config/schema/engines.schema.json",
+  "title": "config/engines.json",
+  "description": "Engine policy, read by the launcher and by the server as it starts: which engines may run, which one the launcher starts, and how a run on an alpha or beta engine is acknowledged (docs/design/engine-governance.md). Each engine's version, kind and release channel come from the build, not from this file.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "This file's JSON Schema, for editors."
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "The layout of this file. A launcher refuses one newer than it reads."
+    },
+    "_about": {
+      "type": "string",
+      "description": "What this file is. Not read by any program."
+    },
+    "_help": {
+      "type": "object",
+      "description": "Each editable value: what it means, what it accepts, its default. Not read by any program; ./launcher config docs writes it.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "selected": {
+      "title": "Engine",
+      "description": "Engine (Engine). Which engine builds and runs each world. core-legacy is the engine DSTNS has always used; core-ng is its next-generation replacement, built beside it, which gives the same world for the same seed and can also limit worlds to chosen countries or cities. Accepts: \"core-legacy\" (core-legacy), \"core-ng\" (core-ng (next generation)). Default: \"core-legacy\".",
+      "default": "core-legacy",
+      "enum": [
+        "core-legacy",
+        "core-ng"
+      ]
+    },
+    "auto_switch": {
+      "title": "When a run is rejected",
+      "description": "When a run is rejected (Engine). What the observer offers when a person rejects the risk of an alpha or beta engine: to start the same seed (only the seed) on an enabled stable engine, or only to stop. Accepts: \"offer\" (Offer a stable engine), \"off\" (Only stop). Default: \"offer\".",
+      "default": "offer",
+      "enum": [
+        "offer",
+        "off"
+      ]
+    },
+    "engines": {
+      "type": "object",
+      "properties": {
+        "core-ng": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "core-ng available",
+              "description": "core-ng available (Engine). Off, core-ng stays installed but nothing can start a run on it. Accepts: true or false. Default: true.",
+              "default": true,
+              "type": "boolean"
+            },
+            "acknowledgment": {
+              "type": "object",
+              "properties": {
+                "enforce": {
+                  "title": "core-ng: hold runs until acknowledged",
+                  "description": "core-ng: hold runs until acknowledged (Engine). core-ng is alpha. On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing. Accepts: true or false. Default: true.",
+                  "default": true,
+                  "type": "boolean"
+                },
+                "ui": {
+                  "title": "core-ng: acknowledge in the observer",
+                  "description": "core-ng: acknowledge in the observer (Engine). On, the observer asks a person to accept or reject. Off while runs are still held, the launcher asks instead: start with --accept-risk. Turning holding off turns this off. Accepts: true or false. Default: true.",
+                  "default": true,
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "core-legacy": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "core-legacy available",
+              "description": "core-legacy available (Engine). core-legacy is the default engine, so it cannot be turned off. Accepts: true or false. Default: true.",
+              "default": true,
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  }
+}

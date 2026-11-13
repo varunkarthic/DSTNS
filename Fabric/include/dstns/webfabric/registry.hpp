@@ -109,6 +109,8 @@ public:
     /// Lossless within the retained window; `dropped` says if a cursor fell behind it.
     [[nodiscard]] nlohmann::json events(const std::string& id, std::uint64_t since);
     void post_event(const std::string& id, const std::string& type, const nlohmann::json& data);
+    // The same event to every registered application.
+    void broadcast(const std::string& type, const nlohmann::json& data);
 
     [[nodiscard]] nlohmann::json settings(const std::string& id);
     nlohmann::json update_settings(const std::string& id, const nlohmann::json& changes);

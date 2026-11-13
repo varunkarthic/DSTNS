@@ -33,7 +33,37 @@ export interface Envelope<T> {
   clock: Clock;
   data: T;
 }
+/** An engine as it describes itself (GET /api/v1/engine, status.engine_identity). */
+export interface EngineIdentity {
+  id: string;
+  version: string;
+  /** "real" engines run worlds; a "pseudo" engine would only delegate. */
+  kind: "real" | "pseudo";
+  channel: "alpha" | "beta" | "stable";
+  owns: string[];
+  shared: string[];
+  changes: string[];
+}
+/** The unstable-engine gate (docs/design/engine-governance.md). */
+export interface EngineApproval {
+  state: "none" | "pending" | "accepted" | "rejected" | "cancelled";
+  revision: number;
+  approval?: {
+    id: string;
+    engine: EngineIdentity;
+    seed: string | null;
+    requested_at: string;
+    acknowledge_in: "observer" | "launcher";
+    decision: string;
+    then: string;
+    reason: string;
+  };
+  alternatives?: EngineIdentity[];
+}
 export interface Status {
+  /** The engine that compiled the running world, and what it is. */
+  engine?: string;
+  engine_identity?: EngineIdentity | null;
   preparation_error?: string;
   /** Seconds until the world being prepared is ready, as the server estimates it; null when nothing is. */
   eta_s?: number | null;

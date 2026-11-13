@@ -3,6 +3,7 @@
 
 #include "dstns/api.hpp"
 #include "dstns/build_info.hpp"
+#include "dstns/core-ng/identity.hpp"
 #include "dstns/core-ng/lifecycle.hpp"
 #include "dstns/core-ng/selection.hpp"
 #include "dstns/core-ng/world.hpp"
@@ -162,7 +163,7 @@ int main(int argc, char** argv) {
             logger.system("WARN", "maps", std::string("Cache sweep skipped: ") + e.what());
         }
         dstns::SimulationEngine engine(logger);
-        engine.register_engine(dstns::core_ng::kEngineId, dstns::core_ng::hooks());
+        engine.register_engine(dstns::core_ng::kEngineId, dstns::core_ng::hooks(), dstns::core_ng::identity());
         engine.set_transition_guard(dstns::core_ng::lifecycle::allowed);
         engine.set_world_guard(dstns::core_ng::world::allowed);
         try {

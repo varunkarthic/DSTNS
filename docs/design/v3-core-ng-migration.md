@@ -24,7 +24,7 @@ Work is on the branch `v3-core-ng`. Source layout:
 
 | Setting (launcher) | Values | Default | Effect |
 |---|---|---|---|
-| `engine.implementation` | `core-legacy`, `core-ng` | `core-legacy` | Which code path prepares worlds and steps physics. Sent to the server in the start request |
+| `engines.selected` | `core-legacy`, `core-ng` | `core-legacy` | Which code path prepares worlds and steps physics. Sent to the server in the start request |
 | `map.selection_policy` | `urban-crfg-v3`, `urban-geo-v1` | `urban-crfg-v3` | Which city-selection policy resolves the seed |
 | `map.selection_mode` | `global`, `countries`, `cities`, `fixed_city` | `global` | Only for `urban-geo-v1` |
 | `map.countries`, `map.cities` | canonical IDs (ISO 3166-1 alpha-2, city slug) | empty | Only for `urban-geo-v1` |
@@ -146,7 +146,7 @@ The launcher offers a setting only from the release in which the server honours 
    `core-ng` directly. The launcher does not offer the choice yet.
 2. **Launcher** (LaunchKit minor releases): a structured reset; SUMO settings, SUMO off by default; easier launch
    codes; a setting for every engine and interface feature; MCP typed tools, safety annotations, resources and prompts.
-3. **Integration**: `engine.implementation` and the selection settings in the launcher, end-to-end tests.
+3. **Integration**: `engines.selected` and the selection settings in the launcher, end-to-end tests.
 4. **The rest**: label language (release 4), measured optimisations (8+), `core-ng` as the default.
 
 ### Reset scopes (launcher phase)
@@ -192,4 +192,4 @@ branch, CI dispatched (`gh workflow run ci.yml --ref <branch>`) and green, graph
 ## 10. Rollback
 
 Each release is a set of commits on the migration branch with a recorded green SHA. A failed release is reverted
-with revert commits. At run time the operator sets `engine.implementation` back to `core-legacy`.
+with revert commits. At run time the operator sets `engines.selected` back to `core-legacy`.

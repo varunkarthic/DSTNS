@@ -846,12 +846,12 @@ mod tests {
         // The documentation, from the real checkout.
         let docs = McpServer { session: Session::new(Paths::default()), paths: Paths::default(), policy: Policy { enabled: true, ..Default::default() } };
         let page = docs.handle(&json!({"jsonrpc": "2.0", "id": 4, "method": "resources/read", "params": {"uri": "dstns://docs/guide/configuration"}})).unwrap();
-        assert!(page["result"]["contents"][0]["text"].as_str().unwrap().contains("engine.implementation"));
+        assert!(page["result"]["contents"][0]["text"].as_str().unwrap().contains("map.selection_mode"));
         let escape = docs.handle(&json!({"jsonrpc": "2.0", "id": 5, "method": "resources/read", "params": {"uri": "dstns://docs/../config/launcher"}})).unwrap();
         assert!(escape["error"].is_object(), "a page is inside docs/");
         let settings = docs.handle(&json!({"jsonrpc": "2.0", "id": 6, "method": "resources/read", "params": {"uri": "dstns://settings"}})).unwrap();
         let shown: Value = serde_json::from_str(settings["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
-        assert!(shown.get("engine.implementation").is_some());
+        assert!(shown.get("engines.selected").is_some());
         assert!(shown.as_object().unwrap().iter().all(|(k, v)| !config::sensitive_setting(k) || v == "(kept on this machine)" || v == "default" || v == ""), "{shown}");
 
         let prompts = h.handle(&json!({"jsonrpc": "2.0", "id": 7, "method": "prompts/list"})).unwrap();
@@ -867,7 +867,7 @@ mod tests {
         for key in ["mcp.allow_writes", "mcp.allow_launcher", "mcp.enabled", crate::security::KEY, "api.host"] {
             assert!(!ai_may_set(key), "{key}");
         }
-        assert!(ai_may_set("engine.implementation") && ai_may_set("playback.tick_rate"));
+        assert!(ai_may_set("engines.selected") && ai_may_set("playback.tick_rate"));
         let h = handler(Policy { enabled: true, writes: true, launcher: true, guarded: false });
         let call = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "launcher_config_set", "arguments": {"key": "mcp.allow_writes", "value": "on"}}});
         let refused = h.handle(&call).unwrap();

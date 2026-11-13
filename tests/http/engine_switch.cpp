@@ -19,6 +19,11 @@ json run_on(const std::string& engine, const std::string& seed, const json& extr
     start.update(extra);
     const auto started = server.op("POST", "/api/v1/playback/start", start);
     EXPECT(started.status == 202, show(started));
+    // core-ng is alpha: its start waits for acknowledgment (tests/http/engine_gate.cpp), which the observer gives.
+    if (started.data().value("state", "") == "approval_required") {
+        const auto accepted = server.call("POST", "/api/v1/engine/approval", json{{"approval_id", started.data().at("approval_id")}, {"decision", "accept"}}, "", {{"X-DSTNS-Host", "1"}});
+        EXPECT(accepted.status == 200 && !accepted.data().contains("start_error"), show(accepted));
+    }
     const auto status = until([&]() -> std::optional<json> {
         const auto data = server.op("GET", "/api/v1/playback/status").data();
         if (data.at("lifecycle") == "RUNNING" || data.at("lifecycle") == "PAUSED") return data;

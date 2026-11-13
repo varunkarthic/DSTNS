@@ -1,1 +1,29 @@
-{"primary":{"speed_mps":16.67,"capacity_vph":3200},"secondary":{"speed_mps":13.89,"capacity_vph":2400},"tertiary":{"speed_mps":11.11,"capacity_vph":1800},"residential":{"speed_mps":8.33,"capacity_vph":1100},"service":{"speed_mps":5.56,"capacity_vph":600}}
+{
+  "$schema": "./schema/road_types.schema.json",
+  "schema_version": 1,
+  "_about": "Reference: the free-flow speed and capacity of each OpenStreetMap road class, as the engine models them. Informational in this release: the engine holds these values in code (Core/core-legacy/src/osm.cpp and scenario.cpp, where they are part of every world's hashes), and this file documents them; changing it changes nothing.",
+  "_help": {
+    "<class>.speed_mps": "Free-flow speed, in metres a second (16.67 is 60 km/h). Accepts: a number above 0.",
+    "<class>.capacity_vph": "Capacity, in vehicles an hour. Accepts: a number above 0."
+  },
+  "primary": {
+    "speed_mps": 16.67,
+    "capacity_vph": 3200
+  },
+  "secondary": {
+    "speed_mps": 13.89,
+    "capacity_vph": 2400
+  },
+  "tertiary": {
+    "speed_mps": 11.11,
+    "capacity_vph": 1800
+  },
+  "residential": {
+    "speed_mps": 8.33,
+    "capacity_vph": 1100
+  },
+  "service": {
+    "speed_mps": 5.56,
+    "capacity_vph": 600
+  }
+}

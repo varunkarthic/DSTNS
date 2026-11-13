@@ -309,6 +309,11 @@ const char* to_string(Lifecycle x) {
 
 SimulationEngine::SimulationEngine(RuntimeLogger& logger)
     : logger_(logger) {
+    // core-legacy: the engine DSTNS has always had, versioned with the build, and owning every part of a run.
+    EngineIdentity legacy;
+    legacy.version = DSTNS_VERSION;
+    legacy.owns = {"world selection (urban-crfg-v3)", "scenario compilation", "physics step", "checkpoints and seeking", "operator commands"};
+    identities_["core-legacy"] = std::move(legacy);
     worker_ = std::jthread([this](std::stop_token) { loop(); });
     logger_.system("INFO", "engine", "DSTNS engine idle");
 }
@@ -393,9 +398,27 @@ void SimulationEngine::anchor_wall_clock() {
     anchor_virtual_s_ = virtual_s_;
 }
 
-void SimulationEngine::register_engine(const std::string& id, ScenarioCompiler::Hooks hooks) {
+void SimulationEngine::register_engine(const std::string& id, ScenarioCompiler::Hooks hooks, EngineIdentity identity) {
     if (id.empty() || id == "core-legacy") throw std::invalid_argument("engine id is reserved");
     engines_[id] = std::move(hooks);
+    set_identity(id, std::move(identity));
+}
+
+void SimulationEngine::set_identity(const std::string& id, EngineIdentity identity) {
+    if (identity.kind != "real" && identity.kind != "pseudo") throw std::invalid_argument("engine kind is real or pseudo");
+    if (identity.channel != "alpha" && identity.channel != "beta" && identity.channel != "stable") throw std::invalid_argument("engine channel is alpha, beta or stable");
+    identities_[id] = std::move(identity);
+}
+
+nlohmann::json SimulationEngine::identity(const std::string& id) const {
+    const auto found = identities_.find(id);
+    return found == identities_.end() ? EngineIdentity{}.to_json(id) : found->second.to_json(id);
+}
+
+nlohmann::json SimulationEngine::catalogue() const {
+    auto out = nlohmann::json::array();
+    for (const auto& id : engines()) out.push_back(identity(id));
+    return out;
 }
 
 std::vector<std::string> SimulationEngine::engines() const {
@@ -409,7 +432,7 @@ void SimulationEngine::require_engine(const ScenarioConfig& config) const {
     const auto found = engines_.find(config.engine);
     if (config.engine == "core-legacy") {
         if (config.map_selection_version != "urban-crfg-v3" || config.map_selection_mode != "global" ||
-            !config.map_countries.empty() || !config.map_cities.empty())
+            !config.map_countries.empty() || !config.map_cities.empty() || !config.map_exclude_countries.empty() || !config.map_exclude_cities.empty())
             throw std::invalid_argument("core-legacy supports only urban-crfg-v3 over every city; use engine core-ng to choose a policy");
     } else if (found == engines_.end()) {
         throw std::invalid_argument("unknown engine: " + config.engine);
@@ -2082,6 +2105,8 @@ nlohmann::json SimulationEngine::status() const {
         {"saved_seed_id", graph_ ? graph_->scenario().config.saved_seed_id : ""},
         {"map_selection_version", graph_ ? graph_->scenario().config.map_selection_version : ""},
         {"engine", graph_ ? graph_->scenario().config.engine : ""},
+        // What is actually running: the engine that compiled this world, as it describes itself.
+        {"engine_identity", graph_ ? identity(graph_->scenario().config.engine) : nlohmann::json(nullptr)},
         {"traffic_model", "DSTNS aggregate traffic model"},
         {"paused", lifecycle_ == Lifecycle::Paused},
         {"simulated_seconds", virtual_s_},

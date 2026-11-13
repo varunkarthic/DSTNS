@@ -2,9 +2,9 @@
 
 | What | Version | Where reported |
 |---|---|---|
-| The API contract | `1.6`, under the `/api/v1` prefix | `api_version` in responses |
-| The engine | `3.5.0` | `version` in `/health` and `/system/info` |
-| The observer | `3.1.0` | About |
+| The API contract | `1.7`, under the `/api/v1` prefix | `api_version` in responses |
+| The engine | `3.6.0` | `version` in `/health` and `/system/info` |
+| The observer | `3.2.0` | About |
 | Map selection | `urban-crfg-v3` (default), `urban-geo-v1` (core-ng) | `map_selection_version`; `map_selection` in `/view/manifest` with the policy's fingerprint |
 | Engines | `core-legacy`, `core-ng` | `engine` in status and `/view/manifest`; `engines` in `/system/info` |
 | Algorithms | `DSTNS/1` | `/view/manifest` |
@@ -28,7 +28,11 @@ highest accepted `tick_rate` from 5 to 10. `1.3` added subscriptions, timers, pe
 atomic interface batches, health, discovery, and the engine's controls under `/api/v1/fabric/engine`, with security around
 them. `1.4` added directing the view: `ui.camera`, `ui.layers`, and path styles and colours. `1.5` added the `engine`
 field to the start request, playback status and manifest, and `engines` to `/system/info`. `1.6` added
-`map_selection` to the start request and the manifest, and accepts `urban-geo-v1` with engine `core-ng`.
+`map_selection` to the start request and the manifest, and accepts `urban-geo-v1` with engine `core-ng`. `1.7` added
+the engine routes (`/api/v1/engine`, `/api/v1/engine/approval`), `engine_identity` in the playback status,
+`engine_catalogue` and `sumo.enabled` in `/system/info`, `exclude_countries` and `exclude_cities` in `map_selection`, and
+the deferred answers of the unstable-engine gate: a held start is `202` with `state: approval_required`, and a request
+that would run the engine meanwhile is `409 APPROVAL_REQUIRED`.
 
 ## Security exceptions
 

@@ -82,13 +82,20 @@ std::string country_id(const City& city) {
 std::string city_id(const City& city) { return city.slug(); }
 
 std::string SelectionPolicy::canonical() const {
-    return "policy=" + id + ";mode=" + mode + ";countries=" + joined(countries) + ";cities=" + joined(cities);
+    auto text = "policy=" + id + ";mode=" + mode + ";countries=" + joined(countries) + ";cities=" + joined(cities);
+    // Only when something is left out, so every policy from before exclusions keeps its fingerprint.
+    if (!exclude_countries.empty()) text += ";exclude_countries=" + joined(exclude_countries);
+    if (!exclude_cities.empty()) text += ";exclude_cities=" + joined(exclude_cities);
+    return text;
 }
 
 std::string SelectionPolicy::fingerprint() const { return "sha256:" + sha256(canonical()); }
 
 nlohmann::json SelectionPolicy::to_json() const {
-    return {{"policy", id}, {"mode", mode}, {"countries", countries}, {"cities", cities}, {"fingerprint", fingerprint()}};
+    nlohmann::json out = {{"policy", id}, {"mode", mode}, {"countries", countries}, {"cities", cities}, {"fingerprint", fingerprint()}};
+    if (!exclude_countries.empty()) out["exclude_countries"] = exclude_countries;
+    if (!exclude_cities.empty()) out["exclude_cities"] = exclude_cities;
+    return out;
 }
 
 SelectionPolicy policy_of(const ScenarioConfig& config) {
@@ -97,11 +104,13 @@ SelectionPolicy policy_of(const ScenarioConfig& config) {
     policy.mode = config.map_selection_mode.empty() ? "global" : config.map_selection_mode;
     policy.countries = normalise(config.map_countries, true);
     policy.cities = normalise(config.map_cities, false);
+    policy.exclude_countries = normalise(config.map_exclude_countries, true);
+    policy.exclude_cities = normalise(config.map_exclude_cities, false);
     if (policy.id != kLegacyPolicy && policy.id != kGeoPolicy)
         bad("unsupported map selection version: " + policy.id + " (urban-crfg-v3 or urban-geo-v1)");
     if (std::find(std::begin(kModes), std::end(kModes), policy.mode) == std::end(kModes))
         bad("unknown map selection mode: " + policy.mode + " (global, countries, cities or fixed_city)");
-    if (policy.id == kLegacyPolicy && (policy.mode != "global" || !policy.countries.empty() || !policy.cities.empty()))
+    if (policy.id == kLegacyPolicy && (policy.mode != "global" || !policy.countries.empty() || !policy.cities.empty() || !policy.exclude_countries.empty() || !policy.exclude_cities.empty()))
         bad("urban-crfg-v3 always chooses from every city; use urban-geo-v1 to choose countries or cities");
     const bool wants_countries = policy.mode == "countries", wants_cities = policy.mode == "cities" || policy.mode == "fixed_city";
     if (wants_countries != !policy.countries.empty())
@@ -109,12 +118,24 @@ SelectionPolicy policy_of(const ScenarioConfig& config) {
     if (wants_cities != !policy.cities.empty())
         bad(wants_cities ? "mode " + policy.mode + " needs at least one city" : "cities are only used with mode cities or fixed_city");
     if (policy.mode == "fixed_city" && policy.cities.size() != 1) bad("mode fixed_city needs exactly one city");
+    for (const auto& list : {&policy.countries, &policy.cities})
+        for (const auto& id : *list)
+            if (std::binary_search(policy.exclude_countries.begin(), policy.exclude_countries.end(), id) || std::binary_search(policy.exclude_cities.begin(), policy.exclude_cities.end(), id))
+                bad(id + " is both chosen and left out");
+    if (policy.mode == "fixed_city" && (!policy.exclude_countries.empty() || !policy.exclude_cities.empty())) bad("mode fixed_city leaves nothing out");
+    for (const auto& id : policy.exclude_countries)
+        if (std::none_of(city_catalog().begin(), city_catalog().end(), [&](const City& c) { return country_id(c) == id; }))
+            bad("no city in the catalogue is in country " + id + " (use ISO 3166-1 alpha-2 codes, such as IN)");
+    for (const auto& id : policy.exclude_cities)
+        if (std::none_of(city_catalog().begin(), city_catalog().end(), [&](const City& c) { return city_id(c) == id; }))
+            bad("unknown city " + id + " (use the city's ID, such as mumbai)");
     for (const auto& id : policy.countries)
         if (std::none_of(city_catalog().begin(), city_catalog().end(), [&](const City& c) { return country_id(c) == id; }))
             bad("no city in the catalogue is in country " + id + " (use ISO 3166-1 alpha-2 codes, such as IN)");
     for (const auto& id : policy.cities)
         if (std::none_of(city_catalog().begin(), city_catalog().end(), [&](const City& c) { return city_id(c) == id; }))
             bad("unknown city " + id + " (use the city's ID, such as mumbai)");
+    if (eligible(policy).empty()) bad("the policy leaves no city to choose from");
     return policy;
 }
 
@@ -124,7 +145,9 @@ std::vector<const City*> eligible(const SelectionPolicy& policy) {
         const bool allowed = policy.mode == "global"
             || (policy.mode == "countries" && std::binary_search(policy.countries.begin(), policy.countries.end(), country_id(city)))
             || ((policy.mode == "cities" || policy.mode == "fixed_city") && std::binary_search(policy.cities.begin(), policy.cities.end(), city_id(city)));
-        if (allowed) out.push_back(&city);
+        const bool left_out = std::binary_search(policy.exclude_countries.begin(), policy.exclude_countries.end(), country_id(city))
+            || std::binary_search(policy.exclude_cities.begin(), policy.exclude_cities.end(), city_id(city));
+        if (allowed && !left_out) out.push_back(&city);
     }
     return out;
 }

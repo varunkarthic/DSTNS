@@ -39,6 +39,7 @@ import { useSteadyStatus } from "./simulation/useSteadyStatus";
 import { RATES, rateIndexOf } from "./panels/CommandRail";
 import type { ISDCondition } from "./notifications/ISDHandler";
 import { Tutorial } from "./tutorial/Tutorial";
+import { EngineGate } from "./panels/EngineGate";
 import { useTutorial } from "./tutorial/useTutorial";
 import { NotificationCapsule } from "./notifications/NotificationCapsule";
 import { SettingsDrawer } from "./panels/SettingsDrawer";
@@ -97,7 +98,7 @@ import "./CoreMotion/motion.css";
 import "./styles/webfabric.css";
 import "./styles/design.css";
 
-export const VERSION = "3.1.0";
+export const VERSION = "3.2.0";
 
 const DECK_KEY = "dstns.telemetry-mode.v1";
 
@@ -373,6 +374,8 @@ export default function App() {
   );
   // The tour waits for the start-up film to finish handing over.
   const startupOnScreen = useRef(false);
+  // The unstable-engine gate is on screen: it comes before the tour and notifications, which wait.
+  const [gateOpen, setGateOpen] = useState(false);
   // The start-up has landed and its panels have come to rest; a tour that opens by itself waits for this.
   const [settled, setSettled] = useState(false);
   const tutorial = useTutorial({
@@ -381,7 +384,7 @@ export default function App() {
     runId,
     suspended: suspended || rateLocked,
     playbackRevision: status?.playback_revision,
-    blocked: !!dialog || layersOpen || settingsOpen || pending || world.active,
+    blocked: !!dialog || layersOpen || settingsOpen || pending || world.active || gateOpen,
     onError: setActionError,
   });
 
@@ -1476,7 +1479,7 @@ export default function App() {
           <div className="bottom-stack">
             <div className="lower-hud">
               <div className="hud-zone hud-left">
-                <NotificationCapsule items={suspended || tutorial.active ? [] : shown} systemError={systemError} onDismissError={!sim.error && !sim.stale && actionError ? () => setActionError("") : undefined} focusedKey={autoFocus ? activeKey : null} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
+                <NotificationCapsule items={suspended || tutorial.active || gateOpen ? [] : shown} systemError={systemError} onDismissError={!sim.error && !sim.stale && actionError ? () => setActionError("") : undefined} focusedKey={autoFocus ? activeKey : null} reduceMotion={reduceMotion} onDismiss={dismissNotification} />
               </div>
               <div className="hud-zone hud-center">
               <MapReadout
@@ -1713,6 +1716,7 @@ export default function App() {
           onTarget={setTutorialTarget}
         />
       )}
+      <EngineGate ready={configLoaded && (filmSeen || !forceAnimate || reduceMotion)} running={status?.engine_identity ?? null} onOpenChange={setGateOpen} />
     </TimeFormatProvider>
     </BindingsContext.Provider>
     </AdvancedContext.Provider>

@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.5.0 LANGUAGES CXX)
+project(dstns VERSION 3.6.0 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -98,7 +98,7 @@ target_compile_options(dstns_daemon PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 add_library(dstns_fabric
   Fabric/src/api.cpp Fabric/src/support.cpp Fabric/src/guards.cpp Fabric/src/routes_static.cpp Fabric/src/routes_system.cpp
   Fabric/src/routes_playback.cpp Fabric/src/routes_world.cpp Fabric/src/routes_control.cpp Fabric/src/routes_view.cpp
-  Fabric/src/routes_observation.cpp Fabric/src/operations.cpp Fabric/src/routes_daemon.cpp
+  Fabric/src/routes_observation.cpp Fabric/src/operations.cpp Fabric/src/routes_daemon.cpp Fabric/src/routes_engine.cpp Fabric/src/gate.cpp
   Fabric/src/webfabric/routes.cpp Fabric/src/webfabric/registry.cpp)
 target_include_directories(dstns_fabric PUBLIC Fabric/include PRIVATE Fabric/src)
 target_link_libraries(dstns_fabric PUBLIC dstns_core dstns_daemon)
@@ -134,7 +134,7 @@ if(DSTNS_BUILD_TESTS)
   enable_testing()
   # The HTTP tests: each a program of its own, against a real server it starts on a port of its own.
   set(DSTNS_HTTP_TESTS api docs_coverage another_city termination loading fastboot hardening robustness fabric_contract narration observer_hold
-    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot daemon long_jump engine_switch sumo_switch)
+    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot daemon long_jump engine_switch sumo_switch engine_gate)
   foreach(name ${DSTNS_HTTP_TESTS})
     add_executable(dstns_http_${name} tests/http/${name}.cpp)
     target_link_libraries(dstns_http_${name} PRIVATE dstns_fabric)

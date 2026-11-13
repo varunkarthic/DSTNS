@@ -113,6 +113,8 @@ pub fn active_port(paths: &Paths) -> Option<u16> {
 /// What the launcher's settings tell a server as it starts.
 pub fn switches(config: &Value, paths: &Paths, demo: bool) -> Vec<(String, String)> {
     let mut env = config::server_switches(config, demo);
+    // The server holds starts by the same engine policy the launcher edits.
+    env.push(("DSTNS_ENGINE_CONFIG".into(), paths.engines_config().to_string_lossy().into_owned()));
     if config::flag(config, "startup.fast_boot") {
         env.push(("DSTNS_FASTBOOT_DIR".into(), paths.fastboot().to_string_lossy().into_owned()));
     }

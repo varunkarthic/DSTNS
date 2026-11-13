@@ -143,11 +143,22 @@ impl Paths {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }
     }
+    /// The settings' folder: DSTNS_CONFIG_DIR (for a test, or a second set of settings), else the checkout's config/.
+    pub fn config_dir(&self) -> PathBuf {
+        match env::var("DSTNS_CONFIG_DIR") {
+            Ok(value) if !value.is_empty() => PathBuf::from(value),
+            _ => self.root.join("config"),
+        }
+    }
     pub fn config(&self) -> PathBuf {
-        self.root.join("config").join("defaults.json")
+        self.config_dir().join("defaults.json")
+    }
+    /// Engine policy: which engines may run, which is selected, and how an unstable one's runs are acknowledged.
+    pub fn engines_config(&self) -> PathBuf {
+        self.config_dir().join("engines.json")
     }
     pub fn ui_config(&self) -> PathBuf {
-        self.root.join("config").join("ui-config.json")
+        self.config_dir().join("ui-config.json")
     }
     /// The launcher's own state, such as whether it has been set up: kept in the checkout, and never committed.
     pub fn launcher_env(&self) -> PathBuf {

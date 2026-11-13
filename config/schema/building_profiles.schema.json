@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dstns.readthedocs.io/config/schema/building_profiles.schema.json",
+  "title": "config/building_profiles.json",
+  "description": "Reference: when each kind of building draws its trips, as the engine models them. Informational in this release: the scenario compiler holds these values in code (Core/core-legacy/src/scenario.cpp and Core/core-ng/src/network.cpp, where they are part of every world's hashes), and this file documents them; changing it changes nothing.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "This file's JSON Schema, for editors."
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "The layout of this file."
+    },
+    "_about": {
+      "type": "string",
+      "description": "What this file is. Not read by any program."
+    },
+    "_help": {
+      "type": "object",
+      "description": "Each editable value: what it means, what it accepts, its default. Not read by any program.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "tmax": {
+        "type": "array",
+        "description": "The windows of a day when the building draws most, each [start, end] as a fraction of the day (0.375 is 09:00). Accepts: a list of pairs of numbers from 0 to 1, start before end.",
+        "items": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "weekend_impact_multiplier": {
+        "type": "number",
+        "minimum": 0,
+        "description": "How much of its weekday draw the building keeps at the weekend. Accepts: a number, at least 0 (1 is the same as a weekday)."
+      }
+    }
+  }
+}

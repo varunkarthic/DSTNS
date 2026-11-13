@@ -19,6 +19,29 @@ The CLI turns the result into the body of `POST /api/v1/playback/start`, and
 the server validates it again. Each bound is enforced in both places, so a
 configuration the CLI accepts is one the engine accepts.
 
+## Files in `config/`
+
+Every file has the same shape. A file starts with four keys, then its values:
+
+| Key | What it is |
+|---|---|
+| `$schema` | Its JSON Schema in `config/schema/`. An editor that reads JSON Schema (VS Code does) checks the file as it is typed, and shows each value's meaning, accepted values and default on hover |
+| `schema_version` | The layout of the file |
+| `_about` | What the file is, who reads it, and when a change applies |
+| `_help` | Each editable value, by its dotted path: what it means, what it accepts, its default |
+
+| File | Read by | Schema |
+|---|---|---|
+| `defaults.json` | launcher, and through it the engine | `schema/defaults.schema.json` |
+| `ui-config.json` | the observer (served by the server) and the launcher | `schema/ui-config.schema.json` |
+| `engines.json` | launcher and server | `schema/engines.schema.json` |
+| `daemon-alerts.json` | built into the server | `schema/daemon-alerts.schema.json` |
+| `building_profiles.json`, `road_types.json` | nothing: reference copies of values the engine holds in code | `schema/building_profiles.schema.json`, `schema/road_types.schema.json` |
+
+No program reads `_about` or `_help`. For the launcher's three files, the schemas and `_help` are generated from the
+launcher's settings table: `./launcher config docs` rewrites them and leaves every value as it is. A launcher test
+fails when they are stale, or when a file in `config/` lacks the header or its schema.
+
 ## `config/defaults.json`
 
 The CLI validates this file on every start (`dstns config` edits it). Fields
@@ -37,15 +60,24 @@ read; changing them has no effect.
 
 ### Engine
 
+Kept in `config/engines.json` (see [Engine governance](../design/engine-governance.md)); the rest of the table is in
+`config/defaults.json`.
+
 | Key | Default | Range | Read by | Meaning |
 |---|---|---|---|---|
-| `engine.implementation` | `core-legacy` | `core-legacy`, `core-ng` | CLI | Which engine builds and runs each world. Both give the same world for the same seed |
-| `map.selection_mode` | `global` | `global`, `countries`, `cities`, `fixed_city` | CLI | Which cities a seed may choose. `global` is `urban-crfg-v3` over every city; the others are `urban-geo-v1` and set `engine.implementation` to `core-ng` |
-| `map.places` | `all` | comma-separated IDs | CLI | The countries (ISO 3166-1 alpha-2, such as `IN, AE`) or city IDs (such as `mumbai, new-york`) that `map.selection_mode` names. Countries are written in capitals and cities in lower case with hyphens before the request is sent |
+| `engines.selected` | `core-legacy` | an enabled engine | CLI | Which engine builds and runs each world. Both give the same world for the same seed under `urban-crfg-v3` |
+| `engines.auto_switch` | `offer` | `offer`, `off` | server | Whether rejecting an unstable engine's run offers to start the seed on a stable engine |
+| `engines.engines.core-ng.enabled` | `true` | on or off | CLI, server | Off: core-ng stays installed, but nothing can start on it |
+| `engines.engines.core-ng.acknowledgment.enforce` | `true` | on or off | server | Hold each core-ng run until a person accepts the risk. Off turns the observer's acknowledgment off too |
+| `engines.engines.core-ng.acknowledgment.ui` | `true` | on or off | server, observer | Ask in the observer; off while enforced, the launcher asks (`--accept-risk`) |
+| `engines.engines.core-legacy.enabled` | `true` | on only | CLI | The default engine cannot be turned off |
+| `map.selection_mode` | `global` | `global`, `countries`, `cities`, `fixed_city` | CLI | Which cities a seed may choose. With `global` and something in Places, Places decides: two-letter codes are countries, other names cities |
+| `map.places` | `all` | comma-separated IDs, `-` before one to leave it out | CLI | Countries (ISO 3166-1 alpha-2, such as `IN, AE`) or city IDs (such as `mumbai, new-york`). `-IN` is everywhere but India; `IN, -mumbai` is India without Mumbai. Countries are written in capitals and cities in lower case with hyphens before the request is sent |
 
-Setting `engine.implementation` to `core-legacy` sets `map.selection_mode` back to `global`, because core-legacy
-selects only from every city. Dynamic Fastboot's prepared world is used only when `map.selection_mode` is `global`.
-A launch code carries these settings like any other.
+Anything in Places needs core-ng: a start with core-legacy and Places set is refused before the server is called.
+Setting `engines.selected` to `core-legacy` sets `map.selection_mode` back to `global` and Places back to `all`.
+Dynamic Fastboot's prepared world is used only when nothing limits where worlds are. A launch code carries these
+settings like any other.
 
 ### Map
 

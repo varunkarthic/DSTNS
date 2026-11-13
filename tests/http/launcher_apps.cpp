@@ -9,6 +9,8 @@
 // it registers, waits that long, says it is active, and keeps its lease until it is stopped.
 #include "harness.hpp"
 
+#include <fstream>
+
 using namespace check;
 
 namespace {
@@ -43,7 +45,23 @@ int main(int argc, char** argv) {
     const std::string self = fs::absolute(argv[0]).string();
     const int port = free_port();
     TempDir tmp;
-    const Env environment = {{"DSTNS_API_PORT", std::to_string(port)}, {"DSTNS_LOGS_DIR", tmp.str()}, {"DSTNS_APPS_FILE", (tmp / "apps.json").string()},
+    // Settings of the test's own, from the checkout's but with where worlds are and the engine at their defaults: the
+    // settings of the machine running the test must not decide what it tests.
+    const auto settings = tmp / "config";
+    fs::create_directories(settings);
+    for (const auto& entry : fs::directory_iterator(root() / "config"))
+        if (entry.path().extension() == ".json") fs::copy_file(entry.path(), settings / entry.path().filename());
+    {
+        auto defaults = json::parse(read(settings / "defaults.json"));
+        defaults.erase("engine");
+        defaults["map"]["selection_mode"] = "global";
+        defaults["map"]["places"] = "all";
+        std::ofstream(settings / "defaults.json") << defaults.dump(2);
+        auto engines = json::parse(read(settings / "engines.json"));
+        engines["selected"] = "core-legacy";
+        std::ofstream(settings / "engines.json") << engines.dump(2);
+    }
+    const Env environment = {{"DSTNS_CONFIG_DIR", settings.string()}, {"DSTNS_API_PORT", std::to_string(port)}, {"DSTNS_LOGS_DIR", tmp.str()}, {"DSTNS_APPS_FILE", (tmp / "apps.json").string()},
                              {"DSTNS_SEED_DB", (tmp / "seeds.db").string()}, {"DSTNS_LAUNCHER_ENV", (tmp / "launcher.env").string()},
                              {"DSTNS_SETUP_COMPLETE", "1"}, {"DSTNS_BUILD_DIR", fs::path(server_binary()).parent_path().string()}, {"NO_COLOR", "1"}};
     const std::string launcher = (root() / "launcher").string();
