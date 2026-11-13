@@ -1,6 +1,6 @@
 # v3 core-ng migration plan
 
-Status: **releases 0–3 done**; release 5 (world preparation and Fastboot guards) next.
+Status: **releases 0–3 and 5a done**; 5b (world preparation) and 5c (Fastboot pointer) next.
 
 Baseline: `v3` at `d29a2f6` (source) / `b828aa6` (graph). Engine `3.0.0`, observer `3.1.0`, API contract `1.4`,
 map selection `urban-crfg-v3`, algorithms `DSTNS/1`.
@@ -172,8 +172,8 @@ No implicit machines in core-ng: each state lives in one enum, changes through o
 test for each allowed and each forbidden transition. Each core-ng release lists the implicit states it found in the
 code it replaces, and the faults fixed, in `docs/design/state-machines.md`.
 
-Found so far in core-legacy, to fix in release 5: `prepare()` can be entered while `Seeking` and moves the
-lifecycle `Seeking → Preparing`, which the lifecycle table does not allow.
+Release 5a (3.2.1) put the engine lifecycle's table in core-ng, checks every transition against it, and fixed four
+faults the audit found; see `docs/design/state-machines.md`.
 
 Each release: local `./scripts/test.sh` green, version and `CHANGELOG.md` in the same commits, push to the migration
 branch, CI dispatched (`gh workflow run ci.yml --ref <branch>`) and green, graph rebuilt locally. Integration into

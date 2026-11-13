@@ -3,6 +3,7 @@
 
 #include "dstns/api.hpp"
 #include "dstns/build_info.hpp"
+#include "dstns/core-ng/lifecycle.hpp"
 #include "dstns/core-ng/selection.hpp"
 #include "dstns/logging.hpp"
 #include "dstns/narrator.hpp"
@@ -161,6 +162,7 @@ int main(int argc, char** argv) {
         }
         dstns::SimulationEngine engine(logger);
         engine.register_engine(dstns::core_ng::kEngineId, dstns::core_ng::hooks());
+        engine.set_transition_guard(dstns::core_ng::lifecycle::allowed);
         try {
             std::unique_ptr<dstns::NarrationBackend> backend;
             if (narrator == "auto" || narrator == "fm") {

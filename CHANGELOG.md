@@ -14,6 +14,40 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.2.1] - 2026-11-13
+
+**Engine 3.2.1, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged: the golden fixtures pass on
+both engines. No route or field changed.
+
+### Fixed
+
+An audit of every lifecycle transition the engine makes found four faults:
+
+- A reset while the process was terminating moved it from Terminating to Idle. A reset now leaves Terminating as it is,
+  as a stop already did.
+- A start or prepare that failed while a world was already installed went to Idle, still holding that world. It now
+  returns to that world's state: Stopped if it had been live, otherwise as it was. The world is intact and usable.
+- Stopping a run that was already stopped went Stopped → Stopping → Stopped, raising the playback revision twice. It now
+  changes nothing.
+- A prepare during a jump moved the lifecycle from Seeking to Preparing without stopping the run. It now stops it first,
+  as it does a running or paused one.
+
+### Added
+
+- core-ng's lifecycle table (`Core/core-ng/src/lifecycle.cpp`): every allowed transition, as data. The server checks
+  each transition against it and logs one outside it as an `ERROR` from `lifecycle`. The transition is still made, so
+  a run is never wedged. `docs/design/state-machines.md` lists the table.
+
+### Tests
+
+- `dstns_lifecycle_ng`: the table's required and forbidden edges; ordinary use from prepare to reset; a failed prepare
+  that keeps the world; termination against reset and stop; and 48 races between a long jump and stop, reset, pause,
+  play, a jump back or on, a step, prepare, regenerate, a staged commit or discard, and terminate, each at four delays,
+  plus a start interrupted while it prepares. None may make a transition outside the table. With the fixes taken out,
+  the test fails.
+
+Rollback: revert this release's commit.
+
 ## [3.2.0] - 2026-11-13
 
 **Engine 3.2.0, observer 3.1.0, API contract 1.6.** Results for every existing seed are unchanged on both engines:

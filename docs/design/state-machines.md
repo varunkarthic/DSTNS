@@ -12,7 +12,11 @@ described here so that they can be reasoned about as a whole.
 ### Engine lifecycle (explicit)
 
 `Lifecycle` in `Core/core-legacy/include/dstns/engine.hpp`; every change goes through `SimulationEngine::transition`, which
-mirrors the state for lock-free health reads, raises the playback revision and logs the change. The state is
+mirrors the state for lock-free health reads, raises the playback revision and logs the change. Every allowed
+transition is listed as data in core-ng's `lifecycle::table()` (`Core/core-ng/src/lifecycle.cpp`); the server checks
+each transition against it, and one outside it is logged as an `ERROR` from `lifecycle` (it is still made, so a run is
+never wedged). `dstns_lifecycle_ng` requires that ordinary use, a failed preparation, termination and 48 races between
+a jump and each control that may interrupt it make none. The state is
 reported as `data.lifecycle` by `GET /api/v1/fabric/engine/status`.
 
 ```mermaid
@@ -54,6 +58,24 @@ stateDiagram-v2
 | A stop cancels any world still being prepared, the first or the next, by advancing the compile generation | `stop` |
 | A stop never replaces Terminating | `stop` |
 | `Booting` and `Error` are named for the API contract and never entered: a start-up failure leaves Idle with `preparation_error`, and a fault ends the process | `engine.hpp` |
+| A failed preparation with a world already installed returns to that world's state (Stopped if it was live), never to an Idle that holds a world | `return_after_failed_preparation` |
+| A second stop changes nothing; a reset during termination changes nothing | `stop`, `reset` |
+| `prepare` stops a run that is jumping, as it stops one running or paused | `prepare` |
+
+The complete table, beyond the diagram's main paths:
+
+| From | To |
+|---|---|
+| Idle | Preparing, Idle (reset), Terminating |
+| Preparing | Ready, Idle, Stopping, Stopped, Completed, Terminating |
+| Ready | Running, Paused, Preparing, Seeking, Stopping, Idle, Terminating |
+| Running | Paused, Seeking, Completed, Stopping, Preparing (a new world committed), Terminating |
+| Paused | Running, Seeking, Stopping, Preparing, Terminating |
+| Seeking | Running, Paused, Completed, Stopping, Preparing, Idle, Terminating |
+| Completed | Seeking, Preparing, Stopping, Idle, Terminating |
+| Stopping | Stopped |
+| Stopped | Preparing, Seeking, Idle, Terminating |
+| Terminating | nothing |
 
 ### World generation job (explicit, strings)
 
@@ -223,4 +245,8 @@ the panels that were open come back. Each step waits for the previous one.
 | WebFabric (observer) | An application reloading by the launcher had no label in Settings | It reads Reloading |
 | Launcher supervisor | A reload asked while an application was preparing killed the preparation step and failed it | The reload is dropped |
 | Engine (failed start retry) | Looking for a seed outside the failed city was an unbounded loop, and named the city by the legacy rule whatever the policy | Bounded to 64 tries, through the run's own engine and policy (3.2.0) |
+| Engine lifecycle | A reset during termination moved Terminating to Idle | Terminating stays (3.2.1) |
+| Engine lifecycle | A failed start or prepare with a world already installed left Idle holding that world | It returns to that world's state (3.2.1) |
+| Engine lifecycle | A second stop went Stopped → Stopping → Stopped | It changes nothing (3.2.1) |
+| Engine lifecycle | `prepare` during a jump moved Seeking to Preparing without stopping the run | It stops the run first (3.2.1) |
 | Dynamic Fastboot | Its prepared seed would be handed to a run under another policy, which would resolve it to a city Fastboot never fetched | Fastboot stands aside for any policy other than `urban-crfg-v3` (3.2.0) |

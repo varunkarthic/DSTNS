@@ -46,6 +46,10 @@ public:
     // API serves requests; the set is read without the lock afterwards. "core-legacy" is always available.
     void register_engine(const std::string& id, ScenarioCompiler::Hooks hooks);
     [[nodiscard]] std::vector<std::string> engines() const;
+    // Checks every lifecycle transition. One it refuses is still made, so a run is never wedged, but it is logged as an
+    // error and counted. Set before the API serves requests.
+    void set_transition_guard(std::function<bool(Lifecycle, Lifecycle)> guard);
+    [[nodiscard]] std::uint64_t illegal_transitions() const { return illegal_transitions_.load(); }
     nlohmann::json prepare(Seed128 seed,const ScenarioConfig& config);
     nlohmann::json start(Seed128 seed,const ScenarioConfig& config,std::uint32_t start_virtual_s=0);
     // Accept initial preparation immediately; compilation and map I/O continue
@@ -188,6 +192,10 @@ private:
     // Where a seed goes under the configuration's engine and selection policy.
     [[nodiscard]] MapLocation locate(Seed128 seed, const ScenarioConfig& config) const;
     [[nodiscard]] nlohmann::json map_selection_json(const ScenarioConfig& config) const;
+    // After a failed preparation: the state of the world that was already there, or Idle if there was none.
+    void return_after_failed_preparation(Lifecycle before);
+    std::function<bool(Lifecycle, Lifecycle)> transition_guard_;
+    std::atomic<std::uint64_t> illegal_transitions_{0};
     [[nodiscard]] Scenario compile_scenario(Seed128 seed, const ScenarioConfig& config); std::unique_ptr<GraphStore> graph_;
     std::atomic<bool> compiling_{false}; // Concurrent compiles fail without occupying HTTP workers.
     std::uint64_t compile_generation_{}; // Guarded by mutex_; reset/terminate invalidate a pending install.

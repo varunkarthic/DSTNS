@@ -321,9 +321,24 @@ SimulationEngine::~SimulationEngine() {
     if (world_worker_.joinable()) world_worker_.join();
 }
 
+void SimulationEngine::set_transition_guard(std::function<bool(Lifecycle, Lifecycle)> guard) {
+    transition_guard_ = std::move(guard);
+}
+
+void SimulationEngine::return_after_failed_preparation(Lifecycle before) {
+    // The world that was there is still installed: it stays as it was, rather than an Idle that holds a world.
+    if (!graph_) transition(Lifecycle::Idle);
+    else transition(before == Lifecycle::Running || before == Lifecycle::Paused || before == Lifecycle::Seeking
+                        ? Lifecycle::Stopped : before);
+}
+
 void SimulationEngine::transition(Lifecycle next) {
     if (next != Lifecycle::Paused) observer_hold_ = false;
     const auto old = lifecycle_;
+    if (transition_guard_ && !transition_guard_(old, next)) {
+        ++illegal_transitions_;
+        logger_.system("ERROR", "lifecycle", std::string("illegal transition ") + to_string(old) + " -> " + to_string(next));
+    }
     lifecycle_ = next;
     // Mirror the state where a reader can see it without the engine mutex, so
     // a health probe still answers while a map download holds that mutex for
@@ -388,9 +403,10 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
     auto compile_lease = std::make_shared<CompileLease>(compiling_);
     std::unique_lock lock(mutex_);
     if (terminate_requested_) throw std::logic_error("simulation is terminating");
-    if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused) {
+    if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused || lifecycle_ == Lifecycle::Seeking) {
         stop();
     }
+    const auto before = lifecycle_;
     transition(Lifecycle::Preparing);
     const auto generation = ++compile_generation_;
     preparation_error_.clear();
@@ -455,7 +471,7 @@ nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& con
         preparing_stage_.store(0);
         if (generation == compile_generation_ && !terminate_requested_) {
             try { throw; } catch (const std::exception& error) { preparation_error_ = error.what(); } catch (...) { preparation_error_ = "World preparation failed."; }
-            transition(Lifecycle::Idle);
+            return_after_failed_preparation(before);
         }
         throw;
     }
@@ -647,6 +663,7 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
     if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused || lifecycle_ == Lifecycle::Preparing) {
         throw std::logic_error("a simulation is already active");
     }
+    const auto before = lifecycle_;
     transition(Lifecycle::Preparing);
     const auto generation = ++compile_generation_;
     preparation_error_.clear();
@@ -684,7 +701,7 @@ nlohmann::json SimulationEngine::start(Seed128 seed, const ScenarioConfig& confi
         preparing_stage_.store(0);
         if (generation == compile_generation_ && !terminate_requested_) {
             try { throw; } catch (const std::exception& error) { preparation_error_ = error.what(); } catch (...) { preparation_error_ = "World preparation failed."; }
-            transition(Lifecycle::Idle);
+            return_after_failed_preparation(before);
         }
         throw;
     }
@@ -694,11 +711,13 @@ nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig&
     require_engine(config);
     auto compile_lease = std::make_shared<CompileLease>(compiling_);
     std::uint64_t generation;
+    Lifecycle before = Lifecycle::Idle;
     {
         std::lock_guard lock(mutex_);
         if (terminate_requested_) throw std::logic_error("simulation is terminating");
         if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused || lifecycle_ == Lifecycle::Preparing)
             throw std::logic_error("a simulation is already active");
+        before = lifecycle_;
         transition(Lifecycle::Preparing);
         generation = ++compile_generation_;
         preparation_error_.clear();
@@ -707,7 +726,7 @@ nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig&
     // Do not make the HTTP worker own map download latency. The same worker is
     // also used by regeneration, so the compile lease prevents overlap while
     // status and map-progress requests remain independently serviceable.
-    world_worker_ = std::jthread([this, seed, config, start, generation, compile_lease](std::stop_token) {
+    world_worker_ = std::jthread([this, seed, config, start, generation, before, compile_lease](std::stop_token) {
         set_thread_role(ThreadRole::Preparation);
         try {
             auto scenario = compile_scenario(seed, config);
@@ -737,7 +756,7 @@ nlohmann::json SimulationEngine::start_async(Seed128 seed, const ScenarioConfig&
                     failed_seed_ = seed;
                     failed_start_.emplace(config, start);
                 }
-                transition(Lifecycle::Idle);
+                return_after_failed_preparation(before);
             }
         }
     });
@@ -840,7 +859,7 @@ nlohmann::json SimulationEngine::stop() {
             return {{"changed", true}, {"lifecycle", "IDLE"}};
         }
     }
-    if (!graph_) return {{"changed", false}, {"lifecycle", to_string(lifecycle_)}};
+    if (!graph_ || lifecycle_ == Lifecycle::Stopped) return {{"changed", false}, {"lifecycle", to_string(lifecycle_)}};
     transition(Lifecycle::Stopping);
     transition(Lifecycle::Stopped);
     return {{"changed", true}, {"lifecycle", "STOPPED"}, {"run_id", run_id_}, {"simulated_seconds", virtual_s_}};
@@ -848,6 +867,8 @@ nlohmann::json SimulationEngine::stop() {
 
 nlohmann::json SimulationEngine::reset() {
     std::lock_guard lock(mutex_);
+    // Ending the process is final, as for stop.
+    if (lifecycle_ == Lifecycle::Terminating) return {{"ok", false}, {"lifecycle", to_string(lifecycle_)}};
     ++compile_generation_;
     preparation_error_.clear();
     if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused) stop();
