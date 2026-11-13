@@ -14,6 +14,34 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-13
+
+**Engine 3.3.0, launcher 3.0.1, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged: the golden
+fixtures pass on both engines. No route or field changed.
+
+### Added
+
+- Dynamic Fastboot works under every selection policy. It chooses the next world through the run's own engine and
+  policy, and `next-world.json` (format 2) records the policy (`selection`, with its fingerprint), the extent and the
+  source beside the seed.
+
+### Fixed
+
+- A prepared seed is offered only to a run with the same policy and extent. Under another policy the same seed names
+  another city, which Fastboot never fetched. A pointer from before this release has no `selection` and counts as
+  `urban-crfg-v3` over every city.
+- Launcher 3.0.1: a start with no `--seed` takes the prepared seed only if it was prepared under `urban-crfg-v3` over
+  every city with a 5 km extract, which is how the launcher starts worlds, and in a pointer format it knows.
+
+### Tests
+
+- `dstns_next_world_ng`: the policy and extent rule, whichever engine described the policy; a fixed-city run takes its
+  prepared seed and a legacy run never does; an old pointer is legacy only. With the rule reduced to the extent alone,
+  the test fails.
+- The launcher's prepared-seed test covers other policies, filters, an unknown format and another extent.
+
+Rollback: revert this release's commit. An older server reads a format 2 pointer as before, ignoring the new fields.
+
 ## [3.2.1] - 2026-11-13
 
 **Engine 3.2.1, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged: the golden fixtures pass on

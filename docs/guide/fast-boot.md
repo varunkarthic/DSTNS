@@ -34,9 +34,9 @@ sequenceDiagram
 
 | When | What happens |
 |---|---|
-| A world is installed | The next seed is chosen at random, in a city other than this one, and its city fetched in the background. A seed prepared earlier and not yet used is kept instead |
+| A world is installed | The next seed is chosen at random, in a city other than this one where the run's [selection policy](../concepts/deterministic-seeding.md#choosing-countries-or-cities-urban-geo-v1) allows one, and its city fetched in the background. A seed prepared earlier for the same policy and extent, and not yet used, is kept instead |
 | A new world is asked for | It takes the prepared seed. If its city is still downloading, it takes a city already in the map cache instead, other than the one running, and the city on its way stays next. With none cached, it waits for that download rather than starting another, and shows its progress |
-| The launcher starts a run with no `--seed` | It reads `next-world.json` and starts with that seed |
+| The launcher starts a run with no `--seed` | It reads `next-world.json` and starts with that seed, if it was prepared under `urban-crfg-v3` over every city with a 5 km extract, which is how the launcher starts worlds |
 | The server starts | The map cache sweep keeps the next world's city, whatever the cache policy |
 | The prepared world is used | Its city is listed under `spent`. Its extract, manifest and any partial download are removed as soon as a world in another city takes over, so each start is somewhere new and the cache does not fill with places already seen. While its own world runs, the city stays, for that run's SUMO export |
 | The background download fails | The next world chooses for itself, as it always did. The pointer keeps only the `spent` list, so the used cities still go |
@@ -46,15 +46,25 @@ outlives the server:
 
 ```json
 {
+  "format": 2,
   "seed": "9021178532209915623",
   "city": "Lisbon",
   "country": "Portugal",
   "key": "lisbon_x5000",
   "extent_m": 5000.0,
+  "selection": {"policy": "urban-crfg-v3", "mode": "global", "countries": [], "cities": [],
+                "fingerprint": "sha256:…"},
+  "source": "auto",
   "state": "ready",
   "spent": ["new-orleans_x5000"]
 }
 ```
+
+A seed is a place only under a policy: the same seed names one city under `urban-crfg-v3` and another under a
+fixed-city policy. So a prepared seed is offered only to a run with the same `selection` (policy, mode and lists) and
+the same `extent_m`. A run under another policy replaces the pointer with its own. A pointer written before 3.3.0 has
+no `format` or `selection`, and counts as `urban-crfg-v3` over every city. The launcher ignores a pointer in a format
+newer than 2.
 
 `GET /api/v1/world/status` reports it as `data.next` (`enabled`, `state`: `idle`,
 `fetching`, `ready`, `failed` or `off`, and the seed, city and country), and the launcher's

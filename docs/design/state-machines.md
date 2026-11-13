@@ -249,4 +249,4 @@ the panels that were open come back. Each step waits for the previous one.
 | Engine lifecycle | A failed start or prepare with a world already installed left Idle holding that world | It returns to that world's state (3.2.1) |
 | Engine lifecycle | A second stop went Stopped → Stopping → Stopped | It changes nothing (3.2.1) |
 | Engine lifecycle | `prepare` during a jump moved Seeking to Preparing without stopping the run | It stops the run first (3.2.1) |
-| Dynamic Fastboot | Its prepared seed would be handed to a run under another policy, which would resolve it to a city Fastboot never fetched | Fastboot stands aside for any policy other than `urban-crfg-v3` (3.2.0) |
+| Dynamic Fastboot | Its prepared seed would be handed to a run under another policy, which would resolve it to a city Fastboot never fetched | Fastboot stood aside for any policy other than `urban-crfg-v3` (3.2.0); the pointer records its policy and extent, and a seed is offered only to a run that matches, in the server and the launcher (3.3.0) |

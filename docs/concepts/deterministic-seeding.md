@@ -317,8 +317,8 @@ fingerprint, all reported under `map_selection` in `/api/v1/view/manifest`, and 
 `event_hash`.
 
 !!! note "Dynamic Fastboot"
-    Fastboot prepares its next world under `urban-crfg-v3`, so it does not prepare worlds for other policies yet.
-    A filtered run downloads its city when it needs one.
+    Fastboot prepares the next world under the run's own policy, and records the policy beside the seed, so a
+    prepared seed is never handed to a run under another policy. See [Fast Boot](../guide/fast-boot.md).
 
 ## Why this is safe to rely on
 

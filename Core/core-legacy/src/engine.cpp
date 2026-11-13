@@ -588,7 +588,7 @@ void SimulationEngine::install_scenario(Scenario scenario, double tick_rate, std
         // A world chosen by its seed stores the file it resolved to; the next one is chosen the same way.
         auto config = scenario.config;
         if (!scenario.map_city.empty()) config.osm_file = "auto";
-        next_world_.installed(scenario.seed, config);
+        next_world_.installed(scenario.seed, config, [this, config](Seed128 s) { return locate(s, config); }, map_selection_json(config));
     }
     run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
     narration_context_.reset();
@@ -1015,7 +1015,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         std::unique_lock lock(mutex_);
         if (lifecycle_ == Lifecycle::Idle && failed_start_) {
             const auto [failed_config, start] = *failed_start_;
-            const auto seed = next_world_.take(failed_config, failed_city(failed_config)).value_or(seed_avoiding_failed_city(failed_seed_, failed_config, [&](Seed128 s) { return locate(s, failed_config); }));
+            const auto seed = next_world_.take(failed_config, [&](Seed128 s) { return locate(s, failed_config); }, map_selection_json(failed_config), failed_city(failed_config)).value_or(seed_avoiding_failed_city(failed_seed_, failed_config, [&](Seed128 s) { return locate(s, failed_config); }));
             lock.unlock();
             return start_async(seed, failed_config, start);
         }
@@ -1050,7 +1050,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         // the "auto" source; an operator-pinned map file stays pinned.
         if (!graph_->scenario().map_city.empty()) config.osm_file = "auto";
         // Dynamic Fastboot has its city on disk already, or on its way.
-        seed = next_world_.take(config, failed_city(config), graph_->scenario().map_city).value_or(seed_avoiding_failed_city(failed_seed_, config, [&](Seed128 s) { return locate(s, config); }));
+        seed = next_world_.take(config, [&](Seed128 s) { return locate(s, config); }, map_selection_json(config), failed_city(config), graph_->scenario().map_city).value_or(seed_avoiding_failed_city(failed_seed_, config, [&](Seed128 s) { return locate(s, config); }));
         previous = run_id_;
         rate = requested_tick_rate_;
         compile_generation = ++compile_generation_;

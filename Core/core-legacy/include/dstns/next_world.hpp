@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "dstns/geo.hpp"
 #include "dstns/model.hpp"
 #include "dstns/rng.hpp"
 
@@ -10,6 +11,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -33,13 +35,20 @@ public:
     // The pointer file in a map cache.
     [[nodiscard]] static std::filesystem::path pointer(const std::filesystem::path& cache);
 
+    // Where a seed goes under the run's engine and selection policy.
+    using Locate = std::function<MapLocation(Seed128)>;
+    // The pointer records the selection policy it was prepared under (the manifest's map_selection). A prepared seed is
+    // offered only to a run with the same policy and extent; a pointer from before 3.3.0 counts as urban-crfg-v3 over
+    // every city.
+    [[nodiscard]] static bool matches(const nlohmann::json& pointer, double extent_m, const nlohmann::json& selection);
+
     // A world was installed: if it was the one prepared, that one is used up; then the one after is prepared.
-    void installed(Seed128 seed, const ScenarioConfig& config);
+    void installed(Seed128 seed, const ScenarioConfig& config, const Locate& locate, const nlohmann::json& selection);
     // The seed a new world for this configuration should take: the one prepared, if its city is here. While that is
     // still on its way, a city already in the cache other than `current_city`, which is sooner; else the one on its way.
     // Never in `avoid_city`.
-    [[nodiscard]] std::optional<Seed128> take(const ScenarioConfig& config, const std::string& avoid_city = "",
-                                              const std::string& current_city = "") const;
+    [[nodiscard]] std::optional<Seed128> take(const ScenarioConfig& config, const Locate& locate, const nlohmann::json& selection,
+                                              const std::string& avoid_city = "", const std::string& current_city = "") const;
     // What the next world is, and how far it has got, for /api/v1/world/status.
     [[nodiscard]] nlohmann::json status() const;
 

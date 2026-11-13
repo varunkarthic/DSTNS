@@ -45,7 +45,23 @@ void forget_city(const std::filesystem::path& cache, const std::string& key) {
     for (const auto& file : partial) std::filesystem::remove(file, ec);
 }
 
+// What identifies a policy: the policy and its choices. The fingerprint is derived from them, and the engine that
+// described them does not matter, since both engines resolve a policy alike.
+nlohmann::json selection_key(const nlohmann::json& selection) {
+    const auto list = [&](const char* key) { return selection.is_object() && selection.contains(key) ? selection.at(key) : nlohmann::json::array(); };
+    return {{"policy", selection.is_object() ? selection.value("policy", "urban-crfg-v3") : "urban-crfg-v3"},
+            {"mode", selection.is_object() ? selection.value("mode", "global") : "global"},
+            {"countries", list("countries")}, {"cities", list("cities")}};
+}
+
 } // namespace
+
+bool NextWorld::matches(const nlohmann::json& pointer, double extent_m, const nlohmann::json& selection) {
+    if (!pointer.is_object() || pointer.value("extent_m", 0.0) != extent_m) return false;
+    // A pointer from before 3.3.0 has no selection: it was prepared under urban-crfg-v3 over every city.
+    const auto recorded = pointer.contains("selection") ? pointer.at("selection") : nlohmann::json(nullptr);
+    return selection_key(recorded) == selection_key(selection);
+}
 
 bool NextWorld::enabled() {
     const char* value = std::getenv("DSTNS_DYNAMIC_FASTBOOT");
@@ -63,17 +79,15 @@ void NextWorld::write(const std::filesystem::path& cache, const nlohmann::json& 
     std::filesystem::rename(temporary, file, ec);
 }
 
-void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
-    // Prepared seeds are resolved by urban-crfg-v3, so another policy would be handed a city it did not choose.
-    // ponytail: no Fastboot for other policies yet; the pointer becomes policy-aware in core-ng's release 5.
-    if (!enabled() || config.osm_file != "auto" || config.map_selection_version != "urban-crfg-v3") {
+void NextWorld::installed(Seed128 seed, const ScenarioConfig& config, const Locate& locate, const nlohmann::json& selection) {
+    if (!enabled() || config.osm_file != "auto") {
         std::lock_guard lock(mutex_);
         state_ = enabled() ? "idle" : "off";
         return;
     }
     const std::filesystem::path cache = config.map_cache_dir;
     const double extent = config.map_city_extent_m;
-    const auto here = select_map_location(seed, extent);
+    const auto here = locate(seed);
     auto prepared = read_pointer(cache);
     // Worlds used before this one are over: their cities go, unless this world is in one of them again.
     std::vector<std::string> spent;
@@ -88,9 +102,10 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
         prepared = nullptr;
         if (std::find(spent.begin(), spent.end(), here.cache_key()) == spent.end()) spent.push_back(here.cache_key());
     }
-    // One prepared earlier and not yet used, for this size of city, stands; its city is fetched again if it went.
+    // One prepared earlier and not yet used, for this size of city and this policy, stands; its city is fetched again
+    // if it went. One prepared under another policy is replaced.
     std::optional<Seed128> next;
-    if (prepared.is_object() && prepared.value("extent_m", 0.0) == extent) {
+    if (matches(prepared, extent, selection)) {
         try {
             next = Seed128::from_decimal(prepared.value("seed", ""));
         } catch (const std::exception&) {
@@ -99,16 +114,16 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
     if (!next) {
         // Somewhere else: a new world in the same city would be no surprise.
         next = Seed128::secure64();
-        for (int tries = 0; tries < 64 && select_map_location(*next, extent).city == here.city; ++tries) next = Seed128::secure64();
+        for (int tries = 0; tries < 64 && locate(*next).city == here.city; ++tries) next = Seed128::secure64();
     }
-    const auto location = select_map_location(*next, extent);
+    const auto location = locate(*next);
     std::error_code ec;
     const auto file = location.cache_path(cache);
     const bool on_disk = std::filesystem::is_regular_file(file, ec) && std::filesystem::file_size(file, ec) > 0;
     // By value: the worker records too, long after this returns.
-    const auto record = [this, cache, location, extent, spent, seed = next->decimal()](const std::string& state) {
-        write(cache, {{"seed", seed}, {"city", location.city}, {"country", location.country}, {"key", location.cache_key()},
-                      {"extent_m", extent}, {"state", state}, {"spent", spent}});
+    const auto record = [this, cache, location, extent, spent, selection, seed = next->decimal()](const std::string& state) {
+        write(cache, {{"format", 2}, {"seed", seed}, {"city", location.city}, {"country", location.country}, {"key", location.cache_key()},
+                      {"extent_m", extent}, {"selection", selection}, {"source", "auto"}, {"state", state}, {"spent", spent}});
     };
     record(on_disk ? "ready" : "fetching");
     std::lock_guard lock(mutex_);
@@ -150,13 +165,15 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
     })});
 }
 
-std::optional<Seed128> NextWorld::take(const ScenarioConfig& config, const std::string& avoid_city, const std::string& current_city) const {
-    if (!enabled() || config.osm_file != "auto" || config.map_selection_version != "urban-crfg-v3") return std::nullopt;
+std::optional<Seed128> NextWorld::take(const ScenarioConfig& config, const Locate& locate, const nlohmann::json& selection,
+                                       const std::string& avoid_city, const std::string& current_city) const {
+    if (!enabled() || config.osm_file != "auto") return std::nullopt;
     const auto prepared = read_pointer(config.map_cache_dir);
-    const std::string on_its_way = prepared.is_object() ? prepared.value("city", "") : "";
+    const bool ours = matches(prepared, config.map_city_extent_m, selection);
+    const std::string on_its_way = ours ? prepared.value("city", "") : "";
     const auto spent = spent_of(prepared);
     std::optional<Seed128> next;
-    if (prepared.is_object() && prepared.value("extent_m", 0.0) == config.map_city_extent_m && on_its_way != avoid_city) {
+    if (ours && on_its_way != avoid_city) {
         try {
             next = Seed128::from_decimal(prepared.value("seed", ""));
         } catch (const std::exception&) {
@@ -176,7 +193,7 @@ std::optional<Seed128> NextWorld::take(const ScenarioConfig& config, const std::
     // ponytail: random draws until one lands in a cached city; with 181 cities, 4000 draws all but always find one.
     for (int tries = 0; !cached.empty() && tries < 4000; ++tries) {
         const auto seed = Seed128::secure64();
-        const auto location = select_map_location(seed, config.map_city_extent_m);
+        const auto location = locate(seed);
         if (location.city == avoid_city || location.city == current_city || location.city == on_its_way) continue;
         if (cached.contains(location.cache_path(cache).filename().string())) return seed;
     }

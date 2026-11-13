@@ -870,10 +870,30 @@ pub fn fresh_seed() -> String {
     u64::from_be_bytes(bytes).to_string()
 }
 
-/// The seed of the world Dynamic Fastboot prepared in this map cache, if there is one.
+/// The seed of the world Dynamic Fastboot prepared in this map cache, if there is one that a start from here can use.
+/// The launcher starts worlds under urban-crfg-v3 over every city, with the engine's default 5 km extract, so a seed
+/// prepared under another policy or extent (it would name a different city here), or in a pointer format newer than
+/// 2, is left alone. A pointer from before policies were recorded is urban-crfg-v3.
 pub fn prepared_seed(cache: &Path) -> Option<String> {
     let text = std::fs::read_to_string(cache.join("next-world.json")).ok()?;
-    let seed = serde_json::from_str::<Value>(&text).ok()?.get("seed")?.as_str()?.to_string();
+    let pointer = serde_json::from_str::<Value>(&text).ok()?;
+    if pointer.get("format").and_then(Value::as_u64).unwrap_or(1) > 2 {
+        return None;
+    }
+    if pointer.get("extent_m").and_then(Value::as_f64).is_some_and(|extent| extent != 5000.0) {
+        return None;
+    }
+    if let Some(selection) = pointer.get("selection") {
+        let empty = |key: &str| selection.get(key).and_then(Value::as_array).is_none_or(|list| list.is_empty());
+        let legacy = selection.get("policy").and_then(Value::as_str) == Some(MAP_SELECTION_VERSION)
+            && selection.get("mode").and_then(Value::as_str).unwrap_or("global") == "global"
+            && empty("countries")
+            && empty("cities");
+        if !legacy {
+            return None;
+        }
+    }
+    let seed = pointer.get("seed")?.as_str()?.to_string();
     (!seed.is_empty() && seed.chars().all(|c| c.is_ascii_digit())).then_some(seed)
 }
 
@@ -1038,6 +1058,17 @@ mod tests {
         assert_eq!(prepared_seed(&dir).as_deref(), Some("8675309"));
         std::fs::write(dir.join("next-world.json"), r#"{"seed": "not a number"}"#).unwrap();
         assert_eq!(prepared_seed(&dir), None, "only a seed it can use");
+        let pointer = |extra: &str| std::fs::write(dir.join("next-world.json"), format!(r#"{{"seed": "8675309", "extent_m": 5000, "state": "ready"{extra}}}"#)).unwrap();
+        pointer(r#", "format": 2, "selection": {"policy": "urban-crfg-v3", "mode": "global", "countries": [], "cities": [], "fingerprint": "sha256:x"}"#);
+        assert_eq!(prepared_seed(&dir).as_deref(), Some("8675309"), "prepared under the policy a start uses");
+        pointer(r#", "format": 2, "selection": {"policy": "urban-geo-v1", "mode": "fixed_city", "cities": ["berlin"]}"#);
+        assert_eq!(prepared_seed(&dir), None, "prepared under another policy: it would name another city here");
+        pointer(r#", "format": 2, "selection": {"policy": "urban-crfg-v3", "mode": "countries", "countries": ["IN"]}"#);
+        assert_eq!(prepared_seed(&dir), None, "a filtered selection is not the launcher's");
+        pointer(r#", "format": 3"#);
+        assert_eq!(prepared_seed(&dir), None, "a pointer format it does not know");
+        std::fs::write(dir.join("next-world.json"), r#"{"seed": "8675309", "extent_m": 8000}"#).unwrap();
+        assert_eq!(prepared_seed(&dir), None, "another extent");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

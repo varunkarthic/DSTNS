@@ -14,7 +14,7 @@ never be committed.
 | `config/launcher.env` | The first-launch setup | `DSTNS_SETUP_COMPLETE=1` | Yes; the setup runs again |
 | `logs/command-history` | The command bar | The last 500 command lines | Yes |
 | `logs/preparation-times.json` | The server, after each world | How long fetching and building took, for the ETA | Yes; estimates start from defaults |
-| `data/maps/next-world.json` | The server, with Dynamic Fastboot | The next world's seed and city, and whether it is on disk | Yes; another is chosen |
+| `data/maps/next-world.json` | The server, with Dynamic Fastboot | The next world's seed and city, the selection policy and extent it was prepared for, and whether it is on disk | Yes; another is chosen |
 | `logs/` | launcher and server | Logs, journal and credential (below) | Yes, with the server stopped; `./launcher reset` does it for you |
 | `data/maps/` | the server | Cached city extracts and manifests | Yes; they are downloaded again when needed |
 | `data/fixtures/` | repository | One recorded real district for offline use | No; tracked |

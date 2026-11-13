@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.2.1 LANGUAGES CXX)
+project(dstns VERSION 3.3.0 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -194,6 +194,12 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_lifecycle_ng_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_lifecycle_ng COMMAND dstns_lifecycle_ng_tests)
   set_tests_properties(dstns_lifecycle_ng PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 600)
+
+  add_executable(dstns_next_world_ng_tests tests/unit/next_world_ng_tests.cpp)
+  target_link_libraries(dstns_next_world_ng_tests PRIVATE dstns_core_ng)
+  target_compile_options(dstns_next_world_ng_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_next_world_ng COMMAND dstns_next_world_ng_tests)
+  set_tests_properties(dstns_next_world_ng PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_executable(dstns_golden_tests tests/unit/golden_tests.cpp)
   target_link_libraries(dstns_golden_tests PRIVATE dstns_core dstns_core_ng)
