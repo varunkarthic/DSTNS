@@ -426,7 +426,7 @@
     }
     function flip(set, v) { if (set.has(v)) set.delete(v); else set.add(v); refilter(); renderPane(); }
     function section(title, body, aside) { return el("section", { class: "dg-section" }, [el("h3", { class: "dg-section-title" }, [el("span", { text: title }), aside || null]), body]); }
-    var folder = el("input", { class: "dg-field", type: "search", placeholder: "For example Core/src", "aria-label": "Only inside a folder", spellcheck: "false" });
+    var folder = el("input", { class: "dg-field", type: "search", placeholder: "For example Core/core-legacy/src", "aria-label": "Only inside a folder", spellcheck: "false" });
     folder.addEventListener("input", function () { state.folder = folder.value.trim().toLowerCase().replace(/^\.?\//, ""); refilter(); });
     function renderExplore() {
       var biggest = Math.max.apply(null, data.areas.map(function (v) { return areaCount[v] || 0; }));

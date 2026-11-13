@@ -12,7 +12,7 @@ use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::Path;
 
-/// The engine refuses anything faster (kMaxTickRate in Core/include/dstns/model.hpp).
+/// The engine refuses anything faster (kMaxTickRate in Core/core-legacy/include/dstns/model.hpp).
 pub const MAX_TICK_RATE: f64 = 10.0;
 pub const MAP_SELECTION_VERSION: &str = "urban-crfg-v3";
 

@@ -1,21 +1,30 @@
-# v3 modular engine migration plan
+# v3 core-ng migration plan
 
-Status: **plan, release 0**. The engine behaviour does not change in release 0.
+Status: **releases 0–1 done**; release 2 next.
 
 Baseline: `v3` at `d29a2f6` (source) / `b828aa6` (graph). Engine `3.0.0`, observer `3.1.0`, API contract `1.4`,
 map selection `urban-crfg-v3`, algorithms `DSTNS/1`.
 
 ## 1. Goal
 
-Build a new, modular engine beside the current engine. Move one responsibility at a time from the current engine
+Build a next-generation engine, **core-ng**, beside the current engine, **core-legacy**. Move one responsibility at a time from the current engine
 into the new modules. The operator selects the engine in the launcher. The current engine stays the default until
 the new engine gives identical hashes for every golden fixture. We do not replace the engine in one operation.
 
 ## 2. How the two engines live together
 
+Work is on the branch `v3-core-ng`. Source layout:
+
+| Path | Contents |
+|---|---|
+| `Core/core-legacy/{src,include}` | The current engine, moved unchanged in 3.0.1. Library `dstns_core` |
+| `Core/core-ng/{src,include}` | The new engine. Headers under `dstns/core-ng/`, C++ namespace `dstns::core_ng`. Library `dstns_core_ng`, which may call `dstns_core` until each part has moved |
+| `Core/server` | The process entry. It hosts both engines |
+
+
 | Setting (launcher) | Values | Default | Effect |
 |---|---|---|---|
-| `engine.implementation` | `legacy`, `modular` | `legacy` | Which code path prepares worlds and steps physics. Sent to the server in the start request |
+| `engine.implementation` | `core-legacy`, `core-ng` | `core-legacy` | Which code path prepares worlds and steps physics. Sent to the server in the start request |
 | `map.selection_policy` | `urban-crfg-v3`, `urban-geo-v1` | `urban-crfg-v3` | Which city-selection policy resolves the seed |
 | `map.selection_mode` | `global`, `countries`, `cities`, `fixed_city` | `global` | Only for `urban-geo-v1` |
 | `map.countries`, `map.cities` | canonical IDs (ISO 3166-1 alpha-2, city slug) | empty | Only for `urban-geo-v1` |
@@ -23,12 +32,12 @@ the new engine gives identical hashes for every golden fixture. We do not replac
 
 Rules:
 
-- `legacy` is frozen code. We fix only defects in it, each as a separately versioned patch.
-- Each release moves one responsibility into a `modular` module. A parity test runs the same golden inputs through
+- `core-legacy` is frozen code. We fix only defects in it, each as a separately versioned patch.
+- Each release moves one responsibility into `core-ng`. A parity test runs the same golden inputs through
   both engines and requires identical `map_hash`, `graph_hash`, `event_hash`, `scenario_hash` and snapshots.
 - A release that cannot reach parity does not ship. A deliberate behaviour change gets a new policy or algorithm ID.
-- When every responsibility has moved and parity holds, `modular` becomes the default (a MINOR release).
-  We remove `legacy` only with operator approval (a MAJOR decision).
+- When every responsibility has moved and parity holds, `core-ng` becomes the default (a MINOR release).
+  We remove `core-legacy` only with operator approval (a MAJOR decision).
 
 ## 3. Dependency map (current)
 
@@ -53,7 +62,7 @@ Callers of `select_map_location` (graph, confirmed in source): `ScenarioCompiler
 The literal `urban-crfg-v3` is checked in `scenario.cpp:42`, `Fabric/src/support.cpp:299`, `LaunchKit/src/config.rs`,
 `LaunchKit/src/seeds.rs` and `LaunchKit/src/state.rs` (launch codes).
 
-## 4. Proposed interfaces (new module `Core/src/world/`)
+## 4. Proposed interfaces (`Core/core-ng`, namespace `dstns::core_ng`)
 
 ```cpp
 struct SelectionPolicy {            // value type, parsed and checked at the API boundary
@@ -77,7 +86,7 @@ Later modules (one per release): `MapAcquirer` (cache + fetch), `DistrictBuilder
 (signals, demand, trips, weather, incidents, hashes), `WorldPreparation` (state machine below), `PhysicsStep`,
 `CheckpointStore`. No plugin framework, no class hierarchy: free functions and value types where possible.
 
-## 5. World preparation state machine (modular engine)
+## 5. World preparation state machine (core-ng)
 
 Internal states. The existing API values (`idle`, `generating`, `staged`, `ready`, `failed`) map from them.
 
@@ -106,7 +115,7 @@ fields matches only the legacy policy, so old files stay safe. LaunchKit's `prep
 
 ## 7. Compatibility matrix
 
-| Input | Legacy engine | Modular engine |
+| Input | core-legacy | core-ng |
 |---|---|---|
 | seed only, `urban-crfg-v3` | same city, anchor and hashes as 3.0.0 | identical to legacy (parity test) |
 | seed + `urban-geo-v1` policy | refused with `UNSUPPORTED_SELECTION_POLICY` | new result, identified by seed + policy fingerprint |
@@ -118,16 +127,18 @@ fields matches only the legacy policy, so old files stay safe. LaunchKit's `prep
 
 | # | Scope | Versions | Evidence |
 |---|---|---|---|
-| 0 | Baseline, this plan, golden fixtures (seed → city/anchor; grid and bundled-OSM hashes) | none (tests and docs only) | baseline green; fixtures match current code |
-| 1 | Launcher settings: `engine.implementation`, selection settings (only `urban-crfg-v3` accepted by the server yet) | launcher patch/minor | cargo tests; start request unchanged for defaults |
-| 2 | `world/selection`: `SelectionPolicy`, legacy policy through the new interface; `engine` field accepted | engine 3.0.1 | golden selection fixtures unchanged |
-| 3 | `urban-geo-v1` policy, validation, manifest fields, API 1.5 | engine 3.1.0, API 1.5 | determinism, empty/invalid sets, fingerprint stability |
-| 4 | Label language fallback in WebKit | observer 3.2.0 | raw names intact; graph and replay hashes unchanged |
-| 5 | World preparation and Fastboot guards (table above) | engine 3.1.x | cancel/restart/stale-pointer tests |
-| 6 | Scenario compile split into modules, modular path | engine 3.1.x | parity: identical hashes, both engines |
-| 7 | Physics step and checkpoint store, modular path | engine 3.1.x | byte-equal snapshots, both engines |
+| 0 | Baseline, this plan, golden fixtures (seed → city/anchor; grid and bundled-OSM hashes and snapshots) | ships in 3.0.1 | baseline green; fixtures match engine 3.0.0 |
+| 1 | Move the engine to `Core/core-legacy` | engine 3.0.1 | golden fixtures unchanged; full suite green |
+| 2 | `Core/core-ng` library; `engine.implementation` end to end (launcher setting, start request, server, manifest); core-ng map selection through `SelectionPolicy`, legacy policy only | engine 3.1.0, API 1.5, launcher | golden fixtures pass on both engines |
+| 3 | `urban-geo-v1` policy, validation, manifest fields; launcher selection settings | engine 3.2.0, API 1.6 | determinism, empty/invalid sets, fingerprint stability |
+| 4 | Label language fallback in WebKit; `ui.label_language` | observer 3.2.0 | raw names intact; graph and replay hashes unchanged |
+| 5 | World preparation and Fastboot guards (table above), core-ng | engine patch | cancel/restart/stale-pointer tests |
+| 6 | Scenario compile split into core-ng modules | engine patch | parity: identical hashes, both engines |
+| 7 | Physics step and checkpoint store in core-ng | engine patch | byte-equal snapshots, both engines |
 | 8+ | One measured optimisation per release (checkpoint memory first) | patch each | before/after benchmark table |
-| last | `modular` becomes default; docs, Fabric, WebKit, end-to-end | engine 3.2.0 | full start, regenerate, observe, save, replay |
+| last | `core-ng` becomes default; docs, Fabric, WebKit, end-to-end | engine minor | full start, regenerate, observe, save, replay |
+
+The launcher offers a setting only from the release in which the server honours it.
 
 Each release: local `./scripts/test.sh` green, version and `CHANGELOG.md` in the same commits, push to the migration
 branch, CI dispatched (`gh workflow run ci.yml --ref <branch>`) and green, graph rebuilt locally. Integration into
@@ -146,4 +157,4 @@ branch, CI dispatched (`gh workflow run ci.yml --ref <branch>`) and green, graph
 ## 10. Rollback
 
 Each release is a set of commits on the migration branch with a recorded green SHA. A failed release is reverted
-with revert commits. At run time the operator sets `engine.implementation` back to `legacy`.
+with revert commits. At run time the operator sets `engine.implementation` back to `core-legacy`.

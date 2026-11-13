@@ -1,9 +1,9 @@
 # Buildings and places
 
 Places are the mapped features that drive demand: schools, offices, shops,
-stops and so on. Source: `MapFeature` (`Core/include/dstns/model.hpp`), place
-classification and demand (`Core/include/dstns/demand.hpp`, `Core/src/demand.cpp`), and
-coupling (`Core/src/events.cpp`).
+stops and so on. Source: `MapFeature` (`Core/core-legacy/include/dstns/model.hpp`), place
+classification and demand (`Core/core-legacy/include/dstns/demand.hpp`, `Core/core-legacy/src/demand.cpp`), and
+coupling (`Core/core-legacy/src/events.cpp`).
 
 ## Where places come from
 

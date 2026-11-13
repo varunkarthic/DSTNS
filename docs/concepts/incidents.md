@@ -20,7 +20,7 @@ how to observe them.
 
 ## Planning
 
-`ScenarioCompiler::plan_incidents` (`Core/src/scenario.cpp`) runs once per compile.
+`ScenarioCompiler::plan_incidents` (`Core/core-legacy/src/scenario.cpp`) runs once per compile.
 
 ### How many
 

@@ -14,13 +14,25 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-11-13
+
+**Engine 3.0.1, observer 3.1.0, API contract 1.4.** Results for a seed are unchanged: the golden fixtures pass.
+
+### Changed
+
+- The engine's sources moved from `Core/src` and `Core/include` to `Core/core-legacy/src` and
+  `Core/core-legacy/include`, to make room for the next-generation engine in `Core/core-ng`. `Core/server`, the
+  process entry, stays where it is and will host both. Include names (`dstns/engine.hpp`) and every behaviour,
+  route and hash are unchanged. Rollback: revert this release's commit.
+
 ### Added
 
 - Golden fixtures (`tests/fixtures/golden.json`, test `dstns_golden`). They freeze the city, country and bit-exact
-  anchor of 75 seeds under `urban-crfg-v3`, and the compile hashes and the runtime snapshot at 03:25:45 of seeds 42
-  and 382923 on a 7×7 grid and on the bundled district. A later change that alters any of them fails the test.
+  anchor of 75 seeds under `urban-crfg-v3`, and the compile hashes of seeds 42 and 382923 on a 7×7 grid and on the bundled
+  district, the same on every platform. It also freezes the runtime snapshot at 03:25:45 for each platform
+  (macOS arm64, Linux x86_64): physics uses `sin` and `exp`, whose last bit can differ between C libraries. A later change that alters any of them fails the test.
   Results are unchanged. The values were recorded from engine 3.0.0 (`d29a2f6`).
-- A plan for the modular engine migration (`docs/design/v3-modular-migration.md`). It does not change behaviour.
+- A plan for the modular engine migration (`docs/design/v3-core-ng-migration.md`). It does not change behaviour.
 
 ## [3.0.0] - 2026-11-12
 

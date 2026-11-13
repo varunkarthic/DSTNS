@@ -11,7 +11,7 @@ described here so that they can be reasoned about as a whole.
 
 ### Engine lifecycle (explicit)
 
-`Lifecycle` in `Core/include/dstns/engine.hpp`; every change goes through `SimulationEngine::transition`, which
+`Lifecycle` in `Core/core-legacy/include/dstns/engine.hpp`; every change goes through `SimulationEngine::transition`, which
 mirrors the state for lock-free health reads, raises the playback revision and logs the change. The state is
 reported as `data.lifecycle` by `GET /api/v1/fabric/engine/status`.
 
@@ -57,7 +57,7 @@ stateDiagram-v2
 
 ### World generation job (explicit, strings)
 
-`WorldJob` in `Core/src/engine.cpp`; reported by `GET /api/v1/world/status`. It runs beside the lifecycle:
+`WorldJob` in `Core/core-legacy/src/engine.cpp`; reported by `GET /api/v1/world/status`. It runs beside the lifecycle:
 the current world keeps running while the next is prepared.
 
 ```mermaid
@@ -85,7 +85,7 @@ the start-up film's progress.
 
 ### Adaptive Simulation Backpressure (explicit)
 
-`AsbState` in `Core/include/dstns/asb.hpp`, reported as `asb.state`.
+`AsbState` in `Core/core-legacy/include/dstns/asb.hpp`, reported as `asb.state`.
 
 ```mermaid
 stateDiagram-v2
@@ -102,7 +102,7 @@ reports RESTRICTED (`restriction: "jump"`) while it lasts without changing the s
 ### Incidents (implicit)
 
 Each incident is **scheduled** until its start time, **active** until its end time, then **resolved**: two timed
-events in `Core/src/events.cpp`, so a seek backwards returns it to scheduled or active exactly as the day had it.
+events in `Core/core-legacy/src/events.cpp`, so a seek backwards returns it to scheduled or active exactly as the day had it.
 `IncidentLifecycle` in `model.hpp` names the same three states for the API contract; the engine derives them from the
 clock rather than storing them.
 

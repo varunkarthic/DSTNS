@@ -57,27 +57,28 @@ holds simulation state of its own; both read what the core publishes.
 | Path | Contents |
 |---|---|
 | `Core/server/main.cpp` | Process entry: flags, operator credential, cache sweep, engine and API start-up |
-| `Core/` | The core library `dstns_core` (engine, scenario, OSM, events, ASB)
+| `Core/core-legacy/` | The current engine, `core-legacy`: the core library `dstns_core` (engine, scenario, OSM, events, ASB). Frozen apart from fixes while `core-ng` replaces it |
+| `Core/core-ng/` | The next-generation engine, `core-ng`, built module by module beside `core-legacy`. See [the migration plan](../design/v3-core-ng-migration.md) |
 | `Fabric/` | The HTTP API library `dstns_fabric`, one route module per API group |
-| `Core/src/engine.cpp` | `SimulationEngine`: lifecycle, clock, physics step, checkpoints, controls, undo/redo, views |
+| `Core/core-legacy/src/engine.cpp` | `SimulationEngine`: lifecycle, clock, physics step, checkpoints, controls, undo/redo, views |
 | `Fabric/src/` | `ApiServer`: every HTTP route, request validation, error mapping, CSRF guard |
-| `Core/src/scenario.cpp` | `ScenarioCompiler`: seed and config to a complete `Scenario` (graph, signals, stops, trips, weather, incidents) |
-| `Core/src/osm.cpp` | `OsmRoadLoader`: OSM XML to a connected, canonically numbered road graph and its places |
-| `Core/src/osm_fetch.cpp`, `osm_download.cpp` | On-demand map download, run as `dstns_server --fetch-osm` in a process of its own, progress, cache sweep |
-| `Core/src/geo.cpp` | The 181-city catalogue and seed-to-location resolution |
-| `Core/src/graph.cpp` | `GraphStore` (static graph plus per-tick dynamic arrays) and `RoutePlanner` (A*) |
-| `Core/src/events.cpp` | `EventRuntime`: signal controller heap, demand schedule, couplings, event history |
-| `Core/src/demand.cpp` | Place taxonomy, diurnal demand curves, demand couplings, bus-stop thinning |
-| `Core/src/asb.cpp` | Adaptive Simulation Backpressure |
-| `Core/src/rng.cpp` | `Seed128`, SHA-256 sub-seed derivation, counter-based Philox RNG |
-| `Core/src/sumo_bridge.cpp` | SUMO detection, export, `netconvert` and `sumo` invocation |
-| `Core/src/logging.cpp` | `RuntimeLogger`: text system log and SQLite runtime journal |
-| `Core/src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
+| `Core/core-legacy/src/scenario.cpp` | `ScenarioCompiler`: seed and config to a complete `Scenario` (graph, signals, stops, trips, weather, incidents) |
+| `Core/core-legacy/src/osm.cpp` | `OsmRoadLoader`: OSM XML to a connected, canonically numbered road graph and its places |
+| `Core/core-legacy/src/osm_fetch.cpp`, `osm_download.cpp` | On-demand map download, run as `dstns_server --fetch-osm` in a process of its own, progress, cache sweep |
+| `Core/core-legacy/src/geo.cpp` | The 181-city catalogue and seed-to-location resolution |
+| `Core/core-legacy/src/graph.cpp` | `GraphStore` (static graph plus per-tick dynamic arrays) and `RoutePlanner` (A*) |
+| `Core/core-legacy/src/events.cpp` | `EventRuntime`: signal controller heap, demand schedule, couplings, event history |
+| `Core/core-legacy/src/demand.cpp` | Place taxonomy, diurnal demand curves, demand couplings, bus-stop thinning |
+| `Core/core-legacy/src/asb.cpp` | Adaptive Simulation Backpressure |
+| `Core/core-legacy/src/rng.cpp` | `Seed128`, SHA-256 sub-seed derivation, counter-based Philox RNG |
+| `Core/core-legacy/src/sumo_bridge.cpp` | SUMO detection, export, `netconvert` and `sumo` invocation |
+| `Core/core-legacy/src/logging.cpp` | `RuntimeLogger`: text system log and SQLite runtime journal |
+| `Core/core-legacy/src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
 | `WebKit/` | The observer: React 19, Vite, Vitest, jsPDF |
 | `LaunchKit/` | The launcher, in Rust: command line, console and its tools (`inspect.rs`), terminal interface (ratatui) and Simplified Launch Control, compatibility mode, application supervisor, the MCP Handler, Advanced Security (`security.rs`, with `assets/verify.swift`), the launcher's model for plain-word requests (`assistant.rs`) and its side of the daemons (`daemons.rs`) |
 | `CoreAI/` | DSTNS's model layer, in Rust: every provider (Apple's Foundation Models, Ollama, LM Studio, Anthropic, OpenAI, Gemini, Groq, Mistral, OpenRouter, Hugging Face, any Chat Completions server), their keys, typed errors and fallback, and a token-guarded service on 127.0.0.1 for the engine's news ([CoreAI](../components/coreai.md)) |
 | `launcher` | Builds the launcher when its sources change, then runs it |
-| `Core/src/next_world.cpp` | Dynamic Fastboot: the next world chosen and its city fetched while this one runs |
+| `Core/core-legacy/src/next_world.cpp` | Dynamic Fastboot: the next world chosen and its city fetched while this one runs |
 | `Daemon/` | The daemons, `dstns_daemon`: the handler, the gateway and its two queues, the Resource Control Subsystem, the memory, disk and stall watchers, the auto cache handler, process and machine readings, and `messages.json`, the templates every message is made from. See [the daemons](../guide/daemons.md) |
 | `Fabric/src/routes_daemon.cpp` | `/api/v1/daemon/…`: the open overview, the queues, acknowledgement, and turning daemons on and off |
 | `tools/release/` | `dstns_release`: image metadata, publishing, the image smoke test and licence headers |

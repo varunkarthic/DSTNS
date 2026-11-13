@@ -2,12 +2,12 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.0.0 LANGUAGES CXX)
+project(dstns VERSION 3.0.1 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
 set(DSTNS_CHANNEL "local" CACHE STRING "Release channel")
-configure_file(Core/include/dstns/build_info.hpp.in generated/dstns/build_info.hpp @ONLY)
+configure_file(Core/core-legacy/include/dstns/build_info.hpp.in generated/dstns/build_info.hpp @ONLY)
 
 option(DSTNS_BUILD_TESTS "Build DSTNS tests" ON)
 option(DSTNS_ENABLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
@@ -59,9 +59,9 @@ else()
 endif()
 
 add_library(dstns_core
-  Core/src/rng.cpp Core/src/utf8.cpp Core/src/graph.cpp Core/src/asb.cpp Core/src/demand.cpp Core/src/geo.cpp Core/src/osm.cpp Core/src/osm_fetch.cpp Core/src/osm_download.cpp Core/src/scenario.cpp Core/src/engine.cpp Core/src/events.cpp Core/src/logging.cpp Core/src/sumo_bridge.cpp
-  Core/src/narrator.cpp Core/src/platform.cpp Core/src/next_world.cpp)
-target_include_directories(dstns_core PUBLIC Core/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
+  Core/core-legacy/src/rng.cpp Core/core-legacy/src/utf8.cpp Core/core-legacy/src/graph.cpp Core/core-legacy/src/asb.cpp Core/core-legacy/src/demand.cpp Core/core-legacy/src/geo.cpp Core/core-legacy/src/osm.cpp Core/core-legacy/src/osm_fetch.cpp Core/core-legacy/src/osm_download.cpp Core/core-legacy/src/scenario.cpp Core/core-legacy/src/engine.cpp Core/core-legacy/src/events.cpp Core/core-legacy/src/logging.cpp Core/core-legacy/src/sumo_bridge.cpp
+  Core/core-legacy/src/narrator.cpp Core/core-legacy/src/platform.cpp Core/core-legacy/src/next_world.cpp)
+target_include_directories(dstns_core PUBLIC Core/core-legacy/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib CURL::libcurl)
 if(APPLE)
   target_link_libraries(dstns_core PUBLIC "-framework CoreFoundation" "-framework CFNetwork")
