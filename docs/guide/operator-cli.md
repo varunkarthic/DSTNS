@@ -410,8 +410,8 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `set`, `unset`, `env set\|unset`, `edit`, `api` | The console's tools for changing things: a setting, a kept variable, a file in your editor, any route. See [the console](console.md) |
 | `ask "REQUEST"` | A request in plain words as a line of commands, printed and never run, or a question about DSTNS answered with its sources; `ask new` starts a new conversation; see [Asking in plain words](#asking-in-plain-words) |
 | `model [use PROVIDER [NAME]\|list\|key PROVIDER KEY\|forget PROVIDER\|test]` | The launcher's model, through [CoreAI](../components/coreai.md): Apple's Foundation Models, a local model server or a cloud provider |
-| `launch-code [--world] [--keys]` | This launcher as one code; `./launcher launch CODE` elsewhere starts the same, from where it was; see [Launch codes](#launch-codes) |
-| `state [get [--world]\|set CODE]` | The same code without the keys, and applying one without starting; see [Launch codes](#launch-codes) |
+| `launch-code [--world] [--keys] [--copy]` | This launcher as one code in blocks of four, with what it carries; `--copy` puts it on the clipboard; `./launcher launch CODE` elsewhere starts the same, from where it was; see [Launch codes](#launch-codes) |
+| `state [get [--world]\|show CODE\|set CODE]` | The same code without the keys, on one line for scripts; what a code carries without applying it; applying one without starting; see [Launch codes](#launch-codes) |
 | `daemon [show NAME\|on NAME\|off NAME\|queue emergency\|notification]` | The server's [daemons](daemons.md) |
 | `security [on\|off\|verify]` | [Advanced Security](#advanced-security) |
 | `reset [SCOPE...] [--yes]` | Reset by scope (see [Reset scopes](#reset-scopes)). Alone, it resets everything except connected applications and their settings. It lists what it will reset and asks first; without a terminal it needs `--yes`; it refuses while a server is running |
@@ -787,11 +787,19 @@ become the same, and to carry straight on from where this one was.
 ./launcher launch-code                  # the settings
 ./launcher launch-code --world          # and the world, where it is now
 ./launcher launch-code --world --keys   # and the API keys, sealed with a passphrase
+./launcher launch-code --copy           # and on the clipboard
+./launcher state show CODE              # what a code carries, applying nothing
 ./launcher launch CODE                  # become that launcher and start, from where it was
 ```
 
-`state get` prints the same code as `launch-code`, `state set CODE` applies it without starting,
-and `./launcher --state CODE` applies it before any other command.
+`launch-code` prints the code in blocks of four (`0278-DA4D-…`), then what it carries: each setting by its label,
+the world's seed, day, moment, map rules and engine, and the names of any sealed keys. A reader ignores the dashes,
+spaces and line breaks, so a code works however it was copied or wrapped. The Tasks screen's **Copy a launch code**
+does the same, with the running world when there is one.
+
+`state get` prints the same code on one line, for scripts. `state set CODE` applies a code without starting, and
+`./launcher --state CODE` applies it before any other command. A code with a world sets the engine that made the
+world, so a world started with `--engine core-ng` comes back on core-ng.
 
 | Part | What it carries |
 |---|---|

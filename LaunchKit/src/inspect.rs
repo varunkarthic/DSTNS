@@ -695,17 +695,19 @@ pub fn run(name: &str, rest: &[String], input: Option<&[String]>, paths: &Paths)
         "launch-code" => {
             let world = rest.iter().any(|w| w == "--world");
             let keys = rest.iter().any(|w| w == "--keys");
-            let unknown: Vec<&String> = rest.iter().filter(|w| *w != "--world" && *w != "--keys").collect();
+            let copy = rest.iter().any(|w| w == "--copy");
+            let unknown: Vec<&String> = rest.iter().filter(|w| !["--world", "--keys", "--copy"].contains(&w.as_str())).collect();
             if !unknown.is_empty() {
-                return Some(Err(format!("launch-code: {}? launch-code [--world] [--keys]", unknown.iter().map(|w| w.as_str()).collect::<Vec<_>>().join(" "))));
+                return Some(Err(format!("launch-code: {}? launch-code [--world] [--keys] [--copy]", unknown.iter().map(|w| w.as_str()).collect::<Vec<_>>().join(" "))));
             }
             let sealed = if keys { match crate::state::passphrase("A passphrase to seal the API keys in this code: ", true) { Ok(p) => Some(p), Err(e) => return Some(Err(e)) } } else { None };
-            crate::state::launch_code(paths, world, sealed.as_deref()).map(|code| vec![code])
+            crate::state::launch_code_lines(paths, world, sealed.as_deref(), copy)
         }
         "state" => match rest.first().map(String::as_str) {
             None | Some("get") => crate::state::get(paths, rest.iter().any(|w| w == "--world")).map(|code| vec![code]),
             Some("set") => crate::state::set(paths, &rest[1..].join("")),
-            Some(other) => Err(format!("state: {other}? state get [--world] or state set CODE")),
+            Some("show") => crate::state::show(&rest[1..].join("")),
+            Some(other) => Err(format!("state: {other}? state get [--world], state show CODE or state set CODE")),
         },
         "model" => model_command(rest, paths),
         "daemon" | "daemons" => daemon_command(rest, paths),

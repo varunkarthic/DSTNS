@@ -14,6 +14,30 @@ only within one version.
 
 ## [Unreleased]
 
+## [Launcher 3.5.0] - 2026-11-13
+
+**Engine 3.5.0, launcher 3.5.0, observer 3.1.0, API contract 1.6.** No engine change.
+
+### Added
+
+- Easier launch codes (#19):
+  - `launch-code` prints the code in blocks of four, then what it carries: settings by label, the world, and the
+    names of any sealed keys. `--copy` puts the code on the clipboard (pbcopy, wl-copy, xclip, xsel or clip.exe).
+  - `state show CODE` says what a code carries without applying it.
+  - On the Tasks screen, **Copy a launch code** makes a code (with the running world when there is one), copies it
+    and shows what it carries.
+
+  `state get` still prints one line for scripts. Codes made before this release still read.
+
+### Fixed
+
+- A launch code with a running world took its map rules from the settings, not from the world. It now takes them
+  from the server's status.
+- A launch code's world did not record its engine, so a world started with `--engine core-ng` came back on
+  core-legacy. The world now carries its engine, and applying the code sets `engine.implementation` to it.
+
+Rollback: revert this release's commit. Codes made by this release still read, without the world's engine.
+
 ## [Launcher 3.4.0] - 2026-11-13
 
 **Engine 3.5.0, launcher 3.4.0, observer 3.1.0, API contract 1.6.** No engine change.

@@ -201,14 +201,94 @@ fn world(paths: &Paths, config: &Value) -> Option<Value> {
                         .collect()
                 })
                 .unwrap_or_default();
-            return Some(json!({"seed": status.seed, "day": day, "at": status.virtual_seconds.floor() as u64, "maps": maps(config), "playing": playing, "rate": rate, "changes": changes}));
+            // The rules and the engine the world was made by, as the server reports them, not as the settings are now.
+            let made_by = |key: &str| data.get(key).filter(|v| v.as_str().is_some_and(|s| !s.is_empty())).cloned();
+            return Some(json!({"seed": status.seed, "day": day, "at": status.virtual_seconds.floor() as u64, "maps": made_by("map_selection_version").unwrap_or_else(|| maps(config)),
+                               "engine": made_by("engine").unwrap_or_else(|| config::setting(config, "engine.implementation")), "playing": playing, "rate": rate, "changes": changes}));
         }
     }
     let seed = config.get("seed").and_then(|s| s.as_str()).filter(|s| !s.is_empty() && *s != "auto")?;
-    Some(json!({"seed": seed, "day": config.get("day").cloned().unwrap_or(json!(0)), "at": 0, "maps": maps(config)}))
+    Some(json!({"seed": seed, "day": config.get("day").cloned().unwrap_or(json!(0)), "at": 0, "maps": maps(config), "engine": config::setting(config, "engine.implementation")}))
 }
 
 /// This launcher's state as a code, with the world if asked.
+/// A code in blocks of four, to read aloud or copy by eye. Any reader ignores the dashes.
+pub fn grouped(code: &str) -> String {
+    code.as_bytes().chunks(4).map(|c| std::str::from_utf8(c).unwrap_or("")).collect::<Vec<_>>().join("-")
+}
+
+/// What a code carries, in words, before anything is applied.
+pub fn preview(state: &Value) -> Vec<String> {
+    let mut out = vec![];
+    let settings = state.get("settings").and_then(|s| s.as_object()).cloned().unwrap_or_default();
+    if settings.is_empty() {
+        out.push("Settings: every one at its default.".into());
+    } else {
+        out.push(format!("Settings that differ from the defaults ({}):", settings.len()));
+        for (key, value) in &settings {
+            match config::field(key) {
+                Some(field) => out.push(format!("  {} ({}): {}", field.label, field.category, field.display(value))),
+                None => out.push(format!("  {key}: {value} (not a setting here)")),
+            }
+        }
+    }
+    if let Some(world) = state.get("world") {
+        let at = world["at"].as_u64().unwrap_or(0);
+        out.push(format!(
+            "World: seed {}, a {}, at {}, {} on {}{}.",
+            world["seed"].as_str().unwrap_or("?"),
+            if world["day"] == 1 { "weekend" } else { "weekday" },
+            clock(at),
+            world["maps"].as_str().unwrap_or(config::MAP_SELECTION_VERSION),
+            world["engine"].as_str().unwrap_or("core-legacy"),
+            world["changes"].as_array().filter(|c| !c.is_empty()).map(|c| format!(", with {} change{} made by hand", c.len(), if c.len() == 1 { "" } else { "s" })).unwrap_or_default()
+        ));
+    }
+    if let Some(keys) = state.get("keys") {
+        let names: Vec<&str> = keys["names"].as_array().map(|n| n.iter().filter_map(|v| v.as_str()).collect()).unwrap_or_default();
+        out.push(format!("API keys, sealed with a passphrase: {}.", names.join(", ")));
+    }
+    out
+}
+
+/// Decode a code and say what it carries, applying nothing.
+pub fn show(code: &str) -> Result<Vec<String>, String> {
+    decode(code).map(|state| preview(&state))
+}
+
+/// Put text on the system clipboard with the first tool this system has. Returns the tool's name.
+pub fn copy(text: &str) -> Result<&'static str, String> {
+    let tools: &[(&str, &[&str])] = &[("pbcopy", &[]), ("wl-copy", &[]), ("xclip", &["-selection", "clipboard"]), ("xsel", &["--clipboard", "--input"]), ("clip.exe", &[])];
+    for (tool, arguments) in tools {
+        let Some(program) = crate::process::which(tool) else { continue };
+        let child = std::process::Command::new(program).args(*arguments).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn();
+        if let Ok(mut child) = child {
+            if let Some(mut input) = child.stdin.take() {
+                let _ = input.write_all(text.as_bytes());
+            }
+            if child.wait().map(|s| s.success()).unwrap_or(false) {
+                return Ok(tool);
+            }
+        }
+    }
+    Err("No clipboard tool was found (pbcopy, wl-copy, xclip, xsel or clip.exe); copy the code from above.".into())
+}
+
+/// launch-code: the code in blocks, then what it carries, and on the clipboard if asked.
+pub fn launch_code_lines(paths: &Paths, with_world: bool, keys_passphrase: Option<&str>, to_clipboard: bool) -> Result<Vec<String>, String> {
+    let code = launch_code(paths, with_world, keys_passphrase)?;
+    let mut out = vec![grouped(&code), String::new()];
+    out.extend(preview(&decode(&code)?));
+    if to_clipboard {
+        out.push(match copy(&code) {
+            Ok(tool) => format!("Copied to the clipboard ({tool})."),
+            Err(why) => why,
+        });
+    }
+    out.push("Use it elsewhere with: ./launcher launch CODE (or state show CODE to look first).".into());
+    Ok(out)
+}
+
 pub fn get(paths: &Paths, with_world: bool) -> Result<String, String> {
     launch_code(paths, with_world, None)
 }
@@ -261,6 +341,15 @@ pub fn set(paths: &Paths, code: &str) -> Result<Vec<String>, String> {
         let seed = world["seed"].as_str().ok_or("The code's world has no seed.")?;
         crate::config::normalise_seed(seed).map_err(|e| e.message)?;
         config["day"] = world["day"].clone();
+        // The world runs on the engine that made it (a run may have chosen one with --engine).
+        if let Some(engine) = world["engine"].as_str().filter(|e| config::ENGINES.contains(e)) {
+            if config::setting(&config, "engine.implementation") != json!(engine) {
+                if let Some(field) = config::field("engine.implementation") {
+                    field.set(&mut config, json!(engine));
+                    out.push(format!("Its world runs on {engine}, so the engine is now {engine}."));
+                }
+            }
+        }
         if world["maps"] != maps(&config) {
             out.push(format!("Its world was made by other map rules ({}); this launcher may choose another city for that seed.", world["maps"].as_str().unwrap_or("unknown")));
         }
@@ -444,6 +533,7 @@ mod tests {
 
     #[test]
     fn settings_go_from_one_launcher_to_another() {
+        let _environment = crate::paths::test_environment();
         let root = |n: &str| std::env::temp_dir().join(format!("dstns-state-{n}-{}", std::process::id()));
         let (a, b) = (Paths::new(root("a")), Paths::new(root("b")));
         for p in [&a, &b] {
@@ -471,5 +561,29 @@ mod tests {
         for p in [&a, &b] {
             let _ = std::fs::remove_dir_all(&p.root);
         }
+    }
+
+    #[test]
+    fn a_code_reads_in_blocks_says_what_it_carries_and_keeps_its_engine() {
+        let _environment = crate::paths::test_environment();
+        let state = json!({"settings": {"api.port": 9123}, "world": {"seed": "42", "day": 1, "at": 30600, "maps": "urban-crfg-v3", "engine": "core-ng", "changes": [{"type": "module"}]}});
+        let code = encode(&state);
+        let blocks = grouped(&code);
+        assert!(blocks.split('-').all(|b| b.len() <= 4) && blocks.replace('-', "") == code);
+        assert_eq!(decode(&blocks).unwrap(), state, "a code in blocks reads as the code");
+        assert_eq!(decode(&format!("{}\n{}", &blocks[..10], &blocks[10..])).unwrap(), state, "however it was wrapped");
+        let said = show(&blocks).unwrap().join("\n");
+        assert!(said.contains("Port (Server): 9123"), "{said}");
+        assert!(said.contains("seed 42, a weekend, at 08:30") && said.contains("on core-ng") && said.contains("1 change made by hand"), "{said}");
+
+        let root = std::env::temp_dir().join(format!("dstns-state-engine-{}", std::process::id()));
+        let paths = Paths::new(&root);
+        std::fs::create_dir_all(paths.config().parent().unwrap()).unwrap();
+        std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/defaults.json"), paths.config()).unwrap();
+        let out = set(&paths, &blocks).unwrap();
+        assert_eq!(config::setting(&config::load(&paths).unwrap(), "engine.implementation"), json!("core-ng"), "{out:?}");
+        assert!(out.iter().any(|l| l.contains("runs on core-ng")));
+        std::env::remove_var(PENDING_JUMP);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

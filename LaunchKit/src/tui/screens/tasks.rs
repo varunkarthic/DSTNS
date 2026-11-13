@@ -73,6 +73,7 @@ impl TaskScreen {
             Kind::Tools,
             vec![
                 menu_item("sumo", "Check SUMO toolchain", "Export a synthetic grid, convert it and run SUMO on it."),
+                menu_item("launch-code", "Copy a launch code", "This launcher as one code on the clipboard, with the running world if there is one, and what it carries. ./launcher launch CODE elsewhere starts the same."),
                 menu_item("observer", "Rebuild the observer", "Build the observer bundle again from its sources."),
                 menu_item("reset", "Reset runtime data", "Delete logs, the journal, checkpoints and temporary files, and forget the setup. Maps, saved seeds and configuration are kept."),
             ],
@@ -160,6 +161,14 @@ impl TaskScreen {
                         Ok(summary) => (true, summary.iter().map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join(" · ")),
                         Err(error) => (false, format!("{}{}", error.message, if error.remedy.is_empty() { String::new() } else { format!("\n{}", error.remedy) })),
                     },
+                    (_, "launch-code") => {
+                        // With the world when there is one; otherwise the settings alone.
+                        let lines = crate::state::launch_code_lines(&paths, true, None, true).or_else(|_| crate::state::launch_code_lines(&paths, false, None, true));
+                        match lines {
+                            Ok(lines) => (true, lines.join("\n")),
+                            Err(why) => (false, why),
+                        }
+                    }
                     (_, "observer") => {
                         let plan = crate::buildplan::plan(&paths, false, true);
                         let steps: Vec<&crate::buildplan::Step> = plan.steps.iter().filter(|s| s.observer).collect();
