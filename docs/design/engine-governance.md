@@ -1,14 +1,14 @@
 # Engine governance
 
-How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.8.0,
-launcher 3.9.0, observer 3.4.0, API contract 1.8.
+How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.9.0,
+launcher 3.9.0, observer 3.4.0, API contract 1.9.
 
 ## Engines
 
 | Engine | Kind | Channel | Version | What it is |
 |---|---|---|---|---|
 | `core-legacy` | real | stable | the build's (`3.6.0`) | The engine DSTNS has always had. The default; it cannot be disabled |
-| `core-ng` | real | beta | its own (`0.8.0`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)) |
+| `core-ng` | real | beta | its own (`0.9.0`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)) |
 
 Every engine describes itself with an **identity**: `id`, `version`, `kind` (`real` runs worlds; `pseudo` would only
 delegate), `channel` (`alpha`, `beta` or `stable`), `owns` (the parts of a run it implements itself), `shared` (the
@@ -73,8 +73,8 @@ server reads it as it starts (`DSTNS_ENGINE_CONFIG`, which the launcher sets to 
   "default": "core-legacy",
   "auto_switch": "offer",
   "engines": {
-    "core-legacy": {"channel": "stable", "version": "3.8.0", "kind": "real", "enabled": true},
-    "core-ng": {"channel": "beta", "version": "0.8.0", "kind": "real", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
+    "core-legacy": {"channel": "stable", "version": "3.9.0", "kind": "real", "enabled": true},
+    "core-ng": {"channel": "beta", "version": "0.9.0", "kind": "real", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
   }
 }
 ```

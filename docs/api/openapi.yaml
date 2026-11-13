@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: DSTNS API
-  version: 1.8.0
+  version: 1.9.0
   description: 'Deterministic Spatiotemporal Transport Network Simulator runtime API.
 
 

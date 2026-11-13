@@ -65,7 +65,13 @@ struct Context {
 void step(Context& ctx, std::uint32_t dt);
 
 /// A snapshot of a run's dynamic state, every 900 virtual seconds, for seeking back.
-struct Checkpoint { std::uint32_t virtual_s{}; std::vector<NodeDynamic> nodes; std::vector<EdgeDynamic> edges; std::size_t news_size{}; std::uint64_t next_news_id{1}; EventRuntime events; CongestionTracker congestion; };
+struct Checkpoint {
+    std::uint32_t virtual_s{}; std::vector<NodeDynamic> nodes; std::vector<EdgeDynamic> edges; std::size_t news_size{}; std::uint64_t next_news_id{1}; EventRuntime events; CongestionTracker congestion;
+    /// core-ng keeps nodes and edges here instead, deflated (lossless); empty for core-legacy's checkpoints.
+    std::string packed;
+    /// The memory the nodes and edges take, either way.
+    [[nodiscard]] std::size_t bytes() const { return nodes.capacity() * sizeof(NodeDynamic) + edges.capacity() * sizeof(EdgeDynamic) + packed.capacity(); }
+};
 
 /// What capturing and restoring checkpoints reads and writes.
 struct TimelineContext {

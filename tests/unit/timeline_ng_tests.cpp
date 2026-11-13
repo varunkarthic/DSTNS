@@ -43,6 +43,13 @@ std::map<std::string, std::string> run(const std::string& name) {
         out["first 06:00"] = at(21'600);
         out["back to 01:06:40"] = at(4'000);
         out["again 06:00"] = at(21'600);
+        out["end of day"] = at(86'399);
+        // The memory of a whole day's checkpoints, for release 8's measure; not compared between engines.
+        const auto [bytes, count] = engine.checkpoint_memory();
+        out["~bytes"] = std::to_string(bytes);
+        out["~count"] = std::to_string(count);
+        // Back from the end of the day, over every checkpoint: the same state as on the way.
+        out["back again 06:00"] = at(21'600);
         engine.stop();
         engine.terminate();
     }
@@ -55,11 +62,17 @@ int main() {
     try {
         const auto legacy = run("core-legacy");
         const auto ng = run(core_ng::kEngineId);
+        const auto bytes = [](const std::map<std::string, std::string>& r) { return std::stoull(r.at("~bytes")); };
+        std::cout << "[timeline-ng] a day's checkpoints: core-legacy " << bytes(legacy) / 1024 << " KiB in " << legacy.at("~count")
+                  << ", core-ng " << bytes(ng) / 1024 << " KiB in " << ng.at("~count") << "\n";
+        check(bytes(ng) * 2 <= bytes(legacy), "core-ng's checkpoints should take at most half of core-legacy's memory");
         for (const auto& result : {legacy, ng}) {
+            check(result.at("first 06:00") == result.at("back again 06:00"), "going back from the end of the day changes the state at 06:00");
             check(result.at("first 06:00") == result.at("again 06:00"), "going back and forward again changes the state at 06:00");
             check(result.at("straight 01:06:40") == result.at("back to 01:06:40"), "going back does not give the state a straight run has there");
         }
-        for (const auto& [stop, hash] : legacy) check(ng.at(stop) == hash, "core-ng differs from core-legacy at " + stop);
+        for (const auto& [stop, hash] : legacy)
+            if (stop[0] != '~') check(ng.at(stop) == hash, "core-ng differs from core-legacy at " + stop);
         std::cout << "[timeline-ng] checkpoints: seeking back and forward gives the same state on both engines\n";
         return 0;
     } catch (const std::exception& e) {

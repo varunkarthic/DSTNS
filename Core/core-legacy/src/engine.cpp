@@ -1569,6 +1569,13 @@ void SimulationEngine::rewind_to_checkpoint(std::uint32_t target) {
     else physics::rewind(ctx, target);
 }
 
+std::pair<std::size_t, std::size_t> SimulationEngine::checkpoint_memory() const {
+    std::lock_guard lock(mutex_);
+    std::size_t bytes = 0;
+    for (const auto& checkpoint : checkpoints_) bytes += checkpoint.bytes();
+    return {bytes, checkpoints_.size()};
+}
+
 physics::TimelineContext SimulationEngine::timeline() {
     return {virtual_s_, *graph_, checkpoints_, events_, congestion_, next_news_id_,
             [this] { return news_.size(); }, [this](std::size_t size) { news_.resize(size); }};

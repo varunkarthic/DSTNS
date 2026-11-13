@@ -192,6 +192,10 @@ public:
 private:
     using Checkpoint = physics::Checkpoint;
     physics::TimelineContext timeline();
+public:
+    /// What the run's checkpoints hold, in bytes, and how many there are: reported in /api/v1/system/resources.
+    [[nodiscard]] std::pair<std::size_t, std::size_t> checkpoint_memory() const;
+private:
     using ActiveSurgeZone = physics::ActiveSurgeZone;
     [[nodiscard]] double asb_now() const;
     [[nodiscard]] nlohmann::json backpressure_json() const;

@@ -105,8 +105,10 @@ void ApiServer::routes_system() {
                     {"peak_rss_bytes", std::max(peak, resident)},
                     {"cpu_s", usage.ru_utime.tv_sec + usage.ru_stime.tv_sec + (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6}};
     };
-    server_->Get("/api/v1/system/resources", [process](const auto&, auto& r) {
-        send(r, {{"process", process()}, {"hardware_threads", std::thread::hardware_concurrency()}});
+    server_->Get("/api/v1/system/resources", [this, process](const auto&, auto& r) {
+        // What the run's checkpoints hold: core-ng keeps them deflated (release 8).
+        const auto [bytes, count] = engine_.checkpoint_memory();
+        send(r, {{"process", process()}, {"hardware_threads", std::thread::hardware_concurrency()}, {"checkpoints", {{"count", count}, {"bytes", bytes}}}});
     });
     server_->Get("/api/v1/system/info", [this, process](const auto&, auto& r) {
         // Turned off (the launcher's sumo.enabled), SUMO is not looked for at all.
@@ -159,7 +161,7 @@ void ApiServer::routes_system() {
                 {{"GET","/api/v1","This index, at the API's root"}},
                 {{"GET","/api/v1/system/health","Liveness, with the engine's lifecycle state"}},
                 {{"GET","/api/v1/system/info","Service identity, version, the process (pid, uptime, memory) and SUMO availability"}},
-                {{"GET","/api/v1/system/resources","The process's memory now and at its peak, processor time and uptime"}},
+                {{"GET","/api/v1/system/resources","The process's memory now and at its peak, processor time, uptime, and the run's checkpoints"}},
                 {{"GET","/api/v1/system/status","The full run status"}},
                 {{"GET","/api/v1/system/endpoints","This index"}},
                 {{"GET","/api/v1/system/map-status","What map is loaded and where it came from"}},

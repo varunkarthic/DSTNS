@@ -14,6 +14,28 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.9.0] - 2026-11-14
+
+**Engine 3.9.0 (core-ng 0.9.0, beta), launcher 3.9.0, observer 3.4.0, API contract 1.9.** Results for every seed are
+unchanged.
+
+### Changed
+
+- **Checkpoint memory (release 8 of the migration).** A run keeps 96 checkpoints a day, each a full copy of every
+  node's and edge's state, at 184 bytes an edge. For a large city that is gigabytes. core-ng now keeps them deflated,
+  losslessly, and restores the same bytes.
+  - Measured on a day of the 7×7 test grid: core-legacy 3,047 KiB, core-ng 354 KiB, the same 96 checkpoints, and
+    identical state at every stop.
+  - core-legacy's checkpoints are unchanged.
+- `/api/v1/system/resources` reports the run's checkpoints, their count and bytes (API 1.9).
+
+### Tests
+
+- `dstns_timeline_ng` also runs to the end of the day and back over every checkpoint, prints both engines' checkpoint
+  memory, and fails if core-ng's is more than half of core-legacy's.
+
+Rollback: revert this release's commit; core-ng then keeps its checkpoints uncompressed.
+
 ## [3.8.0] - 2026-11-14
 
 **Engine 3.8.0 (core-ng 0.8.0, beta), launcher 3.9.0, observer 3.4.0, API contract 1.8.** Results for every seed are

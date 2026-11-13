@@ -23,7 +23,7 @@ configuration, the source offer, SUMO and shutdown. Routes are under
 
 ```json
 { "ok": true, "service": "dstns", "product": "Deterministic Spatiotemporal Transport Network Simulator",
-  "version": "3.8.0", "observer_ui_version": "observer-v2", "lifecycle": "RUNNING" }
+  "version": "3.9.0", "observer_ui_version": "observer-v2", "lifecycle": "RUNNING" }
 ```
 
 Lock-free: it reads a mirror of the lifecycle, so it answers instantly even
@@ -36,7 +36,7 @@ older one on the same port.
 
 ```json
 {
-  "ok": true, "service": "dstns", "version": "3.8.0", "lifecycle": "PAUSED",
+  "ok": true, "service": "dstns", "version": "3.9.0", "lifecycle": "PAUSED",
   "build": { "compiler": "Apple LLVM 21.0.0 (clang-2100.3.34.2)", "cpp_standard": 202002 },
   "sumo": { "available": true, "version": "1.15.0", "sumo_binary": "/usr/bin/sumo",
             "netconvert_binary": "/usr/bin/netconvert", "sumo_home": "/usr" }
