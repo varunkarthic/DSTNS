@@ -15,6 +15,10 @@ use std::path::Path;
 /// The engine refuses anything faster (kMaxTickRate in Core/core-legacy/include/dstns/model.hpp).
 pub const MAX_TICK_RATE: f64 = 10.0;
 pub const MAP_SELECTION_VERSION: &str = "urban-crfg-v3";
+/// The engines a run may name.
+pub const ENGINES: [&str; 2] = ["core-legacy", "core-ng"];
+/// core-ng's policy over chosen countries or cities (docs/concepts/deterministic-seeding.md).
+pub const GEO_SELECTION_VERSION: &str = "urban-geo-v1";
 
 pub fn load(paths: &Paths) -> Result<Value> {
     let text = fs::read_to_string(paths.config()).map_err(|_| {
@@ -202,10 +206,11 @@ impl Field {
         self.store(config, value.clone());
         let mut changed = vec![];
         for (when, becomes, other, to) in RULES {
-            if *when == self.key && value == json!(*becomes) {
+            let (becomes, to): (Value, Value) = (serde_json::from_str(becomes).expect("a rule's value is JSON"), serde_json::from_str(to).expect("a rule's value is JSON"));
+            if *when == self.key && value == becomes {
                 if let Some(field) = field(other) {
-                    if field.get(config) != json!(*to) {
-                        field.store(config, json!(*to));
+                    if field.get(config) != to {
+                        field.store(config, to);
                         changed.push(field.key);
                     }
                 }
@@ -404,6 +409,55 @@ fn volume(value: &Value, _config: &Value) -> String {
     }
 }
 
+/// What Places names, as the engine's IDs: countries in capitals, cities in lower case with hyphens for spaces.
+pub fn place_ids(config: &Value) -> Vec<String> {
+    let mode = setting(config, "map.selection_mode");
+    let places = setting(config, "map.places");
+    let text = places.as_str().unwrap_or("all").trim();
+    if text.eq_ignore_ascii_case("all") {
+        return vec![];
+    }
+    let countries = mode == json!("countries");
+    text.split(',')
+        .map(|p| p.trim())
+        .filter(|p| !p.is_empty())
+        .map(|p| if countries { p.to_ascii_uppercase() } else { p.to_ascii_lowercase().split_whitespace().collect::<Vec<_>>().join("-") })
+        .collect()
+}
+
+fn places(value: &Value, config: &Value) -> String {
+    let text = value.as_str().unwrap_or("").trim();
+    if text.eq_ignore_ascii_case("all") {
+        return String::new();
+    }
+    let ok = text.split(',').map(str::trim).all(|p| !p.is_empty() && p.len() <= 64 && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ' '));
+    if !ok {
+        return "Write IDs separated by commas, such as IN, AE or mumbai, new-york; or all.".into();
+    }
+    if setting(config, "map.selection_mode") == json!("countries") && !text.split(',').all(|p| p.trim().len() == 2) {
+        return "Countries are two-letter codes, such as IN or AE.".into();
+    }
+    String::new()
+}
+
+/// The map selection of a start request: the policy and, under urban-geo-v1, which places. Every city is urban-crfg-v3,
+/// so a seed names the city it always has.
+pub fn map_selection(config: &Value) -> Result<(String, Option<Value>)> {
+    let mode = setting(config, "map.selection_mode").as_str().unwrap_or("global").to_string();
+    if mode == "global" {
+        return Ok((MAP_SELECTION_VERSION.into(), None));
+    }
+    let ids = place_ids(config);
+    if ids.is_empty() {
+        return Err(LauncherError::config(format!("Where worlds are is {mode}, but Places names none.")).remedy("Set map.places, such as: config set map.places IN, AE"));
+    }
+    if mode == "fixed_city" && ids.len() != 1 {
+        return Err(LauncherError::config("One city needs exactly one city in Places."));
+    }
+    let (countries, cities) = if mode == "countries" { (ids, vec![]) } else { (vec![], ids) };
+    Ok((GEO_SELECTION_VERSION.into(), Some(json!({"mode": mode, "countries": countries, "cities": cities}))))
+}
+
 /// Every editable setting, by category, in the order the configuration screen shows them.
 pub fn fields() -> &'static [Field] {
     use FieldKind::*;
@@ -418,6 +472,12 @@ pub fn fields() -> &'static [Field] {
                 .range(60.0, Some(3600.0)),
             Field::new("playback.tick_rate", "Starting speed", "Run", Number, "How fast a run plays when it starts, as a multiple of the length of a day. The observer changes it while it runs.", json!(1.0)).unit("×").range(0.0, Some(MAX_TICK_RATE)).above(),
             // Map
+            // Engine
+            Field::new("engine.implementation", "Engine", "Engine", Choice, "Which engine builds and runs each world. core-legacy is the engine DSTNS has always used; core-ng is its next-generation replacement, built beside it, which gives the same world for the same seed and can also limit worlds to chosen countries or cities.", json!("core-legacy"))
+                .choices(vec![("core-legacy", json!("core-legacy")), ("core-ng (next generation)", json!("core-ng"))]),
+            Field::new("map.selection_mode", "Where worlds are", "Engine", Choice, "Which cities a seed may choose: every city in the catalogue (the same city for a seed as always), only the countries or cities in Places, or always the one city in Places. Anything but every city needs core-ng, which this turns on.", json!("global"))
+                .choices(vec![("Every city", json!("global")), ("Countries", json!("countries")), ("Cities", json!("cities")), ("One city", json!("fixed_city"))]),
+            Field::new("map.places", "Places", "Engine", Text, "The countries (two-letter codes, such as IN, AE) or cities (IDs, such as mumbai, new-york) that Where worlds are names, separated by commas. all when worlds may be anywhere.", json!("all")).extra(places),
             Field::new("map.max_nodes", "Largest network", "Map", Integer, "The most junctions a district's road network may have. Lower keeps big cities light.", json!(50000)).unit("junctions").range(2.0, Some(50000.0)),
             Field::new("map.cache_dir", "Map cache folder", "Map", Text, "Where downloaded city extracts are kept, relative to the checkout. Dynamic Fastboot's next city is kept here too.", json!("data/maps")),
             // Modules
@@ -660,7 +720,7 @@ pub fn fields() -> &'static [Field] {
 
 /// The settings as a person finds them: sections, each a heading over its categories, in a sensible order.
 pub const SECTIONS: &[(&str, &[&str])] = &[
-    ("Simulation", &["Run", "Modules", "Weather", "Map"]),
+    ("Simulation", &["Run", "Engine", "Modules", "Weather", "Map"]),
     ("Start-up", &["Startup", "Presentation", "Demo"]),
     ("Observer", &["Appearance", "Notifications", "Auto Focus", "Playback controls", "Clock, units and news", "Map layers", "Tutorial", "Backpressure"]),
     ("Server", &["Server", "Performance", "Resource Control", "Daemons"]),
@@ -753,22 +813,27 @@ const CAPABILITIES: &[(&str, &[&str])] = &[
 ];
 
 /// Settings that cannot be on together, or that need another: when the first becomes the value, the other becomes its
-/// value too. The interface and `config set` say what else changed.
-pub const RULES: &[(&str, bool, &str, bool)] = &[
+/// value too, each written as JSON. The interface and `config set` say what else changed.
+pub const RULES: &[(&str, &str, &str, &str)] = &[
     // The dynamic film plans its own length; the whole film plays every scene. One or the other.
-    ("startup.dynamic_particles", true, "startup.force_animate", false),
-    ("startup.force_animate", true, "startup.dynamic_particles", false),
+    ("startup.dynamic_particles", "true", "startup.force_animate", "false"),
+    ("startup.force_animate", "true", "startup.dynamic_particles", "false"),
     // Fast Boot opens with the name alone, which the whole film would undo.
-    ("startup.fast_boot", true, "startup.force_animate", false),
-    ("startup.force_animate", true, "startup.fast_boot", false),
+    ("startup.fast_boot", "true", "startup.force_animate", "false"),
+    ("startup.force_animate", "true", "startup.fast_boot", "false"),
     // What an AI client may do needs the MCP Handler to be on at all.
-    ("mcp.allow_writes", true, "mcp.enabled", true),
-    ("mcp.allow_launcher", true, "mcp.enabled", true),
-    ("mcp.enabled", false, "mcp.allow_writes", false),
-    ("mcp.enabled", false, "mcp.allow_launcher", false),
+    ("mcp.allow_writes", "true", "mcp.enabled", "true"),
+    ("mcp.allow_launcher", "true", "mcp.enabled", "true"),
+    ("mcp.enabled", "false", "mcp.allow_writes", "false"),
+    ("mcp.enabled", "false", "mcp.allow_launcher", "false"),
     // Applications that may not connect cannot appear in the observer either.
-    ("fabric.applications", false, "webfabric.enabled", false),
-    ("webfabric.enabled", true, "fabric.applications", true),
+    ("fabric.applications", "false", "webfabric.enabled", "false"),
+    ("webfabric.enabled", "true", "fabric.applications", "true"),
+    // Only core-ng chooses among countries or cities; core-legacy draws from every city.
+    ("map.selection_mode", "\"countries\"", "engine.implementation", "\"core-ng\""),
+    ("map.selection_mode", "\"cities\"", "engine.implementation", "\"core-ng\""),
+    ("map.selection_mode", "\"fixed_city\"", "engine.implementation", "\"core-ng\""),
+    ("engine.implementation", "\"core-legacy\"", "map.selection_mode", "\"global\""),
 ];
 
 /// How the observer should present itself, as the server will tell it.
@@ -832,6 +897,8 @@ pub struct RunOptions {
     pub day_type: Option<String>,
     pub duration: Option<String>,
     pub speed: Option<String>,
+    /// core-legacy or core-ng, for this run only; otherwise engine.implementation.
+    pub engine: Option<String>,
     pub max_nodes: Option<String>,
     pub osm_file: Option<String>,
     /// Applications to start with this run, by ID, comma separated. None: those set to start by themselves.
@@ -842,7 +909,7 @@ pub struct RunOptions {
 
 impl RunOptions {
     pub fn explicit(&self) -> bool {
-        [&self.seed, &self.saved_seed, &self.save_seed, &self.day_type, &self.osm_file, &self.max_nodes, &self.duration, &self.speed].iter().any(|v| v.is_some())
+        [&self.seed, &self.saved_seed, &self.save_seed, &self.day_type, &self.osm_file, &self.max_nodes, &self.duration, &self.speed, &self.engine].iter().any(|v| v.is_some())
     }
 }
 
@@ -915,12 +982,14 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
         // "auto" lets the seed choose a real city district; a path pins a file.
         let source = options.osm_file.clone().or_else(|| map.get("osm_file").and_then(|v| v.as_str()).map(String::from)).unwrap_or_else(|| "auto".into());
         let cache = map.get("cache_dir").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+        let (selection_version, selection) = map_selection(&defaults)?;
         let seed = match &options.seed {
             Some(seed) => normalise_seed(seed)?,
             // A world brought by a launcher state code, waiting for this start.
             None if crate::state::pending_seed().is_some() => normalise_seed(&crate::state::pending_seed().unwrap_or_default())?,
             // Dynamic Fastboot: the world the last run prepared, whose city is on disk already.
-            None if source == "auto" && flag(&defaults, "startup.dynamic_fastboot") => prepared_seed(&paths.map_cache(cache)).unwrap_or_else(fresh_seed),
+            // Fastboot prepares under urban-crfg-v3 only, so a narrower policy takes a fresh seed.
+            None if source == "auto" && selection.is_none() && flag(&defaults, "startup.dynamic_fastboot") => prepared_seed(&paths.map_cache(cache)).unwrap_or_else(fresh_seed),
             None => fresh_seed(),
         };
         let mut map_options = Map::new();
@@ -932,16 +1001,21 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
         if cache.is_some() || paths.synced() {
             map_options.insert("cache_dir".into(), json!(paths.map_cache(cache).to_string_lossy()));
         }
-        json!({
+        let mut request = json!({
             "seed": seed,
+            "engine": setting(&defaults, "engine.implementation"),
             "day": defaults.get("day").cloned().unwrap_or(json!(0)),
             "playback_duration_seconds": defaults["playback"]["duration_seconds"],
             "tick_rate": defaults["playback"]["tick_rate"],
             "map": Value::Object(map_options),
             "modules": defaults.get("modules").cloned().unwrap_or(Value::Null),
             "dws": defaults.get("dws").cloned().unwrap_or(Value::Null),
-            "map_selection_version": MAP_SELECTION_VERSION,
-        })
+            "map_selection_version": selection_version,
+        });
+        if let Some(selection) = selection {
+            request["map_selection"] = selection;
+        }
+        request
     };
     if let Some(file) = &options.osm_file {
         request["map"]["osm_file"] = json!(absolute(&paths.root.join(file)).to_string_lossy());
@@ -949,6 +1023,15 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
     let osm = request["map"]["osm_file"].as_str().unwrap_or("auto").to_string();
     if osm != "auto" && !Path::new(&osm).exists() {
         return Err(LauncherError::config("OSM data unavailable; provide --osm-file PATH"));
+    }
+    if let Some(engine) = &options.engine {
+        if !ENGINES.contains(&engine.as_str()) {
+            return Err(LauncherError::config(format!("--engine must be {}", ENGINES.join(" or "))));
+        }
+        if engine == "core-legacy" && request.get("map_selection").is_some() {
+            return Err(LauncherError::config("core-legacy chooses from every city, but this run names countries or cities.").remedy("Use --engine core-ng, or set Where worlds are to every city."));
+        }
+        request["engine"] = json!(engine);
     }
     if let Some(day) = &options.day_type {
         request["day"] = json!(if day == "weekend" { 1 } else { 0 });
@@ -1021,6 +1104,50 @@ mod tests {
         assert!(rest.get("ui").is_none(), "nothing of the observer's goes into defaults.json");
         assert!(field("ui.auto_focus.zoom").unwrap().check(&json!(20)).len() > 0, "held to what the observer accepts");
         assert!(categories().iter().all(|c| section_of(c) != "Other"), "every category has a section");
+        let _ = std::fs::remove_dir_all(&paths.root);
+    }
+
+    #[test]
+    fn the_engine_and_where_worlds_are_go_into_the_start_request() {
+        let paths = Paths::new(std::env::temp_dir().join(format!("dstns-engine-{}", std::process::id())));
+        std::fs::create_dir_all(paths.config().parent().unwrap()).unwrap();
+        std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/defaults.json"), paths.config()).unwrap();
+        let options = RunOptions { seed: Some("42".into()), ..Default::default() };
+        let request = start_request(&options, &paths).unwrap();
+        assert_eq!((request["engine"].clone(), request["map_selection_version"].clone()), (json!("core-legacy"), json!(MAP_SELECTION_VERSION)));
+        assert!(request.get("map_selection").is_none(), "every city is the policy every seed has always had");
+
+        let mut config = load(&paths).unwrap();
+        assert_eq!(field("map.selection_mode").unwrap().set(&mut config, json!("countries")), vec!["engine.implementation"], "only core-ng chooses countries");
+        save(&config, &paths).unwrap();
+        assert!(start_request(&options, &paths).unwrap_err().message.contains("Places names none"));
+        field("map.places").unwrap().set(&mut config, json!("in, ae"));
+        save(&config, &paths).unwrap();
+        let request = start_request(&options, &paths).unwrap();
+        assert_eq!(request["engine"], json!("core-ng"));
+        assert_eq!(request["map_selection_version"], json!(GEO_SELECTION_VERSION));
+        assert_eq!(request["map_selection"], json!({"mode": "countries", "countries": ["IN", "AE"], "cities": []}));
+        assert!(!check_field(field("map.places").unwrap(), &json!("India"), &config).is_empty(), "a country is its two-letter code");
+
+        field("map.selection_mode").unwrap().set(&mut config, json!("fixed_city"));
+        field("map.places").unwrap().set(&mut config, json!("New York"));
+        save(&config, &paths).unwrap();
+        assert_eq!(start_request(&options, &paths).unwrap()["map_selection"]["cities"], json!(["new-york"]));
+        field("map.places").unwrap().set(&mut config, json!("mumbai, delhi"));
+        save(&config, &paths).unwrap();
+        assert!(start_request(&options, &paths).is_err(), "one city is one city");
+
+        field("map.places").unwrap().set(&mut config, json!("mumbai"));
+        save(&config, &paths).unwrap();
+        let once = |engine: &str| start_request(&RunOptions { engine: Some(engine.into()), ..options.clone() }, &paths);
+        assert!(once("core-legacy").unwrap_err().message.contains("every city"), "--engine core-legacy cannot run one city");
+        assert!(once("core-next").unwrap_err().message.contains("--engine must be"));
+
+        field("engine.implementation").unwrap().set(&mut config, json!("core-legacy"));
+        assert_eq!(setting(&config, "map.selection_mode"), json!("global"), "back to core-legacy is back to every city");
+        save(&config, &paths).unwrap();
+        assert_eq!(once("core-ng").unwrap()["engine"], json!("core-ng"), "--engine chooses for one run");
+        assert_eq!(start_request(&options, &paths).unwrap()["engine"], json!("core-legacy"), "and only that run");
         let _ = std::fs::remove_dir_all(&paths.root);
     }
 

@@ -13,7 +13,7 @@ For a run started from the CLI, later sources win:
 1. Built-in defaults in `ScenarioConfig` (`Core/core-legacy/include/dstns/model.hpp`)
 2. `config/defaults.json`
 3. A saved seed (`--saved-seed ID`), which replaces 2 entirely
-4. CLI flags (`--seed`, `--day-type`, `--duration`, `--speed`, `--max-nodes`, `--osm-file`)
+4. CLI flags (`--seed`, `--day-type`, `--duration`, `--speed`, `--max-nodes`, `--osm-file`, `--engine`)
 
 The CLI turns the result into the body of `POST /api/v1/playback/start`, and
 the server validates it again. Each bound is enforced in both places, so a
@@ -35,6 +35,18 @@ read; changing them has no effect.
 | `playback.tick_rate` | `1.0` | (0, 10] | CLI, engine | Initial speed multiplier |
 | `playback.checkpoint_virtual_seconds` | `900` | — | informational | Checkpoint spacing is fixed at 900 s |
 
+### Engine
+
+| Key | Default | Range | Read by | Meaning |
+|---|---|---|---|---|
+| `engine.implementation` | `core-legacy` | `core-legacy`, `core-ng` | CLI | Which engine builds and runs each world. Both give the same world for the same seed |
+| `map.selection_mode` | `global` | `global`, `countries`, `cities`, `fixed_city` | CLI | Which cities a seed may choose. `global` is `urban-crfg-v3` over every city; the others are `urban-geo-v1` and set `engine.implementation` to `core-ng` |
+| `map.places` | `all` | comma-separated IDs | CLI | The countries (ISO 3166-1 alpha-2, such as `IN, AE`) or city IDs (such as `mumbai, new-york`) that `map.selection_mode` names. Countries are written in capitals and cities in lower case with hyphens before the request is sent |
+
+Setting `engine.implementation` to `core-legacy` sets `map.selection_mode` back to `global`, because core-legacy
+selects only from every city. Dynamic Fastboot's prepared world is used only when `map.selection_mode` is `global`.
+A launch code carries these settings like any other.
+
 ### Map
 
 | Key | Default | Range | Read by | Meaning |
@@ -44,7 +56,7 @@ read; changing them has no effect.
 | `map.cache_dir` | `data/maps` | path | CLI, engine | Where downloaded city extracts are cached |
 | `map.city_extent_m` | `5000` | [500, 20000] | engine default | Side of the square extract downloaded per city |
 | `map.district_nodes` | `3000` | [200, 50000] | engine default | Target size of the district grown from the seed's anchor |
-| `map.map_selection_version` | `urban-crfg-v3` | exactly that | engine | Seed-to-place algorithm version; others are refused |
+| `map.map_selection_version` | `urban-crfg-v3` | — | informational | The launcher sends the version that `map.selection_mode` names |
 | `map.cache_policy` | `prune` | `keep`, `prune`, `clear` | informational | The server's `--map-cache` flag decides; its default is `prune` |
 | `map.cache_keep` | `1` | ≥ 0 | informational | The server's `--map-cache-keep` flag decides; its default is 1 |
 | `map.source`, `map.on_demand`, `map.min_nodes`, `map.max_anchor_attempts`, `map.min_compactness` | | | informational | |
@@ -108,7 +120,7 @@ What `POST /api/v1/playback/start` and `/prepare` accept (the CLI builds this):
 ```
 ./launcher start [--seed N | --saved-seed ID] [--save-seed ID [--description TEXT]]
                  [--day-type weekday|weekend] [--duration 60-3600] [--speed 0.01-5]
-                 [--max-nodes 2-50000] [--osm-file PATH] [--no-open]
+                 [--max-nodes 2-50000] [--osm-file PATH] [--engine core-legacy|core-ng] [--no-open]
 ./launcher seeds list
 ./launcher test [all|unit|api|replay|benchmark|sumo|ui]
 ./launcher ui [open|dev|build|install]

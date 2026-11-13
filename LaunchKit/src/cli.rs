@@ -26,7 +26,7 @@ pub const EXIT_FAILURE: i32 = 1;
 pub const EXIT_INTERRUPTED: i32 = 130;
 pub const EXIT_TERMINATED: i32 = 143;
 
-const VALUE_OPTIONS: &[&str] = &["--seed", "--saved-seed", "--save-seed", "--day-type", "--osm-file", "--max-nodes", "--duration", "--speed", "--description", "--apps"];
+const VALUE_OPTIONS: &[&str] = &["--seed", "--saved-seed", "--save-seed", "--day-type", "--osm-file", "--max-nodes", "--duration", "--speed", "--engine", "--description", "--apps"];
 pub const COMMANDS: &[&str] = &["start", "stop", "console", "seeds", "ui", "logs", "config", "test", "sumo", "reset", "setup", "help", "version", "license"];
 
 #[derive(Clone, Debug, Default)]
@@ -116,6 +116,7 @@ pub fn parse(argv: &[String]) -> Result<Arguments> {
                     "--max-nodes" => args.run.max_nodes = value,
                     "--duration" => args.run.duration = value,
                     "--speed" => args.run.speed = value,
+                    "--engine" => args.run.engine = value,
                     "--description" => args.run.description = value,
                     _ => args.run.apps = value,
                 }
@@ -179,6 +180,7 @@ Run options (start, seeds save)
   --duration SECONDS     60 to 3600: wall-clock length of the day at 1x
   --speed X              0.01 to 10
   --max-nodes N          2 to 50000
+  --engine NAME          core-legacy or core-ng, for this run (engine.implementation otherwise)
   --osm-file PATH        Run this map instead of letting the seed choose
   --default-settings     Open the observer with its settings at their defaults
   --apps ID,ID           Start these applications with the run. The run waits until they are ready

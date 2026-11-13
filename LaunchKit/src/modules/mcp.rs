@@ -420,13 +420,14 @@ pub fn launcher_tools(paths: &Paths, policy: Policy, session: Arc<Session>) -> V
                     "saved_seed": {"type": "string"},
                     "day_type": {"type": "string", "enum": ["weekday", "weekend"]},
                     "speed": {"type": "number", "minimum": 0.01, "maximum": 10},
+                    "engine": {"type": "string", "enum": config::ENGINES, "description": "Which engine runs the world; leave out for the launcher's setting"},
                     "osm_file": {"type": "string", "description": "A map file in this checkout, instead of the seed's city"}
                 }
             }),
             read_only: false,
             handler: Box::new(move |arguments| {
                 let text = |key: &str| arguments.get(key).map(|v| v.as_str().map(String::from).unwrap_or_else(|| v.to_string()));
-                let options = RunOptions { seed: text("seed"), saved_seed: text("saved_seed"), day_type: text("day_type"), speed: text("speed"), osm_file: text("osm_file"), ..Default::default() };
+                let options = RunOptions { seed: text("seed"), saved_seed: text("saved_seed"), day_type: text("day_type"), speed: text("speed"), engine: text("engine"), osm_file: text("osm_file"), ..Default::default() };
                 let world = s.launch(&options, Arc::new(Quiet), false, Cancel::new())?;
                 let port = s.port().unwrap_or(0);
                 Ok(json!({"started": true, "port": port, "observer": format!("http://127.0.0.1:{port}/"), "place": world.as_ref().map(|w| w.place()), "seed": world.as_ref().map(|w| w.seed.clone())}))

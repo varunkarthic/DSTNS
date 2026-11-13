@@ -279,7 +279,14 @@ pub fn start_run(port: u16, request: &Value, reporter: &dyn Reporter, paths: &Pa
     let waiting = current.observer_hold;
     reporter.message(
         Level::Success,
-        &format!("{} · {} · {}", if waiting { "Simulation ready, waiting for the observer" } else { "Simulation running" }, loaded.seed, loaded.day_name()),
+        // The engine is named when it is not the one DSTNS has always used.
+        &format!(
+            "{} · {} · {}{}",
+            if waiting { "Simulation ready, waiting for the observer" } else { "Simulation running" },
+            loaded.seed,
+            loaded.day_name(),
+            request.get("engine").and_then(|e| e.as_str()).filter(|e| *e != "core-legacy").map(|e| format!(" · {e}")).unwrap_or_default()
+        ),
         &format!("{} road nodes · {} buildings and places", thousands(loaded.nodes), thousands(loaded.places)),
     );
     // A world copied with a state code is taken to the moment it was at, once.

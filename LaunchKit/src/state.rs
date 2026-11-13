@@ -46,6 +46,11 @@ const ROUNDS: u32 = 210_000;
 /// Where a world's moment waits for the next start, in config/launcher.env: SEED@SECONDS.
 pub const PENDING_JUMP: &str = "DSTNS_STATE_JUMP";
 
+/// The map rules a world is made by here: the selection policy its settings name.
+fn maps(config: &Value) -> Value {
+    json!(config::map_selection(config).map(|(version, _)| version).unwrap_or_else(|_| config::GEO_SELECTION_VERSION.into()))
+}
+
 /// A setting that travels in a code: anything but a credential or an address that may carry one.
 fn portable(key: &str) -> bool {
     !config::sensitive_setting(key)
@@ -196,11 +201,11 @@ fn world(paths: &Paths, config: &Value) -> Option<Value> {
                         .collect()
                 })
                 .unwrap_or_default();
-            return Some(json!({"seed": status.seed, "day": day, "at": status.virtual_seconds.floor() as u64, "maps": config.pointer("/map/map_selection_version"), "playing": playing, "rate": rate, "changes": changes}));
+            return Some(json!({"seed": status.seed, "day": day, "at": status.virtual_seconds.floor() as u64, "maps": maps(config), "playing": playing, "rate": rate, "changes": changes}));
         }
     }
     let seed = config.get("seed").and_then(|s| s.as_str()).filter(|s| !s.is_empty() && *s != "auto")?;
-    Some(json!({"seed": seed, "day": config.get("day").cloned().unwrap_or(json!(0)), "at": 0, "maps": config.pointer("/map/map_selection_version")}))
+    Some(json!({"seed": seed, "day": config.get("day").cloned().unwrap_or(json!(0)), "at": 0, "maps": maps(config)}))
 }
 
 /// This launcher's state as a code, with the world if asked.
@@ -256,7 +261,7 @@ pub fn set(paths: &Paths, code: &str) -> Result<Vec<String>, String> {
         let seed = world["seed"].as_str().ok_or("The code's world has no seed.")?;
         crate::config::normalise_seed(seed).map_err(|e| e.message)?;
         config["day"] = world["day"].clone();
-        if world["maps"] != *config.pointer("/map/map_selection_version").unwrap_or(&Value::Null) {
+        if world["maps"] != maps(&config) {
             out.push(format!("Its world was made by other map rules ({}); this launcher may choose another city for that seed.", world["maps"].as_str().unwrap_or("unknown")));
         }
         let at = world["at"].as_u64().unwrap_or(0);

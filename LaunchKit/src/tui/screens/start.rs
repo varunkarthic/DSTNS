@@ -41,6 +41,7 @@ impl StartScreen {
                 r.unit = if ui.unicode { "×" } else { "x" }.into();
                 r
             },
+            form_row("engine", "Engine", Editor::select(config::ENGINES.iter().map(|e| (e.to_string(), e.to_string())).collect(), defaults.as_ref().map(|d| config::setting(d, "engine.implementation")).and_then(|v| v.as_str().map(String::from)).as_deref().unwrap_or("core-legacy"))),
         ];
         rows[3].visible = false;
         let apps: Vec<(String, String, bool)> = crate::apps::load(&ui.paths).map(|a| a.into_values().map(|a| (a.id.clone(), a.title(), a.required)).collect()).unwrap_or_default();
@@ -84,6 +85,7 @@ impl StartScreen {
             seed: text(&self.form, "seed"),
             day_type: Some(self.form.value("day")),
             speed: text(&self.form, "speed"),
+            engine: Some(self.form.value("engine")),
             osm_file,
             apps: Some(chosen.join(",")),
             save_seed: text(&self.form, "save-as"),

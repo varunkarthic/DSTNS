@@ -14,6 +14,33 @@ only within one version.
 
 ## [Unreleased]
 
+## [Launcher 3.1.0] - 2026-11-13
+
+**Engine 3.3.2, launcher 3.1.0, observer 3.1.0, API contract 1.6.** No engine change.
+
+### Added
+
+- The launcher can choose the engine. Settings → Simulation → Engine has three settings:
+  - `engine.implementation`: `core-legacy` (the default) or `core-ng`.
+  - `map.selection_mode`: every city, countries, cities, or one city.
+  - `map.places`: the countries or cities that `map.selection_mode` names.
+
+  Choosing anything other than every city sets the engine to core-ng. Choosing core-legacy sets the selection back to
+  every city. The start request carries `engine` and `map_selection`. A launch code carries these settings like any
+  other.
+- `./launcher start --engine core-legacy|core-ng` chooses the engine for one run. The Start screen has an Engine
+  row, and the MCP tool `launcher_start` has an `engine` argument.
+- When a run starts on core-ng, the launcher's start line names the engine.
+
+### Fixed
+
+- A seed saved from an `urban-geo-v1` run could not be saved or used. Saved seeds now accept both policies and
+  record the policy the seed was made under.
+- A launch code with a world gave `urban-crfg-v3` as its map rules even when the settings named another policy. It
+  now gives the policy that the settings name.
+
+Rollback: revert this release's commit; the launcher then starts every world on core-legacy.
+
 ## [3.3.2] - 2026-11-13
 
 **Engine 3.3.2, launcher 3.0.1, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged: the golden

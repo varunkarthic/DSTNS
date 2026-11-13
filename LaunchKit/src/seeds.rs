@@ -13,6 +13,8 @@ use std::fs;
 use std::path::Path;
 
 pub const VERSION: &str = "urban-crfg-v3";
+/// The selection policies a saved seed may name: the seed means the same city under each for as long as it exists.
+pub const VERSIONS: [&str; 2] = [VERSION, crate::config::GEO_SELECTION_VERSION];
 /// Recorded in place of a checksum when the seed, not a pinned file, chooses the map.
 pub const AUTO_MAP: &str = "auto";
 
@@ -99,7 +101,8 @@ pub fn operate(action: &str, data: &Value, paths: &Paths) -> Result<Value> {
     let name = seed_id(data)?;
     if action == "save" {
         let mut config = data.get("config").cloned().ok_or_else(|| LauncherError::config("config"))?;
-        if config.get("map_selection_version").and_then(|v| v.as_str()) != Some(VERSION) {
+        let version = config.get("map_selection_version").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        if !VERSIONS.contains(&version.as_str()) {
             return Err(LauncherError::config("Unsupported map selection version"));
         }
         let osm = config.pointer("/map/osm_file").and_then(|v| v.as_str()).unwrap_or("auto").to_string();
@@ -124,7 +127,7 @@ pub fn operate(action: &str, data: &Value, paths: &Paths) -> Result<Value> {
         let seed = config.get("seed").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let inserted = db.execute(
             "INSERT INTO seeds VALUES (?,?,?,?,?,?,?)",
-            params![name, seed, chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, false), description, VERSION, digest, sorted(&config).to_string()],
+            params![name, seed, chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, false), description, version, digest, sorted(&config).to_string()],
         );
         if let Err(rusqlite::Error::SqliteFailure(error, _)) = &inserted {
             if error.code == rusqlite::ErrorCode::ConstraintViolation {
@@ -136,7 +139,7 @@ pub fn operate(action: &str, data: &Value, paths: &Paths) -> Result<Value> {
     let result = row(&db, &name)?.ok_or_else(|| LauncherError::config(format!("Unknown saved seed: {name}")))?;
     match action {
         "use" => {
-            if result["map_version"] != json!(VERSION) {
+            if !VERSIONS.iter().any(|v| result["map_version"] == json!(v)) {
                 return Err(LauncherError::config("Saved seed requires an unsupported map version"));
             }
             if result["map_sha256"] != json!(AUTO_MAP) {
