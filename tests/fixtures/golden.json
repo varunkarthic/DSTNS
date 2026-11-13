@@ -8,14 +8,20 @@
         "graph_hash": "sha256:1c2caead21b078e3d39b8c0c6d6dc4e491b7681610d784cffda144d15c681112",
         "map_hash": "sha256:7e5ea77b67013617b94c668ebbbc6ece2782b91b9a83b73d6da857506d270951",
         "scenario_hash": "sha256:e54a22b05b2e9d901e307a56b993b1417f5d57c840b36a701ae015e018bd8647",
-        "snapshot_12345": "cd90c7d7ca1cd6ec3e0865d1ae6faed2187e27661b3393139678c8a893a4e226"
+        "snapshot_12345": {
+          "darwin-arm64": "cd90c7d7ca1cd6ec3e0865d1ae6faed2187e27661b3393139678c8a893a4e226",
+          "linux-x86_64": "4a0923e073a06127e66443f9b6de3be3b09d35db7ceecd94408ae099e1cc0253"
+        }
       },
       "42": {
         "event_hash": "sha256:ab789252e186c7e271a2ac0ba5289813f88758628888a61485b579c835b4fe3f",
         "graph_hash": "sha256:1c2caead21b078e3d39b8c0c6d6dc4e491b7681610d784cffda144d15c681112",
         "map_hash": "sha256:7e5ea77b67013617b94c668ebbbc6ece2782b91b9a83b73d6da857506d270951",
         "scenario_hash": "sha256:0f39a8e3ecfad45d023a584911f1585abfb841e504b5df6f965c1a98292017cd",
-        "snapshot_12345": "b9c6f06a397cc613e516c5ff1af5c26d714cd0aeecd4678abfe5cb3d1cd433c9"
+        "snapshot_12345": {
+          "darwin-arm64": "b9c6f06a397cc613e516c5ff1af5c26d714cd0aeecd4678abfe5cb3d1cd433c9",
+          "linux-x86_64": "fa48d260c2054d59052a4908db40794c50c2809ac15a825df2936ad8763e28e9"
+        }
       }
     },
     "osm": {
@@ -24,14 +30,20 @@
         "graph_hash": "sha256:f36bba045787c0d8de926b849987b9cd1cc1f647d59c7ea9502678f06fa4bf04",
         "map_hash": "sha256:ebf657928d3956b84a0dfbdc64a20effa5b6354fc27ca0c925c564336e65ea08",
         "scenario_hash": "sha256:29641cee5ea9fa5943d8be3ef64b89e4ef6f5815467200d094babf46a816af36",
-        "snapshot_12345": "87954d6d74016a5c0f941b18e0287b36e46e9c108a872d92e7043985085a6f47"
+        "snapshot_12345": {
+          "darwin-arm64": "87954d6d74016a5c0f941b18e0287b36e46e9c108a872d92e7043985085a6f47",
+          "linux-x86_64": "db8bef894442694269dd9a138fdd91862f9850d022825d80eaa797bedd281f25"
+        }
       },
       "42": {
         "event_hash": "sha256:30ef2d81ae29c8e9fb68e32376d35565c2b97c82076c0db81d0493f6c1a6faaf",
         "graph_hash": "sha256:f36bba045787c0d8de926b849987b9cd1cc1f647d59c7ea9502678f06fa4bf04",
         "map_hash": "sha256:ebf657928d3956b84a0dfbdc64a20effa5b6354fc27ca0c925c564336e65ea08",
         "scenario_hash": "sha256:6af14607301e4141f03b315bbee4e02da91f1a74f0638a517ef050cf0e92570b",
-        "snapshot_12345": "132eedb635a82ba79a6cd69895990893acaa70b654f500936cd6701a2528e665"
+        "snapshot_12345": {
+          "darwin-arm64": "132eedb635a82ba79a6cd69895990893acaa70b654f500936cd6701a2528e665",
+          "linux-x86_64": "402890afdda5fde949e7d5b5e75f9e952b6ace3423435460cff110d6decef8e4"
+        }
       }
     }
   },

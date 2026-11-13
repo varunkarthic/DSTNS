@@ -197,7 +197,7 @@ curl -s localhost:8090/api/v1/view/manifest | python3 -c \
 | `dstns_unit_tests` | Sub-seed avalanche (a one-bit seed change flips at least 40 output bits) and domain separation |
 | `dstns_modernization` | Clock-speed invariance: results do not depend on the tick rate |
 | `dstns_map_sourcing` | A seed always resolves to the same city, anchor and cache file |
-| `dstns_golden` | 75 frozen `urban-crfg-v3` seeds give the same city and bit-exact anchor, and two seeds on a grid and on the bundled district give the same compile hashes and runtime snapshot at 03:25:45 as engine 3.0.0 (`tests/fixtures/golden.json`) |
+| `dstns_golden` | 75 frozen `urban-crfg-v3` seeds give the same city and bit-exact anchor, and two seeds on a grid and on the bundled district give the same compile hashes as engine 3.0.0 on every platform, and the same runtime snapshot at 03:25:45 per platform (`tests/fixtures/golden.json`; see the caveat below) |
 
 ## Floating-point caveat
 

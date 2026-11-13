@@ -3,7 +3,10 @@
 
 // Golden fixtures: frozen results that every later release must reproduce exactly.
 // - urban-crfg-v3 seed -> city, country and anchor (bit-exact doubles);
-// - compile hashes and the full runtime snapshot at 03:25:45 for a grid and the bundled OSM district.
+// - compile hashes for a grid and the bundled OSM district (the same on every platform);
+// - the full runtime snapshot at 03:25:45, per platform: physics calls sin and exp, which macOS and Linux may
+//   round differently in the last bit (see docs/concepts/reproducibility.md, "Floating-point caveat").
+//   A platform with no recorded value fails, so a new one is recorded deliberately.
 // A difference fails the test. To record new values deliberately (a new algorithm version), run with
 // DSTNS_GOLDEN_WRITE=1 and say why in CHANGELOG.md.
 #include "dstns/engine.hpp"
@@ -24,6 +27,23 @@ using nlohmann::json;
 
 namespace {
 const char* kFixture = "tests/fixtures/golden.json";
+
+std::string platform() {
+#if defined(__APPLE__)
+    std::string os = "darwin";
+#elif defined(__linux__)
+    std::string os = "linux";
+#else
+    std::string os = "other";
+#endif
+#if defined(__aarch64__)
+    return os + "-arm64";
+#elif defined(__x86_64__)
+    return os + "-x86_64";
+#else
+    return os + "-other";
+#endif
+}
 
 // %a prints a double exactly, so the comparison is bit for bit.
 std::string exact(double value) {
@@ -74,7 +94,7 @@ json actual() {
             const auto s = compiler.compile(seed, cfg);
             out["scenario"][label][text] = {{"map_hash", s.map_hash}, {"graph_hash", s.graph_hash},
                                             {"event_hash", s.event_hash}, {"scenario_hash", s.scenario_hash},
-                                            {"snapshot_12345", snapshot_hash(seed, cfg, label + "-" + text)}};
+                                            {"snapshot_12345", {{platform(), snapshot_hash(seed, cfg, label + "-" + text)}}}};
         }
     }
     return out;
@@ -83,15 +103,30 @@ json actual() {
 
 int main() {
     try {
-        const auto now = actual();
+        auto now = actual();
+        json frozen;
+        if (std::ifstream in(kFixture); in) frozen = json::parse(in);
         if (const char* write = std::getenv("DSTNS_GOLDEN_WRITE"); write && std::string(write) == "1") {
+            // Keep the other platforms' snapshots; replace this platform's.
+            if (frozen.contains("scenario"))
+                for (auto& [label, seeds] : now["scenario"].items())
+                    for (auto& [seed, entry] : seeds.items())
+                        if (frozen["scenario"].contains(label) && frozen["scenario"][label].contains(seed))
+                            for (auto& [key, value] : frozen["scenario"][label][seed]["snapshot_12345"].items())
+                                if (!key.empty() && key != platform()) entry["snapshot_12345"][key] = value;
             std::ofstream(kFixture) << now.dump(2) << "\n";
             std::cout << "[golden] wrote " << kFixture << "\n";
             return 0;
         }
-        std::ifstream in(kFixture);
-        if (!in) throw std::runtime_error(std::string("missing ") + kFixture);
-        const auto frozen = json::parse(in);
+        if (frozen.is_null()) throw std::runtime_error(std::string("missing ") + kFixture);
+        // Compare this platform's snapshots only; the rest must match exactly.
+        for (auto& [label, seeds] : frozen["scenario"].items())
+            for (auto& [seed, entry] : seeds.items()) {
+                auto& snapshots = entry["snapshot_12345"];
+                if (!snapshots.contains(platform()))
+                    throw std::runtime_error("no golden snapshot recorded for " + platform());
+                snapshots = json{{platform(), snapshots[platform()]}};
+            }
         if (now != frozen) {
             for (const auto& entry : json::diff(frozen, now)) std::cerr << entry.dump() << "\n";
             throw std::runtime_error("results differ from the golden fixtures");
