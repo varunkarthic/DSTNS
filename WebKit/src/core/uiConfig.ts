@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+import { LABEL_LANGUAGES } from "./labelLanguage";
 import { defaultLayers, defaultPlaceVisibility } from "./types";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from "./notificationModel";
 import type { Layers, PlaceVisibility } from "./types";
@@ -67,7 +68,7 @@ export interface UiConfig {
     /** Back and Forward ask how far, each time. */
     fine_control: boolean;
   };
-  display: { byte_units: ByteUnits };
+  display: { byte_units: ByteUnits; label_language: string };
   tutorial: { enabled: boolean; show_on_startup: boolean };
   clock: { hour12: boolean };
   asb: { enabled: boolean; report_interval_ms: number };
@@ -106,7 +107,7 @@ export const BUILT_IN: UiConfig = {
     dwell_ms: 7000,
   },
   playback: { skip_seconds: 900, step_seconds: 60, fine_control: false },
-  display: { byte_units: "decimal" },
+  display: { byte_units: "decimal", label_language: "local" },
   tutorial: { enabled: true, show_on_startup: false },
   clock: { hour12: false },
   asb: { enabled: true, report_interval_ms: 1000 },
@@ -219,7 +220,10 @@ export function mergeConfig(base: UiConfig, patch: unknown): UiConfig {
     },
     news: { style: oneOf(news.style, NEWS_STYLES, base.news.style) },
     shortcuts: readShortcuts(p.shortcuts, base.shortcuts),
-    display: { byte_units: oneOf((p.display as Record<string, unknown> | undefined)?.byte_units, ["decimal", "binary"] as ByteUnits[], base.display.byte_units) },
+    display: {
+      byte_units: oneOf((p.display as Record<string, unknown> | undefined)?.byte_units, ["decimal", "binary"] as ByteUnits[], base.display.byte_units),
+      label_language: oneOf((p.display as Record<string, unknown> | undefined)?.label_language, [...LABEL_LANGUAGES] as string[], base.display.label_language),
+    },
     accessibility: {
       theme: oneOf(accessibility.theme, ["system", "dark", "light"] as ThemeSetting[], base.accessibility.theme),
       color_vision: oneOf(accessibility.color_vision, ["standard", "protanopia", "deuteranopia", "tritanopia", "monochrome"] as ColorVision[], base.accessibility.color_vision),

@@ -14,6 +14,27 @@ only within one version.
 
 ## [Unreleased]
 
+## [Launcher 3.8.0, observer 3.3.0] - 2026-11-14
+
+**Engine 3.6.1, launcher 3.8.0, observer 3.3.0, API contract 1.8.** No engine change.
+
+### Added
+
+- Names on the map in a chosen language (#21). The setting `ui.display.label_language` has 15 choices: "As the map
+  names them" (the default), English, French, German, Spanish, Italian, Portuguese, Dutch, Russian, Arabic, Hindi,
+  Japanese, Korean, Chinese and Turkish. It is in the launcher and in the observer's Settings, under Units.
+  - Each road and place is named by its OpenStreetMap `name:<language>` where the map has one, and by its own name
+    otherwise.
+  - The language is applied once, where the topology enters the observer. The map's labels, tooltips, panels and
+    reports therefore agree.
+  - It is display only: the server never sees it, so which city a seed chooses and every hash are unchanged.
+
+### Tests
+
+- The fallback order, an unchanged topology for "local", and an unknown language read as local.
+
+Rollback: revert this release's commit.
+
 ## [Launcher 3.7.2, observer 3.2.1] - 2026-11-14
 
 **Engine 3.6.1, launcher 3.7.2, observer 3.2.1, API contract 1.8.** No engine change.

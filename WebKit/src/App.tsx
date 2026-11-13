@@ -40,6 +40,7 @@ import { RATES, rateIndexOf } from "./panels/CommandRail";
 import type { ISDCondition } from "./notifications/ISDHandler";
 import { Tutorial } from "./tutorial/Tutorial";
 import { EngineGate } from "./panels/EngineGate";
+import { localiseNames } from "./core/labelLanguage";
 import { useTutorial } from "./tutorial/useTutorial";
 import { NotificationCapsule } from "./notifications/NotificationCapsule";
 import { SettingsDrawer } from "./panels/SettingsDrawer";
@@ -98,7 +99,7 @@ import "./CoreMotion/motion.css";
 import "./styles/webfabric.css";
 import "./styles/design.css";
 
-export const VERSION = "3.2.1";
+export const VERSION = "3.3.0";
 
 const DECK_KEY = "dstns.telemetry-mode.v1";
 
@@ -211,7 +212,10 @@ export default function App() {
   }, []);
   const realisticAvailable = !!narrator?.enabled && narrator.state !== "unavailable" && narrator.state !== "disabled";
   const realistic = config.news.style === "realistic" && realisticAvailable;
-  const sim = useSimulation(config.notifications.dwell_ms, realistic);
+  const simulation = useSimulation(config.notifications.dwell_ms, realistic);
+  // Road and place names in the language chosen for labels (ui.display.label_language); display only.
+  const localTopology = useMemo(() => localiseNames(simulation.topology, config.display.label_language), [simulation.topology, config.display.label_language]);
+  const sim = useMemo(() => (localTopology === simulation.topology ? simulation : { ...simulation, topology: localTopology }), [simulation, localTopology]);
   const [operatorConfig, setOperatorConfig] = useState<UiConfig>(BUILT_IN);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [layers, setLayers] = useState<Layers>(BUILT_IN.layers);
@@ -1430,6 +1434,7 @@ export default function App() {
               highContrast: access.high_contrast,
               advanced: access.advanced,
               byteUnits: config.display.byte_units,
+              labelLanguage: config.display.label_language,
               shortcuts: config.shortcuts,
               fineControl: config.playback.fine_control,
             }}
@@ -1451,7 +1456,8 @@ export default function App() {
               onReduceTransparency: (value) => persist({ accessibility: { ...access, reduce_transparency: value } }),
               onHighContrast: (value) => persist({ accessibility: { ...access, high_contrast: value } }),
               onAdvanced: (value) => persist({ accessibility: { ...access, advanced: value } }),
-              onByteUnits: (value) => persist({ display: { byte_units: value } }),
+              onByteUnits: (value) => persist({ display: { ...config.display, byte_units: value } }),
+              onLabelLanguage: (value) => persist({ display: { ...config.display, label_language: value } }),
               onShortcuts: (shortcuts) => persist({ shortcuts }),
               onFineControl: (value) => persist({ playback: { ...config.playback, fine_control: value } }),
             }}

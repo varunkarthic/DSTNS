@@ -91,7 +91,7 @@ export interface TopologyNode {
   signal: boolean;
   osm_node_id: number;
 }
-export interface TopologyEdge {
+export interface TopologyEdge extends TopologyEdgeTags {
   id: number;
   from: number;
   to: number;
@@ -103,6 +103,10 @@ export interface TopologyEdge {
   lanes: number;
   free_speed_mps: number;
   geometry: Point[];
+}
+export interface TopologyEdgeTags {
+  /** Every OpenStreetMap tag the road was drawn with, name:xx among them. */
+  tags?: Record<string, string>;
 }
 export interface MapFeature {
   id: string;

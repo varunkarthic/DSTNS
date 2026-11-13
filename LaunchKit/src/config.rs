@@ -845,6 +845,8 @@ pub fn fields() -> &'static [Field] {
             Field::new("ui.clock.hour12", "12-hour clock", "Clock, units and news", Boolean, "Times as 3:00 PM instead of 15:00. Holding the clock switches it at any time.", json!(false)),
             Field::new("ui.display.byte_units", "Data sizes", "Clock, units and news", Choice, "Decimal (kB, MB, as drives are sold) or binary (KiB, MiB, as memory is counted).", json!("decimal"))
                 .choices(vec![("Decimal (MB)", json!("decimal")), ("Binary (MiB)", json!("binary"))]),
+            Field::new("ui.display.label_language", "Names on the map", "Clock, units and news", Choice, "Roads and places in this language where OpenStreetMap has their name in it (name:xx), and as the map names them otherwise. Display only: it never changes which city a seed chooses, or any hash.", json!("local"))
+                .choices(vec![("As the map names them", json!("local")), ("English", json!("en")), ("French", json!("fr")), ("German", json!("de")), ("Spanish", json!("es")), ("Italian", json!("it")), ("Portuguese", json!("pt")), ("Dutch", json!("nl")), ("Russian", json!("ru")), ("Arabic", json!("ar")), ("Hindi", json!("hi")), ("Japanese", json!("ja")), ("Korean", json!("ko")), ("Chinese", json!("zh")), ("Turkish", json!("tr"))]),
             Field::new("ui.news.style", "News style", "Clock, units and news", Choice, "Realistic News, written by a model where one is available, or the standard plain lines.", json!("realistic"))
                 .choices(vec![("Realistic", json!("realistic")), ("Standard", json!("standard"))]),
             // Map layers shown at first

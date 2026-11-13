@@ -214,6 +214,28 @@
             "decimal",
             "binary"
           ]
+        },
+        "label_language": {
+          "title": "Names on the map",
+          "description": "Names on the map (Clock, units and news). Roads and places in this language where OpenStreetMap has their name in it (name:xx), and as the map names them otherwise. Display only: it never changes which city a seed chooses, or any hash. Accepts: \"local\" (As the map names them), \"en\" (English), \"fr\" (French), \"de\" (German), \"es\" (Spanish), \"it\" (Italian), \"pt\" (Portuguese), \"nl\" (Dutch), \"ru\" (Russian), \"ar\" (Arabic), \"hi\" (Hindi), \"ja\" (Japanese), \"ko\" (Korean), \"zh\" (Chinese), \"tr\" (Turkish). Default: \"local\". Applies to observers opened from now on; a viewer's own choice comes first.",
+          "default": "local",
+          "enum": [
+            "local",
+            "en",
+            "fr",
+            "de",
+            "es",
+            "it",
+            "pt",
+            "nl",
+            "ru",
+            "ar",
+            "hi",
+            "ja",
+            "ko",
+            "zh",
+            "tr"
+          ]
         }
       }
     },

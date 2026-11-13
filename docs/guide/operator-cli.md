@@ -637,6 +637,7 @@ changes one from the command line.
 | | `ui.playback.fine_control` | Ask how far | off | Back and Forward open a menu of distances |
 | Clock, units and news | `ui.clock.hour12` | 12-hour clock | off | 3:00 PM instead of 15:00 |
 | | `ui.display.byte_units` | Data sizes | decimal | MB, or MiB |
+| | `ui.display.label_language` | Names on the map | local | Roads and places in a chosen language (OpenStreetMap `name:xx`) where the map has it; display only |
 | | `ui.news.style` | News style | realistic | Realistic News, or the standard lines |
 | Map layers | `ui.layers.roads`, `traffic`, `vehicles`, `signals`, `buildings`, `place_names`, `other_places`, `labels`, `weather`, `flooding`, `incidents`, `events` | Roads, Traffic… | as shipped | Which layers show when a viewer first arrives |
 | Tutorial | `ui.tutorial.enabled`, `show_on_startup` | Tutorial, Show at start-up | on, off | The guided tour, offered or opened by itself once |

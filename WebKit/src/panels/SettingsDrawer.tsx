@@ -7,6 +7,7 @@ import { QuantizedSlider } from "../components/QuantizedSlider";
 import { Select } from "../components/Popover";
 import { Icon } from "../components/Icons";
 import { Badge, Row, Section, Segmented, Switch } from "../components/settingsControls";
+import { LABEL_LANGUAGES, LANGUAGE_NAMES } from "../core/labelLanguage";
 import { COLOR_VISION_OPTIONS, paletteFor } from "../core/appearance";
 import type { ColorVision, ThemeSetting } from "../core/appearance";
 import type { ByteUnits } from "../core/units";
@@ -54,6 +55,7 @@ export interface SettingsValues {
   highContrast: boolean;
   advanced: boolean;
   byteUnits: ByteUnits;
+  labelLanguage: string;
   shortcuts: ShortcutOverrides;
   fineControl: boolean;
 }
@@ -77,6 +79,7 @@ export interface SettingsActions {
   onHighContrast: (on: boolean) => void;
   onAdvanced: (on: boolean) => void;
   onByteUnits: (units: ByteUnits) => void;
+  onLabelLanguage: (language: string) => void;
   onShortcuts: (shortcuts: ShortcutOverrides) => void;
   onFineControl: (on: boolean) => void;
 }
@@ -408,6 +411,20 @@ export function SettingsDrawer({
                   { value: "decimal", label: "KB, MB, GB" },
                   { value: "binary", label: "KiB, MiB, GiB" },
                 ]}
+              />
+            }
+          />
+          <Row
+            stacked
+            title="Names on the map"
+            hint="Roads and places in this language where the map has their name in it, and as the map names them otherwise. It changes only what is shown: never which city a seed chooses."
+            control={
+              <Select
+                label="Names on the map"
+                className="wide"
+                value={values.labelLanguage}
+                onChange={actions.onLabelLanguage}
+                options={LABEL_LANGUAGES.map((code) => ({ value: code, label: LANGUAGE_NAMES[code] }))}
               />
             }
           />
