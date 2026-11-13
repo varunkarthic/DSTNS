@@ -30,6 +30,8 @@ public:
         std::function<void(const ScenarioConfig&)> validate;
         // The selection policy as the manifest reports it, with its fingerprint.
         std::function<nlohmann::json(const ScenarioConfig&)> describe;
+        // Compiles the whole scenario in place of core-legacy's compiler.
+        std::function<Scenario(Seed128, const ScenarioConfig&, const Progress&)> compile;
     };
 
     [[nodiscard]] Scenario compile(Seed128 seed, const ScenarioConfig& config, const Progress& progress = {},

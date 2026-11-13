@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/core-ng/selection.hpp"
+#include "dstns/core-ng/compile.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -148,6 +149,9 @@ ScenarioCompiler::Hooks hooks() {
     };
     out.validate = [](const ScenarioConfig& config) { (void)policy_of(config); };
     out.describe = [](const ScenarioConfig& config) { return policy_of(config).to_json(); };
+    out.compile = [](Seed128 seed, const ScenarioConfig& config, const ScenarioCompiler::Progress& progress) {
+        return compile(seed, config, progress);
+    };
     return out;
 }
 

@@ -58,7 +58,7 @@ holds simulation state of its own; both read what the core publishes.
 |---|---|
 | `Core/server/main.cpp` | Process entry: flags, operator credential, cache sweep, engine and API start-up |
 | `Core/core-legacy/` | The current engine, `core-legacy`: the core library `dstns_core` (engine, scenario, OSM, events, ASB). Frozen apart from fixes while `core-ng` replaces it |
-| `Core/core-ng/` | The next-generation engine, `core-ng`, built module by module beside `core-legacy`. See [the migration plan](../design/v3-core-ng-migration.md) |
+| `Core/core-ng/` | The next-generation engine, `core-ng`, built module by module beside `core-legacy`: map selection policies (`selection.cpp`); the scenario compile (`compile.cpp`) and its modules (`network.cpp`: grid, bus stops, buildings; `plans.cpp`: signals, hotspots, trips, weather, incidents, hashes); and the tables the lifecycle and the world job are held to (`lifecycle.cpp`, `world.cpp`). See [the migration plan](../design/v3-core-ng-migration.md) |
 | `Fabric/` | The HTTP API library `dstns_fabric`, one route module per API group |
 | `Core/core-legacy/src/engine.cpp` | `SimulationEngine`: lifecycle, clock, physics step, checkpoints, controls, undo/redo, views |
 | `Fabric/src/` | `ApiServer`: every HTTP route, request validation, error mapping, CSRF guard |

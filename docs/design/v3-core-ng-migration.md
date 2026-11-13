@@ -1,6 +1,6 @@
 # v3 core-ng migration plan
 
-Status: **releases 0–3 and 5 done**; release 6 (scenario compile in core-ng) next.
+Status: **releases 0–3, 5 and 6 done**; release 7 (physics and checkpoints in core-ng) next.
 
 Baseline: `v3` at `d29a2f6` (source) / `b828aa6` (graph). Engine `3.0.0`, observer `3.1.0`, API contract `1.4`,
 map selection `urban-crfg-v3`, algorithms `DSTNS/1`.
@@ -133,7 +133,7 @@ fields matches only the legacy policy, so old files stay safe. LaunchKit's `prep
 | 3 | `urban-geo-v1` policy, validation, manifest fields. The launcher settings wait for the integration phase | engine 3.2.0, API 1.6 | determinism, empty/invalid sets, fingerprint stability |
 | 4 | Label language fallback in WebKit; `ui.label_language` | observer 3.2.0 | raw names intact; graph and replay hashes unchanged |
 | 5 | World preparation and Fastboot guards (table above), core-ng | engine patch | cancel/restart/stale-pointer tests |
-| 6 | Scenario compile split into core-ng modules | engine patch | parity: identical hashes, both engines |
+| 6 | Scenario compile in core-ng: `compile.cpp` orders the modules in `network.cpp` and `plans.cpp`, ported from core-legacy with every expression unchanged | engine 3.3.2 | parity: identical hashes and snapshots, both engines, macOS and Linux |
 | 7 | Physics step and checkpoint store in core-ng | engine patch | byte-equal snapshots, both engines |
 | 8+ | One measured optimisation per release (checkpoint memory first) | patch each | before/after benchmark table |
 | last | `core-ng` becomes default; docs, Fabric, WebKit, end-to-end | engine minor | full start, regenerate, observe, save, replay |

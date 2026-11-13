@@ -14,6 +14,30 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.3.2] - 2026-11-13
+
+**Engine 3.3.2, launcher 3.0.1, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged: the golden
+fixtures pass on both engines. No route or field changed.
+
+### Changed
+
+- A world run on `core-ng` is now compiled by core-ng's own compiler (`Core/core-ng/src/compile.cpp`), in narrow
+  modules: `network.cpp` (synthetic grid, bus stops, buildings) and `plans.cpp` (signals, hotspots, trips, weather,
+  incidents, hashes). Each module reads and writes one scenario and draws only from its own sub-seed. They were
+  generated from core-legacy's compiler with every expression unchanged, so results are identical to the last bit.
+  The selection policy is checked before anything is read or fetched. core-legacy's compiler is untouched apart from
+  one more hook.
+
+### Tests
+
+- `dstns_golden` now compares core-ng's own compiler with core-legacy's: every compile hash and runtime snapshot
+  matches. Changing one constant in core-ng's incident planner makes it fail for core-ng alone.
+- `dstns_compile_ng`: each module is repeatable on its own, weather and incidents give the same results in either
+  order, a module alone makes what the whole compile made, the event hash moves only with events, and an invalid
+  policy, `max_nodes` 1 and day 2 are refused.
+
+Rollback: revert this release's commit; core-legacy compiles every world either way.
+
 ## [3.3.1] - 2026-11-13
 
 **Engine 3.3.1, launcher 3.0.1, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged: the golden

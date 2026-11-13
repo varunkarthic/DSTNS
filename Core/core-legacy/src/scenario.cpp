@@ -37,6 +37,7 @@ constexpr std::uint32_t kMinimumSignalDegree = 3;
 constexpr double kSignalSnapRadiusM = 45.0;
 
 Scenario ScenarioCompiler::compile(Seed128 seed_value,const ScenarioConfig& config,const Progress& progress,const Hooks& hooks)const{
+    if(hooks.compile)return hooks.compile(seed_value,config,progress);
     const auto report=[&](Stage stage){ if(progress) progress(stage); };
     if(config.max_nodes<2||config.max_nodes>50000)throw std::invalid_argument("max_nodes must be in [2,50000]");
     // A selection hook checks its own policies; without one only the frozen legacy policy is known.

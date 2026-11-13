@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.3.1 LANGUAGES CXX)
+project(dstns VERSION 3.3.2 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -105,7 +105,8 @@ target_link_libraries(dstns_fabric PUBLIC dstns_core dstns_daemon)
 target_compile_options(dstns_fabric PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 
 # core-ng: the next-generation engine, built beside core-legacy one module at a time.
-add_library(dstns_core_ng Core/core-ng/src/selection.cpp Core/core-ng/src/lifecycle.cpp Core/core-ng/src/world.cpp)
+add_library(dstns_core_ng Core/core-ng/src/selection.cpp Core/core-ng/src/lifecycle.cpp Core/core-ng/src/world.cpp
+  Core/core-ng/src/compile.cpp Core/core-ng/src/network.cpp Core/core-ng/src/plans.cpp)
 target_include_directories(dstns_core_ng PUBLIC Core/core-ng/include)
 target_link_libraries(dstns_core_ng PUBLIC dstns_core)
 target_compile_options(dstns_core_ng PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Werror)
@@ -200,6 +201,11 @@ if(DSTNS_BUILD_TESTS)
   target_compile_options(dstns_next_world_ng_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_next_world_ng COMMAND dstns_next_world_ng_tests)
   set_tests_properties(dstns_next_world_ng PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_executable(dstns_compile_ng_tests tests/unit/compile_ng_tests.cpp)
+  target_link_libraries(dstns_compile_ng_tests PRIVATE dstns_core_ng)
+  target_compile_options(dstns_compile_ng_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_compile_ng COMMAND dstns_compile_ng_tests)
 
   add_executable(dstns_golden_tests tests/unit/golden_tests.cpp)
   target_link_libraries(dstns_golden_tests PRIVATE dstns_core dstns_core_ng)
