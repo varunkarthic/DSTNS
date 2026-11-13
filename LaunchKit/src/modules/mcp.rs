@@ -186,7 +186,7 @@ fn world(paths: &Paths) -> Result<Value> {
     let port = running(paths)?;
     let status = api::get(port, "/api/v1/playback/status", 10.0, paths);
     let manifest = api::get(port, "/api/v1/view/manifest", 10.0, paths);
-    let location = api::get(port, "/api/v1/view/topology", 30.0, paths).body.pointer("/data/location").cloned().unwrap_or(Value::Null);
+    let location = crate::simulation::network(port, paths).map(|(_, n)| n["location"].clone()).unwrap_or(Value::Null);
     let status = status.data().cloned().unwrap_or(Value::Null);
     Ok(json!({
         "lifecycle": status.get("lifecycle"), "seed": status.get("seed"), "virtual_seconds": status.get("virtual_seconds"), "tick_rate": status.get("tick_rate"),

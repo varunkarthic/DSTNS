@@ -59,6 +59,9 @@ int main(int argc, char** argv) {
         std::ofstream(settings / "defaults.json") << defaults.dump(2);
         auto engines = json::parse(read(settings / "engines.json"));
         engines["selected"] = "core-legacy";
+        // What each engine is comes from the build; the launcher writes it back at every start.
+        for (auto& [id, entry] : engines["engines"].items())
+            for (const auto* key : {"channel", "version", "kind"}) entry.erase(key);
         std::ofstream(settings / "engines.json") << engines.dump(2);
     }
     const Env environment = {{"DSTNS_CONFIG_DIR", settings.string()}, {"DSTNS_API_PORT", std::to_string(port)}, {"DSTNS_LOGS_DIR", tmp.str()}, {"DSTNS_APPS_FILE", (tmp / "apps.json").string()},
@@ -117,6 +120,12 @@ int main(int argc, char** argv) {
         EXPECT(at_start, "the simulation never started", started.output());
         EXPECT(((*at_start)[APP] == "active" && (*at_start)[SLOW] == "active"), "it started with", json(*at_start));
         EXPECT(seen_plan, "the observer was told what was being started");
+        {
+            const auto engines = json::parse(read(settings / "engines.json")).at("engines");
+            const auto info = get("/api/v1/system/info").body;
+            EXPECT(engines.at("core-ng").value("channel", "") == "alpha" && engines.at("core-legacy").value("channel", "") == "stable", engines);
+            EXPECT(engines.at("core-legacy").value("version", "") == info.value("version", "?") && engines.at("core-ng").value("kind", "") == "real", engines);
+        }
         // The plan stays while they run, which is how a reloaded application comes back as itself.
         const auto running = get("/api/v1/fabric/state?since=0").data().at("launch_plan").at("apps");
         for (const auto& entry : running) EXPECT(entry.at("state") == "ready", running);

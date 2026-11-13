@@ -49,6 +49,38 @@ pub fn load(paths: &Paths) -> Result<Value> {
     Ok(config)
 }
 
+/// What each engine is, as the running server's build reports it (GET /api/v1/engine), copied into
+/// config/engines.json for whoever reads the file: `channel` (alpha, beta, stable), `version`, `kind` (real, pseudo).
+/// The build is the authority: these copies are refreshed at every start, and editing them changes nothing.
+pub fn sync_engine_identities(port: u16, paths: &Paths) {
+    let answer = crate::api::get(port, "/api/v1/engine", 10.0, paths);
+    let Some(catalogue) = answer.data().and_then(|d| d.get("catalogue")).and_then(Value::as_array).cloned() else { return };
+    let mut engines = read_engines(paths);
+    let before = engines.clone();
+    for engine in &catalogue {
+        let Some(id) = engine.get("id").and_then(Value::as_str) else { continue };
+        if !engines.get("engines").is_some_and(Value::is_object) {
+            engines["engines"] = json!({});
+        }
+        let entry = &mut engines["engines"][id];
+        if !entry.is_object() {
+            *entry = json!({});
+        }
+        for key in IDENTITY_KEYS {
+            entry[key] = engine.get(key).cloned().unwrap_or(Value::Null);
+        }
+    }
+    if engines != before {
+        let temporary = paths.engines_config().with_extension("json.tmp");
+        if fs::write(&temporary, serde_json::to_string_pretty(&engines).unwrap() + "\n").is_ok() {
+            let _ = fs::rename(&temporary, paths.engines_config());
+        }
+    }
+}
+
+/// The keys of an engine's entry in engines.json that the build reports, not the operator.
+pub const IDENTITY_KEYS: [&str; 3] = ["channel", "version", "kind"];
+
 fn read_engines(paths: &Paths) -> Value {
     fs::read_to_string(paths.engines_config()).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).filter(|v| v.is_object()).unwrap_or_else(|| json!({"schema_version": 1}))
 }

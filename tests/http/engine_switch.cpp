@@ -30,6 +30,13 @@ json run_on(const std::string& engine, const std::string& seed, const json& extr
         return std::nullopt;
     }, 60, "the world to be ready").value();
     auto manifest = server.op("GET", "/api/v1/view/manifest").data();
+    // The manifest's summary says what the topology says, so the launcher need not read the whole topology.
+    {
+        const auto topology = server.op("GET", "/api/v1/view/topology").data();
+        const auto& network = manifest.at("network");
+        EXPECT(network.at("nodes") == topology.at("nodes").size() && network.at("edges") == topology.at("edges").size() && network.at("features") == topology.at("features").size(), network);
+        EXPECT(network.at("location").at("city") == topology.at("location").at("city") && network.at("source") == topology.at("source"), network);
+    }
     json regenerated;
     if (regenerate) {
         // A new world keeps the engine and the policy, and so stays where the policy allows.

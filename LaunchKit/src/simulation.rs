@@ -139,15 +139,14 @@ pub fn map_status(port: u16, paths: &Paths) -> Value {
 
 /// Read the topology and check that a real OpenStreetMap network loaded.
 pub fn world(port: u16, seed: &str, day: i64, paths: &Paths) -> Result<World> {
-    let response = api::get(port, "/api/v1/view/topology", 60.0, paths);
-    let data = response.body.get("data").cloned().unwrap_or(Value::Null);
-    let count = |key: &str| data.get(key).and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
-    if response.code != 200 || data.get("source").and_then(|v| v.as_str()) != Some("OpenStreetMap") || count("nodes") == 0 || count("edges") == 0 {
+    let (body, network) = network(port, paths)?;
+    let count = |key: &str| network.get(key).and_then(Value::as_u64).unwrap_or(0) as usize;
+    if network.get("source").and_then(|v| v.as_str()) != Some("OpenStreetMap") || count("nodes") == 0 || count("edges") == 0 {
         return Err(LauncherError::start("The server did not load a usable real OSM network.").remedy("Check the map file, or start again with another seed."));
     }
-    let location = data.get("location").cloned().unwrap_or(json!({}));
+    let location = network.get("location").cloned().unwrap_or(json!({}));
     Ok(World {
-        seed: if seed.is_empty() { text(response.body.get("seed")) } else { seed.to_string() },
+        seed: if seed.is_empty() { text(body.get("seed")) } else { seed.to_string() },
         day,
         city: text(location.get("city")),
         country: text(location.get("country")),
@@ -156,6 +155,25 @@ pub fn world(port: u16, seed: &str, day: i64, paths: &Paths) -> Result<World> {
         edges: count("edges"),
         places: count("features"),
     })
+}
+
+/// The loaded world's source, counts and place, from the manifest's summary: a few hundred bytes. The whole
+/// topology is tens of megabytes for a large city, and parsed it held hundreds of MiB in the launcher, which the
+/// Resource Control Subsystem reported as the launcher's memory crossing its warning line. A server from before the
+/// summary is asked for the topology, as before.
+pub fn network(port: u16, paths: &Paths) -> Result<(Value, Value)> {
+    let manifest = api::get(port, "/api/v1/view/manifest", 30.0, paths);
+    if let Some(network) = manifest.body.pointer("/data/network").filter(|n| n.is_object()) {
+        return Ok((manifest.body.clone(), network.clone()));
+    }
+    let response = api::get(port, "/api/v1/view/topology", 60.0, paths);
+    if response.code != 200 {
+        return Err(LauncherError::start("The server did not report its network.").remedy("Check the map file, or start again with another seed."));
+    }
+    let data = response.body.get("data").cloned().unwrap_or(Value::Null);
+    let count = |key: &str| data.get(key).and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let network = json!({"source": data.get("source"), "nodes": count("nodes"), "edges": count("edges"), "features": count("features"), "location": data.get("location")});
+    Ok((response.body, network))
 }
 
 /// Maps already on disk, as --osm-file arguments.

@@ -96,6 +96,8 @@ impl Session {
         let request = simulation::prepare_request(options, &self.paths)?;
         simulation::ACCEPT_RISK.store(options.accept_risk, std::sync::atomic::Ordering::Relaxed);
         let handle = Arc::new(server::start(reporter.as_ref(), &self.paths, true, Some(cancel), false)?);
+        // config/engines.json shows what each engine is, as this build says.
+        crate::config::sync_engine_identities(handle.port, &self.paths);
         {
             let mut current = self.handle.lock().unwrap();
             // Re-attaching to the server this session started must not forget that the session owns it.
@@ -132,8 +134,8 @@ impl Session {
         }
         cancel.check()?;
         let world = if observing {
-            let current = crate::api::get(handle.port, "/api/v1/view/topology", 60.0, &self.paths);
-            if current.body.pointer("/data/source").and_then(|v| v.as_str()) != Some("OpenStreetMap") {
+            let source = simulation::network(handle.port, &self.paths).ok().and_then(|(_, n)| n.get("source").and_then(|s| s.as_str()).map(String::from));
+            if source.as_deref() != Some("OpenStreetMap") {
                 return Err(LauncherError::start("The active server is running a synthetic fixture. Stop that run before launching an OSM simulation."));
             }
             reporter.message(Level::Info, "Observing the existing real OSM simulation", "");

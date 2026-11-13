@@ -1,7 +1,7 @@
 # Engine governance
 
-How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.6.0,
-launcher 3.7.0, observer 3.2.0, API contract 1.7.
+How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.6.1,
+launcher 3.7.1, observer 3.2.0, API contract 1.8.
 
 ## Engines
 
@@ -71,14 +71,15 @@ server reads it as it starts (`DSTNS_ENGINE_CONFIG`, which the launcher sets to 
   "default": "core-legacy",
   "auto_switch": "offer",
   "engines": {
-    "core-legacy": {"enabled": true},
-    "core-ng": {"enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
+    "core-legacy": {"channel": "stable", "version": "3.6.1", "kind": "real", "enabled": true},
+    "core-ng": {"channel": "alpha", "version": "0.6.0", "kind": "real", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
   }
 }
 ```
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
+| `engines.ID.channel`, `.version`, `.kind` | as the build reports them | — | What each engine is: `alpha`, `beta` or `stable`; its own version; `real` or `pseudo`. **Copied from the build by the launcher at every start** (`GET /api/v1/engine`), so the file shows them; the server never reads them, and editing them changes nothing |
 | `selected` | an installed engine | `core-legacy` | The engine the launcher starts. `--engine` changes it for one run |
 | `default` | `core-legacy` | `core-legacy` | The stable engine every installation starts on. Written by the launcher; it cannot be disabled |
 | `auto_switch` | `offer`, `off` | `offer` | Whether a rejection offers the enabled stable real engines for the same seed |

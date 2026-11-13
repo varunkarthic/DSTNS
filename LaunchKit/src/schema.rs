@@ -123,6 +123,32 @@ pub fn schema(file: &str) -> Value {
             place(&mut out, &key.split('.').collect::<Vec<_>>(), json!({"description": "Informational: the engine fixes this value; it is only described here."}));
         }
     }
+    if file == "engines.json" {
+        for (id, key, text) in identity_help() {
+            let schema = match key {
+                "channel" => json!({"enum": ["alpha", "beta", "stable"], "description": text}),
+                "kind" => json!({"enum": ["real", "pseudo"], "description": text}),
+                _ => json!({"type": "string", "description": text}),
+            };
+            place(&mut out, &["engines", id, key], schema);
+        }
+    }
+    out
+}
+
+/// The build-reported keys of each engine in engines.json, described.
+fn identity_help() -> Vec<(&'static str, &'static str, String)> {
+    let mut out = vec![];
+    for id in config::ENGINES {
+        for key in config::IDENTITY_KEYS {
+            let what = match key {
+                "channel" => "Release channel: alpha (incomplete; each run held until acknowledged), beta (complete, not yet proven; held), or stable (starts at once).",
+                "version" => "The engine's own version.",
+                _ => "real (runs worlds) or pseudo (would only delegate to other engines).",
+            };
+            out.push((id, key, format!("{what} Reported by the build and copied here by the launcher at every start; editing it changes nothing.")));
+        }
+    }
     out
 }
 
@@ -136,6 +162,11 @@ pub fn help(file: &str) -> Value {
     if prefix.is_empty() {
         for key in config::INFORMATIONAL.iter().filter(|k| **k != "schema_version") {
             out.insert(key.to_string(), json!("Informational: the engine fixes this value; it is only described here."));
+        }
+    }
+    if file == "engines.json" {
+        for (id, key, text) in identity_help() {
+            out.insert(format!("engines.{id}.{key}"), json!(text));
         }
     }
     Value::Object(out)

@@ -2470,7 +2470,15 @@ nlohmann::json SimulationEngine::manifest() const {
         {"road_filter_version", "road-only/v1"},
         {"engine", s.config.engine},
         {"map_selection_version", s.config.map_selection_version},
-        {"map_selection", map_selection_json(s.config)}
+        {"map_selection", map_selection_json(s.config)},
+        // What the launcher reports about a world, without the whole topology: the same counts and place as
+        // /api/v1/view/topology, a few hundred bytes instead of tens of megabytes.
+        {"network", {
+            {"source", s.config.osm_file.empty() ? "synthetic fixture" : "OpenStreetMap"},
+            {"nodes", graph_->nodes().size()},
+            {"edges", graph_->edges().size()},
+            {"features", s.features.size()},
+            {"location", {{"city", s.map_city}, {"country", s.map_country}, {"downloaded", s.map_downloaded}}}}}
     });
 }
 

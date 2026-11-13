@@ -70,6 +70,25 @@
                   "type": "boolean"
                 }
               }
+            },
+            "channel": {
+              "enum": [
+                "alpha",
+                "beta",
+                "stable"
+              ],
+              "description": "Release channel: alpha (incomplete; each run held until acknowledged), beta (complete, not yet proven; held), or stable (starts at once). Reported by the build and copied here by the launcher at every start; editing it changes nothing."
+            },
+            "version": {
+              "type": "string",
+              "description": "The engine's own version. Reported by the build and copied here by the launcher at every start; editing it changes nothing."
+            },
+            "kind": {
+              "enum": [
+                "real",
+                "pseudo"
+              ],
+              "description": "real (runs worlds) or pseudo (would only delegate to other engines). Reported by the build and copied here by the launcher at every start; editing it changes nothing."
             }
           }
         },
@@ -81,6 +100,25 @@
               "description": "core-legacy available (Engine). core-legacy is the default engine, so it cannot be turned off. Accepts: true or false. Default: true.",
               "default": true,
               "type": "boolean"
+            },
+            "channel": {
+              "enum": [
+                "alpha",
+                "beta",
+                "stable"
+              ],
+              "description": "Release channel: alpha (incomplete; each run held until acknowledged), beta (complete, not yet proven; held), or stable (starts at once). Reported by the build and copied here by the launcher at every start; editing it changes nothing."
+            },
+            "version": {
+              "type": "string",
+              "description": "The engine's own version. Reported by the build and copied here by the launcher at every start; editing it changes nothing."
+            },
+            "kind": {
+              "enum": [
+                "real",
+                "pseudo"
+              ],
+              "description": "real (runs worlds) or pseudo (would only delegate to other engines). Reported by the build and copied here by the launcher at every start; editing it changes nothing."
             }
           }
         }

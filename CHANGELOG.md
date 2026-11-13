@@ -14,10 +14,45 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.6.1] - 2026-11-14
+
+**Engine 3.6.1, launcher 3.7.1, observer 3.2.0, API contract 1.8.** Results for every seed are unchanged.
+
+### Added
+
+- `config/engines.json` shows what each engine is: `channel` (alpha, beta or stable), `version` and `kind` (real or
+  pseudo). The launcher copies them from the running build (`GET /api/v1/engine`) at every start. The build stays the
+  authority: the server never reads these copies, so editing them cannot make an engine stable. The schema and
+  `_help` say so.
+- The manifest has `network`: the source, the numbers of nodes, edges and places, and the location, as the topology
+  says (API 1.8).
+
+### Fixed
+
+- **The launcher's memory warning at about 271 MiB.** The Resource Control Subsystem warned because the launcher
+  crossed its 256 MiB warning line (β) during a run. The cause was real overhead, not a miscalibrated line. To count
+  a world's roads and name its city, the launcher downloaded and parsed the whole topology: tens of megabytes of JSON
+  for a city, held as parsed values. Measured on the bundled 1,196-junction district, the launcher's peak memory was
+  111 MB with the topology and 12 MB with the manifest's summary. A default 3,000-junction district scales to about
+  the 271 MiB reported. The launcher, its MCP `dstns_world` tool, and the check for an existing run now read the
+  manifest's summary, falling back to the topology only for an older server. The memory lines (α 1, β 256, γ 1024
+  MiB) stay as they were.
+- 3.6.0's documentation did not build in strict mode: the changelog linked a page by a path outside the docs. CI
+  failed on it; the link is now a code path.
+
+### Tests
+
+- `dstns_http_engine_switch`: the manifest's `network` matches the topology.
+- `dstns_http_launcher_apps`: after a real start, `engines.json` holds each engine's channel, version and kind from
+  the build. The test uses settings of its own (`DSTNS_CONFIG_DIR`), so the settings of the machine running it
+  cannot decide its outcome.
+
+Rollback: revert this release's commit.
+
 ## [3.6.0] - 2026-11-13
 
 **Engine 3.6.0, launcher 3.7.0, observer 3.2.0, API contract 1.7.** Results for every existing seed and policy are
-unchanged: the golden fixtures pass on both engines. See [Engine governance](docs/design/engine-governance.md).
+unchanged: the golden fixtures pass on both engines. See `docs/design/engine-governance.md`.
 
 ### Added
 

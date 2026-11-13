@@ -8,16 +8,28 @@
     "engines.core-ng.enabled": "core-ng available (Engine). Off, core-ng stays installed but nothing can start a run on it. Accepts: true or false. Default: true.",
     "engines.core-ng.acknowledgment.enforce": "core-ng: hold runs until acknowledged (Engine). core-ng is alpha. On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing. Accepts: true or false. Default: true.",
     "engines.core-ng.acknowledgment.ui": "core-ng: acknowledge in the observer (Engine). On, the observer asks a person to accept or reject. Off while runs are still held, the launcher asks instead: start with --accept-risk. Turning holding off turns this off. Accepts: true or false. Default: true.",
-    "engines.core-legacy.enabled": "core-legacy available (Engine). core-legacy is the default engine, so it cannot be turned off. Accepts: true or false. Default: true."
+    "engines.core-legacy.enabled": "core-legacy available (Engine). core-legacy is the default engine, so it cannot be turned off. Accepts: true or false. Default: true.",
+    "engines.core-legacy.channel": "Release channel: alpha (incomplete; each run held until acknowledged), beta (complete, not yet proven; held), or stable (starts at once). Reported by the build and copied here by the launcher at every start; editing it changes nothing.",
+    "engines.core-legacy.version": "The engine's own version. Reported by the build and copied here by the launcher at every start; editing it changes nothing.",
+    "engines.core-legacy.kind": "real (runs worlds) or pseudo (would only delegate to other engines). Reported by the build and copied here by the launcher at every start; editing it changes nothing.",
+    "engines.core-ng.channel": "Release channel: alpha (incomplete; each run held until acknowledged), beta (complete, not yet proven; held), or stable (starts at once). Reported by the build and copied here by the launcher at every start; editing it changes nothing.",
+    "engines.core-ng.version": "The engine's own version. Reported by the build and copied here by the launcher at every start; editing it changes nothing.",
+    "engines.core-ng.kind": "real (runs worlds) or pseudo (would only delegate to other engines). Reported by the build and copied here by the launcher at every start; editing it changes nothing."
   },
   "selected": "core-legacy",
   "default": "core-legacy",
   "auto_switch": "offer",
   "engines": {
     "core-legacy": {
+      "channel": "stable",
+      "version": "3.6.1",
+      "kind": "real",
       "enabled": true
     },
     "core-ng": {
+      "channel": "alpha",
+      "version": "0.6.0",
+      "kind": "real",
       "enabled": true,
       "acknowledgment": {
         "enforce": true,

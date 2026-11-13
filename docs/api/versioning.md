@@ -2,8 +2,8 @@
 
 | What | Version | Where reported |
 |---|---|---|
-| The API contract | `1.7`, under the `/api/v1` prefix | `api_version` in responses |
-| The engine | `3.6.0` | `version` in `/health` and `/system/info` |
+| The API contract | `1.8`, under the `/api/v1` prefix | `api_version` in responses |
+| The engine | `3.6.1` | `version` in `/health` and `/system/info` |
 | The observer | `3.2.0` | About |
 | Map selection | `urban-crfg-v3` (default), `urban-geo-v1` (core-ng) | `map_selection_version`; `map_selection` in `/view/manifest` with the policy's fingerprint |
 | Engines | `core-legacy`, `core-ng` | `engine` in status and `/view/manifest`; `engines` in `/system/info` |
@@ -32,7 +32,8 @@ field to the start request, playback status and manifest, and `engines` to `/sys
 the engine routes (`/api/v1/engine`, `/api/v1/engine/approval`), `engine_identity` in the playback status,
 `engine_catalogue` and `sumo.enabled` in `/system/info`, `exclude_countries` and `exclude_cities` in `map_selection`, and
 the deferred answers of the unstable-engine gate: a held start is `202` with `state: approval_required`, and a request
-that would run the engine meanwhile is `409 APPROVAL_REQUIRED`.
+that would run the engine meanwhile is `409 APPROVAL_REQUIRED`. `1.8` added `network` to the manifest: the source,
+the numbers of nodes, edges and places, and the location, the same as the topology says.
 
 ## Security exceptions
 
