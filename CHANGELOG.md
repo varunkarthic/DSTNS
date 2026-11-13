@@ -14,6 +14,36 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-11-13
+
+**Engine 3.3.1, launcher 3.0.1, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged: the golden
+fixtures pass on both engines. No route or field changed.
+
+### Fixed
+
+The world-generation job was held in two strings, two flags, an atomic and a pointer. Reading it as one machine found:
+
+- A stop, reset or termination while a new world was staged left it reading `staged`, though it could never be
+  installed, and confirming it then failed. It is now cancelled at once (`failed`, `WORLD_CANCELLED`) and freed.
+- A world asked for staged, then stopped while it was still being prepared, was staged anyway when its preparation
+  finished. It now fails as cancelled when its preparation ends. Until then it reads `generating`, since its compile
+  still holds the lease and a new start would be refused.
+- A discarded or cancelled world whose preparation then failed marked its seed as failed, so the next world avoided
+  that city for no reason. Only a world that could not be made does now.
+
+### Added
+
+- core-ng's world-job table (`Core/core-ng/src/world.cpp`). Every change of the job's state goes through one function,
+  checked against it; one outside it is logged as an `ERROR` from `world`.
+
+### Tests
+
+- `dstns_lifecycle_ng` also holds the world job to its table through the 48 races, and checks that a stop or reset
+  cancels a staged world, that a cancelled world cannot be committed, and that a world stopped while being staged ends
+  cancelled and lets a new one be prepared. With the fix taken out, the test fails.
+
+Rollback: revert this release's commit.
+
 ## [3.3.0] - 2026-11-13
 
 **Engine 3.3.0, launcher 3.0.1, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged: the golden

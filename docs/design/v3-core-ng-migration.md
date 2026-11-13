@@ -1,6 +1,6 @@
 # v3 core-ng migration plan
 
-Status: **releases 0–3, 5a and 5c done**; 5b (world preparation) next.
+Status: **releases 0–3 and 5 done**; release 6 (scenario compile in core-ng) next.
 
 Baseline: `v3` at `d29a2f6` (source) / `b828aa6` (graph). Engine `3.0.0`, observer `3.1.0`, API contract `1.4`,
 map selection `urban-crfg-v3`, algorithms `DSTNS/1`.

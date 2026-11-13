@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.3.0 LANGUAGES CXX)
+project(dstns VERSION 3.3.1 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -105,7 +105,7 @@ target_link_libraries(dstns_fabric PUBLIC dstns_core dstns_daemon)
 target_compile_options(dstns_fabric PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 
 # core-ng: the next-generation engine, built beside core-legacy one module at a time.
-add_library(dstns_core_ng Core/core-ng/src/selection.cpp Core/core-ng/src/lifecycle.cpp)
+add_library(dstns_core_ng Core/core-ng/src/selection.cpp Core/core-ng/src/lifecycle.cpp Core/core-ng/src/world.cpp)
 target_include_directories(dstns_core_ng PUBLIC Core/core-ng/include)
 target_link_libraries(dstns_core_ng PUBLIC dstns_core)
 target_compile_options(dstns_core_ng PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Werror)

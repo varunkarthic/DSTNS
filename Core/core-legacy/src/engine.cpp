@@ -325,6 +325,37 @@ void SimulationEngine::set_transition_guard(std::function<bool(Lifecycle, Lifecy
     transition_guard_ = std::move(guard);
 }
 
+void SimulationEngine::set_world_guard(std::function<bool(const std::string&, const std::string&)> guard) {
+    world_guard_ = std::move(guard);
+}
+
+void SimulationEngine::world_transition(const std::string& state, const std::string& stage) {
+    if (world_guard_ && !world_guard_(world_job_.state, state)) {
+        ++illegal_transitions_;
+        logger_.system("ERROR", "world", "illegal world job transition " + world_job_.state + " -> " + state);
+    }
+    world_job_.state = state;
+    world_job_.stage = stage;
+}
+
+void SimulationEngine::cancel_world_job() {
+    // Lock order: the engine's mutex, then world_mutex_. Nothing holding world_mutex_ takes the engine's.
+    std::lock_guard l(world_mutex_);
+    if (world_job_.state == "generating") {
+        // Its worker still holds the compile lease: the job ends, as failed, when the worker does, so a status never
+        // says it is over while a new start would still be refused.
+        world_job_.cancelled = true;
+        return;
+    }
+    if (world_job_.state != "staged") return;
+    staged_.reset();
+    world_transition("failed", "failed");
+    world_job_.error_code = "WORLD_CANCELLED";
+    world_job_.error = "Stopped before the new world was confirmed.";
+    world_job_.finished = std::chrono::steady_clock::now();
+    logger_.system("INFO", "world", "The staged world was cancelled by a stop, reset or termination");
+}
+
 void SimulationEngine::return_after_failed_preparation(Lifecycle before) {
     // The world that was there is still installed: it stays as it was, rather than an Idle that holds a world.
     if (!graph_) transition(Lifecycle::Idle);
@@ -850,8 +881,9 @@ nlohmann::json SimulationEngine::stop() {
     // Ending the process is final: a stop on the way does not make it look stopped instead.
     if (lifecycle_ == Lifecycle::Terminating) return {{"changed", false}, {"lifecycle", to_string(lifecycle_)}};
     // A world still being prepared, first or next, is cancelled with the stop. Otherwise it would arrive afterwards
-    // and start, or wait paused, as if the stop had never been asked for.
+    // and start, or wait paused, as if the stop had never been asked for. A staged one could never be installed.
     ++compile_generation_;
+    cancel_world_job();
     if (lifecycle_ == Lifecycle::Preparing) {
         preparing_stage_.store(0);
         if (!graph_) {
@@ -870,6 +902,7 @@ nlohmann::json SimulationEngine::reset() {
     // Ending the process is final, as for stop.
     if (lifecycle_ == Lifecycle::Terminating) return {{"ok", false}, {"lifecycle", to_string(lifecycle_)}};
     ++compile_generation_;
+    cancel_world_job();
     preparation_error_.clear();
     if (lifecycle_ == Lifecycle::Running || lifecycle_ == Lifecycle::Paused) stop();
     narration_context_.reset();
@@ -1059,11 +1092,14 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
     std::lock_guard job_lock(world_mutex_);
     if (world_job_.state == "generating") throw std::logic_error("world generation already in progress");
     staged_.reset();
-    world_job_ = WorldJob{};
+    {
+        const auto from = world_job_.state;
+        world_job_ = WorldJob{};
+        world_job_.state = from;
+    }
     world_job_.staged = staged;
     world_job_.compile_generation = compile_generation;
-    world_job_.state = "generating";
-    world_job_.stage = "compiling";
+    world_transition("generating", "compiling");
     world_job_.seed = seed.decimal();
     world_job_.seed_hex = seed.hex();
     world_job_.previous_run_id = previous;
@@ -1076,23 +1112,29 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
     world_worker_ = std::jthread([this, seed, config, generation, compile_generation, compile_lease](std::stop_token) {
         set_thread_role(ThreadRole::Preparation);
         auto fail = [&](const std::string& code, const std::string& message) {
+            bool code_is_cancel = false;
+            world_generating_.store(false);
+            preparing_stage_.store(0);
             {
+                std::lock_guard l(world_mutex_);
+                // Discarded meanwhile: nobody is waiting for this job, and its seed did not fail.
+                if (world_job_.generation != generation) return;
+                code_is_cancel = world_job_.cancelled;
+                world_transition("failed", "failed");
+                world_job_.error_code = code_is_cancel ? "WORLD_CANCELLED" : code;
+                world_job_.error = code_is_cancel ? "Stopped before the new world was installed." : message;
+                world_job_.finished = std::chrono::steady_clock::now();
+                logger_.system(code_is_cancel ? "INFO" : "ERROR", "world", world_job_.error_code + ": " + world_job_.error);
+            }
+            // Only a seed whose world could not be made is avoided next time; a cancelled one was not at fault.
+            if (code != "WORLD_CANCELLED" && !code_is_cancel) {
                 std::lock_guard lock(mutex_);
                 failed_seed_ = seed;
             }
-            world_generating_.store(false);
-            preparing_stage_.store(0);
-            std::lock_guard l(world_mutex_);
-            if (world_job_.generation != generation) return;
-            world_job_.state = "failed";
-            world_job_.stage = "failed";
-            world_job_.error_code = code;
-            world_job_.error = message;
-            world_job_.finished = std::chrono::steady_clock::now();
-            logger_.system("ERROR", "world", code + ": " + message);
         };
         try {
             auto scenario = compile_scenario(seed, config);
+            bool cancelled = false;
             {
                 std::lock_guard l(world_mutex_);
                 if (world_job_.generation != generation) {
@@ -1101,21 +1143,23 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
                     preparing_stage_.store(0);
                     return;
                 }
-                if (world_job_.staged && !world_job_.commit) {
+                if (world_job_.cancelled) {
+                    cancelled = true;
+                } else if (world_job_.staged && !world_job_.commit) {
                     // Ready, and waiting for a person to confirm it.
                     staged_ = std::make_unique<Scenario>(std::move(scenario));
                     staged_config_ = config;
-                    world_job_.state = "staged";
-                    world_job_.stage = "staged";
+                    world_transition("staged", "staged");
                     world_job_.finished = std::chrono::steady_clock::now();
                     world_generating_.store(false);
                     preparing_stage_.store(0);
                     logger_.system("INFO", "world", "New world prepared, waiting to be confirmed");
                     return;
                 }
-                world_job_.stage = "installing";
+                if (!cancelled) world_job_.stage = "installing";
             }
-            if (const auto problem = install_world(std::move(scenario), config, compile_generation, generation)) fail("WORLD_CANCELLED", *problem);
+            if (cancelled) fail("WORLD_CANCELLED", "Stopped before the new world was installed.");
+            else if (const auto problem = install_world(std::move(scenario), config, compile_generation, generation)) fail("WORLD_CANCELLED", *problem);
         } catch (const MapFetchError& e) {
             fail("MAP_FETCH_FAILED", e.what());
         } catch (const std::exception& e) {
@@ -1145,8 +1189,7 @@ std::optional<std::string> SimulationEngine::install_world(Scenario scenario, co
     world_generating_.store(false);
     std::lock_guard l(world_mutex_);
     if (world_job_.generation != generation) return std::nullopt;
-    world_job_.state = "ready";
-    world_job_.stage = "ready";
+    world_transition("ready", "ready");
     world_job_.run_id = run;
     world_job_.finished = std::chrono::steady_clock::now();
     logger_.system("INFO", "world", "World " + run + " ready");
@@ -1172,15 +1215,14 @@ nlohmann::json SimulationEngine::commit_world() {
         compile_generation = world_job_.compile_generation;
         generation = world_job_.generation;
         world_job_.commit = true;
-        world_job_.state = "generating";
-        world_job_.stage = "installing";
+        world_transition("generating", "installing");
         world_generating_.store(true);
     }
     if (const auto problem = install_world(std::move(*scenario), config, compile_generation, generation)) {
         std::lock_guard l(world_mutex_);
         world_generating_.store(false);
-        world_job_.state = "failed";
-        world_job_.stage = "failed";
+        if (world_job_.generation != generation) return world_status_locked();
+        world_transition("failed", "failed");
         world_job_.error_code = "WORLD_CANCELLED";
         world_job_.error = *problem;
         world_job_.finished = std::chrono::steady_clock::now();
@@ -1193,6 +1235,7 @@ nlohmann::json SimulationEngine::discard_world() {
     if (world_job_.staged && world_job_.state != "ready" && !world_job_.commit) {
         // Its preparation finishes on its own, and is then dropped: the job it belonged to is gone.
         staged_.reset();
+        world_transition("idle", "idle");
         world_job_ = WorldJob{};
         world_generating_.store(false);
         logger_.system("INFO", "world", "The prepared world was not wanted");
@@ -3115,6 +3158,7 @@ void SimulationEngine::terminate() {
     std::lock_guard lock(mutex_);
     if (terminate_requested_.exchange(true)) return;
     ++compile_generation_;
+    cancel_world_job();
     transition(Lifecycle::Terminating);
     cv_.notify_all();
     worker_.request_stop();

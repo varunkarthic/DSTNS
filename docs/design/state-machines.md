@@ -93,11 +93,20 @@ stateDiagram-v2
     staged --> generating: commit (installing)
     staged --> idle: discard
     generating --> idle: discard (staged only; the compile finishes and is dropped)
-    generating --> failed: map fetch failed, compile failed, cancelled by a stop or reset
+    generating --> failed: map fetch failed, compile failed, cancelled by a stop, reset or termination
+    staged --> failed: cancelled by a stop, reset or termination
 ```
 
 A second `regenerate` while `generating` is refused. Each job carries a generation number and the engine's compile
-generation; a result whose numbers no longer match is dropped rather than installed.
+generation; a result whose numbers no longer match is dropped rather than installed. Every change of state goes through
+`SimulationEngine::world_transition`, checked against core-ng's table (`Core/core-ng/src/world.cpp`); one outside it is
+logged as an `ERROR` from `world`.
+
+| Rule | Where |
+|---|---|
+| A stop, reset or termination cancels a staged world at once, and frees it | `cancel_world_job` |
+| One still being prepared is marked cancelled and fails as `WORLD_CANCELLED` when its preparation ends, never staged or installed. Until then it reads `generating`, since the compile still holds the lease and a new start would be refused | `cancel_world_job`, the world worker |
+| Only a world that could not be made marks its seed as failed, for the next world to avoid that city; a cancelled or discarded one does not | the world worker's `fail` |
 
 ### Scenario compile stages (explicit)
 
@@ -249,4 +258,7 @@ the panels that were open come back. Each step waits for the previous one.
 | Engine lifecycle | A failed start or prepare with a world already installed left Idle holding that world | It returns to that world's state (3.2.1) |
 | Engine lifecycle | A second stop went Stopped → Stopping → Stopped | It changes nothing (3.2.1) |
 | Engine lifecycle | `prepare` during a jump moved Seeking to Preparing without stopping the run | It stops the run first (3.2.1) |
+| World job | A stop or reset while a world was staged left it reading `staged`, though it could never be installed; confirming it then failed | It is cancelled at once (3.3.1) |
+| World job | A world staged while still being prepared, then stopped, was staged anyway when its preparation finished | It fails as cancelled (3.3.1) |
+| World job | A discarded or cancelled world that then failed marked its seed as failed, so the next world avoided that city | Only a world that could not be made does (3.3.1) |
 | Dynamic Fastboot | Its prepared seed would be handed to a run under another policy, which would resolve it to a city Fastboot never fetched | Fastboot stood aside for any policy other than `urban-crfg-v3` (3.2.0); the pointer records its policy and extent, and a seed is offered only to a run that matches, in the server and the launcher (3.3.0) |
