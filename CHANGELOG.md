@@ -14,6 +14,30 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-11-13
+
+**Engine 3.5.0, launcher 3.3.0, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged.
+
+### Added
+
+- SUMO settings, with SUMO off by default (#17). Settings → Simulation → SUMO has two settings:
+  - `sumo.enabled` (off): turns SUMO on or off.
+  - `sumo.home` (`auto`): where SUMO is installed.
+
+  The launcher passes them to the server as `DSTNS_SUMO` and `SUMO_HOME`.
+- `DSTNS_SUMO=0` makes the server refuse `POST /api/v1/export/sumo` and `POST /api/v1/system/sumo-simulate` with
+  403 `SUMO_DISABLED`. The server then does not look for SUMO. `/api/v1/system/info` has a new key, `sumo.enabled`.
+  A server started by hand keeps SUMO on.
+- With SUMO off, `./launcher sumo` says that SUMO is off and how to turn it on. The environment check also shows it as
+  off, with no warning.
+
+### Tests
+
+- `dstns_http_sumo_switch`: with SUMO off, both routes are refused, nothing is written, and SUMO is not looked for.
+  With SUMO on, the export works. The test fails when the refusal is removed.
+
+Rollback: revert this release's commit; SUMO is then always on, as before.
+
 ## [3.4.0] - 2026-11-13
 
 **Engine 3.4.0, launcher 3.2.0, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged.

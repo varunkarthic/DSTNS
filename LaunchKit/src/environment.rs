@@ -310,7 +310,10 @@ fn observer(paths: &Paths) -> Outcome {
     }
 }
 
-fn sumo_check(_paths: &Paths) -> Outcome {
+fn sumo_check(paths: &Paths) -> Outcome {
+    if !sumo::configure(paths) {
+        return Outcome::new(State::Skipped, "turned off").detail("sumo.enabled is off, which is the default.");
+    }
     match sumo::detect() {
         None => Outcome::new(State::Skipped, "not installed").detail("Optional: only the SUMO adapter needs it."),
         Some(found) if found.works => Outcome::new(State::Pass, if found.version.is_empty() { "found".to_string() } else { found.version }),

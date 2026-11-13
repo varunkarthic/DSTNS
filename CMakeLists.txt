@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.4.0 LANGUAGES CXX)
+project(dstns VERSION 3.5.0 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -134,7 +134,7 @@ if(DSTNS_BUILD_TESTS)
   enable_testing()
   # The HTTP tests: each a program of its own, against a real server it starts on a port of its own.
   set(DSTNS_HTTP_TESTS api docs_coverage another_city termination loading fastboot hardening robustness fabric_contract narration observer_hold
-    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot daemon long_jump engine_switch)
+    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot daemon long_jump engine_switch sumo_switch)
   foreach(name ${DSTNS_HTTP_TESTS})
     add_executable(dstns_http_${name} tests/http/${name}.cpp)
     target_link_libraries(dstns_http_${name} PRIVATE dstns_fabric)

@@ -77,6 +77,15 @@ does not, because its layer toggles change only what is drawn.
 | `flooding` | Flood levels held at 0 |
 | `news` | No new news items |
 
+### SUMO
+
+| Key | Default | Range | Read by | Meaning |
+|---|---|---|---|---|
+| `sumo.enabled` | `false` | on or off | CLI, server (`DSTNS_SUMO`) | Off, the SUMO routes return 403 `SUMO_DISABLED`, the server does not look for SUMO, and `./launcher sumo` says it is off. `./launcher test sumo` still runs |
+| `sumo.home` | `auto` | path or `auto` | CLI, server (`SUMO_HOME`) | Where SUMO is installed. `auto` searches `SUMO_HOME`, `~/sumo`, Homebrew and the system's folders |
+
+A server started without the launcher keeps SUMO on, as before.
+
 ### Weather
 
 | Key | Default | Range | Read by | Meaning |

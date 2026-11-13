@@ -83,6 +83,7 @@ of failure always looks the same whichever route raised it.
 | `RATE_LIMITED` | 429 | Too many notifications, messages or changes to the view |
 | `APP_LIMIT_REACHED`, `TOO_MANY_PROPOSALS` | 429 | 64 applications, none of which can make way; 64 proposals waiting |
 | `SUMO_FAILED` | 503 | SUMO failed, or its files couldn't be written |
+| `SUMO_DISABLED` | 403 | SUMO is turned off (`DSTNS_SUMO=0`, the launcher's `sumo.enabled`) |
 
 World generation failures are not HTTP errors: `POST /world/regenerate`
 returns 202, and the job's outcome appears in `GET /world/status` as

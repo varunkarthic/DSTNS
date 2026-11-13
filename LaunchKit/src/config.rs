@@ -478,6 +478,9 @@ pub fn fields() -> &'static [Field] {
             Field::new("map.selection_mode", "Where worlds are", "Engine", Choice, "Which cities a seed may choose: every city in the catalogue (the same city for a seed as always), only the countries or cities in Places, or always the one city in Places. Anything but every city needs core-ng, which this turns on.", json!("global"))
                 .choices(vec![("Every city", json!("global")), ("Countries", json!("countries")), ("Cities", json!("cities")), ("One city", json!("fixed_city"))]),
             Field::new("map.places", "Places", "Engine", Text, "The countries (two-letter codes, such as IN, AE) or cities (IDs, such as mumbai, new-york) that Where worlds are names, separated by commas. all when worlds may be anywhere.", json!("all")).extra(places),
+            // SUMO
+            Field::new("sumo.enabled", "SUMO", "SUMO", Boolean, "Eclipse SUMO, for exporting a world and running it microscopically (POST /api/v1/export/sumo and /api/v1/system/sumo-simulate). Off, the server refuses both and does not look for SUMO.", json!(false)),
+            Field::new("sumo.home", "SUMO folder", "SUMO", Text, "Where SUMO is installed (its SUMO_HOME). auto looks in SUMO_HOME, ~/sumo, Homebrew and the system's folders.", json!("auto")),
             Field::new("map.max_nodes", "Largest network", "Map", Integer, "The most junctions a district's road network may have. Lower keeps big cities light.", json!(50000)).unit("junctions").range(2.0, Some(50000.0)),
             Field::new("map.cache_dir", "Map cache folder", "Map", Text, "Where downloaded city extracts are kept, relative to the checkout. Dynamic Fastboot's next city is kept here too.", json!("data/maps")),
             // Modules
@@ -720,7 +723,7 @@ pub fn fields() -> &'static [Field] {
 
 /// The settings as a person finds them: sections, each a heading over its categories, in a sensible order.
 pub const SECTIONS: &[(&str, &[&str])] = &[
-    ("Simulation", &["Run", "Engine", "Modules", "Weather", "Map"]),
+    ("Simulation", &["Run", "Engine", "Modules", "Weather", "Map", "SUMO"]),
     ("Start-up", &["Startup", "Presentation", "Demo"]),
     ("Observer", &["Appearance", "Notifications", "Auto Focus", "Playback controls", "Clock, units and news", "Map layers", "Tutorial", "Backpressure"]),
     ("Server", &["Server", "Performance", "Resource Control", "Daemons"]),
@@ -857,6 +860,11 @@ pub fn presentation(config: &Value, demo: bool) -> Value {
     })
 }
 
+/// sumo.home, unless it is auto.
+pub fn sumo_home(config: &Value) -> Option<String> {
+    setting(config, "sumo.home").as_str().map(str::trim).filter(|h| !h.is_empty() && *h != "auto").map(String::from)
+}
+
 /// The environment that carries these settings to a server as it starts.
 pub fn server_switches(config: &Value, demo: bool) -> Vec<(String, String)> {
     let one = |key: &str| if flag(config, key) { "1" } else { "0" }.to_string();
@@ -873,7 +881,11 @@ pub fn server_switches(config: &Value, demo: bool) -> Vec<(String, String)> {
         ("DSTNS_MUSIC_FILE".to_string(), music_file(setting(config, if demo { "demo.music_file" } else { "presentation.music_file" }).as_str().unwrap_or("")).ok().flatten().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()),
         ("DSTNS_DYNAMIC_FASTBOOT".to_string(), one("startup.dynamic_fastboot")),
         ("DSTNS_DAEMON".to_string(), daemon_settings(config).to_string()),
+        ("DSTNS_SUMO".to_string(), one("sumo.enabled")),
     ];
+    if let Some(home) = sumo_home(config) {
+        env.push(("SUMO_HOME".into(), home));
+    }
     if !flag(config, "fabric.world_regeneration") {
         env.push(("DSTNS_DISABLE_WORLD_REGENERATION".into(), "1".into()));
     }
@@ -1239,6 +1251,12 @@ mod tests {
         let shown: Value = serde_json::from_str(&env["DSTNS_PRESENTATION"]).unwrap();
         assert_eq!(shown["fast_boot"], json!(true));
         assert_eq!(shown["force_animate"], json!(false), "Fast Boot turns force_animate off");
+        assert_eq!(env["DSTNS_SUMO"], "0", "SUMO is off by default");
+        assert!(!env.contains_key("SUMO_HOME"), "auto leaves SUMO_HOME to the environment");
+        field("sumo.enabled").unwrap().set(&mut config, json!(true));
+        field("sumo.home").unwrap().set(&mut config, json!("/opt/sumo"));
+        let env: std::collections::HashMap<_, _> = server_switches(&config, false).into_iter().collect();
+        assert_eq!((env["DSTNS_SUMO"].as_str(), env["SUMO_HOME"].as_str()), ("1", "/opt/sumo"));
     }
 
     #[test]

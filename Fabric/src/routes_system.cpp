@@ -27,6 +27,13 @@
 namespace dstns {
 namespace {
 // The film's music file named by whoever started the server, with its type, if it is one the observer can play.
+// SUMO is on unless DSTNS_SUMO is 0. The launcher sets it from sumo.enabled, which is off by default; a server
+// started by hand keeps SUMO, as before.
+bool sumo_enabled() {
+    const char* value = std::getenv("DSTNS_SUMO");
+    return !(value && std::string(value) == "0");
+}
+
 std::pair<std::filesystem::path, const char*> chosen_music() {
     const char* chosen = std::getenv("DSTNS_MUSIC_FILE");
     const std::filesystem::path path = chosen ? chosen : "";
@@ -102,7 +109,9 @@ void ApiServer::routes_system() {
         send(r, {{"process", process()}, {"hardware_threads", std::thread::hardware_concurrency()}});
     });
     server_->Get("/api/v1/system/info", [this, process](const auto&, auto& r) {
-        auto env = SumoBridge::detect();
+        // Turned off (the launcher's sumo.enabled), SUMO is not looked for at all.
+        const bool sumo_on = sumo_enabled();
+        auto env = sumo_on ? SumoBridge::detect() : SumoEnvironment{};
         send(r, {
             // The process itself: what a supervisor or the launcher's console shows.
             {"process", process()},
@@ -117,6 +126,7 @@ void ApiServer::routes_system() {
             {"lifecycle", to_string(engine_.lifecycle())},
             {"engines", engine_.engines()},
             {"sumo", {
+                {"enabled", sumo_on},
                 {"available", env.available},
                 {"version", env.sumo_version},
                 {"sumo_binary", env.sumo_binary.string()},
@@ -298,6 +308,7 @@ void ApiServer::routes_system() {
     // SUMO Microscopic Export & Simulation
     // A tool that fails or a directory that can't be written is the environment's doing, and says so.
     const auto sumo_step = [](const auto& step) {
+        if (!sumo_enabled()) throw Refusal(403, "SUMO_DISABLED", "SUMO is turned off; turn on sumo.enabled in the launcher's settings (Simulation, SUMO)");
         try {
             step();
         } catch (const Refusal&) {

@@ -13,6 +13,7 @@ Read by `dstns_server` and the API it hosts.
 | `DSTNS_ALLOWED_HOSTS` | empty | Comma-separated extra `Host` names accepted when the server is bound to loopback. Anything else gets HTTP 421 `HOST_NOT_ALLOWED`. Guards against DNS rebinding |
 | `DSTNS_ALLOWED_ORIGINS` | empty | Comma-separated origins allowed to make state-changing requests besides the server's own. Anything else gets 403 `CROSS_ORIGIN_FORBIDDEN` |
 | `DSTNS_DISABLE_WORLD_REGENERATION` | unset | `1` makes `POST /api/v1/world/regenerate` return 403, so viewers cannot replace the world |
+| `DSTNS_SUMO` | on | `0` turns SUMO off: `POST /api/v1/export/sumo` and `POST /api/v1/system/sumo-simulate` return 403 `SUMO_DISABLED`, and `/api/v1/system/info` reports `sumo.enabled: false` without looking for SUMO. The launcher sets it from `sumo.enabled`, which is off by default |
 | `DSTNS_FETCHER` | the server | The program that downloads maps, run with `--fetch-osm` and the options below. Normally the server runs itself |
 | `DSTNS_NARRATOR` | `auto` | Narration backend, as `--narrator`: `auto`, `fm`, `off`, `http://HOST:PORT` or `unix:/PATH`. See [Realistic News](../guide/narration.md) |
 | `DSTNS_NARRATOR_MODEL` | `system` | Model name for a Chat Completions endpoint, as `--narrator-model` |

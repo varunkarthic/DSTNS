@@ -1272,7 +1272,7 @@ Response `200`, from a real run:
   "ok": true,
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
-  "version": "3.4.0"
+  "version": "3.5.0"
 }
 ```
 
@@ -1334,13 +1334,14 @@ Response `200`, from a real run:
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
   "sumo": {
+    "enabled": true,
     "available": false,
     "netconvert_binary": "/Users/varun/sumo/bin/netconvert",
     "sumo_binary": "/Users/varun/sumo/bin/sumo",
     "sumo_home": "/Users/varun/sumo",
     "version": ""
   },
-  "version": "3.4.0"
+  "version": "3.5.0"
 }
 ```
 
@@ -1403,7 +1404,7 @@ Response `200`, from a real run:
     },
     "program": "DSTNS",
     "source_offer": "You may obtain the complete corresponding source for this running version, under the terms…",
-    "version": "3.4.0"
+    "version": "3.5.0"
   },
   "ok": true
 }
@@ -1621,7 +1622,7 @@ Body:
 }
 ```
 
-Errors: `403 DIRECTORY_NOT_ALLOWED`; `409` with no run; `503 SUMO_FAILED` if it can't be written.
+Errors: `403 SUMO_DISABLED` when SUMO is turned off (`DSTNS_SUMO=0`); `403 DIRECTORY_NOT_ALLOWED`; `409` with no run; `503 SUMO_FAILED` if it can't be written.
 
 ### `POST /api/v1/system/sumo-simulate`
 
@@ -1637,7 +1638,7 @@ Body:
 | `begin_s` | seconds or `HH:MM:SS` | No | Default 0 |  |
 | `end_s` | seconds or `HH:MM:SS` | No | After `begin_s`, up to 86400. Default 3600 |  |
 
-Errors: `400` for the period; `403 DIRECTORY_NOT_ALLOWED`; `503 SUMO_FAILED`.
+Errors: `400` for the period; `403 SUMO_DISABLED` when SUMO is turned off; `403 DIRECTORY_NOT_ALLOWED`; `503 SUMO_FAILED`.
 
 ### `POST /api/v1/world/regenerate`
 
