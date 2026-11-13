@@ -70,20 +70,50 @@ $ ./launcher mcp tools
 |---|---|---|
 | One per route in `GET /api/v1/system/endpoints` | reads, or changes | Named for its method and path (`post_api_v1_control_events_weather`), described by the index, with the path's `{id}` parameters and a JSON body as arguments |
 | `dstns_request` | reads (writes when allowed) | Any route by method and path, for what the index does not list |
+| `dstns_world` | reads | The running world: seed, city, engine, map selection policy, manifest (hashes), moment and speed |
+| `dstns_play`, `dstns_pause` | changes (with `mcp.allow_writes`) | Play or pause the run |
+| `dstns_seek` | changes (with `mcp.allow_writes`) | Go to `seconds` since midnight of the simulated day, and hold or `play` |
+| `dstns_set_speed` | changes (with `mcp.allow_writes`) | Set the speed, `rate` above 0 and at most 10 |
 | `launcher_status` | reads | Whether a server is running, its port and lifecycle, the seed and clock, the observer's address |
-| `launcher_config_get` | reads | One setting, or all of them |
+| `launcher_config_get` | reads | One setting, or all of them. Addresses and credentials (`model.base_url`, `model.ollama_url` and the like) show as `(kept on this machine)`, as a launch code leaves them out |
 | `launcher_seeds_list`, `launcher_apps_list` | reads | Saved seeds; the application catalogue |
 | `launcher_suggest` | reads | A request in plain words as a line of console commands, from the launcher's own model, checked as the command bar checks it. Nothing is run |
 | `dstns_ask` | reads | A question about DSTNS in plain words (what it does, what it needs, how to use a feature, how to fix a problem), answered in Markdown from its documentation, and its code for questions about code, with the sources cited and who wrote it. Pass `conversation` from an answer to ask a follow-up. It only informs: nothing is run or changed. Off with `assist.enabled` |
 | `graph_ask` | reads | A question about the code in plain words, answered from the [knowledge graph](operator-cli.md#the-knowledge-graph) with no model: *who calls physics_step*, *what does next_world.cpp import*, *functions in the launcher that save settings*. Each result has its file, line and GitHub link |
 | `graph_show`, `graph_relations`, `graph_path` | reads | One node and everything round it; its callers, callees, dependencies, users or members; the chain between two |
-| `launcher_start` | changes (with `mcp.allow_launcher`) | Start a simulation, with a seed, day type, speed and map |
+| `launcher_start` | changes (with `mcp.allow_launcher`) | Start a simulation, with a seed, day type, speed, map and engine |
 | `launcher_stop` | changes (with `mcp.allow_launcher`) | Stop the server and the applications this launcher started |
-| `launcher_config_set` | changes (with `mcp.allow_launcher` and `mcp.allow_writes`) | Change a setting, with the same validation and [rules](operator-cli.md#settings-that-go-together) as `config set` |
+| `launcher_config_set` | changes (with `mcp.allow_launcher` and `mcp.allow_writes`) | Change a setting, with the same validation and [rules](operator-cli.md#settings-that-go-together) as `config set`. It refuses the settings that decide what an AI client or the network may do: every `mcp.*` setting, `security.advanced` and `api.host` |
 
-Tools that change things are listed only once they are allowed, and each tool carries MCP's
-annotations (`readOnlyHint`, `destructiveHint`), so a client can ask a person before calling
-one. With no server running, only the launcher's tools are offered: the routes' tools come
+Tools that change things are listed only once they are allowed. Each tool has a `title` and MCP's annotations, so a
+client can ask a person before it calls one:
+
+| Annotation | Set when |
+|---|---|
+| `readOnlyHint` | The tool only reads |
+| `destructiveHint` | The tool changes things and ends or removes something: its name has terminate, stop, delete, remove, reset, regenerate, revoke or clear. Pausing, seeking or starting a storm is not destructive |
+| `idempotentHint` | Calling it again with the same arguments does nothing more: every tool that reads, every PUT and DELETE route, play, pause, seek, set speed, `launcher_config_set` and `launcher_stop` |
+| `openWorldHint` | Always false: the handler talks only to the server on this machine |
+
+### Resources
+
+| URI | What it holds |
+|---|---|
+| `dstns://status` | The run's status, or that no server is running |
+| `dstns://world` | As `dstns_world` |
+| `dstns://settings` | Every setting, with addresses and credentials left out |
+| `dstns://seeds` | The saved seeds |
+| `dstns://logs/system` | The last 200 lines of `logs/system.log` |
+| `dstns://docs/{page}` | A page of `docs/`, such as `dstns://docs/guide/configuration` (a template, from `resources/templates/list`) |
+
+### Prompts
+
+| Prompt | Arguments | What it asks the model to do |
+|---|---|---|
+| `explain-world` | — | Explain what is happening in the running world now, in plain words |
+| `diagnose-run` | — | Say whether the run is healthy and, if not, the likely cause and the first thing to try, changing nothing |
+| `compare-seeds` | `seed_a`, `seed_b` | Compare the cities and days of two seeds |
+| `plan-experiment` | `goal` | Plan a world, a change and the measures, and how to repeat it | With no server running, only the launcher's tools are offered: the routes' tools come
 from the server's endpoint index.
 
 ## The protocol
@@ -92,7 +122,7 @@ from the server's endpoint index.
 |---|---|
 | Transport | JSON-RPC 2.0, one message per line, over the standard input and output of `./launcher mcp serve` |
 | Protocol versions | `2025-06-18`, `2025-03-26` and `2024-11-05`: the client's, if it is one of these, else the newest |
-| Methods | `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call` |
+| Methods | `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/templates/list`, `resources/read`, `prompts/list`, `prompts/get` |
 | Results | A route's JSON reply as text content; an error from the server, or a refused change, as `isError` with the reason |
 
 ```json

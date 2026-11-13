@@ -86,9 +86,195 @@ impl Tool {
             "name": self.name,
             "description": self.description,
             "inputSchema": self.schema,
-            "annotations": {"readOnlyHint": self.read_only, "destructiveHint": !self.read_only, "openWorldHint": false},
+            "title": title(&self.name),
+            "annotations": hints(&self.name, self.read_only),
         })
     }
+}
+
+/// A tool's name as words: dstns_set_speed is Dstns set speed.
+fn title(name: &str) -> String {
+    let words = name.replace('_', " ");
+    let mut chars = words.chars();
+    chars.next().map(|c| c.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default()
+}
+
+/// What a tool may do, for the client to decide what to ask a person first. Destructive: it ends or removes something
+/// (a run, a world, an application, data). Idempotent: calling it twice with the same arguments does no more than once.
+pub fn hints(name: &str, read_only: bool) -> Value {
+    if read_only {
+        return json!({"title": title(name), "readOnlyHint": true, "idempotentHint": true, "openWorldHint": false});
+    }
+    let destructive = ["terminate", "stop", "delete", "remove", "reset", "regenerate", "revoke", "clear"].iter().any(|w| name.contains(w));
+    let idempotent = name.starts_with("put_")
+        || name.starts_with("delete_")
+        || ["dstns_play", "dstns_pause", "dstns_seek", "dstns_set_speed", "launcher_config_set", "launcher_stop", "post_playback_play", "post_playback_pause", "post_playback_stop"].contains(&name);
+    json!({"title": title(name), "readOnlyHint": false, "destructiveHint": destructive, "idempotentHint": idempotent, "openWorldHint": false})
+}
+
+/// Settings an AI client may never change: those that decide what an AI client, or the network, may do.
+pub fn ai_may_set(key: &str) -> bool {
+    !(key.starts_with("mcp.") || key == crate::security::KEY || key == "api.host")
+}
+
+/// A setting's value as an AI client sees it: addresses and credentials stay on this machine, as in a launch code.
+fn shown_setting(key: &str, value: Value) -> Value {
+    if config::sensitive_setting(key) && value != json!("default") && value != json!("") {
+        json!("(kept on this machine)")
+    } else {
+        value
+    }
+}
+
+fn running(paths: &Paths) -> Result<u16> {
+    crate::server::active_port(paths).ok_or_else(|| LauncherError::generic("No DSTNS server is running.").remedy("Start one with launcher_start, or ./launcher start."))
+}
+
+/// Typed tools for what is asked most: the world, and playing it. The route tools cover everything else.
+pub fn typed_tools(paths: &Paths, policy: Policy) -> Vec<Tool> {
+    let p = paths.clone();
+    let mut tools = vec![Tool {
+        name: "dstns_world".into(),
+        description: "The running world: its seed, city, engine, map selection policy, hashes, moment of the day and whether it is playing.".into(),
+        schema: json!({"type": "object", "properties": {}, "additionalProperties": false}),
+        read_only: true,
+        handler: Box::new(move |_| world(&p)),
+    }];
+    if !policy.may_change("/api/v1/playback/play") {
+        return tools;
+    }
+    let call = |name: &str, description: &str, schema: Value, method: &'static str, route: &'static str, body: fn(&Value) -> Result<Value>| {
+        let p = paths.clone();
+        Tool {
+            name: name.into(),
+            description: description.into(),
+            schema,
+            read_only: false,
+            handler: Box::new(move |arguments| answer(api::call(running(&p)?, route, method, Some(&body(arguments)?), 60.0, &p))),
+        }
+    };
+    let none = json!({"type": "object", "properties": {}, "additionalProperties": false});
+    tools.push(call("dstns_play", "Play the run from where it is.", none.clone(), "POST", "/api/v1/playback/play", |_| Ok(json!({}))));
+    tools.push(call("dstns_pause", "Pause the run where it is.", none, "POST", "/api/v1/playback/pause", |_| Ok(json!({}))));
+    tools.push(call(
+        "dstns_seek",
+        "Go to a moment of the simulated day, forward or back. The world there is the same every time.",
+        json!({"type": "object", "properties": {"seconds": {"type": "integer", "minimum": 0, "maximum": 86400, "description": "Seconds since midnight of the simulated day"}, "play": {"type": "boolean", "description": "Play from there; otherwise hold"}}, "required": ["seconds"], "additionalProperties": false}),
+        "POST",
+        "/api/v1/playback/seek",
+        |a| {
+            let seconds = a.get("seconds").and_then(Value::as_u64).filter(|s| *s <= 86_400).ok_or_else(|| LauncherError::config("seconds must be a whole number from 0 to 86400"))?;
+            Ok(json!({"target_time": seconds, "play": a.get("play").and_then(Value::as_bool).unwrap_or(false)}))
+        },
+    ));
+    tools.push(call(
+        "dstns_set_speed",
+        "How fast the run plays, as a multiple of the length of a day.",
+        json!({"type": "object", "properties": {"rate": {"type": "number", "exclusiveMinimum": 0, "maximum": config::MAX_TICK_RATE}}, "required": ["rate"], "additionalProperties": false}),
+        "PUT",
+        "/api/v1/control/tick-rate",
+        |a| {
+            let rate = a.get("rate").and_then(Value::as_f64).filter(|r| *r > 0.0 && *r <= config::MAX_TICK_RATE).ok_or_else(|| LauncherError::config(format!("rate must be above 0 and at most {}", config::MAX_TICK_RATE)))?;
+            Ok(json!({"tick_rate": rate}))
+        },
+    ));
+    tools
+}
+
+/// The running world, from the status and the manifest.
+fn world(paths: &Paths) -> Result<Value> {
+    let port = running(paths)?;
+    let status = api::get(port, "/api/v1/playback/status", 10.0, paths);
+    let manifest = api::get(port, "/api/v1/view/manifest", 10.0, paths);
+    let location = api::get(port, "/api/v1/view/topology", 30.0, paths).body.pointer("/data/location").cloned().unwrap_or(Value::Null);
+    let status = status.data().cloned().unwrap_or(Value::Null);
+    Ok(json!({
+        "lifecycle": status.get("lifecycle"), "seed": status.get("seed"), "virtual_seconds": status.get("virtual_seconds"), "tick_rate": status.get("tick_rate"),
+        "engine": status.get("engine"), "map_selection_version": status.get("map_selection_version"),
+        "city": location.get("city"), "country": location.get("country"),
+        "manifest": manifest.data().cloned().unwrap_or(Value::Null),
+    }))
+}
+
+// --- Resources and prompts -----------------------------------------------------------------------------------------
+
+/// What a client may read without calling a tool: (URI, name, description).
+const RESOURCES: &[(&str, &str, &str)] = &[
+    ("dstns://status", "Status", "Whether a server is running, and its run's state, seed and moment"),
+    ("dstns://world", "World", "The running world: city, engine, selection policy, hashes"),
+    ("dstns://settings", "Settings", "Every launcher setting, addresses and credentials left out"),
+    ("dstns://seeds", "Saved seeds", "Named, complete run configurations"),
+    ("dstns://logs/system", "System log", "The last 200 lines of the server's log"),
+];
+
+fn resource_list() -> Value {
+    json!({"resources": RESOURCES.iter().map(|(uri, name, description)| json!({"uri": uri, "name": name, "title": name, "description": description, "mimeType": "application/json"})).collect::<Vec<_>>()})
+}
+
+fn resource_templates() -> Value {
+    json!({"resourceTemplates": [{"uriTemplate": "dstns://docs/{page}", "name": "Documentation", "title": "Documentation", "description": "A page of the documentation in this checkout, such as guide/configuration or api/endpoints", "mimeType": "text/markdown"}]})
+}
+
+fn read_resource(uri: &str, paths: &Paths) -> Result<Value> {
+    let text = |value: Value| json!({"contents": [{"uri": uri, "mimeType": "application/json", "text": serde_json::to_string_pretty(&value).unwrap()}]});
+    match uri {
+        "dstns://status" => Ok(text(match crate::server::active_port(paths) {
+            None => json!({"server": "not running"}),
+            Some(port) => api::get(port, "/api/v1/playback/status", 10.0, paths).data().cloned().unwrap_or(Value::Null),
+        })),
+        "dstns://world" => Ok(text(world(paths)?)),
+        "dstns://settings" => {
+            let current = config::load(paths)?;
+            Ok(text(Value::Object(config::fields().iter().map(|f| (f.key.to_string(), shown_setting(f.key, f.get(&current)))).collect())))
+        }
+        "dstns://seeds" => Ok(text(crate::seeds::operate("list", &json!({}), paths)?)),
+        "dstns://logs/system" => {
+            let log = std::fs::read_to_string(paths.system_log()).unwrap_or_default();
+            let lines: Vec<&str> = log.lines().collect();
+            Ok(json!({"contents": [{"uri": uri, "mimeType": "text/plain", "text": lines[lines.len().saturating_sub(200)..].join("\n")}]}))
+        }
+        _ => {
+            let page = uri.strip_prefix("dstns://docs/").ok_or_else(|| LauncherError::config(format!("No resource {uri}.")))?;
+            let ok = !page.is_empty() && !page.contains("..") && page.chars().all(|c| c.is_ascii_alphanumeric() || c == '/' || c == '-' || c == '_');
+            let file = paths.root.join("docs").join(format!("{}.md", page.trim_end_matches(".md")));
+            match std::fs::read_to_string(&file) {
+                Ok(markdown) if ok => Ok(json!({"contents": [{"uri": uri, "mimeType": "text/markdown", "text": markdown}]})),
+                _ => Err(LauncherError::config(format!("No documentation page {page}."))),
+            }
+        }
+    }
+}
+
+/// Prompts a client may offer a person: (name, description, arguments as (name, description, required)).
+const PROMPTS: &[(&str, &str, &[(&str, &str, bool)])] = &[
+    ("explain-world", "Explain what is happening in the running world now, in plain words", &[]),
+    ("diagnose-run", "Find out why a run is slow, stalled or failed, from its status and log", &[]),
+    ("compare-seeds", "Compare two seeds: which city each names, and how their days differ", &[("seed_a", "The first seed", true), ("seed_b", "The second seed", true)]),
+    ("plan-experiment", "Plan an experiment: a world, a change to make in it, and what to measure", &[("goal", "What the experiment should find out", true)]),
+];
+
+fn prompt_list() -> Value {
+    json!({"prompts": PROMPTS.iter().map(|(name, description, arguments)| json!({
+        "name": name, "title": title(&name.replace('-', "_")), "description": description,
+        "arguments": arguments.iter().map(|(n, d, r)| json!({"name": n, "description": d, "required": r})).collect::<Vec<_>>(),
+    })).collect::<Vec<_>>()})
+}
+
+fn get_prompt(name: &str, arguments: &Value) -> Result<Value> {
+    let (_, description, wanted) = PROMPTS.iter().find(|(n, _, _)| *n == name).ok_or_else(|| LauncherError::config(format!("No prompt {name}.")))?;
+    let argument = |key: &str| arguments.get(key).and_then(Value::as_str).map(str::trim).unwrap_or("").to_string();
+    for (key, _, required) in wanted.iter() {
+        if *required && argument(key).is_empty() {
+            return Err(LauncherError::config(format!("The prompt {name} needs {key}.")));
+        }
+    }
+    let text = match name {
+        "explain-world" => "Read the resource dstns://world and call dstns_world if it is not running. Then explain, in plain words for someone who is not a traffic engineer, what is happening in the district now: where traffic is heavy, any weather, incidents or closures, and what to expect over the next simulated hour. Use the view routes (get_view_congestion, get_view_incidents, get_view_events) for detail.".to_string(),
+        "diagnose-run" => "Read dstns://status and dstns://logs/system. Say whether the run is healthy. If it is slow, stalled or failed, give the most likely cause from the log and the status, and the one thing to try first. Do not change anything without asking.".to_string(),
+        "compare-seeds" => format!("Compare seed {} and seed {}. For each, say which city it names and why the same seed always names it. If changes are allowed, start each with launcher_start and read dstns_world; otherwise say what would be compared. Then compare their road networks and their busiest hours.", argument("seed_a"), argument("seed_b")),
+        _ => format!("Plan an experiment for this goal: {}. Name the world (a seed, or a policy that limits the cities), the one change to make in it and the moment to make it, and what to measure before and after with the view routes. DSTNS is deterministic, so the same seed and change give the same result: say how to repeat it.", argument("goal")),
+    };
+    Ok(json!({"description": description, "messages": [{"role": "user", "content": {"type": "text", "text": text}}]}))
 }
 
 /// A route's tool name: its method and path, as words. `/api/v1/fabric/apps/{id}` with PUT is put_fabric_apps_id.
@@ -367,8 +553,8 @@ pub fn launcher_tools(paths: &Paths, policy: Policy, session: Arc<Session>) -> V
                 handler: Box::new(move |arguments| {
                     let current = config::load(&p)?;
                     match arguments.get("key").and_then(|k| k.as_str()) {
-                        Some(key) => Ok(json!({key: config::field(key).ok_or_else(|| LauncherError::config(format!("No setting {key}.")))?.get(&current)})),
-                        None => Ok(Value::Object(config::fields().iter().map(|f| (f.key.to_string(), f.get(&current))).collect())),
+                        Some(key) => Ok(json!({key: shown_setting(key, config::field(key).ok_or_else(|| LauncherError::config(format!("No setting {key}.")))?.get(&current))})),
+                        None => Ok(Value::Object(config::fields().iter().map(|f| (f.key.to_string(), shown_setting(f.key, f.get(&current)))).collect())),
                     }
                 }),
             }
@@ -455,6 +641,9 @@ pub fn launcher_tools(paths: &Paths, policy: Policy, session: Arc<Session>) -> V
             handler: Box::new(move |arguments| {
                 let key = arguments.get("key").and_then(|k| k.as_str()).unwrap_or("");
                 let field = config::field(key).ok_or_else(|| LauncherError::config(format!("No setting {key}.")))?;
+                if !ai_may_set(key) {
+                    return Err(LauncherError::config(format!("{key} decides what an AI client or the network may do, so only the person at this machine may change it.")).remedy(format!("./launcher config set {key} …")));
+                }
                 let text = arguments.get("value").map(|v| v.as_str().map(String::from).unwrap_or_else(|| v.to_string())).unwrap_or_default();
                 let mut current = config::load(&p)?;
                 let value = field.parse(&text).map_err(LauncherError::config)?;
@@ -484,6 +673,7 @@ impl McpServer {
         if crate::assistant::assist_enabled(&self.paths) {
             tools.push(ask_tool(&self.paths));
         }
+        tools.extend(typed_tools(&self.paths, self.policy));
         tools.push(request_tool(&self.paths, self.policy));
         tools.extend(route_tools(&self.paths, self.policy));
         tools
@@ -505,7 +695,7 @@ impl McpServer {
                 let version = PROTOCOL_VERSIONS.iter().find(|v| **v == asked).copied().unwrap_or(PROTOCOL_VERSIONS[0]);
                 reply(json!({
                     "protocolVersion": version,
-                    "capabilities": {"tools": {"listChanged": false}},
+                    "capabilities": {"tools": {"listChanged": false}, "resources": {"listChanged": false, "subscribe": false}, "prompts": {"listChanged": false}},
                     "serverInfo": {"name": "dstns", "title": "DSTNS", "version": crate::version::engine_version()},
                     "instructions": format!(
                         "DSTNS simulates a day of traffic in a real city district. The route tools call its HTTP API; launcher_status says whether a server is running. {}{}",
@@ -531,8 +721,17 @@ impl McpServer {
                     }
                 }
             }
-            "resources/list" => reply(json!({"resources": []})),
-            "prompts/list" => reply(json!({"prompts": []})),
+            "resources/list" => reply(resource_list()),
+            "resources/templates/list" => reply(resource_templates()),
+            "resources/read" => match read_resource(message.pointer("/params/uri").and_then(Value::as_str).unwrap_or(""), &self.paths) {
+                Ok(result) => reply(result),
+                Err(problem) => error(-32002, &problem.message),
+            },
+            "prompts/list" => reply(prompt_list()),
+            "prompts/get" => match get_prompt(message.pointer("/params/name").and_then(Value::as_str).unwrap_or(""), message.pointer("/params/arguments").unwrap_or(&json!({}))) {
+                Ok(result) => reply(result),
+                Err(problem) => error(-32602, &problem.message),
+            },
             _ => error(-32601, &format!("Method not found: {method}")),
         }
     }
@@ -611,6 +810,69 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("dstns-mcp-{}", std::process::id()));
         let paths = Paths::new(&dir);
         McpServer { session: Session::new(paths.clone()), paths, policy }
+    }
+
+    #[test]
+    fn tools_say_what_they_may_do() {
+        let hint = |name: &str, read_only: bool| hints(name, read_only);
+        assert_eq!(hint("get_view_traffic", true)["readOnlyHint"], json!(true));
+        assert!(hint("get_view_traffic", true).get("destructiveHint").is_none(), "destructiveHint means nothing for a tool that only reads");
+        assert_eq!(hint("post_system_terminate", false)["destructiveHint"], json!(true));
+        assert_eq!(hint("dstns_pause", false)["destructiveHint"], json!(false), "pausing is not destroying");
+        assert_eq!(hint("dstns_set_speed", false)["idempotentHint"], json!(true));
+        assert_eq!(hint("post_control_events_weather", false)["idempotentHint"], json!(false), "each call starts another storm");
+        let h = handler(Policy { enabled: true, writes: true, ..Default::default() });
+        let listed = h.handle(&json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})).unwrap();
+        let tools = listed["result"]["tools"].as_array().unwrap();
+        assert!(tools.iter().all(|t| t["annotations"]["readOnlyHint"].is_boolean() && t["title"].is_string()), "every tool has its hints");
+        for name in ["dstns_world", "dstns_play", "dstns_pause", "dstns_seek", "dstns_set_speed"] {
+            assert!(tools.iter().any(|t| t["name"] == name), "{name} is offered when changes are allowed");
+        }
+        let seek = tools.iter().find(|t| t["name"] == "dstns_seek").unwrap();
+        assert_eq!(seek["inputSchema"]["required"], json!(["seconds"]));
+        let read_only = handler(Policy { enabled: true, ..Default::default() }).tools();
+        assert!(read_only.iter().any(|t| t.name == "dstns_world") && !read_only.iter().any(|t| t.name == "dstns_play"), "reading only, nothing that changes the run");
+    }
+
+    #[test]
+    fn resources_and_prompts_are_offered() {
+        let h = handler(Policy { enabled: true, ..Default::default() });
+        let init = h.handle(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})).unwrap();
+        assert!(init["result"]["capabilities"]["resources"].is_object() && init["result"]["capabilities"]["prompts"].is_object());
+        let listed = h.handle(&json!({"jsonrpc": "2.0", "id": 2, "method": "resources/list"})).unwrap();
+        assert!(listed["result"]["resources"].as_array().unwrap().iter().any(|r| r["uri"] == "dstns://world"));
+        let templates = h.handle(&json!({"jsonrpc": "2.0", "id": 3, "method": "resources/templates/list"})).unwrap();
+        assert_eq!(templates["result"]["resourceTemplates"][0]["uriTemplate"], json!("dstns://docs/{page}"));
+        // The documentation, from the real checkout.
+        let docs = McpServer { session: Session::new(Paths::default()), paths: Paths::default(), policy: Policy { enabled: true, ..Default::default() } };
+        let page = docs.handle(&json!({"jsonrpc": "2.0", "id": 4, "method": "resources/read", "params": {"uri": "dstns://docs/guide/configuration"}})).unwrap();
+        assert!(page["result"]["contents"][0]["text"].as_str().unwrap().contains("engine.implementation"));
+        let escape = docs.handle(&json!({"jsonrpc": "2.0", "id": 5, "method": "resources/read", "params": {"uri": "dstns://docs/../config/launcher"}})).unwrap();
+        assert!(escape["error"].is_object(), "a page is inside docs/");
+        let settings = docs.handle(&json!({"jsonrpc": "2.0", "id": 6, "method": "resources/read", "params": {"uri": "dstns://settings"}})).unwrap();
+        let shown: Value = serde_json::from_str(settings["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        assert!(shown.get("engine.implementation").is_some());
+        assert!(shown.as_object().unwrap().iter().all(|(k, v)| !config::sensitive_setting(k) || v == "(kept on this machine)" || v == "default" || v == ""), "{shown}");
+
+        let prompts = h.handle(&json!({"jsonrpc": "2.0", "id": 7, "method": "prompts/list"})).unwrap();
+        assert_eq!(prompts["result"]["prompts"].as_array().unwrap().len(), PROMPTS.len());
+        let got = h.handle(&json!({"jsonrpc": "2.0", "id": 8, "method": "prompts/get", "params": {"name": "compare-seeds", "arguments": {"seed_a": "42", "seed_b": "7"}}})).unwrap();
+        assert!(got["result"]["messages"][0]["content"]["text"].as_str().unwrap().contains("seed 42 and seed 7"));
+        let missing = h.handle(&json!({"jsonrpc": "2.0", "id": 9, "method": "prompts/get", "params": {"name": "compare-seeds", "arguments": {"seed_a": "42"}}})).unwrap();
+        assert_eq!(missing["error"]["code"], json!(-32602));
+    }
+
+    #[test]
+    fn an_ai_client_cannot_widen_its_own_permissions() {
+        for key in ["mcp.allow_writes", "mcp.allow_launcher", "mcp.enabled", crate::security::KEY, "api.host"] {
+            assert!(!ai_may_set(key), "{key}");
+        }
+        assert!(ai_may_set("engine.implementation") && ai_may_set("playback.tick_rate"));
+        let h = handler(Policy { enabled: true, writes: true, launcher: true, guarded: false });
+        let call = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "launcher_config_set", "arguments": {"key": "mcp.allow_writes", "value": "on"}}});
+        let refused = h.handle(&call).unwrap();
+        assert_eq!(refused["result"]["isError"], json!(true));
+        assert!(refused["result"]["content"][0]["text"].as_str().unwrap().contains("only the person at this machine"));
     }
 
     #[test]

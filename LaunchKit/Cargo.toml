@@ -3,7 +3,7 @@
 
 [package]
 name = "dstns-launcher"
-version = "3.3.0"
+version = "3.4.0"
 edition = "2021"
 rust-version = "1.89"
 description = "The DSTNS launcher: checks, builds and runs the simulator, in a terminal interface or with a command."

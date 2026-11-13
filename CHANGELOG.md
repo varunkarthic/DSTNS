@@ -14,6 +14,39 @@ only within one version.
 
 ## [Unreleased]
 
+## [Launcher 3.4.0] - 2026-11-13
+
+**Engine 3.5.0, launcher 3.4.0, observer 3.1.0, API contract 1.6.** No engine change.
+
+### Added
+
+- The MCP Handler (#20):
+  - Typed tools: `dstns_world`, plus `dstns_play`, `dstns_pause`, `dstns_seek` and `dstns_set_speed` when changes
+    are allowed. Each has a strict input schema.
+  - Each tool has a `title` and MCP's safety annotations: `readOnlyHint`, `destructiveHint`, `idempotentHint` and
+    `openWorldHint`. `destructiveHint` is now true only for tools that end or remove something, not for every tool
+    that changes something.
+  - Resources: `dstns://status`, `dstns://world`, `dstns://settings`, `dstns://seeds`, `dstns://logs/system`, and
+    the template `dstns://docs/{page}` for the documentation.
+  - Prompts: `explain-world`, `diagnose-run`, `compare-seeds` and `plan-experiment`.
+  - `initialize` advertises tools, resources and prompts.
+
+### Security
+
+- An AI client could change, through `launcher_config_set`, the settings that limit what it may do. These are
+  `mcp.allow_writes`, `mcp.allow_launcher`, `mcp.enabled`, `security.advanced` and `api.host`. Only the person at
+  the machine may now change them.
+- `launcher_config_get` gave model addresses to the AI client, which a launch code deliberately leaves out. Addresses
+  and credentials now show as `(kept on this machine)`.
+
+### Tests
+
+- The annotations of the typed and route tools, resources, templates, documentation pages (a page cannot escape
+  `docs/`), prompts and their required arguments. A refused permission change is also tested: the test fails when
+  the guard is removed.
+
+Rollback: revert this release's commit.
+
 ## [3.5.0] - 2026-11-13
 
 **Engine 3.5.0, launcher 3.3.0, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged.
