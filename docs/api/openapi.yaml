@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: DSTNS API
-  version: 1.5.0
+  version: 1.6.0
   description: 'Deterministic Spatiotemporal Transport Network Simulator runtime API.
 
 
@@ -4240,7 +4240,25 @@ components:
           pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$
         map_selection_version:
           type: string
-          const: urban-crfg-v3
+          enum: [urban-crfg-v3, urban-geo-v1]
+          default: urban-crfg-v3
+          description: urban-geo-v1 needs engine core-ng. Added in 1.6.
+        map_selection:
+          type: object
+          description: Only with urban-geo-v1. Added in 1.6.
+          properties:
+            mode:
+              type: string
+              enum: [global, countries, cities, fixed_city]
+              default: global
+            countries:
+              type: array
+              maxItems: 200
+              items: {type: string, minLength: 1, maxLength: 64, description: ISO 3166-1 alpha-2 code}
+            cities:
+              type: array
+              maxItems: 200
+              items: {type: string, minLength: 1, maxLength: 64, description: City ID, such as mumbai}
         engine:
           type: string
           enum: [core-legacy, core-ng]

@@ -64,7 +64,9 @@ void NextWorld::write(const std::filesystem::path& cache, const nlohmann::json& 
 }
 
 void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
-    if (!enabled() || config.osm_file != "auto") {
+    // Prepared seeds are resolved by urban-crfg-v3, so another policy would be handed a city it did not choose.
+    // ponytail: no Fastboot for other policies yet; the pointer becomes policy-aware in core-ng's release 5.
+    if (!enabled() || config.osm_file != "auto" || config.map_selection_version != "urban-crfg-v3") {
         std::lock_guard lock(mutex_);
         state_ = enabled() ? "idle" : "off";
         return;
@@ -149,7 +151,7 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config) {
 }
 
 std::optional<Seed128> NextWorld::take(const ScenarioConfig& config, const std::string& avoid_city, const std::string& current_city) const {
-    if (!enabled() || config.osm_file != "auto") return std::nullopt;
+    if (!enabled() || config.osm_file != "auto" || config.map_selection_version != "urban-crfg-v3") return std::nullopt;
     const auto prepared = read_pointer(config.map_cache_dir);
     const std::string on_its_way = prepared.is_object() ? prepared.value("city", "") : "";
     const auto spent = spent_of(prepared);

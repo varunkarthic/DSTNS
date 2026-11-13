@@ -8,6 +8,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <nlohmann/json.hpp>
 
 namespace dstns {
 
@@ -25,6 +26,10 @@ public:
     struct Hooks {
         // Resolves the seed to a place when the map is "auto". It also validates the selection policy.
         std::function<MapLocation(Seed128, const ScenarioConfig&)> select;
+        // Checks the selection policy before anything starts; throws std::invalid_argument.
+        std::function<void(const ScenarioConfig&)> validate;
+        // The selection policy as the manifest reports it, with its fingerprint.
+        std::function<nlohmann::json(const ScenarioConfig&)> describe;
     };
 
     [[nodiscard]] Scenario compile(Seed128 seed, const ScenarioConfig& config, const Progress& progress = {},

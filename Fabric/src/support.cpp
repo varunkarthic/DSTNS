@@ -296,7 +296,24 @@ ScenarioConfig config_from(const json& j) {
     }
     c.saved_seed_id=j.value("saved_seed_id",std::string{});
     c.map_selection_version=j.value("map_selection_version",std::string("urban-crfg-v3"));
-    if(c.map_selection_version!="urban-crfg-v3")throw std::invalid_argument("unsupported map selection version");
+    // The policy itself is checked by the engine that will run it, before anything starts.
+    if(j.contains("map_selection")){
+        const auto& m=j.at("map_selection");
+        if(!m.is_object())throw std::invalid_argument("map_selection must be an object");
+        if(m.contains("mode")){if(!m.at("mode").is_string())throw std::invalid_argument("map_selection.mode must be a string");c.map_selection_mode=m.at("mode");}
+        const auto ids=[&](const char* key){
+            std::vector<std::string> out;
+            if(!m.contains(key))return out;
+            const auto& list=m.at(key);
+            if(!list.is_array()||list.size()>200)throw std::invalid_argument(std::string("map_selection.")+key+" must be an array of at most 200 IDs");
+            for(const auto& id:list){
+                if(!id.is_string()||id.get<std::string>().empty()||id.get<std::string>().size()>64)throw std::invalid_argument(std::string("map_selection.")+key+" holds IDs of 1 to 64 characters");
+                out.push_back(id);
+            }
+            return out;
+        };
+        c.map_countries=ids("countries");c.map_cities=ids("cities");
+    }
     // Which engine runs the world; the engine refuses one it does not have.
     c.engine=j.value("engine",std::string("core-legacy"));
     if(!c.saved_seed_id.empty()&&!std::regex_match(c.saved_seed_id,std::regex("[A-Za-z0-9][A-Za-z0-9_-]{0,63}")))throw std::invalid_argument("invalid saved seed ID");

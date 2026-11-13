@@ -222,3 +222,5 @@ the panels that were open come back. Each step waits for the previous one.
 | WebFabric | Resuming an application that had stopped checking in showed it as active | It shows as not answering |
 | WebFabric (observer) | An application reloading by the launcher had no label in Settings | It reads Reloading |
 | Launcher supervisor | A reload asked while an application was preparing killed the preparation step and failed it | The reload is dropped |
+| Engine (failed start retry) | Looking for a seed outside the failed city was an unbounded loop, and named the city by the legacy rule whatever the policy | Bounded to 64 tries, through the run's own engine and policy (3.2.0) |
+| Dynamic Fastboot | Its prepared seed would be handed to a run under another policy, which would resolve it to a city Fastboot never fetched | Fastboot stands aside for any policy other than `urban-crfg-v3` (3.2.0) |

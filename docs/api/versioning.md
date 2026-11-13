@@ -2,10 +2,10 @@
 
 | What | Version | Where reported |
 |---|---|---|
-| The API contract | `1.5`, under the `/api/v1` prefix | `api_version` in responses |
-| The engine | `3.1.0` | `version` in `/health` and `/system/info` |
+| The API contract | `1.6`, under the `/api/v1` prefix | `api_version` in responses |
+| The engine | `3.2.0` | `version` in `/health` and `/system/info` |
 | The observer | `3.1.0` | About |
-| Map selection | `urban-crfg-v3` | `map_selection_version` |
+| Map selection | `urban-crfg-v3` (default), `urban-geo-v1` (core-ng) | `map_selection_version`; `map_selection` in `/view/manifest` with the policy's fingerprint |
 | Engines | `core-legacy`, `core-ng` | `engine` in status and `/view/manifest`; `engines` in `/system/info` |
 | Algorithms | `DSTNS/1` | `/view/manifest` |
 
@@ -27,7 +27,8 @@ Additions raise the minor version of the contract. `1.1` added the
 highest accepted `tick_rate` from 5 to 10. `1.3` added subscriptions, timers, per-application storage, messages,
 atomic interface batches, health, discovery, and the engine's controls under `/api/v1/fabric/engine`, with security around
 them. `1.4` added directing the view: `ui.camera`, `ui.layers`, and path styles and colours. `1.5` added the `engine`
-field to the start request, playback status and manifest, and `engines` to `/system/info`.
+field to the start request, playback status and manifest, and `engines` to `/system/info`. `1.6` added
+`map_selection` to the start request and the manifest, and accepts `urban-geo-v1` with engine `core-ng`.
 
 ## Security exceptions
 
@@ -52,6 +53,12 @@ Convenience paths map to canonical ones and are kept for compatibility:
 `/health` (`/api/v1/system/health`), `POST /stop` (`/api/v1/playback/stop`),
 `POST /terminate` (`/api/v1/system/terminate`), `/api/v1/topology`,
 `/api/v1/places`, and the view aliases listed in [View API](view-api.md#routes).
+
+## Map selection policies
+
+A policy ID never changes meaning. `urban-crfg-v3` resolves every seed exactly as engine 3.0 did, on both engines.
+A policy that chooses differently gets a new ID. A seed alone identifies an `urban-crfg-v3` world; a world chosen
+under `urban-geo-v1` is identified by its seed, its policy and the policy's fingerprint, all in the manifest.
 
 ## Simulation results across versions
 

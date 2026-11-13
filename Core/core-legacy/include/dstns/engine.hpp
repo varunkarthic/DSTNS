@@ -185,6 +185,9 @@ private:
     // Lock-free mirror of lifecycle_, written only by transition().
     std::atomic<Lifecycle> lifecycle_mirror_{Lifecycle::Idle}; ScenarioCompiler compiler_; std::map<std::string, ScenarioCompiler::Hooks> engines_;
     void require_engine(const ScenarioConfig& config) const;
+    // Where a seed goes under the configuration's engine and selection policy.
+    [[nodiscard]] MapLocation locate(Seed128 seed, const ScenarioConfig& config) const;
+    [[nodiscard]] nlohmann::json map_selection_json(const ScenarioConfig& config) const;
     [[nodiscard]] Scenario compile_scenario(Seed128 seed, const ScenarioConfig& config); std::unique_ptr<GraphStore> graph_;
     std::atomic<bool> compiling_{false}; // Concurrent compiles fail without occupying HTTP workers.
     std::uint64_t compile_generation_{}; // Guarded by mutex_; reset/terminate invalidate a pending install.

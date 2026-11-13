@@ -1,6 +1,6 @@
 # v3 core-ng migration plan
 
-Status: **releases 0–2 done**; release 3 next.
+Status: **releases 0–3 done**; release 5 (world preparation and Fastboot guards) next.
 
 Baseline: `v3` at `d29a2f6` (source) / `b828aa6` (graph). Engine `3.0.0`, observer `3.1.0`, API contract `1.4`,
 map selection `urban-crfg-v3`, algorithms `DSTNS/1`.
@@ -130,7 +130,7 @@ fields matches only the legacy policy, so old files stay safe. LaunchKit's `prep
 | 0 | Baseline, this plan, golden fixtures (seed → city/anchor; grid and bundled-OSM hashes and snapshots) | ships in 3.0.1 | baseline green; fixtures match engine 3.0.0 |
 | 1 | Move the engine to `Core/core-legacy` | engine 3.0.1 | golden fixtures unchanged; full suite green |
 | 2 | `Core/core-ng` library; `engine` in the start request, status, manifest and system info; core-ng map selection through `SelectionPolicy`, legacy policy only. The launcher setting waits for the integration phase | engine 3.1.0, API 1.5 | golden fixtures pass on both engines |
-| 3 | `urban-geo-v1` policy, validation, manifest fields; launcher selection settings | engine 3.2.0, API 1.6 | determinism, empty/invalid sets, fingerprint stability |
+| 3 | `urban-geo-v1` policy, validation, manifest fields. The launcher settings wait for the integration phase | engine 3.2.0, API 1.6 | determinism, empty/invalid sets, fingerprint stability |
 | 4 | Label language fallback in WebKit; `ui.label_language` | observer 3.2.0 | raw names intact; graph and replay hashes unchanged |
 | 5 | World preparation and Fastboot guards (table above), core-ng | engine patch | cancel/restart/stale-pointer tests |
 | 6 | Scenario compile split into core-ng modules | engine patch | parity: identical hashes, both engines |

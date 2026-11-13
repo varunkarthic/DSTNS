@@ -21,6 +21,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <tuple>
 #include <vector>
 
 using namespace dstns;
@@ -87,6 +88,24 @@ json actual(const std::string& engine) {
         out["selection"][text] = {{"city", location.city}, {"country", location.country},
                                   {"anchor_lat", exact(location.anchor_lat)}, {"anchor_lon", exact(location.anchor_lon)},
                                   {"cache_key", location.cache_key()}};
+    }
+
+    // urban-geo-v1, frozen from 3.2.0: a core-ng policy, the same whichever engine asks.
+    for (const auto& [name, mode, countries, cities] : std::vector<std::tuple<std::string, std::string, std::vector<std::string>, std::vector<std::string>>>{
+             {"countries-IN", "countries", {"IN"}, {}}, {"countries-AE-SA-TR", "countries", {"AE", "SA", "TR"}, {}},
+             {"cities-istanbul-mumbai", "cities", {}, {"istanbul", "mumbai"}}, {"fixed_city-mumbai", "fixed_city", {}, {"mumbai"}}}) {
+        ScenarioConfig policy_config;
+        policy_config.map_selection_version = core_ng::kGeoPolicy;
+        policy_config.map_selection_mode = mode;
+        policy_config.map_countries = countries;
+        policy_config.map_cities = cities;
+        const auto policy = core_ng::policy_of(policy_config);
+        out["selection_geo_v1"][name]["fingerprint"] = policy.fingerprint();
+        for (const auto* text : {"7", "42", "382923", "18446744073709551615"}) {
+            const auto location = core_ng::select_location(Seed128::from_decimal(text), policy, 5000.0);
+            out["selection_geo_v1"][name][text] = {{"city", location.city}, {"anchor_lat", exact(location.anchor_lat)},
+                                                   {"anchor_lon", exact(location.anchor_lon)}};
+        }
     }
 
     ScenarioConfig grid;

@@ -360,8 +360,22 @@ std::vector<std::string> SimulationEngine::engines() const {
 
 // Checked before the lifecycle moves, so an unknown engine is refused at once instead of failing a preparation.
 void SimulationEngine::require_engine(const ScenarioConfig& config) const {
-    if (config.engine != "core-legacy" && !engines_.contains(config.engine))
+    const auto found = engines_.find(config.engine);
+    if (config.engine == "core-legacy") {
+        if (config.map_selection_version != "urban-crfg-v3" || config.map_selection_mode != "global" ||
+            !config.map_countries.empty() || !config.map_cities.empty())
+            throw std::invalid_argument("core-legacy supports only urban-crfg-v3 over every city; use engine core-ng to choose a policy");
+    } else if (found == engines_.end()) {
         throw std::invalid_argument("unknown engine: " + config.engine);
+    } else if (found->second.validate) {
+        found->second.validate(config);
+    }
+}
+
+MapLocation SimulationEngine::locate(Seed128 seed, const ScenarioConfig& config) const {
+    const auto found = engines_.find(config.engine);
+    if (found != engines_.end() && found->second.select) return found->second.select(seed, config);
+    return select_map_location(seed, config.map_city_extent_m);
 }
 
 Scenario SimulationEngine::compile_scenario(Seed128 seed, const ScenarioConfig& config) {
@@ -959,17 +973,19 @@ nlohmann::json SimulationEngine::step(std::uint32_t seconds) {
 }
 
 // A fresh seed, for a city other than the one that has just failed.
-static Seed128 seed_avoiding_failed_city(const std::optional<Seed128>& failed, const ScenarioConfig& config) {
+static Seed128 seed_avoiding_failed_city(const std::optional<Seed128>& failed, const ScenarioConfig& config,
+                                         const std::function<MapLocation(Seed128)>& locate) {
     // Short enough for an operator to read off the screen and retype.
     Seed128 seed = Seed128::secure64();
     if (!failed || config.osm_file != "auto") return seed;
-    const auto city = select_map_location(*failed, config.map_city_extent_m).city;
-    while (select_map_location(seed, config.map_city_extent_m).city == city) seed = Seed128::secure64();
+    const auto city = locate(*failed).city;
+    // Bounded: a policy that allows one city has nowhere else to go, and then that city is tried again.
+    for (int tries = 0; tries < 64 && locate(seed).city == city; ++tries) seed = Seed128::secure64();
     return seed;
 }
 
 std::string SimulationEngine::failed_city(const ScenarioConfig& config) const {
-    return failed_seed_ && config.osm_file == "auto" ? select_map_location(*failed_seed_, config.map_city_extent_m).city : "";
+    return failed_seed_ && config.osm_file == "auto" ? locate(*failed_seed_, config).city : "";
 }
 
 nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request) {
@@ -978,7 +994,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         std::unique_lock lock(mutex_);
         if (lifecycle_ == Lifecycle::Idle && failed_start_) {
             const auto [failed_config, start] = *failed_start_;
-            const auto seed = next_world_.take(failed_config, failed_city(failed_config)).value_or(seed_avoiding_failed_city(failed_seed_, failed_config));
+            const auto seed = next_world_.take(failed_config, failed_city(failed_config)).value_or(seed_avoiding_failed_city(failed_seed_, failed_config, [&](Seed128 s) { return locate(s, failed_config); }));
             lock.unlock();
             return start_async(seed, failed_config, start);
         }
@@ -1013,7 +1029,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         // the "auto" source; an operator-pinned map file stays pinned.
         if (!graph_->scenario().map_city.empty()) config.osm_file = "auto";
         // Dynamic Fastboot has its city on disk already, or on its way.
-        seed = next_world_.take(config, failed_city(config), graph_->scenario().map_city).value_or(seed_avoiding_failed_city(failed_seed_, config));
+        seed = next_world_.take(config, failed_city(config), graph_->scenario().map_city).value_or(seed_avoiding_failed_city(failed_seed_, config, [&](Seed128 s) { return locate(s, config); }));
         previous = run_id_;
         rate = requested_tick_rate_;
         compile_generation = ++compile_generation_;
@@ -2338,6 +2354,14 @@ nlohmann::json SimulationEngine::edges(std::size_t off, std::size_t lim) const {
     return envelope({{"offset", off}, {"limit", lim}, {"total", graph_ ? graph_->edges().size() : 0}, {"items", std::move(items)}});
 }
 
+// The selection policy, as the engine that ran the world describes it. core-legacy knows only urban-crfg-v3.
+nlohmann::json SimulationEngine::map_selection_json(const ScenarioConfig& config) const {
+    const auto found = engines_.find(config.engine);
+    if (found != engines_.end() && found->second.describe) return found->second.describe(config);
+    return {{"policy", config.map_selection_version}, {"mode", "global"}, {"countries", nlohmann::json::array()},
+            {"cities", nlohmann::json::array()}};
+}
+
 nlohmann::json SimulationEngine::manifest() const {
     std::lock_guard lock(mutex_);
     if (!graph_) return envelope(nlohmann::json::object());
@@ -2356,7 +2380,8 @@ nlohmann::json SimulationEngine::manifest() const {
         {"map_source", s.config.osm_file.empty() ? "offline-deterministic-road-fixture" : "osm-xml"},
         {"road_filter_version", "road-only/v1"},
         {"engine", s.config.engine},
-        {"map_selection_version", s.config.map_selection_version}
+        {"map_selection_version", s.config.map_selection_version},
+        {"map_selection", map_selection_json(s.config)}
     });
 }
 

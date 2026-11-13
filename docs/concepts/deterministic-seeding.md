@@ -289,6 +289,37 @@ print(hex(derive(42, "map.city")))                  # 0x209cc0489e06eab695fa3d64
 The remaining steps need the Philox rounds above; a complete Python
 reimplementation is a dozen lines and agrees with the C++ to the last digit.
 
+## Choosing countries or cities (urban-geo-v1)
+
+A seed is not a place lookup: SHA-256 cannot be run backwards to find a seed for a city. To limit where worlds
+go, the operator names a **selection policy** beside the seed. Engine `core-ng` offers `urban-geo-v1`:
+
+| `mode` | Eligible cities | Lists |
+|---|---|---|
+| `global` | All 181 | none |
+| `countries` | Those in the named countries | `countries`: ISO 3166-1 alpha-2 codes, such as `IN` |
+| `cities` | The named cities | `cities`: city IDs, such as `mumbai` |
+| `fixed_city` | One city; the seed still chooses the district | `cities`: exactly one ID |
+
+The eligible cities keep the catalogue's order. One bounded draw picks among them, with the same label
+(`map.city`) and address as `urban-crfg-v3`, so there are no retries and no dependence on hash-map order or
+locale. With mode `global` the draw is the legacy draw: every seed resolves to the same city and anchor as under
+`urban-crfg-v3`. The anchor is drawn exactly as before, from `map.anchor`.
+
+IDs are normalised (country codes upper case, city IDs lower case, sorted, repeats removed), and the policy's
+canonical text, for example `policy=urban-geo-v1;mode=countries;countries=IN,PK;cities=`, gives its
+**fingerprint**, `sha256:` and the SHA-256 of that text. An unknown mode or ID, or a list the mode does not use, is
+refused before anything starts. `urban-crfg-v3` refuses lists altogether, and engine `core-legacy` refuses any
+other policy.
+
+A filtered world is never presented as the seed's own world. It is identified by the seed, the policy and its
+fingerprint, all reported under `map_selection` in `/api/v1/view/manifest`, and the policy name takes part in
+`event_hash`.
+
+!!! note "Dynamic Fastboot"
+    Fastboot prepares its next world under `urban-crfg-v3`, so it does not prepare worlds for other policies yet.
+    A filtered run downloads its city when it needs one.
+
 ## Why this is safe to rely on
 
 | Property | Guaranteed by |

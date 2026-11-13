@@ -14,6 +14,50 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-11-13
+
+**Engine 3.2.0, observer 3.1.0, API contract 1.6.** Results for every existing seed are unchanged on both engines:
+the golden fixtures pass. New results exist only for runs that ask for the new policy.
+
+### Added
+
+- **`urban-geo-v1`**, an opt-in map selection policy in core-ng. `map_selection` in the start request names a `mode`
+  (`global`, `countries`, `cities` or `fixed_city`) and canonical IDs: ISO 3166-1 alpha-2 country codes (`IN`) and
+  city IDs (`mumbai`). The eligible cities keep the catalogue's order, and one bounded draw picks among them, so mode
+  `global` chooses exactly the legacy city and anchor. Every catalogue country now has its ISO code (in core-ng; the
+  catalogue itself is unchanged).
+- Each policy has a canonical text and a SHA-256 **fingerprint**. `/api/v1/view/manifest` reports `map_selection`:
+  policy, mode, lists and fingerprint.
+- Validation before anything starts, with a 400 and a plain message: an unknown policy, mode, country or city; a list
+  the mode does not use; `fixed_city` with other than one city; any filter on `urban-crfg-v3`; and any policy other
+  than `urban-crfg-v3` on engine `core-legacy`. Lists hold at most 200 IDs of 1 to 64 characters.
+- `api_version` is `1.6`.
+
+### Fixed
+
+- Trying again after a failed download looked for a seed outside the failed city with an unbounded loop, and named
+  the city by the legacy rule whatever the policy. It now asks the run's own engine and policy, and stops after 64
+  tries, so a policy with one city tries that city again. Seeds drawn here are random, so no seed's result changes.
+
+### Changed
+
+- Dynamic Fastboot prepares and offers worlds only under `urban-crfg-v3`, since its prepared seeds are resolved by
+  that policy. A run under another policy downloads its city when it needs one. The pointer becomes policy-aware in a
+  later release.
+
+### Tests
+
+- `dstns_selection_ng`: every city has a code and a unique ID; mode `global` equals the legacy choice for 500 seeds;
+  countries, several countries, cities and a fixed city choose only what they allow, repeatably and in catalogue
+  order; all nine Indian cities are reachable; fingerprints ignore case, spaces, order and repeats; nine kinds of
+  invalid policy are refused.
+- `dstns_golden` freezes `urban-geo-v1` results for four policies and four seeds, with their fingerprints.
+- `dstns_http_engine_switch`: a fixed-city run on core-ng lands in Berlin, reports its policy and fingerprint, and a
+  regenerated world stays in Berlin under the same policy and engine; a filtered run on core-legacy, an unknown
+  country and a malformed list are refused with nothing started.
+
+Rollback: revert this release's commits; runs that leave `map_selection` out are unaffected either way.
+
 ## [3.1.0] - 2026-11-13
 
 **Engine 3.1.0, observer 3.1.0, API contract 1.5.** Results for a seed are unchanged on both engines: the golden

@@ -595,5 +595,99 @@
       "city": "Mumbai",
       "country": "India"
     }
+  },
+  "selection_geo_v1": {
+    "cities-istanbul-mumbai": {
+      "18446744073709551615": {
+        "anchor_lat": "0x1.3113774f030f3p+4",
+        "anchor_lon": "0x1.238e8ae776086p+6",
+        "city": "Mumbai"
+      },
+      "382923": {
+        "anchor_lat": "0x1.481fcb7085cacp+5",
+        "anchor_lon": "0x1.cfe2a5ec692e4p+4",
+        "city": "Istanbul"
+      },
+      "42": {
+        "anchor_lat": "0x1.480af262d3cfbp+5",
+        "anchor_lon": "0x1.cf8a14b1afa76p+4",
+        "city": "Istanbul"
+      },
+      "7": {
+        "anchor_lat": "0x1.310b4e955cd83p+4",
+        "anchor_lon": "0x1.238e431655fabp+6",
+        "city": "Mumbai"
+      },
+      "fingerprint": "sha256:7e9b66fe718cd7c3b1577db0bdcb858a7563c6c5050e43978c883967536e64b5"
+    },
+    "countries-AE-SA-TR": {
+      "18446744073709551615": {
+        "anchor_lat": "0x1.57a201c0e178ep+4",
+        "anchor_lon": "0x1.39a22a2435315p+5",
+        "city": "Jeddah"
+      },
+      "382923": {
+        "anchor_lat": "0x1.3372bd1a81b22p+5",
+        "anchor_lon": "0x1.b281db07e878dp+4",
+        "city": "Izmir"
+      },
+      "42": {
+        "anchor_lat": "0x1.8b5f364851327p+4",
+        "anchor_lon": "0x1.755ac8bffb31bp+5",
+        "city": "Riyadh"
+      },
+      "7": {
+        "anchor_lat": "0x1.5799d9073b41ep+4",
+        "anchor_lon": "0x1.39a19841e857dp+5",
+        "city": "Jeddah"
+      },
+      "fingerprint": "sha256:27a316dff12728e4688bcbea2ae74c92569ee5270eb4f0db2649d14b2682b174"
+    },
+    "countries-IN": {
+      "18446744073709551615": {
+        "anchor_lat": "0x1.a25dd18922619p+3",
+        "anchor_lon": "0x1.41209fdb3b7e7p+6",
+        "city": "Chennai"
+      },
+      "382923": {
+        "anchor_lat": "0x1.1646f650ddb57p+4",
+        "anchor_lon": "0x1.39fe1178a01bep+6",
+        "city": "Hyderabad"
+      },
+      "42": {
+        "anchor_lat": "0x1.161d443579bf6p+4",
+        "anchor_lon": "0x1.39ec8f53af86cp+6",
+        "city": "Hyderabad"
+      },
+      "7": {
+        "anchor_lat": "0x1.9ebf5e7f83364p+3",
+        "anchor_lon": "0x1.366c0555d524ep+6",
+        "city": "Bengaluru"
+      },
+      "fingerprint": "sha256:7b494f0fd143d4b8a7264f668efe8d2b93d13309244f12831a4b87c36d14d37b"
+    },
+    "fixed_city-mumbai": {
+      "18446744073709551615": {
+        "anchor_lat": "0x1.3113774f030f3p+4",
+        "anchor_lon": "0x1.238e8ae776086p+6",
+        "city": "Mumbai"
+      },
+      "382923": {
+        "anchor_lat": "0x1.31554c54f648ep+4",
+        "anchor_lon": "0x1.238e91011e822p+6",
+        "city": "Mumbai"
+      },
+      "42": {
+        "anchor_lat": "0x1.312b9a399252dp+4",
+        "anchor_lon": "0x1.237ce312c4ae4p+6",
+        "city": "Mumbai"
+      },
+      "7": {
+        "anchor_lat": "0x1.310b4e955cd83p+4",
+        "anchor_lon": "0x1.238e431655fabp+6",
+        "city": "Mumbai"
+      },
+      "fingerprint": "sha256:2dbc8099db1608b52e6f67a2e41fbc24a6b4fc9d83fd77171adbda489e88ace0"
+    }
   }
 }
