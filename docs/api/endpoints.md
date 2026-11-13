@@ -1274,7 +1274,7 @@ Response `200`, from a real run:
   "ok": true,
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
-  "version": "3.7.1"
+  "version": "3.8.0"
 }
 ```
 
@@ -1309,8 +1309,8 @@ The running engine and every installed one, with the engine policy (config/engin
 
 ```json
 {"ok": true, "data": {
-  "running": {"id": "core-ng", "version": "0.7.0", "kind": "real", "channel": "alpha", "owns": ["…"], "shared": ["physics step", "…"], "changes": ["…"]},
-  "catalogue": [{"id": "core-legacy", "version": "3.7.1", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
+  "running": {"id": "core-ng", "version": "0.8.0", "kind": "real", "channel": "beta", "owns": ["…"], "shared": ["physics step", "…"], "changes": ["…"]},
+  "catalogue": [{"id": "core-legacy", "version": "3.8.0", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
   "config": {"schema_version": 1, "selected": "core-legacy", "default": "core-legacy", "auto_switch": "offer", "engines": {"core-ng": {"enabled": true, "acknowledgment": {"ui": true, "enforce": true}}}},
   "approval": {"state": "none", "revision": 0}}}
 ```
@@ -1323,9 +1323,9 @@ the enabled stable real engines a rejection may start the seed on (empty when `a
 
 ```json
 {"ok": true, "data": {"state": "pending", "revision": 3,
-  "approval": {"id": "9f1c…", "engine": {"id": "core-ng", "version": "0.7.0", "channel": "alpha", "kind": "real"}, "seed": "42",
+  "approval": {"id": "9f1c…", "engine": {"id": "core-ng", "version": "0.8.0", "channel": "beta", "kind": "real"}, "seed": "42",
                "requested_at": "2026-11-13T18:00:00Z", "acknowledge_in": "observer", "decision": "", "then": "", "reason": ""},
-  "alternatives": [{"id": "core-legacy", "version": "3.7.1", "channel": "stable", "kind": "real"}]}}
+  "alternatives": [{"id": "core-legacy", "version": "3.8.0", "channel": "stable", "kind": "real"}]}}
 ```
 
 ### `GET /api/v1/engine/approval/wait`
@@ -1390,7 +1390,7 @@ Response `200`, from a real run:
     "sumo_home": "/Users/varun/sumo",
     "version": ""
   },
-  "version": "3.7.1"
+  "version": "3.8.0"
 }
 ```
 
@@ -1453,7 +1453,7 @@ Response `200`, from a real run:
     },
     "program": "DSTNS",
     "source_offer": "You may obtain the complete corresponding source for this running version, under the terms…",
-    "version": "3.7.1"
+    "version": "3.8.0"
   },
   "ok": true
 }

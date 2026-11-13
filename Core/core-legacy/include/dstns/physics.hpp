@@ -64,4 +64,25 @@ struct Context {
 /// core-legacy's tick.
 void step(Context& ctx, std::uint32_t dt);
 
+/// A snapshot of a run's dynamic state, every 900 virtual seconds, for seeking back.
+struct Checkpoint { std::uint32_t virtual_s{}; std::vector<NodeDynamic> nodes; std::vector<EdgeDynamic> edges; std::size_t news_size{}; std::uint64_t next_news_id{1}; EventRuntime events; CongestionTracker congestion; };
+
+/// What capturing and restoring checkpoints reads and writes.
+struct TimelineContext {
+    std::uint32_t& virtual_s;
+    GraphStore& graph;
+    std::vector<Checkpoint>& checkpoints;
+    EventRuntime& events;
+    CongestionTracker& congestion;
+    std::uint64_t& next_news_id;
+    std::function<std::size_t()> news_size;
+    std::function<void(std::size_t)> truncate_news;
+};
+
+/// core-legacy's: keep a checkpoint of now; go back to the last checkpoint at or before target (operator edge
+/// overrides stand), dropping those after it.
+void capture(TimelineContext& ctx);
+void rewind(TimelineContext& ctx, std::uint32_t target);
+
+
 } // namespace dstns::physics

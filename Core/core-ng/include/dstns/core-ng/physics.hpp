@@ -8,4 +8,7 @@
 namespace dstns::core_ng {
 // One physics tick of a world core-ng compiled: ScenarioCompiler::Hooks::step.
 void physics_step(physics::Context& ctx, std::uint32_t dt);
+// Its checkpoints: ScenarioCompiler::Hooks::capture and ::rewind.
+void capture_checkpoint(physics::TimelineContext& ctx);
+void rewind_to_checkpoint(physics::TimelineContext& ctx, std::uint32_t target);
 } // namespace dstns::core_ng

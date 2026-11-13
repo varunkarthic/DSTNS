@@ -59,7 +59,7 @@
               "properties": {
                 "enforce": {
                   "title": "core-ng: hold runs until acknowledged",
-                  "description": "core-ng: hold runs until acknowledged (Engine). core-ng is alpha. On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off, it sets core-ng: acknowledge in the observer to off.",
+                  "description": "core-ng: hold runs until acknowledged (Engine). core-ng is beta. On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off, it sets core-ng: acknowledge in the observer to off.",
                   "default": true,
                   "type": "boolean"
                 },

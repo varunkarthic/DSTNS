@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-// The unstable-engine gate (docs/design/engine-governance.md): a start on core-ng (alpha) is held until a person
+// The unstable-engine gate (docs/design/engine-governance.md): a start on core-ng (beta) is held until a person
 // accepts it; everything that would run the engine meanwhile is deferred with APPROVAL_REQUIRED, never run later
 // behind the client's back; accepting runs the held start once; rejecting may start the same seed, and only the
 // seed, on an enabled stable engine; the operator's stop cancels a start that waits; config/engines.json disables
@@ -50,7 +50,7 @@ int main() {
         const auto info = server.op("GET", "/api/v1/system/info").body;
         json ng, legacy;
         for (const auto& e : info.at("engine_catalogue")) (e.at("id") == "core-ng" ? ng : legacy) = e;
-        EXPECT(ng.at("channel") == "alpha" && ng.at("kind") == "real" && !ng.at("version").get<std::string>().empty(), ng);
+        EXPECT(ng.at("channel") == "beta" && ng.at("kind") == "real" && !ng.at("version").get<std::string>().empty(), ng);
         EXPECT(legacy.at("channel") == "stable" && legacy.at("version") == info.at("version"), legacy);
 
         // An application, connected before anything starts, hears of every change to the approval.
@@ -89,7 +89,7 @@ int main() {
         EXPECT(waited.get().data().at("state") == "accepted");
         EXPECT(heard("pending") && heard("accepted"), "the application was told the start waited, and when it could retry");
         const auto status = running(server);
-        EXPECT(status.at("data").at("engine_identity").at("id") == "core-ng" && status.at("data").at("engine_identity").at("channel") == "alpha", status);
+        EXPECT(status.at("data").at("engine_identity").at("id") == "core-ng" && status.at("data").at("engine_identity").at("channel") == "beta", status);
         EXPECT(server.op("GET", "/api/v1/engine").data().at("running").at("id") == "core-ng");
         // Deciding again: the same decision is the same answer, the other is too late. The run is not started twice.
         EXPECT(decide(server, id, "accept").status == 200);

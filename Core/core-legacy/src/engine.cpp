@@ -1551,15 +1551,10 @@ void SimulationEngine::step_to(std::uint32_t target) {
 }
 
 void SimulationEngine::capture_checkpoint() {
-    Checkpoint checkpoint{virtual_s_, graph_->node_states(), graph_->edge_states(), news_.size(), next_news_id_, events_, congestion_};
-    const auto position = std::lower_bound(checkpoints_.begin(), checkpoints_.end(), virtual_s_, [](const Checkpoint& value, auto time) {
-        return value.virtual_s < time;
-    });
-    if (position != checkpoints_.end() && position->virtual_s == virtual_s_) {
-        *position = std::move(checkpoint);
-    } else {
-        checkpoints_.insert(position, std::move(checkpoint));
-    }
+    auto ctx = timeline();
+    const auto found = engines_.find(graph_->scenario().config.engine);
+    if (found != engines_.end() && found->second.capture) found->second.capture(ctx);
+    else physics::capture(ctx);
 }
 
 void SimulationEngine::restore_to(std::uint32_t target) {
@@ -1568,34 +1563,15 @@ void SimulationEngine::restore_to(std::uint32_t target) {
 }
 
 void SimulationEngine::rewind_to_checkpoint(std::uint32_t target) {
-    auto it = std::upper_bound(checkpoints_.begin(), checkpoints_.end(), target, [](auto t, const Checkpoint& c) {
-        return t < c.virtual_s;
-    });
-    if (it != checkpoints_.begin()) --it;
-    // Operator edge overrides stand until they are undone, as signal overrides
-    // and surges do; a checkpoint taken before one was made must not erase it.
-    struct ManualEdge { double speed, capacity; bool closed; };
-    std::vector<ManualEdge> manual;
-    manual.reserve(graph_->edge_states().size());
-    for (const auto& es : graph_->edge_states())
-        manual.push_back({es.manual_speed_multiplier, es.manual_capacity_multiplier, es.manual_closed});
-    graph_->reset_dynamic();
-    virtual_s_ = 0;
-    if (it != checkpoints_.end()) {
-        virtual_s_ = it->virtual_s;
-        for (std::size_t i = 0; i < it->nodes.size(); ++i) graph_->node_state(NodeId{static_cast<std::uint32_t>(i)}) = it->nodes[i];
-        for (std::size_t i = 0; i < it->edges.size(); ++i) graph_->edge_state(EdgeId{static_cast<std::uint32_t>(i)}) = it->edges[i];
-        if (news_.size() > it->news_size) news_.resize(it->news_size);
-        next_news_id_ = it->next_news_id;
-        events_ = it->events; congestion_ = it->congestion;
-        checkpoints_.erase(std::next(it), checkpoints_.end());
-    }
-    for (std::size_t i = 0; i < manual.size() && i < graph_->edge_states().size(); ++i) {
-        auto& es = graph_->edge_state(EdgeId{static_cast<std::uint32_t>(i)});
-        es.manual_speed_multiplier = manual[i].speed;
-        es.manual_capacity_multiplier = manual[i].capacity;
-        es.manual_closed = manual[i].closed;
-    }
+    auto ctx = timeline();
+    const auto found = engines_.find(graph_->scenario().config.engine);
+    if (found != engines_.end() && found->second.rewind) found->second.rewind(ctx, target);
+    else physics::rewind(ctx, target);
+}
+
+physics::TimelineContext SimulationEngine::timeline() {
+    return {virtual_s_, *graph_, checkpoints_, events_, congestion_, next_news_id_,
+            [this] { return news_.size(); }, [this](std::size_t size) { news_.resize(size); }};
 }
 
 void SimulationEngine::loop() {

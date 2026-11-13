@@ -178,6 +178,9 @@ ScenarioCompiler::Hooks hooks() {
     };
     // Worlds core-ng compiled advance by core-ng's own tick.
     out.step = [](physics::Context& ctx, std::uint32_t dt) { physics_step(ctx, dt); };
+    // And keep and restore their checkpoints with core-ng's own.
+    out.capture = [](physics::TimelineContext& ctx) { capture_checkpoint(ctx); };
+    out.rewind = [](physics::TimelineContext& ctx, std::uint32_t target) { rewind_to_checkpoint(ctx, target); };
     return out;
 }
 

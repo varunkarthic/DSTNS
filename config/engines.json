@@ -6,7 +6,7 @@
     "selected": "Engine (Engine). Which engine builds and runs each world. core-legacy is the engine DSTNS has always used; core-ng is its next-generation replacement, built beside it, which gives the same world for the same seed and can also limit worlds to chosen countries or cities. Accepts: \"core-legacy\" (core-legacy), \"core-ng\" (core-ng (next generation)). Default: \"core-legacy\". Applies from the next start of the server (./launcher start). Set to core-ng (next generation) when Where worlds are is set to Countries. Set to core-ng (next generation) when Where worlds are is set to Cities. Set to core-ng (next generation) when Where worlds are is set to One city. Set to core-legacy, it sets Where worlds are to Every city. Set to core-legacy, it sets Places to all.",
     "auto_switch": "When a run is rejected (Engine). What the observer offers when a person rejects the risk of an alpha or beta engine: to start the same seed (only the seed) on an enabled stable engine, or only to stop. Accepts: \"offer\" (Offer a stable engine), \"off\" (Only stop). Default: \"offer\". Applies from the next start of the server (./launcher start).",
     "engines.core-ng.enabled": "core-ng available (Engine). Off, core-ng stays installed but nothing can start a run on it. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start).",
-    "engines.core-ng.acknowledgment.enforce": "core-ng: hold runs until acknowledged (Engine). core-ng is alpha. On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off, it sets core-ng: acknowledge in the observer to off.",
+    "engines.core-ng.acknowledgment.enforce": "core-ng: hold runs until acknowledged (Engine). core-ng is beta. On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off, it sets core-ng: acknowledge in the observer to off.",
     "engines.core-ng.acknowledgment.ui": "core-ng: acknowledge in the observer (Engine). On, the observer asks a person to accept or reject. Off while runs are still held, the launcher asks instead: start with --accept-risk. Turning holding off turns this off. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off when core-ng: hold runs until acknowledged is set to off.",
     "engines.core-legacy.enabled": "core-legacy available (Engine). core-legacy is the default engine, so it cannot be turned off. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start).",
     "engines.core-legacy.channel": "Release channel: alpha (incomplete; each run held until acknowledged), beta (complete, not yet proven; held), or stable (starts at once). Reported by the build and copied here by the launcher at every start; editing it changes nothing.",
@@ -22,13 +22,13 @@
   "engines": {
     "core-legacy": {
       "channel": "stable",
-      "version": "3.7.1",
+      "version": "3.8.0",
       "kind": "real",
       "enabled": true
     },
     "core-ng": {
-      "channel": "alpha",
-      "version": "0.7.0",
+      "channel": "beta",
+      "version": "0.8.0",
       "kind": "real",
       "enabled": true,
       "acknowledgment": {

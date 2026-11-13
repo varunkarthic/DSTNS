@@ -14,6 +14,33 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-11-14
+
+**Engine 3.8.0 (core-ng 0.8.0, beta), launcher 3.9.0, observer 3.4.0, API contract 1.8.** Results for every seed are
+unchanged.
+
+### Changed
+
+- core-ng keeps and restores its own checkpoints (#15, release 7b). As with the physics step, this took two steps.
+  First, core-legacy's capture and rewind moved out of `engine.cpp`, unchanged, behind `physics::TimelineContext`.
+  Then core-ng got its own copy, `Core/core-ng/src/timeline.cpp`, generated with every expression unchanged and run
+  through `Hooks::capture` and `Hooks::rewind`.
+- **core-ng is beta.** It owns every computation of a run: selection, compilation, the physics step, checkpoints and
+  seeking.
+  - What it shares is the runtime host, `SimulationEngine`: the lifecycle and clock, the operator commands and their
+    undo, and the HTTP API. Every engine runs inside it by design, and those commands only set the fields core-ng's
+    own physics reads.
+  - Its runs are still held until acknowledged, now with the Beta (yellow) dialog.
+  - It becomes the default only after a release cycle as beta, with owner approval (#22).
+
+### Tests
+
+- `dstns_timeline_ng`: both engines seek forward to 06:00, back across their checkpoints to 01:06:40, and forward
+  again. The state at 06:00 is the same both times, going back gives a straight run's state, and core-ng matches
+  core-legacy at every stop. Dropping one restored field in core-ng's rewind fails it.
+
+Rollback: revert this release's commit; core-ng then uses core-legacy's checkpoints and is alpha again.
+
 ## [3.7.1] - 2026-11-14
 
 **Engine 3.7.1 (core-ng 0.7.0), launcher 3.9.0, observer 3.4.0, API contract 1.8.** Results for every seed are

@@ -11,7 +11,7 @@
 #include <nlohmann/json.hpp>
 
 namespace dstns {
-namespace physics { struct Context; }
+namespace physics { struct Context; struct TimelineContext; }
 
 class ScenarioCompiler {
 public:
@@ -35,6 +35,9 @@ public:
         std::function<Scenario(Seed128, const ScenarioConfig&, const Progress&)> compile;
         // Advances a world compiled by this engine by one physics tick, in place of core-legacy's (physics::step).
         std::function<void(physics::Context&, std::uint32_t)> step;
+        // Keeps a checkpoint, and goes back to one, for worlds this engine compiled (physics::capture, physics::rewind).
+        std::function<void(physics::TimelineContext&)> capture;
+        std::function<void(physics::TimelineContext&, std::uint32_t)> rewind;
     };
 
     [[nodiscard]] Scenario compile(Seed128 seed, const ScenarioConfig& config, const Progress& progress = {},
