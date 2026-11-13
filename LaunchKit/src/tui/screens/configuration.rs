@@ -28,6 +28,8 @@ pub struct ConfigurationScreen {
     wanted: Option<String>,
     /// What else a change turned on or off, said once.
     notice: String,
+    /// The person confirmed a change that is a risk; the next save goes ahead once.
+    risk_accepted: bool,
 }
 
 fn editor(field: &config::Field, value: &Value) -> Editor {
@@ -80,6 +82,7 @@ impl ConfigurationScreen {
             loaded: false,
             wanted: category,
             notice: String::new(),
+            risk_accepted: false,
         }
     }
 
@@ -145,11 +148,14 @@ impl ConfigurationScreen {
             self.form.set_problem(key, "");
             // What changed with it shows at once, and says why.
             for other in field.set(&mut self.current, parsed.unwrap()) {
+                let Some(linked) = config::field(other) else { continue };
+                let value = linked.get(&self.current);
+                // Its own kind of editor again: a linked setting may be a choice or text, not only a switch.
                 if let Some(row) = self.form.get_mut(other) {
-                    row.editor = Editor::Toggle(config::flag(&self.current, other));
+                    row.editor = editor(linked, &value);
                     row.problem.clear();
                 }
-                self.notice = format!("{} turned {} with it", config::field(other).map(|f| f.label).unwrap_or(other), if config::flag(&self.current, other) { "on" } else { "off" });
+                self.notice = format!("{} became {} with it", linked.label, linked.display(&value));
             }
         } else {
             self.invalid.insert(key.to_string());
@@ -164,6 +170,17 @@ impl ConfigurationScreen {
         if !self.load_error.is_empty() {
             return Action::Toast("The configuration file could not be read, so it is not overwritten.".into(), ERR);
         }
+        // Removing the protection of an unstable engine's runs is confirmed first, and said to be a risk.
+        if !self.risk_accepted {
+            let risky = config::fields().iter().find_map(|f| {
+                let now = f.get(&self.current);
+                (now != f.get(&self.saved)).then(|| config::risky_change(f, &now)).flatten()
+            });
+            if let Some(why) = risky {
+                return Action::Dialog(Dialog::confirm("risk", "This is a risk", &format!("{why} Save anyway?"), "Save anyway", "Cancel"));
+            }
+        }
+        self.risk_accepted = false;
         match config::save(&self.current, &ui.paths) {
             Ok(()) => {
                 self.saved = self.current.clone();
@@ -294,6 +311,10 @@ impl Screen for ConfigurationScreen {
                 }
             }
             ("unsaved", "discard") => Action::Pop,
+            ("risk", "yes") => {
+                self.risk_accepted = true;
+                self.save(ui)
+            }
             _ => Action::None,
         }
     }
@@ -312,5 +333,33 @@ impl Screen for ConfigurationScreen {
             &[("save", "Save and continue"), ("discard", "Discard changes"), ("cancel", "Cancel")],
             Some("cancel"),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// A change that sets another setting gives that row back its own kind of editor: the engine is a choice and
+    /// Places is text, and neither may become an on/off switch.
+    #[test]
+    fn a_linked_setting_keeps_its_own_editor() {
+        let mut screen = ConfigurationScreen::new(Some("Engine".into()));
+        screen.current = json!({});
+        screen.categories.select("Engine");
+        screen.show_category();
+        let mode = config::field("map.selection_mode").unwrap();
+        if let Some(row) = screen.form.get_mut("map.selection_mode") {
+            row.editor = editor(mode, &json!("countries"));
+        }
+        screen.apply("map.selection_mode");
+        assert_eq!(config::setting(&screen.current, "engines.selected"), json!("core-ng"));
+        assert!(matches!(screen.form.get("engines.selected").unwrap().editor, Editor::Select { .. }), "the engine is still a choice");
+        let engine = config::field("engines.selected").unwrap();
+        screen.form.get_mut("engines.selected").unwrap().editor = editor(engine, &json!("core-legacy"));
+        screen.apply("engines.selected");
+        assert!(matches!(screen.form.get("map.places").unwrap().editor, Editor::Text { .. }), "Places is still text");
+        assert!(screen.notice.contains("became"), "{}", screen.notice);
     }
 }

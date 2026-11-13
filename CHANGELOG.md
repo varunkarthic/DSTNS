@@ -14,6 +14,25 @@ only within one version.
 
 ## [Unreleased]
 
+## [Launcher 3.8.1] - 2026-11-14
+
+**Engine 3.6.1, launcher 3.8.1, observer 3.3.0, API contract 1.8.** No engine change.
+
+### Fixed
+
+- In the settings screen, a change that sets a linked setting rebuilt that setting's row as an on/off switch. Since
+  3.1.0, linked settings include choices and text: "Where worlds are" sets the engine, and choosing core-legacy sets
+  Places to all. Their rows then became switches that could not hold their values. Each row now gets back its own
+  kind of editor, and the notice says what the linked setting became.
+- The settings screen now confirms, like `config set`, before it saves a change that removes the acknowledgment of an
+  unstable engine's runs.
+
+### Tests
+
+- A linked choice keeps its choice editor and linked text keeps its text editor; the test fails with the old switch.
+
+Rollback: revert this release's commit.
+
 ## [Launcher 3.8.0, observer 3.3.0] - 2026-11-14
 
 **Engine 3.6.1, launcher 3.8.0, observer 3.3.0, API contract 1.8.** No engine change.
