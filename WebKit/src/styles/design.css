@@ -3523,3 +3523,85 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .done-dialog .done-next { width: 100%; }
 .done-dialog .done-next .btn { width: 100%; padding: 0 12px; }
 .done-dialog .done-stats > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+/* ---- About: one outline for every card (observer 3.4.0) -----------------------------------------------------------
+ * The facts' lines were drawn by position (no line above the first two, a line left of every even one), which broke
+ * when a full-width fact, or a specialist fact that is hidden, shifted the positions: lines doubled or went missing.
+ * Now the card is the line colour, the facts are surface over it with 1 px between them, so every line is the gap
+ * between two facts, wherever they fall. The facts are ordered so they always fill whole rows. Every card on the page
+ * has the same 1 px outline and corner. */
+.dialog.about-dialog .about-section .about-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--well-line);
+  border-radius: var(--r-md);
+  background: var(--well-line);
+  box-shadow: none;
+}
+.dialog.about-dialog .about-section .about-facts > div,
+.dialog.about-dialog .about-section .about-facts > div:first-child,
+.dialog.about-dialog .about-section .about-facts > div:nth-child(-n + 2),
+.dialog.about-dialog .about-section .about-facts > div:nth-child(even):not(.wide) {
+  border: 0;
+  box-shadow: none;
+  padding: 10px 14px;
+  background: var(--surface-solid);
+}
+.dialog.about-dialog .about-section .about-facts > div.wide { grid-column: 1 / -1; }
+.dialog.about-dialog :is(.subsystem-card, .about-licence-card) { border: 1px solid var(--well-line); border-radius: var(--r-md); box-shadow: none; }
+.about-engine { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.about-engines { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+@media (max-width: 560px) { .dialog.about-dialog .about-section .about-facts { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- WebFabric settings (observer 3.4.0) ---------------------------------------------------------------------------
+ * The selection box is drawn, not the system's: a rounded square that fills with the accent and draws its tick, the
+ * same size and corner on every platform, with the focus ring the rest of the observer uses. */
+.fabric-pick { position: absolute; left: 10px; top: 50%; z-index: 1; width: 18px; height: 18px; margin: -9px 0 0; cursor: pointer; accent-color: initial; }
+.fabric-pick input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.fabric-pick-box {
+  display: block; width: 18px; height: 18px; border-radius: 6px;
+  border: 1.5px solid rgb(var(--ink-rgb) / 34%); background: var(--surface-solid);
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.fabric-pick-box::after {
+  content: ""; display: block; width: 5px; height: 9px; margin: 2px auto 0;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg) scale(0); transition: transform 160ms cubic-bezier(.2,.9,.3,1.4);
+}
+.fabric-pick:hover .fabric-pick-box { border-color: var(--accent); }
+.fabric-pick input:checked + .fabric-pick-box { background: var(--accent); border-color: var(--accent); }
+.fabric-pick input:checked + .fabric-pick-box::after { transform: rotate(45deg) scale(1); }
+.fabric-pick input:focus-visible + .fabric-pick-box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fabric-pick:active .fabric-pick-box { transform: scale(.92); }
+.fabric-apps li.picked > button { background: rgb(var(--accent-rgb) / 9%); border-color: rgb(var(--accent-rgb) / 35%); }
+.reduce-motion :is(.fabric-pick-box, .fabric-pick-box::after) { transition: none; }
+
+/* The security of applications as four cards, each with its state in a word and a mark (a tick, or ! when something
+   needs attention), so neither colour nor icon alone carries it. */
+.fabric-security { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.fabric-security li { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--well-line); border-radius: var(--r-sm, 12px); background: var(--well); }
+.fabric-security-mark { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; }
+.fabric-security li.ok .fabric-security-mark { background: rgb(var(--ok-rgb) / 16%); color: rgb(var(--ok-rgb)); }
+.fabric-security li.warn { border-color: rgb(var(--warn-rgb) / 40%); background: rgb(var(--warn-rgb) / 7%); }
+.fabric-security li.warn .fabric-security-mark { background: rgb(var(--warn-rgb) / 22%); color: rgb(var(--warn-rgb)); }
+.fabric-security-text { display: grid; gap: 2px; min-width: 0; }
+.fabric-security-text small { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
+.fabric-security-text strong { font-size: 13px; font-weight: 600; color: var(--text); }
+.fabric-security-text span { font-size: 11.5px; line-height: 1.4; color: var(--text-dim); }
+@media (max-width: 420px) { .fabric-security { grid-template-columns: minmax(0, 1fr); } }
+
+/* The permissions' closing note: a card with the sections' own corner and edge, its icon beside the words. */
+.fabric-disclaimer {
+  display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 0; padding: 12px 14px;
+  border: 1px solid rgb(var(--accent-rgb) / 22%); border-radius: var(--r-sm, 12px);
+  background: rgb(var(--accent-rgb) / 6%); font-size: 12px; line-height: 1.45; color: var(--text-dim);
+}
+.fabric-disclaimer .icon { flex: none; margin-top: 1px; color: var(--accent); }
+
+/* The page's header and the applications' rows: one corner, one edge, a little more room. */
+.fabric-hero { padding: 16px; border-radius: var(--r-md); }
+.fabric-hero dl > div { border-radius: var(--r-xs); }
+.fabric-apps > li > button { padding: 10px 12px 10px 38px; border-radius: var(--r-sm, 12px); transition: background 140ms ease, border-color 140ms ease; }
+.fabric-app-head { padding: 12px; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); }

@@ -241,7 +241,7 @@ impl Menu {
     }
     /// The cells the widest label needs, with its marker.
     pub fn width_needed(&self) -> u16 {
-        self.items.iter().map(|i| width(&i.label)).max().unwrap_or(0) as u16 + 2
+        self.items.iter().map(|i| width(&i.label) + if glyph(&i.key).is_empty() { 0 } else { 2 }).max().unwrap_or(0) as u16 + 2
     }
     pub fn current(&self) -> Option<&MenuItem> {
         self.items.get(self.index)
@@ -346,13 +346,17 @@ impl Menu {
         for (position, item) in self.items.iter().enumerate().skip(self.offset) {
             let chosen = position == self.index;
             if item.is_heading() {
-                // Level with the marker, so the items beneath read as within it.
-                lines.push(Line::from(Span::styled(clip(&item.label, w, unicode), bold(TEXT2))));
+                // Level with the marker, so the items beneath read as within it, with a hairline to the edge.
+                let name = clip(item.label.trim(), w, unicode);
+                let rule = if name.is_empty() || !unicode { String::new() } else { format!(" {}", "─".repeat(w.saturating_sub(width(&name) + 1))) };
+                lines.push(Line::from(vec![Span::styled(name, bold(TEXT2)), Span::styled(rule, fg(MUTED))]));
                 continue;
             }
-            let label = clip(&item.label, w.saturating_sub(3), unicode);
-            let marker = if !chosen { "  " } else if unicode { "▸ " } else { "> " };
-            let text = format!("{marker}{label}");
+            let icon = if unicode { glyph(&item.key) } else { "" };
+            let icon = if icon.is_empty() { String::new() } else { format!("{icon} ") };
+            let label = clip(&item.label, w.saturating_sub(3 + width(&icon)), unicode);
+            let marker = if !chosen { "  " } else if unicode { "▌ " } else { "> " };
+            let text = format!("{marker}{icon}{label}");
             let padded = format!("{text}{}", " ".repeat(w.saturating_sub(width(&text))));
             let style = if item.disabled {
                 fg(MUTED)
@@ -367,6 +371,26 @@ impl Menu {
             }
         }
         frame.render_widget(Paragraph::new(lines), area);
+    }
+}
+
+/// The mark beside an entry of the launcher's menus, by its key: single-width shapes every terminal font has.
+pub fn glyph(key: &str) -> &'static str {
+    match key {
+        "start" => "▷",
+        "running" => "●",
+        "seeds" => "◇",
+        "presentation" => "◈",
+        "apps" => "▦",
+        "config" => "≡",
+        "diagnostics" => "◎",
+        "tools" => "⌘",
+        "tests" => "✓",
+        "logs" => "¶",
+        "docs" => "?",
+        "about" => "i",
+        "exit" => "×",
+        _ => "",
     }
 }
 

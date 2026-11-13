@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog } from "../components/Dialog";
+import { GateParticles } from "./GateParticles";
 import { api } from "../core/api";
 import type { EngineApproval, EngineIdentity } from "../core/types";
 
@@ -61,7 +62,10 @@ export function EngineGate({ ready, running, onOpenChange }: {
   const [error, setError] = useState("");
   const [showChanges, setShowChanges] = useState(false);
   const [notice, setNotice] = useState<EngineIdentity | null>(null);
+  // forming: the particles gather onto the box; open; leaving: the box gives way to them.
+  const [phase, setPhase] = useState<"forming" | "open" | "leaving">("forming");
   const decidedId = useRef("");
+  const box = useRef<HTMLDivElement>(null);
 
   // The gate's state, every second while the page is open: a start may be held at any time the operator starts one.
   useEffect(() => {
@@ -83,14 +87,17 @@ export function EngineGate({ ready, running, onOpenChange }: {
   }, []);
 
   const waiting = approval?.state === "pending" && approval.approval?.acknowledge_in === "observer" ? approval.approval : null;
-  const open = ready && !!waiting && decidedId.current !== waiting.id;
+  // While leaving, the box stays until its particles have gone, whatever the server now says.
+  const [leavingFor, setLeavingFor] = useState<EngineApprovalWait | null>(null);
+  const shown = waiting && decidedId.current !== waiting.id ? waiting : leavingFor;
+  const open = ready && !!shown;
   useEffect(() => onOpenChange(open), [open, onOpenChange]);
   useEffect(() => {
-    if (!open) return;
+    if (!waiting || decidedId.current === waiting.id) return;
     setStep("ask");
     setError("");
-    setShowChanges(waiting ? seenVersion(waiting.engine.id) !== waiting.engine.version : false);
-  }, [open, waiting?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    setShowChanges(seenVersion(waiting.engine.id) !== waiting.engine.version);
+  }, [waiting?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A stable engine's new version: one notice, needing no answer.
   useEffect(() => {
@@ -112,9 +119,14 @@ export function EngineGate({ ready, running, onOpenChange }: {
     setError("");
     try {
       const answer = await api.decideEngine(waiting.id, decision, then, engine);
-      if (answer.data.start_error) setError(answer.data.start_error);
       rememberVersion(waiting.engine);
+      if (answer.data.start_error) {
+        setError(answer.data.start_error);
+        return;
+      }
       decidedId.current = waiting.id;
+      setLeavingFor(waiting);
+      setPhase("leaving");
       setApproval(answer.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "The decision was not recorded. Try again.");
@@ -123,74 +135,89 @@ export function EngineGate({ ready, running, onOpenChange }: {
     }
   }, [waiting]);
 
+  const rect = () => box.current?.querySelector(".engine-gate")?.getBoundingClientRect() ?? null;
+  const tone = shown?.engine.channel === "beta" ? "beta" : "alpha";
+
   return (
     <>
       {notice && (
         <div className="engine-notice" role="status">
-          <strong>Engine updated</strong>
-          <span>{engineLabel(notice)}</span>
+          <span className="engine-notice-dot" aria-hidden="true" />
+          <span><strong>Engine updated</strong> {notice.id} {notice.version}</span>
           <button type="button" className="btn small" onClick={() => setNotice(null)}>Dismiss</button>
         </div>
       )}
-      {open && waiting && (
-        <Dialog labelledBy="engine-gate-title" role="alertdialog" className={`engine-gate engine-gate-${waiting.engine.channel}`} scrimClassName="engine-gate-scrim">
-          <header className="engine-gate-head">
-            <span className={`engine-gate-badge engine-gate-badge-${waiting.engine.channel}`}>
-              <span aria-hidden="true">{waiting.engine.channel === "alpha" ? "▲▲" : "▲"}</span> {channelName(waiting.engine.channel)} engine
-            </span>
-            <h2 id="engine-gate-title">
-              {step === "ask" ? `${waiting.engine.id} ${waiting.engine.version} is not a stable engine` : "Rejected: what now?"}
-            </h2>
-          </header>
-          {step === "ask" ? (
-            <div className="engine-gate-body">
-              <p>
-                This run asks for <strong>{waiting.engine.id}</strong> ({engineLabel(waiting.engine)}). An {channelName(waiting.engine.channel).toLowerCase()}{" "}
-                engine may fail, give results that later versions change, or behave in ways a stable engine does not. Nothing has started:
-                the run, and anything an application asks of it, waits for your answer.
-              </p>
-              {waiting.engine.shared.length > 0 && (
-                <p className="muted">Still shared with core-legacy: {waiting.engine.shared.join(", ")}.</p>
-              )}
-              {seenVersion(waiting.engine.id) !== waiting.engine.version && (
-                <p><strong>New version for this browser.</strong></p>
-              )}
-              <button type="button" className="btn link" aria-expanded={showChanges} onClick={() => setShowChanges((s) => !s)}>
-                {showChanges ? "Hide what changed" : "What changed"}
-              </button>
-              {showChanges && (
-                <ul className="engine-gate-changes">
-                  {waiting.engine.changes.map((line) => <li key={line}>{line}</li>)}
-                </ul>
-              )}
-              {waiting.seed && <p className="muted mono">Seed {waiting.seed}</p>}
-              {error && <p className="engine-gate-error" role="alert">{error}</p>}
-              <div className="engine-gate-actions">
-                <button type="button" className="btn" disabled={busy} onClick={() => setStep("reject")}>Reject</button>
-                <button type="button" className="btn primary" disabled={busy} autoFocus onClick={() => void decide("accept")}>Accept the risk and start</button>
+      {open && shown && (
+        <div ref={box} className={`engine-gate-stage engine-gate-${phase}`}>
+          <Dialog labelledBy="engine-gate-title" role="alertdialog" className={`engine-gate engine-gate-${shown.engine.channel}`} scrimClassName="engine-gate-scrim">
+            <div className="engine-gate-grid">
+              <div className="engine-gate-main">
+                <span className={`engine-gate-badge engine-gate-badge-${shown.engine.channel}`}>
+                  <span aria-hidden="true">{shown.engine.channel === "alpha" ? "▲▲" : "▲"}</span> {channelName(shown.engine.channel)} engine
+                </span>
+                <h2 id="engine-gate-title">
+                  {step === "ask" ? `${shown.engine.id} ${shown.engine.version} is not a stable engine` : "Rejected: what now?"}
+                </h2>
+                {step === "ask" ? (
+                  <>
+                    <p>
+                      This run asks for <strong>{shown.engine.id}</strong>. An {channelName(shown.engine.channel).toLowerCase()} engine may fail,
+                      give results that later versions change, or behave in ways a stable engine does not.
+                    </p>
+                    <p className="muted">Nothing has started. The run, and anything an application asks of it, waits for your answer.</p>
+                  </>
+                ) : (
+                  <p>
+                    A new start on another engine keeps <strong>only the seed</strong>. It is a new world: another engine may make a different one
+                    from the same seed, and nothing of this run is carried over.
+                  </p>
+                )}
+                {error && <p className="engine-gate-error" role="alert">{error}</p>}
               </div>
+              <aside className="engine-gate-facts" aria-label="About this engine">
+                <dl>
+                  <div><dt>Engine</dt><dd>{shown.engine.id}</dd></div>
+                  <div><dt>Version</dt><dd className="mono">{shown.engine.version}{seenVersion(shown.engine.id) !== shown.engine.version && <span className="engine-gate-new">New</span>}</dd></div>
+                  <div><dt>Channel</dt><dd>{channelName(shown.engine.channel)}</dd></div>
+                  {shown.seed && <div><dt>Seed</dt><dd className="mono">{shown.seed}</dd></div>}
+                </dl>
+                {shown.engine.shared.length > 0 && <p className="engine-gate-shared">Still shared with core-legacy: {shown.engine.shared.join(", ")}.</p>}
+                <button type="button" className="btn link" aria-expanded={showChanges} onClick={() => setShowChanges((s) => !s)}>
+                  {showChanges ? "Hide what changed" : "What changed"}
+                </button>
+                {showChanges && (
+                  <ul className="engine-gate-changes">
+                    {shown.engine.changes.map((line) => <li key={line}>{line}</li>)}
+                  </ul>
+                )}
+              </aside>
             </div>
-          ) : (
-            <div className="engine-gate-body">
-              <p>
-                A new start on another engine keeps <strong>only the seed</strong>. It is a new world: another engine may make a different one
-                from the same seed, and nothing of this run is carried over.
-              </p>
-              {error && <p className="engine-gate-error" role="alert">{error}</p>}
-              <div className="engine-gate-actions column">
+            {step === "ask" ? (
+              <div className="engine-gate-actions">
+                <button type="button" className="btn" disabled={busy || phase !== "open"} onClick={() => setStep("reject")}>Reject</button>
+                <button type="button" className="btn primary" disabled={busy || phase !== "open"} autoFocus onClick={() => void decide("accept")}>Accept the risk and start</button>
+              </div>
+            ) : (
+              <div className="engine-gate-actions">
+                <button type="button" className="btn" disabled={busy} onClick={() => setStep("ask")}>Back</button>
+                <span className="engine-gate-spacer" />
+                <button type="button" className="btn danger" disabled={busy} onClick={() => void decide("reject", "terminate")}>End the session</button>
+                <button type="button" className="btn" disabled={busy} onClick={() => void decide("reject")}>Start nothing</button>
                 {(approval?.alternatives ?? []).map((engine) => (
                   <button key={engine.id} type="button" className="btn primary" disabled={busy} onClick={() => void decide("reject", "regenerate", engine.id)}>
                     Start the seed on {engine.id} {engine.version} (stable)
                   </button>
                 ))}
-                <button type="button" className="btn" disabled={busy} onClick={() => void decide("reject")}>Start nothing</button>
-                <button type="button" className="btn danger" disabled={busy} onClick={() => void decide("reject", "terminate")}>End the session</button>
-                <button type="button" className="btn" disabled={busy} onClick={() => setStep("ask")}>Back</button>
               </div>
-            </div>
-          )}
-        </Dialog>
+            )}
+          </Dialog>
+          {/* Keyed by the approval, so each one gathers afresh; it may finish at once (reduced motion), before any effect here. */}
+          {phase === "forming" && <GateParticles key={`gather-${shown.id}`} target={rect} mode="gather" tone={tone} onDone={() => setPhase("open")} />}
+          {phase === "leaving" && <GateParticles target={rect} mode="scatter" tone={tone} onDone={() => { setLeavingFor(null); setPhase("forming"); }} />}
+        </div>
       )}
     </>
   );
 }
+
+type EngineApprovalWait = NonNullable<EngineApproval["approval"]>;

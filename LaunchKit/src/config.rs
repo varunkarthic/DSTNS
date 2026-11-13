@@ -49,6 +49,32 @@ pub fn load(paths: &Paths) -> Result<Value> {
     Ok(config)
 }
 
+/// The engines and their policy, in a few lines, for the Tools page.
+pub fn engines_summary(paths: &Paths) -> Vec<String> {
+    let engines = read_engines(paths);
+    let mut out = vec![format!("Selected: {}   Default: {}   On rejection: {}",
+        engines.get("selected").and_then(Value::as_str).unwrap_or(DEFAULT_ENGINE),
+        engines.get("default").and_then(Value::as_str).unwrap_or(DEFAULT_ENGINE),
+        if engines.get("auto_switch").and_then(Value::as_str) == Some("off") { "only stop" } else { "offer a stable engine" })];
+    if let Some(list) = engines.get("engines").and_then(Value::as_object) {
+        for (id, entry) in list {
+            let text = |key: &str| entry.get(key).and_then(Value::as_str).unwrap_or("?").to_string();
+            let enabled = entry.get("enabled").and_then(Value::as_bool).unwrap_or(true);
+            let held = entry.pointer("/acknowledgment/enforce").and_then(Value::as_bool).unwrap_or(true);
+            let unstable = matches!(text("channel").as_str(), "alpha" | "beta");
+            out.push(format!(
+                "{id:<12} {:<8} {:<8} {:<10} {}",
+                text("version"),
+                text("channel"),
+                if enabled { "enabled" } else { "disabled" },
+                if !unstable { "starts at once".to_string() } else if held { format!("held until acknowledged in the {}", if entry.pointer("/acknowledgment/ui").and_then(Value::as_bool).unwrap_or(true) { "observer" } else { "launcher" }) } else { "not held (a risk)".to_string() }
+            ));
+        }
+    }
+    out.push("Channel and version are the build's, copied at each start. Change the rest under Configuration, Engine.".into());
+    out
+}
+
 /// What each engine is, as the running server's build reports it (GET /api/v1/engine), copied into
 /// config/engines.json for whoever reads the file: `channel` (alpha, beta, stable), `version`, `kind` (real, pseudo).
 /// The build is the authority: these copies are refreshed at every start, and editing them changes nothing.

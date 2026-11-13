@@ -189,7 +189,10 @@ function AppPermissions({ app }: { app: FabricApp }) {
         </Section>
       ))}
       {error && <p className="fabric-error" role="alert">{error}</p>}
-      <p className="settings-note">Applications that act on the simulation through Fabric are recorded under Details.</p>
+      <p className="fabric-disclaimer">
+        <Icon name="info" size={16} />
+        <span>Applications that act on the simulation through Fabric are recorded under Details, and you can take any permission back here at any time.</span>
+      </p>
     </>
   );
 }
@@ -300,7 +303,10 @@ function AppCard({ app, onOpen, picked, onPick }: { app: FabricApp; onOpen: () =
   const waiting = app.capabilities.pending.length;
   return (
     <li className={picked ? "picked" : undefined}>
-      <input type="checkbox" className="fabric-pick" checked={picked} aria-label={`Select ${app.name}`} onChange={(e) => onPick(e.target.checked)} />
+      <label className="fabric-pick">
+        <input type="checkbox" checked={picked} aria-label={`Select ${app.name}`} onChange={(e) => onPick(e.target.checked)} />
+        <span className="fabric-pick-box" aria-hidden="true" />
+      </label>
       <button type="button" aria-label={app.name} onClick={onOpen}>
         <AppTile app={app} />
         <span className="fabric-app-text">
@@ -325,18 +331,46 @@ function SecurityPosture() {
     };
   }, []);
   if (!posture) return null;
+  const facts: { label: string; ok: boolean; state: string; detail: string }[] = [
+    {
+      label: "Connection",
+      ok: posture.transport.tls,
+      state: posture.transport.tls ? "Encrypted" : "Local only",
+      detail: posture.transport.tls ? "TLS protects every request." : "Not encrypted: fine on this machine; use TLS or a gateway across a network.",
+    },
+    {
+      label: "Credentials",
+      ok: !posture.store.rejected,
+      state: posture.store.rejected ? "Store rejected" : "Sealed",
+      detail: posture.store.rejected ? "A changed store was rejected. Applications must register again." : "Tokens are kept only as hashes, in a sealed store.",
+    },
+    {
+      label: "Audit log",
+      ok: posture.audit.verification.intact,
+      state: posture.audit.verification.intact ? "Intact" : "Altered",
+      detail: posture.audit.verification.intact ? `${posture.audit.verification.checked.toLocaleString()} entries checked.` : "Entries have been altered; it does not verify.",
+    },
+    {
+      label: "Signing",
+      ok: true,
+      state: `${posture.applications.requiring_signatures} of ${posture.applications.registered}`,
+      detail: "Applications that must sign every request with their key.",
+    },
+  ];
   return (
     <Section title="Security">
-      <dl className="fabric-facts">
-        <dt>Connection</dt>
-        <dd>{posture.transport.tls ? "Encrypted with TLS" : "Not encrypted. Fine on this machine; use TLS or a gateway across a network"}</dd>
-        <dt>Credentials</dt>
-        <dd>{posture.store.rejected ? "A changed store was rejected. Applications must register again" : "Tokens stored as hashes, in a sealed store"}</dd>
-        <dt>Audit log</dt>
-        <dd>{posture.audit.verification.intact ? `Intact, ${posture.audit.verification.checked} entries checked` : "Does not verify: entries have been altered"}</dd>
-        <dt>Signing</dt>
-        <dd>{posture.applications.requiring_signatures} of {posture.applications.registered} applications require it</dd>
-      </dl>
+      <ul className="fabric-security" aria-label="Security">
+        {facts.map((fact) => (
+          <li key={fact.label} className={fact.ok ? "ok" : "warn"}>
+            <span className="fabric-security-mark" aria-hidden="true">{fact.ok ? "✓" : "!"}</span>
+            <span className="fabric-security-text">
+              <small>{fact.label}</small>
+              <strong>{fact.state}</strong>
+              <span>{fact.detail}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </Section>
   );
 }

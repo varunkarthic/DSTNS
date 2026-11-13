@@ -99,7 +99,7 @@ import "./CoreMotion/motion.css";
 import "./styles/webfabric.css";
 import "./styles/design.css";
 
-export const VERSION = "3.3.0";
+export const VERSION = "3.4.0";
 
 const DECK_KEY = "dstns.telemetry-mode.v1";
 

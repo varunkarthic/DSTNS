@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.7.0 LANGUAGES CXX)
+project(dstns VERSION 3.7.1 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -110,6 +110,11 @@ add_library(dstns_core_ng Core/core-ng/src/selection.cpp Core/core-ng/src/lifecy
 target_include_directories(dstns_core_ng PUBLIC Core/core-ng/include)
 target_link_libraries(dstns_core_ng PUBLIC dstns_core)
 target_compile_options(dstns_core_ng PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Werror)
+# GCC 12 (the container's compiler) warns -Wrestrict on plain std::string concatenation in core-ng's news text, a known
+# false positive (GCC bug 105329). Only that warning is turned off, and only for GCC.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  target_compile_options(dstns_core_ng PRIVATE -Wno-restrict)
+endif()
 
 add_executable(dstns_server Core/server/main.cpp Core/server/container.cpp)
 target_compile_definitions(dstns_server PRIVATE DSTNS_VERSION="${PROJECT_VERSION}")

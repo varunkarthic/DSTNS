@@ -23,7 +23,7 @@ The start-up film on a loop, with every feature, until Ctrl+C.
 pub fn module() -> Module {
     Module {
         commands: vec![Command { name: "demo", usage: "demo", summary: "The start-up film on a loop with every feature, full screen and with music", run }],
-        pages: vec![Page { key: "presentation", label: "Demo and Fast Boot", before: "section:Set up" }],
+        pages: vec![Page { key: "presentation", label: "Demo and Fast Boot", before: "section:" }],
     }
 }
 

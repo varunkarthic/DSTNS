@@ -2153,24 +2153,45 @@
 .strip-overview .strip-metric { pointer-events: none; }
 
 /* ---- The unstable-engine gate (panels/EngineGate.tsx) -------------------------------------------------------------
- * Above everything, the tour and the start-up film included, with the scene blurred behind it. Alpha is marked in
- * orange to red, Beta in yellow; each also says its channel in words and with ▲ marks, so colour is never the only
- * cue. */
-.engine-gate-scrim { z-index: 1000; backdrop-filter: blur(14px) saturate(0.8); }
-.engine-gate { max-width: 560px; border-width: 2px; border-style: solid; }
-.engine-gate-alpha { border-color: rgb(232 93 4 / 85%); box-shadow: 0 0 0 4px rgb(220 38 38 / 18%), var(--shadow-lg, 0 20px 50px rgb(0 0 0 / 40%)); }
-.engine-gate-beta { border-color: rgb(234 179 8 / 85%); }
-.engine-gate-head { display: grid; gap: 8px; margin-bottom: 8px; }
-.engine-gate-head h2 { margin: 0; font-size: 1.15rem; }
-.engine-gate-badge { justify-self: start; padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; }
+ * Above everything, the tour and the start-up film included, with the scene blurred behind it. The box forms where
+ * its particles land (GateParticles), and gives way to them when it is answered. Alpha is marked in orange to red,
+ * Beta in yellow; each also says its channel in words and with ▲ marks, so colour is never the only cue. */
+.engine-gate-scrim { z-index: 1000; backdrop-filter: blur(16px) saturate(0.75); }
+.engine-gate-particles { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1002; pointer-events: none; }
+.dialog.engine-gate {
+  width: min(820px, calc(100vw - 40px));
+  max-width: none;
+  padding: 26px 28px 22px;
+  border: 1.5px solid transparent;
+  border-radius: 20px;
+  transition: opacity 420ms cubic-bezier(.2,.8,.2,1), transform 520ms cubic-bezier(.2,.8,.2,1), box-shadow 600ms ease;
+}
+.engine-gate-forming .dialog.engine-gate { opacity: 0; transform: scale(.985); }
+.engine-gate-open .dialog.engine-gate { opacity: 1; transform: none; }
+.engine-gate-leaving .dialog.engine-gate { opacity: 0; transform: scale(.97); transition-duration: 220ms, 320ms, 220ms; }
+.dialog.engine-gate-alpha { border-color: rgb(234 88 12 / 70%); box-shadow: 0 0 0 6px rgb(220 38 38 / 10%), 0 0 60px rgb(234 88 12 / 22%), 0 30px 80px rgb(0 0 0 / 45%); }
+.dialog.engine-gate-beta { border-color: rgb(234 179 8 / 70%); box-shadow: 0 0 0 6px rgb(234 179 8 / 10%), 0 0 60px rgb(234 179 8 / 18%), 0 30px 80px rgb(0 0 0 / 45%); }
+.engine-gate-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+.engine-gate-main { display: grid; gap: 12px; line-height: 1.5; }
+.engine-gate-main h2 { margin: 2px 0 0; font-size: 1.3rem; line-height: 1.25; letter-spacing: -0.01em; }
+.engine-gate-main p { margin: 0; }
+.engine-gate-badge { justify-self: start; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; }
 .engine-gate-badge-alpha { background: linear-gradient(90deg, #c2410c, #b91c1c); color: #fff; }
 .engine-gate-badge-beta { background: #facc15; color: #1c1917; }
-.engine-gate-body { display: grid; gap: 10px; line-height: 1.45; }
-.engine-gate-body p { margin: 0; }
-.engine-gate-changes { margin: 0; padding-left: 1.2em; max-height: 9em; overflow: auto; }
+.engine-gate-facts { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--well-line); border-radius: 14px; background: var(--well); }
+.engine-gate-facts dl { margin: 0; display: grid; gap: 8px; }
+.engine-gate-facts dl > div { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.engine-gate-facts dt { font-size: 11px; color: var(--text-faint); }
+.engine-gate-facts dd { margin: 0; overflow-wrap: anywhere; }
+.engine-gate-new { margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgb(var(--accent-rgb, 59 130 246) / 18%); color: var(--accent); }
+.engine-gate-shared { margin: 0; font-size: 12px; color: var(--text-dim); }
+.engine-gate-facts .btn.link { justify-self: start; padding: 0; }
+.engine-gate-changes { margin: 0; padding-left: 1.1em; max-height: 9.5em; overflow: auto; font-size: 12.5px; color: var(--text-dim); }
 .engine-gate-error { color: rgb(var(--danger-rgb)); }
-.engine-gate-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 6px; }
-.engine-gate-actions.column { flex-direction: column; align-items: stretch; }
-.engine-notice { position: fixed; left: 16px; bottom: 16px; z-index: 900; display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: var(--r-lg, 14px); background: rgb(var(--surface-rgb, 24 24 27) / 92%); box-shadow: 0 10px 30px rgb(0 0 0 / 30%); }
-@media (prefers-reduced-motion: reduce) { .engine-gate-scrim { backdrop-filter: blur(14px); } }
-.high-contrast .engine-gate { border-width: 3px; }
+.engine-gate-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--well-line); }
+.engine-gate-spacer { flex: 1; }
+.engine-notice { position: fixed; left: 16px; bottom: 16px; z-index: 900; display: flex; gap: 10px; align-items: center; padding: 10px 14px; border: 1px solid var(--well-line); border-radius: 14px; background: var(--surface-solid); box-shadow: 0 10px 30px rgb(0 0 0 / 30%); }
+.engine-notice-dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--ok-rgb)); }
+@media (max-width: 720px) { .engine-gate-grid { grid-template-columns: minmax(0, 1fr); } }
+.reduce-motion .dialog.engine-gate { transition: opacity 160ms linear; transform: none !important; }
+.high-contrast .dialog.engine-gate { border-width: 3px; }

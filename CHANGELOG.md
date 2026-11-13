@@ -14,6 +14,54 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.7.1] - 2026-11-14
+
+**Engine 3.7.1 (core-ng 0.7.0), launcher 3.9.0, observer 3.4.0, API contract 1.8.** Results for every seed are
+unchanged.
+
+### Changed
+
+- **The risk dialog of an alpha or beta engine (observer).**
+  - It is wider, in two columns: the explanation on the left; on the right, the engine, its version (marked when new
+    to this browser), its channel, the seed, what it still shares with core-legacy, and what changed.
+  - It forms where its particles land. They come in from across the screen, orange to red for Alpha and yellow for
+    Beta, and settle on the box's outline.
+  - When it is answered, it gives way to them again, and they drift out and fade.
+  - With reduced motion it simply fades. Its buttons work only once it has formed, so nothing is answered half-seen.
+- **About (observer).**
+  - The engine shows as its id, version and channel badge, without "real engine".
+  - The facts' lines no longer double or break. They were drawn by position, which full-width and hidden specialist
+    facts shifted. Every line is now the gap between two facts, and the facts are ordered to fill whole rows.
+  - Every card on the page has the same outline and corner.
+- **WebFabric settings (observer).**
+  - Security is four cards: connection, credentials, audit log and signing. Each states its condition in a word,
+    with a tick or ! beside it.
+  - The selection boxes are drawn by the observer: a rounded square that fills and ticks, the same on every platform,
+    with the observer's focus ring.
+  - The permissions' closing note is a card with the sections' own corner and edge, and an icon.
+  - The header, the applications' rows and the application header share one corner and edge.
+- **The launcher's menu.**
+  - Sections are Simulation, Set up, Tools and services, and Help.
+  - Each section's heading has a hairline to the edge, with space between sections.
+  - Each entry has a mark (▷ ◇ ≡ ◎ ⌘ ✓ ¶ …), and the selected one has an accent bar (▌).
+- **Tools in the launcher are now a set of tools and services, in groups:**
+  - Build and check: build what changed; check the SUMO toolchain; rebuild the observer.
+  - Server and services: server status; daemons; stop the server.
+  - Engines and AI: engines and policy; model providers; MCP client configuration; MCP tools on offer; the code
+    knowledge graph.
+  - Launcher state: copy a launch code; write the config schemas and help.
+  - Maintenance: reset runtime data; clear the map cache.
+
+  Stopping the server and clearing the cache ask first.
+
+### Fixed
+
+- 3.7.0's container image did not build. Debian's GCC 12 reports a known false positive (`-Wrestrict` on
+  `std::string` concatenation, GCC bug 105329) in core-ng's physics, which core-ng compiles with warnings as errors.
+  Only that warning is now turned off, and only for GCC.
+
+Rollback: revert this release's commit.
+
 ## [3.7.0] - 2026-11-14
 
 **Engine 3.7.0 (core-ng 0.7.0), launcher 3.8.1, observer 3.3.0, API contract 1.8.** Results for every seed are

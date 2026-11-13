@@ -827,11 +827,11 @@ mod tests {
     fn the_dashboard_is_driven_by_keyboard() {
         let mut app = app(120, 35, Box::new(screens::dashboard::DashboardScreen::new()));
         let text = screen(&mut app, 120, 35);
-        assert!(text.contains("▸ Start simulation"), "the first entry is chosen, not the heading above it:\n{text}");
-        assert!(["SIMULATION", "SET UP", "INSPECT", "HELP"].iter().all(|h| text.contains(h)), "the menu is in sections:\n{text}");
+        assert!(text.contains("▌ ▷ Start simulation"), "the first entry is chosen, not the heading above it:\n{text}");
+        assert!(["SIMULATION", "SET UP", "TOOLS AND SERVICES", "HELP"].iter().all(|h| text.contains(h)), "the menu is in sections:\n{text}");
         // Configuration is a few down, past the Set up heading, and Enter opens it.
         for _ in 0..12 {
-            if screen(&mut app, 120, 35).contains("▸ Configuration") {
+            if screen(&mut app, 120, 35).contains("▌ ≡ Configuration") {
                 break;
             }
             press(&mut app, KeyCode::Down);
@@ -851,7 +851,7 @@ mod tests {
     fn settings_are_in_sections_and_headings_are_passed_over() {
         let mut app = app(120, 40, Box::new(screens::configuration::ConfigurationScreen::new(None)));
         let text = screen(&mut app, 120, 40);
-        assert!(text.contains("SIMULATION") && text.contains("OBSERVER") && text.contains("▸ Run"), "{text}");
+        assert!(text.contains("SIMULATION") && text.contains("OBSERVER") && text.contains("▌ Run"), "{text}");
         assert_eq!(path(&app), "/config/Run", "the first category, not its heading");
         for _ in 0..6 {
             press(&mut app, KeyCode::Down);
@@ -1022,7 +1022,7 @@ mod tests {
         let mut app = app(100, 30, Box::new(screens::dashboard::DashboardScreen::new()));
         theme::set_depth(Colors::None);
         let text = screen(&mut app, 100, 30);
-        assert!(text.contains("▸ "), "the selected item carries a marker, not only a colour");
+        assert!(text.contains("▌ "), "the selected item carries a marker, not only a colour");
         theme::set_depth(Colors::TrueColor);
     }
 }

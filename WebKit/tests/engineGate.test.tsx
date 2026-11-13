@@ -17,6 +17,13 @@ const pending = (acknowledge_in: "observer" | "launcher" = "observer"): EngineAp
 beforeEach(() => localStorage.clear());
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+/** A button of the gate, once the box has formed (its particles have gathered) and it can be pressed. */
+async function ready(text: string) {
+  const button = (await screen.findByText(text)) as HTMLButtonElement;
+  await waitFor(() => expect(button.disabled).toBe(false));
+  return button;
+}
+
 it("asks, above everything, only once the interface is ready, and says what changed in a version new to this browser", async () => {
   vi.spyOn(api, "engineApproval").mockResolvedValue({ data: pending() });
   const open = vi.fn();
@@ -34,7 +41,7 @@ it("accepting records the decision on the server, and the version as seen here",
   vi.spyOn(api, "engineApproval").mockResolvedValue({ data: pending() });
   const decide = vi.spyOn(api, "decideEngine").mockResolvedValue({ data: { state: "accepted", revision: 2 } });
   render(<EngineGate ready onOpenChange={() => {}} />);
-  fireEvent.click(await screen.findByText("Accept the risk and start"));
+  fireEvent.click(await ready("Accept the risk and start"));
   await waitFor(() => expect(decide).toHaveBeenCalledWith("a1", "accept", "", ""));
   await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
   expect(seenVersion("core-ng")).toBe("0.6.0");
@@ -44,7 +51,7 @@ it("rejecting offers the stable engines for the seed alone, starting nothing, or
   vi.spyOn(api, "engineApproval").mockResolvedValue({ data: pending() });
   const decide = vi.spyOn(api, "decideEngine").mockResolvedValue({ data: { state: "rejected", revision: 2 } });
   render(<EngineGate ready onOpenChange={() => {}} />);
-  fireEvent.click(await screen.findByText("Reject"));
+  fireEvent.click(await ready("Reject"));
   expect(screen.getByText(/only the seed/)).toBeTruthy();
   expect(screen.getByText("End the session")).toBeTruthy();
   fireEvent.click(screen.getByText("Start the seed on core-legacy 3.5.0 (stable)"));

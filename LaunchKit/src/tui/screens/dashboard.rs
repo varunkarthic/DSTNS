@@ -23,17 +23,20 @@ const ITEMS: &[(&str, &str)] = &[
     ("section:Simulation", "Simulation"),
     ("start", "Start simulation"),
     ("seeds", "Saved seeds"),
+    ("section:", ""),
     ("section:Set up", "Set up"),
     ("config", "Configuration"),
     ("diagnostics", "Diagnostics"),
-    ("section:Inspect", "Inspect"),
-    ("logs", "Logs"),
-    ("tests", "Tests"),
+    ("section: ", ""),
+    ("section:Tools and services", "Tools and services"),
     ("tools", "Tools"),
+    ("tests", "Tests"),
+    ("logs", "Logs"),
+    ("section:  ", ""),
     ("section:Help", "Help"),
     ("docs", "Documentation"),
     ("about", "About"),
-    ("section:", ""),
+    ("section:   ", ""),
     ("exit", "Exit"),
 ];
 
@@ -182,7 +185,7 @@ impl DashboardScreen {
             }
             "logs" => ("Logs".into(), rows, hint("\nThe server's system log, and its journal of API requests, operator events and lifecycle changes.")),
             "tests" => ("Tests".into(), rows, hint("\nRun the native, HTTP, reproducibility, SUMO, launcher and observer test stages.")),
-            "tools" => ("Tools".into(), rows, hint("\nCheck the SUMO toolchain, rebuild the observer, or reset runtime data.")),
+            "tools" => ("Tools".into(), rows, hint("\nThe launcher's tools and services: build what changed, check SUMO, see the server, the daemons, the engines and their policy, the model providers and the MCP Handler, copy a launch code, write the config schemas, reset runtime data or clear the map cache.")),
             "docs" => ("Documentation".into(), vec![row("Online", DOCUMENTATION)], hint("\nEnter opens the documentation in your browser.")),
             "about" => {
                 let copyright = if ui.unicode { "© 2026 Varun Karthic" } else { "(C) 2026 Varun Karthic" };

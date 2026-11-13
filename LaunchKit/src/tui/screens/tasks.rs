@@ -9,6 +9,7 @@
 use crate::environment::State;
 use crate::reporting::Reporter;
 use crate::tui::theme::{fg, ERR, MUTED, OK, TEXT2};
+use crate::tui::widgets::heading;
 use crate::tui::widgets::{self, activity, card, key, row_state, status_lines, Key, Menu, MenuEvent, MenuItem, Row};
 use crate::tui::{reporter, Action, Dialog, Event_, Screen, Ui};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -50,7 +51,7 @@ fn menu_item(key: &str, label: &str, hint: &str) -> MenuItem {
 
 impl TaskScreen {
     fn new(kind: Kind, items: Vec<MenuItem>) -> Self {
-        let title = items.first().map(|i| i.label.to_uppercase()).unwrap_or_default();
+        let title = items.iter().find(|i| !i.is_heading()).map(|i| i.label.to_uppercase()).unwrap_or_default();
         Self { kind, menu: Menu::new(items), title, steps: vec![], output: vec![], result: None, busy: None, events: None, done: None, child: None, started: Instant::now() }
     }
     pub fn tests() -> Self {
@@ -72,10 +73,26 @@ impl TaskScreen {
         Self::new(
             Kind::Tools,
             vec![
-                menu_item("sumo", "Check SUMO toolchain", "Export a synthetic grid, convert it and run SUMO on it."),
-                menu_item("launch-code", "Copy a launch code", "This launcher as one code on the clipboard, with the running world if there is one, and what it carries. ./launcher launch CODE elsewhere starts the same."),
+                heading("Build and check"),
+                menu_item("build", "Build what changed", "The server, the export tool and the observer, each only if its sources changed since it was last built."),
+                menu_item("sumo", "Check SUMO toolchain", "Export a synthetic grid, convert it and run SUMO on it. Needs sumo.enabled."),
                 menu_item("observer", "Rebuild the observer", "Build the observer bundle again from its sources."),
+                heading("Server and services"),
+                menu_item("uptime", "Server status", "Whether a server is running, on which port, its state, the moment of the day and its peak memory."),
+                menu_item("daemons", "Daemons", "The watchers inside the server: Resource Control, memory, disk, a stalled run and the cache handler, and their state."),
+                menu_item("stop", "Stop the server", "Stop the running server, and the applications this launcher started."),
+                heading("Engines and AI"),
+                menu_item("engines", "Engines and policy", "Each engine's channel, version and kind, which is selected, and how an alpha or beta engine's runs are acknowledged (config/engines.json)."),
+                menu_item("model", "Model providers", "Which model answers requests in plain words, and which providers this machine can use."),
+                menu_item("mcp-config", "MCP client configuration", "What to add to an MCP client (Claude, an editor) to let it use DSTNS through the MCP Handler."),
+                menu_item("mcp-tools", "MCP tools on offer", "The tools an AI client is offered now, and what each may do."),
+                menu_item("graph", "Code knowledge graph", "The size of the graph of DSTNS's code, and where it was built from."),
+                heading("Launcher state"),
+                menu_item("launch-code", "Copy a launch code", "This launcher as one code on the clipboard, with the running world if there is one, and what it carries. ./launcher launch CODE elsewhere starts the same."),
+                menu_item("config-docs", "Write config schemas and help", "Rewrite config/schema/ and each config file's _help from the settings table. Values are left as they are."),
+                heading("Maintenance"),
                 menu_item("reset", "Reset runtime data", "Delete logs, the journal, checkpoints and temporary files, and forget the setup. Maps, saved seeds and configuration are kept."),
+                menu_item("cache", "Clear the map cache", "Delete downloaded cities and Dynamic Fastboot's next world; each is downloaded again when needed. Refused while a server runs."),
             ],
         )
     }
@@ -110,13 +127,24 @@ impl TaskScreen {
         let (finished, done) = channel();
         let paths = ui.paths.clone();
         let key = key.to_string();
-        if self.kind == Kind::Presentation {
-            let arguments: Vec<&str> = match key.as_str() {
-                "demo" => vec!["demo"],
-                "download" => vec!["fastboot", "download"],
-                "status" => vec!["fastboot", "status"],
-                _ => vec!["fastboot", "clear", "--yes"],
-            };
+        // Tasks that are the launcher's own commands run as a child of it, their output shown as it comes.
+        let command: Option<Vec<&str>> = match (self.kind, key.as_str()) {
+            (Kind::Presentation, "demo") => Some(vec!["demo"]),
+            (Kind::Presentation, "download") => Some(vec!["fastboot", "download"]),
+            (Kind::Presentation, "status") => Some(vec!["fastboot", "status"]),
+            (Kind::Presentation, _) => Some(vec!["fastboot", "clear", "--yes"]),
+            (Kind::Tools, "uptime") => Some(vec!["uptime"]),
+            (Kind::Tools, "daemons") => Some(vec!["daemon"]),
+            (Kind::Tools, "stop") => Some(vec!["stop"]),
+            (Kind::Tools, "model") => Some(vec!["model"]),
+            (Kind::Tools, "mcp-config") => Some(vec!["mcp", "client-config"]),
+            (Kind::Tools, "mcp-tools") => Some(vec!["mcp", "tools"]),
+            (Kind::Tools, "graph") => Some(vec!["graph"]),
+            (Kind::Tools, "config-docs") => Some(vec!["config", "docs"]),
+            (Kind::Tools, "cache") => Some(vec!["reset", "cache", "--yes"]),
+            _ => None,
+        };
+        if let Some(arguments) = command {
             let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
             let spawned = Command::new(exe).args(&arguments).env("NO_COLOR", "1").env("DSTNS_ROOT", &paths.root).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0).spawn();
             match spawned {
@@ -161,6 +189,11 @@ impl TaskScreen {
                         Ok(summary) => (true, summary.iter().map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join(" · ")),
                         Err(error) => (false, format!("{}{}", error.message, if error.remedy.is_empty() { String::new() } else { format!("\n{}", error.remedy) })),
                     },
+                    (_, "build") => match crate::buildplan::ensure_built(reporter, &paths, false, None) {
+                        Ok(_) => (true, "Everything is built and current.".into()),
+                        Err(error) => (false, format!("{}{}", error.message, if error.remedy.is_empty() { String::new() } else { format!("\n{}", error.remedy) })),
+                    },
+                    (_, "engines") => (true, crate::config::engines_summary(&paths).join("\n")),
                     (_, "launch-code") => {
                         // With the world when there is one; otherwise the settings alone.
                         let lines = crate::state::launch_code_lines(&paths, true, None, true).or_else(|_| crate::state::launch_code_lines(&paths, false, None, true));
@@ -289,6 +322,12 @@ impl Screen for TaskScreen {
                 if choice == "clear" {
                     return Action::Dialog(Dialog::confirm("clear", "Delete downloaded cities?", "Fast Boot downloads them again when asked.", "Delete", "Cancel"));
                 }
+                if choice == "cache" {
+                    return Action::Dialog(Dialog::confirm("cache", "Clear the map cache?", "Downloaded cities and Dynamic Fastboot's next world are deleted. Each is downloaded again when a world needs it.", "Clear", "Cancel"));
+                }
+                if choice == "stop" {
+                    return Action::Dialog(Dialog::confirm("stop", "Stop the server?", "The running simulation stops, and so do the applications this launcher started.", "Stop", "Cancel"));
+                }
                 self.begin(&choice, ui);
             }
             _ if moved && self.busy.is_none() => {
@@ -300,7 +339,7 @@ impl Screen for TaskScreen {
         Action::None
     }
     fn dialog(&mut self, id: &str, choice: &str, ui: &mut Ui) -> Action {
-        if choice == "yes" && (id == "reset" || id == "clear") {
+        if choice == "yes" && ["reset", "clear", "cache", "stop"].contains(&id) {
             self.begin(id, ui);
         }
         Action::None
