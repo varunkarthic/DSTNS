@@ -14,6 +14,14 @@ only within one version.
 
 ## [Unreleased]
 
+### Added
+
+- Golden fixtures (`tests/fixtures/golden.json`, test `dstns_golden`). They freeze the city, country and bit-exact
+  anchor of 75 seeds under `urban-crfg-v3`, and the compile hashes and the runtime snapshot at 03:25:45 of seeds 42
+  and 382923 on a 7×7 grid and on the bundled district. A later change that alters any of them fails the test.
+  Results are unchanged. The values were recorded from engine 3.0.0 (`d29a2f6`).
+- A plan for the modular engine migration (`docs/design/v3-modular-migration.md`). It does not change behaviour.
+
 ## [3.0.0] - 2026-11-12
 
 **Release 3.0.0. Engine 3.0.0, observer 3.1.0, API contract 1.4.** Results for a seed are unchanged from engine 2.1.0, and

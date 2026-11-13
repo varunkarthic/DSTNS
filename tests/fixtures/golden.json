@@ -1,0 +1,565 @@
+{
+  "catalogue_size": 181,
+  "map_selection_version": "urban-crfg-v3",
+  "scenario": {
+    "grid": {
+      "382923": {
+        "event_hash": "sha256:0d502b9f5724124c517642fe3a6867bf924ec6b2f4a7dff24ad9fd5962bc953f",
+        "graph_hash": "sha256:1c2caead21b078e3d39b8c0c6d6dc4e491b7681610d784cffda144d15c681112",
+        "map_hash": "sha256:7e5ea77b67013617b94c668ebbbc6ece2782b91b9a83b73d6da857506d270951",
+        "scenario_hash": "sha256:e54a22b05b2e9d901e307a56b993b1417f5d57c840b36a701ae015e018bd8647",
+        "snapshot_12345": "cd90c7d7ca1cd6ec3e0865d1ae6faed2187e27661b3393139678c8a893a4e226"
+      },
+      "42": {
+        "event_hash": "sha256:ab789252e186c7e271a2ac0ba5289813f88758628888a61485b579c835b4fe3f",
+        "graph_hash": "sha256:1c2caead21b078e3d39b8c0c6d6dc4e491b7681610d784cffda144d15c681112",
+        "map_hash": "sha256:7e5ea77b67013617b94c668ebbbc6ece2782b91b9a83b73d6da857506d270951",
+        "scenario_hash": "sha256:0f39a8e3ecfad45d023a584911f1585abfb841e504b5df6f965c1a98292017cd",
+        "snapshot_12345": "b9c6f06a397cc613e516c5ff1af5c26d714cd0aeecd4678abfe5cb3d1cd433c9"
+      }
+    },
+    "osm": {
+      "382923": {
+        "event_hash": "sha256:7cfe193d38fdb674d44f5fa828f920f5f70ad96c5991eeae16b1c54953ea54e8",
+        "graph_hash": "sha256:f36bba045787c0d8de926b849987b9cd1cc1f647d59c7ea9502678f06fa4bf04",
+        "map_hash": "sha256:ebf657928d3956b84a0dfbdc64a20effa5b6354fc27ca0c925c564336e65ea08",
+        "scenario_hash": "sha256:29641cee5ea9fa5943d8be3ef64b89e4ef6f5815467200d094babf46a816af36",
+        "snapshot_12345": "87954d6d74016a5c0f941b18e0287b36e46e9c108a872d92e7043985085a6f47"
+      },
+      "42": {
+        "event_hash": "sha256:30ef2d81ae29c8e9fb68e32376d35565c2b97c82076c0db81d0493f6c1a6faaf",
+        "graph_hash": "sha256:f36bba045787c0d8de926b849987b9cd1cc1f647d59c7ea9502678f06fa4bf04",
+        "map_hash": "sha256:ebf657928d3956b84a0dfbdc64a20effa5b6354fc27ca0c925c564336e65ea08",
+        "scenario_hash": "sha256:6af14607301e4141f03b315bbee4e02da91f1a74f0638a517ef050cf0e92570b",
+        "snapshot_12345": "132eedb635a82ba79a6cd69895990893acaa70b654f500936cd6701a2528e665"
+      }
+    }
+  },
+  "selection": {
+    "0": {
+      "anchor_lat": "0x1.dc4a890971d6p+4",
+      "anchor_lon": "-0x1.7d78a8efc028bp+6",
+      "cache_key": "houston_x5000",
+      "city": "Houston",
+      "country": "United States"
+    },
+    "1": {
+      "anchor_lat": "0x1.4a6a6d8e39dddp+5",
+      "anchor_lon": "0x1.14ee4706ac213p+6",
+      "cache_key": "tashkent_x5000",
+      "city": "Tashkent",
+      "country": "Uzbekistan"
+    },
+    "1005713": {
+      "anchor_lat": "0x1.d345e84485698p+3",
+      "anchor_lon": "0x1.e3ea7e14821dp+6",
+      "cache_key": "manila_x5000",
+      "city": "Manila",
+      "country": "Philippines"
+    },
+    "1013632": {
+      "anchor_lat": "0x1.9f599242641dap+5",
+      "anchor_lon": "0x1.1dcbf5edc704ep+2",
+      "cache_key": "rotterdam_x5000",
+      "city": "Rotterdam",
+      "country": "Netherlands"
+    },
+    "1021551": {
+      "anchor_lat": "0x1.71e6e5405b453p+4",
+      "anchor_lon": "0x1.c5185c05dba4cp+6",
+      "cache_key": "guangzhou_x5000",
+      "city": "Guangzhou",
+      "country": "China"
+    },
+    "1029470": {
+      "anchor_lat": "0x1.9f7974298684ep+5",
+      "anchor_lon": "0x1.1f1328a6a80bcp+2",
+      "cache_key": "rotterdam_x5000",
+      "city": "Rotterdam",
+      "country": "Netherlands"
+    },
+    "1037389": {
+      "anchor_lat": "0x1.bf920950f2097p+5",
+      "anchor_lon": "-0x1.9846327ffe39ap+1",
+      "cache_key": "edinburgh_x5000",
+      "city": "Edinburgh",
+      "country": "United Kingdom"
+    },
+    "1045308": {
+      "anchor_lat": "0x1.587988380f559p+5",
+      "anchor_lon": "0x1.1ab249ae59a28p+7",
+      "cache_key": "sapporo_x5000",
+      "city": "Sapporo",
+      "country": "Japan"
+    },
+    "1053227": {
+      "anchor_lat": "0x1.58fd0fd6ce6fbp+3",
+      "anchor_lon": "0x1.aad11bf720fb6p+6",
+      "cache_key": "ho-chi-minh-city_x5000",
+      "city": "Ho Chi Minh City",
+      "country": "Vietnam"
+    },
+    "1061146": {
+      "anchor_lat": "0x1.1028441a6d379p+5",
+      "anchor_lon": "-0x1.b61a9bc10476fp+2",
+      "cache_key": "rabat_x5000",
+      "city": "Rabat",
+      "country": "Morocco"
+    },
+    "1069065": {
+      "anchor_lat": "0x1.68a561937282dp+4",
+      "anchor_lon": "0x1.c840fcc1b8e87p+6",
+      "cache_key": "shenzhen_x5000",
+      "city": "Shenzhen",
+      "country": "China"
+    },
+    "1076984": {
+      "anchor_lat": "0x1.4b219ebf48f55p+5",
+      "anchor_lon": "0x1.15345decceadap+1",
+      "cache_key": "barcelona_x5000",
+      "city": "Barcelona",
+      "country": "Spain"
+    },
+    "1084903": {
+      "anchor_lat": "0x1.438d2f3eab812p+5",
+      "anchor_lon": "-0x1.3ff2c0e8387acp+6",
+      "cache_key": "pittsburgh_x5000",
+      "city": "Pittsburgh",
+      "country": "United States"
+    },
+    "1092822": {
+      "anchor_lat": "0x1.59c3bf20ae0b9p+0",
+      "anchor_lon": "0x1.9f42c2439c8c2p+6",
+      "cache_key": "singapore_x5000",
+      "city": "Singapore",
+      "country": "Singapore"
+    },
+    "1100741": {
+      "anchor_lat": "0x1.5a17e9fb2f998p+5",
+      "anchor_lon": "-0x1.78bc7084b3d1ep+1",
+      "cache_key": "bilbao_x5000",
+      "city": "Bilbao",
+      "country": "Spain"
+    },
+    "1108660": {
+      "anchor_lat": "0x1.e4819bfe9d0dfp+4",
+      "anchor_lon": "0x1.e0a70b74b95bap+6",
+      "cache_key": "hangzhou_x5000",
+      "city": "Hangzhou",
+      "country": "China"
+    },
+    "1116579": {
+      "anchor_lat": "0x1.52df8432151e7p+5",
+      "anchor_lon": "-0x1.1c43b0d22172ap+6",
+      "cache_key": "boston_x5000",
+      "city": "Boston",
+      "country": "United States"
+    },
+    "1124498": {
+      "anchor_lat": "0x1.666eb21b58b3fp+2",
+      "anchor_lon": "-0x1.7c8917c76a316p-3",
+      "cache_key": "accra_x5000",
+      "city": "Accra",
+      "country": "Ghana"
+    },
+    "1132417": {
+      "anchor_lat": "0x1.8db6bf7814838p+4",
+      "anchor_lon": "0x1.0bff52c5c565fp+6",
+      "cache_key": "karachi_x5000",
+      "city": "Karachi",
+      "country": "Pakistan"
+    },
+    "1140336": {
+      "anchor_lat": "0x1.57a24ffef3ffbp+4",
+      "anchor_lon": "0x1.399e2dea4f96fp+5",
+      "cache_key": "jeddah_x5000",
+      "city": "Jeddah",
+      "country": "Saudi Arabia"
+    },
+    "1148255": {
+      "anchor_lat": "0x1.9f5d8142049ap+5",
+      "anchor_lon": "0x1.1d8242b8914d1p+2",
+      "cache_key": "rotterdam_x5000",
+      "city": "Rotterdam",
+      "country": "Netherlands"
+    },
+    "1156174": {
+      "anchor_lat": "0x1.5592a326f2295p+5",
+      "anchor_lon": "0x1.74fa29bb299e3p+4",
+      "cache_key": "sofia_x5000",
+      "city": "Sofia",
+      "country": "Bulgaria"
+    },
+    "1164093": {
+      "anchor_lat": "0x1.c795aebc6b627p+5",
+      "anchor_lon": "0x1.816a101138f7dp+4",
+      "cache_key": "riga_x5000",
+      "city": "Riga",
+      "country": "Latvia"
+    },
+    "1172012": {
+      "anchor_lat": "0x1.e4256f6956f19p+4",
+      "anchor_lon": "-0x1.87034b2de0f73p+6",
+      "cache_key": "austin_x5000",
+      "city": "Austin",
+      "country": "United States"
+    },
+    "1179931": {
+      "anchor_lat": "0x1.195eb004c2886p+5",
+      "anchor_lon": "0x1.022867a4385bcp+7",
+      "cache_key": "busan_x5000",
+      "city": "Busan",
+      "country": "South Korea"
+    },
+    "1187850": {
+      "anchor_lat": "0x1.bb9f04cf1b636p+4",
+      "anchor_lon": "0x1.554b52ebd7e59p+6",
+      "cache_key": "kathmandu_x5000",
+      "city": "Kathmandu",
+      "country": "Nepal"
+    },
+    "1195769": {
+      "anchor_lat": "0x1.4348f844d25e1p+5",
+      "anchor_lon": "-0x1.db3d14dea798p+1",
+      "cache_key": "madrid_x5000",
+      "city": "Madrid",
+      "country": "Spain"
+    },
+    "1203688": {
+      "anchor_lat": "0x1.6e882b724377fp+5",
+      "anchor_lon": "0x1.ffaa8831eff16p+3",
+      "cache_key": "zagreb_x5000",
+      "city": "Zagreb",
+      "country": "Croatia"
+    },
+    "1211607": {
+      "anchor_lat": "0x1.a23aa3f3145abp+2",
+      "anchor_lon": "0x1.b142a79b8916ap+1",
+      "cache_key": "lagos_x5000",
+      "city": "Lagos",
+      "country": "Nigeria"
+    },
+    "1219526": {
+      "anchor_lat": "0x1.45b65c081b4ccp+5",
+      "anchor_lon": "-0x1.27fe511e96432p+6",
+      "cache_key": "new-york_x5000",
+      "city": "New York",
+      "country": "United States"
+    },
+    "1227445": {
+      "anchor_lat": "0x1.222fcfb97d5afp+3",
+      "anchor_lon": "0x1.d9515502ab28cp+2",
+      "cache_key": "abuja_x5000",
+      "city": "Abuja",
+      "country": "Nigeria"
+    },
+    "1235364": {
+      "anchor_lat": "0x1.285c46cc99001p+4",
+      "anchor_lon": "0x1.276ca584235dap+6",
+      "cache_key": "pune_x5000",
+      "city": "Pune",
+      "country": "India"
+    },
+    "1243283": {
+      "anchor_lat": "0x1.4aa49d70cbf95p+4",
+      "anchor_lon": "-0x1.9d5b8d3a85d4ep+6",
+      "cache_key": "guadalajara_x5000",
+      "city": "Guadalajara",
+      "country": "Mexico"
+    },
+    "1251202": {
+      "anchor_lat": "0x1.3d95538252309p+3",
+      "anchor_lon": "-0x1.505b5f65a6841p+6",
+      "cache_key": "san-jose_x5000",
+      "city": "San Jose",
+      "country": "Costa Rica"
+    },
+    "1259121": {
+      "anchor_lat": "0x1.8f45893d93c1ap+2",
+      "anchor_lon": "-0x1.2e501ff531ca3p+6",
+      "cache_key": "medellin_x5000",
+      "city": "Medellin",
+      "country": "Colombia"
+    },
+    "1267040": {
+      "anchor_lat": "0x1.977d44eaf9eabp+5",
+      "anchor_lon": "0x1.bdab0c369f1afp+2",
+      "cache_key": "cologne_x5000",
+      "city": "Cologne",
+      "country": "Germany"
+    },
+    "1274959": {
+      "anchor_lat": "0x1.7c1244fe70432p+5",
+      "anchor_lon": "0x1.308915b020d89p+4",
+      "cache_key": "budapest_x5000",
+      "city": "Budapest",
+      "country": "Hungary"
+    },
+    "1282878": {
+      "anchor_lat": "0x1.872fb910ef2e3p+4",
+      "anchor_lon": "0x1.b2ef39c5aa02bp+5",
+      "cache_key": "abu-dhabi_x5000",
+      "city": "Abu Dhabi",
+      "country": "United Arab Emirates"
+    },
+    "1290797": {
+      "anchor_lat": "0x1.4f29eb9c34839p+5",
+      "anchor_lon": "0x1.905c04230b49dp+3",
+      "cache_key": "rome_x5000",
+      "city": "Rome",
+      "country": "Italy"
+    },
+    "18446744073709551615": {
+      "anchor_lat": "0x1.3113774f030f3p+4",
+      "anchor_lon": "0x1.238e8ae776086p+6",
+      "cache_key": "mumbai_x5000",
+      "city": "Mumbai",
+      "country": "India"
+    },
+    "2": {
+      "anchor_lat": "0x1.5d46e5ac4d4eap+5",
+      "anchor_lon": "-0x1.3d96594e6fe26p+6",
+      "cache_key": "toronto_x5000",
+      "city": "Toronto",
+      "country": "Canada"
+    },
+    "25": {
+      "anchor_lat": "0x1.7ce1a87c81bdap+4",
+      "anchor_lon": "0x1.69a1c2bb36b0ep+6",
+      "cache_key": "dhaka_x5000",
+      "city": "Dhaka",
+      "country": "Bangladesh"
+    },
+    "3": {
+      "anchor_lat": "0x1.28580e11a2fedp+4",
+      "anchor_lon": "0x1.277219881f37p+6",
+      "cache_key": "pune_x5000",
+      "city": "Pune",
+      "country": "India"
+    },
+    "340282366920938463463374607431768211455": {
+      "anchor_lat": "0x1.872ea8d995a0dp+4",
+      "anchor_lon": "0x1.b305658a5e6fcp+5",
+      "cache_key": "abu-dhabi_x5000",
+      "city": "Abu Dhabi",
+      "country": "United Arab Emirates"
+    },
+    "382923": {
+      "anchor_lat": "-0x1.0f5731b179639p+5",
+      "anchor_lon": "0x1.26fee16b9d918p+4",
+      "cache_key": "cape-town_x5000",
+      "city": "Cape Town",
+      "country": "South Africa"
+    },
+    "42": {
+      "anchor_lat": "-0x1.b2e574b1ace05p+2",
+      "anchor_lon": "0x1.399f68ea7753dp+5",
+      "cache_key": "dar-es-salaam_x5000",
+      "city": "Dar es Salaam",
+      "country": "Tanzania"
+    },
+    "7": {
+      "anchor_lat": "0x1.58f1f4cd95e2ep-2",
+      "anchor_lon": "0x1.04beb133bb348p+5",
+      "cache_key": "kampala_x5000",
+      "city": "Kampala",
+      "country": "Uganda"
+    },
+    "791900": {
+      "anchor_lat": "0x1.0c89ea2afdc11p+5",
+      "anchor_lon": "-0x1.e65a53f998069p+2",
+      "cache_key": "casablanca_x5000",
+      "city": "Casablanca",
+      "country": "Morocco"
+    },
+    "799819": {
+      "anchor_lat": "0x1.bfb1245d8a6b5p+5",
+      "anchor_lon": "-0x1.95c13dcd3c9b3p+1",
+      "cache_key": "edinburgh_x5000",
+      "city": "Edinburgh",
+      "country": "United Kingdom"
+    },
+    "807738": {
+      "anchor_lat": "0x1.28771d5456b59p+4",
+      "anchor_lon": "0x1.2774c3d98ec97p+6",
+      "cache_key": "pune_x5000",
+      "city": "Pune",
+      "country": "India"
+    },
+    "815657": {
+      "anchor_lat": "0x1.bb9b58d5a4d25p+2",
+      "anchor_lon": "0x1.3f6fbfd7c4a16p+6",
+      "cache_key": "colombo_x5000",
+      "city": "Colombo",
+      "country": "Sri Lanka"
+    },
+    "823576": {
+      "anchor_lat": "-0x1.5c2cd41d6e277p+5",
+      "anchor_lon": "0x1.5944ab2f44ad4p+7",
+      "cache_key": "christchurch_x5000",
+      "city": "Christchurch",
+      "country": "New Zealand"
+    },
+    "831495": {
+      "anchor_lat": "0x1.863d23fd34fdbp+5",
+      "anchor_lon": "0x1.25991efc6e716p+3",
+      "cache_key": "stuttgart_x5000",
+      "city": "Stuttgart",
+      "country": "Germany"
+    },
+    "839414": {
+      "anchor_lat": "-0x1.14bf18e79cb07p+5",
+      "anchor_lon": "-0x1.d32360a5b8658p+5",
+      "cache_key": "buenos-aires_x5000",
+      "city": "Buenos Aires",
+      "country": "Argentina"
+    },
+    "847333": {
+      "anchor_lat": "0x1.6e0f4de22f932p+5",
+      "anchor_lon": "0x1.362946e415a68p+2",
+      "cache_key": "lyon_x5000",
+      "city": "Lyon",
+      "country": "France"
+    },
+    "855252": {
+      "anchor_lat": "0x1.fef7ed993ec89p+4",
+      "anchor_lon": "0x1.1f7483b4bc211p+5",
+      "cache_key": "amman_x5000",
+      "city": "Amman",
+      "country": "Jordan"
+    },
+    "863171": {
+      "anchor_lat": "0x1.0b8bfcef16c4dp+5",
+      "anchor_lon": "-0x1.c057832a52cc9p+6",
+      "cache_key": "phoenix_x5000",
+      "city": "Phoenix",
+      "country": "United States"
+    },
+    "871090": {
+      "anchor_lat": "0x1.bfb165d8e5644p+5",
+      "anchor_lon": "-0x1.98391a12b846cp+1",
+      "cache_key": "edinburgh_x5000",
+      "city": "Edinburgh",
+      "country": "United Kingdom"
+    },
+    "879009": {
+      "anchor_lat": "0x1.bf91868e0d741p+5",
+      "anchor_lon": "-0x1.98ea0d8588fcbp+1",
+      "cache_key": "edinburgh_x5000",
+      "city": "Edinburgh",
+      "country": "United Kingdom"
+    },
+    "886928": {
+      "anchor_lat": "0x1.33587725b06dfp+5",
+      "anchor_lon": "0x1.b2773a874aea6p+4",
+      "cache_key": "izmir_x5000",
+      "city": "Izmir",
+      "country": "Turkey"
+    },
+    "894847": {
+      "anchor_lat": "0x1.27d251d97cc4dp+4",
+      "anchor_lon": "-0x1.17b6af94c97a2p+6",
+      "cache_key": "santo-domingo_x5000",
+      "city": "Santo Domingo",
+      "country": "Dominican Republic"
+    },
+    "902766": {
+      "anchor_lat": "0x1.336c379a53907p+5",
+      "anchor_lon": "0x1.b27f40f7c093cp+4",
+      "cache_key": "izmir_x5000",
+      "city": "Izmir",
+      "country": "Turkey"
+    },
+    "910685": {
+      "anchor_lat": "0x1.0cbb19044f44fp+5",
+      "anchor_lon": "0x1.04ceacedfb57bp+7",
+      "cache_key": "fukuoka_x5000",
+      "city": "Fukuoka",
+      "country": "Japan"
+    },
+    "918604": {
+      "anchor_lat": "0x1.a43408d7ec8e2p+5",
+      "anchor_lon": "0x1.acf035ba39ed4p+3",
+      "cache_key": "berlin_x5000",
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "926523": {
+      "anchor_lat": "0x1.e45d644364b89p+4",
+      "anchor_lon": "0x1.e09d7d3fffb99p+6",
+      "cache_key": "hangzhou_x5000",
+      "city": "Hangzhou",
+      "country": "China"
+    },
+    "934442": {
+      "anchor_lat": "-0x1.96e1f278b7fc2p+4",
+      "anchor_lon": "-0x1.8a47411876534p+5",
+      "cache_key": "curitiba_x5000",
+      "city": "Curitiba",
+      "country": "Brazil"
+    },
+    "942361": {
+      "anchor_lat": "0x1.589cf53c886dap+3",
+      "anchor_lon": "0x1.aacbb9c70222p+6",
+      "cache_key": "ho-chi-minh-city_x5000",
+      "city": "Ho Chi Minh City",
+      "country": "Vietnam"
+    },
+    "950280": {
+      "anchor_lat": "0x1.9f27bb64e7644p+3",
+      "anchor_lon": "0x1.365d065b81436p+6",
+      "cache_key": "bengaluru_x5000",
+      "city": "Bengaluru",
+      "country": "India"
+    },
+    "958199": {
+      "anchor_lat": "0x1.3f7ddb549050cp+5",
+      "anchor_lon": "0x1.06e670172fb2fp+5",
+      "cache_key": "ankara_x5000",
+      "city": "Ankara",
+      "country": "Turkey"
+    },
+    "966118": {
+      "anchor_lat": "0x1.3741fd59923cp+5",
+      "anchor_lon": "-0x1.34251b53f3064p+6",
+      "cache_key": "washington_x5000",
+      "city": "Washington",
+      "country": "United States"
+    },
+    "974037": {
+      "anchor_lat": "0x1.da8d29c69e2f3p+5",
+      "anchor_lon": "0x1.21168aa629152p+4",
+      "cache_key": "stockholm_x5000",
+      "city": "Stockholm",
+      "country": "Sweden"
+    },
+    "981956": {
+      "anchor_lat": "0x1.664682f31b07dp+5",
+      "anchor_lon": "0x1.46f1df5f8934p+4",
+      "cache_key": "belgrade_x5000",
+      "city": "Belgrade",
+      "country": "Serbia"
+    },
+    "989875": {
+      "anchor_lat": "0x1.81206e2b0e7p+5",
+      "anchor_lon": "0x1.72a146c02fde4p+3",
+      "cache_key": "munich_x5000",
+      "city": "Munich",
+      "country": "Germany"
+    },
+    "99": {
+      "anchor_lat": "0x1.3bcbd5f4758d3p+5",
+      "anchor_lon": "-0x1.8490f83da07bp-2",
+      "cache_key": "valencia_x5000",
+      "city": "Valencia",
+      "country": "Spain"
+    },
+    "997794": {
+      "anchor_lat": "0x1.313596e52878ep+4",
+      "anchor_lon": "0x1.2388a5a991081p+6",
+      "cache_key": "mumbai_x5000",
+      "city": "Mumbai",
+      "country": "India"
+    }
+  }
+}
