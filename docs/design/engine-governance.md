@@ -1,14 +1,14 @@
 # Engine governance
 
-How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.6.1,
-launcher 3.7.1, observer 3.2.0, API contract 1.8.
+How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.7.0,
+launcher 3.8.1, observer 3.3.0, API contract 1.8.
 
 ## Engines
 
 | Engine | Kind | Channel | Version | What it is |
 |---|---|---|---|---|
 | `core-legacy` | real | stable | the build's (`3.6.0`) | The engine DSTNS has always had. The default; it cannot be disabled |
-| `core-ng` | real | alpha | its own (`0.6.0`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)) |
+| `core-ng` | real | alpha | its own (`0.7.0`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)) |
 
 Every engine describes itself with an **identity**: `id`, `version`, `kind` (`real` runs worlds; `pseudo` would only
 delegate), `channel` (`alpha`, `beta` or `stable`), `owns` (the parts of a run it implements itself), `shared` (the
@@ -34,8 +34,8 @@ Where it is reported:
 | `beta` | Complete, but not yet proven over enough runs | Held until acknowledged (yellow), when enforcement is on |
 | `alpha` | Not yet complete: it still shares parts of a run with another engine | Held until acknowledged (orange to red), when enforcement is on |
 
-core-ng is **alpha** because the physics step, checkpoints and seeking, operator commands and the HTTP API are still
-shared with core-legacy (issue #15). It becomes beta when it owns every part of a run, and stable, and the default,
+core-ng is **alpha** because checkpoints and seeking, operator commands and the HTTP API are still shared with
+core-legacy (issue #15). Its physics step is its own since 0.7.0. It becomes beta when it owns every part of a run, and stable, and the default,
 only with full parity (issue #22).
 
 ### Core Hybrid: not implemented
@@ -71,8 +71,8 @@ server reads it as it starts (`DSTNS_ENGINE_CONFIG`, which the launcher sets to 
   "default": "core-legacy",
   "auto_switch": "offer",
   "engines": {
-    "core-legacy": {"channel": "stable", "version": "3.6.1", "kind": "real", "enabled": true},
-    "core-ng": {"channel": "alpha", "version": "0.6.0", "kind": "real", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
+    "core-legacy": {"channel": "stable", "version": "3.7.0", "kind": "real", "enabled": true},
+    "core-ng": {"channel": "alpha", "version": "0.7.0", "kind": "real", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
   }
 }
 ```
@@ -215,11 +215,11 @@ core-legacy's code. A shared capability does not count towards core-ng's parity,
 | Lifecycle transitions | table in core-ng, checked on every move | `dstns_lifecycle_ng` (48 races), 4 faults fixed |
 | World job (regeneration, staging) | table in core-ng | `dstns_lifecycle_ng`, 3 faults fixed |
 | Dynamic Fastboot pointer | policy-aware, shared | `dstns_next_world_ng` |
-| Physics step | shared | issue #15 |
+| Physics step | core-ng (0.7.0) | `dstns_golden`: runtime snapshots of core-ng worlds, stepped by core-ng, identical per platform; one constant changed in core-ng's step fails it for core-ng alone |
 | Checkpoints and seeking | shared | issue #15 |
 | Operator commands (signals, closures, weather, modules, undo) | shared | issue #15 |
 | HTTP API, Fabric, WebFabric | shared, engine-neutral | every HTTP test runs against the shared API |
 | Runtime snapshots | identical, per platform | `dstns_golden` |
 
-core-ng is not ready to be the default. Four capabilities are still shared, and the default stays core-legacy until
+core-ng is not ready to be the default. Three capabilities are still shared, and the default stays core-legacy until
 core-ng owns them, with the golden fixtures green on every platform (issue #22).

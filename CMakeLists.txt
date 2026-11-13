@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.6.1 LANGUAGES CXX)
+project(dstns VERSION 3.7.0 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -59,7 +59,7 @@ else()
 endif()
 
 add_library(dstns_core
-  Core/core-legacy/src/rng.cpp Core/core-legacy/src/utf8.cpp Core/core-legacy/src/graph.cpp Core/core-legacy/src/asb.cpp Core/core-legacy/src/demand.cpp Core/core-legacy/src/geo.cpp Core/core-legacy/src/osm.cpp Core/core-legacy/src/osm_fetch.cpp Core/core-legacy/src/osm_download.cpp Core/core-legacy/src/scenario.cpp Core/core-legacy/src/engine.cpp Core/core-legacy/src/events.cpp Core/core-legacy/src/logging.cpp Core/core-legacy/src/sumo_bridge.cpp
+  Core/core-legacy/src/rng.cpp Core/core-legacy/src/utf8.cpp Core/core-legacy/src/graph.cpp Core/core-legacy/src/asb.cpp Core/core-legacy/src/demand.cpp Core/core-legacy/src/geo.cpp Core/core-legacy/src/osm.cpp Core/core-legacy/src/osm_fetch.cpp Core/core-legacy/src/osm_download.cpp Core/core-legacy/src/scenario.cpp Core/core-legacy/src/engine.cpp Core/core-legacy/src/physics.cpp Core/core-legacy/src/events.cpp Core/core-legacy/src/logging.cpp Core/core-legacy/src/sumo_bridge.cpp
   Core/core-legacy/src/narrator.cpp Core/core-legacy/src/platform.cpp Core/core-legacy/src/next_world.cpp)
 target_include_directories(dstns_core PUBLIC Core/core-legacy/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib CURL::libcurl)
@@ -106,7 +106,7 @@ target_compile_options(dstns_fabric PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 
 # core-ng: the next-generation engine, built beside core-legacy one module at a time.
 add_library(dstns_core_ng Core/core-ng/src/selection.cpp Core/core-ng/src/lifecycle.cpp Core/core-ng/src/world.cpp
-  Core/core-ng/src/compile.cpp Core/core-ng/src/network.cpp Core/core-ng/src/plans.cpp)
+  Core/core-ng/src/compile.cpp Core/core-ng/src/network.cpp Core/core-ng/src/plans.cpp Core/core-ng/src/physics.cpp)
 target_include_directories(dstns_core_ng PUBLIC Core/core-ng/include)
 target_link_libraries(dstns_core_ng PUBLIC dstns_core)
 target_compile_options(dstns_core_ng PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Werror)

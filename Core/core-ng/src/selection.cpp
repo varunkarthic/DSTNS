@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/core-ng/selection.hpp"
+#include "dstns/core-ng/physics.hpp"
 #include "dstns/core-ng/compile.hpp"
 
 #include <algorithm>
@@ -175,6 +176,8 @@ ScenarioCompiler::Hooks hooks() {
     out.compile = [](Seed128 seed, const ScenarioConfig& config, const ScenarioCompiler::Progress& progress) {
         return compile(seed, config, progress);
     };
+    // Worlds core-ng compiled advance by core-ng's own tick.
+    out.step = [](physics::Context& ctx, std::uint32_t dt) { physics_step(ctx, dt); };
     return out;
 }
 

@@ -11,6 +11,7 @@
 #include <nlohmann/json.hpp>
 
 namespace dstns {
+namespace physics { struct Context; }
 
 class ScenarioCompiler {
 public:
@@ -32,6 +33,8 @@ public:
         std::function<nlohmann::json(const ScenarioConfig&)> describe;
         // Compiles the whole scenario in place of core-legacy's compiler.
         std::function<Scenario(Seed128, const ScenarioConfig&, const Progress&)> compile;
+        // Advances a world compiled by this engine by one physics tick, in place of core-legacy's (physics::step).
+        std::function<void(physics::Context&, std::uint32_t)> step;
     };
 
     [[nodiscard]] Scenario compile(Seed128 seed, const ScenarioConfig& config, const Progress& progress = {},

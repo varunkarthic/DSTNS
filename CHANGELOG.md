@@ -14,6 +14,34 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-11-14
+
+**Engine 3.7.0 (core-ng 0.7.0), launcher 3.8.1, observer 3.3.0, API contract 1.8.** Results for every seed are
+unchanged: the golden fixtures pass on both engines.
+
+### Changed
+
+- core-ng runs its own physics step (#15, release 7 of the migration). It moved in two steps:
+  - First, core-legacy's tick and its weather and incident helpers moved out of `engine.cpp`, behaviour-preserving,
+    into `Core/core-legacy/src/physics.cpp`. `physics::Context` holds what one tick reads and writes.
+  - Then core-ng got its own copy, `Core/core-ng/src/physics.cpp`, generated from core-legacy's with every expression
+    unchanged. It shares only the interface (`dstns/physics.hpp`).
+
+  The engine hands each tick to the engine that compiled the world (`ScenarioCompiler::Hooks::step`). core-ng's
+  identity now owns "physics step"; checkpoints and seeking, operator commands and the HTTP API are still shared,
+  so it stays alpha.
+
+### Tests
+
+- `dstns_golden` steps core-ng worlds with core-ng's tick and compares their runtime snapshots: identical, per
+  platform. Changing one constant in core-ng's step fails it for core-ng alone.
+- `dstns_http_engine_gate`: a connected Fabric application receives `engine.approval` events for the pending and the
+  accepted start.
+- The launcher's reset test probed port 8090, so a DSTNS server running on the machine made it fail. It now uses a
+  port nothing listens on.
+
+Rollback: revert this release's commit; every world then advances by core-legacy's tick.
+
 ## [Launcher 3.8.1] - 2026-11-14
 
 **Engine 3.6.1, launcher 3.8.1, observer 3.3.0, API contract 1.8.** No engine change.

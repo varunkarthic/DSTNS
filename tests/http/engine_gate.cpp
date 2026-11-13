@@ -53,6 +53,16 @@ int main() {
         EXPECT(ng.at("channel") == "alpha" && ng.at("kind") == "real" && !ng.at("version").get<std::string>().empty(), ng);
         EXPECT(legacy.at("channel") == "stable" && legacy.at("version") == info.at("version"), legacy);
 
+        // An application, connected before anything starts, hears of every change to the approval.
+        const auto registered = server.call("POST", "/api/v1/fabric/apps", json{{"id", "org.example.listener"}, {"name", "Listener"}, {"version", "1.0.0"}, {"capabilities", {"sim.read"}}});
+        EXPECT(registered.status == 201, show(registered));
+        const std::string app_token = registered.data().at("token");
+        const auto heard = [&](const std::string& state) {
+            for (const auto& e : json(server.call("GET", "/api/v1/fabric/apps/org.example.listener/events", none, app_token).data().at("items")))
+                if (e.at("type") == "engine.approval" && e.at("data").at("state") == state) return true;
+            return false;
+        };
+
         // A start on core-ng is held, and nothing runs.
         const auto held = server.op("POST", "/api/v1/playback/start", start_body("core-ng"));
         EXPECT(held.status == 202 && held.data().at("state") == "approval_required" && held.data().at("deferred") == true, show(held));
@@ -77,6 +87,7 @@ int main() {
         const auto accepted = decide(server, id, "accept");
         EXPECT(accepted.status == 200 && accepted.data().at("state") == "accepted" && accepted.data().contains("started"), show(accepted));
         EXPECT(waited.get().data().at("state") == "accepted");
+        EXPECT(heard("pending") && heard("accepted"), "the application was told the start waited, and when it could retry");
         const auto status = running(server);
         EXPECT(status.at("data").at("engine_identity").at("id") == "core-ng" && status.at("data").at("engine_identity").at("channel") == "alpha", status);
         EXPECT(server.op("GET", "/api/v1/engine").data().at("running").at("id") == "core-ng");

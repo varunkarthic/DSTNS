@@ -270,6 +270,10 @@ mod tests {
         fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/defaults.json"), paths.config()).unwrap();
         std::env::set_var("DSTNS_SEED_DB", root.join("data/seed-store/seeds.sqlite3"));
         std::env::set_var("DSTNS_APPS_FILE", root.join("config/apps.json"));
+        // A port nothing listens on: a DSTNS server running on this machine (8090, the default) must not count as
+        // this test checkout's own.
+        let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        std::env::set_var("DSTNS_API_PORT", free.to_string());
         let mut config = crate::config::load(&paths).unwrap();
         crate::config::field("api.port").unwrap().set(&mut config, serde_json::json!(9100));
         crate::config::save(&config, &paths).unwrap();
@@ -302,6 +306,7 @@ mod tests {
         assert_eq!(fs::read_to_string(app_settings_request(&paths)).unwrap(), "desk\n*\n");
         std::env::remove_var("DSTNS_SEED_DB");
         std::env::remove_var("DSTNS_APPS_FILE");
+        std::env::remove_var("DSTNS_API_PORT");
         let _ = fs::remove_dir_all(&root);
     }
 }

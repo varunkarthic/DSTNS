@@ -8,6 +8,7 @@
 #include "dstns/asb.hpp"
 #include "dstns/logging.hpp"
 #include "dstns/next_world.hpp"
+#include "dstns/physics.hpp"
 #include "dstns/scenario.hpp"
 
 #include <atomic>
@@ -190,7 +191,7 @@ public:
     [[nodiscard]] bool terminating() const { return terminate_requested_.load(); }
 private:
     struct Checkpoint { std::uint32_t virtual_s{}; std::vector<NodeDynamic> nodes; std::vector<EdgeDynamic> edges; std::size_t news_size{}; std::uint64_t next_news_id{1}; EventRuntime events; CongestionTracker congestion; };
-    struct ActiveSurgeZone { std::uint32_t id{}; NodeId node{}; std::uint32_t start_s{}; std::uint32_t end_s{}; double factor{1.8}; double radius_m{300}; std::string label; };
+    using ActiveSurgeZone = physics::ActiveSurgeZone;
     [[nodiscard]] double asb_now() const;
     [[nodiscard]] nlohmann::json backpressure_json() const;
     void check_playback_guard(const nlohmann::json& guard) const;
