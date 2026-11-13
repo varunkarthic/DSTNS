@@ -168,7 +168,9 @@ Commands
                          Run test stages
   sumo                   Check the SUMO toolchain on a synthetic grid
 {modules}
-  reset [--yes]          Delete runtime logs, checkpoints and temporary files, and forget the setup
+  reset [SCOPE...] [--yes]
+                         Reset everything but connected applications and their settings. Scopes:
+                         all, runtime, cache, settings, setup, seeds, keys, apps, app-settings [ID]
   help, version, license
 
 Run options (start, seeds save)
@@ -393,20 +395,23 @@ fn command_test(context: &Context) -> Result<i32> {
 
 fn command_reset(context: &Context) -> Result<i32> {
     let out = &context.out;
+    let words: Vec<String> = context.args.topic.iter().chain(context.args.item.iter()).chain(context.args.extra.iter()).cloned().collect();
+    let scopes = maintenance::parse(&words).map_err(|why| LauncherError::config(why).remedy("./launcher help reset lists the scopes."))?;
     // Without a terminal to ask at, nothing is deleted unless --yes says so.
     if !context.args.yes && !context.caps.interactive {
-        return Err(LauncherError::runtime("A reset deletes runtime data, and there is no terminal to ask at.").remedy("Run ./launcher reset --yes to confirm it."));
+        return Err(LauncherError::runtime("A reset deletes data, and there is no terminal to ask at.").remedy(format!("Run ./launcher reset {}--yes to confirm it.", words.iter().map(|w| format!("{w} ")).collect::<String>())));
     }
     if !context.args.yes {
-        out.line("This deletes runtime logs, the SQLite journal, checkpoints, temporary");
-        out.line("scenarios and SUMO runs, and forgets the launcher's setup. Maps, saved");
-        out.line("seeds and configuration are kept.");
-        if !out.confirm("Reset runtime state?", false) {
+        out.line("This resets:");
+        for line in maintenance::describe(&context.paths, &scopes) {
+            out.line(&format!("  {line}"));
+        }
+        if !out.confirm("Reset these?", false) {
             out.message(Level::Info, "Reset cancelled", "");
             return Ok(EXIT_OK);
         }
     }
-    maintenance::reset(context.reporter.as_ref(), &context.paths).map_err(LauncherError::runtime)?;
+    maintenance::reset(context.reporter.as_ref(), &context.paths, &scopes).map_err(LauncherError::runtime)?;
     Ok(EXIT_OK)
 }
 

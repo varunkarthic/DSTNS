@@ -79,7 +79,7 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     ("echo", "echo WORDS", "Print its words"),
     ("env", "env [set NAME=VALUE | unset NAME]", "Variables in use; set and unset keep them for later runs"),
     ("uptime", "uptime", "The server's uptime, state and memory"),
-    ("reset", "reset", "Delete runtime data, and forget the setup"),
+    ("reset", "reset [all|runtime|cache|settings|setup|seeds|keys|apps|app-settings [ID]]", "Reset everything but connected applications, or the scopes named"),
     ("version", "version", "Version and licence"),
     ("history", "history", "Commands typed so far"),
     ("clear", "clear", "Clear the output"),
@@ -541,11 +541,12 @@ impl Shell {
 
     /// A confirmation the command bar asked for. None if the dialog was not its own.
     pub fn dialog(&mut self, id: &str, choice: &str, _ui: &mut Ui) -> Option<Action> {
-        if id != "shell-reset" {
-            return None;
-        }
+        // The scopes ride in the dialog's ID: shell-reset:WORDS.
+        let words = id.strip_prefix("shell-reset:")?;
         if choice == "yes" {
-            self.spawn("reset", vec!["reset".into(), "--yes".into()]);
+            let mut argv: Vec<String> = std::iter::once("reset".to_string()).chain(words.split_whitespace().map(String::from)).collect();
+            argv.push("--yes".into());
+            self.spawn(&argv[..argv.len() - 1].join(" "), argv);
         } else {
             self.say("reset", vec![("Nothing was deleted.".into(), TEXT2)], 0);
         }
@@ -924,13 +925,20 @@ impl Shell {
                 return Action::Push(Box::new(screens::setup::SetupScreen::new(ui)));
             }
             "reset" => {
-                return Action::Dialog(Dialog::confirm(
-                    "shell-reset",
-                    "Reset runtime data?",
-                    "This deletes runtime logs, the journal, checkpoints and temporary files, and forgets the launcher's setup. Maps, saved seeds and configuration are kept.",
-                    "Reset",
-                    "Cancel",
-                ));
+                let words: Vec<String> = rest.iter().map(|w| w.to_string()).collect();
+                return match crate::maintenance::parse(&words) {
+                    Ok(scopes) => Action::Dialog(Dialog::confirm(
+                        &format!("shell-reset:{}", words.join(" ")),
+                        "Reset?",
+                        &format!("This resets:\n{}", crate::maintenance::describe(&ui.paths, &scopes).join("\n")),
+                        "Reset",
+                        "Cancel",
+                    )),
+                    Err(why) => {
+                        self.say(line, vec![(why, ERR)], 1);
+                        Action::None
+                    }
+                };
             }
             // These need the terminal, or the system's prompt, and this process is the one that was verified.
             "edit" | "security" if command == "edit" || rest.first().map(|w| w != "status").unwrap_or(false) => {

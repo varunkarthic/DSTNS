@@ -563,11 +563,12 @@ impl<'a> Compatibility<'a> {
                 crate::buildplan::execute(&steps, self.reporter(), paths, None)?;
             }
             _ => {
-                for path in maintenance::describe(paths) {
-                    self.out.muted(&format!("  {path}"));
+                let scopes = [maintenance::Scope::Runtime, maintenance::Scope::Setup];
+                for line in maintenance::describe(paths, &scopes) {
+                    self.out.muted(&format!("  {line}"));
                 }
-                if self.out.confirm("Delete these runtime files? Maps, saved seeds and configuration are kept.", false) {
-                    let _ = maintenance::reset(self.reporter(), paths);
+                if self.out.confirm("Reset these? Maps, saved seeds and configuration are kept.", false) {
+                    let _ = maintenance::reset(self.reporter(), paths, &scopes);
                 }
             }
         }

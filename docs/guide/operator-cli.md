@@ -414,7 +414,7 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `state [get [--world]\|set CODE]` | The same code without the keys, and applying one without starting; see [Launch codes](#launch-codes) |
 | `daemon [show NAME\|on NAME\|off NAME\|queue emergency\|notification]` | The server's [daemons](daemons.md) |
 | `security [on\|off\|verify]` | [Advanced Security](#advanced-security) |
-| `reset [--yes]` | Delete runtime logs, the journal, checkpoints and temporary files, and forget the setup. It asks first; without a terminal it needs `--yes`; it refuses while a server is running |
+| `reset [SCOPE...] [--yes]` | Reset by scope (see [Reset scopes](#reset-scopes)). Alone, it resets everything except connected applications and their settings. It lists what it will reset and asks first; without a terminal it needs `--yes`; it refuses while a server is running |
 | `help`, `version`, `license` | Usage, version and licence notice, the licence text |
 | `--mode=server` | Run `dstns_server` in the foreground with the configured host and port |
 
@@ -465,6 +465,23 @@ reason and what would fix it) or **Disabled**:
 | `--debug` | A verbose launcher log, and diagnostics on standard error |
 | `--verbose`, `-v` | Show command output while builds and tests run |
 | `--yes`, `-y` | Do not ask for confirmation (`reset`, `apps approve`) |
+
+### Reset scopes
+
+| Scope | What it resets | In plain `reset` |
+|---|---|---|
+| `runtime` | `logs/system.log`, `logs/runtime.db*`, `data/checkpoints`, `data/scenarios`, `data/sumo_live_run` | yes |
+| `cache` | The map cache (`map.cache_dir`), Fast Boot's cities and Dynamic Fastboot's `next-world.json` | yes |
+| `settings` | Every setting back to its default, in `config/defaults.json` and `config/ui-config.json`. Keys that are not settings are kept | yes |
+| `setup` | The launcher's setup flag; setup runs again at the next start | yes |
+| `seeds` | The saved-seed store and the maps saved with it | yes |
+| `keys` | Model providers' API keys in `config/launcher.env`, and in the system credential store when `model.key_store` is `system`. Keys set in the shell are not changed | yes |
+| `apps` | Connected applications (`config/apps.json`) | no |
+| `app-settings [ID]` | WebFabric applications' own settings, for one application or all. The server's store is sealed, so the launcher writes a request (`logs/fabric-apps.json.reset`) and the server applies it when it next starts | no |
+| `all` | Every scope above | — |
+
+Scopes combine: `./launcher reset cache seeds --yes`. The Tasks screen's **Reset runtime data** resets `runtime` and
+`setup` only.
 
 ## Applications
 

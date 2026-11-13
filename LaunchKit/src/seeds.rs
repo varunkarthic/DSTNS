@@ -173,6 +173,7 @@ mod tests {
 
     #[test]
     fn a_seed_saves_lists_and_deletes() {
+        let _environment = crate::paths::test_environment();
         let paths = store();
         let config = json!({"seed": "42", "map": {"osm_file": "auto"}, "map_selection_version": VERSION, "day": 0});
         let saved = operate("save", &json!({"id": "demo", "description": "a note", "config": config}), &paths).unwrap();

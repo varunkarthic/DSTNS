@@ -125,6 +125,13 @@ pub struct Paths {
     pub root: PathBuf,
 }
 
+/// Held by tests that point the launcher's stores elsewhere through the environment, which every thread shares.
+#[cfg(test)]
+pub fn test_environment() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 impl Default for Paths {
     fn default() -> Self {
         Self { root: root().to_path_buf() }

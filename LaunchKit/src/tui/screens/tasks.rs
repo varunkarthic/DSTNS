@@ -169,7 +169,7 @@ impl TaskScreen {
                         }
                     }
                     _ => {
-                        match crate::maintenance::reset(reporter, &paths) {
+                        match crate::maintenance::reset(reporter, &paths, &[crate::maintenance::Scope::Runtime, crate::maintenance::Scope::Setup]) {
                             Ok(()) => (true, "Runtime data cleared, and the setup forgotten. Maps, saved seeds and configuration were kept.".into()),
                             Err(why) => (false, why),
                         }
@@ -274,7 +274,7 @@ impl Screen for TaskScreen {
                     return Action::Toast("Wait for the current operation to finish.".into(), crate::tui::theme::WARN);
                 }
                 if choice == "reset" {
-                    let listing = crate::maintenance::describe(&ui.paths).join("\n");
+                    let listing = crate::maintenance::describe(&ui.paths, &[crate::maintenance::Scope::Runtime, crate::maintenance::Scope::Setup]).join("\n");
                     return Action::Dialog(Dialog::confirm("reset", "Reset runtime data?", &format!("These will be deleted:\n{listing}"), "Reset", "Cancel"));
                 }
                 if choice == "clear" {

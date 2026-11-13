@@ -379,6 +379,34 @@ const Switches& switches() {
 }
 
 AppRegistry::AppRegistry(std::filesystem::path store) : store_(std::move(store)) {
+    load();
+    apply_reset_request();
+}
+
+// ./launcher reset app-settings leaves the IDs of the applications whose own settings go back to their defaults, one
+// a line, * for every one. The store is sealed, so the launcher asks and the registry does it here, once.
+void AppRegistry::apply_reset_request() {
+    const auto request = store_.string() + ".reset";
+    std::ifstream in(request);
+    if (!in) return;
+    std::set<std::string> ids;
+    for (std::string line; std::getline(in, line);)
+        if (!line.empty()) ids.insert(line);
+    in.close();
+    bool changed = false;
+    for (auto& [id, app] : apps_) {
+        if (!ids.count("*") && !ids.count(id)) continue;
+        auto values = json::object();
+        for (const auto& field : schema_fields(app.manifest)) values[field.at("id").get<std::string>()] = field.at("default");
+        app.values = std::move(values);
+        changed = true;
+    }
+    if (changed) persist();
+    std::error_code ignored;
+    std::filesystem::remove(request, ignored);
+}
+
+void AppRegistry::load() {
     std::ifstream in(store_);
     if (!in) return;
     // A damaged store must not stop the simulator: applications register again.

@@ -14,6 +14,38 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-11-13
+
+**Engine 3.4.0, launcher 3.2.0, observer 3.1.0, API contract 1.6.** Results for every seed are unchanged.
+
+### Changed
+
+- `./launcher reset` now resets by scope (#16):
+  - Alone, it resets everything except connected applications and their settings: runtime data, the map cache, every
+    setting, the setup, saved seeds and provider API keys.
+  - `reset all` resets everything.
+  - `reset runtime | cache | settings | setup | seeds | keys | apps | app-settings [ID]` resets one scope, and
+    scopes combine.
+
+  The confirmation lists what each scope resets. The command bar takes the same scopes. The Tasks screen's **Reset
+  runtime data** resets the same things as before.
+
+### Added
+
+- The server applies `logs/fabric-apps.json.reset` as it starts: the applications it names (or `*` for all) get
+  their own settings back at their defaults. Then it deletes the file. This is how `reset app-settings` works
+  without editing the sealed store.
+
+### Tests
+
+- Launcher: each scope resets what it names and nothing else. Plain `reset` keeps the applications. Tests that point
+  the stores elsewhere through the environment now hold one lock, so they cannot delete each other's files.
+- `dstns_http_fabric_apps`: a reset request returns one application's settings to their defaults across a restart.
+  Another application's settings stay unchanged, and the request is deleted. The test fails when the server ignores
+  the request.
+
+Rollback: revert this release's commit. A request file left behind is then ignored.
+
 ## [Launcher 3.1.0] - 2026-11-13
 
 **Engine 3.3.2, launcher 3.1.0, observer 3.1.0, API contract 1.6.** No engine change.

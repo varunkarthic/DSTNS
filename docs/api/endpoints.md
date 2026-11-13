@@ -1272,7 +1272,7 @@ Response `200`, from a real run:
   "ok": true,
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
-  "version": "3.3.2"
+  "version": "3.4.0"
 }
 ```
 
@@ -1340,7 +1340,7 @@ Response `200`, from a real run:
     "sumo_home": "/Users/varun/sumo",
     "version": ""
   },
-  "version": "3.3.2"
+  "version": "3.4.0"
 }
 ```
 
@@ -1403,7 +1403,7 @@ Response `200`, from a real run:
     },
     "program": "DSTNS",
     "source_offer": "You may obtain the complete corresponding source for this running version, under the terms…",
-    "version": "3.3.2"
+    "version": "3.4.0"
   },
   "ok": true
 }

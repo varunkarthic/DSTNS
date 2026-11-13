@@ -278,6 +278,7 @@ mod tests {
 
     #[test]
     fn the_catalogue_round_trips() {
+        let _environment = crate::paths::test_environment();
         let dir = std::env::temp_dir().join(format!("dstns-apps-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         std::env::set_var("DSTNS_APPS_FILE", dir.join("apps.json"));

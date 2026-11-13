@@ -9,6 +9,8 @@
 
 #include <sys/stat.h>
 
+#include <filesystem>
+#include <fstream>
 #include <future>
 #include <set>
 
@@ -278,7 +280,10 @@ int main() {
         EXPECT(call("DELETE", BASE + "/" + ids[4], none, "", HOST).status == 200);
         EXPECT(call("GET", BASE + "/" + ids[4]).status == 404);
         EXPECT(call("GET", "/api/v1/fabric/state?since=" + mark).data().at("removed") == json::array({ids[4]}), "the observer learns it has gone");
+        EXPECT(call("PUT", BASE + "/" + b + "/settings", json{{"mode", "b"}}, tb).status == 200);
     }
+    // ./launcher reset app-settings ID asks, and the next start does it: b's settings go back to their defaults.
+    std::ofstream(tmp / "fabric-apps.json.reset") << b << "\n";
 
     // A restart: identity, grants and settings persist; run-time UI does not.
     Server server(tmp.path, {"--map-cache", "keep"});
@@ -295,6 +300,8 @@ int main() {
     EXPECT(back.status == 201 && std::find(granted.begin(), granted.end(), "control.playback") != granted.end(), back);
     EXPECT(call("POST", BASE, manifest(a), ta).data().at("token") == ta);
     EXPECT(call("GET", BASE + "/" + a + "/settings", none, ta).data().at("values").at("level") == 8);
+    EXPECT(call("GET", BASE + "/" + b + "/settings", none, tb).data().at("values").at("mode") == "a", "reset to its default");
+    EXPECT(!std::filesystem::exists(tmp / "fabric-apps.json.reset"), "a request is done once");
 
     // Schema migration: renames applied, invalid values reset, the app told.
     auto migrated = manifest(a);

@@ -213,6 +213,8 @@ private:
     std::string store_key_;
     std::string audit_head_;
     bool store_rejected_{};
+    void load();
+    void apply_reset_request();
     nlohmann::json launch_ = nlohmann::json::object();
     nlohmann::json launch_plan_ = nullptr;
     std::deque<nlohmann::json> view_requests_;
