@@ -181,6 +181,7 @@ pub fn start_with(reporter: &dyn Reporter, paths: &Paths, build_first: bool, can
     let mut command = Command::new(paths.server());
     command
         .args(["--host", &host, "--port", &port.to_string(), "--logs", &paths.logs().to_string_lossy(), "--maps", &maps(paths).to_string_lossy(), "--narrator", &choice.server_argument])
+        .args(config::server_arguments(&config))
         .current_dir(&paths.root)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -263,6 +264,7 @@ pub fn run_foreground(paths: &Paths) -> Result<i32> {
     let mut command = Command::new(paths.server());
     command
         .args(["--host", &host, "--port", &port.to_string(), "--logs", &paths.logs().to_string_lossy(), "--maps", &maps(paths).to_string_lossy(), "--narrator", &choice.server_argument])
+        .args(config::server_arguments(&config))
         .current_dir(&paths.root);
     if let Some(token) = &choice.token {
         command.env("DSTNS_NARRATOR_TOKEN", token);

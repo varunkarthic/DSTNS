@@ -14,6 +14,27 @@ only within one version.
 
 ## [Unreleased]
 
+## [Launcher 3.6.0] - 2026-11-13
+
+**Engine 3.5.0, launcher 3.6.0, observer 3.1.0, API contract 1.6.** No engine change.
+
+### Added
+
+- Settings for what the engine and server already read but the launcher could not set (#18):
+  - `map.city_extent_m` and `map.district_nodes`. They are sent only when they differ from the engine's defaults,
+    so a default request is unchanged. Dynamic Fastboot uses a prepared world only when it was prepared with the
+    configured extent.
+  - `map.cache_policy` and `map.cache_keep`, as the server's `--map-cache` and `--map-cache-keep`.
+  - `map.download_stall_s`, as `DSTNS_MAP_STALL_S`.
+  - `api.allowed_hosts` and `api.allowed_origins`, as `DSTNS_ALLOWED_HOSTS` and `DSTNS_ALLOWED_ORIGINS`.
+
+### Tests
+
+- Every key in `config/defaults.json` is either a setting or listed in `INFORMATIONAL`, where the engine fixes the
+  value. A key added to the file without either fails the launcher's tests.
+
+Rollback: revert this release's commit.
+
 ## [Launcher 3.5.0] - 2026-11-13
 
 **Engine 3.5.0, launcher 3.5.0, observer 3.1.0, API contract 1.6.** No engine change.

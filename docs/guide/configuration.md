@@ -54,11 +54,12 @@ A launch code carries these settings like any other.
 | `map.osm_file` | absent (`auto`) | path or `auto` | CLI | `auto` lets the seed choose a city and district; a path pins a map |
 | `map.max_nodes` | `50000` | [2, 50000] | CLI, engine | Upper bound on graph size |
 | `map.cache_dir` | `data/maps` | path | CLI, engine | Where downloaded city extracts are cached |
-| `map.city_extent_m` | `5000` | [500, 20000] | engine default | Side of the square extract downloaded per city |
-| `map.district_nodes` | `3000` | [200, 50000] | engine default | Target size of the district grown from the seed's anchor |
+| `map.city_extent_m` | `5000` | [500, 20000] | CLI, engine | Side of the square extract downloaded per city. Sent only when it is not 5000; Dynamic Fastboot's prepared world is used only when it was prepared with the same extent |
+| `map.district_nodes` | `3000` | [200, 50000] | CLI, engine | Target size of the district grown from the seed's anchor. Sent only when it is not 3000 |
 | `map.map_selection_version` | `urban-crfg-v3` | — | informational | The launcher sends the version that `map.selection_mode` names |
-| `map.cache_policy` | `prune` | `keep`, `prune`, `clear` | informational | The server's `--map-cache` flag decides; its default is `prune` |
-| `map.cache_keep` | `1` | ≥ 0 | informational | The server's `--map-cache-keep` flag decides; its default is 1 |
+| `map.cache_policy` | `prune` | `keep`, `prune`, `clear` | CLI, server (`--map-cache`) | What the server does with the map cache as it starts |
+| `map.cache_keep` | `1` | [0, 1000] | CLI, server (`--map-cache-keep`) | Cities kept when pruning |
+| `map.download_stall_s` | `200` | [10, 3600] | CLI, server (`DSTNS_MAP_STALL_S`) | How long a download may receive nothing before the next map server is tried |
 | `map.source`, `map.on_demand`, `map.min_nodes`, `map.max_anchor_attempts`, `map.min_compactness` | | | informational | |
 
 ### Modules
@@ -99,11 +100,15 @@ A server started without the launcher keeps SUMO on, as before.
 |---|---|---|---|---|
 | `api.host` | `127.0.0.1` | address | CLI | Interface the server binds; the default keeps it local, `0.0.0.0` exposes it |
 | `api.port` | `8090` | [1, 65535] | CLI | Preferred port; the CLI picks the next free one if it is taken by something else |
+| `api.allowed_hosts` | `none` | comma-separated host names | CLI, server (`DSTNS_ALLOWED_HOSTS`) | Host names besides localhost accepted by a server bound to loopback |
+| `api.allowed_origins` | `none` | comma-separated origins | CLI, server (`DSTNS_ALLOWED_ORIGINS`) | Origins besides the server's own that may change things |
 | `ui.port` | `5173` | | informational | The Vite dev server port is set in `WebKit/vite.config.ts` |
 
-`bus_stops.*`, `traffic.*`, `ui.osm_background` and `logging.*` are
-informational: stop spacing is 300 m minimum, 500 m target and 800 m coverage,
-logs go to `<logs>/system.log` and `<logs>/runtime.db`.
+`bus_stops.*`, `traffic.*`, `ui.osm_background`, `logging.*`, `dws.min_start_gap_playback_seconds`,
+`dws.min_duration_virtual_min` and `dws.max_duration_virtual_min` are informational: the engine fixes these values
+(stop spacing is 300 m minimum, 500 m target and 800 m coverage; logs go to `<logs>/system.log` and
+`<logs>/runtime.db`). A launcher test checks that every other key in `config/defaults.json` is a setting
+(`INFORMATIONAL` in `LaunchKit/src/config.rs` lists these on purpose).
 
 ## Start request fields
 

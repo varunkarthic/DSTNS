@@ -458,6 +458,29 @@ pub fn map_selection(config: &Value) -> Result<(String, Option<Value>)> {
     Ok((GEO_SELECTION_VERSION.into(), Some(json!({"mode": mode, "countries": countries, "cities": cities}))))
 }
 
+/// Keys in defaults.json that are not settings, on purpose: the engine fixes them, or they only describe the file.
+/// docs/guide/configuration.md says which is which.
+#[cfg(test)]
+pub const INFORMATIONAL: &[&str] = &[
+    "schema_version",
+    "seed",
+    "playback.checkpoint_virtual_seconds",
+    "map.source",
+    "map.on_demand",
+    "map.min_nodes",
+    "map.max_anchor_attempts",
+    "map.min_compactness",
+    "map.map_selection_version",
+    "bus_stops",
+    "traffic",
+    "dws.min_start_gap_playback_seconds",
+    "dws.min_duration_virtual_min",
+    "dws.max_duration_virtual_min",
+    "logging",
+    "ui.port",
+    "ui.osm_background",
+];
+
 /// Every editable setting, by category, in the order the configuration screen shows them.
 pub fn fields() -> &'static [Field] {
     use FieldKind::*;
@@ -482,6 +505,12 @@ pub fn fields() -> &'static [Field] {
             Field::new("sumo.enabled", "SUMO", "SUMO", Boolean, "Eclipse SUMO, for exporting a world and running it microscopically (POST /api/v1/export/sumo and /api/v1/system/sumo-simulate). Off, the server refuses both and does not look for SUMO.", json!(false)),
             Field::new("sumo.home", "SUMO folder", "SUMO", Text, "Where SUMO is installed (its SUMO_HOME). auto looks in SUMO_HOME, ~/sumo, Homebrew and the system's folders.", json!("auto")),
             Field::new("map.max_nodes", "Largest network", "Map", Integer, "The most junctions a district's road network may have. Lower keeps big cities light.", json!(50000)).unit("junctions").range(2.0, Some(50000.0)),
+            Field::new("map.city_extent_m", "City extract", "Map", Integer, "The side of the square of city downloaded around a seed's anchor. Larger holds more of the city and takes longer to download; the default is the one every seed's city was chosen with.", json!(5000)).unit("m").range(500.0, Some(20000.0)),
+            Field::new("map.district_nodes", "District size", "Map", Integer, "How many junctions the district grown from the anchor aims for, within the extract.", json!(3000)).unit("junctions").range(200.0, Some(50000.0)),
+            Field::new("map.cache_policy", "Map cache at start", "Map", Choice, "What the server does with the map cache as it starts: keep every city, prune to the most recent few, or clear it.", json!("prune"))
+                .choices(vec![("Prune", json!("prune")), ("Keep", json!("keep")), ("Clear", json!("clear"))]),
+            Field::new("map.cache_keep", "Cities kept when pruning", "Map", Integer, "How many of the most recently used cities pruning keeps.", json!(1)).unit("cities").range(0.0, Some(1000.0)),
+            Field::new("map.download_stall_s", "Download stall limit", "Map", Integer, "How long a map download may receive nothing before it is given up and the next server is tried.", json!(200)).unit("s").range(10.0, Some(3600.0)),
             Field::new("map.cache_dir", "Map cache folder", "Map", Text, "Where downloaded city extracts are kept, relative to the checkout. Dynamic Fastboot's next city is kept here too.", json!("data/maps")),
             // Modules
             Field::new("modules.traffic", "Traffic demand", "Modules", Boolean, "Base and hotspot demand on every road. Off, the roads stay empty.", json!(true)),
@@ -511,6 +540,8 @@ pub fn fields() -> &'static [Field] {
                 .choices(vec![("Ask", json!("ask")), ("Simplified", json!("simplified")), ("Full anyway", json!("full"))]),
             // Server
             Field::new("api.host", "Listen address", "Server", Text, "127.0.0.1 keeps the server to this machine; 0.0.0.0 opens it to the network, which needs a gateway in front (see Deployment).", json!("127.0.0.1")),
+            Field::new("api.allowed_hosts", "Other host names", "Server", Text, "Host names besides localhost that may reach a server on this machine, separated by commas (DNS rebinding protection refuses the rest). none for none.", json!("none")),
+            Field::new("api.allowed_origins", "Other origins", "Server", Text, "Web origins besides the server's own that may change things, separated by commas, such as https://example.org. none for none.", json!("none")),
             Field::new("api.port", "Port", "Server", Integer, "The port to listen on. If it is taken, the next free one is used, and the launcher says which.", json!(8090)).range(1.0, Some(65535.0)),
             Field::new(
                 "narration.mode",
@@ -860,6 +891,16 @@ pub fn presentation(config: &Value, demo: bool) -> Value {
     })
 }
 
+/// The server's arguments that come from the settings.
+pub fn server_arguments(config: &Value) -> Vec<String> {
+    vec![
+        "--map-cache".into(),
+        setting(config, "map.cache_policy").as_str().unwrap_or("prune").to_string(),
+        "--map-cache-keep".into(),
+        as_int(&setting(config, "map.cache_keep")).unwrap_or(1).max(0).to_string(),
+    ]
+}
+
 /// sumo.home, unless it is auto.
 pub fn sumo_home(config: &Value) -> Option<String> {
     setting(config, "sumo.home").as_str().map(str::trim).filter(|h| !h.is_empty() && *h != "auto").map(String::from)
@@ -882,7 +923,14 @@ pub fn server_switches(config: &Value, demo: bool) -> Vec<(String, String)> {
         ("DSTNS_DYNAMIC_FASTBOOT".to_string(), one("startup.dynamic_fastboot")),
         ("DSTNS_DAEMON".to_string(), daemon_settings(config).to_string()),
         ("DSTNS_SUMO".to_string(), one("sumo.enabled")),
+        ("DSTNS_MAP_STALL_S".to_string(), as_int(&setting(config, "map.download_stall_s")).unwrap_or(200).to_string()),
     ];
+    for (key, name) in [("api.allowed_hosts", "DSTNS_ALLOWED_HOSTS"), ("api.allowed_origins", "DSTNS_ALLOWED_ORIGINS")] {
+        let list = setting(config, key).as_str().unwrap_or("none").trim().to_string();
+        if !list.is_empty() && !list.eq_ignore_ascii_case("none") {
+            env.push((name.into(), list.split(',').map(str::trim).filter(|s| !s.is_empty()).collect::<Vec<_>>().join(",")));
+        }
+    }
     if let Some(home) = sumo_home(config) {
         env.push(("SUMO_HOME".into(), home));
     }
@@ -953,13 +1001,13 @@ pub fn fresh_seed() -> String {
 /// The launcher starts worlds under urban-crfg-v3 over every city, with the engine's default 5 km extract, so a seed
 /// prepared under another policy or extent (it would name a different city here), or in a pointer format newer than
 /// 2, is left alone. A pointer from before policies were recorded is urban-crfg-v3.
-pub fn prepared_seed(cache: &Path) -> Option<String> {
+pub fn prepared_seed(cache: &Path, extent_m: f64) -> Option<String> {
     let text = std::fs::read_to_string(cache.join("next-world.json")).ok()?;
     let pointer = serde_json::from_str::<Value>(&text).ok()?;
     if pointer.get("format").and_then(Value::as_u64).unwrap_or(1) > 2 {
         return None;
     }
-    if pointer.get("extent_m").and_then(Value::as_f64).is_some_and(|extent| extent != 5000.0) {
+    if pointer.get("extent_m").and_then(Value::as_f64).unwrap_or(5000.0) != extent_m {
         return None;
     }
     if let Some(selection) = pointer.get("selection") {
@@ -1001,12 +1049,19 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
             None if crate::state::pending_seed().is_some() => normalise_seed(&crate::state::pending_seed().unwrap_or_default())?,
             // Dynamic Fastboot: the world the last run prepared, whose city is on disk already.
             // Fastboot prepares under urban-crfg-v3 only, so a narrower policy takes a fresh seed.
-            None if source == "auto" && selection.is_none() && flag(&defaults, "startup.dynamic_fastboot") => prepared_seed(&paths.map_cache(cache)).unwrap_or_else(fresh_seed),
+            None if source == "auto" && selection.is_none() && flag(&defaults, "startup.dynamic_fastboot") => prepared_seed(&paths.map_cache(cache), as_number(&setting(&defaults, "map.city_extent_m")).unwrap_or(5000.0)).unwrap_or_else(fresh_seed),
             None => fresh_seed(),
         };
         let mut map_options = Map::new();
         map_options.insert("osm_file".into(), json!(if source == "auto" { "auto".to_string() } else { absolute(&paths.root.join(&source)).to_string_lossy().into_owned() }));
         map_options.insert("max_nodes".into(), map.get("max_nodes").cloned().unwrap_or(json!(50000)));
+        // Sent only when they differ from the engine's own defaults, so a request is what it always was by default.
+        for (key, default) in [("city_extent_m", 5000), ("district_nodes", 3000)] {
+            let value = setting(&defaults, &format!("map.{key}"));
+            if value != json!(default) {
+                map_options.insert(key.into(), value);
+            }
+        }
         if let Some(radius) = map.get("tile_radius_m").filter(|r| !r.is_null() && **r != json!(0)) {
             map_options.insert("tile_radius_m".into(), radius.clone());
         }
@@ -1128,6 +1183,7 @@ mod tests {
         let request = start_request(&options, &paths).unwrap();
         assert_eq!((request["engine"].clone(), request["map_selection_version"].clone()), (json!("core-legacy"), json!(MAP_SELECTION_VERSION)));
         assert!(request.get("map_selection").is_none(), "every city is the policy every seed has always had");
+        assert!(request["map"].get("city_extent_m").is_none() && request["map"].get("district_nodes").is_none(), "the engine's defaults are not sent");
 
         let mut config = load(&paths).unwrap();
         assert_eq!(field("map.selection_mode").unwrap().set(&mut config, json!("countries")), vec!["engine.implementation"], "only core-ng chooses countries");
@@ -1139,6 +1195,9 @@ mod tests {
         assert_eq!(request["engine"], json!("core-ng"));
         assert_eq!(request["map_selection_version"], json!(GEO_SELECTION_VERSION));
         assert_eq!(request["map_selection"], json!({"mode": "countries", "countries": ["IN", "AE"], "cities": []}));
+        field("map.city_extent_m").unwrap().set(&mut config, json!(8000));
+        save(&config, &paths).unwrap();
+        assert_eq!(start_request(&options, &paths).unwrap()["map"]["city_extent_m"], json!(8000));
         assert!(!check_field(field("map.places").unwrap(), &json!("India"), &config).is_empty(), "a country is its two-letter code");
 
         field("map.selection_mode").unwrap().set(&mut config, json!("fixed_city"));
@@ -1161,6 +1220,21 @@ mod tests {
         assert_eq!(once("core-ng").unwrap()["engine"], json!("core-ng"), "--engine chooses for one run");
         assert_eq!(start_request(&options, &paths).unwrap()["engine"], json!("core-legacy"), "and only that run");
         let _ = std::fs::remove_dir_all(&paths.root);
+    }
+
+    #[test]
+    fn every_key_in_defaults_is_a_setting_or_said_to_be_informational() {
+        let defaults: Value = serde_json::from_str(include_str!("../../config/defaults.json")).unwrap();
+        fn leaves(value: &Value, prefix: &str, out: &mut Vec<String>) {
+            match value.as_object() {
+                Some(object) => object.iter().for_each(|(k, v)| leaves(v, &if prefix.is_empty() { k.clone() } else { format!("{prefix}.{k}") }, out)),
+                None => out.push(prefix.to_string()),
+            }
+        }
+        let mut keys = vec![];
+        leaves(&defaults, "", &mut keys);
+        let missing: Vec<&String> = keys.iter().filter(|k| field(k).is_none() && !INFORMATIONAL.iter().any(|i| *k == i || k.starts_with(&format!("{i}.")))).collect();
+        assert!(missing.is_empty(), "add a field, or list it in INFORMATIONAL with why: {missing:?}");
     }
 
     #[test]
@@ -1192,22 +1266,23 @@ mod tests {
     fn a_start_takes_the_world_dynamic_fastboot_prepared() {
         let dir = std::env::temp_dir().join(format!("dstns-next-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        assert_eq!(prepared_seed(&dir), None, "nothing prepared");
+        assert_eq!(prepared_seed(&dir, 5000.0), None, "nothing prepared");
         std::fs::write(dir.join("next-world.json"), r#"{"seed": "8675309", "city": "Lisbon", "state": "ready"}"#).unwrap();
-        assert_eq!(prepared_seed(&dir).as_deref(), Some("8675309"));
+        assert_eq!(prepared_seed(&dir, 5000.0).as_deref(), Some("8675309"));
         std::fs::write(dir.join("next-world.json"), r#"{"seed": "not a number"}"#).unwrap();
-        assert_eq!(prepared_seed(&dir), None, "only a seed it can use");
+        assert_eq!(prepared_seed(&dir, 5000.0), None, "only a seed it can use");
         let pointer = |extra: &str| std::fs::write(dir.join("next-world.json"), format!(r#"{{"seed": "8675309", "extent_m": 5000, "state": "ready"{extra}}}"#)).unwrap();
         pointer(r#", "format": 2, "selection": {"policy": "urban-crfg-v3", "mode": "global", "countries": [], "cities": [], "fingerprint": "sha256:x"}"#);
-        assert_eq!(prepared_seed(&dir).as_deref(), Some("8675309"), "prepared under the policy a start uses");
+        assert_eq!(prepared_seed(&dir, 5000.0).as_deref(), Some("8675309"), "prepared under the policy a start uses");
         pointer(r#", "format": 2, "selection": {"policy": "urban-geo-v1", "mode": "fixed_city", "cities": ["berlin"]}"#);
-        assert_eq!(prepared_seed(&dir), None, "prepared under another policy: it would name another city here");
+        assert_eq!(prepared_seed(&dir, 5000.0), None, "prepared under another policy: it would name another city here");
         pointer(r#", "format": 2, "selection": {"policy": "urban-crfg-v3", "mode": "countries", "countries": ["IN"]}"#);
-        assert_eq!(prepared_seed(&dir), None, "a filtered selection is not the launcher's");
+        assert_eq!(prepared_seed(&dir, 5000.0), None, "a filtered selection is not the launcher's");
         pointer(r#", "format": 3"#);
-        assert_eq!(prepared_seed(&dir), None, "a pointer format it does not know");
+        assert_eq!(prepared_seed(&dir, 5000.0), None, "a pointer format it does not know");
         std::fs::write(dir.join("next-world.json"), r#"{"seed": "8675309", "extent_m": 8000}"#).unwrap();
-        assert_eq!(prepared_seed(&dir), None, "another extent");
+        assert_eq!(prepared_seed(&dir, 5000.0), None, "another extent");
+        assert_eq!(prepared_seed(&dir, 8000.0).as_deref(), Some("8675309"), "the extent this launcher is set to");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -1257,6 +1332,13 @@ mod tests {
         field("sumo.home").unwrap().set(&mut config, json!("/opt/sumo"));
         let env: std::collections::HashMap<_, _> = server_switches(&config, false).into_iter().collect();
         assert_eq!((env["DSTNS_SUMO"].as_str(), env["SUMO_HOME"].as_str()), ("1", "/opt/sumo"));
+        assert_eq!(env["DSTNS_MAP_STALL_S"], "200");
+        assert!(!env.contains_key("DSTNS_ALLOWED_HOSTS"), "none is none");
+        field("api.allowed_hosts").unwrap().set(&mut config, json!("dstns.local, lab.example "));
+        field("map.cache_policy").unwrap().set(&mut config, json!("keep"));
+        let env: std::collections::HashMap<_, _> = server_switches(&config, false).into_iter().collect();
+        assert_eq!(env["DSTNS_ALLOWED_HOSTS"], "dstns.local,lab.example");
+        assert_eq!(server_arguments(&config), vec!["--map-cache", "keep", "--map-cache-keep", "1"]);
     }
 
     #[test]
