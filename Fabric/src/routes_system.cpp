@@ -369,7 +369,7 @@ void ApiServer::routes_system() {
                       "You may obtain the complete corresponding source for this running "
                       "version, under the terms of the GNU Affero General Public License "
                       "version 3 or later. The source accompanies this deployment; see the "
-                      "LICENSE and COPYRIGHT files distributed with it."},
+                      "LICENSE and NOTICE files distributed with it."},
                      {"map_data", {
                          {"source", "OpenStreetMap contributors"},
                          {"license", "ODbL 1.0"},

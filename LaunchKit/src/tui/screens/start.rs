@@ -41,7 +41,25 @@ impl StartScreen {
                 r.unit = if ui.unicode { "×" } else { "x" }.into();
                 r
             },
-            form_row("engine", "Engine", Editor::select(config::ENGINES.iter().map(|e| (e.to_string(), e.to_string())).collect(), defaults.as_ref().map(|d| config::setting(d, "engines.selected")).and_then(|v| v.as_str().map(String::from)).as_deref().unwrap_or("core-legacy"))),
+            {
+                // Only an engine that may run can be chosen; a disabled one is enabled under Configuration, Engine.
+                let enabled = |e: &str| defaults.as_ref().map(|d| config::setting(d, &format!("engines.engines.{e}.enabled")) != serde_json::json!(false)).unwrap_or(e == config::DEFAULT_ENGINE);
+                let choices: Vec<(String, String)> = config::ENGINES.iter().filter(|e| enabled(e)).map(|e| (if *e == config::DEFAULT_ENGINE { format!("{e} (default)") } else { e.to_string() }, e.to_string())).collect();
+                let selected = defaults.as_ref().map(|d| config::setting(d, "engines.selected")).and_then(|v| v.as_str().map(String::from)).filter(|e| enabled(e)).unwrap_or_else(|| config::DEFAULT_ENGINE.into());
+                let mut r = form_row("engine", "Engine", Editor::select(choices, &selected));
+                let off: Vec<&str> = config::ENGINES.iter().copied().filter(|e| !enabled(e)).collect();
+                if !off.is_empty() {
+                    r.hint = format!("{} disabled: enable it under Configuration, Engine.", off.join(", "));
+                }
+                r
+            },
+            {
+                // Where worlds may be, as Configuration sets it: shown here, changed there.
+                let places = defaults.as_ref().and_then(|d| config::field("map.places").map(|f| f.display(&f.get(d)))).unwrap_or_else(|| "all".into());
+                let mut r = form_row("places", "Places", Editor::Text { value: if places == "all" { "all (anywhere in the world)".into() } else { places }, cursor: 0, placeholder: String::new(), numeric: false, disabled: true, multiline: false });
+                r.hint = "Set under Configuration, Engine, Places, or ./launcher places IN, AE.".into();
+                r
+            },
         ];
         rows[3].visible = false;
         let apps: Vec<(String, String, bool)> = crate::apps::load(&ui.paths).map(|a| a.into_values().map(|a| (a.id.clone(), a.title(), a.required)).collect()).unwrap_or_default();

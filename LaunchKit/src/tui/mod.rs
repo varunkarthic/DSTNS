@@ -848,6 +848,15 @@ mod tests {
     }
 
     #[test]
+    fn a_tool_s_output_wraps_rather_than_being_cut_off() {
+        let long = "core-legacy  3.13.1   stable   disabled   starts at once, and this line runs on well past the width of the panel it is shown in to its last word ENDMARK";
+        let screen_ = screens::tasks::TaskScreen::tools().with_output(&[long]);
+        let mut app = app(100, 30, Box::new(screen_));
+        let text = screen(&mut app, 100, 30);
+        assert!(text.contains("ENDMARK") && text.contains("Ctrl+S exports it"), "{text}");
+    }
+
+    #[test]
     fn countries_and_cities_are_listed_from_the_catalogue() {
         let cities = || {
             let mut out = vec![];

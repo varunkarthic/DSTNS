@@ -501,6 +501,10 @@ pub enum Editor {
     /// Three numbers, each at least the one before: Resource Control's α (the least), β (a warning) and γ (an alert).
     /// ←→ moves between them, digits type, + and - step; a scale beneath shows where each sits.
     Triple { values: [String; 3], index: usize, unit: String },
+    /// Places to choose or leave out: (id, label, mark), the mark 0 for neither, 1 chosen, 2 left out. Space chooses or
+    /// takes back, - leaves out, Ctrl+A chooses every one, Ctrl+D clears them; ↑↓ move inside, `rows` shown at a time.
+    /// The value is the chosen ids, then those left out with a -, or all.
+    Checks { items: Vec<(String, String, u8)>, cursor: usize, scroll: usize, rows: usize },
 }
 
 impl Editor {
@@ -526,6 +530,11 @@ impl Editor {
     pub fn text_value(&self) -> String {
         match self {
             Editor::Triple { values, .. } => values.join(", "),
+            Editor::Checks { items, .. } => {
+                let mut parts: Vec<String> = items.iter().filter(|(_, _, m)| *m == 1).map(|(id, _, _)| id.clone()).collect();
+                parts.extend(items.iter().filter(|(_, _, m)| *m == 2).map(|(id, _, _)| format!("-{id}")));
+                if parts.is_empty() { "all".into() } else { parts.join(", ") }
+            }
             Editor::Text { value, .. } => value.clone(),
             Editor::Toggle(on) => on.to_string(),
             Editor::Select { choices, index } => choices.get(*index).map(|(_, v)| v.clone()).unwrap_or_default(),
@@ -538,12 +547,17 @@ impl Editor {
     /// Whether this key is the editor's own rather than the form's: an order list keeps ↑↓ until its ends.
     pub fn consumes(&self, event: &KeyEvent) -> bool {
         match self {
-            Editor::Order { items, cursor } => match event.code {
-                KeyCode::Up => *cursor > 0,
-                KeyCode::Down => *cursor + 1 < items.len(),
-                _ => false,
-            },
+            Editor::Order { cursor, .. } | Editor::Checks { cursor, .. } if matches!(event.code, KeyCode::Up) => *cursor > 0 && self.list_len() > 0,
+            Editor::Order { cursor, .. } | Editor::Checks { cursor, .. } if matches!(event.code, KeyCode::Down) => *cursor + 1 < self.list_len(),
+            Editor::Checks { .. } => matches!(event.code, KeyCode::PageUp | KeyCode::PageDown | KeyCode::Home | KeyCode::End),
             _ => false,
+        }
+    }
+    fn list_len(&self) -> usize {
+        match self {
+            Editor::Order { items, .. } => items.len(),
+            Editor::Checks { items, .. } => items.len(),
+            _ => 0,
         }
     }
     pub fn toggled(&self) -> bool {
@@ -554,6 +568,7 @@ impl Editor {
             Editor::Text { multiline: true, .. } => 4,
             Editor::Order { items, .. } => items.len().max(1) as u16,
             Editor::Triple { .. } => 2,
+            Editor::Checks { items, rows, .. } => (*rows).min(items.len()).max(1) as u16 + 1,
             _ => 1,
         }
     }
@@ -644,6 +659,63 @@ impl Editor {
                     }
                     _ => false,
                 }
+            }
+            Editor::Checks { items, cursor, scroll, rows } => {
+                let control = event.modifiers.contains(KeyModifiers::CONTROL);
+                let last = items.len().saturating_sub(1);
+                let changed = match event.code {
+                    KeyCode::Char('a') if control => {
+                        items.iter_mut().for_each(|i| i.2 = 1);
+                        true
+                    }
+                    KeyCode::Char('d') if control => {
+                        items.iter_mut().for_each(|i| i.2 = 0);
+                        true
+                    }
+                    KeyCode::Char(' ') | KeyCode::Enter => {
+                        if let Some(i) = items.get_mut(*cursor) {
+                            i.2 = if i.2 == 1 { 0 } else { 1 };
+                        }
+                        true
+                    }
+                    KeyCode::Char('-') => {
+                        if let Some(i) = items.get_mut(*cursor) {
+                            i.2 = if i.2 == 2 { 0 } else { 2 };
+                        }
+                        true
+                    }
+                    KeyCode::Up => {
+                        *cursor = cursor.saturating_sub(1);
+                        false
+                    }
+                    KeyCode::Down => {
+                        *cursor = (*cursor + 1).min(last);
+                        false
+                    }
+                    KeyCode::PageUp => {
+                        *cursor = cursor.saturating_sub(*rows);
+                        false
+                    }
+                    KeyCode::PageDown => {
+                        *cursor = (*cursor + *rows).min(last);
+                        false
+                    }
+                    KeyCode::Home => {
+                        *cursor = 0;
+                        false
+                    }
+                    KeyCode::End => {
+                        *cursor = last;
+                        false
+                    }
+                    _ => false,
+                };
+                if *cursor < *scroll {
+                    *scroll = *cursor;
+                } else if *rows > 0 && *cursor >= *scroll + *rows {
+                    *scroll = *cursor + 1 - *rows;
+                }
+                changed
             }
             Editor::Triple { values, index, .. } => {
                 let cell = &mut values[*index];
@@ -748,6 +820,35 @@ impl Editor {
                     Line::from(spans)
                 })
                 .collect(),
+            Editor::Checks { items, cursor, scroll, rows } => {
+                let chosen = items.iter().filter(|i| i.2 == 1).count();
+                let out = items.iter().filter(|i| i.2 == 2).count();
+                let mut lines: Vec<Line> = vec![Line::from(Span::styled(
+                    format!(
+                        "{} chosen{}{}",
+                        chosen,
+                        if out > 0 { format!(" · {out} left out") } else { String::new() },
+                        if chosen == 0 { " · worlds may be anywhere" } else { "" }
+                    ),
+                    fg(TEXT2),
+                ))];
+                for (i, (id, label, mark)) in items.iter().enumerate().skip(*scroll).take(*rows) {
+                    let here = focused && i == *cursor;
+                    let (box_, tone) = match mark {
+                        1 => (if unicode { "[✓]" } else { "[x]" }, ACCENT),
+                        2 => (if unicode { "[−]" } else { "[-]" }, ERR),
+                        _ => ("[ ]", MUTED),
+                    };
+                    let room = inner_width.saturating_sub(12);
+                    lines.push(Line::from(vec![
+                        Span::styled(if here { if unicode { "▸ " } else { "> " } } else { "  " }, fg(ACCENT)),
+                        Span::styled(format!("{box_} "), fg(tone)),
+                        Span::styled(format!("{:<4}", clip(id, 4, unicode)), bold(if *mark > 0 { tone } else { TEXT2 })),
+                        Span::styled(clip(label, room, unicode), if here { bold(TEXT) } else { fg(if *mark > 0 { TEXT } else { TEXT2 }) }),
+                    ]));
+                }
+                lines
+            }
             Editor::Triple { values, index, unit } => {
                 // The three cells, the focused one lit; then a scale from 0 to γ with each one's place on it.
                 let names = ["α", "β", "γ"];
@@ -960,6 +1061,24 @@ mod order_tests {
         assert!(editor.consumes(&KeyEvent::from(KeyCode::Down)) && editor.consumes(&KeyEvent::from(KeyCode::Up)), "the list keeps the arrows inside it");
         editor.handle(&KeyEvent::from(KeyCode::Down));
         assert!(!editor.consumes(&KeyEvent::from(KeyCode::Down)), "and gives them back at its end");
+    }
+
+    #[test]
+    fn places_are_ticked_left_out_and_written_as_places() {
+        let items = ["AE", "FR", "IN"].iter().map(|c| (c.to_string(), c.to_string(), 0u8)).collect();
+        let mut editor = Editor::Checks { items, cursor: 0, scroll: 0, rows: 2 };
+        assert_eq!(editor.text_value(), "all");
+        editor.handle(&KeyEvent::from(KeyCode::Char(' ')));
+        editor.handle(&KeyEvent::from(KeyCode::Down));
+        editor.handle(&KeyEvent::from(KeyCode::Down));
+        editor.handle(&KeyEvent::from(KeyCode::Char('-')));
+        assert_eq!(editor.text_value(), "AE, -IN");
+        assert!(matches!(editor, Editor::Checks { scroll: 1, .. }), "the list scrolls with the cursor");
+        assert!(!editor.consumes(&KeyEvent::from(KeyCode::Down)) && editor.consumes(&KeyEvent::from(KeyCode::Up)), "it keeps the arrows inside it");
+        editor.handle(&KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL));
+        assert_eq!(editor.text_value(), "AE, FR, IN");
+        editor.handle(&KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL));
+        assert_eq!(editor.text_value(), "all");
     }
 
     #[test]

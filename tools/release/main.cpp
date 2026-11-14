@@ -224,7 +224,7 @@ int smoke(const std::string& image, const std::string& arch, const std::string& 
         const auto cli = must({"docker", "exec", name.str(), "/app/build/dstns_server", "--version"});
         expect(cli.find("DSTNS " + v) != std::string::npos && cli.find(packaged.at("revision").get<std::string>()) != std::string::npos, "--version: " + cli);
         expect(must({"docker", "exec", name.str(), "id", "-u"}) == "10001", "it runs as user 10001");
-        for (const char* path : {"/app/LICENSE", "/app/COPYRIGHT"}) must({"docker", "exec", name.str(), "test", "-s", path});
+        for (const char* path : {"/app/LICENSE", "/app/NOTICE"}) must({"docker", "exec", name.str(), "test", "-s", path});
         const auto topology = get_json("/api/v1/view/topology").at("data");
         expect(topology.at("nodes").size() > 100 && topology.at("edges").size() > 100, "a whole map");
         const auto html = get("/")->body;

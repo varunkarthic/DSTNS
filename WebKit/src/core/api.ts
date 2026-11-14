@@ -66,7 +66,16 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 15000): 
 export type PlaybackGuard = { expected_run_id?: string; expected_playback_revision?: number; require_asb_normal?: boolean };
 export const api = {
   resources: () => request<{ process: { rss_bytes: number; peak_rss_bytes: number; cpu_s: number; uptime_s: number; pid: number }; hardware_threads: number }>("/api/v1/system/resources"),
-  systemInfo: () => request<{version?: string; build?: {compiler?: string; cpp_standard?: number}; sumo?: {available?: boolean; enabled?: boolean; version?: string}; engine_catalogue?: EngineIdentity[]}>("/api/v1/system/info"),
+  systemInfo: () =>
+    request<{
+      version?: string;
+      build?: { compiler?: string; cpp_standard?: number; architecture?: string; channel?: string; created?: string; revision?: string };
+      process?: { pid?: number; uptime_s?: number; rss_bytes?: number; peak_rss_bytes?: number; cpu_s?: number };
+      sumo?: { available?: boolean; enabled?: boolean; version?: string };
+      engine_catalogue?: EngineIdentity[];
+    }>("/api/v1/system/info"),
+  /** The running world's manifest: its hashes, and the selection policy with its fingerprint. */
+  manifest: () => request<{ data?: { map_selection?: { policy?: string; mode?: string; fingerprint?: string; countries?: string[]; cities?: string[] }; scenario_hash?: string; event_hash?: string; map_hash?: string } }>("/api/v1/view/manifest"),
   status: () => request<Envelope<Status>>("/api/v1/fabric/engine/status"),
   topology: () => request<Envelope<Topology>>("/api/v1/view/topology"),
   // The observer shows three demand causes for a road, and they are most of a snapshot's bytes.

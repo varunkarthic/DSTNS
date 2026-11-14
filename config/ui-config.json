@@ -77,11 +77,13 @@
     ],
     "dnd_severities": [],
     "max_visible": 3,
-    "dwell_ms": 7000
+    "dwell_ms": 7000,
+    "important_first": true
   },
   "playback": {
     "skip_seconds": 900,
-    "step_seconds": 60
+    "step_seconds": 60,
+    "fine_control": false
   },
   "tutorial": {
     "enabled": true,
@@ -103,5 +105,9 @@
   },
   "news": {
     "style": "realistic"
+  },
+  "display": {
+    "byte_units": "decimal",
+    "label_language": "local"
   }
 }

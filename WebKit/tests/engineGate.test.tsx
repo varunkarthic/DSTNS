@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "../src/core/api";
-import { EngineGate, seenVersion } from "../src/panels/EngineGate";
+import { EngineGate, useEngineUpdateNotes, seenVersion } from "../src/panels/EngineGate";
 import type { EngineApproval, EngineIdentity } from "../src/core/types";
 
 const ng: EngineIdentity = { id: "core-ng", version: "0.6.0", type: "standalone", channel: "alpha", owns: [], shared: ["physics step"], changes: ["0.6.0: its own compiler."] };
@@ -65,14 +65,21 @@ it("leaves an acknowledgment set to the launcher to the launcher", async () => {
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
 
-it("announces a new stable version once, needing no answer", async () => {
-  vi.spyOn(api, "engineApproval").mockResolvedValue({ data: { state: "none", revision: 0 } });
+it("announces a new stable version once, in the notifications", () => {
   localStorage.setItem("dstns.engine-versions-seen", JSON.stringify({ "core-legacy": "3.4.0" }));
-  const { unmount } = render(<EngineGate ready running={legacy} onOpenChange={() => {}} />);
-  expect(await screen.findByText("Engine updated")).toBeTruthy();
-  expect(screen.queryByRole("alertdialog")).toBeNull();
-  unmount();
-  render(<EngineGate ready running={legacy} onOpenChange={() => {}} />);
-  await act(async () => {});
-  expect(screen.queryByText("Engine updated")).toBeNull();
+  const first = renderHook(() => useEngineUpdateNotes(true, legacy, 0));
+  expect(first.result.current).toHaveLength(1);
+  expect(first.result.current[0].title).toBe("core-legacy updated to 3.5.0");
+  expect(first.result.current[0].details[0]).toEqual({ label: "Version", value: "3.4.0 → 3.5.0" });
+  expect(first.result.current[0].category).toBe("system");
+  first.unmount();
+  const again = renderHook(() => useEngineUpdateNotes(true, legacy, 0));
+  expect(again.result.current).toEqual([]);
+});
+
+it("says nothing of the first engine a browser sees, nor before the interface is ready", () => {
+  localStorage.removeItem("dstns.engine-versions-seen");
+  expect(renderHook(() => useEngineUpdateNotes(true, legacy, 0)).result.current).toEqual([]);
+  localStorage.setItem("dstns.engine-versions-seen", JSON.stringify({ "core-legacy": "3.4.0" }));
+  expect(renderHook(() => useEngineUpdateNotes(false, legacy, 0)).result.current).toEqual([]);
 });

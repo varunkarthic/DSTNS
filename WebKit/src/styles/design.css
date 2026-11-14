@@ -3659,7 +3659,7 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .about-scroll > .about-section:first-child h3 { padding-right: 44px; }
 .about-engine-list { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 6px; }
 .about-engine-list li {
-  display: grid; grid-template-columns: minmax(96px, auto) auto auto minmax(0, 1fr); align-items: center; gap: 10px;
+  display: grid; grid-template-columns: 112px 64px auto minmax(0, 1fr); align-items: center; gap: 10px;
   padding: 7px 10px; border: 1px solid var(--well-line); border-radius: var(--r-xs, 10px); background: var(--well);
 }
 .about-engine-list li.off { opacity: .62; }
@@ -3669,3 +3669,10 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
   .about-engine-list li { grid-template-columns: auto auto minmax(0, 1fr); }
   .about-engine-list .about-engine-role { grid-column: 1 / -1; justify-self: start; }
 }
+
+/* ---- About: the versions under the name, as the server reports them now ------------------------------------- */
+.about-versions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; margin: 10px 0 4px; }
+.about-versions > div { display: flex; flex-direction: column; gap: 1px; padding: 6px 9px; border: 1px solid var(--well-line); border-radius: var(--r-xs, 10px); background: var(--surface-solid, var(--panel)); }
+.about-versions dt { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
+.about-versions dd { margin: 0; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
+.about-engine-list .about-engine-detail { grid-column: 1 / -1; font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }

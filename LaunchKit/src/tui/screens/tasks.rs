@@ -43,6 +43,10 @@ pub struct TaskScreen {
     done: Option<Receiver<(bool, String)>>,
     child: Option<Arc<Mutex<Child>>>,
     started: Instant,
+    /// How far the output is scrolled back from its end, in lines as drawn.
+    back: usize,
+    /// Where the last export was written.
+    exported: Option<String>,
 }
 
 fn menu_item(key: &str, label: &str, hint: &str) -> MenuItem {
@@ -52,7 +56,7 @@ fn menu_item(key: &str, label: &str, hint: &str) -> MenuItem {
 impl TaskScreen {
     fn new(kind: Kind, items: Vec<MenuItem>) -> Self {
         let title = items.iter().find(|i| !i.is_heading()).map(|i| i.label.to_uppercase()).unwrap_or_default();
-        Self { kind, menu: Menu::new(items), title, steps: vec![], output: vec![], result: None, busy: None, events: None, done: None, child: None, started: Instant::now() }
+        Self { kind, menu: Menu::new(items), title, steps: vec![], output: vec![], result: None, busy: None, events: None, done: None, child: None, started: Instant::now(), back: 0, exported: None }
     }
     pub fn tests() -> Self {
         Self::new(
@@ -94,7 +98,7 @@ impl TaskScreen {
                 menu_item("launch-code", "Copy a launch code", "This launcher as one code on the clipboard, with the running world if there is one, and what it carries. ./launcher launch CODE elsewhere starts the same."),
                 menu_item("config-docs", "Write config schemas and help", "Rewrite config/schema/ and each config file's _help from the settings table. Values are left as they are."),
                 heading("Maintenance"),
-                menu_item("reset", "Reset runtime data", "Delete logs, the journal, checkpoints and temporary files, and forget the setup. Maps, saved seeds and configuration are kept."),
+                menu_item("reset", "Reset runtime data", "Delete logs, the journal, checkpoints, temporary files and development and test builds (often gigabytes), and forget the setup. Maps, saved seeds, configuration and the built launcher and server are kept."),
                 menu_item("cache", "Clear the map cache", "Delete downloaded cities and Dynamic Fastboot's next world; each is downloaded again when needed. Refused while a server runs."),
             ],
         )
@@ -123,6 +127,8 @@ impl TaskScreen {
         self.title = label.to_uppercase();
         self.steps.clear();
         self.output.clear();
+        self.back = 0;
+        self.exported = None;
         self.result = None;
         self.busy = Some(label);
         self.started = Instant::now();
@@ -214,8 +220,8 @@ impl TaskScreen {
                         }
                     }
                     _ => {
-                        match crate::maintenance::reset(reporter, &paths, &[crate::maintenance::Scope::Runtime, crate::maintenance::Scope::Setup]) {
-                            Ok(()) => (true, "Runtime data cleared, and the setup forgotten. Maps, saved seeds and configuration were kept.".into()),
+                        match crate::maintenance::reset(reporter, &paths, &[crate::maintenance::Scope::Runtime, crate::maintenance::Scope::Builds, crate::maintenance::Scope::Setup]) {
+                            Ok(()) => (true, "Runtime data and build leftovers cleared, and the setup forgotten. Maps, saved seeds and configuration were kept.".into()),
                             Err(why) => (false, why),
                         }
                     }
@@ -225,6 +231,40 @@ impl TaskScreen {
         }
         self.events = Some(receiver);
         self.done = Some(done);
+    }
+
+    #[cfg(test)]
+    pub fn with_output(mut self, lines: &[&str]) -> Self {
+        self.output = lines.iter().map(|l| l.to_string()).collect();
+        self.result = Some((true, "Done.".into()));
+        self
+    }
+
+    /// What the last task said and printed, as a text file: in Downloads where there is one, else output/.
+    fn export(&mut self, ui: &Ui) -> Action {
+        if self.output.is_empty() && self.result.is_none() {
+            return Action::Toast("Run something first; there is nothing to export yet.".into(), crate::tui::theme::WARN);
+        }
+        let stamp = chrono_stamp();
+        let name = format!("dstns-{}-{}.txt", self.title.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "-").trim_matches('-'), stamp);
+        let folder = std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join("Downloads")).filter(|d| d.is_dir()).unwrap_or_else(|| ui.paths.root.join("output"));
+        let _ = std::fs::create_dir_all(&folder);
+        let path = folder.join(name);
+        let mut text = format!("{}\n{}\n\n", self.title, "=".repeat(self.title.chars().count()));
+        if let Some((ok, result)) = &self.result {
+            text += &format!("{}\n{result}\n\n", if *ok { "Done" } else { "Failed" });
+        }
+        for line in &self.output {
+            text += line;
+            text += "\n";
+        }
+        match std::fs::write(&path, text) {
+            Ok(()) => {
+                self.exported = Some(path.display().to_string());
+                Action::Toast(format!("Exported to {}", path.display()), OK)
+            }
+            Err(e) => Action::Toast(format!("{} could not be written: {e}", path.display()), ERR),
+        }
     }
 
     fn stop(&mut self) {
@@ -266,7 +306,12 @@ impl Screen for TaskScreen {
         .into()
     }
     fn keys(&self, _ui: &Ui) -> Vec<Key> {
-        vec![key("Enter", if self.kind == Kind::Presentation { "Run or stop" } else { "Run" }, "Run", true), key("Esc", "Back", "Back", true)]
+        vec![
+            key("Enter", if self.kind == Kind::Presentation { "Run or stop" } else { "Run" }, "Run", true),
+            key("PgUp/PgDn", "Scroll output", "Scroll", false),
+            key("Ctrl+S", "Export output", "Export", true),
+            key("Esc", "Back", "Back", true),
+        ]
     }
     fn state(&self) -> Option<(State, String)> {
         match (&self.busy, &self.result) {
@@ -299,15 +344,45 @@ impl Screen for TaskScreen {
             }
             None => {}
         }
-        lines.push(widgets::rule("Output", inner.width, ui.unicode));
-        let used = lines.len() as u16;
+        // The output wrapped, never cut off at the edge; the newest at the bottom, PgUp and PgDn to read back.
+        let width = inner.width.max(1) as usize;
+        let wrapped: Vec<String> = self.output.iter().flat_map(|l| { let w = widgets::wrap(l, width); if w.is_empty() { vec![String::new()] } else { w } }).collect();
+        let heading = if let Some(path) = &self.exported {
+            format!("Output · exported to {path}")
+        } else if !wrapped.is_empty() || self.result.is_some() {
+            "Output · Ctrl+S exports it".to_string()
+        } else {
+            "Output".to_string()
+        };
+        lines.push(widgets::rule(&heading, inner.width, ui.unicode));
+        let used = (lines.iter().map(|l| (l.width().max(1)).div_ceil(width)).sum::<usize>() as u16).min(inner.height);
         frame.render_widget(Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false }), inner);
         let space = inner.height.saturating_sub(used) as usize;
-        let output: Vec<Line> = self.output.iter().rev().take(space).rev().map(|l| Line::from(Span::styled(widgets::clip(l, inner.width as usize, ui.unicode), fg(TEXT2)))).collect();
-        frame.render_widget(Paragraph::new(output).wrap(ratatui::widgets::Wrap { trim: false }), Rect { y: inner.y + used, height: inner.height.saturating_sub(used), ..inner });
+        self.back = self.back.min(wrapped.len().saturating_sub(space));
+        let end = wrapped.len() - self.back;
+        let start = end.saturating_sub(space);
+        let output: Vec<Line> = wrapped[start..end].iter().map(|l| Line::from(Span::styled(l.clone(), fg(TEXT2)))).collect();
+        frame.render_widget(Paragraph::new(output), Rect { y: inner.y + used, height: inner.height.saturating_sub(used), ..inner });
+        if self.back > 0 {
+            let note = format!(" {} more below · PgDn ", self.back);
+            let w = note.chars().count() as u16;
+            frame.render_widget(Paragraph::new(Line::from(Span::styled(note, fg(MUTED)))), Rect { x: inner.x + inner.width.saturating_sub(w), y: inner.y + inner.height.saturating_sub(1), width: w.min(inner.width), height: 1 });
+        }
         let _ = MUTED;
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {
+        match event.code {
+            KeyCode::PageUp => {
+                self.back += 10;
+                return Action::None;
+            }
+            KeyCode::PageDown => {
+                self.back = self.back.saturating_sub(10);
+                return Action::None;
+            }
+            KeyCode::Char('s') if event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => return self.export(ui),
+            _ => {}
+        }
         let moved = matches!(event.code, KeyCode::Up | KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('k'));
         match self.menu.handle(&event) {
             MenuEvent::Selected(choice) => {
@@ -325,7 +400,7 @@ impl Screen for TaskScreen {
                     return Action::Push(Box::new(super::places::PlacesScreen::countries()));
                 }
                 if choice == "reset" {
-                    let listing = crate::maintenance::describe(&ui.paths, &[crate::maintenance::Scope::Runtime, crate::maintenance::Scope::Setup]).join("\n");
+                    let listing = crate::maintenance::describe(&ui.paths, &[crate::maintenance::Scope::Runtime, crate::maintenance::Scope::Builds, crate::maintenance::Scope::Setup]).join("\n");
                     return Action::Dialog(Dialog::confirm("reset", "Reset runtime data?", &format!("These will be deleted:\n{listing}"), "Reset", "Cancel"));
                 }
                 if choice == "clear" {
@@ -402,4 +477,13 @@ impl Screen for TaskScreen {
         }
         Action::Pop
     }
+}
+
+/// The local time as YYYYMMDD-HHMMSS, for file names.
+fn chrono_stamp() -> String {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    let t = now as libc::time_t;
+    unsafe { libc::localtime_r(&t, &mut tm) };
+    format!("{:04}{:02}{:02}-{:02}{:02}{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec)
 }

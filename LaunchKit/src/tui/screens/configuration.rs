@@ -30,6 +30,14 @@ pub struct ConfigurationScreen {
     notice: String,
     /// The person confirmed a change that is a risk; the next save goes ahead once.
     risk_accepted: bool,
+    /// When the settings files last changed, as read; and when that was last looked at.
+    seen: Option<std::time::SystemTime>,
+    looked: Option<std::time::Instant>,
+}
+
+/// The latest change to any of the files the settings live in.
+fn files_changed(paths: &crate::paths::Paths) -> Option<std::time::SystemTime> {
+    [paths.config(), paths.engines_config(), paths.config_dir().join("ui-config.json")].iter().filter_map(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok()).max()
 }
 
 fn editor(field: &config::Field, value: &Value) -> Editor {
@@ -40,6 +48,21 @@ fn editor(field: &config::Field, value: &Value) -> Editor {
         let mut items: Vec<(String, String, bool)> = chosen.iter().filter(|id| config::DEMO_SCENES.contains(&id.as_str())).map(|id| (id.clone(), title(id), true)).collect();
         items.extend(config::DEMO_SCENES.iter().filter(|id| !chosen.iter().any(|c| c == *id)).map(|id| (id.to_string(), title(id), false)));
         return Editor::Order { items, cursor: 0 };
+    }
+    if field.key == "map.places" {
+        // A list of countries to tick, as the demo's scenes are; places that are not countries (cities) follow, ticked.
+        let countries = crate::modules::fastboot::countries(&crate::paths::Paths::default());
+        if !countries.is_empty() {
+            let (included, excluded) = config::place_ids(&serde_json::json!({"map": {"places": value}}));
+            let mark = |id: &str| if included.iter().any(|i| i.eq_ignore_ascii_case(id)) { 1 } else if excluded.iter().any(|i| i.eq_ignore_ascii_case(id)) { 2 } else { 0 };
+            let mut items: Vec<(String, String, u8)> = countries.iter().map(|(code, name, n)| (code.clone(), format!("{name} · {n} {}", if *n == 1 { "city" } else { "cities" }), mark(code))).collect();
+            for (ids, m) in [(&included, 1u8), (&excluded, 2u8)] {
+                for id in ids.iter().filter(|id| !countries.iter().any(|(c, ..)| c.eq_ignore_ascii_case(id))) {
+                    items.push((id.clone(), "city".into(), m));
+                }
+            }
+            return Editor::Checks { items, cursor: 0, scroll: 0, rows: 10 };
+        }
     }
     if field.key.starts_with("rcs.") {
         return Editor::triple(&field.display(value), if field.key.ends_with(".memory") { "MiB" } else { "% of a core" });
@@ -86,11 +109,14 @@ impl ConfigurationScreen {
             wanted: category,
             notice: String::new(),
             risk_accepted: false,
+            seen: None,
+            looked: None,
         }
     }
 
     fn load(&mut self, ui: &Ui) {
         self.loaded = true;
+        self.seen = files_changed(&ui.paths);
         match config::load(&ui.paths) {
             Ok(value) => {
                 self.saved = value.clone();
@@ -140,7 +166,7 @@ impl ConfigurationScreen {
                 Ok(field.choices.iter().find(|(_, c)| c.to_string() == text).map(|(_, c)| c.clone()).unwrap_or(Value::Null))
             }
             Editor::Text { value, .. } => field.parse(value),
-            Editor::Order { .. } | Editor::Triple { .. } => field.parse(&row.editor.text_value()),
+            Editor::Order { .. } | Editor::Triple { .. } | Editor::Checks { .. } => field.parse(&row.editor.text_value()),
         };
         let problem = match &parsed {
             Ok(value) => config::check_field(field, value, &self.current),
@@ -207,6 +233,12 @@ impl Screen for ConfigurationScreen {
             Some(row) if matches!(row.editor, Editor::Triple { .. }) => {
                 keys.push(key(if ui.unicode { "←→" } else { "Left/Right" }, if ui.unicode { "α β γ" } else { "alpha beta gamma" }, "Cell", true));
                 keys.push(key("+ -", "Step", "Step", false));
+            }
+            Some(row) if matches!(row.editor, Editor::Checks { .. }) => {
+                keys.push(key("Space", "Choose", "Choose", true));
+                keys.push(key("-", "Leave out", "Out", false));
+                keys.push(key("Ctrl+A", "All", "All", false));
+                keys.push(key("Ctrl+D", "None", "None", false));
             }
             Some(row) if row.key == "map.places" => keys.push(key("Enter", "Choose countries", "Countries", true)),
             _ => {}
@@ -287,12 +319,13 @@ impl Screen for ConfigurationScreen {
             }
             return Action::None;
         }
-        // Places may be typed, or chosen from the list of countries.
-        if event.code == KeyCode::Enter && self.form.focused().map(|r| r.key == "map.places").unwrap_or(false) {
+        // Places as text, where the list cannot be shown (the server is not built yet): Enter opens the countries.
+        if event.code == KeyCode::Enter && self.form.focused().map(|r| r.key == "map.places" && matches!(r.editor, Editor::Text { .. })).unwrap_or(false) {
             return Action::Push(Box::new(super::places::PlacesScreen::countries()));
         }
         // A list of its own keeps the arrows while there is somewhere in it to go.
-        if self.form.focused().map(|r| r.editor.consumes(&event) || (r.editor.is_order() && event.modifiers.contains(KeyModifiers::SHIFT))).unwrap_or(false) {
+        let checks_key = matches!(event.code, KeyCode::Char('a') | KeyCode::Char('d')) && event.modifiers.contains(KeyModifiers::CONTROL);
+        if self.form.focused().map(|r| r.editor.consumes(&event) || (r.editor.is_order() && event.modifiers.contains(KeyModifiers::SHIFT)) || (checks_key && matches!(r.editor, Editor::Checks { .. }))).unwrap_or(false) {
             if let Some(key) = self.form.handle(&event) {
                 self.apply(&key);
             }
@@ -313,6 +346,19 @@ impl Screen for ConfigurationScreen {
                 if let Some(key) = self.form.handle(&event) {
                     self.apply(&key);
                 }
+            }
+        }
+        Action::None
+    }
+    fn tick(&mut self, ui: &mut Ui) -> Action {
+        // A setting changed elsewhere (the command bar, ./launcher engine add IN, another window) shows here at once,
+        // unless there are edits here not yet saved.
+        if self.loaded && !self.dirty() && self.looked.is_none_or(|t| t.elapsed() >= std::time::Duration::from_secs(1)) {
+            self.looked = Some(std::time::Instant::now());
+            if files_changed(&ui.paths) != self.seen {
+                let focus = self.form.focus;
+                self.resume(ui);
+                self.form.focus = focus.min(self.form.rows.len().saturating_sub(1));
             }
         }
         Action::None
@@ -387,7 +433,7 @@ mod tests {
         let engine = config::field("engines.selected").unwrap();
         screen.form.get_mut("engines.selected").unwrap().editor = editor(engine, &json!("core-legacy"));
         screen.apply("engines.selected");
-        assert!(matches!(screen.form.get("map.places").unwrap().editor, Editor::Text { .. }), "Places is still text");
+        assert!(matches!(screen.form.get("map.places").unwrap().editor, Editor::Text { .. } | Editor::Checks { .. }), "Places is still its list (or text before the server is built)");
         assert!(screen.notice.contains("became"), "{}", screen.notice);
     }
 }

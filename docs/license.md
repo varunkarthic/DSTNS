@@ -16,7 +16,7 @@ specification recommend.
 | Where | What it does |
 |---|---|
 | [`LICENSE`](https://github.com/varunkarthic/DSTNS/blob/main/LICENSE) | The **unmodified** AGPL-3.0 text. It must stay verbatim, so it names the Free Software Foundation as its own author. The placeholder `Copyright (C) <year> <name of author>` near its end is the licence's *template* for authors to copy, not a field to fill in |
-| [`COPYRIGHT`](https://github.com/varunkarthic/DSTNS/blob/main/COPYRIGHT) | States the holder (Copyright (C) 2026 Varun Karthic), the licence notice, and the third-party data and tools |
+| [`NOTICE`](https://github.com/varunkarthic/DSTNS/blob/main/NOTICE) | States the holder (Copyright (C) 2026 Varun Karthic), the licence notice, and the third-party data and tools |
 | Every source file | A two-line header: `SPDX-License-Identifier: AGPL-3.0-or-later` and `Copyright (C) 2026 Varun Karthic`. This keeps the licence and holder attached to a file copied out of the repository |
 | `package.json` files, README, About card | Declare the licence for package managers, readers and users of the running program |
 | `GET /api/v1/system/source` | The network source offer that AGPL section 13 requires |
@@ -47,7 +47,7 @@ script.
   you change the code.
 
 The full text is in [`LICENSE`](https://github.com/varunkarthic/DSTNS/blob/main/LICENSE)
-and the notice in [`COPYRIGHT`](https://github.com/varunkarthic/DSTNS/blob/main/COPYRIGHT).
+and the notice in [`NOTICE`](https://github.com/varunkarthic/DSTNS/blob/main/NOTICE).
 
 ## Third-party components
 

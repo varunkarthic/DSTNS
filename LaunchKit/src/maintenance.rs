@@ -9,7 +9,13 @@ use crate::reporting::{Level, Reporter};
 use std::fs;
 use std::path::PathBuf;
 
-const RUNTIME_FILES: &[&str] = &["system.log", "runtime.db", "runtime.db-wal", "runtime.db-shm"];
+const RUNTIME_FILES: &[&str] = &["system.log", "runtime.db", "runtime.db-wal", "runtime.db-shm", "global_view.json"];
+/// The narrations written so far, kept so that the same event is not narrated twice: a cache.
+const NARRATION_CACHE: &[&str] = &["narrations.db", "narrations.db-wal", "narrations.db-shm"];
+/// What builds and tests leave behind, every one made again when needed: the launcher's and CoreAI's development and
+/// test builds (the launcher that runs is the release build, which stays), screenshots from the browser tests,
+/// temporary output and the generated documentation site. These are what grow, by gigabytes, as the code changes.
+const BUILD_LEFTOVERS: &[&str] = &["LaunchKit/target/debug", "CoreAI/target/debug", "artifacts", "tmp", "site", "WebKit/node_modules/.vite", "build/Testing"];
 const RUNTIME_DIRECTORIES: &[&str] = &["checkpoints", "scenarios", "sumo_live_run"];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -23,12 +29,14 @@ pub enum Scope {
     Apps,
     /// One application's own settings, or every application's.
     AppSettings(Option<String>),
+    Builds,
 }
 
 /// Every scope by name, with what it clears, in the order a reset goes through them.
 pub const SCOPES: &[(&str, &str)] = &[
     ("runtime", "runtime logs, the journal, checkpoints, temporary scenarios and SUMO runs"),
-    ("cache", "downloaded cities, Fast Boot's cities and Dynamic Fastboot's next world"),
+    ("cache", "downloaded cities, Fast Boot's cities, Dynamic Fastboot's next world and the narrations kept"),
+    ("builds", "development and test builds, test screenshots, temporary output and the documentation site; the launcher and the server stay built"),
     ("settings", "every setting back to its default (config/defaults.json and config/ui-config.json)"),
     ("setup", "the launcher's setup, which runs again at the next start"),
     ("seeds", "saved seeds and the maps saved with them"),
@@ -39,7 +47,7 @@ pub const SCOPES: &[(&str, &str)] = &[
 
 /// What plain `reset` clears: everything but the applications and their settings.
 pub fn default_scopes() -> Vec<Scope> {
-    vec![Scope::Runtime, Scope::Cache, Scope::Settings, Scope::Setup, Scope::Seeds, Scope::Keys]
+    vec![Scope::Runtime, Scope::Cache, Scope::Builds, Scope::Settings, Scope::Setup, Scope::Seeds, Scope::Keys]
 }
 
 pub fn all_scopes() -> Vec<Scope> {
@@ -67,6 +75,7 @@ pub fn parse(words: &[String]) -> Result<Vec<Scope>, String> {
             }
             "runtime" => Scope::Runtime,
             "cache" => Scope::Cache,
+            "builds" | "build" => Scope::Builds,
             "settings" | "config" => Scope::Settings,
             "setup" => Scope::Setup,
             "seeds" => Scope::Seeds,
@@ -99,6 +108,7 @@ fn name(scope: &Scope) -> &'static str {
     match scope {
         Scope::Runtime => "runtime",
         Scope::Cache => "cache",
+        Scope::Builds => "builds",
         Scope::Settings => "settings",
         Scope::Setup => "setup",
         Scope::Seeds => "seeds",
@@ -147,6 +157,14 @@ fn reset_one(scope: &Scope, paths: &Paths) -> Result<String, String> {
             for name in RUNTIME_FILES {
                 let _ = fs::remove_file(paths.logs().join(name));
             }
+            // Every log, rotated ones too.
+            if let Ok(entries) = fs::read_dir(paths.logs()) {
+                for entry in entries.flatten() {
+                    if entry.file_name().to_string_lossy().contains(".log") {
+                        let _ = fs::remove_file(entry.path());
+                    }
+                }
+            }
             for name in RUNTIME_DIRECTORIES {
                 clear_directory(&paths.root.join("data").join(name));
             }
@@ -156,7 +174,16 @@ fn reset_one(scope: &Scope, paths: &Paths) -> Result<String, String> {
             for directory in map_cache(paths) {
                 clear_directory(&directory);
             }
+            for name in NARRATION_CACHE {
+                let _ = fs::remove_file(paths.logs().join(name));
+            }
             Ok("cities deleted; each is downloaded again when a world needs it".into())
+        }
+        Scope::Builds => {
+            for leftover in BUILD_LEFTOVERS {
+                let _ = fs::remove_dir_all(paths.root.join(leftover));
+            }
+            Ok("development and test builds, screenshots and temporary output deleted".into())
         }
         Scope::Settings => {
             let mut config = crate::config::load(paths).map_err(|e| e.message)?;
@@ -221,6 +248,7 @@ pub fn reset(reporter: &dyn Reporter, paths: &Paths, scopes: &[Scope]) -> Result
         reporter.message(Level::Error, "Nothing was reset", &why);
         return Err(why);
     }
+    let before = disk_use(&paths.root);
     let mut failed = None;
     for scope in scopes {
         let title = format!("Reset {}", name(scope));
@@ -239,14 +267,61 @@ pub fn reset(reporter: &dyn Reporter, paths: &Paths, scopes: &[Scope]) -> Result
         return Err(why);
     }
     let kept: Vec<&str> = SCOPES.iter().map(|(n, _)| *n).filter(|n| !scopes.iter().any(|s| name(s) == *n)).collect();
-    reporter.message(Level::Success, "Reset done", &if kept.is_empty() { "everything was reset".to_string() } else { format!("kept: {}", kept.join(", ")) });
+    let freed = before.saturating_sub(disk_use(&paths.root));
+    reporter.message(Level::Success, &format!("Reset done, {} freed", human_size(freed)), &if kept.is_empty() { "everything was reset".to_string() } else { format!("kept: {}", kept.join(", ")) });
     Ok(())
+}
+
+/// Bytes under a folder, not following links: what `du` counts, near enough to say what a reset freed.
+pub fn disk_use(root: &std::path::Path) -> u64 {
+    let mut total = 0;
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&dir) else { continue };
+        for entry in entries.flatten() {
+            let Ok(meta) = entry.metadata() else { continue };
+            if meta.is_dir() && !meta.file_type().is_symlink() {
+                stack.push(entry.path());
+            } else {
+                total += meta.len();
+            }
+        }
+    }
+    total
+}
+
+pub fn human_size(bytes: u64) -> String {
+    let units = ["B", "KB", "MB", "GB", "TB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit + 1 < units.len() {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 { format!("{bytes} B") } else { format!("{value:.1} {}", units[unit]) }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::reporting::Quiet;
+
+    #[test]
+    fn builds_free_what_builds_and_tests_leave_and_keep_the_launcher() {
+        let root = std::env::temp_dir().join(format!("dstns-reset-builds-{}", std::process::id()));
+        let paths = Paths::new(&root);
+        for (file, bytes) in [("LaunchKit/target/debug/incremental/x.o", 4096), ("LaunchKit/target/release/dstns-launcher", 64), ("artifacts/shot.png", 2048), ("tmp/pdfs/a.pdf", 1024), ("build/dstns_server", 64)] {
+            let path = root.join(file);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, vec![0u8; bytes]).unwrap();
+        }
+        let before = disk_use(&root);
+        reset_one(&Scope::Builds, &paths).unwrap();
+        assert_eq!(before - disk_use(&root), 4096 + 2048 + 1024, "the leftovers go");
+        assert!(root.join("LaunchKit/target/release/dstns-launcher").exists() && root.join("build/dstns_server").exists(), "the launcher and the server stay");
+        assert_eq!(human_size(3 * 1024 * 1024), "3.0 MB");
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn scopes_are_named_and_combine() {

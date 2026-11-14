@@ -56,7 +56,7 @@ curl -s http://localhost:8090/api/v1/system/info
 variant. The API's `build` object adds revision, created time, channel, build type
 and architecture alongside its compiler and C++ standard. Plain local builds
 report channel `local` and unknown revision/time unless supplied explicitly.
-`LICENSE` and `COPYRIGHT` are bundled at `/app/`.
+`LICENSE` and `NOTICE` are bundled at `/app/`.
 
 ### Compose image selection and local builds
 
@@ -134,7 +134,7 @@ API from one port. The gateway is optional and only terminates TLS.
 ├── WebKit/dist/                 the observer bundle
 ├── config/                         defaults.json, ui-config.json
 ├── build-info.json                 version, revision, platform and component metadata
-├── LICENSE, COPYRIGHT              licence and developer attribution
+├── LICENSE, NOTICE                 licence and developer attribution
 ├── data/fixtures/real_network.osm.xml   offline district
 ├── data/maps/        (volume)      map cache
 └── logs/             (volume)      system.log, runtime.db, operator.token

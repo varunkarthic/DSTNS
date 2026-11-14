@@ -69,13 +69,27 @@ export function AboutCard({
 }) {
   const [system, setSystem] = useState<Awaited<ReturnType<typeof api.systemInfo>> | null>(null);
   const [policy, setPolicy] = useState<{ default?: string; engines?: Record<string, { enabled?: boolean }> } | null>(null);
+  const [manifest, setManifest] = useState<NonNullable<Awaited<ReturnType<typeof api.manifest>>>["data"] | null>(null);
+  // Read while the card is open, every few seconds: a server restarted on a new version, its uptime and memory, and
+  // the engine policy show as they are, not as they were when it opened.
   useEffect(() => {
-    let cancelled=false;
-    void api.systemInfo().then((info) => { if(!cancelled && typeof info?.version === "string")setSystem(info); }).catch(() => {});
-    void api.enginePolicy().then((answer) => { if(!cancelled && answer?.data?.config)setPolicy(answer.data.config); }).catch(() => {});
-    return () => { cancelled=true; };
+    let cancelled = false;
+    const read = () => {
+      void api.systemInfo().then((info) => { if (!cancelled && typeof info?.version === "string") setSystem(info); }).catch(() => {});
+      void api.enginePolicy().then((answer) => { if (!cancelled && answer?.data?.config) setPolicy(answer.data.config); }).catch(() => {});
+    };
+    read();
+    const timer = window.setInterval(read, 5000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
-  const running = status?.data.engine_identity?.id;
+  const runId = status?.run_id;
+  useEffect(() => {
+    let cancelled = false;
+    if (!runId) { setManifest(null); return; }
+    void api.manifest().then((answer) => { if (!cancelled) setManifest(answer?.data ?? null); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [runId]);
+  const running = status?.data.engine_identity;
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -90,6 +104,13 @@ export function AboutCard({
       setCopied(false);
     }
   };
+  const serverVersion = system?.version ?? "…";
+  const api_ = status?.api_version ?? "…";
+  const selection = manifest?.map_selection;
+  const places = selection ? [...(selection.countries ?? []), ...(selection.cities ?? [])].join(", ") : "";
+  const build = system?.build;
+  const proc = system?.process;
+  const known = (value?: string) => (value && value !== "unknown" ? value : null);
   return (
     <Dialog onClose={onClose} labelledBy="about-title" closing={closing} className="about-dialog" figure="city">
       <header className="about-hero">
@@ -98,7 +119,14 @@ export function AboutCard({
           <Icon name="close" size={16} />
         </button>
         <h2 id="about-title" className="about-title">Deterministic Spatiotemporal Transport Network Simulator</h2>
-        <p className="about-byline">Version {version} · © 2026 Varun Karthic · AGPL-3.0-or-later</p>
+        {/* The server's own version, as it reports it now: the one that runs, whatever this page was built with. */}
+        <dl className="about-versions" aria-label="Versions">
+          <div><dt>Server</dt><dd className="mono">{serverVersion}</dd></div>
+          <div><dt>API</dt><dd className="mono">{api_}</dd></div>
+          <div><dt>Observer</dt><dd className="mono">{version}</dd></div>
+          {running && <div><dt>Engine</dt><dd className="mono">{running.id} {running.version}</dd></div>}
+        </dl>
+        <p className="about-byline">© 2026 Varun Karthic · AGPL-3.0-or-later</p>
         <nav className="about-links" aria-label="Links">
           <a href="https://github.com/varunkarthic/DSTNS" target="_blank" rel="noreferrer noopener"><Icon name="github" size={16} />GitHub</a>
           <a href="https://dstns.readthedocs.io/" target="_blank" rel="noreferrer noopener"><Icon name="book" size={16} />Documentation</a>
@@ -111,8 +139,8 @@ export function AboutCard({
         <h3>This run</h3>
         <dl className="about-facts">
           <div>
-            <dt>Simulating</dt>
-            <dd>{location?.city ? `${location.city}, ${location.country}` : status?.run_id ? "Pinned map" : "No run"}</dd>
+            <dt>Location</dt>
+            <dd>{location?.city ? `${location.city}, ${location.country}` : status?.run_id ? "Pinned map file" : "No run"}</dd>
           </div>
           <div>
             <dt>Seed</dt>
@@ -125,89 +153,104 @@ export function AboutCard({
               )}
             </dd>
           </div>
-          <div><dt>Lifecycle</dt><dd>{status?.data.lifecycle || "Unavailable"}</dd></div>
+          <div className="wide"><dt>Seed (hex)</dt><dd className="mono">{seedHex(seed)}</dd></div>
+          <div><dt>Lifecycle</dt><dd className="mono">{status?.data.lifecycle || "Unavailable"}</dd></div>
           <div>
             <dt>Engine</dt>
             <dd className="about-engine">
-              {status?.data.engine_identity ? (
+              {running ? (
                 <>
-                  <span>{status.data.engine_identity.id} {status.data.engine_identity.version}</span>
-                  <Badge tone={status.data.engine_identity.channel === "stable" ? "ok" : "warn"}>{channelName(status.data.engine_identity.channel)}</Badge>
+                  <span className="mono">{running.id} {running.version}</span>
+                  <Badge tone={running.channel === "stable" ? "ok" : "warn"}>{channelName(running.channel)}</Badge>
                 </>
               ) : "No run"}
             </dd>
           </div>
-          <div className="wide"><dt>Network</dt><dd>{topology ? `${topology.nodes.length.toLocaleString()} nodes · ${topology.edges.length.toLocaleString()} edges · ${topology.features.length.toLocaleString()} places` : "Unavailable"}</dd></div>
-          <div className="advanced-only"><dt>Coordinates</dt><dd className="mono">{topology?.location?.city ? `${topology.location.anchor_lat.toFixed(4)}, ${topology.location.anchor_lon.toFixed(4)}` : "Unavailable"}</dd></div>
-          <div className="advanced-only"><dt>Run</dt><dd className="mono">{status?.run_id || "No run"}</dd></div>
-          <div className="advanced-only wide"><dt>Graph hash</dt><dd className="mono">{topology?.graph_hash || "Unavailable"}</dd></div>
-          <div className="advanced-only"><dt>Map source</dt><dd>{topology?.source || "Unavailable"}</dd></div>
-          <div className="advanced-only"><dt>Map selection</dt><dd>{topology?.map_selection_version || "Unavailable"}</dd></div>
+          <div><dt>Selection policy</dt><dd className="mono">{selection?.policy || topology?.map_selection_version || "Unavailable"}</dd></div>
+          <div><dt>Selection mode</dt><dd>{selection?.mode ? `${selection.mode}${places ? ` (${places})` : ""}` : "Unavailable"}</dd></div>
+          <div className="wide"><dt>Policy fingerprint</dt><dd className="mono">{selection?.fingerprint || "Unavailable"}</dd></div>
+          <div className="wide"><dt>Network</dt><dd className="mono">{topology ? `${topology.nodes.length.toLocaleString()} junctions · ${topology.edges.length.toLocaleString()} edges · ${topology.features.length.toLocaleString()} places` : "Unavailable"}</dd></div>
+          <div><dt>Map source</dt><dd>{topology?.source || "Unavailable"}</dd></div>
+          <div><dt>Anchor</dt><dd className="mono">{topology?.location?.city ? `${topology.location.anchor_lat.toFixed(5)}, ${topology.location.anchor_lon.toFixed(5)}` : "Unavailable"}</dd></div>
+          <div className="wide"><dt>Run</dt><dd className="mono">{status?.run_id || "No run"}</dd></div>
+          <div className="wide"><dt>Graph hash</dt><dd className="mono">{topology?.graph_hash || "Unavailable"}</dd></div>
+          <div className="wide advanced-only"><dt>Scenario hash</dt><dd className="mono">{manifest?.scenario_hash || "Unavailable"}</dd></div>
+          <div className="wide advanced-only"><dt>Event hash</dt><dd className="mono">{manifest?.event_hash || "Unavailable"}</dd></div>
+          <div className="wide advanced-only"><dt>Map hash</dt><dd className="mono">{manifest?.map_hash || "Unavailable"}</dd></div>
         </dl>
       </section>
 
       <section className="about-section">
-        <h3>Built to be built on</h3>
+        <h3>Engines</h3>
+        {system?.engine_catalogue?.length ? (
+          <ul className="about-engine-list">
+            {[...system.engine_catalogue]
+              // The default first, then the rest by name.
+              .sort((a, b) => Number(b.id === policy?.default) - Number(a.id === policy?.default) || a.id.localeCompare(b.id))
+              .map((engine) => {
+                const off = policy?.engines?.[engine.id]?.enabled === false;
+                const role = engine.id === running?.id ? "Running this world" : engine.id === policy?.default ? "Default" : off ? "Disabled" : "Available";
+                return (
+                  <li key={engine.id} className={off ? "off" : undefined}>
+                    <span className="about-engine-name mono">{engine.id}</span>
+                    <span className="about-engine-version mono">{engine.version}</span>
+                    <Badge tone={engine.channel === "stable" ? "ok" : "warn"}>{channelName(engine.channel)}</Badge>
+                    <span className="about-engine-role">{role}</span>
+                    <span className="about-engine-detail">{engine.type === "delegating" ? "Delegating" : "Standalone"} · owns {engine.owns.length ? engine.owns.join(", ") : "nothing yet"}</span>
+                  </li>
+                );
+              })}
+          </ul>
+        ) : <p className="about-fineprint">Unavailable</p>}
+      </section>
+
+      <section className="about-section">
+        <h3>Server</h3>
+        <dl className="about-facts">
+          <div><dt>Version</dt><dd className="mono">{serverVersion}</dd></div>
+          <div><dt>Channel</dt><dd className="mono">{build?.channel || "Unavailable"}</dd></div>
+          <div><dt>Revision</dt><dd className="mono">{known(build?.revision) ?? "Local build"}</dd></div>
+          <div><dt>Built</dt><dd className="mono">{known(build?.created) ?? "Local build"}</dd></div>
+          <div><dt>Architecture</dt><dd className="mono">{build?.architecture || "Unavailable"}</dd></div>
+          <div><dt>C++ standard</dt><dd className="mono">{typeof build?.cpp_standard === "number" ? cppStandard(build.cpp_standard) : "Unavailable"}</dd></div>
+          <div className="wide"><dt>Compiler</dt><dd className="mono">{build?.compiler || "Unavailable"}</dd></div>
+          <div><dt>Process</dt><dd className="mono">{typeof proc?.pid === "number" ? `pid ${proc.pid}` : "Unavailable"}</dd></div>
+          <div><dt>Uptime</dt><dd className="mono">{typeof proc?.uptime_s === "number" ? formatWallDuration(proc.uptime_s * 1000) : "Unavailable"}</dd></div>
+          <div><dt>Memory</dt><dd className="mono">{typeof proc?.rss_bytes === "number" ? `${formatBytes(proc.rss_bytes)} (peak ${formatBytes(proc.peak_rss_bytes ?? proc.rss_bytes)})` : "Unavailable"}</dd></div>
+          <div><dt>Processor time</dt><dd className="mono">{typeof proc?.cpu_s === "number" ? `${proc.cpu_s.toFixed(1)} s` : "Unavailable"}</dd></div>
+          <div><dt>API contract</dt><dd className="mono">{api_}</dd></div>
+          <div><dt>Observer</dt><dd className="mono">{version}</dd></div>
+        </dl>
+      </section>
+
+      <section className="about-section">
+        <h3>Integrations</h3>
+        <dl className="about-facts">
+          <div>
+            <dt>SUMO adapter</dt>
+            <dd>{system?.sumo?.enabled === false ? <Badge>Disabled</Badge> : system?.sumo?.available ? <Badge tone="ok">{system.sumo.version || "Available"}</Badge> : <Badge>{system ? "Not installed" : "Unavailable"}</Badge>}</dd>
+          </div>
+          <div>
+            <dt>Realistic News</dt>
+            <dd>{narratorBadge ? <Badge tone="warn">{narratorBadge}</Badge> : <Badge tone="ok">Available</Badge>}</dd>
+          </div>
+        </dl>
         <div className="subsystem-cards">
           <article className="subsystem-card">
             <BrandLogo name="fabric" height={18} />
             <p>
-              The layer through which everything reaches the simulator. Every program talks to DSTNS through one documented API, which
-              keeps working as the engine beneath it changes.
+              The layer through which everything reaches the simulator: one documented HTTP API (/api/v1), which keeps working as the
+              engine beneath it changes.
             </p>
           </article>
           <article className="subsystem-card">
             <BrandLogo name="webfabric" height={18} />
             <p>
-              Lets independent applications, such as a bus network planner, appear here beside the simulation. They register themselves,
-              ask for what they need, and you decide what they may do in Settings.
+              Independent applications, such as a bus network planner, beside the simulation. They register, ask for the
+              permissions they need, and you decide what they may do in Settings.
             </p>
           </article>
         </div>
-        <p className="about-fineprint">Fabric and WebFabric are DSTNS subsystems, © 2026 Varun Karthic, under the same licence.</p>
-      </section>
-
-      <section className="about-section">
-        <h3>The system</h3>
-        <dl className="about-facts">
-          <div><dt>Server</dt><dd>{system?.version || "Unavailable"}</dd></div>
-          <div><dt>Interface</dt><dd>{version}</dd></div>
-          <div><dt>API</dt><dd>{status?.api_version || "Unavailable"}</dd></div>
-          <div>
-            <dt>SUMO adapter</dt>
-            <dd>{system?.sumo?.enabled === false ? <Badge>Disabled</Badge> : system?.sumo?.available ? <Badge tone="ok">{system.sumo.version || "Available"}</Badge> : <Badge>{system ? "Not installed" : "Unavailable"}</Badge>}</dd>
-          </div>
-          <div className="wide">
-            <dt>Engines installed</dt>
-            <dd>
-              {system?.engine_catalogue?.length ? (
-                <ul className="about-engine-list">
-                  {[...system.engine_catalogue]
-                    // The default first, then the rest by name.
-                    .sort((a, b) => Number(b.id === policy?.default) - Number(a.id === policy?.default) || a.id.localeCompare(b.id))
-                    .map((engine) => {
-                      const off = policy?.engines?.[engine.id]?.enabled === false;
-                      const role = engine.id === running ? "Running this world" : engine.id === policy?.default ? "Default" : off ? "Disabled" : "Available";
-                      return (
-                        <li key={engine.id} className={off ? "off" : undefined}>
-                          <span className="about-engine-name mono">{engine.id}</span>
-                          <span className="about-engine-version mono">{engine.version}</span>
-                          <Badge tone={engine.channel === "stable" ? "ok" : "warn"}>{channelName(engine.channel)}</Badge>
-                          <span className="about-engine-role">{role}</span>
-                        </li>
-                      );
-                    })}
-                </ul>
-              ) : "Unavailable"}
-            </dd>
-          </div>
-          <div className="wide">
-            <dt>Realistic News</dt>
-            <dd>{narratorBadge ? <Badge tone="warn">{narratorBadge}</Badge> : <Badge tone="ok">Available</Badge>}</dd>
-          </div>
-          <div className="advanced-only wide"><dt>C++ standard</dt><dd>{typeof system?.build?.cpp_standard === "number" ? cppStandard(system.build.cpp_standard) : "Unavailable"}</dd></div>
-          <div className="advanced-only wide"><dt>Compiler</dt><dd>{typeof system?.build?.compiler === "string" ? system.build.compiler : "Unavailable"}</dd></div>
-        </dl>
       </section>
 
       <section className="about-section about-licence" aria-label="Licence and attribution">
@@ -224,6 +267,16 @@ export function AboutCard({
       </div>
     </Dialog>
   );
+}
+
+/** A decimal seed as the 128-bit hexadecimal the engine works with. */
+function seedHex(seed?: string): string {
+  if (!seed || !/^[0-9]+$/.test(seed)) return "Unavailable";
+  try {
+    return `0x${BigInt(seed).toString(16).padStart(32, "0")}`;
+  } catch {
+    return "Unavailable";
+  }
 }
 
 /**

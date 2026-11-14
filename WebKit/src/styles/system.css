@@ -2215,8 +2215,6 @@
 .engine-gate-actions .btn { max-width: 100%; white-space: normal; text-align: center; }
 .engine-gate-footnote { flex: 1 1 220px; min-width: 0; font-size: 11.5px; color: var(--text-faint); }
 .engine-gate-spacer { flex: 1; }
-.engine-notice { position: fixed; left: 16px; bottom: 16px; z-index: 900; display: flex; gap: 10px; align-items: center; padding: 10px 14px; border: 1px solid var(--well-line); border-radius: 14px; background: var(--surface-solid); box-shadow: 0 10px 30px rgb(0 0 0 / 30%); }
-.engine-notice-dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--ok-rgb)); }
 @media (max-width: 760px) { .engine-gate-grid { grid-template-columns: minmax(0, 1fr); } .dialog.engine-gate { padding: 22px 20px 16px; } }
 .reduce-motion .dialog.engine-gate { transition: opacity 160ms linear; transform: none !important; }
 .high-contrast .dialog.engine-gate { border-width: 3px; }

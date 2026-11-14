@@ -1023,7 +1023,8 @@ describe("dialogs and suspension", () => {
     const dialog = await screen.findByRole("dialog", { name: /Deterministic Spatiotemporal Transport Network Simulator/ });
     expect(dialog).toHaveTextContent("Varun Karthic");
     expect(dialog).toHaveTextContent(/Affero General Public License/);
-    expect(dialog).toHaveTextContent(/Version \d+\.\d+\.\d+/);
+    // The versions under the name: the server's as it reports itself, the observer's own.
+    expect(dialog).toHaveTextContent(/Observer\s*\d+\.\d+\.\d+/);
     expect(screen.queryByRole("link", { name: /Source offer/ })).toBeNull();
     expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute("href", "https://github.com/varunkarthic/DSTNS");
     expect(screen.getByRole("link", { name: "Documentation" })).toHaveAttribute("href", "https://dstns.readthedocs.io/");
@@ -1034,7 +1035,7 @@ describe("dialogs and suspension", () => {
     expect(licence).toHaveTextContent(/Open Database License/);
     expect(within(dialog).getByRole("button", { name: "Copy seed" })).toBeInTheDocument();
     expect(dialog).toHaveTextContent("Berlin, Germany");
-    expect(dialog).toHaveTextContent("52.5050, 13.4235");
+    expect(dialog).toHaveTextContent("52.50500, 13.42350");
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Deterministic Spatiotemporal/ })).not.toBeInTheDocument());
   });

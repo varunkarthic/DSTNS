@@ -14,6 +14,53 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.13.2] - 2026-11-14
+
+**Engine 3.13.2 (core-ng 1.2.1), launcher 3.14.0, observer 3.7.0, API contract 1.13.** Results for every seed are
+unchanged.
+
+### Added
+
+- **Places as a list in the launcher.** Configuration, Engine, Places is a list of every country with its code and
+  number of cities, ticked as the Demo page's scenes are:
+  - Space chooses a country, `-` leaves one out, Ctrl+A chooses all and Ctrl+D clears.
+  - Cities named in Places stay in the list, ticked.
+  - The start page shows Places, read-only, and offers only enabled engines.
+- **Places from the command bar and the command line:** `engine add IN AE`, `engine add -PK`, `engine del IN`,
+  `engine add all` and `engine del all`, and the same after `places`. Anything but every place moves to core-ng. The
+  Configuration page shows a change made elsewhere at once.
+- **Tools' output can be exported**: Ctrl+S writes what a tool said and printed to a text file in Downloads (or
+  `output/`). The output wraps instead of being cut off at the edge, and PgUp and PgDn scroll it.
+- **An engine's new version in the notifications.** Once the interface has loaded, it is in the tray at the bottom
+  left, as every other notice is, with the version before and after and what changed. It no longer appears as a
+  pop-up of its own.
+
+### Changed
+
+- **Reset frees the space that grows.** A new `builds` scope, part of a plain `reset`, deletes the development and test
+  builds (`LaunchKit/target/debug` alone grows by gigabytes as the code changes), test screenshots (`artifacts/`),
+  `tmp/` and the generated documentation site. The launcher and the server stay built.
+  - `runtime` now deletes every log, rotated ones too, and the server's view dump.
+  - `cache` now deletes the narrations kept.
+  - A reset says how much it freed.
+- **About** is more technical:
+  - The versions under the name are the server's, the API's, the observer's and the running engine's, read from the
+    server every few seconds, so a server restarted on a new version shows it.
+  - This run gives the seed in hexadecimal, the selection policy, mode and fingerprint, the anchor, and the
+    scenario, event and map hashes.
+  - Engines lists what each one owns.
+  - Server gives the channel, revision, build, architecture, compiler, process, uptime, memory and processor time.
+- A request the server refuses (a 4xx: a bad request, or one the run's state does not allow at that moment) is logged
+  as a warning, not an error. Only a 5xx is an error.
+- `COPYRIGHT` is now `NOTICE`. GitHub took both it and `LICENSE` for licences, and showed two licence tabs.
+
+### Stress test
+
+Four clients sent 2,000 random requests at once against one world: seeks, speeds, pause and play, steps, storms,
+traffic, surges, road overrides, undo and redo, snapshots and new worlds. The server stayed healthy and answered no
+request with a 5xx. Memory levelled off at about 400 MiB. Every refusal was one the API documents (a step during a
+jump, a new world while one is being made).
+
 ### Launcher 3.13.0 and API contract 1.13 (with engine 3.13.1)
 
 The engine is unchanged, and so are results for every seed.

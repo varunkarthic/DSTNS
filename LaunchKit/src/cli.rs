@@ -122,6 +122,8 @@ pub fn parse(argv: &[String]) -> Result<Arguments> {
                     _ => args.run.apps = value,
                 }
             }
+            // A place left out: -IN or -mumbai after `engine add`, `places` and the like, not an option.
+            _ if arg.starts_with('-') && !arg.starts_with("--") && arg.len() > 2 && arg[1..].chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ',') && matches!(positional.first().map(String::as_str), Some("engine") | Some("places")) => positional.push(arg.to_string()),
             _ if arg.starts_with('-') && !(positional.first().map(|c| c == "config").unwrap_or(false) && positional.len() >= 3) => {
                 return Err(LauncherError::config(format!("Unknown option: {arg}")).remedy("./launcher help lists every option."));
             }
@@ -167,6 +169,7 @@ Commands
                          Edit config/defaults.json; or read or change one setting
   engine [use|enable|disable NAME | auto-switch offer|off]
                          Show the engines and their policy, or change it (config/engines.json)
+  engine add|del CODE... Tick or untick places: IN, -IN (all but India), mumbai, or all
   places [IN, AE | mumbai | -IN | all]
                          Show or set where worlds may be
   countries [FILTER]     List the countries worlds can be in, with their codes
@@ -178,7 +181,7 @@ Commands
 {modules}
   reset [SCOPE...] [--yes]
                          Reset everything but connected applications and their settings. Scopes:
-                         all, runtime, cache, settings, setup, seeds, keys, apps, app-settings [ID]
+                         all, runtime, cache, builds, settings, setup, seeds, keys, apps, app-settings [ID]
   version                Show the version of every part: launcher, server, API, observer and engines
   help, license
 
@@ -406,7 +409,7 @@ fn set_setting(context: &Context, key: &str, text: &str) -> Result<i32> {
 
 /// `./launcher engine`: the engines and their policy, or one change to it.
 fn command_engine(context: &Context) -> Result<i32> {
-    let usage = || LauncherError::config("Usage: ./launcher engine [use NAME | enable NAME | disable NAME | auto-switch offer|off]").remedy(format!("Engines: {}.", config::ENGINES.join(", ")));
+    let usage = || LauncherError::config("Usage: ./launcher engine [use NAME | enable NAME | disable NAME | auto-switch offer|off | add CODE... | del CODE...]").remedy(format!("Engines: {}.", config::ENGINES.join(", ")));
     let name = || -> Result<String> {
         let name = context.args.item.clone().ok_or_else(usage)?;
         if !config::ENGINES.contains(&name.as_str()) {
@@ -435,12 +438,61 @@ fn command_engine(context: &Context) -> Result<i32> {
             set_setting(context, &format!("engines.engines.{name}.enabled"), "false")
         }
         Some("auto-switch") => set_setting(context, "engines.auto_switch", &context.args.item.clone().ok_or_else(usage)?),
+        Some("add") | Some("del") | Some("delete") | Some("remove") => change_places(context),
         Some(_) => Err(usage()),
     }
 }
 
+/// `engine add IN AE`, `engine add -PK`, `engine del IN`, `engine add all`, `engine del all` (and the same after
+/// `places`): Places one country or city at a time, as ticking them in the launcher's list does.
+fn change_places(context: &Context) -> Result<i32> {
+    let adding = context.args.topic.as_deref() == Some("add");
+    let words: Vec<String> = context.args.item.iter().chain(context.args.extra.iter()).flat_map(|w| w.split(',').map(|p| p.trim().to_string()).collect::<Vec<_>>()).filter(|w| !w.is_empty()).collect();
+    if words.is_empty() {
+        return Err(LauncherError::config(format!("Usage: ./launcher engine {} CODE... (IN, -IN for all but India, a city such as mumbai, or all)", if adding { "add" } else { "del" })));
+    }
+    let current = config::load(&context.paths)?;
+    let (mut included, mut excluded) = config::place_ids(&current);
+    let countries = crate::modules::fastboot::countries(&context.paths);
+    for word in &words {
+        if word.eq_ignore_ascii_case("all") {
+            included.clear();
+            excluded.clear();
+            if adding {
+                // Every country ticked, as Ctrl+A does in the list.
+                included = countries.iter().map(|(code, ..)| code.clone()).collect();
+            }
+            continue;
+        }
+        let (out, id) = match word.strip_prefix('-') {
+            Some(rest) => (true, rest.trim().to_string()),
+            None => (false, word.clone()),
+        };
+        let id = if id.len() == 2 { id.to_uppercase() } else { id.to_lowercase().replace(' ', "-") };
+        if id.len() == 2 && !countries.is_empty() && !countries.iter().any(|(code, ..)| *code == id) {
+            return Err(LauncherError::config(format!("No city in the catalogue is in {id}.")).remedy("./launcher countries lists the codes."));
+        }
+        included.retain(|i| *i != id);
+        excluded.retain(|i| *i != id);
+        if adding {
+            if out { excluded.push(id) } else { included.push(id) }
+        }
+    }
+    let mut parts = included;
+    parts.extend(excluded.into_iter().map(|id| format!("-{id}")));
+    let text = if parts.is_empty() { "all".to_string() } else { parts.join(", ") };
+    if text != "all" && config::setting(&current, "engines.selected") != json!("core-ng") {
+        set_setting(context, "engines.selected", "core-ng")?;
+    }
+    set_setting(context, "map.selection_mode", "global")?;
+    set_setting(context, "map.places", &text)
+}
+
 /// `./launcher places`: where worlds may be; `places IN, AE`, `places -IN` or `places all` changes it.
 fn command_places(context: &Context) -> Result<i32> {
+    if matches!(context.args.topic.as_deref(), Some("add") | Some("del") | Some("delete") | Some("remove")) {
+        return change_places(context);
+    }
     let words: Vec<String> = context.args.topic.iter().chain(context.args.item.iter()).chain(context.args.extra.iter()).cloned().collect();
     if words.is_empty() {
         let current = config::load(&context.paths)?;

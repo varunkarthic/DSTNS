@@ -39,7 +39,7 @@ import { useSteadyStatus } from "./simulation/useSteadyStatus";
 import { RATES, rateIndexOf } from "./panels/CommandRail";
 import type { ISDCondition } from "./notifications/ISDHandler";
 import { Tutorial } from "./tutorial/Tutorial";
-import { EngineGate } from "./panels/EngineGate";
+import { EngineGate, useEngineUpdateNotes } from "./panels/EngineGate";
 import { localiseNames } from "./core/labelLanguage";
 import { useTutorial } from "./tutorial/useTutorial";
 import { NotificationCapsule } from "./notifications/NotificationCapsule";
@@ -99,7 +99,7 @@ import "./CoreMotion/motion.css";
 import "./styles/webfabric.css";
 import "./styles/design.css";
 
-export const VERSION = "3.6.0";
+export const VERSION = "3.7.0";
 
 const DECK_KEY = "dstns.telemetry-mode.v1";
 
@@ -624,7 +624,9 @@ export default function App() {
   const isdNotes = useISDNotifications(intentional, { requested: requestedRate, applied: appliedRate }, virtual);
   // Once the day has ended nothing more is happening in it, so its events stop too.
   const dayOver = lifecycle === "COMPLETED";
-  const notifications = useMemo(() => [...isdNotes, ...(dayOver ? [] : buildNotifications(sim.toasts, sim.topology)), ...fabricNotes.notes, ...daemonNotes.notes], [isdNotes, dayOver, sim.toasts, sim.topology, fabricNotes.notes, daemonNotes.notes]);
+  // A new version of the running engine, once the interface is ready: in the tray, as everything else is.
+  const engineNotes = useEngineUpdateNotes(configLoaded, status?.engine_identity ?? null, virtual);
+  const notifications = useMemo(() => [...isdNotes, ...engineNotes, ...(dayOver ? [] : buildNotifications(sim.toasts, sim.topology)), ...fabricNotes.notes, ...daemonNotes.notes], [isdNotes, engineNotes, dayOver, sim.toasts, sim.topology, fabricNotes.notes, daemonNotes.notes]);
   const policy = useMemo(
     () => ({
       enabled: config.notifications.enabled,
@@ -1285,7 +1287,7 @@ export default function App() {
       <TimeFormatProvider hour12={hour12} onToggle={toggleHour12}>
         <ViewportNotice width={viewport.width} height={viewport.height} reduceMotion={reduceMotion} />
         {/* A held run waits for an answer whatever the window's size: the gate is asked here too. */}
-        <EngineGate ready={configLoaded} running={status?.engine_identity ?? null} onOpenChange={setGateOpen} />
+        <EngineGate ready={configLoaded} onOpenChange={setGateOpen} />
       </TimeFormatProvider>
     );
   }
@@ -1724,7 +1726,7 @@ export default function App() {
           onTarget={setTutorialTarget}
         />
       )}
-      <EngineGate ready={configLoaded && (filmSeen || !forceAnimate || reduceMotion)} running={status?.engine_identity ?? null} onOpenChange={setGateOpen} />
+      <EngineGate ready={configLoaded && (filmSeen || !forceAnimate || reduceMotion)} onOpenChange={setGateOpen} />
     </TimeFormatProvider>
     </BindingsContext.Provider>
     </AdvancedContext.Provider>

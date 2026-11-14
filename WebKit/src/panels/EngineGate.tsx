@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Dialog } from "../components/Dialog";
 import { Icon } from "../components/Icons";
 import { GateParticles } from "./GateParticles";
 import { api } from "../core/api";
 import type { EngineApproval, EngineIdentity } from "../core/types";
+import type { UiNotification } from "../core/notificationModel";
 
 /**
  * The unstable-engine gate (docs/design/engine-governance.md), as a person meets it.
@@ -50,11 +51,62 @@ export function engineLabel(engine: EngineIdentity) {
   return `${engine.id} ${engine.version} · ${channelName(engine.channel)} · ${engine.type === "delegating" ? "delegating engine" : "standalone engine"}`;
 }
 
-export function EngineGate({ ready, running, onOpenChange }: {
+/** How long the notice of an engine's new version stays in the tray, if nothing has opened it. */
+export const ENGINE_UPDATE_DWELL_MS = 20000;
+
+/**
+ * A stable engine's new version, announced once in the notifications at the bottom left, as everything else the
+ * system has to say is, once the interface is ready: the version before and after, and what changed.
+ */
+export function engineUpdateNotification(engine: EngineIdentity, previous: string, virtual: number): UiNotification {
+  return {
+    id: `engine-update:${engine.id}@${engine.version}`,
+    newsIds: [],
+    type: "ENGINE_UPDATED",
+    category: "system",
+    severity: "info",
+    timestamp: virtual,
+    startedAt: virtual,
+    title: `${engine.id} updated to ${engine.version}`,
+    summary: sentence(engine.changes[0]?.replace(/^[0-9.]+(?: \([a-z]+\))?: /, "")) ?? `${engine.id} ${engine.version} runs this world.`,
+    details: [
+      { label: "Version", value: `${previous} → ${engine.version}` },
+      ...engine.changes.slice(0, 3).map((change) => ({ label: change.split(":")[0], value: change.slice(change.indexOf(":") + 1).trim() })),
+    ],
+    technical: [
+      { label: "Engine", value: engine.id },
+      { label: "Channel", value: channelName(engine.channel) },
+      { label: "Type", value: engine.type === "delegating" ? "Delegating" : "Standalone" },
+    ],
+    count: 1,
+  };
+}
+
+/** A change note as a sentence: its first letter capitalised. */
+function sentence(text?: string): string | undefined {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : undefined;
+}
+
+/** The notice of a new version of the running engine, while it is in the tray. */
+export function useEngineUpdateNotes(ready: boolean, running: EngineIdentity | null | undefined, virtual: number): UiNotification[] {
+  const [note, setNote] = useState<UiNotification | null>(null);
+  useEffect(() => {
+    if (!ready || !running || running.channel !== "stable") return;
+    const previous = seenVersion(running.id);
+    if (previous === running.version) return;
+    rememberVersion(running);
+    // The first engine this browser has seen is not news; a new version of one it has is.
+    if (previous === null) return;
+    setNote(engineUpdateNotification(running, previous, virtual));
+    const timer = window.setTimeout(() => setNote(null), ENGINE_UPDATE_DWELL_MS);
+    return () => window.clearTimeout(timer);
+  }, [ready, running?.id, running?.version]); // eslint-disable-line react-hooks/exhaustive-deps
+  return useMemo(() => (note ? [note] : []), [note]);
+}
+
+export function EngineGate({ ready, onOpenChange }: {
   /** The interface is ready (and its start-up film has played where it plays): the question may be asked. */
   ready: boolean;
-  /** The engine of the running world, for the notice of a new stable version. */
-  running?: EngineIdentity | null;
   /** Whether the gate is on screen, so the tour and notifications can wait. */
   onOpenChange: (open: boolean) => void;
 }) {
@@ -63,7 +115,6 @@ export function EngineGate({ ready, running, onOpenChange }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showChanges, setShowChanges] = useState(false);
-  const [notice, setNotice] = useState<EngineIdentity | null>(null);
   // forming: the particles gather onto the box; open; leaving: the box gives way to them.
   const [phase, setPhase] = useState<"forming" | "open" | "leaving">("forming");
   const decidedId = useRef("");
@@ -102,19 +153,6 @@ export function EngineGate({ ready, running, onOpenChange }: {
     setShowChanges(seenVersion(waiting.engine.id) !== waiting.engine.version && window.innerHeight >= 780);
   }, [waiting?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // A stable engine's new version: one notice, needing no answer.
-  useEffect(() => {
-    if (!ready || !running || running.channel !== "stable") return;
-    if (seenVersion(running.id) === running.version) return;
-    const previous = seenVersion(running.id);
-    rememberVersion(running);
-    if (previous !== null) setNotice(running);
-  }, [ready, running?.id, running?.version]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(null), 12000);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
 
   const decide = useCallback(async (decision: "accept" | "reject", then = "", engine = "") => {
     if (!waiting) return;
@@ -143,13 +181,6 @@ export function EngineGate({ ready, running, onOpenChange }: {
 
   return (
     <>
-      {notice && (
-        <div className="engine-notice" role="status">
-          <span className="engine-notice-dot" aria-hidden="true" />
-          <span><strong>Engine updated</strong> {notice.id} {notice.version}</span>
-          <button type="button" className="btn small" onClick={() => setNotice(null)}>Dismiss</button>
-        </div>
-      )}
       {open && shown && createPortal(
         // On the body itself, so no stacking context of the page (the start-up film's included) can sit above it.
         <div ref={box} className={`engine-gate-stage engine-gate-${phase}`}>

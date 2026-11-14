@@ -13,7 +13,7 @@
 # uses Debian packages, so it builds natively on Apple silicon and x86 alike.
 
 ARG DEBIAN_RELEASE=bookworm
-ARG VERSION=3.13.1
+ARG VERSION=3.13.2
 ARG REVISION=unknown
 ARG BUILD_DATE=unknown
 ARG RELEASE_CHANNEL=local
@@ -89,7 +89,7 @@ WORKDIR /app
 COPY --from=engine /src/build/dstns_server /src/build/dstns_scenario_export /app/build/
 COPY --from=ui /ui/dist /app/WebKit/dist
 COPY config /app/config
-COPY LICENSE COPYRIGHT /app/
+COPY LICENSE NOTICE /app/
 COPY WebKit/package.json /tmp/observer-package.json
 RUN observer="$(sed -n 's/^  "version": "\(.*\)",$/\1/p' /tmp/observer-package.json)" \
  && printf '{\n  "version": "%s",\n  "revision": "%s",\n  "created": "%s",\n  "channel": "%s",\n  "platform": "%s",\n  "with_sumo": "%s",\n  "observer_version": "%s",\n  "author": "Varun Karthic",\n  "source": "https://github.com/varunkarthic/DSTNS",\n  "license": "AGPL-3.0-or-later"\n}\n' \

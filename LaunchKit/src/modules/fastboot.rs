@@ -51,6 +51,22 @@ pub fn cities(paths: &Paths) -> Result<Vec<Value>> {
     serde_json::from_str(out.trim()).map_err(|e| LauncherError::generic(format!("The server's list of cities could not be read: {e}")))
 }
 
+/// Every country a world can be in: (ISO code, name, cities), by name. Read from the server once a process; empty if
+/// the server is not built yet.
+pub fn countries(paths: &Paths) -> &'static [(String, String, usize)] {
+    static COUNTRIES: std::sync::OnceLock<Vec<(String, String, usize)>> = std::sync::OnceLock::new();
+    COUNTRIES.get_or_init(|| {
+        let mut by_code: std::collections::BTreeMap<String, (String, usize)> = std::collections::BTreeMap::new();
+        for c in cities(paths).unwrap_or_default() {
+            let text = |k: &str| c.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+            by_code.entry(text("country_code")).or_insert_with(|| (text("country"), 0)).1 += 1;
+        }
+        let mut out: Vec<(String, String, usize)> = by_code.into_iter().filter(|(code, _)| !code.is_empty()).map(|(code, (name, n))| (code, name, n)).collect();
+        out.sort_by(|a, b| a.1.cmp(&b.1));
+        out
+    })
+}
+
 /// The policies a city may be chosen under, by the first whose catalogue has it.
 pub fn policies(since: &str) -> &'static str {
     if since == "urban-geo-v2" { "urban-geo-v2" } else { "urban-crfg-v3 urban-geo-v1 urban-geo-v2" }

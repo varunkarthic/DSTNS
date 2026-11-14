@@ -167,7 +167,9 @@ void ApiServer::install_guards() {
             message = e.what();
         }
         send(res, {{"ok", false}, {"api_version", kApiVersion}, {"error", {{"code", code}, {"message", message}}}}, status);
-        logger_.system("ERROR", "api", req.method + " " + req.path + ": " + message);
+        // A refusal the caller is told about (a 4xx: a bad request, or one the run's state does not allow now) is a
+        // warning; only what the server could not do is an error.
+        logger_.system(status < 500 ? "WARN" : "ERROR", "api", req.method + " " + req.path + ": " + message);
     });
 
     server_->set_logger([this](const auto& req, const auto& res) {
