@@ -19,7 +19,6 @@ std::string hhmmss(std::uint32_t s) {
     o << std::setfill('0') << std::setw(2) << s / 3600 << ':' << std::setw(2) << (s % 3600) / 60 << ':' << std::setw(2) << s % 60;
     return o.str();
 }
-double clamp01(double x) { return std::clamp(x, 0.0, 1.0); }
 } // namespace
 StormAtmosphericState evaluate_storm_state(const DwsEvent& e, std::uint32_t now_ppm, const NodeStatic& epic_node) {
     if (now_ppm < e.start_ppm || now_ppm >= e.end_ppm) {

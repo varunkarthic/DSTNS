@@ -27,6 +27,7 @@ const EdgeStatic& GraphStore::edge(EdgeId id)const{if(id.value>=scenario_.edges.
 NodeDynamic& GraphStore::node_state(NodeId id){if(id.value>=node_dynamic_.size())throw std::out_of_range("unknown node");return node_dynamic_[id.value];}
 EdgeDynamic& GraphStore::edge_state(EdgeId id){if(id.value>=edge_dynamic_.size())throw std::out_of_range("unknown edge");return edge_dynamic_[id.value];}
 std::span<const EdgeId> GraphStore::outgoing(NodeId id)const{if(id.value>=outgoing_.size())throw std::out_of_range("unknown node");return outgoing_[id.value];}
+void GraphStore::commit_stamped(){++state_revision_;for(auto&n:node_dynamic_)n.state_revision=state_revision_;}
 void GraphStore::commit(){++state_revision_;for(auto&n:node_dynamic_)n.state_revision=state_revision_;for(auto&e:edge_dynamic_)e.state_revision=state_revision_;}
 void GraphStore::reset_dynamic(){node_dynamic_.assign(node_dynamic_.size(),{});edge_dynamic_.assign(edge_dynamic_.size(),{});for(const auto&e:scenario_.edges){if(!is_source_direction_allowed(e))continue;auto&s=edge_dynamic_[e.id.value];s.effective_capacity_vph=e.base_capacity_vph;s.effective_speed_mps=e.free_speed_mps;s.mean_speed_mps=e.free_speed_mps;}state_revision_=0;}
 

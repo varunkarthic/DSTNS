@@ -14,6 +14,43 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.13.1] - 2026-11-14
+
+**Engine 3.13.1 (core-ng 1.2.1), launcher 3.12.0, observer 3.5.0, API contract 1.12.** Results for every seed are
+unchanged: `dstns_golden` and `dstns_timeline_ng` are identical on both engines.
+
+### Changed
+
+- **core-ng's tick is about 28% faster** (#23, closed). `./build/dstns_benchmark --quick --suite network,events
+  --engine core-ng`, Apple M4:
+
+  | | 3.13.0 | 3.13.1 |
+  |---|---|---|
+  | 10×10 tick | 11 µs | 9 µs |
+  | 25×25 tick | 80 µs | 58 µs |
+  | 50×50 tick | 332 µs | 238 µs (2.1× → 2.9× the fastest playback) |
+  | 50×50, 0 storms, 4 incidents (from 08:00) | 332 µs | 269 µs |
+  | 50×50, 12 storms, 32 incidents | 382 µs | 289 µs |
+  | 50×50, 48 storms, 128 incidents | 417 µs | 335 µs |
+
+  Each change keeps the arithmetic and its order:
+  - The edge loop stamps each edge's state revision, so `commit` no longer walks the edges again.
+  - Signals: each junction's phase is read once a tick, and each edge's multiplier comes from it and the edge's
+    group, as `signal_multiplier` gives it.
+  - What the tick derived from static edge data every tick (queue room, divisors, weights) is worked out once per
+    world and kept with the graph.
+  - The speed and queue updates compute both directions and choose one, instead of branching on values the signals
+    make unpredictable.
+  - When it rains or a road is shut, only the places near a disturbed road read the network again. Every other
+    place's context is all zeros, as before.
+  - The event schedule's heap holds 24-byte keys, and the events wait in slots, so a signal change moves no strings.
+    The order is the same: (time, sequence), and sequences are unique.
+- `dstns_http_no_repeat` starts a server on three cities and regenerates six times. Every city appears once in each
+  round of three, and no city appears twice in a row.
+- The build is free of warnings again: no duplicate libraries at link, and the CMake and compiler warnings are fixed.
+
+Rollback: revert this release's commit.
+
 ## [3.13.0] - 2026-11-14
 
 **Engine 3.13.0 (core-ng 1.2.0), launcher 3.12.0, observer 3.5.0, API contract 1.12.** Results for every seed under

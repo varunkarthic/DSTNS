@@ -39,27 +39,23 @@ Rules:
 - When every responsibility has moved and parity holds, `core-ng` becomes the default (a MINOR release).
   We remove `core-legacy` only with operator approval (a MAJOR decision).
 
-## 3. Dependency map (current)
+## 3. Dependency map (current, engine 3.13)
 
 ```text
-LaunchKit config.rs ──start request──> Fabric support.cpp (parse ScenarioConfig, check selection version)
+LaunchKit config.rs ──start request──> Fabric support.cpp (parse ScenarioConfig) ── gate.cpp (engines.json policy)
                                             │
                                             v
-SimulationEngine (engine.cpp, 3049 lines) ─ lifecycle, clock, physics_step, checkpoints, commands,
-   │                                         undo/redo, world job, views, news, SUMO
-   ├─> ScenarioCompiler::compile (scenario.cpp) ── validate config
-   │      ├─> select_map_location (geo.cpp)          ← also called by NextWorld, engine failed_city
-   │      ├─> acquire_map_tile (osm_fetch.cpp)
-   │      ├─> OsmRoadLoader (osm.cpp)
-   │      └─> signals, stops, hotspots, trips, weather, incidents, hashes
-   ├─> GraphStore / RoutePlanner (graph.cpp)
-   ├─> EventRuntime (events.cpp)
-   └─> NextWorld (next_world.cpp) ── next-world.json ←── LaunchKit prepared_seed()
+Core/common   SimulationEngine (engine.cpp): lifecycle, clock, commands, world job, views, news, SUMO bridge;
+              no engine of its own. It calls the registered EngineHooks: select, validate, describe, compile,
+              step, capture, rewind. Also GraphStore, EventRuntime, NextWorld, OSM loading and fetching, geo
+              (city_catalog: 181 cities; world_catalog: 379), weather helpers.
+Core/core-ng  selection (urban-crfg-v3, urban-geo-v1, urban-geo-v2), compile (network, plans), physics, timeline,
+              lifecycle and world-job tables. Links Core/common only (dstns_core_ng_alone).
+Core/core-legacy  ScenarioCompiler, physics step and checkpoints, its hooks. Frozen; off by default.
+Core/engines  install_engines(): registers both, and core-ng's guards.
 ```
 
-Callers of `select_map_location` (graph, confirmed in source): `ScenarioCompiler::compile`, `NextWorld::installed`,
-`NextWorld::take`, `seed_avoiding_failed_city`, `SimulationEngine::failed_city`, and two tests.
-The literal `urban-crfg-v3` is checked in `scenario.cpp:42`, `Fabric/src/support.cpp:299`, `LaunchKit/src/config.rs`,
+The literal `urban-crfg-v3` is checked in `Fabric/src/support.cpp` (the default), `LaunchKit/src/config.rs`,
 `LaunchKit/src/seeds.rs` and `LaunchKit/src/state.rs` (launch codes).
 
 ## 4. Proposed interfaces (`Core/core-ng`, namespace `dstns::core_ng`)
@@ -138,8 +134,10 @@ fields matches only the legacy policy, so old files stay safe. LaunchKit's `prep
 | 8 | Checkpoint memory: core-ng keeps checkpoints deflated (lossless) | engine 3.9.0 | a day of the 7×7 test grid: 3,047 KiB (core-legacy) → 354 KiB (core-ng), identical state at every stop (`dstns_timeline_ng`) |
 | 9 | core-ng stable and the default; core-legacy selectable | engine 3.10.0 | every test passes with requests on core-ng by default; identical hashes on both engines |
 | 10 | Tick: two fewer passes over the edges (#23) | engine 3.12.0 | 50×50 tick 378 → 338 µs; golden and timeline unchanged |
-| 11+ | One measured optimisation per release (#23 continues) | patch each | before/after table |
-| last | `core-ng` becomes default; docs, Fabric, WebKit, end-to-end | engine minor | full start, regenerate, observe, save, replay |
+| 11 | Places read the edges the tick just did (#23) | engine 3.12.1 | 50×50 tick 338 → 331 µs; golden and timeline unchanged |
+| 12 | Layers: `Core/common`, `Core/core-legacy` (its compiler, physics, hooks only), `Core/engines`; core-ng enforced (core-legacy off by default); `urban-geo-v2` (379 cities); no repeated city in a session | engine 3.13.0, API 1.12 | `dstns_core_ng_alone` links no core-legacy code; full suite green |
+| 13 | Tick: commit stamped in the edge loop, signals from a per-tick phase table, per-world edge constants, branchless speed and queue updates, coupling read only near disturbed roads, a compact event heap (#23 closed) | engine 3.13.1 | 50×50 tick 331 → 237 µs; golden and timeline unchanged |
+| last | `core-ng` the default and the only engine enabled; docs, Fabric, WebKit, end-to-end | done by 3.13.0 | full start, regenerate (`dstns_http_no_repeat`), observe, save, replay |
 
 The launcher offers a setting only from the release in which the server honours it.
 

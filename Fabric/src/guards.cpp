@@ -16,7 +16,7 @@ namespace {
 // starting (decided by the gate itself), stopping, resetting and reading are not.
 bool runs_engine(const std::string& method, const std::string& path) {
     if (method == "GET" || method == "HEAD" || method == "OPTIONS") return false;
-    for (const std::string base : {std::string("/api/v1/playback/"), std::string(kEngineBase) + "/"}) {
+    for (const std::string& base : {std::string("/api/v1/playback/"), std::string(kEngineBase) + "/"}) {
         if (path.starts_with(base)) {
             const auto name = path.substr(base.size());
             return name != "start" && name != "prepare" && name != "stop" && name != "reset";

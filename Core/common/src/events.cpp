@@ -202,12 +202,12 @@ std::vector<ScheduledEvent> EventRuntime::advance(const Scenario& s,std::uint32_
     std::vector<ScheduledEvent> important;
     bool demand_changed = false;
     while(!queue_.empty() && queue_.top().time<=time) {
-        auto e=queue_.top();queue_.pop();++executed_count;
+        auto e=queue_.take();++executed_count;
         if(e.category=="signals") {
             auto& state=signals[e.entity];const auto& plan=s.signals[e.entity];state.phase=e.phase;state.phase_started=e.time;state.next_transition=e.time+plan.phases_s[e.phase];
             if(state.next_transition<=86400)push({state.next_transition,e.entity,(e.phase+1)%6,0,"signals","Signal "+std::to_string(plan.node.value)+" → "+phases[(e.phase+1)%6],0});
         } else if(e.category=="demand") {scheduled_baseline_[e.entity]=e.value;baseline_[e.entity]=e.value;demand[e.entity]=e.value;demand_changed=true;important.push_back(e);}
-        history_.push_back(e);if(history_.size()>2000)history_.pop_front();
+        history_.push_back(std::move(e));if(history_.size()>2000)history_.pop_front();
     }
     if (demand_changed) rebuild_edge_demand();
     return important;
@@ -215,7 +215,7 @@ std::vector<ScheduledEvent> EventRuntime::advance(const Scenario& s,std::uint32_
 nlohmann::json EventRuntime::inspect(bool future,const std::string& category,std::size_t offset,std::size_t limit) const {
     nlohmann::json items=nlohmann::json::array();std::size_t total=0;
     auto consume=[&](const auto& e){if(category!="all"&&e.category!=category)return;if(total>=offset&&items.size()<limit)items.push_back(event_json(e,future));++total;};
-    if(future){auto copy=queue_;while(!copy.empty()){consume(copy.top());copy.pop();}}else for(auto it=history_.rbegin();it!=history_.rend();++it)consume(*it);
+    if(future){auto copy=queue_;while(!copy.empty())consume(copy.take());}else for(auto it=history_.rbegin();it!=history_.rend();++it)consume(*it);
     return {{"items",items},{"total",total},{"offset",offset},{"limit",limit},{"history_retention",2000},{"executed_count",executed_count},{"pending_count",queue_.size()}};
 }
 nlohmann::json EventRuntime::signal_json(const Scenario& s,std::uint32_t time) const {
@@ -272,12 +272,6 @@ std::vector<DemandFactor> EventRuntime::demand_factors(std::size_t feature) cons
 }
 
 bool EventRuntime::coupling(const Scenario& s) const { return s.config.buildings&&feature_edges_&&!demand.empty(); }
-bool EventRuntime::note_edge(std::size_t i,const EdgeDynamic& d) {
-    const bool available=(*edge_allowed_)[i]&&!d.closed&&!d.incident_closed;
-    const bool changed=edge_available_[i]!=available;
-    edge_available_[i]=available;
-    return changed;
-}
 void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time) {
     if(!coupling(s))return;
     bool network_changed=false,disturbed=false;
@@ -295,10 +289,22 @@ void EventRuntime::recouple_noted(const Scenario& s,const std::vector<EdgeDynami
     // is already in the edge dynamics the operator is shown, so the model and
     // the display can never disagree about conditions.
     const std::size_t count=demand.size();
-    std::vector<DemandContext> context(count);
+    // Per-tick buffers, reused rather than allocated a tick, and kept out of the runtime so checkpoints copy nothing more.
+    static thread_local std::vector<DemandContext> context;
+    static thread_local std::vector<std::uint8_t> near_disturbed_;
+    context.assign(count,DemandContext{});
     // With no rain, flood or closure anywhere, every place reads all zeros, which is what a context starts as: most
     // of a day, and most of what this costs, is skipped with the same result to the last bit.
+    // Noted edges (core-ng, #23): only places near one of them, found through edge_features_, a superset of the
+    // edges each place reads.
+    const bool listed=!disturbed_edges_.empty();
+    if(disturbed&&listed){
+        near_disturbed_.assign(count,0);
+        for(const auto e:disturbed_edges_)for(auto [f,w]:(*edge_features_)[e]){(void)w;near_disturbed_[f]=1;}
+    }
+    disturbed_edges_.clear();
     if(disturbed)for(const auto i:responders_){
+        if(listed&&!near_disturbed_[i])continue;
         const auto& near=(*feature_edges_)[i];
         if(near.empty())continue;
         double weight=0,rain=0,blocked=0,distress=0;
@@ -382,7 +388,10 @@ double EventRuntime::signal_multiplier(const Scenario& s,const EdgeStatic& e) co
     if((group_a&&phase==1)||(!group_a&&phase==4))return .4;
     return .08;
 }
-double EventRuntime::demand_effect(EdgeId edge) const {return edge_demand_[edge.value];}
+void EventRuntime::signal_phases(std::vector<std::uint32_t>& per_node) const {
+    per_node.assign(signal_by_node_.size(),0);
+    for(std::size_t n=0;n<signal_by_node_.size();++n)if(signal_by_node_[n]>=0)per_node[n]=signals[signal_by_node_[n]].phase;
+}
 std::vector<std::string> EventRuntime::demand_causes(const Scenario& s,EdgeId edge,std::size_t limit) const {std::vector<std::string> ids;for(auto [id,w]:(*edge_features_)[edge.value]){if(limit&&ids.size()>=limit)break;if(w*(demand[id]-1)>.01)ids.push_back(s.features[id].id);}return ids;}
 void CongestionTracker::update(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time,std::uint32_t dt){
     double sum=0,weights=0;for(const auto& e:s.edges)if(is_source_direction_allowed(e)){const double w=e.length_m*e.lanes;sum+=w*edges[e.id.value].congestion;weights+=w;}

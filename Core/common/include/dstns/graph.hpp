@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <limits>
 #include <span>
+#include <memory>
 #include <vector>
 
 namespace dstns {
@@ -30,8 +31,16 @@ public:
     [[nodiscard]] std::span<const EdgeId> outgoing(NodeId id) const;
     [[nodiscard]] std::uint64_t state_revision() const { return state_revision_; }
     void commit();
+    // commit, for a tick that has already stamped every edge with state_revision() + 1 as it went (core-ng, #23):
+    // the same result without another pass over the edges.
+    void commit_stamped();
     void reset_dynamic();
+    // What an engine derives once from the static world, kept with it for the world's life (core-ng's per-edge
+    // constants, #23). The scenario never changes, so neither does this.
+    [[nodiscard]] const std::shared_ptr<const void>& derived() const { return derived_; }
+    void set_derived(std::shared_ptr<const void> derived) const { derived_ = std::move(derived); }
 private:
+    mutable std::shared_ptr<const void> derived_;
     Scenario scenario_;
     std::vector<NodeDynamic> node_dynamic_;
     std::vector<EdgeDynamic> edge_dynamic_;

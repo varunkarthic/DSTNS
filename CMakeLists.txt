@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.13.0 LANGUAGES CXX)
+project(dstns VERSION 3.13.1 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -21,8 +21,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
 FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
-  URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa)
-FetchContent_Declare(httplib URL https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.28.0.tar.gz)
+  URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_Declare(httplib URL https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.28.0.tar.gz DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 set(HTTPLIB_USE_BROTLI_IF_AVAILABLE OFF CACHE BOOL "Use gzip for bounded dynamic response latency" FORCE)
 set(HTTPLIB_REQUIRE_ZLIB ON CACHE BOOL "Compress large topology and state responses" FORCE)
 # By default the server speaks plain HTTP (TLS belongs to the gateway, or to a build with
@@ -133,7 +133,7 @@ target_compile_options(dstns_engines PRIVATE -Wall -Wextra -Wpedantic -Wshadow -
 
 # Everything, for tests and tools that compile with core-legacy's compiler and run worlds on either engine.
 add_library(dstns_core INTERFACE)
-target_link_libraries(dstns_core INTERFACE dstns_common dstns_core_legacy dstns_core_ng dstns_engines)
+target_link_libraries(dstns_core INTERFACE dstns_engines)
 
 add_executable(dstns_server Core/server/main.cpp Core/server/container.cpp)
 target_compile_definitions(dstns_server PRIVATE DSTNS_VERSION="${PROJECT_VERSION}")
@@ -152,13 +152,13 @@ if(APPLE)
   target_link_libraries(dstns_release PRIVATE "-framework CoreFoundation" "-framework CFNetwork")
 endif()
 add_executable(dstns_benchmark tools/benchmark/main.cpp)
-target_link_libraries(dstns_benchmark PRIVATE dstns_core dstns_core_ng)
+target_link_libraries(dstns_benchmark PRIVATE dstns_core)
 
 if(DSTNS_BUILD_TESTS)
   enable_testing()
   # The HTTP tests: each a program of its own, against a real server it starts on a port of its own.
   set(DSTNS_HTTP_TESTS api docs_coverage another_city termination loading fastboot hardening robustness fabric_contract narration observer_hold
-    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot daemon long_jump engine_switch sumo_switch engine_gate)
+    fabric_apps fabric_direction fabric_platform fabric_launch launcher_apps fetch_osm release dynamic_fastboot daemon long_jump engine_switch sumo_switch engine_gate no_repeat)
   foreach(name ${DSTNS_HTTP_TESTS})
     add_executable(dstns_http_${name} tests/http/${name}.cpp)
     target_link_libraries(dstns_http_${name} PRIVATE dstns_fabric)
@@ -238,12 +238,12 @@ if(DSTNS_BUILD_TESTS)
   add_test(NAME dstns_core_ng_alone COMMAND dstns_core_ng_alone_tests)
 
   add_executable(dstns_timeline_ng_tests tests/unit/timeline_ng_tests.cpp)
-  target_link_libraries(dstns_timeline_ng_tests PRIVATE dstns_core dstns_core_ng)
+  target_link_libraries(dstns_timeline_ng_tests PRIVATE dstns_core)
   target_compile_options(dstns_timeline_ng_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_timeline_ng COMMAND dstns_timeline_ng_tests)
 
   add_executable(dstns_golden_tests tests/unit/golden_tests.cpp)
-  target_link_libraries(dstns_golden_tests PRIVATE dstns_core dstns_core_ng)
+  target_link_libraries(dstns_golden_tests PRIVATE dstns_core)
   target_compile_options(dstns_golden_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_golden COMMAND dstns_golden_tests)
   set_tests_properties(dstns_golden PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")

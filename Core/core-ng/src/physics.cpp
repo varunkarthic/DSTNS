@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 #include <iomanip>
 #include <sstream>
 
@@ -138,6 +139,50 @@ NewsDraft rain_ended(const DwsEvent& e, std::uint32_t end) {
                 "; network returning to baseline conditions.",
             nlohmann::json{}, end};
 }
+// Per edge, what the tick derives from the static world alone (#23): computed once per world by the same expressions
+// the tick used to evaluate every tick, so every value is the same to the last bit, and kept in sc.edges' order in a
+// row about half the size of EdgeStatic.
+struct EdgeRow {
+    double base_capacity_vph, free_speed_mps, hotspot, length_m;
+    double speed_floor_kmh;   // std::max(2.0, free_speed_mps * 3.6)
+    double length_km;         // length_m / 1000.0
+    double max_queue_veh;     // (length_m / 7.5) * lanes
+    double congestion_room;   // std::max(1.0, max_queue_veh * 0.75)
+    double occupancy_room;    // std::max(1.0, length_m) * lanes
+    double free_speed_floor;  // std::max(.1, free_speed_mps)
+    double weight;            // length_m * lanes
+    double discharge_lanes;   // lanes * 0.75
+    std::uint32_t id, from, to;
+    bool allowed;
+};
+
+const std::vector<EdgeRow>& edge_rows(const GraphStore& graph) {
+    if (auto cached = std::static_pointer_cast<const std::vector<EdgeRow>>(graph.derived())) return *cached;
+    auto rows = std::make_shared<std::vector<EdgeRow>>();
+    rows->reserve(graph.scenario().edges.size());
+    for (const auto& e : graph.scenario().edges) {
+        EdgeRow r{};
+        r.base_capacity_vph = e.base_capacity_vph;
+        r.free_speed_mps = e.free_speed_mps;
+        r.hotspot = e.hotspot_susceptibility;
+        r.length_m = e.length_m;
+        r.speed_floor_kmh = std::max(2.0, e.free_speed_mps * 3.6);
+        r.length_km = e.length_m / 1000.0;
+        r.max_queue_veh = (e.length_m / 7.5) * e.lanes;
+        r.congestion_room = std::max(1.0, r.max_queue_veh * 0.75);
+        r.occupancy_room = std::max(1.0, e.length_m) * e.lanes;
+        r.free_speed_floor = std::max(.1, e.free_speed_mps);
+        r.weight = e.length_m * e.lanes;
+        r.discharge_lanes = e.lanes * 0.75;
+        r.id = e.id.value;
+        r.from = e.from.value;
+        r.to = e.to.value;
+        r.allowed = is_source_direction_allowed(e);
+        rows->push_back(r);
+    }
+    graph.set_derived(rows);
+    return *rows;
+}
 } // namespace
 
 void physics_step(physics::Context& ctx, std::uint32_t dt) {
@@ -230,6 +275,16 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
         }
     }
 
+    // Signals (#23): each node's phase read once, and each edge's group from a compact table, instead of a lookup
+    // through the controllers per edge. signal_value gives exactly what signal_multiplier would.
+    const auto* signal_groups = sc.config.signals ? ctx.events.edge_signal_groups() : nullptr;
+    static thread_local std::vector<std::uint32_t> signal_phases;
+    if (signal_groups) ctx.events.signal_phases(signal_phases);
+    // A junction set by hand is rare: no lookup per edge when there is none (#23).
+    const bool has_overrides = sc.config.signals && !ctx.signal_overrides.empty();
+    // Each edge stamped with the revision commit is about to give it, as the loop reaches it (#23).
+    const auto revision = ctx.graph.state_revision() + 1;
+
     double congestion_sum = 0, congestion_weights = 0;
     // What recouple scans the edges for, noted here as each edge is done (#23).
     const bool coupling = fused && ctx.events.coupling(sc);
@@ -237,21 +292,29 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
     const auto note = [&](std::uint32_t edge, const EdgeDynamic& d) {
         if (!coupling) return;
         if (ctx.events.note_edge(edge, d)) network_changed = true;
-        disturbed = disturbed || d.rainfall != 0 || d.flood != 0 || d.closed || d.incident_closed;
+        if (d.rainfall != 0 || d.flood != 0 || d.closed || d.incident_closed) {
+            disturbed = true;
+            ctx.events.note_disturbed(edge);
+        }
     };
-    for (const auto& e : sc.edges) {
-        auto& es = edge_states[e.id.value];
-        if (fused) apply_incidents(e.id.value, es);
-        const auto& na = node_states[e.from.value];
-        const auto& nb = node_states[e.to.value];
+    const auto& rows = edge_rows(ctx.graph);
+    for (std::size_t at = 0; at < rows.size(); ++at) {
+        const auto& r = rows[at];
+        auto& es = edge_states[r.id];
+        if (fused) {
+            apply_incidents(r.id, es);
+            es.state_revision = revision;
+        }
+        const auto& na = node_states[r.from];
+        const auto& nb = node_states[r.to];
         es.rainfall = (na.rainfall + nb.rainfall) / 2;
         const bool was_flooded=es.flood>.01;
         es.flood = (na.flood + nb.flood) / 2;
-        if(is_source_direction_allowed(e) && was_flooded!=(es.flood>.01)){
-            ctx.events.observe({ctx.virtual_s,e.id.value,0,0,"flooding",es.flood>.01?"Road becomes flood affected":"Flood effect cleared",es.flood});
-            if(es.flood>.01 && e.id.value%2==0) ctx.add_news(800000+e.id.value,"flooding","warning","FLOOD_STARTED","Flooding detected on Edge "+std::to_string(e.id.value),{{"edge_id",e.id.value},{"flood",es.flood}});
+        if(r.allowed && was_flooded!=(es.flood>.01)){
+            ctx.events.observe({ctx.virtual_s,r.id,0,0,"flooding",es.flood>.01?"Road becomes flood affected":"Flood effect cleared",es.flood});
+            if(es.flood>.01 && r.id%2==0) ctx.add_news(800000+r.id,"flooding","warning","FLOOD_STARTED","Flooding detected on Edge "+std::to_string(r.id),{{"edge_id",r.id},{"flood",es.flood}});
         }
-        if (!is_source_direction_allowed(e)) {
+        if (!r.allowed) {
             es.demand_vph = 0;
             es.effective_capacity_vph = 0;
             es.effective_speed_mps = 0;
@@ -263,29 +326,29 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
             es.halting_count = 0;
             es.mean_speed_mps = 0;
             es.occupancy = 0;
-            note(e.id.value, es);
+            note(r.id, es);
             continue;
         }
-        const auto attraction = sc.config.buildings ? ctx.events.demand_effect(e.id) : 0.0;
-        const auto hot = sc.config.traffic ? e.hotspot_susceptibility : 0;
+        const auto attraction = sc.config.buildings ? ctx.events.demand_effect(EdgeId{r.id}) : 0.0;
+        const auto hot = sc.config.traffic ? r.hotspot : 0;
         
         // Active Surge Multiplier following a smooth Gaussian / Normal Distribution curve
         double surge_mult = 1.0;
         for (const auto& s : surges) {
-            const double d1 = point_distance(sc.nodes[e.from.value].position, s.centre);
-            const double d2 = point_distance(sc.nodes[e.to.value].position, s.centre);
+            const double d1 = point_distance(sc.nodes[r.from].position, s.centre);
+            const double d2 = point_distance(sc.nodes[r.to].position, s.centre);
             if (d1 <= s.radius_m || d2 <= s.radius_m) {
                 surge_mult = std::max(surge_mult, s.factor);
             }
         }
 
-        es.demand_vph = sc.config.traffic ? e.base_capacity_vph * (.18 + .68 * day_profile + .60 * attraction + .35 * hot) * surge_mult : 0;
+        es.demand_vph = sc.config.traffic ? r.base_capacity_vph * (.18 + .68 * day_profile + .60 * attraction + .35 * hot) * surge_mult : 0;
         
-        es.signal_multiplier = ctx.events.signal_multiplier(sc,e);
-        if (ctx.signal_overrides.contains(e.to.value) && sc.config.signals) {
-            const auto& a=sc.nodes[e.from.value].position;const auto& b=sc.nodes[e.to.value].position;
+        es.signal_multiplier = signal_groups ? EventRuntime::signal_value((*signal_groups)[r.id], signal_phases[r.to]) : 1.0;
+        if (has_overrides && ctx.signal_overrides.contains(r.to)) {
+            const auto& a=sc.nodes[r.from].position;const auto& b=sc.nodes[r.to].position;
             bool ns=std::abs(b.y_m-a.y_m)>=std::abs(b.x_m-a.x_m);
-            es.signal_multiplier=(ns==(ctx.signal_overrides.at(e.to.value)==1))?1.0:.08;
+            es.signal_multiplier=(ns==(ctx.signal_overrides.at(r.to)==1))?1.0:.08;
         }
 
         // Realistic Weather Sensitivity (Rain causes moderate 10-25% slowing rather than sudden impassability)
@@ -296,49 +359,49 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
 
         // Smooth speed deceleration and acceleration curves (realistic gradual vehicle movement)
         const bool is_closed = es.manual_closed || es.incident_closed || es.flood >= 0.98;
-        const double target_speed = is_closed ? 0.0 : (e.free_speed_mps * es.signal_multiplier * es.rain_speed_multiplier * es.flood_speed_multiplier * es.manual_speed_multiplier * es.incident_speed_multiplier);
-        if (es.effective_speed_mps < target_speed) {
-            es.effective_speed_mps = std::min(target_speed, es.effective_speed_mps + 2.4 * dt);
-        } else if (es.effective_speed_mps > target_speed) {
-            es.effective_speed_mps = std::max(target_speed, es.effective_speed_mps - 3.2 * dt);
+        const double target_speed = is_closed ? 0.0 : (r.free_speed_mps * es.signal_multiplier * es.rain_speed_multiplier * es.flood_speed_multiplier * es.manual_speed_multiplier * es.incident_speed_multiplier);
+        // Both ways worked out and one chosen, rather than a branch the signals make unpredictable (#23): the same
+        // arithmetic, so the same values.
+        {
+            const double speed = es.effective_speed_mps;
+            const double up = std::min(target_speed, speed + 2.4 * dt);
+            const double down = std::max(target_speed, speed - 3.2 * dt);
+            es.effective_speed_mps = speed < target_speed ? up : (speed > target_speed ? down : speed);
         }
 
-        es.effective_capacity_vph = e.base_capacity_vph * es.signal_multiplier * es.rain_capacity_multiplier * es.flood_capacity_multiplier * es.manual_capacity_multiplier * es.incident_capacity_multiplier;
+        es.effective_capacity_vph = r.base_capacity_vph * es.signal_multiplier * es.rain_capacity_multiplier * es.flood_capacity_multiplier * es.manual_capacity_multiplier * es.incident_capacity_multiplier;
         es.closed = is_closed;
 
         // Smooth physical vehicle queuing dynamics (eliminates abrupt 51 -> 2 jumps)
-        const double baseline_veh = (es.demand_vph / std::max(2.0, e.free_speed_mps * 3.6)) * (e.length_m / 1000.0);
-        const double max_queue_veh = (e.length_m / 7.5) * e.lanes;
+        const double baseline_veh = (es.demand_vph / r.speed_floor_kmh) * r.length_km;
+        const double max_queue_veh = r.max_queue_veh;
         const double target_veh = es.closed ? 0.0 : std::clamp(baseline_veh * (1.0 + 3.5 * (1.0 - es.signal_multiplier) * (0.5 + 0.5 * surge_mult)), 0.0, max_queue_veh);
 
         const double current_veh = es.vehicle_load;
-        double next_veh = current_veh;
         const double rate_factor = 1.0;
-        if (target_veh > current_veh) {
-            // Queue buildup: accumulates smoothly at physical inflow rate
-            const double max_inflow_step = std::max(0.4, (es.demand_vph / 3600.0) * dt * rate_factor);
-            next_veh = std::min(target_veh, current_veh + max_inflow_step);
-        } else if (target_veh < current_veh) {
-            // Queue discharge: drains smoothly at physical saturation flow rate
-            const double max_discharge_step = std::max(0.7, (e.lanes * 0.75) * dt * rate_factor);
-            next_veh = std::max(target_veh, current_veh - max_discharge_step);
-        }
+        // Queue buildup accumulates smoothly at the physical inflow rate; discharge drains at the saturation flow
+        // rate. Both worked out, one chosen, as for the speed above.
+        const double max_inflow_step = std::max(0.4, (es.demand_vph / 3600.0) * dt * rate_factor);
+        const double max_discharge_step = std::max(0.7, r.discharge_lanes * dt * rate_factor);
+        const double filled = std::min(target_veh, current_veh + max_inflow_step);
+        const double drained = std::max(target_veh, current_veh - max_discharge_step);
+        const double next_veh = target_veh > current_veh ? filled : (target_veh < current_veh ? drained : current_veh);
 
         es.vehicle_load=next_veh;
         es.vehicle_count = static_cast<std::uint32_t>(std::llround(next_veh));
-        es.congestion_model = clamp01(double(es.vehicle_count) / std::max(1.0, max_queue_veh * 0.75));
+        es.congestion_model = clamp01(double(es.vehicle_count) / r.congestion_room);
         es.mean_speed_mps = es.effective_speed_mps * (1.0 - es.congestion_model * 0.65);
         es.halting_count = static_cast<std::uint32_t>(std::llround(es.vehicle_count * (1.0 - es.signal_multiplier * 0.9)));
-        es.occupancy = clamp01(es.vehicle_count * 5.0 / (std::max(1.0, e.length_m) * e.lanes));
+        es.occupancy = clamp01(es.vehicle_count * 5.0 / r.occupancy_room);
         es.congestion_observed = 1.0 - (1.0 - clamp01(1.0 - es.mean_speed_mps / std::max(0.1, es.effective_speed_mps))) * (1.0 - double(es.halting_count) / std::max(1u, es.vehicle_count)) * (1.0 - es.occupancy);
-        const double speed_loss = es.vehicle_count ? clamp01(1.0-es.mean_speed_mps/std::max(.1,e.free_speed_mps)) : 0.0;
+        const double speed_loss = es.vehicle_count ? clamp01(1.0-es.mean_speed_mps/r.free_speed_floor) : 0.0;
         const double queue_ratio = double(es.halting_count)/std::max(1u,es.vehicle_count);
         es.congestion = es.closed ? 1.0 : clamp01(.60*speed_loss+.25*queue_ratio+.15*es.occupancy);
         // The district's congestion, summed here in the edges' order, as CongestionTracker::update would (#23).
-        const double weight = e.length_m * e.lanes;
+        const double weight = r.weight;
         congestion_sum += weight * es.congestion;
         congestion_weights += weight;
-        note(e.id.value, es);
+        note(r.id, es);
     }
 
     const auto previous = ctx.virtual_s >= dt ? ctx.virtual_s - dt : 0;
@@ -368,7 +431,8 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
     // the operator is about to be shown rather than the previous tick's.
     if (coupling) ctx.events.recouple_noted(sc, ctx.graph.edge_states(), ctx.virtual_s, network_changed, disturbed);
     else ctx.events.recouple(sc, ctx.graph.edge_states(), ctx.virtual_s);
-    ctx.graph.commit();
+    if (fused) ctx.graph.commit_stamped();
+    else ctx.graph.commit();
 }
 
 } // namespace dstns::core_ng

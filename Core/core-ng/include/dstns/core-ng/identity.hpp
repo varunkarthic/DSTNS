@@ -9,7 +9,7 @@
 
 namespace dstns::core_ng {
 
-inline constexpr const char* kVersion = "1.2.0";
+inline constexpr const char* kVersion = "1.2.1";
 
 inline EngineIdentity identity() {
     EngineIdentity out;
@@ -22,6 +22,7 @@ inline EngineIdentity identity() {
     out.owns = {"world selection (urban-crfg-v3, urban-geo-v1, urban-geo-v2)", "scenario compilation", "physics step", "checkpoints and seeking", "lifecycle table", "world-job table"};
     out.shared = {"runtime host: operator commands and undo, the HTTP API (engine-neutral)"};
     out.changes = {
+        "1.2.1: the tick is about 28% faster at 50x50 (331 to 237 us), with the same results.",
         "1.2.0: urban-geo-v2, 379 cities in 126 countries; a session's new worlds go to cities it has not shown yet.",
         "1.1.1: the places' response reads the edges the tick has just done, instead of scanning them again.",
         "1.1.0: the tick does two fewer passes over the edges, about 11% faster at 50x50, with the same results.",

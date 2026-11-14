@@ -221,7 +221,7 @@ void step(Context& ctx, std::uint32_t dt) {
 }
 
 void capture(TimelineContext& ctx) {
-    Checkpoint checkpoint{ctx.virtual_s, ctx.graph.node_states(), ctx.graph.edge_states(), ctx.news_size(), ctx.next_news_id, ctx.events, ctx.congestion};
+    Checkpoint checkpoint{ctx.virtual_s, ctx.graph.node_states(), ctx.graph.edge_states(), ctx.news_size(), ctx.next_news_id, ctx.events, ctx.congestion, {}};
     const auto position = std::lower_bound(ctx.checkpoints.begin(), ctx.checkpoints.end(), ctx.virtual_s, [](const Checkpoint& value, auto time) {
         return value.virtual_s < time;
     });
