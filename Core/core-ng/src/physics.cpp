@@ -231,6 +231,14 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
     }
 
     double congestion_sum = 0, congestion_weights = 0;
+    // What recouple scans the edges for, noted here as each edge is done (#23).
+    const bool coupling = fused && ctx.events.coupling(sc);
+    bool network_changed = false, disturbed = false;
+    const auto note = [&](std::uint32_t edge, const EdgeDynamic& d) {
+        if (!coupling) return;
+        if (ctx.events.note_edge(edge, d)) network_changed = true;
+        disturbed = disturbed || d.rainfall != 0 || d.flood != 0 || d.closed || d.incident_closed;
+    };
     for (const auto& e : sc.edges) {
         auto& es = edge_states[e.id.value];
         if (fused) apply_incidents(e.id.value, es);
@@ -255,6 +263,7 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
             es.halting_count = 0;
             es.mean_speed_mps = 0;
             es.occupancy = 0;
+            note(e.id.value, es);
             continue;
         }
         const auto attraction = sc.config.buildings ? ctx.events.demand_effect(e.id) : 0.0;
@@ -329,6 +338,7 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
         const double weight = e.length_m * e.lanes;
         congestion_sum += weight * es.congestion;
         congestion_weights += weight;
+        note(e.id.value, es);
     }
 
     const auto previous = ctx.virtual_s >= dt ? ctx.virtual_s - dt : 0;
@@ -356,7 +366,8 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
     // Places respond to the conditions this tick produced: roads shut, rain
     // falling, an incident nearby. Run last, so couplings read the same state
     // the operator is about to be shown rather than the previous tick's.
-    ctx.events.recouple(sc,ctx.graph.edge_states(),ctx.virtual_s);
+    if (coupling) ctx.events.recouple_noted(sc, ctx.graph.edge_states(), ctx.virtual_s, network_changed, disturbed);
+    else ctx.events.recouple(sc, ctx.graph.edge_states(), ctx.virtual_s);
     ctx.graph.commit();
 }
 

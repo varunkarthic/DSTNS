@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.12.0 LANGUAGES CXX)
+project(dstns VERSION 3.12.1 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")

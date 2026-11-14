@@ -271,17 +271,25 @@ std::vector<DemandFactor> EventRuntime::demand_factors(std::size_t feature) cons
     return feature<factors_.size()?factors_[feature]:std::vector<DemandFactor>{};
 }
 
+bool EventRuntime::coupling(const Scenario& s) const { return s.config.buildings&&feature_edges_&&!demand.empty(); }
+bool EventRuntime::note_edge(std::size_t i,const EdgeDynamic& d) {
+    const bool available=(*edge_allowed_)[i]&&!d.closed&&!d.incident_closed;
+    const bool changed=edge_available_[i]!=available;
+    edge_available_[i]=available;
+    return changed;
+}
 void EventRuntime::recouple(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time) {
-    if(!s.config.buildings||!feature_edges_||demand.empty())return;
+    if(!coupling(s))return;
     bool network_changed=false,disturbed=false;
     const auto& allowed=*edge_allowed_;
     for(std::size_t i=0;i<allowed.size();++i) {
         const auto& d=edges[i];
-        const bool available=allowed[i]&&!d.closed&&!d.incident_closed;
-        if(edge_available_[i]!=available)network_changed=true;
-        edge_available_[i]=available;
+        if(note_edge(i,d))network_changed=true;
         disturbed=disturbed||d.rainfall!=0||d.flood!=0||d.closed||d.incident_closed;
     }
+    recouple_noted(s,edges,time,network_changed,disturbed);
+}
+void EventRuntime::recouple_noted(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time,bool network_changed,bool disturbed) {
 
     // Pass one: read the network around each place. Everything a coupling needs
     // is already in the edge dynamics the operator is shown, so the model and

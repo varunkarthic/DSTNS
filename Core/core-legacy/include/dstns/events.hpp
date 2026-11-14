@@ -43,6 +43,12 @@ public:
      * are known, so couplings read the same state the operator is shown.
      */
     void recouple(const Scenario& scenario,const std::vector<EdgeDynamic>& edges,std::uint32_t time);
+    // recouple in two halves, for a caller that walks the edges itself (core-ng's tick, #23): whether couplings are
+    // recomputed at all; one edge noted after its tick (true if its availability changed); then the rest, told
+    // whether any edge's availability changed and whether anything is disturbed.
+    [[nodiscard]] bool coupling(const Scenario& scenario) const;
+    bool note_edge(std::size_t edge,const EdgeDynamic& dynamic);
+    void recouple_noted(const Scenario& scenario,const std::vector<EdgeDynamic>& edges,std::uint32_t time,bool network_changed,bool disturbed);
 
     /// Why a place's demand is what it is, newest contribution first.
     [[nodiscard]] std::vector<DemandFactor> demand_factors(std::size_t feature) const;

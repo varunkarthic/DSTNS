@@ -14,6 +14,20 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.12.1] - 2026-11-14
+
+**Engine 3.12.1 (core-ng 1.1.1), launcher 3.11.0, observer 3.5.0, API contract 1.11.** Results for every seed are
+unchanged.
+
+### Changed
+
+- core-ng's tick notes each edge's availability, and whether anything is disturbed, as it finishes the edge. It
+  then hands both to `EventRuntime::recouple_noted`, so the places' response no longer scans the edges again.
+  `recouple` is now that same scan followed by `recouple_noted`, so core-legacy behaves as before. 50×50 tick
+  338 → 331 µs (Apple M4); golden and timeline are identical (#23).
+
+Rollback: revert this release's commit.
+
 ## [3.12.0] - 2026-11-14
 
 **Engine 3.12.0 (core-ng 1.1.0), launcher 3.11.0, observer 3.5.0, API contract 1.11.** Results for every seed are
