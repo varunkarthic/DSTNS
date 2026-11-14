@@ -566,7 +566,7 @@ mod tests {
     #[test]
     fn a_code_reads_in_blocks_says_what_it_carries_and_keeps_its_engine() {
         let _environment = crate::paths::test_environment();
-        let state = json!({"settings": {"api.port": 9123}, "world": {"seed": "42", "day": 1, "at": 30600, "maps": "urban-crfg-v3", "engine": "core-ng", "changes": [{"type": "module"}]}});
+        let state = json!({"settings": {"api.port": 9123}, "world": {"seed": "42", "day": 1, "at": 30600, "maps": "urban-crfg-v3", "engine": "core-legacy", "changes": [{"type": "module"}]}});
         let code = encode(&state);
         let blocks = grouped(&code);
         assert!(blocks.split('-').all(|b| b.len() <= 4) && blocks.replace('-', "") == code);
@@ -574,15 +574,15 @@ mod tests {
         assert_eq!(decode(&format!("{}\n{}", &blocks[..10], &blocks[10..])).unwrap(), state, "however it was wrapped");
         let said = show(&blocks).unwrap().join("\n");
         assert!(said.contains("Port (Server): 9123"), "{said}");
-        assert!(said.contains("seed 42, a weekend, at 08:30") && said.contains("on core-ng") && said.contains("1 change made by hand"), "{said}");
+        assert!(said.contains("seed 42, a weekend, at 08:30") && said.contains("on core-legacy") && said.contains("1 change made by hand"), "{said}");
 
         let root = std::env::temp_dir().join(format!("dstns-state-engine-{}", std::process::id()));
         let paths = Paths::new(&root);
         std::fs::create_dir_all(paths.config().parent().unwrap()).unwrap();
         std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/defaults.json"), paths.config()).unwrap();
         let out = set(&paths, &blocks).unwrap();
-        assert_eq!(config::setting(&config::load(&paths).unwrap(), "engines.selected"), json!("core-ng"), "{out:?}");
-        assert!(out.iter().any(|l| l.contains("runs on core-ng")));
+        assert_eq!(config::setting(&config::load(&paths).unwrap(), "engines.selected"), json!("core-legacy"), "{out:?}");
+        assert!(out.iter().any(|l| l.contains("runs on core-legacy")));
         std::env::remove_var(PENDING_JUMP);
         let _ = std::fs::remove_dir_all(&root);
     }

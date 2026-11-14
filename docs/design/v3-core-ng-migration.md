@@ -1,6 +1,6 @@
 # v3 core-ng migration plan
 
-Status: **releases 0–8 done** (engine 3.9.0, core-ng 0.9.0, beta). core-ng owns every computation of a run; the default stays core-legacy until core-ng has been proven as beta for a release cycle (issue #22). Engine governance: [engine-governance.md](engine-governance.md).
+Status: **complete** (engine 3.10.0, core-ng 1.0.0, stable and the default). core-ng owns every computation of a run with results identical to core-legacy; core-legacy stays installed and selectable. Engine governance: [engine-governance.md](engine-governance.md).
 
 Baseline: `v3` at `d29a2f6` (source) / `b828aa6` (graph). Engine `3.0.0`, observer `3.1.0`, API contract `1.4`,
 map selection `urban-crfg-v3`, algorithms `DSTNS/1`.
@@ -136,7 +136,8 @@ fields matches only the legacy policy, so old files stay safe. LaunchKit's `prep
 | 6 | Scenario compile in core-ng: `compile.cpp` orders the modules in `network.cpp` and `plans.cpp`, ported from core-legacy with every expression unchanged | engine 3.3.2 | parity: identical hashes and snapshots, both engines, macOS and Linux |
 | 7 | Physics step (3.7.0) and checkpoint store (3.8.0) in core-ng, each moved out of `engine.cpp` behaviour-preserving first, then copied into core-ng with every expression unchanged | engine 3.7.0, 3.8.0 | `dstns_golden` snapshots and `dstns_timeline_ng` seeks: identical on both engines |
 | 8 | Checkpoint memory: core-ng keeps checkpoints deflated (lossless) | engine 3.9.0 | a day of the 7×7 test grid: 3,047 KiB (core-legacy) → 354 KiB (core-ng), identical state at every stop (`dstns_timeline_ng`) |
-| 9+ | One measured optimisation per release | patch each | before/after table |
+| 9 | core-ng stable and the default; core-legacy selectable | engine 3.10.0 | every test passes with requests on core-ng by default; identical hashes on both engines |
+| 10+ | One measured optimisation per release | patch each | before/after table |
 | last | `core-ng` becomes default; docs, Fabric, WebKit, end-to-end | engine minor | full start, regenerate, observe, save, replay |
 
 The launcher offers a setting only from the release in which the server honours it.

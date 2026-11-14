@@ -164,6 +164,18 @@ int main(int argc, char** argv) {
         }
         dstns::SimulationEngine engine(logger);
         engine.register_engine(dstns::core_ng::kEngineId, dstns::core_ng::hooks(), dstns::core_ng::identity());
+        // DSTNS_ENGINE_CHANNEL=ID=CHANNEL marks an engine less stable than its build says, never more: for testing the
+        // unstable-engine gate, and for an operator who wants every run on an engine acknowledged.
+        if (const char* override = std::getenv("DSTNS_ENGINE_CHANNEL"); override && *override) {
+            const std::string text = override;
+            const auto equals = text.find('=');
+            const auto rank = [](const std::string& channel) { return channel == "alpha" ? 0 : channel == "beta" ? 1 : channel == "stable" ? 2 : -1; };
+            if (equals != std::string::npos && rank(text.substr(equals + 1)) >= 0 && text.substr(0, equals) == dstns::core_ng::kEngineId) {
+                auto lowered = dstns::core_ng::identity();
+                if (rank(text.substr(equals + 1)) < rank(lowered.channel)) lowered.channel = text.substr(equals + 1);
+                engine.set_identity(dstns::core_ng::kEngineId, std::move(lowered));
+            }
+        }
         engine.set_transition_guard(dstns::core_ng::lifecycle::allowed);
         engine.set_world_guard(dstns::core_ng::world::allowed);
         try {

@@ -59,7 +59,7 @@ Body:
 | `saved_seed_id` | string | No | `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` | Name it was saved under |
 | `map_selection_version` | string | No | `urban-crfg-v3` (default); `urban-geo-v1` with engine `core-ng` | How districts are chosen. See [Deterministic seeding](../concepts/deterministic-seeding.md#choosing-countries-or-cities-urban-geo-v1) |
 | `map_selection` | object | No | `mode`: `global`, `countries`, `cities` or `fixed_city`; `countries`: ISO 3166-1 alpha-2 codes; `cities`: city IDs such as `mumbai`; `exclude_countries`, `exclude_cities`: left out of what the mode allows (API 1.7); at most 200 of each | Only with `urban-geo-v1` (API 1.6). A policy that leaves out nothing has the same fingerprint as before exclusions existed |
-| `engine` | string | No | `core-legacy` (default) or `core-ng`; another is refused with 400 | Which engine prepares and runs the world. Results are the same; `/system/info` lists the engines (API 1.5) |
+| `engine` | string | No | `core-ng` (default since API 1.10) or `core-legacy`; another is refused with 400 | Which engine prepares and runs the world. Results are the same; `/system/info` lists the engines (API 1.5) |
 | `map.osm_file` | string | No | A path, or `auto` | Use this file rather than downloading |
 | `map.city_extent_m` | number | No | 500 to 20000 | How wide a district is |
 | `map.district_nodes` | integer | No | 200 to 50000 | How many junctions |
@@ -1274,7 +1274,7 @@ Response `200`, from a real run:
   "ok": true,
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
-  "version": "3.9.0"
+  "version": "3.10.0"
 }
 ```
 
@@ -1311,23 +1311,24 @@ The running engine and every installed one, with the engine policy (config/engin
 
 ```json
 {"ok": true, "data": {
-  "running": {"id": "core-ng", "version": "0.9.0", "kind": "real", "channel": "beta", "owns": ["…"], "shared": ["physics step", "…"], "changes": ["…"]},
-  "catalogue": [{"id": "core-legacy", "version": "3.9.0", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
+  "running": {"id": "core-ng", "version": "1.0.0", "kind": "real", "channel": "stable", "owns": ["…"], "shared": ["physics step", "…"], "changes": ["…"]},
+  "catalogue": [{"id": "core-legacy", "version": "3.10.0", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
   "config": {"schema_version": 1, "selected": "core-legacy", "default": "core-legacy", "auto_switch": "offer", "engines": {"core-ng": {"enabled": true, "acknowledgment": {"ui": true, "enforce": true}}}},
   "approval": {"state": "none", "revision": 0}}}
 ```
 
 ### `GET /api/v1/engine/approval`
 
-Whether a start waits for acknowledgment. `state` is `none`, `pending`, `accepted`, `rejected` or `cancelled`;
+Whether a start waits for acknowledgment. Only an alpha or beta engine's runs wait; no installed engine is one today, so
+the example marks core-ng beta, as `DSTNS_ENGINE_CHANNEL=core-ng=beta` does. `state` is `none`, `pending`, `accepted`, `rejected` or `cancelled`;
 `revision` increases with each change. With a start waiting or rejected, `approval` names it and `alternatives` lists
 the enabled stable real engines a rejection may start the seed on (empty when `auto_switch` is `off`).
 
 ```json
 {"ok": true, "data": {"state": "pending", "revision": 3,
-  "approval": {"id": "9f1c…", "engine": {"id": "core-ng", "version": "0.9.0", "channel": "beta", "kind": "real"}, "seed": "42",
+  "approval": {"id": "9f1c…", "engine": {"id": "core-ng", "version": "1.0.0", "channel": "beta", "kind": "real"}, "seed": "42",
                "requested_at": "2026-11-13T18:00:00Z", "acknowledge_in": "observer", "decision": "", "then": "", "reason": ""},
-  "alternatives": [{"id": "core-legacy", "version": "3.9.0", "channel": "stable", "kind": "real"}]}}
+  "alternatives": [{"id": "core-legacy", "version": "3.10.0", "channel": "stable", "kind": "real"}]}}
 ```
 
 ### `GET /api/v1/engine/approval/wait`
@@ -1392,7 +1393,7 @@ Response `200`, from a real run:
     "sumo_home": "/Users/varun/sumo",
     "version": ""
   },
-  "version": "3.9.0"
+  "version": "3.10.0"
 }
 ```
 
@@ -1455,7 +1456,7 @@ Response `200`, from a real run:
     },
     "program": "DSTNS",
     "source_offer": "You may obtain the complete corresponding source for this running version, under the terms…",
-    "version": "3.9.0"
+    "version": "3.10.0"
   },
   "ok": true
 }

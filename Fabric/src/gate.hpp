@@ -38,8 +38,8 @@ struct EnginePolicy {
 
 struct EngineConfig {
     int schema_version{1};
-    std::string selected{"core-legacy"};
-    std::string default_engine{"core-legacy"};
+    std::string selected{"core-ng"};
+    std::string default_engine{"core-ng"};
     // What a rejection offers: "offer" lists the enabled stable real engines to start the seed on; "off" offers none.
     std::string auto_switch{"offer"};
     std::map<std::string, EnginePolicy> engines;

@@ -18,8 +18,8 @@ pub const MAP_SELECTION_VERSION: &str = "urban-crfg-v3";
 /// The engines a run may name.
 pub const ENGINES: [&str; 2] = ["core-legacy", "core-ng"];
 /// The stable engine every installation starts on, and the one a reset of the settings returns to. It cannot be
-/// disabled. core-ng becomes the default only with full parity (issue #22).
-pub const DEFAULT_ENGINE: &str = "core-legacy";
+/// disabled. core-ng since launcher 3.10.0 (#22); core-legacy stays installed and selectable.
+pub const DEFAULT_ENGINE: &str = "core-ng";
 /// core-ng's policy over chosen countries or cities (docs/concepts/deterministic-seeding.md).
 pub const GEO_SELECTION_VERSION: &str = "urban-geo-v1";
 
@@ -525,7 +525,7 @@ pub fn place_ids(config: &Value) -> (Vec<String>, Vec<String>) {
 }
 
 fn default_engine_stays(value: &Value, _config: &Value) -> String {
-    if value == &json!(false) { "core-legacy is the default engine and cannot be turned off.".into() } else { String::new() }
+    if value == &json!(false) { format!("{DEFAULT_ENGINE} is the default engine and cannot be turned off.") } else { String::new() }
 }
 
 /// The chosen engine must be one that may run.
@@ -634,14 +634,14 @@ pub fn fields() -> &'static [Field] {
             Field::new("playback.tick_rate", "Starting speed", "Run", Number, "How fast a run plays when it starts, as a multiple of the length of a day. The observer changes it while it runs.", json!(1.0)).unit("×").range(0.0, Some(MAX_TICK_RATE)).above(),
             // Map
             // Engine
-            Field::new("engines.selected", "Engine", "Engine", Choice, "Which engine builds and runs each world. core-legacy is the engine DSTNS has always used; core-ng is its next-generation replacement, built beside it, which gives the same world for the same seed and can also limit worlds to chosen countries or cities.", json!("core-legacy"))
-                .choices(vec![("core-legacy", json!("core-legacy")), ("core-ng (next generation)", json!("core-ng"))]).extra(selected_enabled),
+            Field::new("engines.selected", "Engine", "Engine", Choice, "Which engine builds and runs each world. core-ng, the default, is the next-generation engine; core-legacy is the engine DSTNS had before it. Both make the same world from the same seed, and only core-ng can limit worlds to chosen countries or cities.", json!("core-ng"))
+                .choices(vec![("core-ng (default)", json!("core-ng")), ("core-legacy", json!("core-legacy"))]).extra(selected_enabled),
             Field::new("engines.auto_switch", "When a run is rejected", "Engine", Choice, "What the observer offers when a person rejects the risk of an alpha or beta engine: to start the same seed (only the seed) on an enabled stable engine, or only to stop.", json!("offer"))
                 .choices(vec![("Offer a stable engine", json!("offer")), ("Only stop", json!("off"))]),
-            Field::new("engines.engines.core-ng.enabled", "core-ng available", "Engine", Boolean, "Off, core-ng stays installed but nothing can start a run on it.", json!(true)),
-            Field::new("engines.engines.core-ng.acknowledgment.enforce", "core-ng: hold runs until acknowledged", "Engine", Boolean, "core-ng is beta. On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing.", json!(true)),
+            Field::new("engines.engines.core-ng.enabled", "core-ng available", "Engine", Boolean, "core-ng is the default engine, so it cannot be turned off.", json!(true)).extra(default_engine_stays),
+            Field::new("engines.engines.core-ng.acknowledgment.enforce", "core-ng: hold runs until acknowledged", "Engine", Boolean, "core-ng is stable, so its runs start at once; this applies if it is ever marked alpha or beta (DSTNS_ENGINE_CHANNEL). On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing.", json!(true)),
             Field::new("engines.engines.core-ng.acknowledgment.ui", "core-ng: acknowledge in the observer", "Engine", Boolean, "On, the observer asks a person to accept or reject. Off while runs are still held, the launcher asks instead: start with --accept-risk. Turning holding off turns this off.", json!(true)),
-            Field::new("engines.engines.core-legacy.enabled", "core-legacy available", "Engine", Boolean, "core-legacy is the default engine, so it cannot be turned off.", json!(true)).extra(default_engine_stays),
+            Field::new("engines.engines.core-legacy.enabled", "core-legacy available", "Engine", Boolean, "Off, core-legacy stays installed but nothing can start a run on it.", json!(true)),
             Field::new("map.selection_mode", "Where worlds are", "Engine", Choice, "Which cities a seed may choose: every city in the catalogue (the same city for a seed as always), only the countries or cities in Places, or always the one city in Places. With every city, anything listed in Places still applies: two-letter codes are countries, other names cities. Anything but every city needs core-ng, which this turns on.", json!("global"))
                 .choices(vec![("Every city", json!("global")), ("Countries", json!("countries")), ("Cities", json!("cities")), ("One city", json!("fixed_city"))]),
             Field::new("map.places", "Places", "Engine", Text, "Countries (two-letter codes, such as IN, AE) or cities (IDs, such as mumbai, new-york), separated by commas. A - before one leaves it out: -IN is everywhere but India; IN, AE, -dubai is India and the UAE but not Dubai. all when worlds may be anywhere. Needs core-ng.", json!("all")).extra(places),
@@ -1391,11 +1391,12 @@ mod tests {
         let paths = fresh_checkout("engine");
         let options = RunOptions { seed: Some("42".into()), ..Default::default() };
         let request = start_request(&options, &paths).unwrap();
-        assert_eq!((request["engine"].clone(), request["map_selection_version"].clone()), (json!("core-legacy"), json!(MAP_SELECTION_VERSION)));
+        assert_eq!((request["engine"].clone(), request["map_selection_version"].clone()), (json!("core-ng"), json!(MAP_SELECTION_VERSION)), "core-ng is the default");
         assert!(request.get("map_selection").is_none(), "every city is the policy every seed has always had");
         assert!(request["map"].get("city_extent_m").is_none() && request["map"].get("district_nodes").is_none(), "the engine's defaults are not sent");
 
         let mut config = load(&paths).unwrap();
+        field("engines.selected").unwrap().set(&mut config, json!("core-legacy"));
         assert_eq!(field("map.selection_mode").unwrap().set(&mut config, json!("countries")), vec!["engines.selected"], "only core-ng chooses countries");
         save(&config, &paths).unwrap();
         assert!(start_request(&options, &paths).unwrap_err().message.contains("Places names none"));

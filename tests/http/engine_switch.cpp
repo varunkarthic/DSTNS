@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
-// The engine switch: a start names "core-legacy" (the default) or "core-ng". Both prepare the same world, with the
+// The engine switch: a start names "core-ng" (the default) or "core-legacy". Both prepare the same world, with the
 // same hashes, and say which engine runs it. An engine the server does not have is refused before anything starts.
 #include "harness.hpp"
 
@@ -19,7 +19,7 @@ json run_on(const std::string& engine, const std::string& seed, const json& extr
     start.update(extra);
     const auto started = server.op("POST", "/api/v1/playback/start", start);
     EXPECT(started.status == 202, show(started));
-    // core-ng is beta: its start waits for acknowledgment (tests/http/engine_gate.cpp), which the observer gives.
+    // Were core-ng marked unstable, its start would wait for acknowledgment (tests/http/engine_gate.cpp).
     if (started.data().value("state", "") == "approval_required") {
         const auto accepted = server.call("POST", "/api/v1/engine/approval", json{{"approval_id", started.data().at("approval_id")}, {"decision", "accept"}}, "", {{"X-DSTNS-Host", "1"}});
         EXPECT(accepted.status == 200 && !accepted.data().contains("start_error"), show(accepted));
@@ -64,8 +64,10 @@ int main() {
             seed = std::to_string(candidate);
     EXPECT(!seed.empty());
 
-    const auto legacy = run_on("", seed);
+    const auto legacy = run_on("core-legacy", seed);
     const auto ng = run_on("core-ng", seed);
+    // A start that names no engine runs on the default, core-ng (API 1.10).
+    EXPECT(run_on("", seed).at("status_engine") == "core-ng", "the default engine");
     EXPECT(legacy.at("status_engine") == "core-legacy", legacy.dump());
     EXPECT(legacy.at("manifest").at("engine") == "core-legacy", legacy.dump());
     EXPECT(ng.at("status_engine") == "core-ng", ng.dump());
@@ -92,7 +94,7 @@ int main() {
     const json fixture = {{"osm_file", "tests/fixtures/roads.osm.xml"}};
     for (const auto& [why, body] : std::vector<std::pair<std::string, json>>{
              {"an unknown engine", {{"seed", "1"}, {"engine", "core-next"}, {"map", fixture}}},
-             {"a policy core-legacy does not have", [&] { json b{{"seed", "1"}, {"map", fixture}}; b.update(berlin); return b; }()},
+             {"a policy core-legacy does not have", [&] { json b{{"seed", "1"}, {"engine", "core-legacy"}, {"map", fixture}}; b.update(berlin); return b; }()},
              {"an unknown country", {{"seed", "1"}, {"engine", "core-ng"}, {"map", fixture}, {"map_selection_version", "urban-geo-v1"},
                                      {"map_selection", {{"mode", "countries"}, {"countries", {"XX"}}}}}},
              {"a malformed list", {{"seed", "1"}, {"engine", "core-ng"}, {"map", fixture}, {"map_selection_version", "urban-geo-v1"},

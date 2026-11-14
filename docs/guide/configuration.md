@@ -65,12 +65,12 @@ Kept in `config/engines.json` (see [Engine governance](../design/engine-governan
 
 | Key | Default | Range | Read by | Meaning |
 |---|---|---|---|---|
-| `engines.selected` | `core-legacy` | an enabled engine | CLI | Which engine builds and runs each world. Both give the same world for the same seed under `urban-crfg-v3` |
+| `engines.selected` | `core-ng` | an enabled engine | CLI | Which engine builds and runs each world. Both give the same world for the same seed under `urban-crfg-v3` |
 | `engines.auto_switch` | `offer` | `offer`, `off` | server | Whether rejecting an unstable engine's run offers to start the seed on a stable engine |
-| `engines.engines.core-ng.enabled` | `true` | on or off | CLI, server | Off: core-ng stays installed, but nothing can start on it |
+| `engines.engines.core-ng.enabled` | `true` | on only | CLI | The default engine cannot be turned off |
 | `engines.engines.core-ng.acknowledgment.enforce` | `true` | on or off | server | Hold each core-ng run until a person accepts the risk. Off turns the observer's acknowledgment off too |
 | `engines.engines.core-ng.acknowledgment.ui` | `true` | on or off | server, observer | Ask in the observer; off while enforced, the launcher asks (`--accept-risk`) |
-| `engines.engines.core-legacy.enabled` | `true` | on only | CLI | The default engine cannot be turned off |
+| `engines.engines.core-legacy.enabled` | `true` | on or off | CLI, server | Off: core-legacy stays installed, but nothing can start on it |
 | `map.selection_mode` | `global` | `global`, `countries`, `cities`, `fixed_city` | CLI | Which cities a seed may choose. With `global` and something in Places, Places decides: two-letter codes are countries, other names cities |
 | `map.places` | `all` | comma-separated IDs, `-` before one to leave it out | CLI | Countries (ISO 3166-1 alpha-2, such as `IN, AE`) or city IDs (such as `mumbai, new-york`). `-IN` is everywhere but India; `IN, -mumbai` is India without Mumbai. Countries are written in capitals and cities in lower case with hyphens before the request is sent |
 

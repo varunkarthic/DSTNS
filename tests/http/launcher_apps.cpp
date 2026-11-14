@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
         {
             const auto engines = json::parse(read(settings / "engines.json")).at("engines");
             const auto info = get("/api/v1/system/info").body;
-            EXPECT(engines.at("core-ng").value("channel", "") == "beta" && engines.at("core-legacy").value("channel", "") == "stable", engines);
+            EXPECT(engines.at("core-ng").value("channel", "") == "stable" && engines.at("core-legacy").value("channel", "") == "stable", engines);
             EXPECT(engines.at("core-legacy").value("version", "") == info.value("version", "?") && engines.at("core-ng").value("kind", "") == "real", engines);
         }
         // The plan stays while they run, which is how a reloaded application comes back as itself.

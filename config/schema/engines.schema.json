@@ -26,11 +26,11 @@
     },
     "selected": {
       "title": "Engine",
-      "description": "Engine (Engine). Which engine builds and runs each world. core-legacy is the engine DSTNS has always used; core-ng is its next-generation replacement, built beside it, which gives the same world for the same seed and can also limit worlds to chosen countries or cities. Accepts: \"core-legacy\" (core-legacy), \"core-ng\" (core-ng (next generation)). Default: \"core-legacy\". Applies from the next start of the server (./launcher start). Set to core-ng (next generation) when Where worlds are is set to Countries. Set to core-ng (next generation) when Where worlds are is set to Cities. Set to core-ng (next generation) when Where worlds are is set to One city. Set to core-legacy, it sets Where worlds are to Every city. Set to core-legacy, it sets Places to all.",
-      "default": "core-legacy",
+      "description": "Engine (Engine). Which engine builds and runs each world. core-ng, the default, is the next-generation engine; core-legacy is the engine DSTNS had before it. Both make the same world from the same seed, and only core-ng can limit worlds to chosen countries or cities. Accepts: \"core-ng\" (core-ng (default)), \"core-legacy\" (core-legacy). Default: \"core-ng\". Applies from the next start of the server (./launcher start). Set to core-ng (default) when Where worlds are is set to Countries. Set to core-ng (default) when Where worlds are is set to Cities. Set to core-ng (default) when Where worlds are is set to One city. Set to core-legacy, it sets Where worlds are to Every city. Set to core-legacy, it sets Places to all.",
+      "default": "core-ng",
       "enum": [
-        "core-legacy",
-        "core-ng"
+        "core-ng",
+        "core-legacy"
       ]
     },
     "auto_switch": {
@@ -50,7 +50,7 @@
           "properties": {
             "enabled": {
               "title": "core-ng available",
-              "description": "core-ng available (Engine). Off, core-ng stays installed but nothing can start a run on it. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start).",
+              "description": "core-ng available (Engine). core-ng is the default engine, so it cannot be turned off. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start).",
               "default": true,
               "type": "boolean"
             },
@@ -59,7 +59,7 @@
               "properties": {
                 "enforce": {
                   "title": "core-ng: hold runs until acknowledged",
-                  "description": "core-ng: hold runs until acknowledged (Engine). core-ng is beta. On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off, it sets core-ng: acknowledge in the observer to off.",
+                  "description": "core-ng: hold runs until acknowledged (Engine). core-ng is stable, so its runs start at once; this applies if it is ever marked alpha or beta (DSTNS_ENGINE_CHANNEL). On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off, it sets core-ng: acknowledge in the observer to off.",
                   "default": true,
                   "type": "boolean"
                 },
@@ -97,7 +97,7 @@
           "properties": {
             "enabled": {
               "title": "core-legacy available",
-              "description": "core-legacy available (Engine). core-legacy is the default engine, so it cannot be turned off. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start).",
+              "description": "core-legacy available (Engine). Off, core-legacy stays installed but nothing can start a run on it. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start).",
               "default": true,
               "type": "boolean"
             },

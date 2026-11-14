@@ -316,7 +316,8 @@ ScenarioConfig config_from(const json& j) {
         c.map_exclude_countries=ids("exclude_countries");c.map_exclude_cities=ids("exclude_cities");
     }
     // Which engine runs the world; the engine refuses one it does not have.
-    c.engine=j.value("engine",std::string("core-legacy"));
+    // core-ng is the default engine (API 1.10); a request may still name core-legacy.
+    c.engine=j.value("engine",std::string("core-ng"));
     if(!c.saved_seed_id.empty()&&!std::regex_match(c.saved_seed_id,std::regex("[A-Za-z0-9][A-Za-z0-9_-]{0,63}")))throw std::invalid_argument("invalid saved seed ID");
     if (j.contains("modules")) {
         auto& m = j.at("modules");

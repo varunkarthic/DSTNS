@@ -1,14 +1,14 @@
 # Engine governance
 
-How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.9.0,
-launcher 3.9.0, observer 3.4.0, API contract 1.9.
+How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.10.0,
+launcher 3.10.0, observer 3.5.0, API contract 1.10.
 
 ## Engines
 
 | Engine | Kind | Channel | Version | What it is |
 |---|---|---|---|---|
-| `core-legacy` | real | stable | the build's (`3.6.0`) | The engine DSTNS has always had. The default; it cannot be disabled |
-| `core-ng` | real | beta | its own (`0.9.0`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)) |
+| `core-legacy` | real | stable | the build's (`3.10.0`) | The engine DSTNS had before core-ng. Installed and selectable; it may be disabled |
+| `core-ng` | real | stable | its own (`1.0.0`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)). **The default** since engine 3.10.0; it cannot be disabled |
 
 Every engine describes itself with an **identity**: `id`, `version`, `kind` (`real` runs worlds; `pseudo` would only
 delegate), `channel` (`alpha`, `beta` or `stable`), `owns` (the parts of a run it implements itself), `shared` (the
@@ -34,10 +34,15 @@ Where it is reported:
 | `beta` | Complete, but not yet proven over enough runs | Held until acknowledged (yellow), when enforcement is on |
 | `alpha` | Not yet complete: it still shares parts of a run with another engine | Held until acknowledged (orange to red), when enforcement is on |
 
-core-ng is **beta** since 0.8.0: it owns every computation of a run (selection, compilation, the physics step,
-checkpoints and seeking). What it shares is the runtime host, `SimulationEngine`: the lifecycle and the clock, the
-operator commands and their undo, and the HTTP API, which every engine runs inside by design, and which only set the
-fields core-ng's own physics reads. It becomes beta when it owns every part of a run, and stable, and the default,
+core-ng was alpha until it owned the physics step (0.7.0) and checkpoints (0.8.0), beta from 0.8.0, and is **stable and
+the default** from 1.0.0 (engine 3.10.0, issue #22). It owns every computation of a run (selection, compilation, the
+physics step, checkpoints and seeking), with results identical to core-legacy's on every fixture and platform. What it
+shares is the runtime host, `SimulationEngine`: the lifecycle and the clock, the operator commands and their undo,
+and the HTTP API, which every engine runs inside by design.
+
+No engine installed today is alpha or beta, so no run is held by default. The gate stays for engines to come, and an
+operator may mark an engine less stable than its build says (never more) with `DSTNS_ENGINE_CHANNEL=core-ng=beta`,
+which the gate's own tests use. It becomes beta when it owns every part of a run, and stable, and the default,
 only with full parity (issue #22).
 
 ### Core Hybrid: not implemented
@@ -69,12 +74,12 @@ server reads it as it starts (`DSTNS_ENGINE_CONFIG`, which the launcher sets to 
   "$schema": "./schema/engines.schema.json",
   "schema_version": 1,
   "_about": "…", "_help": {"…": "…"},
-  "selected": "core-legacy",
-  "default": "core-legacy",
+  "selected": "core-ng",
+  "default": "core-ng",
   "auto_switch": "offer",
   "engines": {
-    "core-legacy": {"channel": "stable", "version": "3.9.0", "kind": "real", "enabled": true},
-    "core-ng": {"channel": "beta", "version": "0.9.0", "kind": "real", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
+    "core-legacy": {"channel": "stable", "version": "3.10.0", "kind": "real", "enabled": true},
+    "core-ng": {"channel": "stable", "version": "1.0.0", "kind": "real", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
   }
 }
 ```
@@ -82,8 +87,8 @@ server reads it as it starts (`DSTNS_ENGINE_CONFIG`, which the launcher sets to 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
 | `engines.ID.channel`, `.version`, `.kind` | as the build reports them | — | What each engine is: `alpha`, `beta` or `stable`; its own version; `real` or `pseudo`. **Copied from the build by the launcher at every start** (`GET /api/v1/engine`), so the file shows them; the server never reads them, and editing them changes nothing |
-| `selected` | an installed engine | `core-legacy` | The engine the launcher starts. `--engine` changes it for one run |
-| `default` | `core-legacy` | `core-legacy` | The stable engine every installation starts on. Written by the launcher; it cannot be disabled |
+| `selected` | an installed engine | `core-ng` | The engine the launcher starts. `--engine` changes it for one run |
+| `default` | `core-ng` | `core-ng` | The stable engine every installation starts on, and a request without `engine` runs on. Written by the launcher; it cannot be disabled |
 | `auto_switch` | `offer`, `off` | `offer` | Whether a rejection offers the enabled stable real engines for the same seed |
 | `engines.ID.enabled` | true, false | true | Off: installed, but nothing can start a run on it (`403 ENGINE_DISABLED`) |
 | `engines.ID.acknowledgment.enforce` | true, false | true | Hold each run on an alpha or beta engine until it is acknowledged |
@@ -112,7 +117,7 @@ alpha or beta, and its acknowledgment is enforced, the server **holds** the star
 
 ```json
 202 {"ok": true, "data": {"state": "approval_required", "deferred": true, "approval_id": "9f1c…",
-     "engine": {"id": "core-ng", "version": "0.6.0", "channel": "alpha", "kind": "real", "…": "…"},
+     "engine": {"id": "core-ng", "version": "1.0.0", "channel": "beta", "kind": "real", "…": "…"},
      "acknowledge_in": "observer", "wait": "/api/v1/engine/approval/wait?since=1"}}
 ```
 
@@ -223,6 +228,4 @@ core-legacy's code. A shared capability does not count towards core-ng's parity,
 | HTTP API, Fabric, WebFabric | shared, engine-neutral | every HTTP test runs against the shared API |
 | Runtime snapshots | identical, per platform | `dstns_golden` |
 
-core-ng owns every computation of a run, with identical results on both engines. It is beta, not yet the default:
-the default moves to core-ng once it has been proven over a release cycle as beta, with the golden fixtures green
-on every platform and the owner's approval (issue #22).
+core-ng owns every computation of a run, with identical results on both engines, and is the default (issue #22).

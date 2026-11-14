@@ -37,7 +37,8 @@ Reply decide(const Server& server, const std::string& id, const std::string& dec
 
 fs::path policy_file(const TempDir& tmp, const json& engines) {
     const auto file = tmp / "engines.json";
-    std::ofstream(file) << json{{"schema_version", 1}, {"engines", engines}}.dump();
+    // core-legacy as the default, so core-ng, the usual default, may be disabled here.
+    std::ofstream(file) << json{{"schema_version", 1}, {"default", "core-legacy"}, {"engines", engines}}.dump();
     return file;
 }
 } // namespace
@@ -45,11 +46,12 @@ fs::path policy_file(const TempDir& tmp, const json& engines) {
 int main() {
     {
         TempDir tmp;
-        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CONFIG", (tmp / "absent.json").string()}});
+        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CONFIG", (tmp / "absent.json").string()}, {"DSTNS_ENGINE_CHANNEL", "core-ng=beta"}});
         // Each engine says what it is.
         const auto info = server.op("GET", "/api/v1/system/info").body;
         json ng, legacy;
         for (const auto& e : info.at("engine_catalogue")) (e.at("id") == "core-ng" ? ng : legacy) = e;
+        // core-ng is stable; DSTNS_ENGINE_CHANNEL marked it beta here, to have an engine whose runs are held.
         EXPECT(ng.at("channel") == "beta" && ng.at("kind") == "real" && !ng.at("version").get<std::string>().empty(), ng);
         EXPECT(legacy.at("channel") == "stable" && legacy.at("version") == info.at("version"), legacy);
 
@@ -119,20 +121,20 @@ int main() {
     {
         // A disabled engine is installed but cannot start; enforcement off runs it at once.
         TempDir tmp;
-        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CONFIG", policy_file(tmp, {{"core-ng", {{"enabled", false}}}}).string()}});
+        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CHANNEL", "core-ng=beta"}, {"DSTNS_ENGINE_CONFIG", policy_file(tmp, {{"core-ng", {{"enabled", false}}}}).string()}});
         const auto disabled = server.op("POST", "/api/v1/playback/start", start_body("core-ng"));
         EXPECT(disabled.code() == "ENGINE_DISABLED", show(disabled) + " " + read(tmp / "engines.json") + " " + read(tmp / "system.log"));
     }
     {
         TempDir tmp;
-        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CONFIG", policy_file(tmp, {{"core-ng", {{"acknowledgment", {{"enforce", false}}}}}}).string()}});
+        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CHANNEL", "core-ng=beta"}, {"DSTNS_ENGINE_CONFIG", policy_file(tmp, {{"core-ng", {{"acknowledgment", {{"enforce", false}}}}}}).string()}});
         EXPECT(server.op("POST", "/api/v1/playback/start", start_body("core-ng")).data().value("state", "") != "approval_required");
         EXPECT(running(server).at("data").at("engine") == "core-ng");
     }
     {
         // The observer's acknowledgment off, enforcement on: only the operator (the launcher) decides.
         TempDir tmp;
-        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CONFIG", policy_file(tmp, {{"core-ng", {{"acknowledgment", {{"ui", false}, {"enforce", true}}}}}}).string()}});
+        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CHANNEL", "core-ng=beta"}, {"DSTNS_ENGINE_CONFIG", policy_file(tmp, {{"core-ng", {{"acknowledgment", {{"ui", false}, {"enforce", true}}}}}}).string()}});
         const auto held = server.op("POST", "/api/v1/playback/start", start_body("core-ng"));
         EXPECT(held.data().at("acknowledge_in") == "launcher", show(held));
         const std::string id = held.data().at("approval_id");

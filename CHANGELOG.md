@@ -14,6 +14,31 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.10.0] - 2026-11-14
+
+**Engine 3.10.0 (core-ng 1.0.0, stable), launcher 3.10.0, observer 3.5.0, API contract 1.10.** Results for every seed
+are unchanged: core-ng makes the same world as core-legacy, seed for seed.
+
+### Changed
+
+- **core-ng is stable, and the default engine** (#22, release 9 of the migration).
+  - It owns every computation of a run, with identical results on both engines. The evidence is `dstns_golden`,
+    `dstns_timeline_ng`, `dstns_compile_ng` and `dstns_http_engine_switch`, on macOS and Linux.
+  - A start request that names no engine now runs on core-ng (API 1.10). The launcher's `engines.selected` and
+    `config/engines.json`'s `selected` and `default` are core-ng.
+  - The default engine cannot be disabled, so that is now core-ng. core-legacy stays installed, stable and
+    selectable (`--engine core-legacy`), and may be disabled.
+  - A launcher from before keeps the engine its operator chose.
+- With no alpha or beta engine installed, no run is held by default. `DSTNS_ENGINE_CHANNEL=core-ng=beta` marks an
+  engine less stable than its build says, never more. The gate's tests use it, and an operator may too.
+
+### Tests
+
+- `dstns_http_engine_switch`: a start with no engine runs on core-ng. The core-legacy cases name their engine.
+- `dstns_http_engine_gate`: runs with core-ng marked beta.
+
+Rollback: revert this release's commit; core-legacy is then the default again.
+
 ## [Observer 3.5.0] - 2026-11-14
 
 **Engine 3.9.0, launcher 3.9.0, observer 3.5.0, API contract 1.9.** No engine change.
