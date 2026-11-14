@@ -12,10 +12,12 @@
 //                  "global" it chooses exactly what urban-crfg-v3 chooses. Countries and cities may also be left
 //                  out (exclude_countries, exclude_cities) of whatever the mode allows; a policy with none left out
 //                  has the same fingerprint as before exclusions existed.
+//   urban-geo-v2   urban-geo-v1's rules over a larger catalogue (world_catalog(): the same 181 cities, then more), the
+//                  launcher's policy on core-ng. Its draws differ from urban-crfg-v3's, since there are more cities.
 
 #include "dstns/geo.hpp"
 #include "dstns/model.hpp"
-#include "dstns/scenario.hpp"
+#include "dstns/engine_hooks.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -27,6 +29,8 @@ namespace dstns::core_ng {
 inline constexpr const char* kEngineId = "core-ng";
 inline constexpr const char* kLegacyPolicy = "urban-crfg-v3";
 inline constexpr const char* kGeoPolicy = "urban-geo-v1";
+// urban-geo-v1's rules over world_catalog(): the 181 cities and more after them.
+inline constexpr const char* kGeoPolicyV2 = "urban-geo-v2";
 
 struct SelectionPolicy {
     std::string id{kLegacyPolicy};
@@ -51,10 +55,13 @@ struct SelectionPolicy {
 // The cities a policy allows, in catalogue order.
 [[nodiscard]] std::vector<const City*> eligible(const SelectionPolicy& policy);
 
+// The cities a policy draws from: world_catalog() for urban-geo-v2, city_catalog() otherwise.
+[[nodiscard]] const std::vector<City>& catalogue(const std::string& policy);
+
 // Resolve a seed under a policy.
 [[nodiscard]] MapLocation select_location(Seed128 seed, const SelectionPolicy& policy, double extent_m);
 
 // The hooks that route the legacy compiler through core-ng's modules.
-[[nodiscard]] ScenarioCompiler::Hooks hooks();
+[[nodiscard]] EngineHooks hooks();
 
 } // namespace dstns::core_ng

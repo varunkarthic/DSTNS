@@ -40,9 +40,11 @@ struct EngineConfig {
     int schema_version{1};
     std::string selected{"core-ng"};
     std::string default_engine{"core-ng"};
-    // What a rejection offers: "offer" lists the enabled stable real engines to start the seed on; "off" offers none.
-    std::string auto_switch{"offer"};
-    std::map<std::string, EnginePolicy> engines;
+    // What a rejection offers: "offer" lists the enabled stable real engines to start the seed on; "off" (the
+    // default) offers none.
+    std::string auto_switch{"off"};
+    // core-ng is the engine; core-legacy stays installed, for comparison, but runs nothing unless turned on.
+    std::map<std::string, EnginePolicy> engines{{"core-legacy", EnginePolicy{.enabled = false}}};
     std::vector<std::string> warnings;  // what was wrong in the file, and what was used instead
 
     [[nodiscard]] EnginePolicy policy(const std::string& id) const;

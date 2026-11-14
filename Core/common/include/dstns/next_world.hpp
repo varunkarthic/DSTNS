@@ -15,6 +15,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -43,12 +44,13 @@ public:
     [[nodiscard]] static bool matches(const nlohmann::json& pointer, double extent_m, const nlohmann::json& selection);
 
     // A world was installed: if it was the one prepared, that one is used up; then the one after is prepared.
-    void installed(Seed128 seed, const ScenarioConfig& config, const Locate& locate, const nlohmann::json& selection);
+    void installed(Seed128 seed, const ScenarioConfig& config, const Locate& locate, const nlohmann::json& selection,
+                   const std::set<std::string>& avoid = {});
     // The seed a new world for this configuration should take: the one prepared, if its city is here. While that is
     // still on its way, a city already in the cache other than `current_city`, which is sooner; else the one on its way.
-    // Never in `avoid_city`.
+    // Never in a city of `avoid` (one that failed, and those this session has shown).
     [[nodiscard]] std::optional<Seed128> take(const ScenarioConfig& config, const Locate& locate, const nlohmann::json& selection,
-                                              const std::string& avoid_city = "", const std::string& current_city = "") const;
+                                              const std::set<std::string>& avoid = {}, const std::string& current_city = "") const;
     // What the next world is, and how far it has got, for /api/v1/world/status.
     [[nodiscard]] nlohmann::json status() const;
 
@@ -67,5 +69,10 @@ private:
     // no longer next is set aside, and joined once it has finished.
     std::vector<Worker> workers_;
 };
+
+// A seed for a new world in a city not in `avoid`, if the policy leaves one (a bounded number of draws, which with 181
+// cities all but always finds the last one left); otherwise one in a city other than `current`, where there is one;
+// otherwise any. Returns whether it had to give up on `avoid`.
+std::pair<Seed128, bool> seed_avoiding(const std::set<std::string>& avoid, const std::string& current, const NextWorld::Locate& locate);
 
 } // namespace dstns

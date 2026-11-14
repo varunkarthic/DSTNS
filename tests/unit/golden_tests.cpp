@@ -9,6 +9,7 @@
 //   A platform with no recorded value fails, so a new one is recorded deliberately.
 // A difference fails the test. To record new values deliberately (a new algorithm version), run with
 // DSTNS_GOLDEN_WRITE=1 and say why in CHANGELOG.md.
+#include "dstns/engines.hpp"
 #include "dstns/core-ng/selection.hpp"
 #include "dstns/engine.hpp"
 #include "dstns/geo.hpp"
@@ -55,14 +56,12 @@ std::string exact(double value) {
 }
 
 std::string snapshot_hash(const Seed128& seed, const ScenarioConfig& cfg, const std::string& label) {
-    const bool ng = cfg.engine == core_ng::kEngineId;
     const auto directory = std::filesystem::temp_directory_path() / ("dstns-golden-" + label);
     std::filesystem::remove_all(directory);
     std::string hash;
     {
         RuntimeLogger logger(directory);
-        SimulationEngine engine(logger);
-        if (ng) engine.register_engine(core_ng::kEngineId, core_ng::hooks());
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         engine.prepare(seed, cfg);
         engine.seek(12'345, false);
         hash = sha256(engine.snapshot()["data"].dump());

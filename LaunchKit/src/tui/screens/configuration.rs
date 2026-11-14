@@ -41,6 +41,9 @@ fn editor(field: &config::Field, value: &Value) -> Editor {
         items.extend(config::DEMO_SCENES.iter().filter(|id| !chosen.iter().any(|c| c == *id)).map(|id| (id.to_string(), title(id), false)));
         return Editor::Order { items, cursor: 0 };
     }
+    if field.key.starts_with("rcs.") {
+        return Editor::triple(&field.display(value), if field.key.ends_with(".memory") { "MiB" } else { "% of a core" });
+    }
     match field.kind {
         FieldKind::Boolean => Editor::Toggle(value.as_bool().unwrap_or(false)),
         FieldKind::Choice => Editor::select(field.choices.iter().map(|(l, c)| (capitalise(l), c.to_string())).collect(), &value.to_string()),
@@ -137,7 +140,7 @@ impl ConfigurationScreen {
                 Ok(field.choices.iter().find(|(_, c)| c.to_string() == text).map(|(_, c)| c.clone()).unwrap_or(Value::Null))
             }
             Editor::Text { value, .. } => field.parse(value),
-            Editor::Order { .. } => field.parse(&row.editor.text_value()),
+            Editor::Order { .. } | Editor::Triple { .. } => field.parse(&row.editor.text_value()),
         };
         let problem = match &parsed {
             Ok(value) => config::check_field(field, value, &self.current),
@@ -199,7 +202,17 @@ impl Screen for ConfigurationScreen {
         format!("/config/{}", self.categories.current_key().unwrap_or_default())
     }
     fn keys(&self, ui: &Ui) -> Vec<Key> {
-        vec![key(if ui.unicode { "↑↓" } else { "Up/Down" }, "Categories", "Move", false), key("Tab", "Next field", "Next", true), key("Ctrl+S", "Save", "Save", true), key("Esc", "Back", "Back", true)]
+        let mut keys = vec![key(if ui.unicode { "↑↓" } else { "Up/Down" }, "Categories", "Move", false), key("Tab", "Next field", "Next", true)];
+        match self.form.focused().filter(|_| self.in_form) {
+            Some(row) if matches!(row.editor, Editor::Triple { .. }) => {
+                keys.push(key(if ui.unicode { "←→" } else { "Left/Right" }, if ui.unicode { "α β γ" } else { "alpha beta gamma" }, "Cell", true));
+                keys.push(key("+ -", "Step", "Step", false));
+            }
+            Some(row) if row.key == "map.places" => keys.push(key("Enter", "Choose countries", "Countries", true)),
+            _ => {}
+        }
+        keys.extend([key("Ctrl+S", "Save", "Save", true), key("Esc", "Back", "Back", true)]);
+        keys
     }
     fn typing(&self) -> bool {
         self.in_form && self.form.focused().map(|r| matches!(r.editor, Editor::Text { .. })).unwrap_or(false)
@@ -274,6 +287,10 @@ impl Screen for ConfigurationScreen {
             }
             return Action::None;
         }
+        // Places may be typed, or chosen from the list of countries.
+        if event.code == KeyCode::Enter && self.form.focused().map(|r| r.key == "map.places").unwrap_or(false) {
+            return Action::Push(Box::new(super::places::PlacesScreen::countries()));
+        }
         // A list of its own keeps the arrows while there is somewhere in it to go.
         if self.form.focused().map(|r| r.editor.consumes(&event) || (r.editor.is_order() && event.modifiers.contains(KeyModifiers::SHIFT))).unwrap_or(false) {
             if let Some(key) = self.form.handle(&event) {
@@ -299,6 +316,17 @@ impl Screen for ConfigurationScreen {
             }
         }
         Action::None
+    }
+    fn resume(&mut self, ui: &mut Ui) {
+        // Back from the country list, which saves on its own: show what it saved, unless there are edits here.
+        if self.loaded && !self.dirty() {
+            let category = self.categories.current_key();
+            self.load(ui);
+            if let Some(category) = category {
+                self.categories.select(&category);
+                self.show_category();
+            }
+        }
     }
     fn dialog(&mut self, id: &str, choice: &str, ui: &mut Ui) -> Action {
         match (id, choice) {
@@ -346,7 +374,7 @@ mod tests {
     #[test]
     fn a_linked_setting_keeps_its_own_editor() {
         let mut screen = ConfigurationScreen::new(Some("Engine".into()));
-        screen.current = json!({});
+        screen.current = json!({"engines": {"engines": {"core-legacy": {"enabled": true}}}});
         screen.categories.select("Engine");
         screen.show_category();
         let mode = config::field("map.selection_mode").unwrap();

@@ -38,7 +38,9 @@ Reply decide(const Server& server, const std::string& id, const std::string& dec
 fs::path policy_file(const TempDir& tmp, const json& engines) {
     const auto file = tmp / "engines.json";
     // core-legacy as the default, so core-ng, the usual default, may be disabled here.
-    std::ofstream(file) << json{{"schema_version", 1}, {"default", "core-legacy"}, {"engines", engines}}.dump();
+    auto listed = engines;
+    if (!listed.contains("core-legacy")) listed["core-legacy"] = {{"enabled", true}};
+    std::ofstream(file) << json{{"schema_version", 1}, {"default", "core-legacy"}, {"auto_switch", "offer"}, {"engines", listed}}.dump();
     return file;
 }
 } // namespace
@@ -46,7 +48,9 @@ fs::path policy_file(const TempDir& tmp, const json& engines) {
 int main() {
     {
         TempDir tmp;
-        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CONFIG", (tmp / "absent.json").string()}, {"DSTNS_ENGINE_CHANNEL", "core-ng=beta"}});
+        // core-legacy turned on, and a rejection offering a stable engine: neither is the default.
+        std::ofstream(tmp / "engines.json") << json{{"schema_version", 1}, {"auto_switch", "offer"}, {"engines", {{"core-legacy", {{"enabled", true}}}}}}.dump();
+        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CONFIG", (tmp / "engines.json").string()}, {"DSTNS_ENGINE_CHANNEL", "core-ng=beta"}});
         // Each engine says what it is.
         const auto info = server.op("GET", "/api/v1/system/info").body;
         json ng, legacy;
@@ -140,6 +144,15 @@ int main() {
         const std::string id = held.data().at("approval_id");
         EXPECT(decide(server, id, "accept").code() == "ACKNOWLEDGE_IN_LAUNCHER");
         EXPECT(decide(server, id, "accept", json::object(), server.host).status == 200);
+    }
+    {
+        // With no policy file, core-ng is the engine: core-legacy refuses to start, and a rejection offers nothing.
+        TempDir tmp;
+        Server server(tmp.path, {"--map-cache", "keep"}, {{"DSTNS_ENGINE_CONFIG", (tmp / "absent.json").string()}, {"DSTNS_ENGINE_CHANNEL", "core-ng=beta"}});
+        EXPECT(server.op("POST", "/api/v1/playback/start", start_body("core-legacy")).code() == "ENGINE_DISABLED");
+        const auto held = server.op("POST", "/api/v1/playback/start", start_body("core-ng"));
+        EXPECT(held.data().value("state", "") == "approval_required", show(held));
+        EXPECT(server.op("GET", "/api/v1/engine/approval").data().at("alternatives").empty(), "no engine offered");
     }
     std::cout << "engine gate ok\n";
 }

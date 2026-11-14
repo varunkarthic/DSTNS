@@ -8,6 +8,7 @@
 //
 // The model is a scripted backend, so every path is exercised without a
 // language model installed.
+#include "dstns/engines.hpp"
 #include "dstns/engine.hpp"
 #include "dstns/logging.hpp"
 #include "dstns/narrator.hpp"
@@ -207,7 +208,7 @@ int main() {
             std::filesystem::remove_all(dir);
             {
                 RuntimeLogger logger(dir);
-                SimulationEngine engine(logger);
+                SimulationEngine engine(logger); dstns::install_engines(engine);
                 if (narrator) engine.set_narrator(narrator);
                 engine.prepare(kSeed, small_world());
                 if (narrator) narrator->wait_idle(std::chrono::seconds(10));
@@ -264,7 +265,7 @@ int main() {
         std::filesystem::remove_all(dir);
         {
             RuntimeLogger logger(dir);
-            SimulationEngine engine(logger);
+            SimulationEngine engine(logger); dstns::install_engines(engine);
             auto cfg = small_world();
             cfg.grid_width = 70;
             cfg.grid_height = 70;

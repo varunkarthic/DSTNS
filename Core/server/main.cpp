@@ -4,6 +4,7 @@
 #include "dstns/api.hpp"
 #include "dstns/build_info.hpp"
 #include "dstns/core-ng/identity.hpp"
+#include "dstns/engines.hpp"
 #include "dstns/core-ng/lifecycle.hpp"
 #include "dstns/core-ng/selection.hpp"
 #include "dstns/core-ng/world.hpp"
@@ -93,17 +94,23 @@ int main(int argc, char** argv) {
             else if (a == "--narrator-model" && i + 1 < argc) narrator_model = argv[++i];
             else if (a == "--narrator-cache" && i + 1 < argc) narrator_cache = argv[++i];
             else if (a == "--list-cities") {
-                // Every city a seed can choose, and the extract each one reads, for Fast Boot to fetch in advance.
+                // Every city a seed can choose, and the extract each one reads, for Fast Boot to fetch in advance and
+                // the launcher's list of cities. "since" is the first policy whose catalogue has it.
                 const double extent = i + 1 < argc && argv[i + 1][0] != '-' ? std::stod(argv[++i]) : 5000.0;
                 auto cities = nlohmann::json::array();
-                for (const auto& city : dstns::city_catalog()) {
+                const auto first = dstns::city_catalog().size();
+                for (std::size_t n = 0; n < dstns::world_catalog().size(); ++n) {
+                    const auto& city = dstns::world_catalog()[n];
                     dstns::MapLocation location;
                     location.city = city.name;
                     location.country = city.country;
                     location.extent_m = extent;
                     location.centre_lat = city.centre_lat();
                     location.centre_lon = city.centre_lon();
-                    cities.push_back({{"city", city.name}, {"country", city.country}, {"key", location.cache_key()}, {"bbox", location.bbox()}});
+                    cities.push_back({{"city", city.name}, {"country", city.country}, {"key", location.cache_key()}, {"bbox", location.bbox()},
+                                      {"id", dstns::core_ng::city_id(city)}, {"country_code", dstns::core_ng::country_id(city)},
+                                      {"lat", city.centre_lat()}, {"lon", city.centre_lon()},
+                                      {"since", n < first ? dstns::core_ng::kLegacyPolicy : dstns::core_ng::kGeoPolicyV2}});
                 }
                 std::cout << cities.dump() << "\n";
                 return 0;
@@ -163,7 +170,7 @@ int main(int argc, char** argv) {
             logger.system("WARN", "maps", std::string("Cache sweep skipped: ") + e.what());
         }
         dstns::SimulationEngine engine(logger);
-        engine.register_engine(dstns::core_ng::kEngineId, dstns::core_ng::hooks(), dstns::core_ng::identity());
+        dstns::install_engines(engine);
         // DSTNS_ENGINE_CHANNEL=ID=CHANNEL marks an engine less stable than its build says, never more: for testing the
         // unstable-engine gate, and for an operator who wants every run on an engine acknowledged.
         if (const char* override = std::getenv("DSTNS_ENGINE_CHANNEL"); override && *override) {
@@ -176,8 +183,6 @@ int main(int argc, char** argv) {
                 engine.set_identity(dstns::core_ng::kEngineId, std::move(lowered));
             }
         }
-        engine.set_transition_guard(dstns::core_ng::lifecycle::allowed);
-        engine.set_world_guard(dstns::core_ng::world::allowed);
         try {
             std::unique_ptr<dstns::NarrationBackend> backend;
             if (narrator == "auto" || narrator == "fm") {

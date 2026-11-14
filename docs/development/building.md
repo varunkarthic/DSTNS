@@ -34,7 +34,11 @@ cmake --build build -j
 
 | Target | Kind | Purpose |
 |---|---|---|
-| `dstns_core` | static library | Everything in `Core/core-legacy/src/` |
+| `dstns_common` | static library | `Core/common/src/`: what every engine stands on (types, RNG, maps, the demand and signal model, logging, the runtime host) |
+| `dstns_core_ng` | static library | `Core/core-ng/src/`: core-ng, the default engine. Links `dstns_common` only |
+| `dstns_core_legacy` | static library | `Core/core-legacy/src/`: core-legacy's compiler, tick and checkpoints. Links `dstns_common` |
+| `dstns_engines` | static library | `Core/engines/src/`: `install_engines`, which registers both engines in a runtime host |
+| `dstns_core` | interface library | All four, for tests and tools |
 | `dstns_server` | executable | The server |
 | `dstns_scenario_export` | tool | Compile a scenario and write SUMO files |
 | `dstns_replay_verify` | tool | Compile and run a seed twice; compare every hash and snapshot |

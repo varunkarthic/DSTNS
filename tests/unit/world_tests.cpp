@@ -7,6 +7,7 @@
 // and always leave the run paused. Regeneration must replace the world with one
 // derived from a fresh seed, keep the old world intact when generation fails,
 // and never let the observer choose the scenario configuration.
+#include "dstns/engines.hpp"
 #include "dstns/engine.hpp"
 #include "dstns/scenario.hpp"
 
@@ -76,7 +77,7 @@ int main() {
 
     std::cout << "step\n";
     {
-        SimulationEngine engine(logger);
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         check(throws_logic([&] { engine.step(60); }), "step without a simulation is a lifecycle conflict");
         engine.start(seed, fixture());
         check(lifecycle(engine) == "RUNNING", "start runs");
@@ -97,7 +98,7 @@ int main() {
 
     std::cout << "step determinism\n";
     {
-        SimulationEngine a(logger), b(logger);
+        SimulationEngine a(logger), b(logger); dstns::install_engines(a); dstns::install_engines(b);
         a.prepare(seed, fixture());
         b.prepare(seed, fixture());
         for (int i = 0; i < 30; ++i) a.step(60);
@@ -113,7 +114,7 @@ int main() {
         // A client that shows a few demand causes may ask for only those: the same snapshot, each list cut short.
         auto real = fixture();
         real.osm_file = "data/fixtures/real_network.osm.xml";
-        SimulationEngine a(logger);
+        SimulationEngine a(logger); dstns::install_engines(a);
         a.prepare(seed, real);
         a.seek(8 * 3600 + 1800, false);
         auto full = a.snapshot()["data"];
@@ -133,7 +134,7 @@ int main() {
 
     std::cout << "step to the end of the day\n";
     {
-        SimulationEngine engine(logger);
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         engine.prepare(seed, fixture());
         engine.seek(86400 - 30, false);
         auto r = engine.step(60);
@@ -147,7 +148,7 @@ int main() {
 
     std::cout << "world regeneration\n";
     {
-        SimulationEngine engine(logger);
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         check(throws_logic([&] { engine.regenerate_world(); }), "regeneration requires an active world");
         check(engine.world_status()["data"]["state"] == "idle", "status is idle before any request");
 
@@ -202,7 +203,7 @@ int main() {
         auto config = fixture();
         config.osm_file = pinned.string();
 
-        SimulationEngine engine(logger);
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         engine.start(seed, config);
         engine.step(300);
         const auto old_run = engine.status()["run_id"].get<std::string>();
@@ -233,7 +234,7 @@ int main() {
 
     std::cout << "regeneration lifecycle\n";
     {
-        SimulationEngine engine(logger);
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         engine.start(seed, fixture());
         check(lifecycle(engine) == "RUNNING", "the world is running before the request");
         engine.regenerate_world();
@@ -297,7 +298,7 @@ int main() {
         check(throws_invalid([&] { (void)Seed128::from_decimal(""); }), "an empty seed is rejected");
 
         // The same number starts the same world, whichever form it arrives in.
-        SimulationEngine a(logger), b(logger);
+        SimulationEngine a(logger), b(logger); dstns::install_engines(a); dstns::install_engines(b);
         a.prepare(Seed128::from_decimal("12345"), fixture());
         b.prepare(Seed128::parse("0x3039"), fixture());
         check(a.status()["seed"] == "12345", "the run reports the seed it was started with");
@@ -308,7 +309,7 @@ int main() {
 
     std::cout << "playback rate range\n";
     {
-        SimulationEngine engine(logger);
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         engine.prepare(seed, fixture());
         // 5x is the ceiling: past it the step outruns what can be drawn and
         // measured, so the operator is not offered a speed that degrades the
@@ -327,7 +328,7 @@ int main() {
 
     std::cout << "place demand types\n";
     {
-        SimulationEngine engine(logger);
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         engine.prepare(seed, fixture());
         const auto topology = engine.topology()["data"];
         const auto demand = engine.snapshot()["data"]["demand"];
@@ -349,7 +350,7 @@ int main() {
 
     std::cout << "controls survive time travel and undo\n";
     {
-        SimulationEngine engine(logger);
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         engine.prepare(seed, fixture());
 
         // Seeking to the end of the day ends the run, as playing to it does.

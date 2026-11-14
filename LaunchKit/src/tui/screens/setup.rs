@@ -159,7 +159,7 @@ impl SetupScreen {
             Editor::Toggle(on) => Ok(Value::Bool(*on)),
             Editor::Select { choices, index } => Ok(serde_json::from_str::<Value>(&choices[*index].1).unwrap_or(Value::Null)),
             Editor::Text { value, .. } => field.parse(value),
-            Editor::Order { .. } => field.parse(&row.editor.text_value()),
+            Editor::Order { .. } | Editor::Triple { .. } => field.parse(&row.editor.text_value()),
         };
         let problem = match &parsed {
             Ok(value) => config::check_field(field, value, &self.current),

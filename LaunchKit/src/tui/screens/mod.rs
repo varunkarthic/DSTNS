@@ -11,6 +11,7 @@ pub mod dashboard;
 pub mod diagnostics;
 pub mod environment;
 pub mod logs;
+pub mod places;
 pub mod running;
 pub mod seeds;
 pub mod setup;
@@ -34,6 +35,8 @@ pub fn open(page: &str, section: &str, ui: &Ui) -> Option<Box<dyn Screen>> {
         "logs" => Box::new(logs::LogsScreen::new(ui)),
         "tests" => Box::new(tasks::TaskScreen::tests()),
         "tools" => Box::new(tasks::TaskScreen::tools()),
+        "cities" => Box::new(places::PlacesScreen::cities()),
+        "countries" | "places" => Box::new(places::PlacesScreen::countries()),
         "about" => Box::new(about::AboutScreen),
         "setup" => Box::new(setup::SetupScreen::new(ui)),
         _ => return None,

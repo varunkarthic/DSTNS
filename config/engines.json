@@ -4,11 +4,11 @@
   "_about": "Engine policy, read by the launcher and by the server as it starts: which engines may run, which one the launcher starts, and how a run on an alpha or beta engine is acknowledged (docs/design/engine-governance.md). Each engine's version, kind and release channel come from the build, not from this file.",
   "_help": {
     "selected": "Engine (Engine). Which engine builds and runs each world. core-ng, the default, is the next-generation engine; core-legacy is the engine DSTNS had before it. Both make the same world from the same seed, and only core-ng can limit worlds to chosen countries or cities. Accepts: \"core-ng\" (core-ng (default)), \"core-legacy\" (core-legacy). Default: \"core-ng\". Applies from the next start of the server (./launcher start). Set to core-ng (default) when Where worlds are is set to Countries. Set to core-ng (default) when Where worlds are is set to Cities. Set to core-ng (default) when Where worlds are is set to One city. Set to core-legacy, it sets Where worlds are to Every city. Set to core-legacy, it sets Places to all.",
-    "auto_switch": "When a run is rejected (Engine). What the observer offers when a person rejects the risk of an alpha or beta engine: to start the same seed (only the seed) on an enabled stable engine, or only to stop. Accepts: \"offer\" (Offer a stable engine), \"off\" (Only stop). Default: \"offer\". Applies from the next start of the server (./launcher start).",
+    "auto_switch": "When a run is rejected (Engine). What the observer offers when a person rejects the risk of an alpha or beta engine: to start the same seed (only the seed) on an enabled stable engine, or only to stop. Only stop is the default: core-ng is the engine. Accepts: \"offer\" (Offer a stable engine), \"off\" (Only stop). Default: \"off\". Applies from the next start of the server (./launcher start).",
     "engines.core-ng.enabled": "core-ng available (Engine). core-ng is the default engine, so it cannot be turned off. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start).",
     "engines.core-ng.acknowledgment.enforce": "core-ng: hold runs until acknowledged (Engine). core-ng is stable, so its runs start at once; this applies if it is ever marked alpha or beta (DSTNS_ENGINE_CHANNEL). On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off, it sets core-ng: acknowledge in the observer to off.",
     "engines.core-ng.acknowledgment.ui": "core-ng: acknowledge in the observer (Engine). On, the observer asks a person to accept or reject. Off while runs are still held, the launcher asks instead: start with --accept-risk. Turning holding off turns this off. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off when core-ng: hold runs until acknowledged is set to off.",
-    "engines.core-legacy.enabled": "core-legacy available (Engine). Off, core-legacy stays installed but nothing can start a run on it. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start).",
+    "engines.core-legacy.enabled": "core-legacy available (Engine). Off (the default), core-legacy stays installed but nothing can start a run on it; core-ng is the engine. On, it can run a world for comparison. Accepts: true or false. Default: false. Applies from the next start of the server (./launcher start).",
     "engines.core-legacy.channel": "Release channel: alpha (incomplete; each run held until acknowledged), beta (complete, not yet proven; held), or stable (starts at once). Reported by the build and copied here by the launcher at every start; editing it changes nothing.",
     "engines.core-legacy.version": "The engine's own version. Reported by the build and copied here by the launcher at every start; editing it changes nothing.",
     "engines.core-legacy.kind": "real (runs worlds) or pseudo (would only delegate to other engines). Reported by the build and copied here by the launcher at every start; editing it changes nothing.",
@@ -18,17 +18,17 @@
   },
   "selected": "core-ng",
   "default": "core-ng",
-  "auto_switch": "offer",
+  "auto_switch": "off",
   "engines": {
     "core-legacy": {
       "channel": "stable",
-      "version": "3.12.1",
+      "version": "3.13.0",
       "kind": "real",
-      "enabled": true
+      "enabled": false
     },
     "core-ng": {
       "channel": "stable",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "kind": "real",
       "enabled": true,
       "acknowledgment": {

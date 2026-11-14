@@ -1,6 +1,6 @@
 # Routing
 
-`RoutePlanner` (`Core/core-legacy/include/dstns/graph.hpp`, `Core/core-legacy/src/graph.cpp`) is the single
+`RoutePlanner` (`Core/common/include/dstns/graph.hpp`, `Core/common/src/graph.cpp`) is the single
 shortest-path authority in DSTNS. The scenario compiler uses it to plan trips
 and to place bus stops, and the SUMO export uses the planned trips. There is
 no public routing endpoint: the former browser Transit dispatcher is retired,

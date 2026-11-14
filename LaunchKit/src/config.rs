@@ -12,7 +12,7 @@ use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::Path;
 
-/// The engine refuses anything faster (kMaxTickRate in Core/core-legacy/include/dstns/model.hpp).
+/// The engine refuses anything faster (kMaxTickRate in Core/common/include/dstns/model.hpp).
 pub const MAX_TICK_RATE: f64 = 10.0;
 pub const MAP_SELECTION_VERSION: &str = "urban-crfg-v3";
 /// The engines a run may name.
@@ -20,8 +20,10 @@ pub const ENGINES: [&str; 2] = ["core-legacy", "core-ng"];
 /// The stable engine every installation starts on, and the one a reset of the settings returns to. It cannot be
 /// disabled. core-ng since launcher 3.10.0 (#22); core-legacy stays installed and selectable.
 pub const DEFAULT_ENGINE: &str = "core-ng";
-/// core-ng's policy over chosen countries or cities (docs/concepts/deterministic-seeding.md).
-pub const GEO_SELECTION_VERSION: &str = "urban-geo-v1";
+/// core-ng's policy, for every city or chosen countries or cities, over the larger catalogue
+/// (docs/concepts/deterministic-seeding.md). urban-geo-v1 is the same rules over the first 181 cities.
+pub const GEO_SELECTION_VERSION: &str = "urban-geo-v2";
+pub const GEO_V1_SELECTION_VERSION: &str = "urban-geo-v1";
 
 pub fn load(paths: &Paths) -> Result<Value> {
     let text = fs::read_to_string(paths.config()).map_err(|_| {
@@ -570,14 +572,17 @@ fn places(value: &Value, config: &Value) -> String {
     String::new()
 }
 
-/// The map selection of a start request: the policy and, under urban-geo-v1, which places. Every city with nothing in
-/// Places is urban-crfg-v3, so a seed names the city it always has. Places with "every city" is read by what it
-/// lists: two-letter codes are countries, anything else cities; and - before one leaves it out.
+/// The map selection of a start request: the policy and which places. On core-ng it is urban-geo-v2, whose catalogue
+/// has every city; core-legacy has only urban-crfg-v3, every one of its 181 cities. Places with "every city" is read
+/// by what it lists: two-letter codes are countries, anything else cities; and - before one leaves it out.
 pub fn map_selection(config: &Value) -> Result<(String, Option<Value>)> {
     let mut mode = setting(config, "map.selection_mode").as_str().unwrap_or("global").to_string();
     let (included, excluded) = place_ids(config);
     if mode == "global" && included.is_empty() && excluded.is_empty() {
-        return Ok((MAP_SELECTION_VERSION.into(), None));
+        if setting(config, "engines.selected") == json!("core-legacy") {
+            return Ok((MAP_SELECTION_VERSION.into(), None));
+        }
+        return Ok((GEO_SELECTION_VERSION.into(), Some(json!({"mode": "global", "countries": [], "cities": []}))));
     }
     let countries_listed = included.iter().all(|id| is_country(id));
     if !countries_listed && included.iter().any(|id| is_country(id)) {
@@ -656,15 +661,15 @@ pub fn fields() -> &'static [Field] {
             // Engine
             Field::new("engines.selected", "Engine", "Engine", Choice, "Which engine builds and runs each world. core-ng, the default, is the next-generation engine; core-legacy is the engine DSTNS had before it. Both make the same world from the same seed, and only core-ng can limit worlds to chosen countries or cities.", json!("core-ng"))
                 .choices(vec![("core-ng (default)", json!("core-ng")), ("core-legacy", json!("core-legacy"))]).extra(selected_enabled),
-            Field::new("engines.auto_switch", "When a run is rejected", "Engine", Choice, "What the observer offers when a person rejects the risk of an alpha or beta engine: to start the same seed (only the seed) on an enabled stable engine, or only to stop.", json!("offer"))
+            Field::new("engines.auto_switch", "When a run is rejected", "Engine", Choice, "What the observer offers when a person rejects the risk of an alpha or beta engine: to start the same seed (only the seed) on an enabled stable engine, or only to stop. Only stop is the default: core-ng is the engine.", json!("off"))
                 .choices(vec![("Offer a stable engine", json!("offer")), ("Only stop", json!("off"))]),
             Field::new("engines.engines.core-ng.enabled", "core-ng available", "Engine", Boolean, "core-ng is the default engine, so it cannot be turned off.", json!(true)).extra(default_engine_stays),
             Field::new("engines.engines.core-ng.acknowledgment.enforce", "core-ng: hold runs until acknowledged", "Engine", Boolean, "core-ng is stable, so its runs start at once; this applies if it is ever marked alpha or beta (DSTNS_ENGINE_CHANNEL). On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing.", json!(true)),
             Field::new("engines.engines.core-ng.acknowledgment.ui", "core-ng: acknowledge in the observer", "Engine", Boolean, "On, the observer asks a person to accept or reject. Off while runs are still held, the launcher asks instead: start with --accept-risk. Turning holding off turns this off.", json!(true)),
-            Field::new("engines.engines.core-legacy.enabled", "core-legacy available", "Engine", Boolean, "Off, core-legacy stays installed but nothing can start a run on it.", json!(true)),
-            Field::new("map.selection_mode", "Where worlds are", "Engine", Choice, "Which cities a seed may choose: every city in the catalogue (the same city for a seed as always), only the countries or cities in Places, or always the one city in Places. With every city, anything listed in Places still applies: two-letter codes are countries, other names cities. Anything but every city needs core-ng, which this turns on.", json!("global"))
+            Field::new("engines.engines.core-legacy.enabled", "core-legacy available", "Engine", Boolean, "Off (the default), core-legacy stays installed but nothing can start a run on it; core-ng is the engine. On, it can run a world for comparison.", json!(false)),
+            Field::new("map.selection_mode", "Where worlds are", "Engine", Choice, "Which cities a seed may choose: every city in the catalogue (379 on core-ng; Tools, Supported cities lists them), only the countries or cities in Places, or always the one city in Places. With every city, anything listed in Places still applies: two-letter codes are countries, other names cities. Anything but every city needs core-ng, which this turns on.", json!("global"))
                 .choices(vec![("Every city", json!("global")), ("Countries", json!("countries")), ("Cities", json!("cities")), ("One city", json!("fixed_city"))]),
-            Field::new("map.places", "Places", "Engine", Text, "Countries (two-letter codes, such as IN, AE) or cities (IDs, such as mumbai, new-york), separated by commas. A - before one leaves it out: -IN is everywhere but India; IN, AE, -dubai is India and the UAE but not Dubai. all when worlds may be anywhere. Needs core-ng.", json!("all")).extra(places),
+            Field::new("map.places", "Places", "Engine", Text, "Countries (two-letter codes, such as IN, AE) or cities (IDs, such as mumbai, new-york), separated by commas. A - before one leaves it out: -IN is everywhere but India; IN, AE, -dubai is India and the UAE but not Dubai. all when worlds may be anywhere. Needs core-ng. In the launcher, Enter on this setting opens the list of countries to choose from.", json!("all")).extra(places),
             // SUMO
             Field::new("sumo.enabled", "SUMO", "SUMO", Boolean, "Eclipse SUMO, for exporting a world and running it microscopically (POST /api/v1/export/sumo and /api/v1/system/sumo-simulate). Off, the server refuses both and does not look for SUMO.", json!(false)),
             Field::new("sumo.home", "SUMO folder", "SUMO", Text, "Where SUMO is installed (its SUMO_HOME). auto looks in SUMO_HOME, ~/sumo, Homebrew and the system's folders.", json!("auto")),
@@ -1224,7 +1229,7 @@ pub fn fresh_seed() -> String {
 /// The launcher starts worlds under urban-crfg-v3 over every city, with the engine's default 5 km extract, so a seed
 /// prepared under another policy or extent (it would name a different city here), or in a pointer format newer than
 /// 2, is left alone. A pointer from before policies were recorded is urban-crfg-v3.
-pub fn prepared_seed(cache: &Path, extent_m: f64) -> Option<String> {
+pub fn prepared_seed(cache: &Path, extent_m: f64, version: &str, selection: Option<&Value>) -> Option<String> {
     let text = std::fs::read_to_string(cache.join("next-world.json")).ok()?;
     let pointer = serde_json::from_str::<Value>(&text).ok()?;
     if pointer.get("format").and_then(Value::as_u64).unwrap_or(1) > 2 {
@@ -1233,15 +1238,17 @@ pub fn prepared_seed(cache: &Path, extent_m: f64) -> Option<String> {
     if pointer.get("extent_m").and_then(Value::as_f64).unwrap_or(5000.0) != extent_m {
         return None;
     }
-    if let Some(selection) = pointer.get("selection") {
-        let empty = |key: &str| selection.get(key).and_then(Value::as_array).is_none_or(|list| list.is_empty());
-        let legacy = selection.get("policy").and_then(Value::as_str) == Some(MAP_SELECTION_VERSION)
-            && selection.get("mode").and_then(Value::as_str).unwrap_or("global") == "global"
-            && empty("countries")
-            && empty("cities");
-        if !legacy {
-            return None;
-        }
+    // Only a world prepared under the policy this start uses: under another, its seed would name another city.
+    let ids = |of: Option<&Value>, key: &str| {
+        let mut list: Vec<String> = of.and_then(|s| s.get(key)).and_then(Value::as_array).map(|l| l.iter().filter_map(|v| v.as_str()).map(str::to_lowercase).collect()).unwrap_or_default();
+        list.sort();
+        list
+    };
+    let recorded = pointer.get("selection");
+    let policy = recorded.and_then(|s| s.get("policy")).and_then(Value::as_str).unwrap_or(MAP_SELECTION_VERSION);
+    let mode = |of: Option<&Value>| of.and_then(|s| s.get("mode")).and_then(Value::as_str).unwrap_or("global").to_string();
+    if policy != version || mode(recorded) != mode(selection) || ["countries", "cities", "exclude_countries", "exclude_cities"].iter().any(|k| ids(recorded, k) != ids(selection, k)) {
+        return None;
     }
     let seed = pointer.get("seed")?.as_str()?.to_string();
     (!seed.is_empty() && seed.chars().all(|c| c.is_ascii_digit())).then_some(seed)
@@ -1271,8 +1278,8 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
             // A world brought by a launcher state code, waiting for this start.
             None if crate::state::pending_seed().is_some() => normalise_seed(&crate::state::pending_seed().unwrap_or_default())?,
             // Dynamic Fastboot: the world the last run prepared, whose city is on disk already.
-            // Fastboot prepares under urban-crfg-v3 only, so a narrower policy takes a fresh seed.
-            None if source == "auto" && selection.is_none() && flag(&defaults, "startup.dynamic_fastboot") => prepared_seed(&paths.map_cache(cache), as_number(&setting(&defaults, "map.city_extent_m")).unwrap_or(5000.0)).unwrap_or_else(fresh_seed),
+            // Prepared under the policy this start uses, or not at all.
+            None if source == "auto" && flag(&defaults, "startup.dynamic_fastboot") => prepared_seed(&paths.map_cache(cache), as_number(&setting(&defaults, "map.city_extent_m")).unwrap_or(5000.0), &selection_version, selection.as_ref()).unwrap_or_else(fresh_seed),
             None => fresh_seed(),
         };
         let mut map_options = Map::new();
@@ -1330,6 +1337,17 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
             return Err(LauncherError::config(format!("--engine must be {}", ENGINES.join(" or "))));
         }
         request["engine"] = json!(engine);
+    }
+    if let Some(engine) = request["engine"].as_str() {
+        if setting(&load(paths)?, &format!("engines.engines.{engine}.enabled")) == json!(false) {
+            return Err(LauncherError::config(format!("{engine} is turned off; core-ng is the engine."))
+                .remedy(format!("Turn it on first: ./launcher config set engines.engines.{engine}.enabled true")));
+        }
+    }
+    // core-legacy for one run, over every city: its own policy, urban-crfg-v3.
+    if request["engine"] == json!("core-legacy") && request["map_selection"] == json!({"mode": "global", "countries": [], "cities": []}) {
+        request["map_selection_version"] = json!(MAP_SELECTION_VERSION);
+        request.as_object_mut().map(|o| o.remove("map_selection"));
     }
     if request["engine"] == json!("core-legacy") && request.get("map_selection").is_some() {
         return Err(LauncherError::config("core-legacy chooses from every city, but this run names countries or cities (Places).")
@@ -1425,16 +1443,23 @@ mod tests {
         paths
     }
 
+    fn once_on(options: &RunOptions, paths: &Paths, engine: &str) -> Result<Value> {
+        start_request(&RunOptions { engine: Some(engine.into()), ..options.clone() }, paths)
+    }
+
     #[test]
     fn the_engine_and_where_worlds_are_go_into_the_start_request() {
         let paths = fresh_checkout("engine");
         let options = RunOptions { seed: Some("42".into()), ..Default::default() };
         let request = start_request(&options, &paths).unwrap();
-        assert_eq!((request["engine"].clone(), request["map_selection_version"].clone()), (json!("core-ng"), json!(MAP_SELECTION_VERSION)), "core-ng is the default");
-        assert!(request.get("map_selection").is_none(), "every city is the policy every seed has always had");
+        assert_eq!((request["engine"].clone(), request["map_selection_version"].clone()), (json!("core-ng"), json!(GEO_SELECTION_VERSION)), "core-ng is the default");
+        assert_eq!(request["map_selection"], json!({"mode": "global", "countries": [], "cities": []}), "every city, of urban-geo-v2's catalogue");
         assert!(request["map"].get("city_extent_m").is_none() && request["map"].get("district_nodes").is_none(), "the engine's defaults are not sent");
 
         let mut config = load(&paths).unwrap();
+        // core-legacy is off by default: nothing starts on it until it is turned on.
+        assert!(once_on(&options, &paths, "core-legacy").unwrap_err().message.contains("turned off"), "core-legacy is off by default");
+        field("engines.engines.core-legacy.enabled").unwrap().set(&mut config, json!(true));
         field("engines.selected").unwrap().set(&mut config, json!("core-legacy"));
         assert_eq!(field("map.selection_mode").unwrap().set(&mut config, json!("countries")), vec!["engines.selected"], "only core-ng chooses countries");
         save(&config, &paths).unwrap();
@@ -1525,23 +1550,30 @@ mod tests {
     fn a_start_takes_the_world_dynamic_fastboot_prepared() {
         let dir = std::env::temp_dir().join(format!("dstns-next-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        assert_eq!(prepared_seed(&dir, 5000.0), None, "nothing prepared");
+        assert_eq!(prepared_seed(&dir, 5000.0, MAP_SELECTION_VERSION, None), None, "nothing prepared");
         std::fs::write(dir.join("next-world.json"), r#"{"seed": "8675309", "city": "Lisbon", "state": "ready"}"#).unwrap();
-        assert_eq!(prepared_seed(&dir, 5000.0).as_deref(), Some("8675309"));
+        assert_eq!(prepared_seed(&dir, 5000.0, MAP_SELECTION_VERSION, None).as_deref(), Some("8675309"));
         std::fs::write(dir.join("next-world.json"), r#"{"seed": "not a number"}"#).unwrap();
-        assert_eq!(prepared_seed(&dir, 5000.0), None, "only a seed it can use");
+        assert_eq!(prepared_seed(&dir, 5000.0, MAP_SELECTION_VERSION, None), None, "only a seed it can use");
         let pointer = |extra: &str| std::fs::write(dir.join("next-world.json"), format!(r#"{{"seed": "8675309", "extent_m": 5000, "state": "ready"{extra}}}"#)).unwrap();
         pointer(r#", "format": 2, "selection": {"policy": "urban-crfg-v3", "mode": "global", "countries": [], "cities": [], "fingerprint": "sha256:x"}"#);
-        assert_eq!(prepared_seed(&dir, 5000.0).as_deref(), Some("8675309"), "prepared under the policy a start uses");
+        assert_eq!(prepared_seed(&dir, 5000.0, MAP_SELECTION_VERSION, None).as_deref(), Some("8675309"), "prepared under the policy a start uses");
         pointer(r#", "format": 2, "selection": {"policy": "urban-geo-v1", "mode": "fixed_city", "cities": ["berlin"]}"#);
-        assert_eq!(prepared_seed(&dir, 5000.0), None, "prepared under another policy: it would name another city here");
+        assert_eq!(prepared_seed(&dir, 5000.0, MAP_SELECTION_VERSION, None), None, "prepared under another policy: it would name another city here");
         pointer(r#", "format": 2, "selection": {"policy": "urban-crfg-v3", "mode": "countries", "countries": ["IN"]}"#);
-        assert_eq!(prepared_seed(&dir, 5000.0), None, "a filtered selection is not the launcher's");
+        assert_eq!(prepared_seed(&dir, 5000.0, MAP_SELECTION_VERSION, None), None, "a filtered selection is not the launcher's");
         pointer(r#", "format": 3"#);
-        assert_eq!(prepared_seed(&dir, 5000.0), None, "a pointer format it does not know");
+        assert_eq!(prepared_seed(&dir, 5000.0, MAP_SELECTION_VERSION, None), None, "a pointer format it does not know");
         std::fs::write(dir.join("next-world.json"), r#"{"seed": "8675309", "extent_m": 8000}"#).unwrap();
-        assert_eq!(prepared_seed(&dir, 5000.0), None, "another extent");
-        assert_eq!(prepared_seed(&dir, 8000.0).as_deref(), Some("8675309"), "the extent this launcher is set to");
+        assert_eq!(prepared_seed(&dir, 5000.0, MAP_SELECTION_VERSION, None), None, "another extent");
+        assert_eq!(prepared_seed(&dir, 8000.0, MAP_SELECTION_VERSION, None).as_deref(), Some("8675309"), "the extent this launcher is set to");
+        let every = json!({"mode": "global", "countries": [], "cities": []});
+        pointer(r#", "format": 2, "selection": {"policy": "urban-geo-v2", "mode": "global", "countries": [], "cities": []}"#);
+        assert_eq!(prepared_seed(&dir, 5000.0, GEO_SELECTION_VERSION, Some(&every)).as_deref(), Some("8675309"), "core-ng's own policy over every city");
+        assert_eq!(prepared_seed(&dir, 5000.0, MAP_SELECTION_VERSION, None), None, "not under urban-crfg-v3");
+        pointer(r#", "format": 2, "selection": {"policy": "urban-geo-v2", "mode": "countries", "countries": ["IN", "AE"], "cities": []}"#);
+        assert_eq!(prepared_seed(&dir, 5000.0, GEO_SELECTION_VERSION, Some(&json!({"mode": "countries", "countries": ["ae", "in"], "cities": []}))).as_deref(), Some("8675309"), "the same countries in any order");
+        assert_eq!(prepared_seed(&dir, 5000.0, GEO_SELECTION_VERSION, Some(&json!({"mode": "countries", "countries": ["IN"], "cities": []}))), None, "other countries");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

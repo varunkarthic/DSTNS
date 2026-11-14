@@ -13,11 +13,11 @@
 //   compile.cpp  the order they run in
 
 #include "dstns/model.hpp"
-#include "dstns/scenario.hpp"
+#include "dstns/engine_hooks.hpp"
 
 namespace dstns::core_ng {
 
-[[nodiscard]] Scenario compile(Seed128 seed, const ScenarioConfig& config, const ScenarioCompiler::Progress& progress = {});
+[[nodiscard]] Scenario compile(Seed128 seed, const ScenarioConfig& config, const CompileProgress& progress = {});
 
 namespace plan {
 void grid(Scenario& scenario, const DeterministicRng& rng);       // sub-seed "map"

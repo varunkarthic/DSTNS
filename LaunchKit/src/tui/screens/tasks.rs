@@ -81,6 +81,9 @@ impl TaskScreen {
                 menu_item("uptime", "Server status", "Whether a server is running, on which port, its state, the moment of the day and its peak memory."),
                 menu_item("daemons", "Daemons", "The watchers inside the server: Resource Control, memory, disk, a stalled run and the cache handler, and their state."),
                 menu_item("stop", "Stop the server", "Stop the running server, and the applications this launcher started."),
+                heading("Places"),
+                menu_item("cities", "Supported cities", "Every city a world can be in, with its country, code and ID: filter by typing, and save what is shown as CSV."),
+                menu_item("countries", "Choose countries", "Where worlds are, from a list of countries with their codes: Space chooses, - leaves one out, Ctrl+A and Ctrl+D choose all or none, Ctrl+S saves."),
                 heading("Engines and AI"),
                 menu_item("engines", "Engines and policy", "Each engine's channel, version and kind, which is selected, and how an alpha or beta engine's runs are acknowledged (config/engines.json)."),
                 menu_item("model", "Model providers", "Which model answers requests in plain words, and which providers this machine can use."),
@@ -314,6 +317,12 @@ impl Screen for TaskScreen {
                         return Action::None;
                     }
                     return Action::Toast("Wait for the current operation to finish.".into(), crate::tui::theme::WARN);
+                }
+                if choice == "cities" {
+                    return Action::Push(Box::new(super::places::PlacesScreen::cities()));
+                }
+                if choice == "countries" {
+                    return Action::Push(Box::new(super::places::PlacesScreen::countries()));
                 }
                 if choice == "reset" {
                     let listing = crate::maintenance::describe(&ui.paths, &[crate::maintenance::Scope::Runtime, crate::maintenance::Scope::Setup]).join("\n");

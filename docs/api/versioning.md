@@ -2,10 +2,10 @@
 
 | What | Version | Where reported |
 |---|---|---|
-| The API contract | `1.11`, under the `/api/v1` prefix | `api_version` in responses |
-| The engine | `3.12.1` | `version` in `/health` and `/system/info` |
+| The API contract | `1.12`, under the `/api/v1` prefix | `api_version` in responses |
+| The engine | `3.13.0` | `version` in `/health` and `/system/info` |
 | The observer | `3.5.0` | About |
-| Map selection | `urban-crfg-v3` (default), `urban-geo-v1` (core-ng) | `map_selection_version`; `map_selection` in `/view/manifest` with the policy's fingerprint |
+| Map selection | `urban-crfg-v3` (default), `urban-geo-v1` and `urban-geo-v2` (core-ng; the launcher uses `urban-geo-v2`) | `map_selection_version`; `map_selection` in `/view/manifest` with the policy's fingerprint |
 | Engines | `core-legacy`, `core-ng` | `engine` in status and `/view/manifest`; `engines` in `/system/info` |
 | Algorithms | `DSTNS/1` | `/view/manifest` |
 
@@ -37,7 +37,10 @@ the numbers of nodes, edges and places, and the location, the same as the topolo
 (count and bytes) to `/system/resources`. `1.10` made `core-ng` the engine of a start request that names none;
 its worlds are the same as core-legacy's, seed for seed, so only the `engine` reported changes. `1.11` added
 `dws.storm_gap_s`, `dws.storm_min_minutes`, `dws.storm_max_minutes`, `bus_stops.*` and `checkpoint_virtual_seconds` to
-the start request; absent, each has the value every seed has always had.
+the start request; absent, each has the value every seed has always had. `1.12` accepts `urban-geo-v2` with engine
+`core-ng`: urban-geo-v1's rules over 379 cities (the 181 first, then more). With no `config/engines.json`, core-legacy
+is now disabled (`403 ENGINE_DISABLED`) and a rejected unstable engine offers no other (`auto_switch` `off`); a
+policy file that turns core-legacy on keeps every earlier behaviour.
 
 ## Security exceptions
 
@@ -67,7 +70,9 @@ Convenience paths map to canonical ones and are kept for compatibility:
 
 A policy ID never changes meaning. `urban-crfg-v3` resolves every seed exactly as engine 3.0 did, on both engines.
 A policy that chooses differently gets a new ID. A seed alone identifies an `urban-crfg-v3` world; a world chosen
-under `urban-geo-v1` is identified by its seed, its policy and the policy's fingerprint, all in the manifest.
+under `urban-geo-v1` or `urban-geo-v2` is identified by its seed, its policy and the policy's fingerprint, all in the
+manifest. New cities only ever come with a new policy ID: `urban-geo-v2` added 198 cities after the 181 of
+`urban-crfg-v3` and `urban-geo-v1`, whose seeds keep their cities.
 
 ## Simulation results across versions
 

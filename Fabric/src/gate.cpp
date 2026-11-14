@@ -65,7 +65,7 @@ EngineConfig EngineConfig::parse(const json& file) {
     for (const auto& [id, entry] : listed.items()) {
         if (!entry.is_object()) throw std::invalid_argument("engines." + id + " must be an object");
         EnginePolicy p;
-        p.enabled = entry.value("enabled", true);
+        p.enabled = entry.value("enabled", out.policy(id).enabled);
         const auto ack = entry.value("acknowledgment", json::object());
         p.enforce = ack.value("enforce", true);
         p.ui = ack.value("ui", true);

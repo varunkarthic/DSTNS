@@ -14,7 +14,7 @@ use std::path::Path;
 
 pub const VERSION: &str = "urban-crfg-v3";
 /// The selection policies a saved seed may name: the seed means the same city under each for as long as it exists.
-pub const VERSIONS: [&str; 2] = [VERSION, crate::config::GEO_SELECTION_VERSION];
+pub const VERSIONS: [&str; 3] = [VERSION, crate::config::GEO_V1_SELECTION_VERSION, crate::config::GEO_SELECTION_VERSION];
 /// Recorded in place of a checksum when the seed, not a pinned file, chooses the map.
 pub const AUTO_MAP: &str = "auto";
 

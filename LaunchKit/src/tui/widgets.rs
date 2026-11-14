@@ -5,7 +5,7 @@
 //! `▸`, a status carries a symbol and a word, the focused form field carries a marker. Colour only reinforces what is
 //! already readable in monochrome.
 
-use super::theme::{self, bold, c, fg, ACCENT, BG, ERR, MUTED, NAVY, SURFACE, SURFACE_ALT, TEAL, TEXT, TEXT2};
+use super::theme::{self, bold, c, fg, ACCENT, BG, ERR, MUTED, NAVY, OK, SURFACE, SURFACE_ALT, TEAL, TEXT, TEXT2, WARN};
 use crate::environment::State;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -498,6 +498,9 @@ pub enum Editor {
     /// Items to turn on or off and put in order: (id, label, on). Space turns one on or off, Shift+↑↓ (or J and K)
     /// moves it; the value is the ids that are on, in order.
     Order { items: Vec<(String, String, bool)>, cursor: usize },
+    /// Three numbers, each at least the one before: Resource Control's α (the least), β (a warning) and γ (an alert).
+    /// ←→ moves between them, digits type, + and - step; a scale beneath shows where each sits.
+    Triple { values: [String; 3], index: usize, unit: String },
 }
 
 impl Editor {
@@ -514,8 +517,15 @@ impl Editor {
         let index = choices.iter().position(|(_, v)| v == value).unwrap_or(0);
         Editor::Select { choices, index }
     }
+    /// α, β and γ from "a, b, c"; missing ones are empty.
+    pub fn triple(value: &str, unit: &str) -> Self {
+        let mut parts = value.split(',').map(|p| p.trim().to_string());
+        let values = [parts.next().unwrap_or_default(), parts.next().unwrap_or_default(), parts.next().unwrap_or_default()];
+        Editor::Triple { values, index: 0, unit: unit.into() }
+    }
     pub fn text_value(&self) -> String {
         match self {
+            Editor::Triple { values, .. } => values.join(", "),
             Editor::Text { value, .. } => value.clone(),
             Editor::Toggle(on) => on.to_string(),
             Editor::Select { choices, index } => choices.get(*index).map(|(_, v)| v.clone()).unwrap_or_default(),
@@ -543,6 +553,7 @@ impl Editor {
         match self {
             Editor::Text { multiline: true, .. } => 4,
             Editor::Order { items, .. } => items.len().max(1) as u16,
+            Editor::Triple { .. } => 2,
             _ => 1,
         }
     }
@@ -634,6 +645,33 @@ impl Editor {
                     _ => false,
                 }
             }
+            Editor::Triple { values, index, .. } => {
+                let cell = &mut values[*index];
+                match event.code {
+                    KeyCode::Left | KeyCode::BackTab if *index > 0 => {
+                        *index -= 1;
+                        false
+                    }
+                    KeyCode::Right | KeyCode::Char(' ') if *index < 2 => {
+                        *index += 1;
+                        false
+                    }
+                    KeyCode::Char(ch) if ch.is_ascii_digit() || (ch == '.' && !cell.contains('.')) => {
+                        cell.push(ch);
+                        true
+                    }
+                    KeyCode::Backspace => cell.pop().is_some(),
+                    KeyCode::Char('+') | KeyCode::Char('=') | KeyCode::Char('-') => {
+                        // A step of about a twentieth of the value, and never below the value's own precision.
+                        let now = cell.parse::<f64>().unwrap_or(0.0);
+                        let step = if now >= 20.0 { (now / 20.0).round().max(1.0) } else if now >= 2.0 { 1.0 } else { 0.1 };
+                        let next = if event.code == KeyCode::Char('-') { (now - step).max(0.0) } else { now + step };
+                        *cell = if next.fract().abs() < 1e-9 { format!("{}", next.round() as i64) } else { format!("{next:.1}") };
+                        true
+                    }
+                    _ => false,
+                }
+            }
             Editor::Toggle(on) => match event.code {
                 KeyCode::Char(' ') | KeyCode::Enter | KeyCode::Left | KeyCode::Right => {
                     *on = !*on;
@@ -710,6 +748,30 @@ impl Editor {
                     Line::from(spans)
                 })
                 .collect(),
+            Editor::Triple { values, index, unit } => {
+                // The three cells, the focused one lit; then a scale from 0 to γ with each one's place on it.
+                let names = ["α", "β", "γ"];
+                let tones = [OK, WARN, ERR];
+                let mut cells = vec![];
+                for (n, value) in values.iter().enumerate() {
+                    let here = focused && n == *index;
+                    cells.push(Span::styled(format!("{} ", if unicode { names[n] } else { ["a", "b", "g"][n] }), fg(tones[n])));
+                    let shown = format!("{value:>6}");
+                    cells.push(Span::styled(shown, if here { Style::default().fg(c(TEXT)).add_modifier(Modifier::REVERSED) } else { fg(TEXT) }));
+                    cells.push(Span::raw("   "));
+                }
+                cells.push(Span::styled(unit.clone(), fg(MUTED)));
+                let numbers: Vec<f64> = values.iter().map(|v| v.parse::<f64>().unwrap_or(0.0)).collect();
+                let width = inner_width.clamp(10, 60);
+                let top = numbers[2].max(numbers[1]).max(numbers[0]).max(f64::MIN_POSITIVE);
+                let mut bar: Vec<(char, u32)> = vec![(if unicode { '─' } else { '-' }, NAVY); width];
+                for (n, v) in numbers.iter().enumerate() {
+                    let at = ((v / top) * (width - 1) as f64).round() as usize;
+                    bar[at.min(width - 1)] = (if unicode { '◆' } else { '*' }, tones[n]);
+                }
+                let scale: Vec<Span> = bar.into_iter().map(|(ch, tone)| Span::styled(ch.to_string(), fg(tone))).collect();
+                vec![Line::from(cells), Line::from(scale)]
+            }
             Editor::Select { choices, index } => {
                 let label = choices.get(*index).map(|(l, _)| l.clone()).unwrap_or_default();
                 let arrows = if unicode { ("‹ ", " ›") } else { ("< ", " >") };
@@ -898,5 +960,23 @@ mod order_tests {
         assert!(editor.consumes(&KeyEvent::from(KeyCode::Down)) && editor.consumes(&KeyEvent::from(KeyCode::Up)), "the list keeps the arrows inside it");
         editor.handle(&KeyEvent::from(KeyCode::Down));
         assert!(!editor.consumes(&KeyEvent::from(KeyCode::Down)), "and gives them back at its end");
+    }
+
+    #[test]
+    fn alpha_beta_and_gamma_are_three_cells() {
+        let mut editor = Editor::triple("4, 2048, 4096", "MiB");
+        assert_eq!(editor.text_value(), "4, 2048, 4096");
+        assert!(!editor.handle(&KeyEvent::from(KeyCode::Right)), "to β");
+        assert!(editor.handle(&KeyEvent::from(KeyCode::Backspace)));
+        assert!(editor.handle(&KeyEvent::from(KeyCode::Char('0'))));
+        assert_eq!(editor.text_value(), "4, 2040, 4096");
+        assert!(editor.handle(&KeyEvent::from(KeyCode::Char('+'))), "a step of a twentieth");
+        assert_eq!(editor.text_value(), "4, 2142, 4096");
+        editor.handle(&KeyEvent::from(KeyCode::Left));
+        editor.handle(&KeyEvent::from(KeyCode::Char('-')));
+        editor.handle(&KeyEvent::from(KeyCode::Char('-')));
+        assert_eq!(editor.text_value(), "2, 2142, 4096");
+        assert!(!editor.handle(&KeyEvent::from(KeyCode::Char('x'))), "only numbers");
+        assert_eq!(editor.height(), 2, "the cells and their scale");
     }
 }

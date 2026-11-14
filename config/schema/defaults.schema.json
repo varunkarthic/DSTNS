@@ -67,7 +67,7 @@
       "properties": {
         "selection_mode": {
           "title": "Where worlds are",
-          "description": "Where worlds are (Engine). Which cities a seed may choose: every city in the catalogue (the same city for a seed as always), only the countries or cities in Places, or always the one city in Places. With every city, anything listed in Places still applies: two-letter codes are countries, other names cities. Anything but every city needs core-ng, which this turns on. Accepts: \"global\" (Every city), \"countries\" (Countries), \"cities\" (Cities), \"fixed_city\" (One city). Default: \"global\". Applies from the next start of the server (./launcher start). Set to Countries, it sets Engine to core-ng (default). Set to Cities, it sets Engine to core-ng (default). Set to One city, it sets Engine to core-ng (default). Set to Every city when Engine is set to core-legacy.",
+          "description": "Where worlds are (Engine). Which cities a seed may choose: every city in the catalogue (379 on core-ng; Tools, Supported cities lists them), only the countries or cities in Places, or always the one city in Places. With every city, anything listed in Places still applies: two-letter codes are countries, other names cities. Anything but every city needs core-ng, which this turns on. Accepts: \"global\" (Every city), \"countries\" (Countries), \"cities\" (Cities), \"fixed_city\" (One city). Default: \"global\". Applies from the next start of the server (./launcher start). Set to Countries, it sets Engine to core-ng (default). Set to Cities, it sets Engine to core-ng (default). Set to One city, it sets Engine to core-ng (default). Set to Every city when Engine is set to core-legacy.",
           "default": "global",
           "enum": [
             "global",
@@ -78,7 +78,7 @@
         },
         "places": {
           "title": "Places",
-          "description": "Places (Engine). Countries (two-letter codes, such as IN, AE) or cities (IDs, such as mumbai, new-york), separated by commas. A - before one leaves it out: -IN is everywhere but India; IN, AE, -dubai is India and the UAE but not Dubai. all when worlds may be anywhere. Needs core-ng. Accepts: text. Default: \"all\". Applies from the next start of the server (./launcher start). Set to all when Engine is set to core-legacy.",
+          "description": "Places (Engine). Countries (two-letter codes, such as IN, AE) or cities (IDs, such as mumbai, new-york), separated by commas. A - before one leaves it out: -IN is everywhere but India; IN, AE, -dubai is India and the UAE but not Dubai. all when worlds may be anywhere. Needs core-ng. In the launcher, Enter on this setting opens the list of countries to choose from. Accepts: text. Default: \"all\". Applies from the next start of the server (./launcher start). Set to all when Engine is set to core-legacy.",
           "default": "all",
           "type": "string"
         },

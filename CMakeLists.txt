@@ -2,12 +2,12 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.12.1 LANGUAGES CXX)
+project(dstns VERSION 3.13.0 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
 set(DSTNS_CHANNEL "local" CACHE STRING "Release channel")
-configure_file(Core/core-legacy/include/dstns/build_info.hpp.in generated/dstns/build_info.hpp @ONLY)
+configure_file(Core/common/include/dstns/build_info.hpp.in generated/dstns/build_info.hpp @ONLY)
 
 option(DSTNS_BUILD_TESTS "Build DSTNS tests" ON)
 option(DSTNS_ENABLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
@@ -58,30 +58,40 @@ else()
   set(DSTNS_SQLITE_TARGET SQLite::SQLite3)
 endif()
 
-add_library(dstns_core
-  Core/core-legacy/src/rng.cpp Core/core-legacy/src/utf8.cpp Core/core-legacy/src/graph.cpp Core/core-legacy/src/asb.cpp Core/core-legacy/src/demand.cpp Core/core-legacy/src/geo.cpp Core/core-legacy/src/osm.cpp Core/core-legacy/src/osm_fetch.cpp Core/core-legacy/src/osm_download.cpp Core/core-legacy/src/scenario.cpp Core/core-legacy/src/engine.cpp Core/core-legacy/src/physics.cpp Core/core-legacy/src/events.cpp Core/core-legacy/src/logging.cpp Core/core-legacy/src/sumo_bridge.cpp
-  Core/core-legacy/src/narrator.cpp Core/core-legacy/src/platform.cpp Core/core-legacy/src/next_world.cpp)
-target_include_directories(dstns_core PUBLIC Core/core-legacy/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
-target_link_libraries(dstns_core PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib CURL::libcurl)
+# The three layers of the core (docs/design/architecture.md):
+#   dstns_common       what every engine stands on: types, RNG, maps, the demand and signal model, logging, the runtime host
+#   dstns_core_legacy  core-legacy's own code: its compiler, tick and checkpoints, on dstns_common
+#   dstns_core_ng      core-ng's own code, on dstns_common alone; it never links core-legacy
+#   dstns_engines      installs both into a runtime host (install_engines)
+add_library(dstns_common
+  Core/common/src/rng.cpp Core/common/src/utf8.cpp Core/common/src/graph.cpp Core/common/src/asb.cpp Core/common/src/demand.cpp Core/common/src/geo.cpp Core/common/src/osm.cpp Core/common/src/osm_fetch.cpp Core/common/src/osm_download.cpp Core/common/src/engine.cpp Core/common/src/events.cpp Core/common/src/logging.cpp Core/common/src/sumo_bridge.cpp Core/common/src/narrator.cpp Core/common/src/platform.cpp Core/common/src/next_world.cpp Core/common/src/weather.cpp)
+target_include_directories(dstns_common PUBLIC Core/common/include "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_link_libraries(dstns_common PUBLIC nlohmann_json::nlohmann_json ${DSTNS_SQLITE_TARGET} Threads::Threads httplib::httplib CURL::libcurl)
 if(APPLE)
-  target_link_libraries(dstns_core PUBLIC "-framework CoreFoundation" "-framework CFNetwork")
+  target_link_libraries(dstns_common PUBLIC "-framework CoreFoundation" "-framework CFNetwork")
 endif()
 # The HTTP library listens with a backlog of 5 by default: an observer, its applications and a burst of polls connect at
 # once, and connections past the fifth would be dropped before a thread could take them.
-target_compile_definitions(dstns_core PUBLIC DSTNS_VERSION="${PROJECT_VERSION}" CPPHTTPLIB_LISTEN_BACKLOG=128)
-target_compile_options(dstns_core PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
+target_compile_definitions(dstns_common PUBLIC DSTNS_VERSION="${PROJECT_VERSION}" CPPHTTPLIB_LISTEN_BACKLOG=128)
+target_compile_options(dstns_common PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
+
+add_library(dstns_core_legacy Core/core-legacy/src/scenario.cpp Core/core-legacy/src/physics.cpp Core/core-legacy/src/legacy.cpp)
+target_include_directories(dstns_core_legacy PUBLIC Core/core-legacy/include)
+target_link_libraries(dstns_core_legacy PUBLIC dstns_common)
+target_compile_options(dstns_core_legacy PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 
 # Apple clang already targets apple-m1 (the baseline of every Apple silicon
 # Mac) by default. Host tuning is opt-in: it only changes instruction selection
 # and scheduling, never floating-point semantics, but the binary is then tied to
 # CPUs at least as new as the build machine's.
 if(DSTNS_TUNE_FOR_HOST AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-  target_compile_options(dstns_core PRIVATE -mcpu=native)
+  target_compile_options(dstns_common PRIVATE -mcpu=native)
+  target_compile_options(dstns_core_legacy PRIVATE -mcpu=native)
 endif()
 
 if(DSTNS_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-  target_compile_options(dstns_core PUBLIC -fsanitize=address,undefined -fno-omit-frame-pointer)
-  target_link_options(dstns_core PUBLIC -fsanitize=address,undefined)
+  target_compile_options(dstns_common PUBLIC -fsanitize=address,undefined -fno-omit-frame-pointer)
+  target_link_options(dstns_common PUBLIC -fsanitize=address,undefined)
 endif()
 
 # The daemons: watchers on threads of their own, and their queues. The message templates and the alerts are built in.
@@ -101,14 +111,14 @@ add_library(dstns_fabric
   Fabric/src/routes_observation.cpp Fabric/src/operations.cpp Fabric/src/routes_daemon.cpp Fabric/src/routes_engine.cpp Fabric/src/gate.cpp
   Fabric/src/webfabric/routes.cpp Fabric/src/webfabric/registry.cpp)
 target_include_directories(dstns_fabric PUBLIC Fabric/include PRIVATE Fabric/src)
-target_link_libraries(dstns_fabric PUBLIC dstns_core dstns_daemon)
+target_link_libraries(dstns_fabric PUBLIC dstns_common dstns_daemon)
 target_compile_options(dstns_fabric PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 
-# core-ng: the next-generation engine, built beside core-legacy one module at a time.
+# core-ng: the next-generation engine, the default; on dstns_common alone.
 add_library(dstns_core_ng Core/core-ng/src/selection.cpp Core/core-ng/src/lifecycle.cpp Core/core-ng/src/world.cpp
   Core/core-ng/src/compile.cpp Core/core-ng/src/network.cpp Core/core-ng/src/plans.cpp Core/core-ng/src/physics.cpp Core/core-ng/src/timeline.cpp)
 target_include_directories(dstns_core_ng PUBLIC Core/core-ng/include)
-target_link_libraries(dstns_core_ng PUBLIC dstns_core)
+target_link_libraries(dstns_core_ng PUBLIC dstns_common)
 target_compile_options(dstns_core_ng PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Werror)
 # GCC 12 (the container's compiler) warns -Wrestrict on plain std::string concatenation in core-ng's news text, a known
 # false positive (GCC bug 105329). Only that warning is turned off, and only for GCC.
@@ -116,9 +126,18 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   target_compile_options(dstns_core_ng PRIVATE -Wno-restrict)
 endif()
 
+add_library(dstns_engines Core/engines/src/engines.cpp)
+target_include_directories(dstns_engines PUBLIC Core/engines/include)
+target_link_libraries(dstns_engines PUBLIC dstns_core_legacy dstns_core_ng)
+target_compile_options(dstns_engines PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Werror)
+
+# Everything, for tests and tools that compile with core-legacy's compiler and run worlds on either engine.
+add_library(dstns_core INTERFACE)
+target_link_libraries(dstns_core INTERFACE dstns_common dstns_core_legacy dstns_core_ng dstns_engines)
+
 add_executable(dstns_server Core/server/main.cpp Core/server/container.cpp)
 target_compile_definitions(dstns_server PRIVATE DSTNS_VERSION="${PROJECT_VERSION}")
-target_link_libraries(dstns_server PRIVATE dstns_fabric dstns_core_ng)
+target_link_libraries(dstns_server PRIVATE dstns_fabric dstns_engines)
 add_executable(dstns_scenario_export tools/scenario-inspect/main.cpp)
 target_link_libraries(dstns_scenario_export PRIVATE dstns_core)
 add_executable(dstns_road_index tools/road-index/main.cpp)
@@ -191,26 +210,32 @@ if(DSTNS_BUILD_TESTS)
   set_tests_properties(dstns_map_sourcing PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_executable(dstns_selection_ng_tests tests/unit/selection_ng_tests.cpp)
-  target_link_libraries(dstns_selection_ng_tests PRIVATE dstns_core_ng)
+  target_link_libraries(dstns_selection_ng_tests PRIVATE dstns_core)
   target_compile_options(dstns_selection_ng_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_selection_ng COMMAND dstns_selection_ng_tests)
 
   add_executable(dstns_lifecycle_ng_tests tests/unit/lifecycle_ng_tests.cpp)
-  target_link_libraries(dstns_lifecycle_ng_tests PRIVATE dstns_core_ng)
+  target_link_libraries(dstns_lifecycle_ng_tests PRIVATE dstns_core)
   target_compile_options(dstns_lifecycle_ng_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_lifecycle_ng COMMAND dstns_lifecycle_ng_tests)
   set_tests_properties(dstns_lifecycle_ng PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 600)
 
   add_executable(dstns_next_world_ng_tests tests/unit/next_world_ng_tests.cpp)
-  target_link_libraries(dstns_next_world_ng_tests PRIVATE dstns_core_ng)
+  target_link_libraries(dstns_next_world_ng_tests PRIVATE dstns_core)
   target_compile_options(dstns_next_world_ng_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_next_world_ng COMMAND dstns_next_world_ng_tests)
   set_tests_properties(dstns_next_world_ng PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_executable(dstns_compile_ng_tests tests/unit/compile_ng_tests.cpp)
-  target_link_libraries(dstns_compile_ng_tests PRIVATE dstns_core_ng)
+  target_link_libraries(dstns_compile_ng_tests PRIVATE dstns_core)
   target_compile_options(dstns_compile_ng_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME dstns_compile_ng COMMAND dstns_compile_ng_tests)
+
+  # Links core-ng and the common layer only: proof that core-ng needs no core-legacy code.
+  add_executable(dstns_core_ng_alone_tests tests/unit/core_ng_alone_tests.cpp)
+  target_link_libraries(dstns_core_ng_alone_tests PRIVATE dstns_core_ng)
+  target_compile_options(dstns_core_ng_alone_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME dstns_core_ng_alone COMMAND dstns_core_ng_alone_tests)
 
   add_executable(dstns_timeline_ng_tests tests/unit/timeline_ng_tests.cpp)
   target_link_libraries(dstns_timeline_ng_tests PRIVATE dstns_core dstns_core_ng)

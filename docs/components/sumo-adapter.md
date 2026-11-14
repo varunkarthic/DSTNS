@@ -6,8 +6,8 @@ SUMO adapter exports a DSTNS scenario as a SUMO network and demand, runs SUMO
 on it as a separate batch job, and reports aggregate trip statistics. It is a
 cross-check of the aggregate model, and never writes back into a live run.
 
-Source: `Core/core-legacy/include/dstns/sumo_bridge.hpp`, `Core/core-legacy/src/sumo_bridge.cpp`; the export
-itself is `ScenarioCompiler::export_sumo` in `Core/core-legacy/src/scenario.cpp`.
+Source: `Core/common/include/dstns/sumo_bridge.hpp`, `Core/common/src/sumo_bridge.cpp`; the export
+itself is `write_sumo_bundle` in `Core/common/src/sumo_bridge.cpp`: it writes a world out, whichever engine made it.
 
 ## Interface
 

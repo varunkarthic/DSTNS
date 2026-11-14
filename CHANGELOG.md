@@ -14,6 +14,45 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-11-14
+
+**Engine 3.13.0 (core-ng 1.2.0), launcher 3.12.0, observer 3.5.0, API contract 1.12.** Results for every seed under
+`urban-crfg-v3` and `urban-geo-v1` are unchanged. The launcher now starts core-ng worlds under `urban-geo-v2`, where
+a seed may choose another city than before (below).
+
+### Changed
+
+- **core-ng is the engine.** core-legacy stays installed but is off by default (`engines.core-legacy.enabled`
+  `false`): a start naming it is `403 ENGINE_DISABLED`, the launcher refuses `--engine core-legacy`, and a launch code
+  from a core-legacy world runs on core-ng, which makes the same world. `auto_switch` defaults to `off`, so rejecting
+  an unstable engine only stops. Turn core-legacy on to compare the two.
+- **The engines are layers of their own.** `Core/common` holds what every engine uses (the host, the model, maps,
+  events, weather helpers, the SUMO bridge); `Core/core-legacy` holds only core-legacy's compiler, physics and hooks;
+  `Core/engines` registers the installed engines. The host has no built-in engine. `dstns_core_ng_alone` links
+  core-ng and the common layer only, and runs a day and back with core-legacy refused.
+- **Worlds may be anywhere by default.** Places is `all` and Where worlds are is Every city.
+
+### Added
+
+- **`urban-geo-v2`: 379 cities in 126 countries.** The 181 cities of `urban-crfg-v3`, in their order, then 198 more
+  (Kochi, Coimbatore, Lucknow, Kyiv, Tehran, Dakar, Nashville, Cali, Hobart and others; 43 new countries). It has
+  urban-geo-v1's modes and fingerprint rules; the launcher uses it on core-ng, every city included. A seed generally
+  chooses a different city under it than under `urban-crfg-v3`; seeds recorded under the older policies keep theirs.
+  `dstns_server --list-cities` lists every city with its ID, country code, centre and `since`.
+- **A session does not repeat a city while it has another.** Regenerating, or trying again after a failed download,
+  goes to a city the session has not shown yet among those the policy allows, and comes back to one only once there
+  is no other; Dynamic Fastboot prepares its next world the same way.
+- **Launcher: Tools, Supported cities.** Every city with its country, code and ID; typing filters, Ctrl+S saves what
+  is shown as CSV (Downloads, or `output/`).
+- **Launcher: Choose countries.** From Tools, or Enter on Places: every country with its code and number of cities.
+  Space chooses, `-` leaves out, Ctrl+A chooses all shown, Ctrl+D clears, Ctrl+S saves. Places may still be typed.
+- **Launcher: Resource Control as α, β and γ.** Each line is three cells with a scale beneath; ←→ moves, digits type,
+  `+` and `-` step.
+- Dynamic Fastboot's prepared world is taken by a launcher start under any policy, when it was prepared under the
+  same one.
+
+Rollback: revert this release's commit; set `engines.core-legacy.enabled` true to run core-legacy meanwhile.
+
 ## [3.12.1] - 2026-11-14
 
 **Engine 3.12.1 (core-ng 1.1.1), launcher 3.11.0, observer 3.5.0, API contract 1.11.** Results for every seed are

@@ -848,6 +848,44 @@ mod tests {
     }
 
     #[test]
+    fn countries_and_cities_are_listed_from_the_catalogue() {
+        let cities = || {
+            let mut out = vec![];
+            for (city, country, code, id, since) in [("Chennai", "India", "IN", "chennai", "urban-crfg-v3"), ("Kochi", "India", "IN", "kochi", "urban-geo-v2"), ("Paris", "France", "FR", "paris", "urban-crfg-v3")] {
+                out.push(serde_json::json!({"city": city, "country": country, "country_code": code, "id": id, "since": since}));
+            }
+            out
+        };
+        let mut picker = screens::places::PlacesScreen::countries();
+        picker.set_cities(cities());
+        let mut first = app(120, 30, Box::new(picker));
+        let text = screen(&mut first, 120, 30);
+        assert!(text.contains("2 countries") && text.contains("IN  India") && text.contains("2 cities"), "{text}");
+        press(&mut first, KeyCode::Down);
+        press(&mut first, KeyCode::Char(' '));
+        let text = screen(&mut first, 120, 30);
+        assert!(text.contains("[✓] IN") && text.contains("Places  IN"), "{text}");
+        let mut list = screens::places::PlacesScreen::cities();
+        list.set_cities(cities());
+        let mut second = app(120, 30, Box::new(list));
+        let text = screen(&mut second, 120, 30);
+        assert!(text.contains("3 cities in 2 countries") && text.contains("Kochi") && text.contains("new"), "{text}");
+        if std::env::var("SHOW").is_ok() {
+            println!("{text}");
+        }
+    }
+
+    #[test]
+    fn resource_control_is_edited_as_alpha_beta_and_gamma() {
+        let mut app = app(120, 40, Box::new(screens::configuration::ConfigurationScreen::new(Some("Resource Control".into()))));
+        let text = screen(&mut app, 120, 40);
+        assert!(text.contains("α") && text.contains("β") && text.contains("γ") && text.contains("◆"), "{text}");
+        if std::env::var("SHOW").is_ok() {
+            println!("{text}");
+        }
+    }
+
+    #[test]
     fn settings_are_in_sections_and_headings_are_passed_over() {
         let mut app = app(120, 40, Box::new(screens::configuration::ConfigurationScreen::new(None)));
         let text = screen(&mut app, 120, 40);

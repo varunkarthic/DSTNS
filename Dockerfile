@@ -13,7 +13,7 @@
 # uses Debian packages, so it builds natively on Apple silicon and x86 alike.
 
 ARG DEBIAN_RELEASE=bookworm
-ARG VERSION=3.12.1
+ARG VERSION=3.13.0
 ARG REVISION=unknown
 ARG BUILD_DATE=unknown
 ARG RELEASE_CHANNEL=local

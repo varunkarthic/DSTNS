@@ -343,7 +343,10 @@ pub fn set(paths: &Paths, code: &str) -> Result<Vec<String>, String> {
         config["day"] = world["day"].clone();
         // The world runs on the engine that made it (a run may have chosen one with --engine).
         if let Some(engine) = world["engine"].as_str().filter(|e| config::ENGINES.contains(e)) {
-            if config::setting(&config, "engines.selected") != json!(engine) {
+            if config::setting(&config, &format!("engines.engines.{engine}.enabled")) == json!(false) {
+                // core-ng makes the same world from the same seed, so a world from an engine that is off still comes back.
+                out.push(format!("Its world was made on {engine}, which is off; {} makes the same world.", config::setting(&config, "engines.selected").as_str().unwrap_or("core-ng")));
+            } else if config::setting(&config, "engines.selected") != json!(engine) {
                 if let Some(field) = config::field("engines.selected") {
                     field.set(&mut config, json!(engine));
                     out.push(format!("Its world runs on {engine}, so the engine is now {engine}."));
@@ -581,8 +584,9 @@ mod tests {
         std::fs::create_dir_all(paths.config().parent().unwrap()).unwrap();
         std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/defaults.json"), paths.config()).unwrap();
         let out = set(&paths, &blocks).unwrap();
-        assert_eq!(config::setting(&config::load(&paths).unwrap(), "engines.selected"), json!("core-legacy"), "{out:?}");
-        assert!(out.iter().any(|l| l.contains("runs on core-legacy")));
+        // core-legacy is off by default: the world comes back on core-ng, which makes the same world.
+        assert_eq!(config::setting(&config::load(&paths).unwrap(), "engines.selected"), json!("core-ng"), "{out:?}");
+        assert!(out.iter().any(|l| l.contains("made on core-legacy, which is off")), "{out:?}");
         std::env::remove_var(PENDING_JUMP);
         let _ = std::fs::remove_dir_all(&root);
     }

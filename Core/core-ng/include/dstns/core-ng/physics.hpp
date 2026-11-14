@@ -6,9 +6,9 @@
 #include "dstns/physics.hpp"
 
 namespace dstns::core_ng {
-// One physics tick of a world core-ng compiled: ScenarioCompiler::Hooks::step.
+// One physics tick of a world core-ng compiled: EngineHooks::step.
 void physics_step(physics::Context& ctx, std::uint32_t dt);
-// Its checkpoints: ScenarioCompiler::Hooks::capture and ::rewind.
+// Its checkpoints: EngineHooks::capture and ::rewind.
 void capture_checkpoint(physics::TimelineContext& ctx);
 void rewind_to_checkpoint(physics::TimelineContext& ctx, std::uint32_t target);
 } // namespace dstns::core_ng

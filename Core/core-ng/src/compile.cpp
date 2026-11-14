@@ -15,8 +15,8 @@
 
 namespace dstns::core_ng {
 
-Scenario compile(Seed128 seed_value, const ScenarioConfig &config, const ScenarioCompiler::Progress &progress) {
-    using Stage = ScenarioCompiler::Stage;
+Scenario compile(Seed128 seed_value, const ScenarioConfig &config, const CompileProgress &progress) {
+    using Stage = CompileStage;
     const auto report = [&](Stage stage) {
         if (progress)
             progress(stage);

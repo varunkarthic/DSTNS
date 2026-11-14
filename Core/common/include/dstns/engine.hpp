@@ -9,7 +9,7 @@
 #include "dstns/logging.hpp"
 #include "dstns/next_world.hpp"
 #include "dstns/physics.hpp"
-#include "dstns/scenario.hpp"
+#include "dstns/engine_hooks.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -19,6 +19,7 @@
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -57,9 +58,10 @@ public:
     SimulationEngine& operator=(const SimulationEngine&)=delete;
 
     // Make another engine available by name, with the hooks that route compilation through it. Call before the
-    // API serves requests; the set is read without the lock afterwards. "core-legacy" is always available.
-    void register_engine(const std::string& id, ScenarioCompiler::Hooks hooks, EngineIdentity identity = {});
-    // What an engine is (core-legacy's identity is set by the server, which knows the build's version).
+    // API serves requests; the set is read without the lock afterwards. The host has no engine of its own:
+    // install_engines (dstns/engines.hpp) registers core-ng and core-legacy.
+    void register_engine(const std::string& id, EngineHooks hooks, EngineIdentity identity = {});
+    // What an engine is, as it describes itself.
     void set_identity(const std::string& id, EngineIdentity identity);
     [[nodiscard]] std::vector<std::string> engines() const;
     [[nodiscard]] nlohmann::json identity(const std::string& id) const;
@@ -214,7 +216,7 @@ private:
     RuntimeLogger& logger_; mutable std::recursive_mutex mutex_; std::condition_variable_any cv_; std::jthread worker_;
     Lifecycle lifecycle_{Lifecycle::Idle};
     // Lock-free mirror of lifecycle_, written only by transition().
-    std::atomic<Lifecycle> lifecycle_mirror_{Lifecycle::Idle}; ScenarioCompiler compiler_; std::map<std::string, ScenarioCompiler::Hooks> engines_; std::map<std::string, EngineIdentity> identities_;
+    std::atomic<Lifecycle> lifecycle_mirror_{Lifecycle::Idle}; std::map<std::string, EngineHooks> engines_; std::map<std::string, EngineIdentity> identities_;
     void require_engine(const ScenarioConfig& config) const;
     // Where a seed goes under the configuration's engine and selection policy.
     [[nodiscard]] MapLocation locate(Seed128 seed, const ScenarioConfig& config) const;
@@ -239,8 +241,11 @@ private:
     void release_observer_hold();
     // What the last failed attempt asked for, so trying again can pick somewhere else.
     std::optional<Seed128> failed_seed_;
-    // The city the last failed attempt was in, where the seed chose it. Caller holds mutex_.
-    [[nodiscard]] std::string failed_city(const ScenarioConfig& config) const;
+    // Cities this session has shown, in this round: a new world goes somewhere not yet seen while the policy allows.
+    std::set<std::string> session_cities_;
+    // Those cities and the one the last failed attempt was in, for a seed-chosen map. Caller holds mutex_.
+    [[nodiscard]] std::set<std::string> avoided_cities(const ScenarioConfig& config) const;
+    [[nodiscard]] Seed128 fresh_seed(const ScenarioConfig& config, const std::string& current) const;
     std::optional<std::pair<ScenarioConfig, std::uint32_t>> failed_start_;
     std::string run_id_; std::uint32_t virtual_s_{}; std::uint32_t start_virtual_s_{}; double tick_rate_{1};
     std::chrono::steady_clock::time_point anchor_wall_{}; std::uint32_t anchor_virtual_s_{};
@@ -298,7 +303,7 @@ private:
     // 0 none, 1 selecting, 2 acquiring, 3 building. Atomic because it is read
     // by the API thread while the engine lock is held by a compile.
     std::atomic<int> preparing_stage_{0};
-    ScenarioCompiler::Progress compile_progress();
+    CompileProgress compile_progress();
     // How long the world being prepared will take, in seconds: from the download as it goes, and from how long the
     // last ones took, which are kept in the logs directory. Empty when nothing is being prepared.
     // `confident` when it rests on something measured: a download of known size, a city on disk, the build itself.

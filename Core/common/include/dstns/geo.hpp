@@ -69,6 +69,8 @@ public:
 // selection, so changing it changes which city a seed picks and must come with
 // a new map selection version.
 [[nodiscard]] const std::vector<City>& city_catalog();
+// city_catalog() and then more cities, in a fixed order: the catalogue of urban-geo-v2.
+[[nodiscard]] const std::vector<City>& world_catalog();
 
 // Metres per degree of latitude, and of longitude at a given latitude. The
 // simulation stores positions in true metres, so every conversion goes here.

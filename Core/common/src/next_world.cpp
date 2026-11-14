@@ -80,7 +80,8 @@ void NextWorld::write(const std::filesystem::path& cache, const nlohmann::json& 
     std::filesystem::rename(temporary, file, ec);
 }
 
-void NextWorld::installed(Seed128 seed, const ScenarioConfig& config, const Locate& locate, const nlohmann::json& selection) {
+void NextWorld::installed(Seed128 seed, const ScenarioConfig& config, const Locate& locate, const nlohmann::json& selection,
+                          const std::set<std::string>& avoid) {
     if (!enabled() || config.osm_file != "auto") {
         std::lock_guard lock(mutex_);
         state_ = enabled() ? "idle" : "off";
@@ -106,16 +107,17 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config, const Loca
     // One prepared earlier and not yet used, for this size of city and this policy, stands; its city is fetched again
     // if it went. One prepared under another policy is replaced.
     std::optional<Seed128> next;
-    if (matches(prepared, extent, selection)) {
+    if (matches(prepared, extent, selection) && !avoid.contains(prepared.value("city", ""))) {
         try {
             next = Seed128::from_decimal(prepared.value("seed", ""));
         } catch (const std::exception&) {
         }
     }
     if (!next) {
-        // Somewhere else: a new world in the same city would be no surprise.
-        next = Seed128::secure64();
-        for (int tries = 0; tries < 64 && locate(*next).city == here.city; ++tries) next = Seed128::secure64();
+        // Somewhere this session has not been, and not here: a new world in a city already seen would be no surprise.
+        auto seen = avoid;
+        seen.insert(here.city);
+        next = seed_avoiding(seen, here.city, locate).first;
     }
     const auto location = locate(*next);
     std::error_code ec;
@@ -167,14 +169,14 @@ void NextWorld::installed(Seed128 seed, const ScenarioConfig& config, const Loca
 }
 
 std::optional<Seed128> NextWorld::take(const ScenarioConfig& config, const Locate& locate, const nlohmann::json& selection,
-                                       const std::string& avoid_city, const std::string& current_city) const {
+                                       const std::set<std::string>& avoid, const std::string& current_city) const {
     if (!enabled() || config.osm_file != "auto") return std::nullopt;
     const auto prepared = read_pointer(config.map_cache_dir);
     const bool ours = matches(prepared, config.map_city_extent_m, selection);
     const std::string on_its_way = ours ? prepared.value("city", "") : "";
     const auto spent = spent_of(prepared);
     std::optional<Seed128> next;
-    if (ours && on_its_way != avoid_city) {
+    if (ours && !avoid.contains(on_its_way)) {
         try {
             next = Seed128::from_decimal(prepared.value("seed", ""));
         } catch (const std::exception&) {
@@ -195,7 +197,7 @@ std::optional<Seed128> NextWorld::take(const ScenarioConfig& config, const Locat
     for (int tries = 0; !cached.empty() && tries < 4000; ++tries) {
         const auto seed = Seed128::secure64();
         const auto location = locate(seed);
-        if (location.city == avoid_city || location.city == current_city || location.city == on_its_way) continue;
+        if (avoid.contains(location.city) || location.city == current_city || location.city == on_its_way) continue;
         if (cached.contains(location.cache_path(cache).filename().string())) return seed;
     }
     return next;
@@ -208,6 +210,20 @@ nlohmann::json NextWorld::status() const {
     if (!seed_.empty()) out.update({{"seed", seed_}, {"city", city_}, {"country", country_}});
     if (!error_.empty()) out["error"] = error_;
     return out;
+}
+
+std::pair<Seed128, bool> seed_avoiding(const std::set<std::string>& avoid, const std::string& current, const NextWorld::Locate& locate) {
+    // Short enough for an operator to read off the screen and retype.
+    for (int tries = 0; tries < 4000; ++tries) {
+        const auto seed = Seed128::secure64();
+        if (!avoid.contains(locate(seed).city)) return {seed, false};
+    }
+    // Every city the policy allows has been seen: anywhere but here, if there is anywhere else.
+    for (int tries = 0; tries < 400; ++tries) {
+        const auto seed = Seed128::secure64();
+        if (locate(seed).city != current) return {seed, true};
+    }
+    return {Seed128::secure64(), true};
 }
 
 } // namespace dstns

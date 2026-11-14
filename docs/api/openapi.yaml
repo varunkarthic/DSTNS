@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: DSTNS API
-  version: 1.11.0
+  version: 1.12.0
   description: 'Deterministic Spatiotemporal Transport Network Simulator runtime API.
 
 
@@ -4309,12 +4309,12 @@ components:
           pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$
         map_selection_version:
           type: string
-          enum: [urban-crfg-v3, urban-geo-v1]
+          enum: [urban-crfg-v3, urban-geo-v1, urban-geo-v2]
           default: urban-crfg-v3
-          description: urban-geo-v1 needs engine core-ng. Added in 1.6.
+          description: urban-geo-v1 and urban-geo-v2 need engine core-ng. Added in 1.6; urban-geo-v2 in 1.12.
         map_selection:
           type: object
-          description: Only with urban-geo-v1. Added in 1.6.
+          description: Only with urban-geo-v1 or urban-geo-v2. Added in 1.6.
           properties:
             mode:
               type: string

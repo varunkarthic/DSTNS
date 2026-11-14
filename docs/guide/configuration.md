@@ -10,7 +10,7 @@ lists every setting, its range, and which component actually reads it.
 
 For a run started from the CLI, later sources win:
 
-1. Built-in defaults in `ScenarioConfig` (`Core/core-legacy/include/dstns/model.hpp`)
+1. Built-in defaults in `ScenarioConfig` (`Core/common/include/dstns/model.hpp`)
 2. `config/defaults.json`
 3. A saved seed (`--saved-seed ID`), which replaces 2 entirely
 4. CLI flags (`--seed`, `--day-type`, `--duration`, `--speed`, `--max-nodes`, `--osm-file`, `--engine`)
@@ -66,18 +66,24 @@ Kept in `config/engines.json` (see [Engine governance](../design/engine-governan
 | Key | Default | Range | Read by | Meaning |
 |---|---|---|---|---|
 | `engines.selected` | `core-ng` | an enabled engine | CLI | Which engine builds and runs each world. Both give the same world for the same seed under `urban-crfg-v3` |
-| `engines.auto_switch` | `offer` | `offer`, `off` | server | Whether rejecting an unstable engine's run offers to start the seed on a stable engine |
+| `engines.auto_switch` | `off` | `offer`, `off` | server | Whether rejecting an unstable engine's run offers to start the seed on a stable engine |
 | `engines.engines.core-ng.enabled` | `true` | on only | CLI | The default engine cannot be turned off |
 | `engines.engines.core-ng.acknowledgment.enforce` | `true` | on or off | server | Hold each core-ng run until a person accepts the risk. Off turns the observer's acknowledgment off too |
 | `engines.engines.core-ng.acknowledgment.ui` | `true` | on or off | server, observer | Ask in the observer; off while enforced, the launcher asks (`--accept-risk`) |
-| `engines.engines.core-legacy.enabled` | `true` | on or off | CLI, server | Off: core-legacy stays installed, but nothing can start on it |
-| `map.selection_mode` | `global` | `global`, `countries`, `cities`, `fixed_city` | CLI | Which cities a seed may choose. With `global` and something in Places, Places decides: two-letter codes are countries, other names cities |
+| `engines.engines.core-legacy.enabled` | `false` | on or off | CLI, server | Off (the default since 3.13.0): core-legacy stays installed, but nothing can start on it, and `--engine core-legacy` is refused. On, it runs worlds for comparison |
+| `map.selection_mode` | `global` | `global`, `countries`, `cities`, `fixed_city` | CLI | Which cities a seed may choose, under `urban-geo-v2` (379 cities) on core-ng. With `global` and something in Places, Places decides: two-letter codes are countries, other names cities |
 | `map.places` | `all` | comma-separated IDs, `-` before one to leave it out | CLI | Countries (ISO 3166-1 alpha-2, such as `IN, AE`) or city IDs (such as `mumbai, new-york`). `-IN` is everywhere but India; `IN, -mumbai` is India without Mumbai. Countries are written in capitals and cities in lower case with hyphens before the request is sent |
 
 Anything in Places needs core-ng: a start with core-legacy and Places set is refused before the server is called.
 Setting `engines.selected` to `core-legacy` sets `map.selection_mode` back to `global` and Places back to `all`.
-Dynamic Fastboot's prepared world is used only when nothing limits where worlds are. A launch code carries these
-settings like any other.
+Dynamic Fastboot's prepared world is used when it was prepared under the same policy and Places. A launch code
+carries these settings like any other.
+
+In the launcher, Enter on Places (or Tools, Choose countries) opens the list of countries, each with its code and
+how many cities it has. Typing filters it; Space chooses a country or takes it back, `-` leaves one out, Ctrl+A
+chooses every country shown and Ctrl+D clears them all; Ctrl+S saves Places, and Where worlds are with it. Places
+may still be typed as text. Tools, Supported cities lists every city with its country, code and ID: type to filter,
+Ctrl+S saves what is shown as CSV in Downloads (or `output/`).
 
 ### Map
 

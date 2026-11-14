@@ -155,9 +155,9 @@ Vulnerabilities in the code and configuration in this repository.
 | **Fabric API** | `Fabric/src/` | Bypass of the operator credential; cross-site request forgery; DNS rebinding; CORS that lets another site read a run; a single request that uses unbounded memory or processor time |
 | **WebFabric** | `Fabric/src/webfabric/`, `WebKit/src/webfabric/` | One application using another's identity or grants; a capability used without a grant; a forged, altered or replayed signed request; a bypass of the store seal or the audit hash chain; escape from the application frame sandbox |
 | **Daemons** | `Daemon/`, `Fabric/src/routes_daemon.cpp` | Reading the daemon queues without a token; changing a daemon without the operator credential; a crafted `config/daemon-alerts.json` that crashes the server |
-| **Simulation engine** | `Core/core-legacy/src/` | Memory-safety errors, integer wrap-around or out-of-range access from request values, saved seeds, checkpoints or configuration files |
-| **Map pipeline** | `Core/core-legacy/src/osm.cpp`, `Core/core-legacy/src/osm_fetch.cpp` | Crashes, resource exhaustion or code execution from a crafted OpenStreetMap file; command injection in the map downloader; writing outside the map cache |
-| **SUMO adapter** | `Core/core-legacy/src/sumo_bridge.cpp` | Shell injection; writing outside the requested directory |
+| **Simulation engine** | `Core/common/src/`, `Core/core-ng/src/`, `Core/core-legacy/src/` | Memory-safety errors, integer wrap-around or out-of-range access from request values, saved seeds, checkpoints or configuration files |
+| **Map pipeline** | `Core/common/src/osm.cpp`, `Core/common/src/osm_fetch.cpp` | Crashes, resource exhaustion or code execution from a crafted OpenStreetMap file; command injection in the map downloader; writing outside the map cache |
+| **SUMO adapter** | `Core/common/src/sumo_bridge.cpp` | Shell injection; writing outside the requested directory |
 | **Observer** | `WebKit/src/` | Cross-site scripting or script injection from map tags, news messages, application content, notifications or report content; a crash caused by event or application data |
 | **Launcher** | `LaunchKit/` | A bypass of Advanced Security; a model suggestion that runs without the person's confirmation or passes the [suggestion checker](docs/guide/console.md) with a forbidden command; a secret written to a log or a terminal; unsafe temporary files; a process left running after the launcher stops it |
 | **MCP Handler** | `LaunchKit/src/mcp.rs` | A tool that changes the simulation while `mcp.allow_writes` is off; a launcher tool that runs while `mcp.allow_launcher` is off or Advanced Security is on |
@@ -237,12 +237,12 @@ They do not replace an authenticating gateway when the server is exposed to a ne
 | `sandbox="allow-scripts"` frames with no same-origin, and a Content Security Policy | An application page reaching the observer or another application | `WebKit/src/webfabric/`, `Fabric/src/` |
 | `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`, `no-referrer`, `no-store` | Clickjacking, content sniffing, leaked addresses, cached responses | `Fabric/src/guards.cpp` |
 | Lookup tables without a prototype, and `Map` for names from events and applications | Names such as `constructor` reaching `Object.prototype` | `WebKit/src/` |
-| Request bodies limited to 16 MiB; range checks on every ID, time, count and bound; limits on everything an application can create | Wrap-around, out-of-range values and memory exhaustion | `Fabric/src/`, `Core/core-legacy/src/engine.cpp` |
+| Request bodies limited to 16 MiB; range checks on every ID, time, count and bound; limits on everything an application can create | Wrap-around, out-of-range values and memory exhaustion | `Fabric/src/`, `Core/common/src/engine.cpp` |
 | POST-only shutdown | Shutdown from a link or an image | `Fabric/src/` |
-| Single-quoted shell arguments, close-on-exec pipes, a private process group for each child | Command injection through paths; orphaned child processes | `Core/core-legacy/src/osm_fetch.cpp`, `Core/core-legacy/src/sumo_bridge.cpp`, `LaunchKit/src/process.rs` |
-| Download stall limit (200 s, `DSTNS_MAP_STALL_S`) and size limits on maps | A download or a map that never ends | `Core/core-legacy/src/osm_fetch.cpp` |
-| UTF-8 repair and a JSON serialisation guard | Hostile or corrupt map text in responses and logs | `Core/core-legacy/src/utf8.cpp`, `Core/core-legacy/src/osm.cpp` |
-| Single-line log messages | Log forging | `Core/core-legacy/src/logging.cpp` |
+| Single-quoted shell arguments, close-on-exec pipes, a private process group for each child | Command injection through paths; orphaned child processes | `Core/common/src/osm_fetch.cpp`, `Core/common/src/sumo_bridge.cpp`, `LaunchKit/src/process.rs` |
+| Download stall limit (200 s, `DSTNS_MAP_STALL_S`) and size limits on maps | A download or a map that never ends | `Core/common/src/osm_fetch.cpp` |
+| UTF-8 repair and a JSON serialisation guard | Hostile or corrupt map text in responses and logs | `Core/common/src/utf8.cpp`, `Core/common/src/osm.cpp` |
+| Single-line log messages | Log forging | `Core/common/src/logging.cpp` |
 | Operator-only changes to the daemons (`403 OPERATOR_REQUIRED`), token-only reads of their queues | An unknown client silencing or reading alerts | `Fabric/src/routes_daemon.cpp` |
 | **Advanced Security** (`security.advanced`): the system's own prompt (Touch ID or the password on macOS, polkit or sudo on Linux, Windows Hello or sudo under WSL) before the launcher changes anything; changing the setting itself always asks | A program, or another person at an unlocked machine, changing the launcher | `LaunchKit/src/security.rs` |
 | Verification passed only to launchers that the verified launcher starts (`DSTNS_VERIFIED_BY` must name the parent, and the parent must be the same program) | A shell that sets the variable itself | `LaunchKit/src/security.rs` |

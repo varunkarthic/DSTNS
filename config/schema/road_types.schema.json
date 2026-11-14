@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dstns.readthedocs.io/config/schema/road_types.schema.json",
   "title": "config/road_types.json",
-  "description": "Reference: the free-flow speed and capacity of each OpenStreetMap road class, as the engine models them. Informational in this release: the engine holds these values in code (Core/core-legacy/src/osm.cpp and scenario.cpp, where they are part of every world's hashes), and this file documents them; changing it changes nothing.",
+  "description": "Reference: the free-flow speed and capacity of each OpenStreetMap road class, as the engine models them. Informational in this release: the engine holds these values in code (Core/common/src/osm.cpp and each engine's compiler, where they are part of every world's hashes), and this file documents them; changing it changes nothing.",
   "type": "object",
   "properties": {
     "$schema": {

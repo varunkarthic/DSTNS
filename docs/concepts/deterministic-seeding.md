@@ -322,6 +322,24 @@ A filtered world is never presented as the seed's own world. It is identified by
 fingerprint, all reported under `map_selection` in `/api/v1/view/manifest`, and the policy name takes part in
 `event_hash`.
 
+## More cities (urban-geo-v2)
+
+`urban-geo-v2` has `urban-geo-v1`'s modes, lists, draw and fingerprint rules over a larger catalogue: the same 181
+cities, in the same order, and then 198 more, 379 in 126 countries. It is the launcher's policy on core-ng, every
+city included (mode `global`), so a seed under it may choose a city `urban-crfg-v3` does not have, and generally
+chooses a different city from the one it chooses under `urban-crfg-v3`. Seeds recorded under `urban-crfg-v3` or
+`urban-geo-v1` keep their cities: those catalogues never change. A city added later comes with a new policy ID.
+
+`./build/dstns_server --list-cities` prints every city with its country, ISO code, ID and centre, and `since`, the
+first policy that has it. In the launcher, Tools, Supported cities lists them, filters them and saves them as CSV.
+
+## A session's new worlds
+
+Within one server session, a new world (Regenerate, or trying again after a failed download) goes to a city the
+session has not shown yet, among those the policy allows; it comes back to one only once there is no other. Then
+the round starts again from the city on screen. The seed is drawn afresh as always, so the rule never changes what
+any given seed chooses. A pinned map file is the same place whatever the seed, so it is not affected.
+
 !!! note "Dynamic Fastboot"
     Fastboot prepares the next world under the run's own policy, and records the policy beside the seed, so a
     prepared seed is never handed to a run under another policy. See [Fast Boot](../guide/fast-boot.md).

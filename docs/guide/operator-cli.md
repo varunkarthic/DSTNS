@@ -208,7 +208,7 @@ server's `system.log` runs beneath it, coloured by level. When a simulation is r
 | | Diagnostics | Every check, optionally with the test suites; server, terminal and path details |
 | Inspect | Logs | The system log and the API, operator-event and lifecycle journals |
 | | Tests | The test stages, with live output |
-| | Tools | The SUMO toolchain check, rebuilding the observer, resetting runtime data |
+| | Tools | The SUMO toolchain check, rebuilding the observer, the supported cities and choosing countries, resetting runtime data |
 | Help | Documentation | This site, in your browser |
 | | About | Version, copyright, licence and map-data attribution |
 | | Exit | Leaves the launcher, stopping a simulation it started after confirmation |

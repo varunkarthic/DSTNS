@@ -186,11 +186,6 @@ const char* to_string(Lifecycle x) {
 
 SimulationEngine::SimulationEngine(RuntimeLogger& logger)
     : logger_(logger) {
-    // core-legacy: the engine DSTNS has always had, versioned with the build, and owning every part of a run.
-    EngineIdentity legacy;
-    legacy.version = DSTNS_VERSION;
-    legacy.owns = {"world selection (urban-crfg-v3)", "scenario compilation", "physics step", "checkpoints and seeking", "operator commands"};
-    identities_["core-legacy"] = std::move(legacy);
     worker_ = std::jthread([this](std::stop_token) { loop(); });
     logger_.system("INFO", "engine", "DSTNS engine idle");
 }
@@ -275,8 +270,10 @@ void SimulationEngine::anchor_wall_clock() {
     anchor_virtual_s_ = virtual_s_;
 }
 
-void SimulationEngine::register_engine(const std::string& id, ScenarioCompiler::Hooks hooks, EngineIdentity identity) {
-    if (id.empty() || id == "core-legacy") throw std::invalid_argument("engine id is reserved");
+void SimulationEngine::register_engine(const std::string& id, EngineHooks hooks, EngineIdentity identity) {
+    if (id.empty()) throw std::invalid_argument("an engine needs an id");
+    if (!hooks.select || !hooks.compile || !hooks.step || !hooks.capture || !hooks.rewind)
+        throw std::invalid_argument("engine " + id + " lacks a hook: an engine selects, compiles, steps, and keeps and restores checkpoints");
     engines_[id] = std::move(hooks);
     set_identity(id, std::move(identity));
 }
@@ -299,7 +296,7 @@ nlohmann::json SimulationEngine::catalogue() const {
 }
 
 std::vector<std::string> SimulationEngine::engines() const {
-    std::vector<std::string> out{"core-legacy"};
+    std::vector<std::string> out;
     for (const auto& [id, hooks] : engines_) out.push_back(id);
     return out;
 }
@@ -307,11 +304,7 @@ std::vector<std::string> SimulationEngine::engines() const {
 // Checked before the lifecycle moves, so an unknown engine is refused at once instead of failing a preparation.
 void SimulationEngine::require_engine(const ScenarioConfig& config) const {
     const auto found = engines_.find(config.engine);
-    if (config.engine == "core-legacy") {
-        if (config.map_selection_version != "urban-crfg-v3" || config.map_selection_mode != "global" ||
-            !config.map_countries.empty() || !config.map_cities.empty() || !config.map_exclude_countries.empty() || !config.map_exclude_cities.empty())
-            throw std::invalid_argument("core-legacy supports only urban-crfg-v3 over every city; use engine core-ng to choose a policy");
-    } else if (found == engines_.end()) {
+    if (found == engines_.end()) {
         throw std::invalid_argument("unknown engine: " + config.engine);
     } else if (found->second.validate) {
         found->second.validate(config);
@@ -320,13 +313,14 @@ void SimulationEngine::require_engine(const ScenarioConfig& config) const {
 
 MapLocation SimulationEngine::locate(Seed128 seed, const ScenarioConfig& config) const {
     const auto found = engines_.find(config.engine);
-    if (found != engines_.end() && found->second.select) return found->second.select(seed, config);
-    return select_map_location(seed, config.map_city_extent_m);
+    if (found == engines_.end()) throw std::invalid_argument("unknown engine: " + config.engine);
+    return found->second.select(seed, config);
 }
 
 Scenario SimulationEngine::compile_scenario(Seed128 seed, const ScenarioConfig& config) {
     const auto found = engines_.find(config.engine);
-    return compiler_.compile(seed, config, compile_progress(), found == engines_.end() ? ScenarioCompiler::Hooks{} : found->second);
+    if (found == engines_.end()) throw std::invalid_argument("unknown engine: " + config.engine);
+    return found->second.compile(seed, config, compile_progress());
 }
 
 nlohmann::json SimulationEngine::prepare(Seed128 seed, const ScenarioConfig& config) {
@@ -519,7 +513,12 @@ void SimulationEngine::install_scenario(Scenario scenario, double tick_rate, std
         // A world chosen by its seed stores the file it resolved to; the next one is chosen the same way.
         auto config = scenario.config;
         if (!scenario.map_city.empty()) config.osm_file = "auto";
-        next_world_.installed(scenario.seed, config, [this, config](Seed128 s) { return locate(s, config); }, map_selection_json(config));
+        // This session has now shown this city; new worlds go elsewhere until the policy has nowhere else, and then
+        // the round starts again from here.
+        if (!scenario.map_city.empty()) {
+            if (!session_cities_.insert(scenario.map_city).second) session_cities_ = {scenario.map_city};
+        }
+        next_world_.installed(scenario.seed, config, [this, config](Seed128 s) { return locate(s, config); }, map_selection_json(config), session_cities_);
     }
     run_id_ = "run_" + scenario.scenario_hash.substr(7, 12);
     narration_context_.reset();
@@ -926,20 +925,18 @@ nlohmann::json SimulationEngine::step(std::uint32_t seconds) {
     };
 }
 
-// A fresh seed, for a city other than the one that has just failed.
-static Seed128 seed_avoiding_failed_city(const std::optional<Seed128>& failed, const ScenarioConfig& config,
-                                         const std::function<MapLocation(Seed128)>& locate) {
-    // Short enough for an operator to read off the screen and retype.
-    Seed128 seed = Seed128::secure64();
-    if (!failed || config.osm_file != "auto") return seed;
-    const auto city = locate(*failed).city;
-    // Bounded: a policy that allows one city has nowhere else to go, and then that city is tried again.
-    for (int tries = 0; tries < 64 && locate(seed).city == city; ++tries) seed = Seed128::secure64();
-    return seed;
+std::set<std::string> SimulationEngine::avoided_cities(const ScenarioConfig& config) const {
+    if (config.osm_file != "auto") return {};
+    auto avoid = session_cities_;
+    if (failed_seed_) avoid.insert(locate(*failed_seed_, config).city);
+    return avoid;
 }
 
-std::string SimulationEngine::failed_city(const ScenarioConfig& config) const {
-    return failed_seed_ && config.osm_file == "auto" ? locate(*failed_seed_, config).city : "";
+// A fresh seed for a new world: in a city this session has not shown and that has not just failed, while the policy
+// has one; a seed-chosen map only (a pinned file is the same place whatever the seed).
+Seed128 SimulationEngine::fresh_seed(const ScenarioConfig& config, const std::string& current) const {
+    if (config.osm_file != "auto") return Seed128::secure64();
+    return seed_avoiding(avoided_cities(config), current, [&](Seed128 s) { return locate(s, config); }).first;
 }
 
 nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request) {
@@ -948,7 +945,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         std::unique_lock lock(mutex_);
         if (lifecycle_ == Lifecycle::Idle && failed_start_) {
             const auto [failed_config, start] = *failed_start_;
-            const auto seed = next_world_.take(failed_config, [&](Seed128 s) { return locate(s, failed_config); }, map_selection_json(failed_config), failed_city(failed_config)).value_or(seed_avoiding_failed_city(failed_seed_, failed_config, [&](Seed128 s) { return locate(s, failed_config); }));
+            const auto seed = next_world_.take(failed_config, [&](Seed128 s) { return locate(s, failed_config); }, map_selection_json(failed_config), avoided_cities(failed_config)).value_or(fresh_seed(failed_config, ""));
             lock.unlock();
             return start_async(seed, failed_config, start);
         }
@@ -983,7 +980,7 @@ nlohmann::json SimulationEngine::regenerate_world(const nlohmann::json& request)
         // the "auto" source; an operator-pinned map file stays pinned.
         if (!graph_->scenario().map_city.empty()) config.osm_file = "auto";
         // Dynamic Fastboot has its city on disk already, or on its way.
-        seed = next_world_.take(config, [&](Seed128 s) { return locate(s, config); }, map_selection_json(config), failed_city(config), graph_->scenario().map_city).value_or(seed_avoiding_failed_city(failed_seed_, config, [&](Seed128 s) { return locate(s, config); }));
+        seed = next_world_.take(config, [&](Seed128 s) { return locate(s, config); }, map_selection_json(config), avoided_cities(config), graph_->scenario().map_city).value_or(fresh_seed(config, graph_->scenario().map_city));
         previous = run_id_;
         rate = requested_tick_rate_;
         compile_generation = ++compile_generation_;
@@ -1203,9 +1200,9 @@ constexpr double kWorldSettleS = 3.0;
 
 // Publishes what a compile is doing, so a wait can be explained while the
 // engine lock is held.
-ScenarioCompiler::Progress SimulationEngine::compile_progress() {
-    return [this](ScenarioCompiler::Stage stage) {
-        const int number = stage == ScenarioCompiler::Stage::Selecting ? 1 : stage == ScenarioCompiler::Stage::Acquiring ? 2 : 3;
+CompileProgress SimulationEngine::compile_progress() {
+    return [this](CompileStage stage) {
+        const int number = stage == CompileStage::Selecting ? 1 : stage == CompileStage::Acquiring ? 2 : 3;
         {
             std::lock_guard lock(eta_mutex_);
             stage_at_[number] = std::chrono::steady_clock::now();
@@ -1530,8 +1527,7 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
                          }};
     // The engine that compiled this world takes the tick, if it has its own; otherwise core-legacy's.
     const auto found = engines_.find(graph_->scenario().config.engine);
-    if (found != engines_.end() && found->second.step) found->second.step(ctx, dt);
-    else physics::step(ctx, dt);
+    found->second.step(ctx, dt);
 }
 
 void SimulationEngine::step_to(std::uint32_t target) {
@@ -1554,8 +1550,7 @@ void SimulationEngine::step_to(std::uint32_t target) {
 void SimulationEngine::capture_checkpoint() {
     auto ctx = timeline();
     const auto found = engines_.find(graph_->scenario().config.engine);
-    if (found != engines_.end() && found->second.capture) found->second.capture(ctx);
-    else physics::capture(ctx);
+    found->second.capture(ctx);
 }
 
 void SimulationEngine::restore_to(std::uint32_t target) {
@@ -1566,8 +1561,7 @@ void SimulationEngine::restore_to(std::uint32_t target) {
 void SimulationEngine::rewind_to_checkpoint(std::uint32_t target) {
     auto ctx = timeline();
     const auto found = engines_.find(graph_->scenario().config.engine);
-    if (found != engines_.end() && found->second.rewind) found->second.rewind(ctx, target);
-    else physics::rewind(ctx, target);
+    found->second.rewind(ctx, target);
 }
 
 std::pair<std::size_t, std::size_t> SimulationEngine::checkpoint_memory() const {

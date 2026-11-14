@@ -45,7 +45,7 @@ dstns_server --probe                    # exit 0 if the server on DSTNS_PORT is 
 | `--narrator-model NAME` | `system` | Model name sent to a Chat Completions endpoint |
 | `--narrator-cache FILE` | `<logs>/narrations.db` | Persistent narration cache; `none` keeps it in memory |
 | `--version` | | Print the version and licence notice, then exit |
-| `--list-cities [EXTENT_M]` | `5000` | Print every city a seed can choose, with its key and the box downloaded for it, as JSON, then exit |
+| `--list-cities [EXTENT_M]` | `5000` | Print every city a seed can choose (379, under `urban-geo-v2`), with its key, the box downloaded for it, its ID, country code, centre and `since` (the first policy that has it), as JSON, then exit |
 | `--city-of-seed SEED` | | Print the city a seed chooses, and its key, as JSON, then exit |
 | `--help` | | Print the synopsis, then exit |
 

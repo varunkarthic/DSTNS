@@ -1,7 +1,7 @@
 {
   "$schema": "./schema/road_types.schema.json",
   "schema_version": 1,
-  "_about": "Reference: the free-flow speed and capacity of each OpenStreetMap road class, as the engine models them. Informational in this release: the engine holds these values in code (Core/core-legacy/src/osm.cpp and scenario.cpp, where they are part of every world's hashes), and this file documents them; changing it changes nothing.",
+  "_about": "Reference: the free-flow speed and capacity of each OpenStreetMap road class, as the engine models them. Informational in this release: the engine holds these values in code (Core/common/src/osm.cpp and each engine's compiler, where they are part of every world's hashes), and this file documents them; changing it changes nothing.",
   "_help": {
     "<class>.speed_mps": "Free-flow speed, in metres a second (16.67 is 60 km/h). Accepts: a number above 0.",
     "<class>.capacity_vph": "Capacity, in vehicles an hour. Accepts: a number above 0."

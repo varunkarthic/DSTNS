@@ -4,6 +4,7 @@
 // core-ng's checkpoints (release 7b). Each engine runs the same world forward to 06:00, back across its checkpoints to
 // 01:06:40, and forward to 06:00 again. The state at 06:00 must be the same both times, the state after going back
 // must be the state a straight run has there, and core-ng must give exactly what core-legacy gives at every stop.
+#include "dstns/engines.hpp"
 #include "dstns/core-ng/selection.hpp"
 #include "dstns/engine.hpp"
 #include "dstns/logging.hpp"
@@ -26,8 +27,7 @@ std::map<std::string, std::string> run(const std::string& name, std::uint32_t ev
     std::map<std::string, std::string> out;
     {
         RuntimeLogger logger(directory);
-        SimulationEngine engine(logger);
-        engine.register_engine(core_ng::kEngineId, core_ng::hooks());
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         ScenarioConfig config;
         config.engine = name;
         config.grid_width = 7;

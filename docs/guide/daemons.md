@@ -38,6 +38,10 @@ core):
 The processor's α counts only while a run is running: an engine at rest uses nothing, and
 that is not wrong.
 
+In the launcher, Configuration, Resource Control shows each line as three cells, α, β and γ, with a scale beneath
+that marks where each sits between 0 and γ. ←→ moves between the cells, digits and Backspace type, and `+` and `-`
+step by about a twentieth; a line whose values are not each at least the one before is marked until it is.
+
 ```bash
 ./launcher set rcs.engine.memory "4, 2048, 4096"     # α, β, γ in MiB
 ./launcher set rcs.engine.cpu "0.2, 180, 380"        # α, β, γ as a percentage of one core

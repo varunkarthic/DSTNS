@@ -15,6 +15,7 @@
 //   dstns_benchmark [--quick] [--json FILE] [--narrator fm|http://HOST:PORT|unix:/PATH]
 //                   [--suite network,events,observers,narrator] [GRID ...]
 
+#include "dstns/engines.hpp"
 #include "dstns/build_info.hpp"
 #include "dstns/core-ng/identity.hpp"
 #include "dstns/core-ng/selection.hpp"
@@ -113,7 +114,7 @@ struct Bench {
         std::filesystem::remove_all(dir);
         logger = std::make_unique<dstns::RuntimeLogger>(dir);
         engine = std::make_unique<dstns::SimulationEngine>(*logger);
-        engine->register_engine(dstns::core_ng::kEngineId, dstns::core_ng::hooks(), dstns::core_ng::identity());
+        dstns::install_engines(*engine);
     }
     ~Bench() {
         engine->terminate();

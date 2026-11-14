@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Varun Karthic
 
 #include "dstns/sumo_bridge.hpp"
-#include "dstns/scenario.hpp"
 
 #include <array>
 #include <cstdio>
@@ -111,9 +110,42 @@ SumoEnvironment SumoBridge::detect() {
     return env;
 }
 
+// The scenario as SUMO's plain XML: nodes, edges, routes and a configuration. Moved here from core-legacy's
+// compiler in 3.13.0: it writes a world out, whichever engine made it.
+namespace {
+void write_sumo_bundle(const Scenario&s,const std::filesystem::path&dir){
+    std::filesystem::create_directories(dir);std::ofstream nod(dir/"network.nod.xml"),edg(dir/"network.edg.xml"),rou(dir/"sandbox.rou.xml"),add(dir/"sandbox.add.xml"),cfg(dir/"sandbox.sumocfg");
+    if(!nod||!edg||!rou||!add||!cfg)throw std::runtime_error("cannot create SUMO bundle");
+    nod<<"<nodes>\n";for(const auto&n:s.nodes)nod<<"  <node id=\"n"<<n.id.value<<"\" x=\""<<n.position.x_m<<"\" y=\""<<n.position.y_m<<"\" type=\""<<(n.signal?"traffic_light":"priority")<<"\"/>\n";nod<<"</nodes>\n";
+    edg<<"<edges>\n";for(const auto&e:s.edges)if(is_source_direction_allowed(e))edg<<"  <edge id=\"e"<<e.id.value<<"\" from=\"n"<<e.from.value<<"\" to=\"n"<<e.to.value<<"\" numLanes=\""<<e.lanes<<"\" speed=\""<<e.free_speed_mps<<"\"/>\n";edg<<"</edges>\n";
+    add<<"<additional>\n";for(const auto&b:s.bus_stops){
+        // netconvert shortens lanes where they meet a junction, so a position
+        // valid on the DSTNS edge can lie beyond the SUMO lane. friendlyPos
+        // lets SUMO move such a stop onto its lane instead of refusing the
+        // whole file ("Invalid position for busStop"); the bounds are clamped
+        // to the edge as a first approximation.
+        const double length=b.edge.value<s.edges.size()?s.edges[b.edge.value].length_m:b.position_m;
+        const double end=std::clamp(std::max(5.0,b.position_m),std::min(1.0,length),std::max(length,1.0));
+        const double start=std::max(0.0,end-std::min(10.0,end));
+        add<<"  <busStop id=\"stop"<<b.id.value<<"\" lane=\"e"<<b.edge.value<<"_0\" startPos=\""<<start<<"\" endPos=\""<<end<<"\" friendlyPos=\"true\"/>\n";}add<<"</additional>\n";
+    rou<<"<routes>\n"
+       <<"  <vType id=\"car\" accel=\"2.6\" decel=\"4.5\" sigma=\"0.2\" length=\"4.8\" maxSpeed=\"33.33\" vClass=\"passenger\" guiShape=\"passenger\"/>\n"
+       <<"  <vType id=\"bus\" accel=\"1.4\" decel=\"3.5\" sigma=\"0.1\" length=\"12.0\" maxSpeed=\"20.0\" vClass=\"bus\" guiShape=\"bus\"/>\n"
+       <<"  <vType id=\"van\" accel=\"2.0\" decel=\"4.0\" sigma=\"0.2\" length=\"6.5\" maxSpeed=\"25.0\" vClass=\"delivery\" guiShape=\"delivery\"/>\n";
+    for(const auto&t:s.trips){
+        if(t.route.empty())continue;
+        const char* vtype = (t.id % 8 == 0) ? "bus" : ((t.id % 4 == 0) ? "van" : "car");
+        rou<<"  <vehicle id=\"veh"<<t.id<<"\" type=\""<<vtype<<"\" depart=\""<<t.depart_virtual_s<<"\"><route edges=\"";
+        for(std::size_t i=0;i<t.route.size();++i){if(i)rou<<' ';rou<<'e'<<t.route[i].value;}
+        rou<<"\"/></vehicle>\n";
+    }
+    rou<<"</routes>\n";
+    cfg<<"<configuration><input><net-file value=\"network.net.xml\"/><route-files value=\"sandbox.rou.xml\"/><additional-files value=\"sandbox.add.xml\"/></input><time><begin value=\"0\"/><end value=\"86400\"/><step-length value=\"1\"/></time><processing><time-to-teleport value=\"120\"/></processing><report><no-step-log value=\"true\"/></report></configuration>\n";
+}
+} // namespace
+
 void SumoBridge::export_bundle(const Scenario& scenario, const std::filesystem::path& directory) {
-    ScenarioCompiler compiler;
-    compiler.export_sumo(scenario, directory);
+    write_sumo_bundle(scenario, directory);
 }
 
 bool SumoBridge::build_network(const std::filesystem::path& directory, const SumoEnvironment& env, std::string& error_out) {

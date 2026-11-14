@@ -4,6 +4,7 @@
 // Deterministic slow-map I/O: hold a FIFO open, exercise concurrent observers,
 // then release real OSM bytes. No internet, sleeps for download duration, or mocks
 // of the engine's locking and installation path.
+#include "dstns/engines.hpp"
 #include "dstns/engine.hpp"
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -50,7 +51,7 @@ int main() {
     const auto seed=Seed128::parse("0x12345");
     ScenarioConfig cfg; cfg.playback_duration_s=3600; cfg.osm_file=(dir/"slow.osm.xml").string();
     for (bool standby : {false,true}) {
-        SimulationEngine engine(logger); SlowMap map(cfg.osm_file);
+        SimulationEngine engine(logger); dstns::install_engines(engine); SlowMap map(cfg.osm_file);
         auto compile=std::async(std::launch::async,[&]{return attempt([&]{if(standby)engine.prepare(seed,cfg);else engine.start(seed,cfg);});});
         wait_build(engine);
         auto status=std::async(std::launch::async,[&]{return engine.status();});
@@ -62,7 +63,7 @@ int main() {
         check(engine.topology()["data"]["nodes"].size()>0,"real OSM topology installed");
     }
     for (bool regenerate : {false,true}) for (bool terminate : {false,true}) {
-        SimulationEngine engine(logger);
+        SimulationEngine engine(logger); dstns::install_engines(engine);
         if(regenerate) { std::filesystem::copy_file("tests/fixtures/roads.osm.xml",cfg.osm_file,std::filesystem::copy_options::overwrite_existing); engine.start(seed,cfg); }
         SlowMap map(cfg.osm_file);
         std::future<std::string> compile;

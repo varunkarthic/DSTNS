@@ -3,6 +3,7 @@
 
 // core-ng's lifecycle table, and the engine held to it: ordinary use and races between a jump and every control that
 // may interrupt one must make no transition outside the table.
+#include "dstns/engines.hpp"
 #include "dstns/core-ng/lifecycle.hpp"
 #include "dstns/core-ng/selection.hpp"
 #include "dstns/core-ng/world.hpp"
@@ -37,7 +38,7 @@ struct Harness {
         : directory((std::filesystem::remove_all(std::filesystem::temp_directory_path() / ("dstns-lifecycle-" + name)),
                      std::filesystem::temp_directory_path() / ("dstns-lifecycle-" + name))),
           logger(directory), engine(logger) {
-        engine.register_engine(core_ng::kEngineId, core_ng::hooks());
+        dstns::install_engines(engine);
         engine.set_transition_guard([](Lifecycle from, Lifecycle to) {
             const bool ok = lc::allowed(from, to);
             if (!ok) {

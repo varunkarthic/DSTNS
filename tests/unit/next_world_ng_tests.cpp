@@ -9,6 +9,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <set>
+#include <vector>
 #include <stdexcept>
 #include <string>
 
@@ -75,6 +77,25 @@ int main() {
         check(next.take(legacy, locate_in(legacy), describe(legacy)) == prepared, "a legacy run takes an old pointer's seed");
         const auto filtered = next.take(berlin, locate_in(berlin), describe(berlin));
         check(filtered != prepared && (!filtered || locate_in(berlin)(*filtered).city == "Berlin"), "a filtered run does not take an old pointer's seed");
+
+        check(!next.take(berlin, locate_in(berlin), describe(berlin), {"Berlin"}), "a city this session has shown is not offered again");
+
+        // A session's new worlds: never a city already shown while the policy has another, then round again.
+        const NextWorld::Locate locate3 = [](Seed128 seed) {
+            MapLocation where;
+            where.city = std::vector<std::string>{"Berlin", "Munich", "Hamburg"}[(seed.decimal().back() - '0') % 3];
+            return where;
+        };
+        std::set<std::string> seen;
+        std::string current = locate3(Seed128::from_decimal("7")).city;
+        seen.insert(current);
+        for (int i = 0; i < 2; ++i) {
+            const auto [seed, gave_up] = seed_avoiding(seen, current, locate3);
+            current = locate3(seed).city;
+            check(!gave_up && seen.insert(current).second, "repeated " + current + " before the policy ran out");
+        }
+        const auto [again, gave_up] = seed_avoiding(seen, current, locate3);
+        check(gave_up && locate3(again).city != current, "with every city shown, somewhere other than here");
 
         std::filesystem::remove_all(cache);
         std::cout << "[next-world-ng] prepared seeds are offered only under their own policy and extent\n";

@@ -13,7 +13,9 @@ json run_on(const std::string& engine, const std::string& seed, const json& extr
     const auto maps = tmp / "maps";
     fs::create_directories(maps);
     fs::copy_file(root() / "data/fixtures/real_network.osm.xml", maps / "berlin_x5000.osm.xml");
-    Server server(tmp.path, {"--maps", maps.string(), "--map-cache", "keep"}, {{"DSTNS_FETCHER", "/usr/bin/false"}});
+    // core-legacy is off unless turned on; here it is, to compare the two.
+    std::ofstream(tmp / "engines.json") << json{{"schema_version", 1}, {"engines", {{"core-legacy", {{"enabled", true}}}}}}.dump();
+    Server server(tmp.path, {"--maps", maps.string(), "--map-cache", "keep"}, {{"DSTNS_FETCHER", "/usr/bin/false"}, {"DSTNS_ENGINE_CONFIG", (tmp / "engines.json").string()}});
     json start = {{"seed", seed}, {"map", {{"osm_file", "auto"}, {"cache_dir", maps.string()}}}};
     if (!engine.empty()) start["engine"] = engine;
     start.update(extra);
@@ -90,7 +92,8 @@ int main() {
 
     // Refused at once, with nothing started.
     TempDir tmp;
-    Server server(tmp.path);
+    std::ofstream(tmp / "engines.json") << json{{"schema_version", 1}, {"engines", {{"core-legacy", {{"enabled", true}}}}}}.dump();
+    Server server(tmp.path, {}, {{"DSTNS_ENGINE_CONFIG", (tmp / "engines.json").string()}});
     const json fixture = {{"osm_file", "tests/fixtures/roads.osm.xml"}};
     for (const auto& [why, body] : std::vector<std::pair<std::string, json>>{
              {"an unknown engine", {{"seed", "1"}, {"engine", "core-next"}, {"map", fixture}}},

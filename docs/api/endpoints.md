@@ -57,7 +57,7 @@ Body:
 | `day` | integer or `"auto"` | No | 0 weekday, 1 weekend | The kind of day |
 | `start_virtual_time` | seconds or `HH:MM:SS` | No | Default 0 | Where the day begins |
 | `saved_seed_id` | string | No | `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` | Name it was saved under |
-| `map_selection_version` | string | No | `urban-crfg-v3` (default); `urban-geo-v1` with engine `core-ng` | How districts are chosen. See [Deterministic seeding](../concepts/deterministic-seeding.md#choosing-countries-or-cities-urban-geo-v1) |
+| `map_selection_version` | string | No | `urban-crfg-v3` (default); `urban-geo-v1` or `urban-geo-v2` (API 1.12) with engine `core-ng` | How districts are chosen. See [Deterministic seeding](../concepts/deterministic-seeding.md#choosing-countries-or-cities-urban-geo-v1) |
 | `map_selection` | object | No | `mode`: `global`, `countries`, `cities` or `fixed_city`; `countries`: ISO 3166-1 alpha-2 codes; `cities`: city IDs such as `mumbai`; `exclude_countries`, `exclude_cities`: left out of what the mode allows (API 1.7); at most 200 of each | Only with `urban-geo-v1` (API 1.6). A policy that leaves out nothing has the same fingerprint as before exclusions existed |
 | `engine` | string | No | `core-ng` (default since API 1.10) or `core-legacy`; another is refused with 400 | Which engine prepares and runs the world. Results are the same; `/system/info` lists the engines (API 1.5) |
 | `map.osm_file` | string | No | A path, or `auto` | Use this file rather than downloading |
@@ -1277,7 +1277,7 @@ Response `200`, from a real run:
   "ok": true,
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
-  "version": "3.12.1"
+  "version": "3.13.0"
 }
 ```
 
@@ -1314,8 +1314,8 @@ The running engine and every installed one, with the engine policy (config/engin
 
 ```json
 {"ok": true, "data": {
-  "running": {"id": "core-ng", "version": "1.1.1", "kind": "real", "channel": "stable", "owns": ["…"], "shared": ["physics step", "…"], "changes": ["…"]},
-  "catalogue": [{"id": "core-legacy", "version": "3.12.1", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
+  "running": {"id": "core-ng", "version": "1.2.0", "kind": "real", "channel": "stable", "owns": ["…"], "shared": ["physics step", "…"], "changes": ["…"]},
+  "catalogue": [{"id": "core-legacy", "version": "3.13.0", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
   "config": {"schema_version": 1, "selected": "core-legacy", "default": "core-legacy", "auto_switch": "offer", "engines": {"core-ng": {"enabled": true, "acknowledgment": {"ui": true, "enforce": true}}}},
   "approval": {"state": "none", "revision": 0}}}
 ```
@@ -1331,7 +1331,7 @@ the enabled stable real engines a rejection may start the seed on (empty when `a
 {"ok": true, "data": {"state": "pending", "revision": 3,
   "approval": {"id": "9f1c…", "engine": {"id": "core-ng", "version": "1.0.0", "channel": "beta", "kind": "real"}, "seed": "42",
                "requested_at": "2026-11-13T18:00:00Z", "acknowledge_in": "observer", "decision": "", "then": "", "reason": ""},
-  "alternatives": [{"id": "core-legacy", "version": "3.12.1", "channel": "stable", "kind": "real"}]}}
+  "alternatives": [{"id": "core-legacy", "version": "3.13.0", "channel": "stable", "kind": "real"}]}}
 ```
 
 ### `GET /api/v1/engine/approval/wait`
@@ -1396,7 +1396,7 @@ Response `200`, from a real run:
     "sumo_home": "/Users/varun/sumo",
     "version": ""
   },
-  "version": "3.12.1"
+  "version": "3.13.0"
 }
 ```
 
@@ -1459,7 +1459,7 @@ Response `200`, from a real run:
     },
     "program": "DSTNS",
     "source_offer": "You may obtain the complete corresponding source for this running version, under the terms…",
-    "version": "3.12.1"
+    "version": "3.13.0"
   },
   "ok": true
 }

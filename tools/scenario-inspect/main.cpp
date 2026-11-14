@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+#include "dstns/sumo_bridge.hpp"
 #include "dstns/scenario.hpp"
 #include <cstdlib>
 #include <iostream>
@@ -53,7 +54,7 @@ int main(int argc, char** argv) {
 
         dstns::ScenarioCompiler compiler;
         auto s = compiler.compile(dstns::Seed128::parse(seed_str), c);
-        compiler.export_sumo(s, out_dir);
+        dstns::SumoBridge::export_bundle(s, out_dir);
         std::cout << s.scenario_hash << '\n';
         return 0;
     } catch (const std::exception& e) {

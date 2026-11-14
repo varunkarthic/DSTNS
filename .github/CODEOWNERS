@@ -3,7 +3,7 @@
 /SECURITY.md           @varunkarthic
 /.github/              @varunkarthic
 /Fabric/               @varunkarthic
-/Core/core-legacy/src/sumo_bridge.cpp @varunkarthic
-/Core/core-legacy/src/osm_fetch.cpp @varunkarthic
+/Core/common/src/sumo_bridge.cpp @varunkarthic
+/Core/common/src/osm_fetch.cpp @varunkarthic
 /Dockerfile            @varunkarthic
 /docker/               @varunkarthic

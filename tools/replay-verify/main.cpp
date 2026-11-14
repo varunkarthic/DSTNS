@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+#include "dstns/engines.hpp"
 #include "dstns/engine.hpp"
 #include "dstns/logging.hpp"
 #include "dstns/scenario.hpp"
@@ -18,7 +19,7 @@ nlohmann::json run_snapshot(const dstns::Seed128& seed, const dstns::ScenarioCon
     nlohmann::json snapshot;
     {
         dstns::RuntimeLogger logger(directory);
-        dstns::SimulationEngine engine(logger);
+        dstns::SimulationEngine engine(logger); dstns::install_engines(engine);
         engine.prepare(seed, config);
         engine.seek(12'345, false);
         snapshot = engine.snapshot()["data"];

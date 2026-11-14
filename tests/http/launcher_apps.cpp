@@ -59,6 +59,7 @@ int main(int argc, char** argv) {
         std::ofstream(settings / "defaults.json") << defaults.dump(2);
         auto engines = json::parse(read(settings / "engines.json"));
         engines["selected"] = "core-legacy";
+        engines["engines"]["core-legacy"]["enabled"] = true;
         // What each engine is comes from the build; the launcher writes it back at every start.
         for (auto& [id, entry] : engines["engines"].items())
             for (const auto* key : {"channel", "version", "kind"}) entry.erase(key);

@@ -32,6 +32,15 @@ const std::map<std::string, std::string, std::less<>> kCountryCodes{
     {"Switzerland", "CH"}, {"Taiwan", "TW"}, {"Tanzania", "TZ"}, {"Thailand", "TH"}, {"Tunisia", "TN"},
     {"Turkey", "TR"}, {"Uganda", "UG"}, {"United Arab Emirates", "AE"}, {"United Kingdom", "GB"},
     {"United States", "US"}, {"Uruguay", "UY"}, {"Uzbekistan", "UZ"}, {"Vietnam", "VN"},
+    // urban-geo-v2's countries.
+    {"Albania", "AL"}, {"Angola", "AO"}, {"Bahrain", "BH"}, {"Belarus", "BY"}, {"Bolivia", "BO"},
+    {"Bosnia and Herzegovina", "BA"}, {"Botswana", "BW"}, {"Cambodia", "KH"}, {"Cameroon", "CM"}, {"Cyprus", "CY"},
+    {"DR Congo", "CD"}, {"El Salvador", "SV"}, {"Fiji", "FJ"}, {"Honduras", "HN"}, {"Iceland", "IS"}, {"Iran", "IR"},
+    {"Iraq", "IQ"}, {"Ivory Coast", "CI"}, {"Jamaica", "JM"}, {"Kyrgyzstan", "KG"}, {"Laos", "LA"}, {"Lebanon", "LB"},
+    {"Luxembourg", "LU"}, {"Madagascar", "MG"}, {"Malta", "MT"}, {"Mauritius", "MU"}, {"Moldova", "MD"},
+    {"Mongolia", "MN"}, {"Mozambique", "MZ"}, {"Myanmar", "MM"}, {"Namibia", "NA"}, {"Nicaragua", "NI"},
+    {"North Macedonia", "MK"}, {"Oman", "OM"}, {"Paraguay", "PY"}, {"Puerto Rico", "PR"}, {"Russia", "RU"},
+    {"Rwanda", "RW"}, {"Senegal", "SN"}, {"Ukraine", "UA"}, {"Venezuela", "VE"}, {"Zambia", "ZM"}, {"Zimbabwe", "ZW"},
 };
 
 const char* const kModes[] = {"global", "countries", "cities", "fixed_city"};
@@ -74,6 +83,8 @@ MapLocation locate(const City& city, Seed128 seed, double extent_m) {
 
 } // namespace
 
+const std::vector<City>& catalogue(const std::string& policy) { return policy == kGeoPolicyV2 ? world_catalog() : city_catalog(); }
+
 std::string country_id(const City& city) {
     const auto found = kCountryCodes.find(city.country);
     if (found == kCountryCodes.end()) throw std::logic_error("no ISO code for catalogue country " + city.country);
@@ -107,12 +118,13 @@ SelectionPolicy policy_of(const ScenarioConfig& config) {
     policy.cities = normalise(config.map_cities, false);
     policy.exclude_countries = normalise(config.map_exclude_countries, true);
     policy.exclude_cities = normalise(config.map_exclude_cities, false);
-    if (policy.id != kLegacyPolicy && policy.id != kGeoPolicy)
-        bad("unsupported map selection version: " + policy.id + " (urban-crfg-v3 or urban-geo-v1)");
+    if (policy.id != kLegacyPolicy && policy.id != kGeoPolicy && policy.id != kGeoPolicyV2)
+        bad("unsupported map selection version: " + policy.id + " (urban-crfg-v3, urban-geo-v1 or urban-geo-v2)");
+    const auto& cities_of = catalogue(policy.id);
     if (std::find(std::begin(kModes), std::end(kModes), policy.mode) == std::end(kModes))
         bad("unknown map selection mode: " + policy.mode + " (global, countries, cities or fixed_city)");
     if (policy.id == kLegacyPolicy && (policy.mode != "global" || !policy.countries.empty() || !policy.cities.empty() || !policy.exclude_countries.empty() || !policy.exclude_cities.empty()))
-        bad("urban-crfg-v3 always chooses from every city; use urban-geo-v1 to choose countries or cities");
+        bad("urban-crfg-v3 always chooses from every city; use urban-geo-v2 to choose countries or cities");
     const bool wants_countries = policy.mode == "countries", wants_cities = policy.mode == "cities" || policy.mode == "fixed_city";
     if (wants_countries != !policy.countries.empty())
         bad(wants_countries ? "mode countries needs at least one country" : "countries are only used with mode countries");
@@ -125,16 +137,16 @@ SelectionPolicy policy_of(const ScenarioConfig& config) {
                 bad(id + " is both chosen and left out");
     if (policy.mode == "fixed_city" && (!policy.exclude_countries.empty() || !policy.exclude_cities.empty())) bad("mode fixed_city leaves nothing out");
     for (const auto& id : policy.exclude_countries)
-        if (std::none_of(city_catalog().begin(), city_catalog().end(), [&](const City& c) { return country_id(c) == id; }))
+        if (std::none_of(cities_of.begin(), cities_of.end(), [&](const City& c) { return country_id(c) == id; }))
             bad("no city in the catalogue is in country " + id + " (use ISO 3166-1 alpha-2 codes, such as IN)");
     for (const auto& id : policy.exclude_cities)
-        if (std::none_of(city_catalog().begin(), city_catalog().end(), [&](const City& c) { return city_id(c) == id; }))
+        if (std::none_of(cities_of.begin(), cities_of.end(), [&](const City& c) { return city_id(c) == id; }))
             bad("unknown city " + id + " (use the city's ID, such as mumbai)");
     for (const auto& id : policy.countries)
-        if (std::none_of(city_catalog().begin(), city_catalog().end(), [&](const City& c) { return country_id(c) == id; }))
+        if (std::none_of(cities_of.begin(), cities_of.end(), [&](const City& c) { return country_id(c) == id; }))
             bad("no city in the catalogue is in country " + id + " (use ISO 3166-1 alpha-2 codes, such as IN)");
     for (const auto& id : policy.cities)
-        if (std::none_of(city_catalog().begin(), city_catalog().end(), [&](const City& c) { return city_id(c) == id; }))
+        if (std::none_of(cities_of.begin(), cities_of.end(), [&](const City& c) { return city_id(c) == id; }))
             bad("unknown city " + id + " (use the city's ID, such as mumbai)");
     if (eligible(policy).empty()) bad("the policy leaves no city to choose from");
     return policy;
@@ -142,7 +154,7 @@ SelectionPolicy policy_of(const ScenarioConfig& config) {
 
 std::vector<const City*> eligible(const SelectionPolicy& policy) {
     std::vector<const City*> out;
-    for (const auto& city : city_catalog()) {
+    for (const auto& city : catalogue(policy.id)) {
         const bool allowed = policy.mode == "global"
             || (policy.mode == "countries" && std::binary_search(policy.countries.begin(), policy.countries.end(), country_id(city)))
             || ((policy.mode == "cities" || policy.mode == "fixed_city") && std::binary_search(policy.cities.begin(), policy.cities.end(), city_id(city)));
@@ -166,14 +178,14 @@ MapLocation select_location(Seed128 seed, const SelectionPolicy& policy, double 
     return locate(*cities[index], seed, extent_m);
 }
 
-ScenarioCompiler::Hooks hooks() {
-    ScenarioCompiler::Hooks out;
+EngineHooks hooks() {
+    EngineHooks out;
     out.select = [](Seed128 seed, const ScenarioConfig& config) {
         return select_location(seed, policy_of(config), config.map_city_extent_m);
     };
     out.validate = [](const ScenarioConfig& config) { (void)policy_of(config); };
     out.describe = [](const ScenarioConfig& config) { return policy_of(config).to_json(); };
-    out.compile = [](Seed128 seed, const ScenarioConfig& config, const ScenarioCompiler::Progress& progress) {
+    out.compile = [](Seed128 seed, const ScenarioConfig& config, const CompileProgress& progress) {
         return compile(seed, config, progress);
     };
     // Worlds core-ng compiled advance by core-ng's own tick.

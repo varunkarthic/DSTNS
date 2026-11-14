@@ -57,28 +57,30 @@ holds simulation state of its own; both read what the core publishes.
 | Path | Contents |
 |---|---|
 | `Core/server/main.cpp` | Process entry: flags, operator credential, cache sweep, engine and API start-up |
-| `Core/core-legacy/` | The current engine, `core-legacy`: the core library `dstns_core` (engine, scenario, OSM, events, ASB). Frozen apart from fixes while `core-ng` replaces it |
-| `Core/core-ng/` | The next-generation engine, `core-ng`, built module by module beside `core-legacy`: map selection policies (`selection.cpp`); the scenario compile (`compile.cpp`) and its modules (`network.cpp`: grid, bus stops, buildings; `plans.cpp`: signals, hotspots, trips, weather, incidents, hashes); and the tables the lifecycle and the world job are held to (`lifecycle.cpp`, `world.cpp`). See [the migration plan](../design/v3-core-ng-migration.md) |
+| `Core/common/` | What every engine stands on, library `dstns_common`: the types, RNG, map catalogue and OSM pipeline, the demand and signal model (`events.cpp`, `demand.cpp`), weather helpers, logging, ASB, and the runtime host `SimulationEngine`, which has no engine of its own |
+| `Core/core-ng/` | `core-ng`, the default engine, library `dstns_core_ng`, which links `dstns_common` only: selection policies (`selection.cpp`), the compile (`compile.cpp`, `network.cpp`, `plans.cpp`), the tick (`physics.cpp`), checkpoints (`timeline.cpp`), and the lifecycle and world-job tables. `dstns_core_ng_alone` proves it runs a world with no core-legacy code linked |
+| `Core/core-legacy/` | `core-legacy`, kept installed and selectable, library `dstns_core_legacy`: its compiler (`scenario.cpp`), tick and checkpoints (`physics.cpp`), and its registration (`legacy.cpp`) |
+| `Core/engines/` | `install_engines`: registers both engines in a runtime host, through the same hooks (`dstns/engine_hooks.hpp`) |
 | `Fabric/` | The HTTP API library `dstns_fabric`, one route module per API group |
-| `Core/core-legacy/src/engine.cpp` | `SimulationEngine`: lifecycle, clock, physics step, checkpoints, controls, undo/redo, views |
+| `Core/common/src/engine.cpp` | `SimulationEngine`, the runtime host: lifecycle, clock, controls, undo/redo, views; the compile, tick and checkpoints are the running world's engine's, through its hooks |
 | `Fabric/src/` | `ApiServer`: every HTTP route, request validation, error mapping, CSRF guard |
 | `Core/core-legacy/src/scenario.cpp` | `ScenarioCompiler`: seed and config to a complete `Scenario` (graph, signals, stops, trips, weather, incidents) |
-| `Core/core-legacy/src/osm.cpp` | `OsmRoadLoader`: OSM XML to a connected, canonically numbered road graph and its places |
-| `Core/core-legacy/src/osm_fetch.cpp`, `osm_download.cpp` | On-demand map download, run as `dstns_server --fetch-osm` in a process of its own, progress, cache sweep |
-| `Core/core-legacy/src/geo.cpp` | The 181-city catalogue and seed-to-location resolution |
-| `Core/core-legacy/src/graph.cpp` | `GraphStore` (static graph plus per-tick dynamic arrays) and `RoutePlanner` (A*) |
-| `Core/core-legacy/src/events.cpp` | `EventRuntime`: signal controller heap, demand schedule, couplings, event history |
-| `Core/core-legacy/src/demand.cpp` | Place taxonomy, diurnal demand curves, demand couplings, bus-stop thinning |
-| `Core/core-legacy/src/asb.cpp` | Adaptive Simulation Backpressure |
-| `Core/core-legacy/src/rng.cpp` | `Seed128`, SHA-256 sub-seed derivation, counter-based Philox RNG |
-| `Core/core-legacy/src/sumo_bridge.cpp` | SUMO detection, export, `netconvert` and `sumo` invocation |
-| `Core/core-legacy/src/logging.cpp` | `RuntimeLogger`: text system log and SQLite runtime journal |
-| `Core/core-legacy/src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
+| `Core/common/src/osm.cpp` | `OsmRoadLoader`: OSM XML to a connected, canonically numbered road graph and its places |
+| `Core/common/src/osm_fetch.cpp`, `osm_download.cpp` | On-demand map download, run as `dstns_server --fetch-osm` in a process of its own, progress, cache sweep |
+| `Core/common/src/geo.cpp` | The 181-city catalogue and seed-to-location resolution |
+| `Core/common/src/graph.cpp` | `GraphStore` (static graph plus per-tick dynamic arrays) and `RoutePlanner` (A*) |
+| `Core/common/src/events.cpp` | `EventRuntime`: signal controller heap, demand schedule, couplings, event history |
+| `Core/common/src/demand.cpp` | Place taxonomy, diurnal demand curves, demand couplings, bus-stop thinning |
+| `Core/common/src/asb.cpp` | Adaptive Simulation Backpressure |
+| `Core/common/src/rng.cpp` | `Seed128`, SHA-256 sub-seed derivation, counter-based Philox RNG |
+| `Core/common/src/sumo_bridge.cpp` | SUMO detection, export, `netconvert` and `sumo` invocation |
+| `Core/common/src/logging.cpp` | `RuntimeLogger`: text system log and SQLite runtime journal |
+| `Core/common/src/utf8.cpp` | UTF-8 repair and JSON serialisation guard for untrusted text |
 | `WebKit/` | The observer: React 19, Vite, Vitest, jsPDF |
 | `LaunchKit/` | The launcher, in Rust: command line, console and its tools (`inspect.rs`), terminal interface (ratatui) and Simplified Launch Control, compatibility mode, application supervisor, the MCP Handler, Advanced Security (`security.rs`, with `assets/verify.swift`), the launcher's model for plain-word requests (`assistant.rs`) and its side of the daemons (`daemons.rs`) |
 | `CoreAI/` | DSTNS's model layer, in Rust: every provider (Apple's Foundation Models, Ollama, LM Studio, Anthropic, OpenAI, Gemini, Groq, Mistral, OpenRouter, Hugging Face, any Chat Completions server), their keys, typed errors and fallback, and a token-guarded service on 127.0.0.1 for the engine's news ([CoreAI](../components/coreai.md)) |
 | `launcher` | Builds the launcher when its sources change, then runs it |
-| `Core/core-legacy/src/next_world.cpp` | Dynamic Fastboot: the next world chosen and its city fetched while this one runs |
+| `Core/common/src/next_world.cpp` | Dynamic Fastboot: the next world chosen and its city fetched while this one runs |
 | `Daemon/` | The daemons, `dstns_daemon`: the handler, the gateway and its two queues, the Resource Control Subsystem, the memory, disk and stall watchers, the auto cache handler, process and machine readings, and `messages.json`, the templates every message is made from. See [the daemons](../guide/daemons.md) |
 | `Fabric/src/routes_daemon.cpp` | `/api/v1/daemon/…`: the open overview, the queues, acknowledgement, and turning daemons on and off |
 | `tools/release/` | `dstns_release`: image metadata, publishing, the image smoke test and licence headers |

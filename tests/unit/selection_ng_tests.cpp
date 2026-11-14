@@ -142,6 +142,30 @@ int main() {
         legacy_excluding.map_exclude_countries = {"IN"};
         refuses(legacy_excluding, "exclusions on urban-crfg-v3");
 
+        // urban-geo-v2: the same 181 cities first, in the same order, then more; each with a code and a unique ID.
+        {
+            const auto& world = world_catalog();
+            check(world.size() > 181, "urban-geo-v2 has more cities");
+            std::set<std::string> all;
+            for (std::size_t n = 0; n < world.size(); ++n) {
+                check(country_id(world[n]).size() == 2, "a two-letter code for " + world[n].country);
+                check(all.insert(city_id(world[n])).second, "a unique ID for " + world[n].name);
+                if (n < 181) check(city_id(world[n]) == city_id(city_catalog()[n]), "the first 181 in their old order");
+            }
+            auto v2 = geo("global");
+            v2.map_selection_version = kGeoPolicyV2;
+            check(eligible(policy_of(v2)).size() == world.size(), "every city under urban-geo-v2 global");
+            auto chennai = geo("fixed_city", {}, {"chennai"});
+            chennai.map_selection_version = kGeoPolicyV2;
+            check(select_location(Seed128::from_decimal("9"), policy_of(chennai), 5000).city == "Chennai", "an old city under urban-geo-v2");
+            auto kochi = geo("fixed_city", {}, {"kochi"});
+            refuses(kochi, "a new city under urban-geo-v1");
+            kochi.map_selection_version = kGeoPolicyV2;
+            check(select_location(Seed128::from_decimal("9"), policy_of(kochi), 5000).city == "Kochi", "a new city under urban-geo-v2");
+            // urban-geo-v1 keeps its draws: its catalogue did not change.
+            check(eligible(policy_of(geo("countries", {"IN"}))).size() == 9, "urban-geo-v1 still has India's nine cities");
+        }
+
         std::cout << "[selection-ng] policies, validation, fingerprints and draws passed\n";
         return 0;
     } catch (const std::exception& e) {

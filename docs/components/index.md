@@ -4,14 +4,14 @@ All C++ implementation types in this directory live directly in the `dstns` name
 
 The concrete owners are:
 
-- `GraphStore` and `RoutePlanner` in `Core/core-legacy/include/dstns/graph.hpp`
-- `OsmRoadLoader` in `Core/core-legacy/include/dstns/osm.hpp`
+- `GraphStore` and `RoutePlanner` in `Core/common/include/dstns/graph.hpp`
+- `OsmRoadLoader` in `Core/common/include/dstns/osm.hpp`
 - `ScenarioCompiler` in `Core/core-legacy/include/dstns/scenario.hpp`
-- `SimulationEngine` in `Core/core-legacy/include/dstns/engine.hpp`
-- `RuntimeLogger` in `Core/core-legacy/include/dstns/logging.hpp`
+- `SimulationEngine` in `Core/common/include/dstns/engine.hpp`
+- `RuntimeLogger` in `Core/common/include/dstns/logging.hpp`
 - `ApiServer` in `Fabric/include/dstns/api.hpp`
-- `SumoBridge` in `Core/core-legacy/include/dstns/sumo_bridge.hpp`
-- `DeterministicRng` and `Seed128` in `Core/core-legacy/include/dstns/rng.hpp`
+- `SumoBridge` in `Core/common/include/dstns/sumo_bridge.hpp`
+- `DeterministicRng` and `Seed128` in `Core/common/include/dstns/rng.hpp`
 
 Several documents split behavior owned by one class into smaller conceptual topics. In particular, replay and checkpoint behavior are private `SimulationEngine` operations, while spatial work uses free kernel functions and linear scans rather than a spatial-index object.
 

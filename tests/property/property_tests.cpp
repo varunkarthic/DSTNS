@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+#include "dstns/engines.hpp"
 #include "dstns/engine.hpp"
 #include "dstns/graph.hpp"
 #include "dstns/scenario.hpp"
@@ -102,7 +103,7 @@ int main() {
             std::filesystem::remove_all(runtime_dir);
             {
                 RuntimeLogger logger(runtime_dir);
-                SimulationEngine engine(logger);
+                SimulationEngine engine(logger); dstns::install_engines(engine);
                 engine.prepare(seed, cfg);
                 engine.seek(43'210, false);
                 const auto snapshot = engine.snapshot();

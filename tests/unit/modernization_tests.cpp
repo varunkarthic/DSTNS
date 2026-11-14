@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Varun Karthic
 
+#include "dstns/engines.hpp"
+#include "dstns/scenario.hpp"
 #include "dstns/events.hpp"
 #include "dstns/engine.hpp"
 #include "dstns/osm.hpp"
@@ -31,7 +33,7 @@ int main(){try{
     CongestionTracker c;std::vector<EdgeDynamic> edges(s.edges.size());for(auto& e:edges)e.congestion=.5;c.update(s,edges,1,1);check(std::abs(c.current-50)<1e-9,"weighted index");for(auto& e:edges)e.congestion=1;c.update(s,edges,2,1);check(c.average>50&&c.average<100,"EMA progresses");check(c.current==100,"bounded index");
     Scenario weighted;EdgeStatic e1,e2;e1.id={0};e1.length_m=100;e1.lanes=1;e2.id={1};e2.length_m=300;e2.lanes=2;weighted.edges={e1,e2};std::vector<EdgeDynamic> values(2);values[1].congestion=1;CongestionTracker wc;wc.update(weighted,values,1,1);check(std::abs(wc.current-600.0/7)<1e-8,"length lanes weights");
     weighted.edges[1].synthetic_reverse=true;wc.update(weighted,values,2,1);check(wc.current==0,"synthetic directions excluded");
-    const auto dir=std::filesystem::temp_directory_path()/"dstns-modern-test";RuntimeLogger logger(dir);SimulationEngine engine(logger);cfg.grid_width=6;cfg.grid_height=6;engine.prepare(seed,cfg);engine.seek(32000,false);auto normal=engine.snapshot()["data"];engine.seek(0,false);engine.set_tick_rate(5);engine.seek(32000,false);check(normal==engine.snapshot()["data"],"speed does not change physics or event state");engine.seek(33000,false);engine.seek(32000,false);check(normal==engine.snapshot()["data"],"rewind restores EMA and scheduler");const auto signal_node=engine.snapshot()["data"]["signals"][0]["junction_id"].get<unsigned>();engine.toggle_signal(NodeId{signal_node},1);auto overrides=engine.catalog("signals")["data"]["items"];bool found_override=false;for(auto& signal:overrides)if(signal["junction_id"]==signal_node){found_override=signal["manual_override"]==true&&signal["group_a"]=="green"&&signal["next_transition_at"].is_null();}check(found_override,"manual controller state remains truthful");engine.terminate();
+    const auto dir=std::filesystem::temp_directory_path()/"dstns-modern-test";RuntimeLogger logger(dir);SimulationEngine engine(logger); dstns::install_engines(engine);cfg.grid_width=6;cfg.grid_height=6;engine.prepare(seed,cfg);engine.seek(32000,false);auto normal=engine.snapshot()["data"];engine.seek(0,false);engine.set_tick_rate(5);engine.seek(32000,false);check(normal==engine.snapshot()["data"],"speed does not change physics or event state");engine.seek(33000,false);engine.seek(32000,false);check(normal==engine.snapshot()["data"],"rewind restores EMA and scheduler");const auto signal_node=engine.snapshot()["data"]["signals"][0]["junction_id"].get<unsigned>();engine.toggle_signal(NodeId{signal_node},1);auto overrides=engine.catalog("signals")["data"]["items"];bool found_override=false;for(auto& signal:overrides)if(signal["junction_id"]==signal_node){found_override=signal["manual_override"]==true&&signal["group_a"]=="green"&&signal["next_transition_at"].is_null();}check(found_override,"manual controller state remains truthful");engine.terminate();
     auto begin=std::chrono::steady_clock::now();auto map=OsmRoadLoader{}.load_xml("data/fixtures/real_network.osm.xml",50000,DeterministicRng(seed.derive("map")));
     check(map.nodes.size()>=1000,"large real region");check(!map.features.empty(),"OSM features");bool named=false,polygon=false;for(auto& e:map.edges)if(!e.name.empty())named=true;for(auto& f:map.features)if(f.polygon)polygon=true;check(named&&polygon,"road names and footprints");
     auto& p=map.nodes.front().position;check(std::abs(p.x_m-(p.lon-map.projection_lon)*111320*std::cos(map.projection_lat*3.141592653589793/180))<1e-5,"projection invariant");
@@ -48,7 +50,7 @@ int main(){try{
     {
         const auto dir=std::filesystem::temp_directory_path()/"dstns-terminate-test";
         RuntimeLogger tl(dir);
-        SimulationEngine te(tl);
+        SimulationEngine te(tl); dstns::install_engines(te);
         check(!te.terminating(),"a fresh engine is not terminating");
 
         // Occupy the engine the way a compile does, then ask it to quit.
