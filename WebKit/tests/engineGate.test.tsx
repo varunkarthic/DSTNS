@@ -33,7 +33,7 @@ it("asks, above everything, only once the interface is ready, and says what chan
   rerender(<EngineGate ready onOpenChange={open} />);
   await waitFor(() => expect(screen.getByRole("alertdialog")).toBeTruthy());
   expect(open).toHaveBeenLastCalledWith(true);
-  expect(screen.getByText(/core-ng 0.6.0 is not a stable engine/)).toBeTruthy();
+  expect(screen.getByText(/core-ng 0.6.0 is not yet a stable engine/)).toBeTruthy();
   expect(screen.getByText("0.6.0: its own compiler.")).toBeTruthy();
 });
 

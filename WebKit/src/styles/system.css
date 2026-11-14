@@ -2156,14 +2156,21 @@
  * Above everything, the tour and the start-up film included, with the scene blurred behind it. The box forms where
  * its particles land (GateParticles), and gives way to them when it is answered. Alpha is marked in orange to red,
  * Beta in yellow; each also says its channel in words and with ▲ marks, so colour is never the only cue. */
-.engine-gate-scrim { z-index: 1000; backdrop-filter: blur(16px) saturate(0.75); }
-.engine-gate-particles { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1002; pointer-events: none; }
+/* Stronger than the rule that turns blur off for every scrim (design.css): this one is the exception. */
+.scrim.engine-gate-scrim { z-index: 10000; backdrop-filter: blur(18px) saturate(0.7) !important; -webkit-backdrop-filter: blur(18px) saturate(0.7) !important; background: rgb(4 8 14 / 72%); }
+.engine-gate-particles { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 10002; pointer-events: none; }
 .dialog.engine-gate {
-  width: min(820px, calc(100vw - 40px));
+  width: min(880px, calc(100vw - 40px));
   max-width: none;
-  padding: 26px 28px 22px;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 30px 20px;
   border: 1.5px solid transparent;
-  border-radius: 20px;
+  border-radius: 22px;
+  overflow: hidden;
+  position: relative;
+  background: var(--surface-solid);
   transition: opacity 420ms cubic-bezier(.2,.8,.2,1), transform 520ms cubic-bezier(.2,.8,.2,1), box-shadow 600ms ease;
 }
 .engine-gate-forming .dialog.engine-gate { opacity: 0; transform: scale(.985); }
@@ -2171,27 +2178,109 @@
 .engine-gate-leaving .dialog.engine-gate { opacity: 0; transform: scale(.97); transition-duration: 220ms, 320ms, 220ms; }
 .dialog.engine-gate-alpha { border-color: rgb(234 88 12 / 70%); box-shadow: 0 0 0 6px rgb(220 38 38 / 10%), 0 0 60px rgb(234 88 12 / 22%), 0 30px 80px rgb(0 0 0 / 45%); }
 .dialog.engine-gate-beta { border-color: rgb(234 179 8 / 70%); box-shadow: 0 0 0 6px rgb(234 179 8 / 10%), 0 0 60px rgb(234 179 8 / 18%), 0 30px 80px rgb(0 0 0 / 45%); }
-.engine-gate-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 26px; align-items: start; }
-.engine-gate-main { display: grid; gap: 12px; line-height: 1.5; }
-.engine-gate-main h2 { margin: 2px 0 0; font-size: 1.3rem; line-height: 1.25; letter-spacing: -0.01em; }
+/* The two columns scroll together inside the box if the window is short; nothing spills out of it. */
+.engine-gate-grid { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; padding-right: 2px; }
+.engine-gate-main { display: grid; gap: 14px; min-width: 0; line-height: 1.5; }
+.engine-gate-main h2 { margin: 0; font-size: 1.32rem; line-height: 1.25; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .engine-gate-main p { margin: 0; }
-.engine-gate-badge { justify-self: start; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.engine-gate-lead { color: var(--text-dim); }
+.engine-gate-lead strong { color: var(--text); }
+.engine-gate-points { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 10px; }
+.engine-gate-points li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; font-size: 13.5px; line-height: 1.45; color: var(--text-dim); }
+.engine-gate-points li > span:first-child { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; font-size: 15px; background: var(--well); border: 1px solid var(--well-line); color: var(--text); }
+.engine-gate-points strong { color: var(--text); font-weight: 600; }
+.engine-gate-alpha .engine-gate-points li > span:first-child { color: #fb923c; border-color: rgb(234 88 12 / 35%); }
+.engine-gate-beta .engine-gate-points li > span:first-child { color: #facc15; border-color: rgb(234 179 8 / 35%); }
+.engine-gate-badge { justify-self: start; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; }
 .engine-gate-badge-alpha { background: linear-gradient(90deg, #c2410c, #b91c1c); color: #fff; }
 .engine-gate-badge-beta { background: #facc15; color: #1c1917; }
-.engine-gate-facts { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--well-line); border-radius: 14px; background: var(--well); }
-.engine-gate-facts dl { margin: 0; display: grid; gap: 8px; }
-.engine-gate-facts dl > div { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.engine-gate-facts { display: grid; gap: 12px; min-width: 0; padding: 16px 18px; border: 1px solid var(--well-line); border-radius: 16px; background: var(--well); }
+.engine-gate-facts h3 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
+/* Label over value, two to a row; the seed has the whole width and breaks anywhere, since it is one long number. */
+.engine-gate-facts dl { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.engine-gate-facts dl > div { display: grid; gap: 3px; min-width: 0; }
+.engine-gate-facts dl > div.wide { grid-column: 1 / -1; }
 .engine-gate-facts dt { font-size: 11px; color: var(--text-faint); }
-.engine-gate-facts dd { margin: 0; overflow-wrap: anywhere; }
+.engine-gate-facts dd { margin: 0; padding: 0; font-size: 13px; color: var(--text); text-align: left; overflow-wrap: anywhere; }
+.engine-gate-seed { font-size: 12px; line-height: 1.5; word-break: break-all; padding: 6px 8px; border-radius: 8px; background: rgb(var(--ink-rgb) / 6%); }
 .engine-gate-new { margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgb(var(--accent-rgb, 59 130 246) / 18%); color: var(--accent); }
-.engine-gate-shared { margin: 0; font-size: 12px; color: var(--text-dim); }
-.engine-gate-facts .btn.link { justify-self: start; padding: 0; }
-.engine-gate-changes { margin: 0; padding-left: 1.1em; max-height: 9.5em; overflow: auto; font-size: 12.5px; color: var(--text-dim); }
+.engine-gate-shared { margin: 0; padding-top: 10px; border-top: 1px solid var(--well-line); font-size: 12px; line-height: 1.45; color: var(--text-dim); }
+.engine-gate-disclosure { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 2px 0; border: 0; background: none; box-shadow: none; color: var(--accent); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.engine-gate-disclosure:hover { text-decoration: underline; background: none; }
+.engine-gate-disclosure:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.engine-gate-changes { margin: 0; padding-left: 1.1em; max-height: 9.5em; overflow: auto; font-size: 12.5px; line-height: 1.45; color: var(--text-dim); }
+.engine-gate-changes li + li { margin-top: 6px; }
 .engine-gate-error { color: rgb(var(--danger-rgb)); }
-.engine-gate-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--well-line); }
+.engine-gate-actions { position: relative; flex: none; display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; }
+.engine-gate-actions .btn { max-width: 100%; white-space: normal; text-align: center; }
+.engine-gate-footnote { flex: 1 1 220px; min-width: 0; font-size: 11.5px; color: var(--text-faint); }
 .engine-gate-spacer { flex: 1; }
 .engine-notice { position: fixed; left: 16px; bottom: 16px; z-index: 900; display: flex; gap: 10px; align-items: center; padding: 10px 14px; border: 1px solid var(--well-line); border-radius: 14px; background: var(--surface-solid); box-shadow: 0 10px 30px rgb(0 0 0 / 30%); }
 .engine-notice-dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--ok-rgb)); }
-@media (max-width: 720px) { .engine-gate-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .engine-gate-grid { grid-template-columns: minmax(0, 1fr); } .dialog.engine-gate { padding: 22px 20px 16px; } }
 .reduce-motion .dialog.engine-gate { transition: opacity 160ms linear; transform: none !important; }
 .high-contrast .dialog.engine-gate { border-width: 3px; }
+
+/* Hairlines. A light runs along the top edge of the box; the line above the answers draws out from the middle once
+   the box has formed; the facts card's edge catches the light once. Each is 1 px, in the channel's colour, and none
+   moves under reduced motion. */
+.engine-gate-alpha { --gate-line: 249 115 22; }
+.engine-gate-beta { --gate-line: 234 179 8; }
+.dialog.engine-gate::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgb(var(--gate-line) / 0%) 30%, rgb(var(--gate-line) / 95%) 50%, rgb(var(--gate-line) / 0%) 70%, transparent 100%);
+  background-size: 220% 100%;
+  animation: gate-sweep 3.6s linear infinite;
+}
+@keyframes gate-sweep { from { background-position: 160% 0; } to { background-position: -60% 0; } }
+.engine-gate-actions::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(var(--gate-line) / 55%) 20%, rgb(var(--gate-line) / 55%) 80%, transparent);
+  transform: scaleX(0); transform-origin: center;
+}
+.engine-gate-open .engine-gate-actions::before { transform: scaleX(1); transition: transform 700ms cubic-bezier(.2,.8,.2,1) 120ms; }
+.engine-gate-facts { position: relative; overflow: hidden; }
+.engine-gate-facts::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgb(var(--gate-line) / 14%) 50%, transparent 65%);
+  background-size: 250% 100%; background-position: 120% 0; opacity: 0;
+}
+.engine-gate-open .engine-gate-facts::after { animation: gate-glint 1.4s ease-out 250ms 1 both; }
+@keyframes gate-glint { 0% { opacity: 1; background-position: 120% 0; } 100% { opacity: 0; background-position: -40% 0; } }
+.engine-gate-points li { opacity: 1; }
+.engine-gate-open .engine-gate-points li { animation: gate-point 520ms cubic-bezier(.2,.8,.2,1) both; }
+.engine-gate-open .engine-gate-points li:nth-child(2) { animation-delay: 90ms; }
+.engine-gate-open .engine-gate-points li:nth-child(3) { animation-delay: 180ms; }
+@keyframes gate-point { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.engine-gate-points li > span:first-child .icon { display: block; }
+.reduce-motion :is(.dialog.engine-gate::before, .engine-gate-facts::after, .engine-gate-points li) { animation: none !important; }
+.reduce-motion .engine-gate-actions::before { transform: scaleX(1); transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .dialog.engine-gate::before, .engine-gate-open .engine-gate-facts::after, .engine-gate-open .engine-gate-points li { animation: none; }
+  .engine-gate-actions::before { transform: scaleX(1); }
+}
+
+/* Balanced: the heading centred over two equal cards, the changes across the whole width beneath them. */
+.engine-gate-head { flex: none; display: grid; justify-items: center; gap: 10px; text-align: center; margin: 0 auto 20px; max-width: 640px; }
+.engine-gate-head h2 { margin: 0; font-size: 1.36rem; line-height: 1.25; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.engine-gate-head p { margin: 0; line-height: 1.5; }
+.engine-gate-head .engine-gate-badge { justify-self: center; }
+.engine-gate-grid { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.engine-gate-card { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 18px; border: 1px solid var(--well-line); border-radius: 16px; background: var(--well); position: relative; overflow: hidden; }
+.engine-gate-card h3 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
+.engine-gate-facts { padding: 18px; }
+.engine-gate-shared { margin-top: auto; }
+.engine-gate-points { margin: 0; }
+.engine-gate-changelog { flex: none; display: grid; gap: 8px; margin-top: 14px; padding: 10px 18px; border: 1px solid var(--well-line); border-radius: 14px; }
+.engine-gate-changelog .engine-gate-changes { max-height: 7.5em; }
+.engine-gate-disclosure .icon { display: block; }
+.engine-gate-actions { margin-top: 18px; }
+@media (max-width: 760px) { .engine-gate-grid { grid-template-columns: minmax(0, 1fr); } }
+.engine-gate-head :is(h2, p) { text-wrap: balance; }
+.engine-gate-seed { font-size: 11.5px; letter-spacing: -0.02em; }
+.engine-gate-changelog .engine-gate-changes { -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 18px), transparent); padding-bottom: 12px; }
+
+/* Heading, cards and changes scroll together inside the box on a short window; the answers stay in view below. */
+.engine-gate-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -6px; padding: 0 6px 2px; }
+.engine-gate-grid { overflow: visible; min-height: auto; }
+.engine-gate-card > .engine-gate-points { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 12px; }

@@ -99,7 +99,7 @@ import "./CoreMotion/motion.css";
 import "./styles/webfabric.css";
 import "./styles/design.css";
 
-export const VERSION = "3.4.0";
+export const VERSION = "3.5.0";
 
 const DECK_KEY = "dstns.telemetry-mode.v1";
 
@@ -1284,6 +1284,8 @@ export default function App() {
     return (
       <TimeFormatProvider hour12={hour12} onToggle={toggleHour12}>
         <ViewportNotice width={viewport.width} height={viewport.height} reduceMotion={reduceMotion} />
+        {/* A held run waits for an answer whatever the window's size: the gate is asked here too. */}
+        <EngineGate ready={configLoaded} running={status?.engine_identity ?? null} onOpenChange={setGateOpen} />
       </TimeFormatProvider>
     );
   }

@@ -3605,3 +3605,44 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .fabric-hero dl > div { border-radius: var(--r-xs); }
 .fabric-apps > li > button { padding: 10px 12px 10px 38px; border-radius: var(--r-sm, 12px); transition: background 140ms ease, border-color 140ms ease; }
 .fabric-app-head { padding: 12px; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); }
+
+/* ---- WebFabric: an application's health (observer 3.5.0) -------------------------------------------------------- */
+.fabric-health-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 12px; border: 1px solid var(--well-line); border-radius: var(--r-sm); background: var(--well); }
+.fabric-health-summary.warn { border-color: rgb(var(--warn-rgb) / 40%); background: rgb(var(--warn-rgb) / 7%); }
+.fabric-health-state { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; color: var(--text); }
+.fabric-health-summary.ok .fabric-health-state .icon { color: rgb(var(--ok-rgb)); }
+.fabric-health-summary.warn .fabric-health-state .icon { color: rgb(var(--warn-rgb)); }
+.fabric-health-why { flex: 1 1 140px; min-width: 0; font-size: 12px; color: var(--text-dim); }
+.fabric-health-seen { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-dim); white-space: nowrap; }
+.fabric-health-seen i { width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--ink-rgb) / 30%); }
+.fabric-health-seen.live i { background: rgb(var(--ok-rgb)); box-shadow: 0 0 0 0 rgb(var(--ok-rgb) / 50%); animation: health-live 2s ease-out infinite; }
+.fabric-health-seen.quiet i { background: rgb(var(--warn-rgb)); }
+.fabric-health-seen.stale i { background: rgb(var(--danger-rgb)); }
+@keyframes health-live { 0% { box-shadow: 0 0 0 0 rgb(var(--ok-rgb) / 50%); } 100% { box-shadow: 0 0 0 7px rgb(var(--ok-rgb) / 0%); } }
+.fabric-health-requests { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.fabric-health-tile { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--well-line); border-radius: var(--r-sm); background: var(--well); }
+.fabric-health-tile .icon { grid-row: 1 / 3; color: var(--text-faint); }
+.fabric-health-tile strong { font-size: 16px; font-weight: 600; color: var(--text); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; }
+.fabric-health-tile small { font-size: 11px; color: var(--text-faint); }
+.fabric-health-tile.warn { border-color: rgb(var(--warn-rgb) / 40%); background: rgb(var(--warn-rgb) / 7%); }
+.fabric-health-tile.warn .icon, .fabric-health-tile.warn strong { color: rgb(var(--warn-rgb)); }
+.fabric-health-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; overflow: hidden; background: rgb(var(--warn-rgb) / 35%); }
+.fabric-health-bar i { display: block; height: 100%; border-radius: inherit; background: rgb(var(--ok-rgb)); transition: width 400ms ease; }
+.fabric-health-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 8px 0 0; overflow: hidden; border: 1px solid var(--well-line); border-radius: var(--r-sm); background: var(--well-line); }
+.fabric-health-grid > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; background: var(--well); min-width: 0; }
+.fabric-health-grid > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.fabric-health-grid dt { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
+.fabric-health-grid dt .icon { color: var(--text-faint); }
+.fabric-health-grid dd { margin: 0; font-size: 12.5px; color: var(--text); text-align: right; }
+.fabric-health-grid > div.warn dd { color: rgb(var(--warn-rgb)); }
+.reduce-motion .fabric-health-seen.live i { animation: none; }
+@media (prefers-reduced-motion: reduce) { .fabric-health-seen.live i { animation: none; } }
+
+.fabric-health-tile { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; align-items: start; }
+.fabric-health-tile small { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fabric-health-tile .icon { grid-row: auto; flex: none; }
+.fabric-health-tile strong { font-size: 17px; }
+.fabric-health-tile.warn small .icon { color: rgb(var(--warn-rgb)); }
+.fabric-health-grid { grid-template-columns: minmax(0, 1fr); }
+.fabric-health-grid > div:last-child:nth-child(odd) { grid-column: auto; }
+.fabric-health-grid dd { white-space: nowrap; }

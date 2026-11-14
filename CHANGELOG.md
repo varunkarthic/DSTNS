@@ -14,6 +14,39 @@ only within one version.
 
 ## [Unreleased]
 
+## [Observer 3.5.0] - 2026-11-14
+
+**Engine 3.9.0, launcher 3.9.0, observer 3.5.0, API contract 1.9.** No engine change.
+
+### Changed
+
+- **The engine warning, redesigned and balanced.** I checked it in Chrome at 1440×900, 1280×660 and 800×760.
+  - The badge, title and lead are centred across the top. Below them are two equal-height cards: "What this means"
+    (three points, each with the observer's own icon) and "This engine" (engine, version, channel, kind and the
+    seed, label above value). "What changed" is a full-width row beneath them.
+  - Everything scrolls inside the box on a short window, with the answers always in view; nothing spills out. The
+    seed breaks anywhere, since it is one long number.
+  - Hairlines: a light runs along the top edge, the line above the answers draws out from the middle, and the facts
+    card's edge glints once. The points come in one after another. None of it moves under reduced motion.
+  - The scrim now blurs and darkens the page, which the rule against blur on every scrim had turned off.
+  - "An beta engine" now reads "a beta engine".
+- **An application's health (WebFabric settings, Details).**
+  - One line says whether anything needs attention and why, and when the application was last heard from, with a
+    live dot.
+  - Three tiles count requests, refusals and rate limits, in compact form with the exact number on hover. A bar shows
+    the share answered.
+  - Events waiting, interface elements, storage, timers and lease lapses follow, one per row. Warnings are tinted
+    only when there are some.
+
+### Fixed
+
+- The warning was drawn inside the page's stacking context, so the start-up film's text could show over it. It is now
+  drawn on the page body, above everything.
+- Below 1280×640 the observer shows only a notice that the window is too small, and the warning was not drawn there,
+  so a held run could not be answered from a small window. It is drawn there too now.
+
+Rollback: revert this release's commit.
+
 ## [3.9.0] - 2026-11-14
 
 **Engine 3.9.0 (core-ng 0.9.0, beta), launcher 3.9.0, observer 3.4.0, API contract 1.9.** Results for every seed are

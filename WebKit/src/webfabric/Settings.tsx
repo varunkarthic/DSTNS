@@ -3,7 +3,7 @@
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Figure } from "../CoreMotion/Figure";
-import { Icon } from "../components/Icons";
+import { Icon, type IconName } from "../components/Icons";
 import { Row, Section, Segmented, Switch } from "../components/settingsControls";
 import { BrandLogo } from "../components/BrandLogo";
 import { Select } from "../components/Popover";
@@ -231,21 +231,7 @@ function AppDetails({ app, onForgotten }: { app: FabricApp; onForgotten: () => v
       </dl>
       {app.description && <p className="settings-note">{app.description}</p>}
       {app.blocked_ui.length > 0 && <p className="settings-note">Waiting for permission to show: {app.blocked_ui.join(", ")}.</p>}
-      {health && (
-        <Section title="Health">
-          <dl className="fabric-health">
-            <div><dt>Requests</dt><dd className="mono">{health.requests.toLocaleString()}</dd></div>
-            <div><dt>Refused</dt><dd className="mono">{health.refused.toLocaleString()}</dd></div>
-            <div><dt>Rate limited</dt><dd className="mono">{health.rate_limited.toLocaleString()}</dd></div>
-            <div><dt>Last seen</dt><dd className="mono">{health.last_seen_s === null ? "Not yet" : `${health.last_seen_s.toFixed(0)} s ago`}</dd></div>
-            <div><dt>Lease lapses</dt><dd className="mono">{health.lease_lapses}</dd></div>
-            <div><dt>Events waiting</dt><dd className="mono">{health.events.queued}</dd></div>
-            <div><dt>Interface</dt><dd className="mono">{health.ui.elements} elements</dd></div>
-            <div><dt>Stored</dt><dd className="mono">{formatBytes(health.storage.bytes)}</dd></div>
-            <div><dt>Timers</dt><dd className="mono">{health.timers}</dd></div>
-          </dl>
-        </Section>
-      )}
+      {health && <AppHealth health={health} />}
       {audit.length > 0 && (
         <Section title="Actions on the simulation">
           <ul className="fabric-audit">
@@ -317,6 +303,59 @@ function AppCard({ app, onOpen, picked, onPick }: { app: FabricApp; onOpen: () =
         <Icon name="chevronRight" size={14} />
       </button>
     </li>
+  );
+}
+
+/** An application's health at a glance: one line saying whether anything needs attention and when it was last heard
+ * from, the requests it made and how many were refused, then what it holds. Refusals, rate limits and lapsed leases
+ * are tinted only when there are some. */
+function AppHealth({ health }: { health: FabricHealth }) {
+  const seen = health.last_seen_s;
+  const fresh = seen === null ? "none" : seen < 10 ? "live" : seen < 60 ? "quiet" : "stale";
+  const issues = [
+    health.refused > 0 && `${health.refused.toLocaleString()} refused`,
+    health.rate_limited > 0 && `${health.rate_limited.toLocaleString()} rate limited`,
+    health.lease_lapses > 0 && `${health.lease_lapses} lease ${health.lease_lapses === 1 ? "lapse" : "lapses"}`,
+  ].filter(Boolean) as string[];
+  const accepted = Math.max(0, health.requests - health.refused - health.rate_limited);
+  const share = health.requests > 0 ? accepted / health.requests : 1;
+  // Large counts in a few characters (18.4k), the exact number on hover: the tiles are a third of the drawer wide.
+  const compact = (n: number) => (n >= 10_000 ? new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(n) : n.toLocaleString());
+  const tile = (label: string, value: number, icon: IconName, warn = false) => (
+    <div className={`fabric-health-tile${warn ? " warn" : ""}`} title={`${label}: ${value.toLocaleString()}`}>
+      <small><Icon name={icon} size={12} />{label}</small>
+      <strong className="mono">{compact(value)}</strong>
+    </div>
+  );
+  return (
+    <Section title="Health">
+      <div className={`fabric-health-summary ${issues.length ? "warn" : "ok"}`}>
+        <span className="fabric-health-state">
+          <Icon name={issues.length ? "incident" : "check"} size={14} />
+          {issues.length ? "Needs attention" : "Healthy"}
+        </span>
+        <span className="fabric-health-why">{issues.length ? issues.join(" · ") : "Every request answered"}</span>
+        <span className={`fabric-health-seen ${fresh}`}>
+          <i aria-hidden="true" />
+          {seen === null ? "Not heard from yet" : `Seen ${seen < 1 ? "just now" : `${seen.toFixed(0)} s ago`}`}
+        </span>
+      </div>
+      <div className="fabric-health-requests">
+        {tile("Requests", health.requests, "pulse")}
+        {tile("Refused", health.refused, "close", health.refused > 0)}
+        {tile("Limited", health.rate_limited, "gauge", health.rate_limited > 0)}
+        <div className="fabric-health-bar" role="img" aria-label={`${Math.round(share * 100)}% of requests answered`}>
+          <i style={{ width: `${share * 100}%` }} />
+        </div>
+      </div>
+      <dl className="fabric-health-grid">
+        <div><dt><Icon name="queue" size={13} /> Events waiting</dt><dd className="mono">{health.events.queued.toLocaleString()}</dd></div>
+        <div><dt><Icon name="stack" size={13} /> Interface</dt><dd className="mono">{health.ui.elements.toLocaleString()} {health.ui.elements === 1 ? "element" : "elements"}</dd></div>
+        <div><dt><Icon name="download" size={13} /> Stored</dt><dd className="mono">{formatBytes(health.storage.bytes)}</dd></div>
+        <div><dt><Icon name="clock" size={13} /> Timers</dt><dd className="mono">{health.timers}</dd></div>
+        <div className={health.lease_lapses > 0 ? "warn" : undefined}><dt><Icon name="history" size={13} /> Lease lapses</dt><dd className="mono">{health.lease_lapses}</dd></div>
+      </dl>
+    </Section>
   );
 }
 
