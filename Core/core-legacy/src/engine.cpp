@@ -1537,11 +1537,12 @@ void SimulationEngine::physics_step(std::uint32_t dt) {
 void SimulationEngine::step_to(std::uint32_t target) {
     target = std::min(target, day_s);
     while (virtual_s_ < target) {
-        const auto to_checkpoint = 900 - (virtual_s_ % 900);
+        const auto every = std::max<std::uint32_t>(1, graph_->scenario().config.checkpoint_interval_s);
+        const auto to_checkpoint = every - (virtual_s_ % every);
         const auto dt = std::min({std::uint32_t{1}, target - virtual_s_, to_checkpoint});
         virtual_s_ += dt;
         physics_step(dt);
-        if (virtual_s_ % 900 == 0) {
+        if (virtual_s_ % every == 0) {
             capture_checkpoint();
         }
     }

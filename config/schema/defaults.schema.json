@@ -53,7 +53,12 @@
           "maximum": 10.0
         },
         "checkpoint_virtual_seconds": {
-          "description": "Informational: the engine fixes this value; it is only described here."
+          "title": "Checkpoint spacing",
+          "description": "Checkpoint spacing (Performance). How often a run keeps a checkpoint, in simulated seconds. Closer makes seeking back faster and takes more memory; it never changes results. Accepts: a whole number from 60 to 3600 s. Default: 900. Applies from the next start of the server (./launcher start).",
+          "default": 900,
+          "type": "integer",
+          "minimum": 60.0,
+          "maximum": 3600.0
         }
       }
     },
@@ -221,6 +226,30 @@
           "type": "integer",
           "minimum": 0.0
         },
+        "storm_gap_s": {
+          "title": "Gap between storms",
+          "description": "Gap between storms (Weather). The least time between two scheduled storms' starts, in seconds of playback. Accepts: a number from 0 to 600 s. Default: 5. Applies from the next start of the server (./launcher start).",
+          "default": 5,
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 600.0
+        },
+        "storm_min_minutes": {
+          "title": "Shortest storm",
+          "description": "Shortest storm (Weather). How long the shortest scheduled storm lasts, in simulated minutes. Each storm's length is drawn between this and the longest. Accepts: a number from 5 to 1440 min. Default: 45. Applies from the next start of the server (./launcher start).",
+          "default": 45,
+          "type": "number",
+          "minimum": 5.0,
+          "maximum": 1440.0
+        },
+        "storm_max_minutes": {
+          "title": "Longest storm",
+          "description": "Longest storm (Weather). How long the longest scheduled storm lasts, in simulated minutes. Accepts: a number from 5 to 1440 min. Default: 120. Applies from the next start of the server (./launcher start).",
+          "default": 120,
+          "type": "number",
+          "minimum": 5.0,
+          "maximum": 1440.0
+        },
         "min_start_gap_playback_seconds": {
           "description": "Informational: the engine fixes this value; it is only described here."
         },
@@ -228,6 +257,38 @@
           "description": "Informational: the engine fixes this value; it is only described here."
         },
         "max_duration_virtual_min": {
+          "description": "Informational: the engine fixes this value; it is only described here."
+        }
+      }
+    },
+    "bus_stops": {
+      "type": "object",
+      "properties": {
+        "min_spacing_m": {
+          "title": "Closest stops",
+          "description": "Closest stops (Bus stops). The least distance along the roads between two bus stops the district is given. Accepts: a number from 50 to 5000 m. Default: 300. Applies from the next start of the server (./launcher start).",
+          "default": 300,
+          "type": "number",
+          "minimum": 50.0,
+          "maximum": 5000.0
+        },
+        "target_spacing_m": {
+          "title": "Usual spacing",
+          "description": "Usual spacing (Bus stops). The spacing stops are placed at where the roads allow. Accepts: a number from 50 to 5000 m. Default: 500. Applies from the next start of the server (./launcher start).",
+          "default": 500,
+          "type": "number",
+          "minimum": 50.0,
+          "maximum": 5000.0
+        },
+        "max_coverage_m": {
+          "title": "Farthest from a stop",
+          "description": "Farthest from a stop (Bus stops). No junction is farther than this from a stop; stops are added until none is. Accepts: a number from 50 to 10000 m. Default: 800. Applies from the next start of the server (./launcher start).",
+          "default": 800,
+          "type": "number",
+          "minimum": 50.0,
+          "maximum": 10000.0
+        },
+        "building_annulus_m": {
           "description": "Informational: the engine fixes this value; it is only described here."
         }
       }
@@ -822,9 +883,6 @@
       }
     },
     "seed": {
-      "description": "Informational: the engine fixes this value; it is only described here."
-    },
-    "bus_stops": {
       "description": "Informational: the engine fixes this value; it is only described here."
     },
     "traffic": {

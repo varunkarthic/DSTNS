@@ -853,7 +853,7 @@ mod tests {
         let text = screen(&mut app, 120, 40);
         assert!(text.contains("SIMULATION") && text.contains("OBSERVER") && text.contains("▌ Run"), "{text}");
         assert_eq!(path(&app), "/config/Run", "the first category, not its heading");
-        for _ in 0..6 {
+        for _ in 0..7 {
             press(&mut app, KeyCode::Down);
         }
         assert_eq!(path(&app), "/config/Startup", "past the Start-up heading");

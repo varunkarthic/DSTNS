@@ -98,7 +98,10 @@ int main() {
              {"an unknown country", {{"seed", "1"}, {"engine", "core-ng"}, {"map", fixture}, {"map_selection_version", "urban-geo-v1"},
                                      {"map_selection", {{"mode", "countries"}, {"countries", {"XX"}}}}}},
              {"a malformed list", {{"seed", "1"}, {"engine", "core-ng"}, {"map", fixture}, {"map_selection_version", "urban-geo-v1"},
-                                   {"map_selection", {{"mode", "countries"}, {"countries", "IN"}}}}}}) {
+                                   {"map_selection", {{"mode", "countries"}, {"countries", "IN"}}}}},
+             {"storms shorter at most than at least", {{"seed", "1"}, {"map", fixture}, {"dws", {{"storm_min_minutes", 90}, {"storm_max_minutes", 60}}}}},
+             {"bus stops spaced wider than they cover", {{"seed", "1"}, {"map", fixture}, {"bus_stops", {{"min_spacing_m", 900}, {"target_spacing_m", 500}}}}},
+             {"a checkpoint every 10 s", {{"seed", "1"}, {"map", fixture}, {"checkpoint_virtual_seconds", 10}}}}) {
         const auto refused = server.op("POST", "/api/v1/playback/start", body);
         EXPECT(refused.status == 400, why + ": " + show(refused));
         EXPECT(server.op("GET", "/api/v1/playback/status").data().at("lifecycle") == "IDLE", why);

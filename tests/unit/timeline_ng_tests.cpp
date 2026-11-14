@@ -20,7 +20,7 @@ void check(bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error(message);
 }
 
-std::map<std::string, std::string> run(const std::string& name) {
+std::map<std::string, std::string> run(const std::string& name, std::uint32_t every = 900, double storm_min = 45) {
     const auto directory = std::filesystem::temp_directory_path() / ("dstns-timeline-" + name);
     std::filesystem::remove_all(directory);
     std::map<std::string, std::string> out;
@@ -34,6 +34,8 @@ std::map<std::string, std::string> run(const std::string& name) {
         config.grid_height = 7;
         config.dws_frequency = 4;
         config.playback_duration_s = 600;
+        config.checkpoint_interval_s = every;
+        config.dws_min_minutes = storm_min;
         engine.prepare(Seed128::from_decimal("382923"), config);
         const auto at = [&](std::uint32_t s) {
             engine.seek(s, false);
@@ -73,6 +75,15 @@ int main() {
         }
         for (const auto& [stop, hash] : legacy)
             if (stop[0] != '~') check(ng.at(stop) == hash, "core-ng differs from core-legacy at " + stop);
+        // Checkpoint spacing is memory, never results (#18): every 30 minutes, half as many checkpoints, the same state.
+        const auto sparse = run(core_ng::kEngineId, 1800);
+        check(sparse.at("~count") == "48", "a checkpoint every 1800 s keeps 48 a day, not " + sparse.at("~count"));
+        for (const auto& [stop, hash] : ng)
+            if (stop[0] != '~') check(sparse.at(stop) == hash, "the checkpoint spacing changed the state at " + stop);
+        // Storm durations are part of the world: longer storms make another day, on both engines alike.
+        const auto stormy = run("core-legacy", 900, 100), stormy_ng = run(core_ng::kEngineId, 900, 100);
+        check(stormy.at("first 06:00") != legacy.at("first 06:00"), "storm_min_minutes did not change the world");
+        check(stormy.at("first 06:00") == stormy_ng.at("first 06:00"), "the engines differ with longer storms");
         std::cout << "[timeline-ng] checkpoints: seeking back and forward gives the same state on both engines\n";
         return 0;
     } catch (const std::exception& e) {

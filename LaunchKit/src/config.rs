@@ -416,11 +416,29 @@ fn choice_text(value: &Value) -> String {
 fn dws_spacing(value: &Value, config: &Value) -> String {
     let duration = config.pointer("/playback/duration_seconds").and_then(as_int);
     if let (Some(count), Some(duration)) = (as_int(value), duration) {
-        if count > 0 && (count - 1) * 5 >= duration {
-            return "Storms must start at least 5 playback seconds apart; lower the count or lengthen the day.".into();
+        let gap = as_number(&setting(config, "dws.storm_gap_s")).unwrap_or(5.0);
+        if count > 0 && (count - 1) as f64 * gap >= duration as f64 {
+            return format!("Storms must start at least {} playback seconds apart; lower the count, shorten the gap or lengthen the day.", fmt_g(gap));
         }
     }
     String::new()
+}
+
+fn storm_lengths(value: &Value, config: &Value) -> String {
+    match (as_number(value), as_number(&setting(config, "dws.storm_min_minutes"))) {
+        (Some(longest), Some(shortest)) if longest < shortest => "The longest storm cannot be shorter than the shortest.".into(),
+        _ => String::new(),
+    }
+}
+
+fn stop_spacing(value: &Value, config: &Value) -> String {
+    let get = |key: &str| as_number(&setting(config, key)).unwrap_or(0.0);
+    let coverage = as_number(value).unwrap_or(0.0);
+    if !(get("bus_stops.min_spacing_m") <= get("bus_stops.target_spacing_m") && get("bus_stops.target_spacing_m") <= coverage) {
+        "The closest stops, the usual spacing and the farthest from a stop must each be at least the one before.".into()
+    } else {
+        String::new()
+    }
 }
 
 pub fn valid_narration(value: &str) -> bool {
@@ -600,15 +618,17 @@ pub fn map_selection(config: &Value) -> Result<(String, Option<Value>)> {
 pub const INFORMATIONAL: &[&str] = &[
     "schema_version",
     "seed",
-    "playback.checkpoint_virtual_seconds",
     "map.source",
     "map.on_demand",
     "map.min_nodes",
     "map.max_anchor_attempts",
     "map.min_compactness",
     "map.map_selection_version",
-    "bus_stops",
+    "bus_stops.building_annulus_m",
+    // Not used by this engine's traffic model, which is not a BPR model.
     "traffic",
+    // Replaced by dws.storm_gap_s, dws.storm_min_minutes and dws.storm_max_minutes; never read, and their values were
+    // not the engine's (it drew storms of 45 to 120 minutes).
     "dws.min_start_gap_playback_seconds",
     "dws.min_duration_virtual_min",
     "dws.max_duration_virtual_min",
@@ -668,6 +688,13 @@ pub fn fields() -> &'static [Field] {
                 .unit("storms")
                 .range(0.0, None)
                 .extra(dws_spacing),
+            Field::new("dws.storm_gap_s", "Gap between storms", "Weather", Number, "The least time between two scheduled storms' starts, in seconds of playback.", json!(5)).unit("s").range(0.0, Some(600.0)),
+            Field::new("dws.storm_min_minutes", "Shortest storm", "Weather", Number, "How long the shortest scheduled storm lasts, in simulated minutes. Each storm's length is drawn between this and the longest.", json!(45)).unit("min").range(5.0, Some(1440.0)),
+            Field::new("dws.storm_max_minutes", "Longest storm", "Weather", Number, "How long the longest scheduled storm lasts, in simulated minutes.", json!(120)).unit("min").range(5.0, Some(1440.0)).extra(storm_lengths),
+            // Bus stops
+            Field::new("bus_stops.min_spacing_m", "Closest stops", "Bus stops", Number, "The least distance along the roads between two bus stops the district is given.", json!(300)).unit("m").range(50.0, Some(5000.0)),
+            Field::new("bus_stops.target_spacing_m", "Usual spacing", "Bus stops", Number, "The spacing stops are placed at where the roads allow.", json!(500)).unit("m").range(50.0, Some(5000.0)),
+            Field::new("bus_stops.max_coverage_m", "Farthest from a stop", "Bus stops", Number, "No junction is farther than this from a stop; stops are added until none is.", json!(800)).unit("m").range(50.0, Some(10000.0)).extra(stop_spacing),
             // Launcher
             Field::new(
                 "launcher.default_settings",
@@ -771,6 +798,7 @@ pub fn fields() -> &'static [Field] {
             Field::new("performance.map_fps", "Map frame rate", "Performance", Choice, "How often the map's moving traffic is redrawn. Automatic drops to 30 a second when the map struggles.", json!(0))
                 .choices(vec![("Automatic", json!(0)), ("60 a second", json!(60)), ("30 a second", json!(30))]),
             Field::new("performance.render_scale", "Render scale", "Performance", Number, "The most pixels the map draws per point on a high-density screen. Lower is lighter on the graphics processor.", json!(2)).range(0.5, Some(3.0)),
+            Field::new("playback.checkpoint_virtual_seconds", "Checkpoint spacing", "Performance", Integer, "How often a run keeps a checkpoint, in simulated seconds. Closer makes seeking back faster and takes more memory; it never changes results.", json!(900)).unit("s").range(60.0, Some(3600.0)),
             Field::new("performance.film_particles", "Film particles", "Performance", Integer, "How many particles the start-up film draws. Fewer is lighter; a struggling page draws fewer by itself.", json!(32000)).range(4000.0, Some(32000.0)),
             // MCP
             Field::new(
@@ -900,7 +928,7 @@ pub fn fields() -> &'static [Field] {
 
 /// The settings as a person finds them: sections, each a heading over its categories, in a sensible order.
 pub const SECTIONS: &[(&str, &[&str])] = &[
-    ("Simulation", &["Run", "Engine", "Modules", "Weather", "Map", "SUMO"]),
+    ("Simulation", &["Run", "Engine", "Modules", "Weather", "Bus stops", "Map", "SUMO"]),
     ("Start-up", &["Startup", "Presentation", "Demo"]),
     ("Observer", &["Appearance", "Notifications", "Auto Focus", "Playback controls", "Clock, units and news", "Map layers", "Tutorial", "Backpressure"]),
     ("Server", &["Server", "Performance", "Resource Control", "Daemons"]),
@@ -1271,7 +1299,18 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
             "tick_rate": defaults["playback"]["tick_rate"],
             "map": Value::Object(map_options),
             "modules": defaults.get("modules").cloned().unwrap_or(Value::Null),
-            "dws": defaults.get("dws").cloned().unwrap_or(Value::Null),
+            "dws": {
+                "frequency": setting(&defaults, "dws.frequency"),
+                "storm_gap_s": setting(&defaults, "dws.storm_gap_s"),
+                "storm_min_minutes": setting(&defaults, "dws.storm_min_minutes"),
+                "storm_max_minutes": setting(&defaults, "dws.storm_max_minutes"),
+            },
+            "bus_stops": {
+                "min_spacing_m": setting(&defaults, "bus_stops.min_spacing_m"),
+                "target_spacing_m": setting(&defaults, "bus_stops.target_spacing_m"),
+                "max_coverage_m": setting(&defaults, "bus_stops.max_coverage_m"),
+            },
+            "checkpoint_virtual_seconds": setting(&defaults, "playback.checkpoint_virtual_seconds"),
             "map_selection_version": selection_version,
         });
         if let Some(selection) = selection {

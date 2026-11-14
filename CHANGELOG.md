@@ -14,6 +14,42 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.11.0] - 2026-11-14
+
+**Engine 3.11.0 (core-ng 1.0.0), launcher 3.11.0, observer 3.5.0, API contract 1.11.** Results for every seed are
+unchanged at the defaults.
+
+### Added
+
+- Settings for values the engine used to fix (#18), in the launcher and in the start request (API 1.11):
+  - Storms: `dws.storm_gap_s` (5 s), `dws.storm_min_minutes` (45) and `dws.storm_max_minutes` (120).
+  - Bus stops: `bus_stops.min_spacing_m` (300), `target_spacing_m` (500) and `max_coverage_m` (800). These are in a
+    new Bus stops category.
+  - Checkpoints: `playback.checkpoint_virtual_seconds` (900), under Performance.
+
+  Both compilers read them in place of the constants. At the defaults every expression gives the value it always
+  gave, and the golden fixtures pass unchanged on both engines. Changed, the storm and stop settings make another
+  world from the same seed, and saved seeds and launch codes carry them. Checkpoint spacing changes only memory and
+  seeking. The API refuses values out of range, or out of order.
+
+### Fixed
+
+- `config/defaults.json` described storms as lasting 20 to 120 minutes; the engine drew 45 to 120. The old
+  informational keys are replaced, and still ignored, so an older file changes nothing.
+- The configuration guide said the BPR parameters and the log level were fixed by the engine. In fact, the engine's
+  traffic model is not a BPR model, and the server has no log level to set. The guide now says so; the keys stay
+  informational on purpose.
+
+### Tests
+
+- `dstns_timeline_ng`:
+  - A checkpoint every 1800 s keeps 48 a day and gives the same state at every stop.
+  - Longer storms change the world, identically on both engines.
+- `dstns_http_engine_switch`: storms whose longest is shorter than their shortest, stops spaced out of order, and a
+  checkpoint every 10 s are refused, with nothing started.
+
+Rollback: revert this release's commit.
+
 ## [3.10.0] - 2026-11-14
 
 **Engine 3.10.0 (core-ng 1.0.0, stable), launcher 3.10.0, observer 3.5.0, API contract 1.10.** Results for every seed

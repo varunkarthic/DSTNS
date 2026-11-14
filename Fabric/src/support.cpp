@@ -331,6 +331,33 @@ ScenarioConfig config_from(const json& j) {
     if (j.contains("dws") && j.at("dws").contains("frequency") && j.at("dws").at("frequency").is_number()) {
         c.dws_frequency = j.at("dws").at("frequency");
     }
+    // The storms' gap and durations, the bus stops' spacing and the checkpoints' spacing (#18). Absent, each is the
+    // value every seed has always had. Older informational keys (dws.min_duration_virtual_min and the like) are not
+    // read: they never were, and their values were not the engine's.
+    const auto number = [](const json& object, const char* key, double fallback, double low, double high, const std::string& name) {
+        if (!object.is_object() || !object.contains(key)) return fallback;
+        const auto& v = object.at(key);
+        if (!v.is_number() || !std::isfinite(v.get<double>()) || v.get<double>() < low || v.get<double>() > high)
+            throw std::invalid_argument(name + " must be a number in [" + std::to_string(int(low)) + ", " + std::to_string(int(high)) + "]");
+        return v.get<double>();
+    };
+    if (j.contains("dws")) {
+        const auto& d = j.at("dws");
+        c.dws_gap_s = number(d, "storm_gap_s", c.dws_gap_s, 0, 600, "dws.storm_gap_s");
+        c.dws_min_minutes = number(d, "storm_min_minutes", c.dws_min_minutes, 5, 1440, "dws.storm_min_minutes");
+        c.dws_max_minutes = number(d, "storm_max_minutes", c.dws_max_minutes, 5, 1440, "dws.storm_max_minutes");
+        if (c.dws_max_minutes < c.dws_min_minutes) throw std::invalid_argument("dws.storm_max_minutes must be at least dws.storm_min_minutes");
+    }
+    if (j.contains("bus_stops")) {
+        const auto& b = j.at("bus_stops");
+        c.stop_min_spacing_m = number(b, "min_spacing_m", c.stop_min_spacing_m, 50, 5000, "bus_stops.min_spacing_m");
+        c.stop_target_spacing_m = number(b, "target_spacing_m", c.stop_target_spacing_m, 50, 5000, "bus_stops.target_spacing_m");
+        c.stop_max_coverage_m = number(b, "max_coverage_m", c.stop_max_coverage_m, 50, 10000, "bus_stops.max_coverage_m");
+        if (!(c.stop_min_spacing_m <= c.stop_target_spacing_m && c.stop_target_spacing_m <= c.stop_max_coverage_m))
+            throw std::invalid_argument("bus_stops: min_spacing_m <= target_spacing_m <= max_coverage_m");
+    }
+    if (j.contains("checkpoint_virtual_seconds"))
+        c.checkpoint_interval_s = static_cast<std::uint32_t>(number(j, "checkpoint_virtual_seconds", c.checkpoint_interval_s, 60, 3600, "checkpoint_virtual_seconds"));
     if (j.contains("map")) {
         const auto& m = j.at("map");
         c.max_nodes = m.value("max_nodes", c.max_nodes);

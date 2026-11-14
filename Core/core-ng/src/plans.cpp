@@ -205,12 +205,13 @@ void weather(Scenario &s, const DeterministicRng &rng) {
     for (std::uint32_t i = 0; i < f; ++i)
         u[i] = rng.uniform01({RngDomain::DwsSchedule, i, 0, 0});
     std::stable_sort(u.begin(), u.end());
-    const auto slack = double(s.config.playback_duration_s - 5 * (f - 1));
+    // The gap and the durations are settings (#18); at their defaults every value is the one it always was.
+    const auto slack = double(s.config.playback_duration_s) - s.config.dws_gap_s * (f - 1);
     for (std::uint32_t i = 0; i < f; ++i) {
-        const auto playback = 5 * i + slack * u[i];
+        const auto playback = s.config.dws_gap_s * i + slack * u[i];
         const auto start = std::uint32_t(std::llround(playback / s.config.playback_duration_s * ppm_day));
         const auto duration = std::uint32_t(
-            (45 + 75 * std::pow(rng.uniform01({RngDomain::DwsSchedule, i, 1, 0}), 1.5)) / 1440.0 * ppm_day);
+            (s.config.dws_min_minutes + (s.config.dws_max_minutes - s.config.dws_min_minutes) * std::pow(rng.uniform01({RngDomain::DwsSchedule, i, 1, 0}), 1.5)) / 1440.0 * ppm_day);
         DwsEvent e;
         e.id = {i + 1};
         e.epicenter = {rng.bounded({RngDomain::DwsSchedule, i, 2, 0}, static_cast<std::uint32_t>(s.nodes.size()))};

@@ -67,6 +67,9 @@ Body:
 | `map.cache_dir` | string | No |  | Where maps are kept |
 | `modules` | object | No | `traffic`, `signals`, `buildings`, `dws`, `flooding`, `news`: true or false | Which subsystems run |
 | `dws.frequency` | number | No |  | How often weather comes |
+| `dws.storm_gap_s`, `dws.storm_min_minutes`, `dws.storm_max_minutes` | number | No | `5` [0, 600]; `45` and `120` [5, 1440], max at least min | Scheduled storms: the least gap between their starts (playback seconds), and their shortest and longest length (simulated minutes) (API 1.11) |
+| `bus_stops.min_spacing_m`, `target_spacing_m`, `max_coverage_m` | number | No | `300`, `500`, `800`; each at least the one before | Bus-stop placement (API 1.11) |
+| `checkpoint_virtual_seconds` | number | No | `900`, [60, 3600] | How often a checkpoint is kept. Never changes results (API 1.11) |
 | `fixture.grid_width, fixture.grid_height` | integers | No |  | A synthetic grid in place of a map |
 
 ```json
@@ -1274,7 +1277,7 @@ Response `200`, from a real run:
   "ok": true,
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
-  "version": "3.10.0"
+  "version": "3.11.0"
 }
 ```
 
@@ -1312,7 +1315,7 @@ The running engine and every installed one, with the engine policy (config/engin
 ```json
 {"ok": true, "data": {
   "running": {"id": "core-ng", "version": "1.0.0", "kind": "real", "channel": "stable", "owns": ["…"], "shared": ["physics step", "…"], "changes": ["…"]},
-  "catalogue": [{"id": "core-legacy", "version": "3.10.0", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
+  "catalogue": [{"id": "core-legacy", "version": "3.11.0", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
   "config": {"schema_version": 1, "selected": "core-legacy", "default": "core-legacy", "auto_switch": "offer", "engines": {"core-ng": {"enabled": true, "acknowledgment": {"ui": true, "enforce": true}}}},
   "approval": {"state": "none", "revision": 0}}}
 ```
@@ -1328,7 +1331,7 @@ the enabled stable real engines a rejection may start the seed on (empty when `a
 {"ok": true, "data": {"state": "pending", "revision": 3,
   "approval": {"id": "9f1c…", "engine": {"id": "core-ng", "version": "1.0.0", "channel": "beta", "kind": "real"}, "seed": "42",
                "requested_at": "2026-11-13T18:00:00Z", "acknowledge_in": "observer", "decision": "", "then": "", "reason": ""},
-  "alternatives": [{"id": "core-legacy", "version": "3.10.0", "channel": "stable", "kind": "real"}]}}
+  "alternatives": [{"id": "core-legacy", "version": "3.11.0", "channel": "stable", "kind": "real"}]}}
 ```
 
 ### `GET /api/v1/engine/approval/wait`
@@ -1393,7 +1396,7 @@ Response `200`, from a real run:
     "sumo_home": "/Users/varun/sumo",
     "version": ""
   },
-  "version": "3.10.0"
+  "version": "3.11.0"
 }
 ```
 
@@ -1456,7 +1459,7 @@ Response `200`, from a real run:
     },
     "program": "DSTNS",
     "source_offer": "You may obtain the complete corresponding source for this running version, under the terms…",
-    "version": "3.10.0"
+    "version": "3.11.0"
   },
   "ok": true
 }

@@ -2,8 +2,8 @@
 
 | What | Version | Where reported |
 |---|---|---|
-| The API contract | `1.10`, under the `/api/v1` prefix | `api_version` in responses |
-| The engine | `3.10.0` | `version` in `/health` and `/system/info` |
+| The API contract | `1.11`, under the `/api/v1` prefix | `api_version` in responses |
+| The engine | `3.11.0` | `version` in `/health` and `/system/info` |
 | The observer | `3.5.0` | About |
 | Map selection | `urban-crfg-v3` (default), `urban-geo-v1` (core-ng) | `map_selection_version`; `map_selection` in `/view/manifest` with the policy's fingerprint |
 | Engines | `core-legacy`, `core-ng` | `engine` in status and `/view/manifest`; `engines` in `/system/info` |
@@ -35,7 +35,9 @@ the deferred answers of the unstable-engine gate: a held start is `202` with `st
 that would run the engine meanwhile is `409 APPROVAL_REQUIRED`. `1.8` added `network` to the manifest: the source,
 the numbers of nodes, edges and places, and the location, the same as the topology says. `1.9` added `checkpoints`
 (count and bytes) to `/system/resources`. `1.10` made `core-ng` the engine of a start request that names none;
-its worlds are the same as core-legacy's, seed for seed, so only the `engine` reported changes.
+its worlds are the same as core-legacy's, seed for seed, so only the `engine` reported changes. `1.11` added
+`dws.storm_gap_s`, `dws.storm_min_minutes`, `dws.storm_max_minutes`, `bus_stops.*` and `checkpoint_virtual_seconds` to
+the start request; absent, each has the value every seed has always had.
 
 ## Security exceptions
 

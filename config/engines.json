@@ -22,7 +22,7 @@
   "engines": {
     "core-legacy": {
       "channel": "stable",
-      "version": "3.10.0",
+      "version": "3.11.0",
       "kind": "real",
       "enabled": true
     },

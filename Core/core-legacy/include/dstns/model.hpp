@@ -33,7 +33,7 @@ enum class BuildingType { School, Office, Mall, Store };
 // speed buys a less trustworthy picture rather than a faster one.
 inline constexpr double kMaxTickRate = 10.0;
 // The HTTP API contract; additions raise the minor version, within /api/v1.
-inline constexpr const char* kApiVersion = "1.10";
+inline constexpr const char* kApiVersion = "1.11";
 enum class IncidentType { RoadClosure, Accident, Congestion, VehicleBreakdown, HazardSpill };
 enum class IncidentLifecycle { Scheduled, Active, Resolved };
 
@@ -126,6 +126,12 @@ struct ScenarioConfig {
     std::uint32_t dws_frequency{3}, demand_bin_virtual_s{300};
     double stop_min_spacing_m{300}, stop_target_spacing_m{500}, stop_max_coverage_m{800};
     std::uint32_t min_incidents{4};
+    // Scheduled storms: the least gap between their starts (playback seconds), and how long each lasts (virtual
+    // minutes, drawn between the two). The defaults are the values every seed has always had.
+    double dws_gap_s{5}, dws_min_minutes{45}, dws_max_minutes{120};
+    // How often a checkpoint is kept, in virtual seconds. It never changes results, only memory and how far a seek
+    // back has to replay.
+    std::uint32_t checkpoint_interval_s{900};
     bool traffic{true}, signals{true}, buildings{true}, dws{true}, flooding{true}, news{true}, incidents{true};
 };
 

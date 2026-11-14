@@ -56,7 +56,7 @@ read; changing them has no effect.
 | `day` | `0` | `0` weekday, `1` weekend | CLI | Day type; `--day-type` overrides |
 | `playback.duration_seconds` | `3600` | integer [60, 3600] | CLI, engine | Wall-clock seconds one virtual day takes at 1× |
 | `playback.tick_rate` | `1.0` | (0, 10] | CLI, engine | Initial speed multiplier |
-| `playback.checkpoint_virtual_seconds` | `900` | — | informational | Checkpoint spacing is fixed at 900 s |
+| `playback.checkpoint_virtual_seconds` | `900` | [60, 3600] s | CLI, engine | How often a run keeps a checkpoint. Closer makes seeking back faster and takes more memory; it never changes results |
 
 ### Engine
 
@@ -124,7 +124,22 @@ A server started without the launcher keeps SUMO on, as before.
 | Key | Default | Range | Read by | Meaning |
 |---|---|---|---|---|
 | `dws.frequency` | `3` | 0 or more, at least 5 playback seconds apart over the day | CLI, engine | Storms scheduled per day |
-| `dws.min_start_gap_playback_seconds`, `min_duration_virtual_min`, `max_duration_virtual_min` | `5`, `20`, `120` | | informational | The compiler uses fixed values: 5 s spacing and 45 to 120 minute storms |
+| `dws.storm_gap_s` | `5` | [0, 600] s | CLI, engine | The least gap between two scheduled storms' starts, in playback seconds |
+| `dws.storm_min_minutes` | `45` | [5, 1440] min | CLI, engine | The shortest scheduled storm, in simulated minutes |
+| `dws.storm_max_minutes` | `120` | [5, 1440] min, at least the shortest | CLI, engine | The longest scheduled storm; each is drawn between the two |
+| `dws.min_start_gap_playback_seconds`, `min_duration_virtual_min`, `max_duration_virtual_min` | | | ignored | Replaced by the three above in engine 3.11.0. They were never read, and `20` was not the engine's shortest storm (45) |
+
+### Bus stops
+
+| Key | Default | Range | Read by | Meaning |
+|---|---|---|---|---|
+| `bus_stops.min_spacing_m` | `300` | [50, 5000] m | CLI, engine | The least distance along the roads between two stops |
+| `bus_stops.target_spacing_m` | `500` | [50, 5000] m | CLI, engine | The spacing stops are placed at where the roads allow |
+| `bus_stops.max_coverage_m` | `800` | [50, 10000] m | CLI, engine | No junction is farther than this from a stop |
+| `bus_stops.building_annulus_m` | `[80, 250]` | | informational | The ring round a stop where buildings may be placed; fixed |
+
+At their defaults these give every seed the world it has always had. Changed, they make another world from the
+same seed: a saved seed and a launch code carry them, so that world can be made again.
 
 ### Server
 
@@ -136,11 +151,10 @@ A server started without the launcher keeps SUMO on, as before.
 | `api.allowed_origins` | `none` | comma-separated origins | CLI, server (`DSTNS_ALLOWED_ORIGINS`) | Origins besides the server's own that may change things |
 | `ui.port` | `5173` | | informational | The Vite dev server port is set in `WebKit/vite.config.ts` |
 
-`bus_stops.*`, `traffic.*`, `ui.osm_background`, `logging.*`, `dws.min_start_gap_playback_seconds`,
-`dws.min_duration_virtual_min` and `dws.max_duration_virtual_min` are informational: the engine fixes these values
-(stop spacing is 300 m minimum, 500 m target and 800 m coverage; logs go to `<logs>/system.log` and
-`<logs>/runtime.db`). A launcher test checks that every other key in `config/defaults.json` is a setting
-(`INFORMATIONAL` in `LaunchKit/src/config.rs` lists these on purpose).
+Still informational, on purpose: `bus_stops.building_annulus_m` (fixed); `traffic.*` (this engine's traffic model is
+not a BPR model, so these are not its parameters); `logging.*` (the server writes everything to `<logs>/system.log`
+and `<logs>/runtime.db` and has no level to set); `ui.osm_background`. A launcher test checks that every other key in
+`config/defaults.json` is a setting (`INFORMATIONAL` in `LaunchKit/src/config.rs`).
 
 ## Start request fields
 
