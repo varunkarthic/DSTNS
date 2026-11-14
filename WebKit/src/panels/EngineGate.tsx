@@ -45,9 +45,9 @@ export function channelName(channel: EngineIdentity["channel"]) {
   return channel === "alpha" ? "Alpha" : channel === "beta" ? "Beta" : "Stable";
 }
 
-/** core-ng 0.6.0 · Alpha · real engine */
+/** core-ng 0.6.0 · Alpha · standalone engine */
 export function engineLabel(engine: EngineIdentity) {
-  return `${engine.id} ${engine.version} · ${channelName(engine.channel)} · ${engine.kind === "pseudo" ? "pseudo-engine" : "real engine"}`;
+  return `${engine.id} ${engine.version} · ${channelName(engine.channel)} · ${engine.type === "delegating" ? "delegating engine" : "standalone engine"}`;
 }
 
 export function EngineGate({ ready, running, onOpenChange }: {
@@ -186,7 +186,7 @@ export function EngineGate({ ready, running, onOpenChange }: {
                   <div><dt>Engine</dt><dd>{shown.engine.id}</dd></div>
                   <div><dt>Version</dt><dd className="mono">{shown.engine.version}{seenVersion(shown.engine.id) !== shown.engine.version && <span className="engine-gate-new">New</span>}</dd></div>
                   <div><dt>Channel</dt><dd>{channelName(shown.engine.channel)}</dd></div>
-                  <div><dt>Kind</dt><dd>{shown.engine.kind === "pseudo" ? "Pseudo-engine" : "Engine"}</dd></div>
+                  <div><dt>Type</dt><dd>{shown.engine.type === "delegating" ? "Delegating" : "Standalone"}</dd></div>
                   {shown.seed && <div className="wide"><dt>Seed</dt><dd className="mono engine-gate-seed">{shown.seed}</dd></div>}
                 </dl>
                 {shown.engine.shared.length > 0 && <p className="engine-gate-shared">Shared with every engine: {shown.engine.shared.join(", ")}.</p>}

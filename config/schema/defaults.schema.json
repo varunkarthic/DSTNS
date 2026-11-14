@@ -381,7 +381,7 @@
       "properties": {
         "applications": {
           "title": "Applications may connect",
-          "description": "Applications may connect (Fabric). Programs may register through the Fabric API. Off, nothing can, and WebFabric is off too. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off, it sets WebFabric to off. Set to on when WebFabric is set to on.",
+          "description": "Applications may connect (Fabric). Programs may register through the Fabric API. Off, nothing can, and WebFabric is off too. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to disabled, it sets WebFabric to disabled. Set to enabled when WebFabric is set to enabled.",
           "default": true,
           "type": "boolean"
         },
@@ -464,7 +464,7 @@
       "properties": {
         "enabled": {
           "title": "WebFabric",
-          "description": "WebFabric (WebFabric). Applications' panels, controls and overlays appear in the observer. Off, they can still connect, but nothing of theirs is shown. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to off when Applications may connect is set to off. Set to on, it sets Applications may connect to on.",
+          "description": "WebFabric (WebFabric). Applications' panels, controls and overlays appear in the observer. Off, they can still connect, but nothing of theirs is shown. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to disabled when Applications may connect is set to disabled. Set to enabled, it sets Applications may connect to enabled.",
           "default": true,
           "type": "boolean"
         }
@@ -481,19 +481,19 @@
         },
         "dynamic_particles": {
           "title": "Adaptive start-up film",
-          "description": "Adaptive start-up film (Startup). The film plans itself by the server's estimate of when the world will be ready: as many scenes as fit, in a new order, then straight to the map. Turns Play the whole film off. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to on, it sets Play the whole film to off. Set to off when Play the whole film is set to on.",
+          "description": "Adaptive start-up film (Startup). The film plans itself by the server's estimate of when the world will be ready: as many scenes as fit, in a new order, then straight to the map. Turns Play the whole film off. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start). Set to enabled, it sets Play the whole film to disabled. Set to disabled when Play the whole film is set to enabled.",
           "default": true,
           "type": "boolean"
         },
         "fast_boot": {
           "title": "Fast Boot",
-          "description": "Fast Boot (Startup). Use every city downloaded in advance (./launcher fastboot download), and open with the name alone. Turns Play the whole film off. Accepts: true or false. Default: false. Applies from the next start of the server (./launcher start). Set to on, it sets Play the whole film to off. Set to off when Play the whole film is set to on.",
+          "description": "Fast Boot (Startup). Use every city downloaded in advance (./launcher fastboot download), and open with the name alone. Turns Play the whole film off. Accepts: true or false. Default: false. Applies from the next start of the server (./launcher start). Set to enabled, it sets Play the whole film to disabled. Set to disabled when Play the whole film is set to enabled.",
           "default": false,
           "type": "boolean"
         },
         "force_animate": {
           "title": "Play the whole film",
-          "description": "Play the whole film (Startup). Every scene of the start-up film plays before the map, even when the world is ready sooner. Turns the adaptive film and Fast Boot off. Accepts: true or false. Default: false. Applies from the next start of the server (./launcher start). Set to off when Adaptive start-up film is set to on. Set to on, it sets Adaptive start-up film to off. Set to off when Fast Boot is set to on. Set to on, it sets Fast Boot to off.",
+          "description": "Play the whole film (Startup). Every scene of the start-up film plays before the map, even when the world is ready sooner. Turns the adaptive film and Fast Boot off. Accepts: true or false. Default: false. Applies from the next start of the server (./launcher start). Set to disabled when Adaptive start-up film is set to enabled. Set to enabled, it sets Adaptive start-up film to disabled. Set to disabled when Fast Boot is set to enabled. Set to enabled, it sets Fast Boot to disabled.",
           "default": false,
           "type": "boolean"
         }
@@ -622,19 +622,19 @@
       "properties": {
         "enabled": {
           "title": "MCP Handler",
-          "description": "MCP Handler (MCP). An AI client may connect through the Model Context Protocol (./launcher mcp serve) and read. No agent is included: this opens the door, which is closed by default. Accepts: true or false. Default: false. Applies when an MCP client next connects. Set to on when AI may change things is set to on. Set to on when AI may start and stop runs is set to on. Set to off, it sets AI may change things to off. Set to off, it sets AI may start and stop runs to off.",
+          "description": "MCP Handler (MCP). An AI client may connect through the Model Context Protocol (./launcher mcp serve) and read. No agent is included: this opens the door, which is closed by default. Accepts: true or false. Default: false. Applies when an MCP client next connects. Set to enabled when AI may change things is set to enabled. Set to enabled when AI may start and stop runs is set to enabled. Set to disabled, it sets AI may change things to disabled. Set to disabled, it sets AI may start and stop runs to disabled.",
           "default": false,
           "type": "boolean"
         },
         "allow_writes": {
           "title": "AI may change things",
-          "description": "AI may change things (MCP). An AI client may call routes that change the simulation (POST, PUT, DELETE). Turns the MCP Handler on. Accepts: true or false. Default: false. Applies when an MCP client next connects. Set to on, it sets MCP Handler to on. Set to off when MCP Handler is set to off.",
+          "description": "AI may change things (MCP). An AI client may call routes that change the simulation (POST, PUT, DELETE). Turns the MCP Handler on. Accepts: true or false. Default: false. Applies when an MCP client next connects. Set to enabled, it sets MCP Handler to enabled. Set to disabled when MCP Handler is set to disabled.",
           "default": false,
           "type": "boolean"
         },
         "allow_launcher": {
           "title": "AI may start and stop runs",
-          "description": "AI may start and stop runs (MCP). An AI client may start and stop simulations and change settings through the launcher. Turns the MCP Handler on. Accepts: true or false. Default: false. Applies when an MCP client next connects. Set to on, it sets MCP Handler to on. Set to off when MCP Handler is set to off.",
+          "description": "AI may start and stop runs (MCP). An AI client may start and stop simulations and change settings through the launcher. Turns the MCP Handler on. Accepts: true or false. Default: false. Applies when an MCP client next connects. Set to enabled, it sets MCP Handler to enabled. Set to disabled when MCP Handler is set to disabled.",
           "default": false,
           "type": "boolean"
         }

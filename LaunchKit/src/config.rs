@@ -97,6 +97,10 @@ pub fn sync_engine_identities(port: u16, paths: &Paths) {
         for key in IDENTITY_KEYS {
             entry[key] = engine.get(key).cloned().unwrap_or(Value::Null);
         }
+        // Launcher 3.12 and before wrote the type as "kind".
+        if let Some(entry) = entry.as_object_mut() {
+            entry.remove("kind");
+        }
     }
     if engines != before {
         let temporary = paths.engines_config().with_extension("json.tmp");
@@ -107,7 +111,7 @@ pub fn sync_engine_identities(port: u16, paths: &Paths) {
 }
 
 /// The keys of an engine's entry in engines.json that the build reports, not the operator.
-pub const IDENTITY_KEYS: [&str; 3] = ["channel", "version", "kind"];
+pub const IDENTITY_KEYS: [&str; 3] = ["channel", "version", "type"];
 
 fn read_engines(paths: &Paths) -> Value {
     fs::read_to_string(paths.engines_config()).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).filter(|v| v.is_object()).unwrap_or_else(|| json!({"schema_version": 1}))
@@ -346,7 +350,7 @@ impl Field {
                 let found = self.choices.iter().find(|(label, choice)| label.to_lowercase() == lowered || choice_text(choice).to_lowercase() == lowered);
                 match found {
                     Some((_, choice)) => choice.clone(),
-                    None => return Err(format!("Choose one of: {}.", self.choices.iter().map(|(l, _)| *l).collect::<Vec<_>>().join(", "))),
+                    None => return Err(format!("Choose one of: {}.", self.choices.iter().map(|(l, c)| format!("{} ({})", choice_text(c), l)).collect::<Vec<_>>().join(", "))),
                 }
             }
             FieldKind::Text => json!(text),
@@ -395,7 +399,7 @@ impl Field {
 
     pub fn display(&self, value: &Value) -> String {
         match self.kind {
-            FieldKind::Boolean => if value.as_bool().unwrap_or(false) { "on" } else { "off" }.into(),
+            FieldKind::Boolean => if value.as_bool().unwrap_or(false) { "enabled" } else { "disabled" }.into(),
             FieldKind::Choice => self.choices.iter().find(|(_, c)| c == value).map(|(l, _)| l.to_string()).unwrap_or_else(|| choice_text(value)),
             _ => choice_text(value),
         }
@@ -663,10 +667,10 @@ pub fn fields() -> &'static [Field] {
                 .choices(vec![("core-ng (default)", json!("core-ng")), ("core-legacy", json!("core-legacy"))]).extra(selected_enabled),
             Field::new("engines.auto_switch", "When a run is rejected", "Engine", Choice, "What the observer offers when a person rejects the risk of an alpha or beta engine: to start the same seed (only the seed) on an enabled stable engine, or only to stop. Only stop is the default: core-ng is the engine.", json!("off"))
                 .choices(vec![("Offer a stable engine", json!("offer")), ("Only stop", json!("off"))]),
-            Field::new("engines.engines.core-ng.enabled", "Enable core-ng", "Engine", Boolean, "core-ng is the default engine, so it cannot be disabled.", json!(true)).extra(default_engine_stays),
+            Field::new("engines.engines.core-ng.enabled", "core-ng engine", "Engine", Boolean, "core-ng is the default engine, so it cannot be disabled.", json!(true)).extra(default_engine_stays),
             Field::new("engines.engines.core-ng.acknowledgment.enforce", "core-ng: hold runs until acknowledged", "Engine", Boolean, "core-ng is stable, so its runs start at once; this applies if it is ever marked alpha or beta (DSTNS_ENGINE_CHANNEL). On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing.", json!(true)),
             Field::new("engines.engines.core-ng.acknowledgment.ui", "core-ng: acknowledge in the observer", "Engine", Boolean, "On, the observer asks a person to accept or reject. Off while runs are still held, the launcher asks instead: start with --accept-risk. Turning holding off turns this off.", json!(true)),
-            Field::new("engines.engines.core-legacy.enabled", "Enable core-legacy", "Engine", Boolean, "Disabled (the default), core-legacy stays installed but nothing can start a run on it; core-ng is the engine. Enabled, it can run a world for comparison.", json!(false)),
+            Field::new("engines.engines.core-legacy.enabled", "core-legacy engine", "Engine", Boolean, "Disabled (the default), core-legacy stays installed but nothing can start a run on it; core-ng is the engine. Enabled, it can run a world for comparison.", json!(false)),
             Field::new("map.selection_mode", "Where worlds are", "Engine", Choice, "Which cities a seed may choose: every city in the catalogue (379 on core-ng; Tools, Supported cities lists them), only the countries or cities in Places, or always the one city in Places. With every city, anything listed in Places still applies: two-letter codes are countries, other names cities. Anything but every city needs core-ng, which this turns on.", json!("global"))
                 .choices(vec![("Every city", json!("global")), ("Countries", json!("countries")), ("Cities", json!("cities")), ("One city", json!("fixed_city"))]),
             Field::new("map.places", "Places", "Engine", Text, "Countries (two-letter codes, such as IN, AE) or cities (IDs, such as mumbai, new-york), separated by commas. A - before one leaves it out: -IN is everywhere but India; IN, AE, -dubai is India and the UAE but not Dubai. all when worlds may be anywhere. Needs core-ng. In the launcher, Enter on this setting opens the list of countries to choose from.", json!("all")).extra(places),

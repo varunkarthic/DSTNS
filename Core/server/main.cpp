@@ -3,6 +3,7 @@
 
 #include "dstns/api.hpp"
 #include "dstns/build_info.hpp"
+#include "dstns/core-legacy/legacy.hpp"
 #include "dstns/core-ng/identity.hpp"
 #include "dstns/engines.hpp"
 #include "dstns/core-ng/lifecycle.hpp"
@@ -126,6 +127,12 @@ int main(int argc, char** argv) {
                           << "Channel: " << DSTNS_CHANNEL << "\n"
                           << "Revision: " << DSTNS_REVISION << "\n"
                           << "Built: " << DSTNS_BUILD_DATE << " (" << DSTNS_BUILD_ARCH << ")\n"
+                          << "API: " << dstns::kApiVersion << "\n";
+                // Each installed engine as the build describes it, for ./launcher version.
+                for (const auto& [id, identity] : {std::pair{std::string(dstns::core_ng::kEngineId), dstns::core_ng::identity()},
+                                                   std::pair{std::string(dstns::core_legacy::kEngineId), dstns::core_legacy::identity()}})
+                    std::cout << "Engine: " << id << " " << identity.version << " " << identity.channel << " " << identity.type << "\n";
+                std::cout
                           << "Copyright (C) 2026 Varun Karthic\n"
                           << "Licence AGPL-3.0-or-later <https://www.gnu.org/licenses/agpl-3.0.html>.\n"
                           << "This is free software: you are free to change and redistribute it.\n"

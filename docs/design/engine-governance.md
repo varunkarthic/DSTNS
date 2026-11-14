@@ -1,17 +1,17 @@
 # Engine governance
 
 How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.13.1,
-launcher 3.12.1, observer 3.6.0, API contract 1.12.
+launcher 3.13.0, observer 3.6.0, API contract 1.13.
 
 ## Engines
 
-| Engine | Kind | Channel | Version | What it is |
+| Engine | Type | Channel | Version | What it is |
 |---|---|---|---|---|
-| `core-legacy` | real | stable | the build's (`3.13.1`) | The engine DSTNS had before core-ng. Installed, and **off by default** since engine 3.13.0: turn it on (`engines.core-legacy.enabled`) to run a world on it for comparison |
-| `core-ng` | real | stable | its own (`1.2.1`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)). **The default** since engine 3.10.0; it cannot be disabled |
+| `core-legacy` | standalone | stable | the build's (`3.13.1`) | The engine DSTNS had before core-ng. Installed, and **off by default** since engine 3.13.0: turn it on (`engines.core-legacy.enabled`) to run a world on it for comparison |
+| `core-ng` | standalone | stable | its own (`1.2.1`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)). **The default** since engine 3.10.0; it cannot be disabled |
 
-Every engine describes itself with an **identity**: `id`, `version`, `kind` (`real` runs worlds; `pseudo` would only
-delegate), `channel` (`alpha`, `beta` or `stable`), `owns` (the parts of a run it implements itself), `shared` (the
+Every engine describes itself with an **identity**: `id`, `version`, `type` (`standalone` runs worlds itself; `delegating` would hand them to other engines; API 1.12 and
+before called it `kind`, `real` or `pseudo`, and still reports that beside it), `channel` (`alpha`, `beta` or `stable`), `owns` (the parts of a run it implements itself), `shared` (the
 parts it still takes from core-legacy) and `changes` (what changed, newest first). The identity comes from the build,
 never from a configuration file, so a file cannot promote an engine to stable.
 
@@ -23,7 +23,7 @@ Where it is reported:
 | `GET /api/v1/engine` → `running`, `catalogue` | The same, and every installed engine |
 | `GET /api/v1/system/info` → `engine_catalogue` | Every installed engine |
 | The observer's About | "This run" names the running engine; "The system" lists the installed ones |
-| Downloaded reports | Configuration, Environment and Integrity sections, the PDF's creator, and XMP `dstns:engine`, `dstns:engineVersion`, `dstns:engineChannel`, `dstns:engineKind` (`dstns:server` is the server's version) |
+| Downloaded reports | Configuration, Environment and Integrity sections, the PDF's creator, and XMP `dstns:engine`, `dstns:engineVersion`, `dstns:engineChannel`, `dstns:engineType` (`dstns:server` is the server's version) |
 | The launcher | The start line names a non-default engine; launch codes record the world's engine |
 
 ### Release channels
@@ -47,7 +47,7 @@ only with full parity (issue #22).
 
 ### Core Hybrid: not implemented
 
-A Core Hybrid pseudo-engine was to delegate each capability to core-ng where it works and to core-legacy where it does
+A Core Hybrid delegating engine was to delegate each capability to core-ng where it works and to core-legacy where it does
 not. It is not built, for these reasons:
 
 - **It would add nothing.** core-ng already works by delegation at the seams that exist. `ScenarioCompiler::Hooks` and
@@ -60,7 +60,7 @@ not. It is not built, for these reasons:
   core-ng. A fallback would hide them.
 
 The migration path stays: one capability at a time moves into core-ng, behind a seam, with the golden fixtures green
-on both engines. If a pseudo-engine is ever added, it is `kind: "pseudo"`. It never counts towards core-ng's parity,
+on both engines. If a delegating engine is ever added, it is `type: "delegating"`. It never counts towards core-ng's parity,
 and it is never offered when a run on an unstable engine is rejected.
 
 ## Engine policy: `config/engines.json`
@@ -78,18 +78,18 @@ server reads it as it starts (`DSTNS_ENGINE_CONFIG`, which the launcher sets to 
   "default": "core-ng",
   "auto_switch": "off",
   "engines": {
-    "core-legacy": {"channel": "stable", "version": "3.13.1", "kind": "real", "enabled": false},
-    "core-ng": {"channel": "stable", "version": "1.2.1", "kind": "real", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
+    "core-legacy": {"channel": "stable", "version": "3.13.1", "type": "standalone", "enabled": false},
+    "core-ng": {"channel": "stable", "version": "1.2.1", "type": "standalone", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
   }
 }
 ```
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `engines.ID.channel`, `.version`, `.kind` | as the build reports them | — | What each engine is: `alpha`, `beta` or `stable`; its own version; `real` or `pseudo`. **Copied from the build by the launcher at every start** (`GET /api/v1/engine`), so the file shows them; the server never reads them, and editing them changes nothing |
+| `engines.ID.channel`, `.version`, `.type` | as the build reports them | — | What each engine is: `alpha`, `beta` or `stable`; its own version; `standalone` or `delegating`. **Copied from the build by the launcher at every start** (`GET /api/v1/engine`), so the file shows them; the server never reads them, and editing them changes nothing |
 | `selected` | an installed engine | `core-ng` | The engine the launcher starts. `--engine` changes it for one run |
 | `default` | `core-ng` | `core-ng` | The stable engine every installation starts on, and a request without `engine` runs on. Written by the launcher; it cannot be disabled |
-| `auto_switch` | `offer`, `off` | `off` (since 3.13.0) | Whether a rejection offers the enabled stable real engines for the same seed. core-ng is the engine, so by default a rejection only stops |
+| `auto_switch` | `offer`, `off` | `off` (since 3.13.0) | Whether a rejection offers the enabled stable standalone engines for the same seed. core-ng is the engine, so by default a rejection only stops |
 | `engines.ID.enabled` | true, false | true; `false` for core-legacy (since 3.13.0) | Off: installed, but nothing can start a run on it (`403 ENGINE_DISABLED`). The launcher refuses `--engine` naming it, and a launch code naming it runs on core-ng, which makes the same world |
 | `engines.ID.acknowledgment.enforce` | true, false | true | Hold each run on an alpha or beta engine until it is acknowledged |
 | `engines.ID.acknowledgment.ui` | true, false | true | Ask in the observer. Off with enforcement on: the launcher asks (`--accept-risk`) |
@@ -117,7 +117,7 @@ alpha or beta, and its acknowledgment is enforced, the server **holds** the star
 
 ```json
 202 {"ok": true, "data": {"state": "approval_required", "deferred": true, "approval_id": "9f1c…",
-     "engine": {"id": "core-ng", "version": "1.0.0", "channel": "beta", "kind": "real", "…": "…"},
+     "engine": {"id": "core-ng", "version": "1.0.0", "channel": "beta", "type": "standalone", "…": "…"},
      "acknowledge_in": "observer", "wait": "/api/v1/engine/approval/wait?since=1"}}
 ```
 
@@ -136,7 +136,7 @@ Nothing is compiled or downloaded, and the lifecycle stays `IDLE`. Until someone
 
 The observer asks once the interface is ready (after its start-up film, where that plays). Its dialog is above
 everything else on a blurred scene, and the tour, notifications and other dialogs wait. The dialog says:
-- which engine, its version, channel and kind;
+- which engine, its version, channel and type;
 - what the engine still shares with core-legacy;
 - what changed, opened at once when the version is new to that browser, behind **What changed** otherwise;
 - the seed.
@@ -148,7 +148,7 @@ everything else on a blurred scene, and the tour, notifications and other dialog
 | Reject → **Start nothing** | `decision: reject`: the server stays idle |
 | Reject → **End the session** | `decision: reject, then: terminate`: the server shuts down |
 
-Only enabled, stable, real engines are offered, and none when `auto_switch` is `off`. A pseudo-engine is never
+Only enabled, stable, standalone engines are offered, and none when `auto_switch` is `off`. A delegating engine is never
 offered. Deciding is the observer's (`X-DSTNS-Host`) or the operator's. When the engine's acknowledgment is set to the
 launcher, only the operator may decide (`403 ACKNOWLEDGE_IN_LAUNCHER`). The same decision twice is the same answer;
 the other decision afterwards is `409 APPROVAL_DECIDED`.

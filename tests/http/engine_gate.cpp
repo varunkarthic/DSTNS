@@ -56,7 +56,7 @@ int main() {
         json ng, legacy;
         for (const auto& e : info.at("engine_catalogue")) (e.at("id") == "core-ng" ? ng : legacy) = e;
         // core-ng is stable; DSTNS_ENGINE_CHANNEL marked it beta here, to have an engine whose runs are held.
-        EXPECT(ng.at("channel") == "beta" && ng.at("kind") == "real" && !ng.at("version").get<std::string>().empty(), ng);
+        EXPECT(ng.at("channel") == "beta" && ng.at("type") == "standalone" && ng.at("kind") == "real" && !ng.at("version").get<std::string>().empty(), ng);
         EXPECT(legacy.at("channel") == "stable" && legacy.at("version") == info.at("version"), legacy);
 
         // An application, connected before anything starts, hears of every change to the approval.

@@ -14,6 +14,32 @@ only within one version.
 
 ## [Unreleased]
 
+### Launcher 3.13.0 and API contract 1.13 (with engine 3.13.1)
+
+The engine is unchanged, and so are results for every seed.
+
+#### Added
+
+- **`./launcher version`** lists every part's version: the launcher, the server as built and its API contract, the
+  observer, and each engine with its channel, its type, and whether it is the default, selected or disabled.
+  `dstns_server --version` now reports the API contract and each engine.
+- **Engines and places from the command line:**
+  - `./launcher engine` shows the engines; `engine use NAME`, `engine enable NAME`, `engine disable NAME` and
+    `engine auto-switch offer|off` change the policy. Disabling the selected engine selects the default.
+  - `./launcher places IN, AE` (or `-IN`, a city, or `all`) sets where worlds may be, and moves to core-ng for anything
+    but `all`.
+  - `./launcher countries [FILTER]` lists the countries with their codes; `./launcher cities [FILTER]` lists the
+    cities; `cities export [FILE] [FILTER]` saves them as CSV.
+
+#### Changed
+
+- **An engine's `type`, not `kind`.** `standalone` runs worlds itself; `delegating` would hand them to other engines.
+  `config/engines.json` and its schema use `type`, and the launcher replaces a `kind` from an earlier version. Every
+  engine identity in the API reports `type` (API 1.13), and still reports `kind` (`real` or `pseudo`) so that no
+  client breaks. Reports' XMP has `dstns:engineType`.
+- On/off settings read **enabled** and **disabled** in the launcher, its messages and the generated help. A choice that
+  is not understood lists the values it accepts, with their names.
+
 ### Observer 3.6.0 and launcher 3.12.1 (with engine 3.13.1)
 
 The engine is unchanged, and so are results for every seed.

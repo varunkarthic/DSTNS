@@ -7,8 +7,8 @@ import { api } from "../src/core/api";
 import { EngineGate, seenVersion } from "../src/panels/EngineGate";
 import type { EngineApproval, EngineIdentity } from "../src/core/types";
 
-const ng: EngineIdentity = { id: "core-ng", version: "0.6.0", kind: "real", channel: "alpha", owns: [], shared: ["physics step"], changes: ["0.6.0: its own compiler."] };
-const legacy: EngineIdentity = { id: "core-legacy", version: "3.5.0", kind: "real", channel: "stable", owns: [], shared: [], changes: [] };
+const ng: EngineIdentity = { id: "core-ng", version: "0.6.0", type: "standalone", channel: "alpha", owns: [], shared: ["physics step"], changes: ["0.6.0: its own compiler."] };
+const legacy: EngineIdentity = { id: "core-legacy", version: "3.5.0", type: "standalone", channel: "stable", owns: [], shared: [], changes: [] };
 const pending = (acknowledge_in: "observer" | "launcher" = "observer"): EngineApproval => ({
   state: "pending", revision: 1, alternatives: [legacy],
   approval: { id: "a1", engine: ng, seed: "42", requested_at: "", acknowledge_in, decision: "", then: "", reason: "" },

@@ -14,7 +14,7 @@ inline constexpr const char* kVersion = "1.2.1";
 inline EngineIdentity identity() {
     EngineIdentity out;
     out.version = kVersion;
-    out.kind = "real";
+    out.type = "standalone";
     // Stable and the default since 1.0.0 (#22): it owns every computation of a run, with results identical to
     // core-legacy's on every fixture and platform. The runtime host (lifecycle, clock, operator commands and their
     // undo, the HTTP API) is SimulationEngine, shared by every engine by design.

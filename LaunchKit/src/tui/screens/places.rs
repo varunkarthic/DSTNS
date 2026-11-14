@@ -166,14 +166,7 @@ impl PlacesScreen {
     fn save_csv(&mut self, ui: &Ui) -> Action {
         let target = Self::csv_target(ui);
         let rows = self.rows();
-        let quote = |s: &str| if s.contains([',', '"']) { format!("\"{}\"", s.replace('"', "\"\"")) } else { s.to_string() };
-        let mut out = String::from("city,id,country,country_code,lat,lon,policies\n");
-        for &i in &rows {
-            let c = &self.cities[i];
-            let text = |k: &str| c.get(k).and_then(Value::as_str).unwrap_or("").to_string();
-            let number = |k: &str| c.get(k).and_then(Value::as_f64).map(|v| format!("{v:.4}")).unwrap_or_default();
-            out += &format!("{},{},{},{},{},{},{}\n", quote(&text("city")), text("id"), quote(&text("country")), text("country_code"), number("lat"), number("lon"), policies(&text("since")));
-        }
+        let out = crate::modules::fastboot::csv(&rows.iter().map(|&i| &self.cities[i]).collect::<Vec<_>>());
         if let Some(parent) = target.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -187,10 +180,6 @@ impl PlacesScreen {
     }
 }
 
-/// The policies a city may be chosen under, by the first whose catalogue has it.
-fn policies(since: &str) -> &'static str {
-    if since == "urban-geo-v2" { "urban-geo-v2" } else { "urban-crfg-v3 urban-geo-v1 urban-geo-v2" }
-}
 
 impl Screen for PlacesScreen {
     fn title(&self) -> String {
@@ -458,6 +447,6 @@ mod tests {
         assert_eq!(s.rows(), vec![0, 1], "India's two cities, by its name and code");
         s.filter = "kochi".into();
         assert_eq!(s.rows(), vec![1]);
-        assert_eq!(policies("urban-geo-v2"), "urban-geo-v2");
+        assert_eq!(crate::modules::fastboot::policies("urban-geo-v2"), "urban-geo-v2");
     }
 }

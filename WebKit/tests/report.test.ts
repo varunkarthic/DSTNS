@@ -134,10 +134,10 @@ describe("the cover", () => {
 
   it("says which engine made the world, and warns when it is not stable", async () => {
     const base = input();
-    const engine = { id: "core-ng", version: "0.6.0", kind: "real" as const, channel: "alpha" as const, owns: [], shared: [], changes: [] };
+    const engine = { id: "core-ng", version: "0.6.0", type: "standalone" as const, channel: "alpha" as const, owns: [], shared: [], changes: [] };
     const alpha = { ...base, status: { ...base.status, data: { ...base.status.data, engine: "core-ng", engine_identity: engine } } };
     const all = (await buildReport(alpha, { font })).doc.boxes.map((b) => b.text).join(" ");
-    expect(all).toContain("core-ng 0.6.0 (alpha, real engine)");
+    expect(all).toContain("core-ng 0.6.0 (alpha, standalone engine)");
     expect(all).toMatch(/not a stable engine/);
     const legacy = (await buildReport(base, { font })).doc.boxes.map((b) => b.text).join(" ");
     expect(legacy).toContain("core-legacy (not described by this server)");

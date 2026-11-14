@@ -27,7 +27,7 @@ pub const EXIT_INTERRUPTED: i32 = 130;
 pub const EXIT_TERMINATED: i32 = 143;
 
 const VALUE_OPTIONS: &[&str] = &["--seed", "--saved-seed", "--save-seed", "--day-type", "--osm-file", "--max-nodes", "--duration", "--speed", "--engine", "--description", "--apps"];
-pub const COMMANDS: &[&str] = &["start", "stop", "console", "seeds", "ui", "logs", "config", "test", "sumo", "reset", "setup", "help", "version", "license"];
+pub const COMMANDS: &[&str] = &["start", "stop", "console", "seeds", "ui", "logs", "config", "engine", "places", "countries", "cities", "test", "sumo", "reset", "setup", "help", "version", "license"];
 
 #[derive(Clone, Debug, Default)]
 pub struct Arguments {
@@ -165,6 +165,13 @@ Commands
                          Show the server's logs
   config [get KEY|set KEY VALUE|docs]
                          Edit config/defaults.json; or read or change one setting
+  engine [use|enable|disable NAME | auto-switch offer|off]
+                         Show the engines and their policy, or change it (config/engines.json)
+  places [IN, AE | mumbai | -IN | all]
+                         Show or set where worlds may be
+  countries [FILTER]     List the countries worlds can be in, with their codes
+  cities [FILTER] | cities export [FILE] [FILTER]
+                         List every supported city, or save the list as CSV
   test [all|unit|api|replay|benchmark|sumo|ui|launcher]
                          Run test stages
   sumo                   Check the SUMO toolchain on a synthetic grid
@@ -172,7 +179,8 @@ Commands
   reset [SCOPE...] [--yes]
                          Reset everything but connected applications and their settings. Scopes:
                          all, runtime, cache, settings, setup, seeds, keys, apps, app-settings [ID]
-  help, version, license
+  version                Show the version of every part: launcher, server, API, observer and engines
+  help, license
 
 Run options (start, seeds save)
   --seed N               Decimal or 0x hexadecimal, up to 128 bits
@@ -345,30 +353,7 @@ pub fn command_config(context: &Context) -> Result<i32> {
         }
         Some("set") => {
             let key = context.args.item.clone().ok_or_else(|| LauncherError::config("Usage: ./launcher config set KEY VALUE"))?;
-            let text = context.args.extra.join(" ");
-            let field = config::field(&key).ok_or_else(|| LauncherError::config(format!("No setting {key}.")).remedy("./launcher config lists them."))?;
-            let mut current = config::load(paths)?;
-            let value = field.parse(&text).map_err(|problem| LauncherError::config(format!("{}: {problem}", field.label)))?;
-            let problem = config::check_field(field, &value, &current);
-            if !problem.is_empty() {
-                return Err(LauncherError::config(format!("{}: {problem}", field.label)));
-            }
-            // Removing the protection of an unstable engine is confirmed, and said to be a risk.
-            if let Some(risk) = config::risky_change(field, &value) {
-                out.message(Level::Warning, "This is a risk", &risk);
-                if !context.args.yes && !(context.caps.interactive && out.confirm("Change it anyway?", false)) {
-                    return Err(LauncherError::config("Not changed.").remedy(format!("./launcher config set {key} {text} --yes changes it without asking.")));
-                }
-            }
-            let also = field.set(&mut current, value.clone());
-            config::save(&current, paths)?;
-            out.message(Level::Success, &format!("{} is now {}", field.label, field.display(&value)), &key);
-            for other in also {
-                if let Some(other) = config::field(other) {
-                    out.message(Level::Info, &format!("{} is now {}, as it must be", other.label, other.display(&other.get(&current))), other.key);
-                }
-            }
-            Ok(EXIT_OK)
+            set_setting(context, &key, &context.args.extra.join(" "))
         }
         Some(other) => Err(LauncherError::config(format!("Unknown config action: {other}")).remedy("Use ./launcher config, config get KEY or config set KEY VALUE.")),
         None => {
@@ -388,6 +373,134 @@ pub fn command_config(context: &Context) -> Result<i32> {
             Ok(EXIT_OK)
         }
     }
+}
+
+/// One setting changed, checked as the configuration screen checks it, with what changed with it said.
+fn set_setting(context: &Context, key: &str, text: &str) -> Result<i32> {
+    let out = &context.out;
+    let paths = &context.paths;
+    let field = config::field(key).ok_or_else(|| LauncherError::config(format!("No setting {key}.")).remedy("./launcher config lists them."))?;
+    let mut current = config::load(paths)?;
+    let value = field.parse(text).map_err(|problem| LauncherError::config(format!("{}: {problem}", field.label)))?;
+    let problem = config::check_field(field, &value, &current);
+    if !problem.is_empty() {
+        return Err(LauncherError::config(format!("{}: {problem}", field.label)));
+    }
+    // Removing the protection of an unstable engine is confirmed, and said to be a risk.
+    if let Some(risk) = config::risky_change(field, &value) {
+        out.message(Level::Warning, "This is a risk", &risk);
+        if !context.args.yes && !(context.caps.interactive && out.confirm("Change it anyway?", false)) {
+            return Err(LauncherError::config("Not changed.").remedy(format!("./launcher config set {key} {text} --yes changes it without asking.")));
+        }
+    }
+    let also = field.set(&mut current, value.clone());
+    config::save(&current, paths)?;
+    out.message(Level::Success, &format!("{} is now {}", field.label, field.display(&value)), key);
+    for other in also {
+        if let Some(other) = config::field(other) {
+            out.message(Level::Info, &format!("{} is now {}, as it must be", other.label, other.display(&other.get(&current))), other.key);
+        }
+    }
+    Ok(EXIT_OK)
+}
+
+/// `./launcher engine`: the engines and their policy, or one change to it.
+fn command_engine(context: &Context) -> Result<i32> {
+    let usage = || LauncherError::config("Usage: ./launcher engine [use NAME | enable NAME | disable NAME | auto-switch offer|off]").remedy(format!("Engines: {}.", config::ENGINES.join(", ")));
+    let name = || -> Result<String> {
+        let name = context.args.item.clone().ok_or_else(usage)?;
+        if !config::ENGINES.contains(&name.as_str()) {
+            return Err(LauncherError::config(format!("No engine {name}.")).remedy(format!("Engines: {}.", config::ENGINES.join(", "))));
+        }
+        Ok(name)
+    };
+    match context.args.topic.as_deref() {
+        None | Some("show") | Some("list") => {
+            context.out.heading("Engines");
+            for line in config::engines_summary(&context.paths) {
+                println!("  {line}");
+            }
+            context.out.blank();
+            context.out.muted("Change with: ./launcher engine use NAME, engine enable NAME, engine disable NAME, engine auto-switch offer|off.");
+            Ok(EXIT_OK)
+        }
+        Some("use") | Some("select") => set_setting(context, "engines.selected", &name()?),
+        Some("enable") => set_setting(context, &format!("engines.engines.{}.enabled", name()?), "true"),
+        Some("disable") => {
+            let name = name()?;
+            // The selected engine must be one that may run: disabling it selects the default instead.
+            if config::setting(&config::load(&context.paths)?, "engines.selected") == json!(name) && name != config::DEFAULT_ENGINE {
+                set_setting(context, "engines.selected", config::DEFAULT_ENGINE)?;
+            }
+            set_setting(context, &format!("engines.engines.{name}.enabled"), "false")
+        }
+        Some("auto-switch") => set_setting(context, "engines.auto_switch", &context.args.item.clone().ok_or_else(usage)?),
+        Some(_) => Err(usage()),
+    }
+}
+
+/// `./launcher places`: where worlds may be; `places IN, AE`, `places -IN` or `places all` changes it.
+fn command_places(context: &Context) -> Result<i32> {
+    let words: Vec<String> = context.args.topic.iter().chain(context.args.item.iter()).chain(context.args.extra.iter()).cloned().collect();
+    if words.is_empty() {
+        let current = config::load(&context.paths)?;
+        let (version, _) = config::map_selection(&current)?;
+        let shown = |key: &str| config::field(key).map(|f| f.display(&f.get(&current))).unwrap_or_default();
+        context.out.pairs(&[("Places".into(), shown("map.places")), ("Where worlds are".into(), shown("map.selection_mode")), ("Policy".into(), version)], 18);
+        context.out.muted("Change with: ./launcher places IN, AE (countries), places mumbai, delhi (cities), places -IN (all but India) or places all.");
+        return Ok(EXIT_OK);
+    }
+    // Every city, read by what Places lists: two-letter codes are countries, other names cities. Only core-ng chooses
+    // among them, so anything but all moves to it.
+    if !words.join(" ").trim().eq_ignore_ascii_case("all") && config::setting(&config::load(&context.paths)?, "engines.selected") != serde_json::json!("core-ng") {
+        set_setting(context, "engines.selected", "core-ng")?;
+    }
+    set_setting(context, "map.selection_mode", "global")?;
+    set_setting(context, "map.places", &words.join(" "))
+}
+
+/// `./launcher countries [FILTER]` and `./launcher cities [FILTER]`, or `cities export [FILE] [FILTER]`: the catalogue.
+fn command_catalogue(context: &Context) -> Result<i32> {
+    let all = crate::modules::fastboot::cities(&context.paths)?;
+    let export = context.args.command.as_deref() == Some("cities") && context.args.topic.as_deref() == Some("export");
+    let words: Vec<String> = if export {
+        context.args.extra.clone()
+    } else {
+        context.args.topic.iter().chain(context.args.item.iter()).chain(context.args.extra.iter()).cloned().collect()
+    };
+    let needle = words.join(" ").to_lowercase();
+    let text = |c: &Value, k: &str| c.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+    let matches = |c: &Value| needle.is_empty() || ["city", "country", "country_code", "id"].iter().any(|k| text(c, k).to_lowercase().contains(&needle));
+    let shown: Vec<&Value> = all.iter().filter(|c| matches(c)).collect();
+    if export {
+        let target = context.args.item.clone().map(std::path::PathBuf::from).unwrap_or_else(|| context.paths.root.join("output").join("dstns-supported-cities.csv"));
+        if let Some(parent) = target.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent).map_err(|e| LauncherError::generic(format!("{} could not be made: {e}", parent.display())))?;
+        }
+        std::fs::write(&target, crate::modules::fastboot::csv(&shown)).map_err(|e| LauncherError::generic(format!("{} could not be written: {e}", target.display())))?;
+        context.out.message(Level::Success, &format!("{} cities saved as CSV", shown.len()), &target.display().to_string());
+        return Ok(EXIT_OK);
+    }
+    if context.args.command.as_deref() == Some("countries") {
+        let mut by_code: std::collections::BTreeMap<String, (String, usize)> = std::collections::BTreeMap::new();
+        for c in &all {
+            by_code.entry(text(c, "country_code")).or_insert_with(|| (text(c, "country"), 0)).1 += 1;
+        }
+        let mut rows: Vec<(String, String, usize)> = by_code.into_iter().map(|(code, (name, n))| (code, name, n)).filter(|(code, name, _)| needle.is_empty() || code.to_lowercase().contains(&needle) || name.to_lowercase().contains(&needle)).collect();
+        rows.sort_by(|a, b| a.1.cmp(&b.1));
+        println!("{:<6}{:<28}{}", "Code", "Country", "Cities");
+        for (code, name, n) in &rows {
+            println!("{code:<6}{name:<28}{n}");
+        }
+        context.out.muted(&format!("{} countries. Choose with ./launcher places CODE, CODE.", rows.len()));
+        return Ok(EXIT_OK);
+    }
+    println!("{:<22}{:<26}{:<6}{:<22}{}", "City", "Country", "Code", "ID", "Since");
+    for c in &shown {
+        println!("{:<22}{:<26}{:<6}{:<22}{}", text(c, "city"), text(c, "country"), text(c, "country_code"), text(c, "id"), if text(c, "since") == "urban-geo-v2" { "urban-geo-v2" } else { "urban-crfg-v3" });
+    }
+    context.out.muted(&format!("{} of {} cities. ./launcher cities export [FILE] [FILTER] saves them as CSV.", shown.len(), all.len()));
+    Ok(EXIT_OK)
 }
 
 fn command_test(context: &Context) -> Result<i32> {
@@ -483,6 +596,8 @@ pub fn dispatch_scripted(context: &Context) -> Option<Result<i32>> {
         }
         Some("version") => {
             println!("{PRODUCT} {}", engine_version());
+            context.out.pairs(&version::parts(&context.paths), 16);
+            context.out.blank();
             for line in version::licence_lines(context.caps.unicode) {
                 println!("{line}");
             }
@@ -506,6 +621,9 @@ pub fn dispatch_scripted(context: &Context) -> Option<Result<i32>> {
         Some("stop") => Some(command_stop(context)),
         Some("logs") if context.args.topic.is_some() || !context.caps.interactive => Some(command_logs(context)),
         Some("config") if context.args.topic.is_some() || !context.caps.interactive => Some(command_config(context)),
+        Some("engine") => Some(command_engine(context)),
+        Some("places") => Some(command_places(context)),
+        Some("countries") | Some("cities") => Some(command_catalogue(context)),
         Some(other) if !COMMANDS.contains(&other) => Some(Err(LauncherError::config(format!("Unknown command: {other}")).remedy("./launcher help lists every command."))),
         _ => None,
     }

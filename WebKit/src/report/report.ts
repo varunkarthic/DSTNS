@@ -115,7 +115,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
   // The engine that made this world, as it describes itself. A server from before engines described themselves ran
   // core-legacy, the only engine there was.
   const engine = status.data.engine_identity ?? null;
-  const engineText = engine ? `${engine.id} ${engine.version} (${engine.channel}, ${engine.kind === "pseudo" ? "pseudo-engine" : "real engine"})` : `${status.data.engine || "core-legacy"} (not described by this server)`;
+  const engineText = engine ? `${engine.id} ${engine.version} (${engine.channel}, ${engine.type === "delegating" ? "delegating engine" : "standalone engine"})` : `${status.data.engine || "core-legacy"} (not described by this server)`;
 
   // ---- Derived records -----------------------------------------------------
   const net = networkStats(topology);
@@ -1242,7 +1242,7 @@ export async function buildReport(input: ReportInput, resources: ReportResources
       `<dstns:engine>${xml(engine?.id ?? status.data.engine ?? "core-legacy")}</dstns:engine>`,
       `<dstns:engineVersion>${xml(engine?.version ?? "not reported")}</dstns:engineVersion>`,
       `<dstns:engineChannel>${xml(engine?.channel ?? "not reported")}</dstns:engineChannel>`,
-      `<dstns:engineKind>${xml(engine?.kind ?? "not reported")}</dstns:engineKind>`,
+      `<dstns:engineType>${xml(engine?.type ?? "not reported")}</dstns:engineType>`,
       `<dstns:interface>${xml(input.uiVersion)}</dstns:interface>`,
       `<dstns:api>${xml(status.api_version)}</dstns:api>`,
       `<dstns:mapSelection>${xml(topology.map_selection_version)}</dstns:mapSelection>`,

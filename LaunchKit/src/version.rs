@@ -39,6 +39,46 @@ pub fn observer_version() -> &'static str {
     })
 }
 
+/// Every part's version, for `./launcher version`: the launcher, the server as built (with its API contract and its
+/// engines, from `dstns_server --version`), the observer, and the engine policy.
+pub fn parts(paths: &paths::Paths) -> Vec<(String, String)> {
+    let mut out = vec![("Launcher".to_string(), env!("CARGO_PKG_VERSION").to_string())];
+    let (code, text, _) = crate::process::capture(&[&paths.server().to_string_lossy(), "--version"], None, 10.0, &[]);
+    let field = |name: &str| text.lines().find_map(|l| l.strip_prefix(name)).map(|v| v.trim().to_string());
+    let mut engines = vec![];
+    if code == 0 {
+        let server = text.lines().next().and_then(|l| l.strip_prefix("DSTNS ")).unwrap_or("unknown").trim().to_string();
+        let built = field("Built:").unwrap_or_default();
+        out.push(("Server".into(), format!("{server} ({} channel, built {built})", field("Channel:").unwrap_or_else(|| "local".into()))));
+        out.push(("API contract".into(), field("API:").unwrap_or_else(|| "unknown".into())));
+        for line in text.lines().filter_map(|l| l.strip_prefix("Engine:")) {
+            let words: Vec<&str> = line.split_whitespace().collect();
+            if let [id, version, channel, kind] = words[..] {
+                engines.push((id.to_string(), format!("{version} ({channel}, {kind})")));
+            }
+        }
+    } else {
+        out.push(("Server".into(), format!("{} (not built yet: ./launcher start builds it)", engine_version())));
+    }
+    out.push(("Observer".into(), observer_version().to_string()));
+    let policy = std::fs::read_to_string(paths.engines_config()).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).unwrap_or_default();
+    for (n, (id, about)) in engines.iter().enumerate() {
+        let mut state = vec![];
+        if policy.get("default").and_then(|v| v.as_str()) == Some(id) {
+            state.push("default");
+        }
+        if policy.get("selected").and_then(|v| v.as_str()) == Some(id) {
+            state.push("selected");
+        }
+        if policy.pointer(&format!("/engines/{id}/enabled")).and_then(|v| v.as_bool()) == Some(false) {
+            state.push("disabled");
+        }
+        let label = if n == 0 { "Engines" } else { "" };
+        out.push((label.into(), format!("{id} {about}{}", if state.is_empty() { String::new() } else { format!(": {}", state.join(", ")) })));
+    }
+    out
+}
+
 pub fn licence_lines(unicode: bool) -> Vec<String> {
     let copyright = if unicode { "Copyright © 2026 Varun Karthic".to_string() } else { format!("Copyright {COPYRIGHT_ASCII}") };
     let osm = if unicode { OSM_ATTRIBUTION } else { "(C) OpenStreetMap contributors" };

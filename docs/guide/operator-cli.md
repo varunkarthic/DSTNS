@@ -398,6 +398,11 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `seeds save\|list\|inspect\|delete [ID]` | Manage saved seeds, printing JSON; see [Saved seeds](saved-seeds.md) |
 | `logs [system\|api\|event\|playback]` | Print a log. Without a source, in a terminal, opens the log viewer |
 | `config [get KEY\|set KEY VALUE]` | Edit every setting; or read or change one |
+| `engine [use\|enable\|disable NAME \| auto-switch offer\|off]` | Show the engines and their policy, or change it: `engine use core-ng`, `engine enable core-legacy`. Disabling the selected engine selects the default; core-ng cannot be disabled |
+| `places [IN, AE \| mumbai \| -IN \| all]` | Show or set where worlds may be. Anything but `all` runs on core-ng |
+| `countries [FILTER]` | Every country worlds can be in, with its code and how many cities it has |
+| `cities [FILTER]`, `cities export [FILE] [FILTER]` | Every supported city, with its country, code and ID; or saved as CSV (`output/dstns-supported-cities.csv` by default) |
+| `version` | The version of every part: the launcher, the server and its API contract, the observer, and each engine with its channel, type and whether it is the default, selected or disabled |
 | `test [all\|unit\|api\|replay\|benchmark\|sumo\|ui\|launcher]` | Run test stages and print a summary; non-zero if any fails |
 | `sumo` | Check the SUMO toolchain on a synthetic grid |
 | `apps …` | The applications this launcher can start; see [Applications](#applications) |
@@ -415,7 +420,7 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `daemon [show NAME\|on NAME\|off NAME\|queue emergency\|notification]` | The server's [daemons](daemons.md) |
 | `security [on\|off\|verify]` | [Advanced Security](#advanced-security) |
 | `reset [SCOPE...] [--yes]` | Reset by scope (see [Reset scopes](#reset-scopes)). Alone, it resets everything except connected applications and their settings. It lists what it will reset and asks first; without a terminal it needs `--yes`; it refuses while a server is running |
-| `help`, `version`, `license` | Usage, version and licence notice, the licence text |
+| `help`, `license` | Usage; the licence text |
 | `--mode=server` | Run `dstns_server` in the foreground with the configured host and port |
 
 ### Run options

@@ -37,8 +37,10 @@ export interface Envelope<T> {
 export interface EngineIdentity {
   id: string;
   version: string;
-  /** "real" engines run worlds; a "pseudo" engine would only delegate. */
-  kind: "real" | "pseudo";
+  /** standalone runs worlds itself; delegating would hand them to other engines. */
+  type: "standalone" | "delegating";
+  /** What API 1.12 and before reported in its place. */
+  kind?: "real" | "pseudo";
   channel: "alpha" | "beta" | "stable";
   owns: string[];
   shared: string[];

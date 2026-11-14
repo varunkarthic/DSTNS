@@ -62,7 +62,9 @@ int main(int argc, char** argv) {
         engines["engines"]["core-legacy"]["enabled"] = true;
         // What each engine is comes from the build; the launcher writes it back at every start.
         for (auto& [id, entry] : engines["engines"].items())
-            for (const auto* key : {"channel", "version", "kind"}) entry.erase(key);
+            for (const auto* key : {"channel", "version", "type"}) entry.erase(key);
+        // A file from launcher 3.12 and before names the type "kind"; the launcher replaces it.
+        engines["engines"]["core-ng"]["kind"] = "real";
         std::ofstream(settings / "engines.json") << engines.dump(2);
     }
     const Env environment = {{"DSTNS_CONFIG_DIR", settings.string()}, {"DSTNS_API_PORT", std::to_string(port)}, {"DSTNS_LOGS_DIR", tmp.str()}, {"DSTNS_APPS_FILE", (tmp / "apps.json").string()},
@@ -125,7 +127,7 @@ int main(int argc, char** argv) {
             const auto engines = json::parse(read(settings / "engines.json")).at("engines");
             const auto info = get("/api/v1/system/info").body;
             EXPECT(engines.at("core-ng").value("channel", "") == "stable" && engines.at("core-legacy").value("channel", "") == "stable", engines);
-            EXPECT(engines.at("core-legacy").value("version", "") == info.value("version", "?") && engines.at("core-ng").value("kind", "") == "real", engines);
+            EXPECT(engines.at("core-legacy").value("version", "") == info.value("version", "?") && engines.at("core-ng").value("type", "") == "standalone" && !engines.at("core-ng").contains("kind"), engines);
         }
         // The plan stays while they run, which is how a reloaded application comes back as itself.
         const auto running = get("/api/v1/fabric/state?since=0").data().at("launch_plan").at("apps");
@@ -157,5 +159,22 @@ int main(int argc, char** argv) {
     const auto broken = launch({"start", "--no-open", "--osm-file", FIXTURE, "--seed", "10775", "--apps", "org.example.broken"}, false);
     EXPECT(broken.code != 0, broken.output);
     EXPECT(contains(broken.output, "is required") && contains(broken.output, "status 4"), broken.output);
+
+    // The command line: every part's version, and the engine policy and places changed without the interface.
+    const auto version = launch({"version"});
+    EXPECT(contains(version.output, "API contract") && contains(version.output, "core-ng") && contains(version.output, "Observer"), version.output);
+    EXPECT(launch({"engine", "disable", "core-ng"}, false).code != 0, "the default engine cannot be disabled");
+    launch({"engine", "disable", "core-legacy"});
+    EXPECT(json::parse(read(settings / "engines.json"))["engines"]["core-legacy"]["enabled"] == false, read(settings / "engines.json"));
+    launch({"engine", "auto-switch", "offer"});
+    EXPECT(json::parse(read(settings / "engines.json"))["auto_switch"] == "offer", read(settings / "engines.json"));
+    launch({"places", "IN,", "AE"});
+    const auto places = json::parse(read(settings / "defaults.json"));
+    EXPECT(places["map"]["places"] == "IN, AE" && places["map"]["selection_mode"] == "global", places["map"]);
+    EXPECT(json::parse(read(settings / "engines.json"))["selected"] == "core-ng", "places beyond all move to core-ng");
+    EXPECT(contains(launch({"countries", "india"}).output, "IN"), "the countries");
+    const auto csv = tmp / "cities.csv";
+    launch({"cities", "export", csv.string(), "india"});
+    EXPECT(contains(read(csv), "chennai") && contains(read(csv), "kochi"), read(csv));
     std::cout << "launcher apps ok\n";
 }

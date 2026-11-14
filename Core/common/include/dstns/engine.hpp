@@ -37,16 +37,18 @@ enum class Lifecycle { Booting, Idle, Preparing, Ready, Running, Paused, Seeking
 struct NewsItem { std::uint64_t news_id{}, event_id{}; std::uint32_t virtual_s{}; std::string category,severity,template_id,message; nlohmann::json data; std::string narration_key; };
 struct AppliedCommand { std::uint64_t id{}; std::string type,status{"applied"}; std::uint32_t virtual_s{}; nlohmann::json before,after; };
 
-// What an engine is, as every layer reports it: its own version, whether it is a real engine or a pseudo-engine
-// that delegates, its release channel, which parts of a run it owns and which it shares, and what changed in this
+// What an engine is, as every layer reports it: its own version, its type (a standalone engine runs worlds itself; a
+// delegating one would hand them to other engines), its release channel, which parts of a run it owns and which it shares, and what changed in this
 // version.
 struct EngineIdentity {
     std::string version;
-    std::string kind{"real"};      // real or pseudo
+    std::string type{"standalone"};  // standalone or delegating
     std::string channel{"stable"}; // alpha, beta or stable
     std::vector<std::string> owns, shared, changes;
     [[nodiscard]] nlohmann::json to_json(const std::string& id) const {
-        return {{"id", id}, {"version", version}, {"kind", kind}, {"channel", channel}, {"owns", owns}, {"shared", shared}, {"changes", changes}};
+        // "kind" (real or pseudo) is what API 1.12 and before reported, kept so that no client breaks within /api/v1.
+        return {{"id", id}, {"version", version}, {"type", type}, {"kind", type == "standalone" ? "real" : "pseudo"},
+                {"channel", channel}, {"owns", owns}, {"shared", shared}, {"changes", changes}};
     }
 };
 

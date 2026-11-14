@@ -279,7 +279,7 @@ void SimulationEngine::register_engine(const std::string& id, EngineHooks hooks,
 }
 
 void SimulationEngine::set_identity(const std::string& id, EngineIdentity identity) {
-    if (identity.kind != "real" && identity.kind != "pseudo") throw std::invalid_argument("engine kind is real or pseudo");
+    if (identity.type != "standalone" && identity.type != "delegating") throw std::invalid_argument("engine type is standalone or delegating");
     if (identity.channel != "alpha" && identity.channel != "beta" && identity.channel != "stable") throw std::invalid_argument("engine channel is alpha, beta or stable");
     identities_[id] = std::move(identity);
 }

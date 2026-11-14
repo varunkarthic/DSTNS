@@ -127,7 +127,7 @@ pub fn schema(file: &str) -> Value {
         for (id, key, text) in identity_help() {
             let schema = match key {
                 "channel" => json!({"enum": ["alpha", "beta", "stable"], "description": text}),
-                "kind" => json!({"enum": ["real", "pseudo"], "description": text}),
+                "type" => json!({"enum": ["standalone", "delegating"], "description": text}),
                 _ => json!({"type": "string", "description": text}),
             };
             place(&mut out, &["engines", id, key], schema);
@@ -144,7 +144,7 @@ fn identity_help() -> Vec<(&'static str, &'static str, String)> {
             let what = match key {
                 "channel" => "Release channel: alpha (incomplete; each run held until acknowledged), beta (complete, not yet proven; held), or stable (starts at once).",
                 "version" => "The engine's own version.",
-                _ => "real (runs worlds) or pseudo (would only delegate to other engines).",
+                _ => "standalone (runs worlds itself) or delegating (would hand worlds to other engines).",
             };
             out.push((id, key, format!("{what} Reported by the build and copied here by the launcher at every start; editing it changes nothing.")));
         }

@@ -51,6 +51,23 @@ pub fn cities(paths: &Paths) -> Result<Vec<Value>> {
     serde_json::from_str(out.trim()).map_err(|e| LauncherError::generic(format!("The server's list of cities could not be read: {e}")))
 }
 
+/// The policies a city may be chosen under, by the first whose catalogue has it.
+pub fn policies(since: &str) -> &'static str {
+    if since == "urban-geo-v2" { "urban-geo-v2" } else { "urban-crfg-v3 urban-geo-v1 urban-geo-v2" }
+}
+
+/// Cities as CSV, one row each: what Tools, Supported cities and `./launcher cities export` save.
+pub fn csv(cities: &[&Value]) -> String {
+    let quote = |s: &str| if s.contains([',', '"']) { format!("\"{}\"", s.replace('"', "\"\"")) } else { s.to_string() };
+    let mut out = String::from("city,id,country,country_code,lat,lon,policies\n");
+    for c in cities {
+        let text = |k: &str| c.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+        let number = |k: &str| c.get(k).and_then(Value::as_f64).map(|v| format!("{v:.4}")).unwrap_or_default();
+        out += &format!("{},{},{},{},{},{},{}\n", quote(&text("city")), text("id"), quote(&text("country")), text("country_code"), number("lat"), number("lon"), policies(&text("since")));
+    }
+    out
+}
+
 pub fn packed(paths: &Paths, key: &str) -> PathBuf {
     paths.fastboot().join(format!("{key}.osm.xml.gz"))
 }

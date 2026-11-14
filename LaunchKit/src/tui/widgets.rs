@@ -719,7 +719,7 @@ impl Editor {
                 }
             }
             Editor::Toggle(on) => {
-                let (knob, word) = if *on { (if unicode { "━━●" } else { "--o" }, "on") } else { (if unicode { "●━━" } else { "o--" }, "off") };
+                let (knob, word) = if *on { (if unicode { "━━●" } else { "--o" }, "enabled") } else { (if unicode { "●━━" } else { "o--" }, "disabled") };
                 vec![Line::from(vec![Span::styled(knob.to_string(), fg(if *on { ACCENT } else { MUTED })), Span::styled(format!(" {word}"), fg(TEXT))])]
             }
             Editor::Order { items, cursor } => items

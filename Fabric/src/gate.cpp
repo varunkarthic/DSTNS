@@ -149,7 +149,7 @@ json EngineGate::alternatives(const json& catalogue, const std::string& rejected
     // Only real, stable, enabled engines: never a pseudo-engine, never another unstable one.
     for (const auto& engine : catalogue) {
         const auto id = engine.value("id", std::string());
-        if (id == rejected || engine.value("kind", std::string()) != "real" || engine.value("channel", std::string()) != "stable" || !config_.policy(id).enabled) continue;
+        if (id == rejected || engine.value("type", std::string()) != "standalone" || engine.value("channel", std::string()) != "stable" || !config_.policy(id).enabled) continue;
         out.push_back(engine);
     }
     return out;

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: DSTNS API
-  version: 1.12.0
+  version: 1.13.0
   description: 'Deterministic Spatiotemporal Transport Network Simulator runtime API.
 
 
@@ -1287,8 +1287,8 @@ paths:
       - Engine
       operationId: engine
       summary: The running engine, every installed engine, engine policy and the approval
-      description: '`running` is the identity of the engine that compiled the world now loaded (id, version, kind real or
-        pseudo, channel alpha, beta or stable, what it owns and shares, what changed); `catalogue` lists every installed
+      description: '`running` is the identity of the engine that compiled the world now loaded (id, version, type standalone or
+        delegating (kind, real or pseudo, before API 1.13, still reported), channel alpha, beta or stable, what it owns and shares, what changed); `catalogue` lists every installed
         engine; `config` is config/engines.json as the server read it; `approval` as GET /api/v1/engine/approval.'
       responses:
         '200':

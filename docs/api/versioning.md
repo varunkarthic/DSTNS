@@ -2,7 +2,7 @@
 
 | What | Version | Where reported |
 |---|---|---|
-| The API contract | `1.12`, under the `/api/v1` prefix | `api_version` in responses |
+| The API contract | `1.13`, under the `/api/v1` prefix | `api_version` in responses |
 | The engine | `3.13.1` | `version` in `/health` and `/system/info` |
 | The observer | `3.6.0` | About |
 | Map selection | `urban-crfg-v3` (default), `urban-geo-v1` and `urban-geo-v2` (core-ng; the launcher uses `urban-geo-v2`) | `map_selection_version`; `map_selection` in `/view/manifest` with the policy's fingerprint |
@@ -40,7 +40,8 @@ its worlds are the same as core-legacy's, seed for seed, so only the `engine` re
 the start request; absent, each has the value every seed has always had. `1.12` accepts `urban-geo-v2` with engine
 `core-ng`: urban-geo-v1's rules over 379 cities (the 181 first, then more). With no `config/engines.json`, core-legacy
 is now disabled (`403 ENGINE_DISABLED`) and a rejected unstable engine offers no other (`auto_switch` `off`); a
-policy file that turns core-legacy on keeps every earlier behaviour.
+policy file that turns core-legacy on keeps every earlier behaviour. `1.13` adds `type` to every engine identity,
+`standalone` or `delegating`; `kind` (`real` or `pseudo`) is still reported beside it.
 
 ## Security exceptions
 

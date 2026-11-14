@@ -582,7 +582,8 @@ mod tests {
         let root = std::env::temp_dir().join(format!("dstns-state-engine-{}", std::process::id()));
         let paths = Paths::new(&root);
         std::fs::create_dir_all(paths.config().parent().unwrap()).unwrap();
-        std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/defaults.json"), paths.config()).unwrap();
+        // Its own settings, not the checkout's: another test may be rewriting those.
+        std::fs::write(paths.config(), include_str!("../../config/defaults.json")).unwrap();
         let out = set(&paths, &blocks).unwrap();
         // core-legacy is off by default: the world comes back on core-ng, which makes the same world.
         assert_eq!(config::setting(&config::load(&paths).unwrap(), "engines.selected"), json!("core-ng"), "{out:?}");
