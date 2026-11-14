@@ -774,7 +774,7 @@ fn run(context: &Context) -> Result<i32> {
     match options.positional.first().map(String::as_str).unwrap_or("tools") {
         "serve" => {
             if !policy.enabled {
-                return Err(LauncherError::config("The MCP Handler is turned off.").remedy("Turn it on with ./launcher config set mcp.enabled on, or under MCP in ./launcher config."));
+                return Err(LauncherError::config("The MCP Handler is disabled.").remedy("Enable it with ./launcher config set mcp.enabled on, or under MCP in ./launcher config."));
             }
             serve(handler)
         }

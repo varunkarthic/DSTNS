@@ -294,8 +294,22 @@ export function installEdgeResistance(root: Document = document): () => void {
   let waiting: { target: Element | null; axis: Axis; delta: number } | null = null;
   let scheduled = false;
   let latched: { gesture: number; axis: Axis; el: HTMLElement | null } | null = null;
+  // Scroll events can come several to a frame, and reading a region's position forces a layout if anything has
+  // changed since: so the regions that moved are looked at once, at the next frame, when the layout is due anyway.
+  const moved = new Set<Element>();
+  let watching = 0;
+  const watchMoved = () => {
+    watching = 0;
+    for (const el of moved) watch(el);
+    moved.clear();
+  };
   const settle = () => {
     scheduled = false;
+    // What the content did comes before what the wheel asks, as when each scroll was read as it came.
+    if (watching) {
+      cancelAnimationFrame(watching);
+      watchMoved();
+    }
     const now = waiting;
     waiting = null;
     if (!now || reduced()) return;
@@ -364,7 +378,10 @@ export function installEdgeResistance(root: Document = document): () => void {
   // ancestors are never meant to have moved, so they are put straight back.
   const onScroll = (event: Event) => {
     const el = event.target;
-    if (el instanceof Element) watch(el);
+    if (el instanceof Element) {
+      moved.add(el);
+      if (!watching) watching = requestAnimationFrame(watchMoved);
+    }
     if (el === root || (el instanceof Element && el.matches("html, body, #root, .app-shell, .workspace, .bottom-stack, .lower-hud, .hud-zone"))) {
       if (el === root) root.documentElement.scrollTop = root.documentElement.scrollLeft = 0;
       else {
@@ -379,5 +396,6 @@ export function installEdgeResistance(root: Document = document): () => void {
   return () => {
     root.removeEventListener("wheel", onWheel);
     root.removeEventListener("scroll", onScroll, { capture: true });
+    cancelAnimationFrame(watching);
   };
 }

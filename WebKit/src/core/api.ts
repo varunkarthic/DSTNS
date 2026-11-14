@@ -107,6 +107,8 @@ export const api = {
     }),
   // Ask the core for a new world from a fresh seed. Progress is polled.
   // With stage, it is prepared without replacing this world, until commitWorld or discardWorld.
+  /** Which engines may run, and which one runs a start that names none (config/engines.json, as the server read it). */
+  enginePolicy: () => request<{ data: { config: { default?: string; engines?: Record<string, { enabled?: boolean }> } } }>("/api/v1/engine"),
   engineApproval: () => request<{ data: EngineApproval }>("/api/v1/engine/approval"),
   /** Accept or reject the start that waits; a rejection may end the server or start the same seed on a stable engine. */
   decideEngine: (approval_id: string, decision: "accept" | "reject", then = "", engine = "") =>

@@ -85,7 +85,7 @@ export function AppFrame({ app, element, onReply }: { app: FabricApp; element: F
     const timer = setTimeout(() => {
       if (ready) return;
       setSilent(true);
-      void fabric.failure(app.id, "Its frame did not respond.");
+      void fabric.failure(app.id, "The application's page did not respond.");
     }, READY_TIMEOUT_MS);
     return () => {
       window.removeEventListener("message", onMessage);

@@ -159,7 +159,7 @@ fn check_coreai(requested: &str, paths: &Paths, local_only: bool) -> Choice {
 pub fn resolve(requested: Option<&str>, paths: &Paths) -> Choice {
     let requested = requested.map(String::from).unwrap_or_else(|| requested_mode(paths)).trim().to_string();
     match requested.as_str() {
-        "off" | "none" => Choice::new("off", "off", "off", "turned off", ""),
+        "off" | "none" => Choice::new("off", "off", "off", "disabled", ""),
         "fm" => check_fm(&requested, paths),
         // Apple's model on the Mac; else, through CoreAI, a model server on this machine. Never a cloud provider by
         // itself: news is written for every event, and that would send each one away and pay for it.
@@ -214,7 +214,7 @@ pub fn announce(choice: &Choice, reporter: &dyn Reporter) {
         UNAVAILABLE if !choice.enabled() => reporter.message(Level::Warning, &title, &format!("{}{remedy} Using {DEFAULT_WORDING}.", choice.reason)),
         _ if choice.enabled() => reporter.message(Level::Info, &title, &format!("{BRAND} via {}", choice.label)),
         _ if choice.fell_back() => reporter.message(Level::Warning, &format!("{title} · {BRAND} unavailable"), &format!("{}{remedy} Using {DEFAULT_WORDING}.", choice.reason)),
-        _ => reporter.message(Level::Info, &title, &format!("turned off; {DEFAULT_WORDING}")),
+        _ => reporter.message(Level::Info, &title, &format!("disabled; {DEFAULT_WORDING}")),
     }
 }
 

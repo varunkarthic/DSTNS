@@ -312,7 +312,7 @@ fn observer(paths: &Paths) -> Outcome {
 
 fn sumo_check(paths: &Paths) -> Outcome {
     if !sumo::configure(paths) {
-        return Outcome::new(State::Skipped, "turned off").detail("sumo.enabled is off, which is the default.");
+        return Outcome::new(State::Skipped, "disabled").detail("sumo.enabled is off, which is the default.");
     }
     match sumo::detect() {
         None => Outcome::new(State::Skipped, "not installed").detail("Optional: only the SUMO adapter needs it."),
@@ -332,7 +332,7 @@ fn narration_check(paths: &Paths) -> Outcome {
             let detail = if choice.enabled() {
                 format!("{} via {}.", narration::BRAND, choice.label)
             } else if !choice.fell_back() {
-                format!("Turned off; {} is used.", narration::DEFAULT_WORDING)
+                format!("Disabled; {} is used.", narration::DEFAULT_WORDING)
             } else {
                 format!("{}. {} is used.", choice.reason, narration::DEFAULT_WORDING)
             };

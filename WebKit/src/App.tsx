@@ -99,7 +99,7 @@ import "./CoreMotion/motion.css";
 import "./styles/webfabric.css";
 import "./styles/design.css";
 
-export const VERSION = "3.5.0";
+export const VERSION = "3.6.0";
 
 const DECK_KEY = "dstns.telemetry-mode.v1";
 
@@ -186,7 +186,7 @@ export function narratorBadge(status: NarratorStatus | null): string | undefined
 
 function narratorNote(status: NarratorStatus | null): string {
   if (!status) return "Unavailable: the core did not report a narrator.";
-  if (!status.enabled) return "Unavailable: Apple Foundation Models are not available or are turned off for this server.";
+  if (!status.enabled) return "Unavailable: Apple Foundation Models are not available or are disabled on this server.";
   if (status.state === "unavailable" || status.state === "disabled")
     return `Unavailable: ${status.last_error || "the model is not answering"}.`;
   const model = status.backend?.on_device ? "Apple's on-device Foundation Model" : "the configured language model";

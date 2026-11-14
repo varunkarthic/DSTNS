@@ -2800,18 +2800,18 @@ html:not([data-input="tab"]) :focus-visible { outline: none; }
 
 /* ---- Scrolling menus end softly -------------------------------------------------------------------
    What runs on past an edge fades into the panel, 24 px at the start and 40 px at the end, by a mask on the
-   scroller itself: no strip, nothing laid over it. Each fade grows with the scroll, on its own clock, so an edge
-   with nothing beyond it is sharp, and a list that does not scroll has none. */
-@property --edge-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
-@property --edge-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
-:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner) {
-  mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-start), #000 calc(100% - var(--edge-end)), transparent);
-  animation: edge-start linear both, edge-end linear both;
-  animation-timeline: scroll(self), scroll(self);
-  animation-range: 0 24px, calc(100% - 40px) 100%;
+   scroller itself: no strip, nothing laid over it. An edge with nothing beyond it is sharp, and a list that does not
+   scroll has none. Which ends fade is set by CoreMotion/edges.ts as a region reaches or leaves them: a still mask,
+   which the browser moves with the region without asking the page each frame. */
+:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)[data-edge="start"] {
+  mask-image: linear-gradient(to bottom, transparent, #000 24px);
 }
-@keyframes edge-start { from { --edge-start: 0px; } to { --edge-start: 24px; } }
-@keyframes edge-end { from { --edge-end: 40px; } to { --edge-end: 0px; } }
+:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)[data-edge="end"] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+}
+:is(.stream, .settings-scroll, .about-scroll, .place-search-results, .place-rows, .layers-scroll, .capsule-body-inner)[data-edge="both"] {
+  mask-image: linear-gradient(to bottom, transparent, #000 24px, #000 calc(100% - 40px), transparent);
+}
 
 /* Settings: a panel's 8px all round, so that its cards are concentric with it. */
 .settings-scroll { padding: 8px; gap: 8px; }
@@ -3595,7 +3595,7 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 /* The permissions' closing note: a card with the sections' own corner and edge, its icon beside the words. */
 .fabric-disclaimer {
   display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 0; padding: 12px 14px;
-  border: 1px solid rgb(var(--accent-rgb) / 22%); border-radius: var(--r-sm, 12px);
+  border: 1px solid rgb(var(--accent-rgb) / 22%); border-radius: var(--r-md);
   background: rgb(var(--accent-rgb) / 6%); font-size: 12px; line-height: 1.45; color: var(--text-dim);
 }
 .fabric-disclaimer .icon { flex: none; margin-top: 1px; color: var(--accent); }
@@ -3646,3 +3646,26 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .fabric-health-grid { grid-template-columns: minmax(0, 1fr); }
 .fabric-health-grid > div:last-child:nth-child(odd) { grid-column: auto; }
 .fabric-health-grid dd { white-space: nowrap; }
+
+/* ---- About: a close button that stays a button over what scrolls under it, and the engines as a list ----------- */
+.about-dialog .about-close {
+  top: 14px; right: 14px; z-index: 3; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--surface-solid, var(--panel)); border: 1px solid var(--well-line);
+  box-shadow: 0 6px 16px -8px rgb(0 0 0 / 28%);
+}
+.about-dialog .about-close:hover { background: var(--well); }
+/* The right column's first heading clears the button. */
+.dialog.about-dialog .about-scroll { padding-top: 26px; }
+.about-scroll > .about-section:first-child h3 { padding-right: 44px; }
+.about-engine-list { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 6px; }
+.about-engine-list li {
+  display: grid; grid-template-columns: minmax(96px, auto) auto auto minmax(0, 1fr); align-items: center; gap: 10px;
+  padding: 7px 10px; border: 1px solid var(--well-line); border-radius: var(--r-xs, 10px); background: var(--well);
+}
+.about-engine-list li.off { opacity: .62; }
+.about-engine-list .about-engine-version { color: var(--text-dim); }
+.about-engine-list .about-engine-role { justify-self: end; font-family: var(--font-body); font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+@media (max-width: 520px) {
+  .about-engine-list li { grid-template-columns: auto auto minmax(0, 1fr); }
+  .about-engine-list .about-engine-role { grid-column: 1 / -1; justify-self: start; }
+}

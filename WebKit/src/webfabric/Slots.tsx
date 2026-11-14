@@ -41,7 +41,7 @@ export class AppBoundary extends Component<{ app: FabricApp; children: ReactNode
     return { failed: true };
   }
   componentDidCatch(error: Error, _info: ErrorInfo) {
-    void fabric.failure(this.props.app.id, `Its interface could not be drawn: ${error.message}`);
+    void fabric.failure(this.props.app.id, `The application's interface could not be drawn: ${error.message}`);
   }
   render() {
     return this.state.failed ? null : this.props.children;
@@ -586,7 +586,7 @@ export function AppActions({ app, labelled = false }: { app: FabricApp; labelled
         </Floating>
       )}
       {web && button("external", web.label, "In a new tab", () => void window.open(web.url, "_blank", "noopener,noreferrer"))}
-      {button("reset", "Reload", "Its connection ends, and it connects again anew", () => void act(() => fabric.reload(app.id)))}
+      {button("reset", "Reload", "Disconnects the application and connects it again", () => void act(() => fabric.reload(app.id)))}
       {button("power", "Turn off", "It leaves the interface until you turn it on in Settings", () => void act(() => fabric.suspend(app.id, true)))}
     </div>
   );

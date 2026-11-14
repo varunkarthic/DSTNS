@@ -14,6 +14,26 @@ only within one version.
 
 ## [Unreleased]
 
+### Observer 3.6.0 and launcher 3.12.1 (with engine 3.13.1)
+
+The engine is unchanged, and so are results for every seed.
+
+#### Changed
+
+- **Smoother scrolling.** The faded ends of a scrolling list are a still mask that changes only when the list
+  reaches or leaves an end (`CoreMotion/edges.ts`). Before, the mask was a scroll-driven animation of a custom
+  property, worked out on the page every frame. The edge resistance reads a list's position once a frame, not at
+  every scroll event, so a list no longer forces a layout behind each event while the telemetry updates.
+- **About.** The close button is a solid circle, so text scrolling beneath it no longer shows through. Engines
+  installed is a list: each engine's version and channel, and whether it is running this world, the default,
+  available or disabled. The C++ standard reads C++20 rather than 202002.
+- **WebFabric permissions.** The closing note has the same corner as the sections above it, concentric with the
+  panel.
+- **Wording.** "Disabled" and "Enabled" instead of "turned off" and "turned on", in the observer and the launcher.
+  Application permissions say what they allow ("App settings", "Web pages", "Add a section to Live Telemetry")
+  rather than "Its settings" and "Its own pages". The engine settings are "Enable core-ng" and "Enable
+  core-legacy".
+
 ## [3.13.1] - 2026-11-14
 
 **Engine 3.13.1 (core-ng 1.2.1), launcher 3.12.0, observer 3.5.0, API contract 1.12.** Results for every seed are

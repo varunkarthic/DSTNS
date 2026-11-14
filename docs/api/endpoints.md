@@ -1796,7 +1796,7 @@ Body:
 | `capabilities` | array | No | See [capabilities](security.md#capabilities) | What it asks for |
 | `lease_s` | number | No | 1 to 3600. Default 60 | Check in this often, or be suspended. Five times this and it's gone |
 | `ui` | array | No | Up to 64 elements, 4 MiB | What to show from the start |
-| `settings` | object | No | Up to 128 fields | Its settings page |
+| `settings` | object | No | Up to 128 fields | The application's settings page |
 | `frame_origins` | array | No | Up to 16 origins | The only places its pages may come from |
 | `security.require_signatures` | boolean | No |  | Refuse unsigned requests from now on |
 | `web.url` | string | No | http or https, up to 2000 | Its own web interface. The observer offers a button that opens it in a new tab |
@@ -2563,7 +2563,7 @@ Errors: `400 INVALID_STOPS`.
 
 ### `GET /api/v1/fabric/apps/{id}/settings`
 
-Its settings, with their schema and values. `PUT` changes fields, all or none, and needs `settings` when called with a token. `DELETE`, by the observer or operator, goes back to defaults. An application only ever reaches **its own** settings, and never a person's.
+The application's settings, with their schema and values. `PUT` changes fields, all or none, and needs `settings` when called with a token. `DELETE`, by the observer or operator, goes back to defaults. An application only ever reaches **its own** settings, and never a person's.
 
 **Who:** The application: `Authorization: Bearer <token>`, and signed if it requires it, or the observer or operator.
 

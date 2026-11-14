@@ -45,7 +45,7 @@ Options for add and set
   --autostart, --no-autostart
                             Start with every simulation unless told otherwise
   --grant CAPABILITY        A permission to give it when it registers
-  --web URL                 Its own web interface: the observer offers a button that opens it
+  --web URL                 The application's web interface: the observer offers a button that opens it
   --web-label TEXT          What that button says (default: Open NAME)
   --setting KEY=VALUE       A setting to give it when it registers (read as JSON if it can be)
 ";

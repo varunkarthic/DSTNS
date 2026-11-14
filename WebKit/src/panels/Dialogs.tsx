@@ -43,6 +43,13 @@ function Stat({ label, value, digits = 0, suffix = "" }: { label: string; value:
   );
 }
 
+/** __cplusplus as people say it: 202002 is C++20. */
+function cppStandard(value: number): string {
+  const year = Math.floor(value / 100);
+  const names: Record<number, string> = { 1997: "C++98", 2011: "C++11", 2014: "C++14", 2017: "C++17", 2020: "C++20", 2023: "C++23", 2026: "C++26" };
+  return names[year] ? `${names[year]} (${value})` : String(value);
+}
+
 /** About DSTNS: a card over the map rather than a separate page. */
 export function AboutCard({
   version,
@@ -61,11 +68,14 @@ export function AboutCard({
   seed?: string;
 }) {
   const [system, setSystem] = useState<Awaited<ReturnType<typeof api.systemInfo>> | null>(null);
+  const [policy, setPolicy] = useState<{ default?: string; engines?: Record<string, { enabled?: boolean }> } | null>(null);
   useEffect(() => {
     let cancelled=false;
     void api.systemInfo().then((info) => { if(!cancelled && typeof info?.version === "string")setSystem(info); }).catch(() => {});
+    void api.enginePolicy().then((answer) => { if(!cancelled && answer?.data?.config)setPolicy(answer.data.config); }).catch(() => {});
     return () => { cancelled=true; };
   }, []);
+  const running = status?.data.engine_identity?.id;
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -165,26 +175,37 @@ export function AboutCard({
           <div><dt>API</dt><dd>{status?.api_version || "Unavailable"}</dd></div>
           <div>
             <dt>SUMO adapter</dt>
-            <dd>{system?.sumo?.enabled === false ? <Badge>Turned off</Badge> : system?.sumo?.available ? <Badge tone="ok">{system.sumo.version || "Available"}</Badge> : <Badge>{system ? "Not installed" : "Unavailable"}</Badge>}</dd>
+            <dd>{system?.sumo?.enabled === false ? <Badge>Disabled</Badge> : system?.sumo?.available ? <Badge tone="ok">{system.sumo.version || "Available"}</Badge> : <Badge>{system ? "Not installed" : "Unavailable"}</Badge>}</dd>
           </div>
           <div className="wide">
             <dt>Engines installed</dt>
-            <dd className="about-engines">
-              {system?.engine_catalogue?.length
-                ? system.engine_catalogue.map((engine) => (
-                    <span key={engine.id} className="about-engine">
-                      <span>{engine.id} {engine.version}</span>
-                      <Badge tone={engine.channel === "stable" ? "ok" : "warn"}>{channelName(engine.channel)}</Badge>
-                    </span>
-                  ))
-                : "Unavailable"}
+            <dd>
+              {system?.engine_catalogue?.length ? (
+                <ul className="about-engine-list">
+                  {[...system.engine_catalogue]
+                    // The default first, then the rest by name.
+                    .sort((a, b) => Number(b.id === policy?.default) - Number(a.id === policy?.default) || a.id.localeCompare(b.id))
+                    .map((engine) => {
+                      const off = policy?.engines?.[engine.id]?.enabled === false;
+                      const role = engine.id === running ? "Running this world" : engine.id === policy?.default ? "Default" : off ? "Disabled" : "Available";
+                      return (
+                        <li key={engine.id} className={off ? "off" : undefined}>
+                          <span className="about-engine-name mono">{engine.id}</span>
+                          <span className="about-engine-version mono">{engine.version}</span>
+                          <Badge tone={engine.channel === "stable" ? "ok" : "warn"}>{channelName(engine.channel)}</Badge>
+                          <span className="about-engine-role">{role}</span>
+                        </li>
+                      );
+                    })}
+                </ul>
+              ) : "Unavailable"}
             </dd>
           </div>
           <div className="wide">
             <dt>Realistic News</dt>
             <dd>{narratorBadge ? <Badge tone="warn">{narratorBadge}</Badge> : <Badge tone="ok">Available</Badge>}</dd>
           </div>
-          <div className="advanced-only wide"><dt>C++ standard</dt><dd>{typeof system?.build?.cpp_standard === "number" ? system.build.cpp_standard : "Unavailable"}</dd></div>
+          <div className="advanced-only wide"><dt>C++ standard</dt><dd>{typeof system?.build?.cpp_standard === "number" ? cppStandard(system.build.cpp_standard) : "Unavailable"}</dd></div>
           <div className="advanced-only wide"><dt>Compiler</dt><dd>{typeof system?.build?.compiler === "string" ? system.build.compiler : "Unavailable"}</dd></div>
         </dl>
       </section>

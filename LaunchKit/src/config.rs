@@ -146,7 +146,7 @@ pub fn save(config: &Value, paths: &Paths) -> Result<()> {
     let was = load(paths).map(|c| flag(&c, KEY_ADVANCED_SECURITY)).unwrap_or(false);
     let now = flag(config, KEY_ADVANCED_SECURITY);
     if was != now {
-        crate::security::confirm_change(paths, now).map_err(|why| LauncherError::config(format!("Advanced Security was not {}: {why}", if now { "turned on" } else { "turned off" })))?;
+        crate::security::confirm_change(paths, now).map_err(|why| LauncherError::config(format!("Advanced Security was not {}: {why}", if now { "enabled" } else { "disabled" })))?;
     }
     for field in fields() {
         let problem = check_field(field, &field.get(config), config);
@@ -545,13 +545,13 @@ pub fn place_ids(config: &Value) -> (Vec<String>, Vec<String>) {
 }
 
 fn default_engine_stays(value: &Value, _config: &Value) -> String {
-    if value == &json!(false) { format!("{DEFAULT_ENGINE} is the default engine and cannot be turned off.") } else { String::new() }
+    if value == &json!(false) { format!("{DEFAULT_ENGINE} is the default engine and cannot be disabled.") } else { String::new() }
 }
 
 /// The chosen engine must be one that may run.
 fn selected_enabled(value: &Value, config: &Value) -> String {
     let id = value.as_str().unwrap_or("");
-    if setting(config, &format!("engines.engines.{id}.enabled")) == json!(false) { format!("{id} is turned off; turn it on first.") } else { String::new() }
+    if setting(config, &format!("engines.engines.{id}.enabled")) == json!(false) { format!("{id} is disabled; enable it first.") } else { String::new() }
 }
 
 fn places(value: &Value, config: &Value) -> String {
@@ -663,10 +663,10 @@ pub fn fields() -> &'static [Field] {
                 .choices(vec![("core-ng (default)", json!("core-ng")), ("core-legacy", json!("core-legacy"))]).extra(selected_enabled),
             Field::new("engines.auto_switch", "When a run is rejected", "Engine", Choice, "What the observer offers when a person rejects the risk of an alpha or beta engine: to start the same seed (only the seed) on an enabled stable engine, or only to stop. Only stop is the default: core-ng is the engine.", json!("off"))
                 .choices(vec![("Offer a stable engine", json!("offer")), ("Only stop", json!("off"))]),
-            Field::new("engines.engines.core-ng.enabled", "core-ng available", "Engine", Boolean, "core-ng is the default engine, so it cannot be turned off.", json!(true)).extra(default_engine_stays),
+            Field::new("engines.engines.core-ng.enabled", "Enable core-ng", "Engine", Boolean, "core-ng is the default engine, so it cannot be disabled.", json!(true)).extra(default_engine_stays),
             Field::new("engines.engines.core-ng.acknowledgment.enforce", "core-ng: hold runs until acknowledged", "Engine", Boolean, "core-ng is stable, so its runs start at once; this applies if it is ever marked alpha or beta (DSTNS_ENGINE_CHANNEL). On, every run on it waits until a person accepts the risk, and the server defers anything that would run it (for applications and the API too). Off removes that protection: runs start at once, and the observer asks nothing.", json!(true)),
             Field::new("engines.engines.core-ng.acknowledgment.ui", "core-ng: acknowledge in the observer", "Engine", Boolean, "On, the observer asks a person to accept or reject. Off while runs are still held, the launcher asks instead: start with --accept-risk. Turning holding off turns this off.", json!(true)),
-            Field::new("engines.engines.core-legacy.enabled", "core-legacy available", "Engine", Boolean, "Off (the default), core-legacy stays installed but nothing can start a run on it; core-ng is the engine. On, it can run a world for comparison.", json!(false)),
+            Field::new("engines.engines.core-legacy.enabled", "Enable core-legacy", "Engine", Boolean, "Disabled (the default), core-legacy stays installed but nothing can start a run on it; core-ng is the engine. Enabled, it can run a world for comparison.", json!(false)),
             Field::new("map.selection_mode", "Where worlds are", "Engine", Choice, "Which cities a seed may choose: every city in the catalogue (379 on core-ng; Tools, Supported cities lists them), only the countries or cities in Places, or always the one city in Places. With every city, anything listed in Places still applies: two-letter codes are countries, other names cities. Anything but every city needs core-ng, which this turns on.", json!("global"))
                 .choices(vec![("Every city", json!("global")), ("Countries", json!("countries")), ("Cities", json!("cities")), ("One city", json!("fixed_city"))]),
             Field::new("map.places", "Places", "Engine", Text, "Countries (two-letter codes, such as IN, AE) or cities (IDs, such as mumbai, new-york), separated by commas. A - before one leaves it out: -IN is everywhere but India; IN, AE, -dubai is India and the UAE but not Dubai. all when worlds may be anywhere. Needs core-ng. In the launcher, Enter on this setting opens the list of countries to choose from.", json!("all")).extra(places),
@@ -1340,8 +1340,8 @@ pub fn start_request(options: &RunOptions, paths: &Paths) -> Result<Value> {
     }
     if let Some(engine) = request["engine"].as_str() {
         if setting(&load(paths)?, &format!("engines.engines.{engine}.enabled")) == json!(false) {
-            return Err(LauncherError::config(format!("{engine} is turned off; core-ng is the engine."))
-                .remedy(format!("Turn it on first: ./launcher config set engines.engines.{engine}.enabled true")));
+            return Err(LauncherError::config(format!("{engine} is disabled; core-ng is the engine."))
+                .remedy(format!("Enable it first: ./launcher config set engines.engines.{engine}.enabled true")));
         }
     }
     // core-legacy for one run, over every city: its own policy, urban-crfg-v3.
@@ -1458,7 +1458,7 @@ mod tests {
 
         let mut config = load(&paths).unwrap();
         // core-legacy is off by default: nothing starts on it until it is turned on.
-        assert!(once_on(&options, &paths, "core-legacy").unwrap_err().message.contains("turned off"), "core-legacy is off by default");
+        assert!(once_on(&options, &paths, "core-legacy").unwrap_err().message.contains("disabled"), "core-legacy is disabled by default");
         field("engines.engines.core-legacy.enabled").unwrap().set(&mut config, json!(true));
         field("engines.selected").unwrap().set(&mut config, json!("core-legacy"));
         assert_eq!(field("map.selection_mode").unwrap().set(&mut config, json!("countries")), vec!["engines.selected"], "only core-ng chooses countries");

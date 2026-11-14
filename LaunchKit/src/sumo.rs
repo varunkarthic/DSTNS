@@ -57,7 +57,7 @@ pub fn configure(paths: &Paths) -> bool {
 /// Export a synthetic grid, convert it and run SUMO on it: a toolchain check.
 pub fn run_standalone(reporter: &dyn Reporter, paths: &Paths) -> Result<Vec<(String, String)>> {
     if !configure(paths) {
-        return Err(LauncherError::config("SUMO is turned off.").remedy("Turn it on with ./launcher config set sumo.enabled true, or under Settings, Simulation, SUMO."));
+        return Err(LauncherError::config("SUMO is disabled.").remedy("Enable it with ./launcher config set sumo.enabled true, or under Settings, Simulation, SUMO."));
     }
     let found = detect().ok_or_else(|| {
         LauncherError::dependency("SUMO binaries (sumo, netconvert) were not found on PATH or under $SUMO_HOME").remedy("Install Eclipse SUMO, or set SUMO_HOME to its installation.")

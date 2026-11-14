@@ -49,8 +49,8 @@
           "type": "object",
           "properties": {
             "enabled": {
-              "title": "core-ng available",
-              "description": "core-ng available (Engine). core-ng is the default engine, so it cannot be turned off. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start).",
+              "title": "Enable core-ng",
+              "description": "Enable core-ng (Engine). core-ng is the default engine, so it cannot be disabled. Accepts: true or false. Default: true. Applies from the next start of the server (./launcher start).",
               "default": true,
               "type": "boolean"
             },
@@ -96,8 +96,8 @@
           "type": "object",
           "properties": {
             "enabled": {
-              "title": "core-legacy available",
-              "description": "core-legacy available (Engine). Off (the default), core-legacy stays installed but nothing can start a run on it; core-ng is the engine. On, it can run a world for comparison. Accepts: true or false. Default: false. Applies from the next start of the server (./launcher start).",
+              "title": "Enable core-legacy",
+              "description": "Enable core-legacy (Engine). Disabled (the default), core-legacy stays installed but nothing can start a run on it; core-ng is the engine. Enabled, it can run a world for comparison. Accepts: true or false. Default: false. Applies from the next start of the server (./launcher start).",
               "default": false,
               "type": "boolean"
             },

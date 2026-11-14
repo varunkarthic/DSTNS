@@ -4,7 +4,7 @@
 |---|---|---|
 | The API contract | `1.12`, under the `/api/v1` prefix | `api_version` in responses |
 | The engine | `3.13.1` | `version` in `/health` and `/system/info` |
-| The observer | `3.5.0` | About |
+| The observer | `3.6.0` | About |
 | Map selection | `urban-crfg-v3` (default), `urban-geo-v1` and `urban-geo-v2` (core-ng; the launcher uses `urban-geo-v2`) | `map_selection_version`; `map_selection` in `/view/manifest` with the policy's fingerprint |
 | Engines | `core-legacy`, `core-ng` | `engine` in status and `/view/manifest`; `engines` in `/system/info` |
 | Algorithms | `DSTNS/1` | `/view/manifest` |

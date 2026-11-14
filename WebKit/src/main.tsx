@@ -6,10 +6,12 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { installMotionTokens } from "./CoreMotion/motion";
+import { installEdges } from "./CoreMotion/edges";
 import { applyLaunchDefaults } from "./core/uiConfig";
 
 applyLaunchDefaults();
 installMotionTokens();
+installEdges();
 // The last screen is drawn after the server has gone, when nothing more can be fetched.
 void document.fonts?.load('500 48px "Space Grotesk"');
 
