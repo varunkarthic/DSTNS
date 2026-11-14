@@ -137,7 +137,8 @@ fields matches only the legacy policy, so old files stay safe. LaunchKit's `prep
 | 7 | Physics step (3.7.0) and checkpoint store (3.8.0) in core-ng, each moved out of `engine.cpp` behaviour-preserving first, then copied into core-ng with every expression unchanged | engine 3.7.0, 3.8.0 | `dstns_golden` snapshots and `dstns_timeline_ng` seeks: identical on both engines |
 | 8 | Checkpoint memory: core-ng keeps checkpoints deflated (lossless) | engine 3.9.0 | a day of the 7×7 test grid: 3,047 KiB (core-legacy) → 354 KiB (core-ng), identical state at every stop (`dstns_timeline_ng`) |
 | 9 | core-ng stable and the default; core-legacy selectable | engine 3.10.0 | every test passes with requests on core-ng by default; identical hashes on both engines |
-| 10+ | One measured optimisation per release | patch each | before/after table |
+| 10 | Tick: two fewer passes over the edges (#23) | engine 3.12.0 | 50×50 tick 378 → 338 µs; golden and timeline unchanged |
+| 11+ | One measured optimisation per release (#23 continues) | patch each | before/after table |
 | last | `core-ng` becomes default; docs, Fabric, WebKit, end-to-end | engine minor | full start, regenerate, observe, save, replay |
 
 The launcher offers a setting only from the release in which the server honours it.

@@ -378,6 +378,9 @@ double EventRuntime::demand_effect(EdgeId edge) const {return edge_demand_[edge.
 std::vector<std::string> EventRuntime::demand_causes(const Scenario& s,EdgeId edge,std::size_t limit) const {std::vector<std::string> ids;for(auto [id,w]:(*edge_features_)[edge.value]){if(limit&&ids.size()>=limit)break;if(w*(demand[id]-1)>.01)ids.push_back(s.features[id].id);}return ids;}
 void CongestionTracker::update(const Scenario& s,const std::vector<EdgeDynamic>& edges,std::uint32_t time,std::uint32_t dt){
     double sum=0,weights=0;for(const auto& e:s.edges)if(is_source_direction_allowed(e)){const double w=e.length_m*e.lanes;sum+=w*edges[e.id.value].congestion;weights+=w;}
+    record(sum,weights,time,dt);
+}
+void CongestionTracker::record(double sum,double weights,std::uint32_t time,std::uint32_t dt){
     current=weights>0?std::clamp(100*sum/weights,0.0,100.0):0;
     const double alpha=1-std::exp(-double(dt)/900.0);average=samples.empty()?current:alpha*current+(1-alpha)*average;
     if(samples.empty()||time%60==0)samples.push_back({time,current,average});

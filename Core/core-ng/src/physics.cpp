@@ -185,28 +185,37 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
         }
     }
 
-    // Reset incident impact on all edges each physics tick
-    for (auto& es : edge_states) {
+    // Incidents (#23): instead of a pass that resets every edge and another that applies the active incidents, the
+    // active ones are folded per edge here, in the same order and from the same 1.0, and the edge loop below resets
+    // and applies them as it reaches each edge. One pass over the edges fewer, and every value the same.
+    struct IncidentNow { std::uint32_t edge; double speed, capacity; bool closed; };
+    std::vector<IncidentNow> incidents_now;
+    const bool fused = sc.edges.size() == edge_states.size();
+    if (sc.config.incidents) {
+        for (const auto& inc : sc.incidents) {
+            if (ctx.virtual_s >= inc.start_virtual_s && ctx.virtual_s < inc.end_virtual_s && inc.edge.value < edge_states.size()) {
+                auto found = std::find_if(incidents_now.begin(), incidents_now.end(), [&](const IncidentNow& n) { return n.edge == inc.edge.value; });
+                if (found == incidents_now.end()) found = incidents_now.insert(incidents_now.end(), {inc.edge.value, 1.0, 1.0, false});
+                found->speed = std::min(found->speed, inc.speed_multiplier);
+                found->capacity = std::min(found->capacity, inc.capacity_multiplier);
+                if (inc.closed) found->closed = true;
+            }
+        }
+        std::sort(incidents_now.begin(), incidents_now.end(), [](const IncidentNow& x, const IncidentNow& y) { return x.edge < y.edge; });
+    }
+    const auto apply_incidents = [&](std::uint32_t edge, EdgeDynamic& es) {
         es.incident_speed_multiplier = 1.0;
         es.incident_capacity_multiplier = 1.0;
         es.incident_closed = false;
-    }
-
-    // Apply active incidents with safe overlapping composition
-    if (sc.config.incidents) {
-        for (const auto& inc : sc.incidents) {
-            if (ctx.virtual_s >= inc.start_virtual_s && ctx.virtual_s < inc.end_virtual_s) {
-                if (inc.edge.value < edge_states.size()) {
-                    auto& es = edge_states[inc.edge.value];
-                    es.incident_speed_multiplier = std::min(es.incident_speed_multiplier, inc.speed_multiplier);
-                    es.incident_capacity_multiplier = std::min(es.incident_capacity_multiplier, inc.capacity_multiplier);
-                    if (inc.closed) {
-                        es.incident_closed = true;
-                    }
-                }
-            }
+        const auto found = std::lower_bound(incidents_now.begin(), incidents_now.end(), edge, [](const IncidentNow& n, std::uint32_t id) { return n.edge < id; });
+        if (found != incidents_now.end() && found->edge == edge) {
+            es.incident_speed_multiplier = found->speed;
+            es.incident_capacity_multiplier = found->capacity;
+            es.incident_closed = found->closed;
         }
-    }
+    };
+    if (!fused)
+        for (std::uint32_t i = 0; i < edge_states.size(); ++i) apply_incidents(i, edge_states[i]);
 
     // Surges, like storms, are a function of the clock: shape each once.
     struct ActiveSurge { Point centre; double factor, radius_m; };
@@ -221,8 +230,10 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
         }
     }
 
+    double congestion_sum = 0, congestion_weights = 0;
     for (const auto& e : sc.edges) {
         auto& es = edge_states[e.id.value];
+        if (fused) apply_incidents(e.id.value, es);
         const auto& na = node_states[e.from.value];
         const auto& nb = node_states[e.to.value];
         es.rainfall = (na.rainfall + nb.rainfall) / 2;
@@ -314,6 +325,10 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
         const double speed_loss = es.vehicle_count ? clamp01(1.0-es.mean_speed_mps/std::max(.1,e.free_speed_mps)) : 0.0;
         const double queue_ratio = double(es.halting_count)/std::max(1u,es.vehicle_count);
         es.congestion = es.closed ? 1.0 : clamp01(.60*speed_loss+.25*queue_ratio+.15*es.occupancy);
+        // The district's congestion, summed here in the edges' order, as CongestionTracker::update would (#23).
+        const double weight = e.length_m * e.lanes;
+        congestion_sum += weight * es.congestion;
+        congestion_weights += weight;
     }
 
     const auto previous = ctx.virtual_s >= dt ? ctx.virtual_s - dt : 0;
@@ -337,7 +352,7 @@ void physics_step(physics::Context& ctx, std::uint32_t dt) {
         }
     }
 
-    ctx.congestion.update(sc,ctx.graph.edge_states(),ctx.virtual_s,dt);
+    ctx.congestion.record(congestion_sum, congestion_weights, ctx.virtual_s, dt);
     // Places respond to the conditions this tick produced: roads shut, rain
     // falling, an incident nearby. Run last, so couplings read the same state
     // the operator is about to be shown rather than the previous tick's.

@@ -7,8 +7,8 @@ launcher 3.10.0, observer 3.5.0, API contract 1.10.
 
 | Engine | Kind | Channel | Version | What it is |
 |---|---|---|---|---|
-| `core-legacy` | real | stable | the build's (`3.11.0`) | The engine DSTNS had before core-ng. Installed and selectable; it may be disabled |
-| `core-ng` | real | stable | its own (`1.0.0`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)). **The default** since engine 3.10.0; it cannot be disabled |
+| `core-legacy` | real | stable | the build's (`3.12.0`) | The engine DSTNS had before core-ng. Installed and selectable; it may be disabled |
+| `core-ng` | real | stable | its own (`1.1.0`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)). **The default** since engine 3.10.0; it cannot be disabled |
 
 Every engine describes itself with an **identity**: `id`, `version`, `kind` (`real` runs worlds; `pseudo` would only
 delegate), `channel` (`alpha`, `beta` or `stable`), `owns` (the parts of a run it implements itself), `shared` (the
@@ -78,8 +78,8 @@ server reads it as it starts (`DSTNS_ENGINE_CONFIG`, which the launcher sets to 
   "default": "core-ng",
   "auto_switch": "offer",
   "engines": {
-    "core-legacy": {"channel": "stable", "version": "3.11.0", "kind": "real", "enabled": true},
-    "core-ng": {"channel": "stable", "version": "1.0.0", "kind": "real", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
+    "core-legacy": {"channel": "stable", "version": "3.12.0", "kind": "real", "enabled": true},
+    "core-ng": {"channel": "stable", "version": "1.1.0", "kind": "real", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
   }
 }
 ```

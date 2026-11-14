@@ -16,6 +16,8 @@
 //                   [--suite network,events,observers,narrator] [GRID ...]
 
 #include "dstns/build_info.hpp"
+#include "dstns/core-ng/identity.hpp"
+#include "dstns/core-ng/selection.hpp"
 #include "dstns/engine.hpp"
 #include "dstns/graph.hpp"
 #include "dstns/logging.hpp"
@@ -89,8 +91,12 @@ void print_table(const std::string& title, const std::vector<std::vector<std::st
 
 const auto kSeed = dstns::Seed128::parse("0xCAFEBABE0123456789ABCDEF00000001");
 
+// The engine measured: core-ng, the default, unless --engine names another.
+std::string g_engine = "core-ng";
+
 dstns::ScenarioConfig grid_config(std::size_t grid) {
     dstns::ScenarioConfig cfg;
+    cfg.engine = g_engine;
     cfg.grid_width = static_cast<std::uint32_t>(grid);
     cfg.grid_height = static_cast<std::uint32_t>(grid);
     cfg.max_nodes = std::max<std::uint32_t>(cfg.max_nodes, static_cast<std::uint32_t>(grid * grid));
@@ -107,6 +113,7 @@ struct Bench {
         std::filesystem::remove_all(dir);
         logger = std::make_unique<dstns::RuntimeLogger>(dir);
         engine = std::make_unique<dstns::SimulationEngine>(*logger);
+        engine->register_engine(dstns::core_ng::kEngineId, dstns::core_ng::hooks(), dstns::core_ng::identity());
     }
     ~Bench() {
         engine->terminate();
@@ -475,9 +482,10 @@ int main(int argc, char** argv) {
             else if (a == "--json" && i + 1 < argc) json_path = argv[++i];
             else if (a == "--narrator" && i + 1 < argc) narrator = argv[++i];
             else if (a == "--suite" && i + 1 < argc) suites = argv[++i];
+            else if (a == "--engine" && i + 1 < argc) g_engine = argv[++i];
             else if (a == "--help") {
                 std::cout << "dstns_benchmark [--quick] [--json FILE] [--narrator fm|http://HOST:PORT|unix:/PATH]\n"
-                             "                [--suite network,events,observers,narrator] [GRID ...]\n";
+                             "                [--suite network,events,observers,narrator] [--engine core-ng|core-legacy] [GRID ...]\n";
                 return 0;
             } else if (!a.empty() && std::isdigit(static_cast<unsigned char>(a[0]))) {
                 grids.push_back(std::stoul(a));

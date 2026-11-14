@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Varun Karthic
 
 cmake_minimum_required(VERSION 3.22)
-project(dstns VERSION 3.11.0 LANGUAGES CXX)
+project(dstns VERSION 3.12.0 LANGUAGES CXX)
 
 set(DSTNS_REVISION "unknown" CACHE STRING "Source commit SHA")
 set(DSTNS_BUILD_DATE "unknown" CACHE STRING "UTC image build timestamp")
@@ -133,7 +133,7 @@ if(APPLE)
   target_link_libraries(dstns_release PRIVATE "-framework CoreFoundation" "-framework CFNetwork")
 endif()
 add_executable(dstns_benchmark tools/benchmark/main.cpp)
-target_link_libraries(dstns_benchmark PRIVATE dstns_core)
+target_link_libraries(dstns_benchmark PRIVATE dstns_core dstns_core_ng)
 
 if(DSTNS_BUILD_TESTS)
   enable_testing()

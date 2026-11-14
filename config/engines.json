@@ -22,13 +22,13 @@
   "engines": {
     "core-legacy": {
       "channel": "stable",
-      "version": "3.11.0",
+      "version": "3.12.0",
       "kind": "real",
       "enabled": true
     },
     "core-ng": {
       "channel": "stable",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "kind": "real",
       "enabled": true,
       "acknowledgment": {

@@ -9,7 +9,7 @@
 
 namespace dstns::core_ng {
 
-inline constexpr const char* kVersion = "1.0.0";
+inline constexpr const char* kVersion = "1.1.0";
 
 inline EngineIdentity identity() {
     EngineIdentity out;
@@ -22,6 +22,7 @@ inline EngineIdentity identity() {
     out.owns = {"world selection (urban-crfg-v3, urban-geo-v1)", "scenario compilation", "physics step", "checkpoints and seeking", "lifecycle table", "world-job table"};
     out.shared = {"runtime host: operator commands and undo, the HTTP API (engine-neutral)"};
     out.changes = {
+        "1.1.0: the tick does two fewer passes over the edges, about 11% faster at 50x50, with the same results.",
         "1.0.0 (stable): the default engine. Every world is the same as core-legacy would make, seed for seed.",
         "0.9.0: checkpoints are kept deflated, losslessly: a day's take about an eighth of the memory, with the same state restored.",
         "0.8.0 (beta): checkpoints are kept and restored by core-ng's own code; seeking back gives the same state as core-legacy.",

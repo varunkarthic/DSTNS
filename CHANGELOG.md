@@ -14,6 +14,38 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-11-14
+
+**Engine 3.12.0 (core-ng 1.1.0), launcher 3.11.0, observer 3.5.0, API contract 1.11.** Results for every seed are
+unchanged.
+
+### Changed
+
+- **core-ng's tick is about 11% faster at 50×50** (#23, release 10 of the migration). Two passes over every edge are
+  gone:
+  - The incident reset is done inside the edge loop, from a short list of the active incidents. That list is folded
+    in the same order and from the same 1.0, so every value is the same.
+  - The district's congestion is summed inside the same loop, in the same order. It goes to
+    `CongestionTracker::record`, which `update` now uses too.
+
+  Measured with `dstns_benchmark --quick --suite network` on an Apple M4:
+
+  | Grid | Edges | core-legacy tick | core-ng tick | core-legacy seek | core-ng seek |
+  |---|---|---|---|---|---|
+  | 10×10 | 360 | 12 µs | 11 µs | 7.7 ms | 7.2 ms |
+  | 25×25 | 2,400 | 92 µs | 82 µs | 59.8 ms | 53.0 ms |
+  | 50×50 | 9,800 | 378 µs | 338 µs | 251.4 ms | 218.0 ms |
+
+- `dstns_benchmark --engine core-ng|core-legacy` chooses the engine measured. The default is core-ng, the default
+  engine.
+
+### Tests
+
+- `dstns_golden` and `dstns_timeline_ng` are unchanged and pass on both engines, so the fused passes give the same
+  state to the last bit.
+
+Rollback: revert this release's commit.
+
 ## [3.11.0] - 2026-11-14
 
 **Engine 3.11.0 (core-ng 1.0.0), launcher 3.11.0, observer 3.5.0, API contract 1.11.** Results for every seed are

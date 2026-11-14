@@ -97,6 +97,9 @@ struct CongestionTracker {
     double current{}, average{};
     std::vector<CongestionSample> samples;
     void update(const Scenario& scenario,const std::vector<EdgeDynamic>& edges,std::uint32_t time,std::uint32_t dt);
+    // The same, from the length-and-lane-weighted sum of congestion and the weights, summed in the edges' order by
+    // a caller that has them already (core-ng's tick, #23).
+    void record(double sum,double weights,std::uint32_t time,std::uint32_t dt);
     [[nodiscard]] nlohmann::json json() const;
 };
 }
