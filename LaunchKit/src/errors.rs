@@ -24,6 +24,8 @@ pub enum Kind {
     CommandFailed(i32),
     /// An application the simulation needs did not become ready.
     AppStart,
+    /// A server is running that another process started; this launcher does not control it.
+    NotOwner,
 }
 
 #[derive(Debug, Clone)]

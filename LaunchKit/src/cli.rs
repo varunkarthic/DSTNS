@@ -73,6 +73,7 @@ pub fn parse(argv: &[String]) -> Result<Arguments> {
             "--default-settings" => args.run.default_settings = true,
             "--no-apps" => args.run.no_apps = true,
             "--accept-risk" => args.run.accept_risk = true,
+            "--take-over" => args.run.take_over = true,
             "--help" | "-h" => positional.push("help".into()),
             "--version" | "-V" => positional.push("version".into()),
             "--license" | "--licence" => positional.push("license".into()),
@@ -205,6 +206,8 @@ Run options (start, seeds save)
   --engine NAME          core-legacy or core-ng, for this run (engines.selected otherwise)
   --accept-risk          Accept, for this run, the risk of an alpha or beta engine instead of acknowledging it in
                          the observer
+  --take-over            Stop a DSTNS server that another process started, and start this launcher's own.
+                         A run on it ends at once, unsaved (see the launcher guide)
   --osm-file PATH        Run this map instead of letting the seed choose
   --default-settings     Open the observer with its settings at their defaults
   --apps ID,ID           Start these applications with the run. The run waits until they are ready

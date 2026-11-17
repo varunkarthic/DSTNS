@@ -478,6 +478,8 @@ For `start` and `seeds save`:
 | `--max-nodes N` | Integer 2 to 50000 | Graph size cap |
 | `--engine NAME` | `core-legacy` or `core-ng` | The engine for this run only; `engines.selected` otherwise. `core-legacy` is refused when `map.selection_mode` is not `global` |
 | `--osm-file PATH` | Existing file | Pin a map instead of letting the seed choose |
+| `--accept-risk` | | Accept, for this run, the risk of an alpha or beta engine |
+| `--take-over` | | Stop a DSTNS server another process started, and start this launcher's own; see [Servers this launcher does not own](#servers-this-launcher-does-not-own) |
 | `--apps ID,ID`, `--no-apps` | | Start these applications with the run (it waits until they are ready), or none |
 | `--default-settings` | | Open the observer with its settings at their defaults |
 | `--open`, `--no-open` | | Open the observer in a browser. Default: when a desktop is present |
@@ -960,6 +962,31 @@ claims to have verified is not.
 
 Without a terminal, `start` then follows the server it started and exits with its status.
 A server it attached to is left running.
+
+## Servers this launcher does not own
+
+A launcher controls only the server it started itself. If a DSTNS server is already running on the port, started by
+another launcher, by hand (`./build/dstns_server`), or by a script, the launcher does not start or stop its runs.
+It says so, and names the process: the server reports its process ID, and the system says which process started it.
+
+```text
+[ERROR] The DSTNS server on port 8090 belongs to another process, so this launcher will not control it.
+   It is process 4100, started by another DSTNS launcher (process 4000: …/dstns-launcher).
+```
+
+Only the process that started a server drives its runs, so two of them never start, stop or jump the same world at
+once. Use the launcher that started it, or **take it over**:
+
+- `./launcher start --take-over` in a shell;
+- **Take over** in the dialog the interface shows, which asks once more before it acts.
+
+Taking over stops the other server (SIGTERM, then SIGKILL if it has not gone within 5 s) and starts this launcher's
+own on the same port.
+
+!!! warning "What taking over costs"
+    The other server's run ends at once and is not saved. Whatever was using it (another launcher, an observer, an
+    application) loses it in the middle of what it was doing, which can leave that program, or data it was writing,
+    in a bad state. Take a server over only when nothing else needs it.
 
 ## Ending a session
 

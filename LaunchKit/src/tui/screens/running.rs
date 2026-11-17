@@ -428,6 +428,21 @@ impl Screen for RunningScreen {
                 self.say(ui, Level::Warning, "Cancelling start-up...", "");
                 Action::None
             }
+            ("not-owner", "take-over") => Action::Dialog(Dialog::confirm(
+                "take-over",
+                "Take over the other server?",
+                "This stops a DSTNS server that another process started. Its run ends at once, without saving, and \
+                 whatever was using it (another launcher, an observer, an application) loses it mid-request. That can leave \
+                 its data, or the other process, in a bad state. Take it over only if nothing else needs it.",
+                "Stop it and start mine",
+                "Cancel",
+            )),
+            ("take-over", "yes") => {
+                let mut options = self.options.clone().unwrap_or_default();
+                options.take_over = true;
+                Action::Replace(Box::new(RunningScreen::new(Some(options))))
+            }
+            ("not-owner", "menu") | ("take-over", _) => Action::Pop,
             ("failed", "retry") | ("gone", "retry") => Action::Replace(Box::new(RunningScreen::new(self.options.clone()))),
             ("failed", "diagnostics") => Action::Replace(Box::new(super::diagnostics::DiagnosticsScreen::new(ui))),
             ("gone", "logs") => Action::Replace(Box::new(super::logs::LogsScreen::new(ui))),
@@ -493,6 +508,16 @@ impl Screen for RunningScreen {
                         }
                         self.phase = Phase::Failed;
                         self.say(ui, Level::Error, &error.message, "");
+                        // A server another process started: say whose, and offer to take it over, with the risk.
+                        if error.kind == crate::errors::Kind::NotOwner {
+                            return Action::Dialog(Dialog::error(
+                                "not-owner",
+                                "This server belongs to another process",
+                                &error,
+                                &[("menu", "Leave it running"), ("take-over", "Take over: stop it and start mine")],
+                                &ui.paths,
+                            ));
+                        }
                         return Action::Dialog(Dialog::error(
                             "failed",
                             "Unable to start the simulation",

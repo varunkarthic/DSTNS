@@ -121,6 +121,67 @@ pub fn switches(config: &Value, paths: &Paths, demo: bool) -> Vec<(String, Strin
     env
 }
 
+/// Stop a server another process started, rather than refuse to use it: --take-over, or Take over in the interface.
+pub static TAKE_OVER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Who started the server on a port: its process, and that process's parent, with the parent's command.
+pub struct Owner {
+    pub pid: u32,
+    pub parent: u32,
+    pub parent_command: String,
+}
+
+/// The server's own process (it reports it), and the process that started it, as the system says.
+pub fn owner(port: u16, paths: &Paths) -> Option<Owner> {
+    // The resources route answers with its fields at the top level, not under data.
+    let response = api::get(port, "/api/v1/system/resources", 3.0, paths);
+    let pid = response.body.pointer("/process/pid").or_else(|| response.data().and_then(|d| d.pointer("/process/pid")))?.as_u64()? as u32;
+    let ps = |field: &str, of: u32| {
+        std::process::Command::new("ps").args(["-o", &format!("{field}="), "-p", &of.to_string()]).output().ok().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    };
+    let parent: u32 = ps("ppid", pid)?.parse().ok()?;
+    let parent_command = ps("command", parent).unwrap_or_default();
+    Some(Owner { pid, parent, parent_command })
+}
+
+/// Why this launcher may not use the server it found, in words: who started it.
+fn not_ours(port: u16, owner: Option<&Owner>) -> LauncherError {
+    let who = match owner {
+        Some(o) if o.parent <= 1 => format!("process {}, which nothing started from a terminal or launcher (it is running on its own)", o.pid),
+        Some(o) => {
+            let what = if o.parent_command.contains("dstns-launcher") { "another DSTNS launcher" } else { "another program" };
+            format!("process {}, started by {what} (process {}: {})", o.pid, o.parent, crate::tui::widgets::clip(&o.parent_command, 60, true))
+        }
+        None => "a process this launcher cannot identify".to_string(),
+    };
+    LauncherError::new(crate::errors::Kind::NotOwner, format!("The DSTNS server on port {port} belongs to another process, so this launcher will not control it."))
+        .detail(format!("It is {who}. Only the process that started a server starts and stops its runs, so that two of them never drive one world at once."))
+        .remedy("Use the launcher that started it, or take it over: ./launcher start --take-over (or Take over in the interface) stops that server and starts this launcher's own. Taking over ends its run at once, unsaved, and whatever was using it loses it mid-request; that can leave its data or the other process in a bad state.")
+}
+
+/// Stop the server on a port that another process started: SIGTERM, then SIGKILL if it has not gone in 5 s.
+fn take_over(port: u16, owner: &Owner, reporter: &dyn Reporter, paths: &Paths) -> Result<()> {
+    reporter.message(Level::Warning, "Taking over the running server", &format!("stopping process {} on port {port}; its run ends unsaved", owner.pid));
+    crate::log::warn(&format!("take-over: stopping server pid {} (parent {} {}) on port {port}", owner.pid, owner.parent, owner.parent_command));
+    unsafe {
+        libc::kill(owner.pid as i32, libc::SIGTERM);
+    }
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline && api::health(port, paths).is_some() {
+        thread::sleep(Duration::from_millis(100));
+    }
+    if api::health(port, paths).is_some() {
+        unsafe {
+            libc::kill(owner.pid as i32, libc::SIGKILL);
+        }
+        thread::sleep(Duration::from_millis(300));
+    }
+    if api::health(port, paths).is_some() {
+        return Err(LauncherError::start(format!("The server on port {port} did not stop.")).remedy(format!("Stop process {} yourself, then try again.", owner.pid)));
+    }
+    Ok(())
+}
+
 /// Attach to a healthy current server, or build and start one.
 pub fn start(reporter: &dyn Reporter, paths: &Paths, build_first: bool, cancel: Option<&Cancel>, demo: bool) -> Result<ServerHandle> {
     start_with(reporter, paths, build_first, cancel, demo, config::load(paths)?)
@@ -140,7 +201,19 @@ pub fn start_with(reporter: &dyn Reporter, paths: &Paths, build_first: bool, can
 
     if api::port_open(port, &host) {
         let existing = api::health(port, paths);
-        if api::is_current(existing.as_ref()) {
+        // A server this process did not start is not this launcher's to drive: say whose it is, or take it over.
+        let mut taken = false;
+        let owner = if api::is_current(existing.as_ref()) { owner(port, paths) } else { None };
+        let ours = owner.as_ref().map(|o| o.parent == std::process::id()).unwrap_or(false);
+        if api::is_current(existing.as_ref()) && !ours {
+            match (&owner, TAKE_OVER.load(std::sync::atomic::Ordering::SeqCst)) {
+                (Some(found), true) => {
+                    take_over(port, found, reporter, paths)?;
+                    taken = true;
+                }
+                _ => return Err(not_ours(port, owner.as_ref())),
+            }
+        } else if api::is_current(existing.as_ref()) {
             write_active(paths, port);
             let lifecycle = existing.as_ref().and_then(|h| h.get("lifecycle")).and_then(|v| v.as_str()).unwrap_or("READY").to_string();
             reporter.message(Level::Info, "Attached to the running DSTNS server", &format!("port {port} · {lifecycle}"));
@@ -162,6 +235,8 @@ pub fn start_with(reporter: &dyn Reporter, paths: &Paths, build_first: bool, can
             reporter.message(Level::Info, &format!("{} on the running server", narration::BRAND), &text);
             return Ok(ServerHandle { port, health: existing.unwrap_or(json!({})), process: None, output: Arc::default() });
         }
+        // Taken over: the port is free again, and this launcher's server goes on it.
+        if !taken {
         let replacement = api::free_port(port + 1, &host).ok_or_else(|| LauncherError::start("No available network ports found"))?;
         reporter.message(
             Level::Warning,
@@ -169,6 +244,7 @@ pub fn start_with(reporter: &dyn Reporter, paths: &Paths, build_first: bool, can
             &format!("using {replacement}"),
         );
         port = replacement;
+        }
     }
 
     // Advanced Security: what decides the run must be as the launcher left it.
@@ -318,4 +394,23 @@ pub fn shut_down(handle: &ServerHandle, paths: &Paths) -> bool {
         return handle.exit_code().is_some();
     }
     !handle.running(paths)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A server this launcher did not start is refused, with whose it is and how to take it over, and the risk.
+    #[test]
+    fn a_server_started_elsewhere_is_named_and_refused() {
+        let launcher = Owner { pid: 4100, parent: 4000, parent_command: "/repo/LaunchKit/target/release/dstns-launcher".into() };
+        let error = not_ours(8090, Some(&launcher));
+        assert_eq!(error.kind, crate::errors::Kind::NotOwner);
+        assert!(error.message.contains("port 8090") && error.message.contains("will not control it"), "{}", error.message);
+        assert!(error.detail.contains("another DSTNS launcher") && error.detail.contains("4100"), "{}", error.detail);
+        assert!(error.remedy.contains("--take-over") && error.remedy.contains("unsaved"), "{}", error.remedy);
+        let orphan = Owner { pid: 4200, parent: 1, parent_command: "launchd".into() };
+        assert!(not_ours(8090, Some(&orphan)).detail.contains("running on its own"));
+        assert!(not_ours(8090, None).detail.contains("cannot identify"));
+    }
 }

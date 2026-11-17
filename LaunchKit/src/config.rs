@@ -1247,6 +1247,8 @@ pub struct RunOptions {
     /// Accept an unstable engine's risk for this run (--accept-risk), instead of in the observer.
     pub accept_risk: bool,
     pub default_settings: bool,
+    /// Stop a server another process started, and start this launcher's own (--take-over).
+    pub take_over: bool,
 }
 
 impl RunOptions {

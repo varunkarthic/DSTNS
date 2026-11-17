@@ -95,6 +95,7 @@ impl Session {
         cancel.check()?;
         let request = simulation::prepare_request(options, &self.paths)?;
         simulation::ACCEPT_RISK.store(options.accept_risk, std::sync::atomic::Ordering::Relaxed);
+        server::TAKE_OVER.store(options.take_over, std::sync::atomic::Ordering::SeqCst);
         let handle = Arc::new(server::start(reporter.as_ref(), &self.paths, true, Some(cancel), false)?);
         // config/engines.json shows what each engine is, as this build says.
         crate::config::sync_engine_identities(handle.port, &self.paths);

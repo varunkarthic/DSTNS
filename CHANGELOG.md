@@ -51,6 +51,19 @@ The engine and observer are unchanged, and so are results for every seed.
   `dstns_http_parent_watch` kills the parent with SIGKILL and requires the server to stop within 5 s; it stops in
   about 0.2 s.
 
+- **A launcher controls only the server it started.** Before, a launcher attached to any healthy DSTNS server on its
+  port and started runs on it, even one another launcher or a script was driving. It now asks the server for its
+  process ID and the system for that process's parent: a server this launcher did not start is refused
+  (`Kind::NotOwner`), naming the process and what started it (another DSTNS launcher, another program, or nothing).
+  - `./launcher start --take-over`, or **Take over** in the interface's dialog (asked twice), stops that server
+    (SIGTERM, then SIGKILL after 5 s) and starts this launcher's own on the same port.
+  - The warning says what it costs: the run ends unsaved, and whatever was using the server loses it mid-request,
+    which can leave that program or its data in a bad state.
+  - Applications and Demo Mode, which start a server through the same path, follow the same rule.
+
+  Checked against a server started by hand: refused without `--take-over`; with it, stopped and replaced on the same
+  port, and the replacement stopped with its launcher.
+
 #### Documentation search, the graph, and the colour schemes
 
 - **Search that understands questions, without a model.** The site's search now ranks with
