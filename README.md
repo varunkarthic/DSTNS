@@ -236,14 +236,12 @@ More in the [launcher guide](https://dstns.readthedocs.io/v3-core-ng/guide/opera
 
 <table>
 <tr>
-<td width="33%"><img src="docs/assets/screenshots/film-signals.png" alt="The start-up film: signals"></td>
-<td width="33%"><img src="docs/assets/screenshots/film-weather.png" alt="The start-up film: weather"></td>
-<td width="33%"><img src="docs/assets/screenshots/film-time-control.png" alt="The start-up film: Time Control"></td>
+<td width="50%"><img src="docs/assets/screenshots/film-signals.png" alt="The start-up film: signals"></td>
+<td width="50%"><img src="docs/assets/screenshots/film-weather.png" alt="The start-up film: weather"></td>
 </tr>
 <tr>
 <td align="center"><sub>Signals in green waves</sub></td>
 <td align="center"><sub>Storms and flooding</sub></td>
-<td align="center"><sub>Time Control</sub></td>
 </tr>
 </table>
 
