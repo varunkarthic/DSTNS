@@ -67,6 +67,8 @@ theme:
 
 hooks:
   - hooks/cachebust.py
+  # Long API routes in a page's table of contents wrap at their slashes.
+  - hooks/tocbreaks.py
   # The Graph page's data: graphify reads the repository and the hook lays it out (docs/development/knowledge-graph.md).
   - hooks/graph.py
 

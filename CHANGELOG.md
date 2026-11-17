@@ -56,6 +56,22 @@ unchanged.
     tray and in the history.
   - "Optimised", as the rest of the interface spells it.
 - **Launcher:** the Supported cities list's columns fit the window, and its header has a gap after Code.
+- **Documentation site:**
+  - **The header is light in the light scheme**, as the observer's is in its light theme: a frosted surface, the
+    wordmark, tabs, search and links in the page's ink, and the current section an accent-tinted pill. It was a navy
+    bar over a light page.
+  - **Long API routes in a page's table of contents wrap at their slashes** (a build hook, `hooks/tocbreaks.py`)
+    instead of breaking inside a word.
+  - Plain-text code blocks wrap clear of the copy button. An engine's or command's name in a table's first column is
+    never split at its hyphen.
+  - **The content says what DSTNS is now:**
+    - 379 cities in 126 countries, wherever the catalogue is counted: the home page, FAQ, limits, architecture,
+      reference, OSM generation, seeding and reproducibility. The 198 cities `urban-geo-v2` adds are listed as a
+      table beside the first 181.
+    - The home page lists the engines among what is in the box, gives the top speed as 10×, and links Engines from
+      the User guide card.
+    - The example responses are at API contract 1.13.
+    - The engine policy example matches what ships: core-ng selected, core-legacy disabled, `auto_switch` off.
 - **CI:**
   - It runs on every push to `v3` and `v3-*` branches, as well as to `main`; CodeQL also runs on `v3`.
   - Actions are on their current major versions: checkout and setup-python 6, setup-node 6, CodeQL 4, and upload- and

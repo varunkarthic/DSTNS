@@ -1085,8 +1085,7 @@ html { scrollbar-gutter: stable; }
   border-bottom: 1px solid rgb(127 160 180 / 14%);
 }
 .md-header--shadow { box-shadow: 0 10px 30px -18px rgb(0 0 0 / 60%); }
-/* Over a light page the glass would turn grey; it stays the observer's navy. */
-[data-md-color-scheme="default"] .md-header { background-color: rgb(9 24 35 / 95%); }
+/* The light scheme's header is set at the end of this file, light as the observer's own is in its light theme. */
 
 /* Section tabs: one quiet capsule; the current section a tinted pill inside it. */
 @media screen and (min-width: 76.25em) {
@@ -1398,3 +1397,70 @@ html { scrollbar-gutter: stable; }
 
 /* The copy button sits in the top right of a code block; the code keeps clear of it. */
 .md-typeset pre > code { padding-right: 2.8em; }
+
+/* ==========================================================================
+   The header in the light scheme: light, as the observer's is in its light theme
+   One surface from the top of the window down, frosted over what scrolls under it; the wordmark, tabs, search and
+   links in the page's own ink, and the current section an accent-tinted pill, as a selected tab is in the observer.
+   ========================================================================== */
+[data-md-color-scheme="default"] .md-header {
+  background-color: rgb(250 252 253 / 86%);
+  border-bottom: 1px solid rgb(16 40 56 / 9%);
+  color: #10202c;
+}
+[data-md-color-scheme="default"] .md-header--shadow { box-shadow: 0 10px 28px -20px rgb(16 40 56 / 45%); }
+[data-md-color-scheme="default"] .md-header__button.md-logo img { filter: brightness(0) saturate(100%); opacity: 0.88; }
+[data-md-color-scheme="default"] .md-header .md-tabs { color: #10202c; }
+[data-md-color-scheme="default"] .md-header .md-tabs__link { color: rgb(16 32 44 / 66%); }
+[data-md-color-scheme="default"] .md-header .md-tabs__link:hover,
+[data-md-color-scheme="default"] .md-header .md-tabs__link:focus-visible { color: #10202c; }
+[data-md-color-scheme="default"] .md-header .md-tabs__item--active .md-tabs__link,
+[data-md-color-scheme="default"] .md-header .md-tabs__item--active .md-tabs__link:hover { color: #086578; }
+@media screen and (min-width: 76.25em) {
+  [data-md-color-scheme="default"] .md-header .md-tabs__list {
+    background: rgb(16 40 56 / 4%);
+    box-shadow: inset 0 0 0 1px rgb(16 40 56 / 8%);
+  }
+  [data-md-color-scheme="default"] .md-header .md-tabs__link:hover { background: rgb(16 40 56 / 5%) !important; color: #10202c; }
+  [data-md-color-scheme="default"] .md-header .md-tabs__item--active .md-tabs__link {
+    background: rgb(8 101 120 / 10%) !important;
+    box-shadow: inset 0 0 0 1px rgb(8 101 120 / 26%) !important;
+    color: #086578;
+  }
+  [data-md-color-scheme="default"] .md-header .md-tabs__link:focus-visible { box-shadow: 0 0 0 2px #086578 !important; }
+}
+[data-md-color-scheme="default"] .md-header__option .md-icon,
+[data-md-color-scheme="default"] .md-header__button,
+[data-md-color-scheme="default"] .md-header__source,
+[data-md-color-scheme="default"] .md-source { color: #10202c; }
+[data-md-color-scheme="default"] .md-source:hover { color: #086578; }
+[data-md-color-scheme="default"] .md-search__form {
+  background-color: rgb(16 40 56 / 4%);
+  border-color: rgb(16 40 56 / 12%);
+}
+[data-md-color-scheme="default"] .md-search__form:hover { background-color: rgb(16 40 56 / 7%); }
+[data-md-color-scheme="default"] .md-search__input,
+[data-md-color-scheme="default"] .md-search__icon,
+[data-md-color-scheme="default"] .md-search__icon svg { color: #10202c; }
+[data-md-color-scheme="default"] .md-search .md-search__input::placeholder { color: rgb(16 32 44 / 55%) !important; }
+[data-md-color-scheme="default"] .md-search__suggest { color: rgb(16 32 44 / 35%); }
+/* While searching, the dimmed header stays legible on the light surface. */
+@media screen and (min-width: 60em) {
+  [data-md-color-scheme="default"] [data-md-toggle="search"]:checked ~ .md-header .md-tabs,
+  [data-md-color-scheme="default"] [data-md-toggle="search"]:checked ~ .md-header .md-header__source,
+  [data-md-color-scheme="default"] [data-md-toggle="search"]:checked ~ .md-header .md-header__option { filter: opacity(0.4); }
+}
+
+/* ==========================================================================
+   Content fixes
+   ========================================================================== */
+/* A name in a table's first column is one word, never broken at its hyphen ("core-legacy"). */
+.md-typeset table:not([class]) td:first-child strong,
+.md-typeset table:not([class]) td:first-child code { white-space: nowrap; }
+/* A plain text block wraps rather than running under the copy button. */
+.md-typeset .language-text pre > code { white-space: pre-wrap; overflow-wrap: break-word; padding-right: 2.6rem; }
+/* A long entry in the table of contents (an API route) wraps onto a second line instead of being cut short. */
+.md-nav--secondary .md-nav__link { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; }
+/* A route breaks at its slashes, never inside a word ("pau / se"). */
+.md-nav--secondary .md-ellipsis { word-break: normal; }
+.md-nav--secondary .md-ellipsis { white-space: normal; overflow: visible; text-overflow: clip; }

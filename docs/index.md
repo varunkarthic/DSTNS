@@ -66,7 +66,7 @@ Install, run with Docker, and take your first simulation.
 
 The operator CLI, the observer, playback, seeds and configuration.
 
-[Operator CLI](guide/operator-cli.md){ .dstns-chip } [Seeds](guide/seeds-and-places.md){ .dstns-chip }
+[Operator CLI](guide/operator-cli.md){ .dstns-chip } [Engines](guide/engines.md){ .dstns-chip } [Seeds](guide/seeds-and-places.md){ .dstns-chip }
 </div>
 
 <div class="dstns-card" markdown>
@@ -187,6 +187,7 @@ is guaranteed.
 | Component | What it is | Documentation |
 |---|---|---|
 | **Core** (`dstns_server`) | C++20 engine and HTTP server. Compiles a scenario from a seed, runs the virtual day, serves the API and the observer on one port | [Architecture](concepts/architecture.md), [Simulation engine](concepts/simulation-engine.md) |
+| **Engines** (`Core/core-ng`, `Core/core-legacy`) | **core-ng**, the engine: world selection over 379 cities, compiler, physics tick, checkpoints. **core-legacy**, the engine before it, kept for comparison and disabled by default: both make the same world from the same seed, bit for bit | [Engines and places](guide/engines.md), [Engine governance](design/engine-governance.md) |
 | **Launcher** (`./launcher`, Rust) | Builds what changed, starts and supervises the server and your applications, a console with pipes and tools for looking inside, requests in plain words, Simplified Launch Control, Advanced Security and the MCP Handler | [The launcher](guide/operator-cli.md), [The console](guide/console.md) |
 | **Daemons** (`Daemon/`) | Watchers inside the server: the Resource Control Subsystem, memory, disk, a stalled run and the auto cache handler, on two queues applications subscribe to | [The daemons](guide/daemons.md) |
 | **Observer** (`WebKit/`) | React application: map, telemetry, playback, notifications, PDF report | [Observer interface](guide/observer-interface.md) |

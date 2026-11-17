@@ -1,6 +1,6 @@
 # Every endpoint
 
-The whole API, route by route. For each one: who may call it, every field with its type and limits, what it answers, and what can go wrong. The responses are captured from a real server running a real world, so they show exactly what you get, shortened only where marked. They were recorded at API contract 1.4.
+The whole API, route by route. For each one: who may call it, every field with its type and limits, what it answers, and what can go wrong. The responses are captured from a real server running a real world, so they show exactly what you get, shortened only where marked. They were first recorded at API contract 1.4 and are kept to the current contract, 1.13; a field added since 1.4 says which version added it.
 
 For a machine-readable description, see the [OpenAPI explorer](openapi.md). To build on this, see [Fabric](fabric-api.md) and [Building applications](../development/webfabric-apps.md). What protects all of it is in [Fabric and WebFabric security](security.md).
 
@@ -17,10 +17,10 @@ For a machine-readable description, see the [OpenAPI explorer](openapi.md). To b
 | Observer or operator | `X-DSTNS-Host: anything` from the observer's own origin, or `X-DSTNS-Operator: <credential>` |
 | Operator | `X-DSTNS-Operator: <credential>` only, from `logs/operator.token` or `DSTNS_OPERATOR_TOKEN` |
 
-**Shape of a response.** Reading answers `{"ok": true, "api_version": "1.4", "data": ...}`, and views also carry `run_id`, `seed`, `global_seed`, `lifecycle` and `clock`. Routes that act answer with what changed, such as `changed` and `lifecycle`. Failure is always:
+**Shape of a response.** Reading answers `{"ok": true, "api_version": "1.13", "data": ...}`, and views also carry `run_id`, `seed`, `global_seed`, `lifecycle` and `clock`. Routes that act answer with what changed, such as `changed` and `lifecycle`. Failure is always:
 
 ```json
-{ "ok": false, "api_version": "1.4", "error": { "code": "INVALID_REQUEST", "message": "A sentence for people" } }
+{ "ok": false, "api_version": "1.13", "error": { "code": "INVALID_REQUEST", "message": "A sentence for people" } }
 ```
 
 `code` is stable, so match on it. `message` may change.
@@ -88,7 +88,7 @@ Response `202`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "accepted": true,
     "lifecycle": "PREPARING",
@@ -122,7 +122,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -601,7 +601,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -656,7 +656,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -717,7 +717,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -788,7 +788,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -853,7 +853,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -919,7 +919,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -977,7 +977,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -1040,7 +1040,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -1099,7 +1099,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -1152,7 +1152,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -1211,7 +1211,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "clock": {
     "base_rate": 24.0,
     "playback_duration_seconds": 3600,
@@ -1422,7 +1422,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "active": false,
     "bytes": 0,
@@ -1447,7 +1447,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "copyright": "Copyright (C) 2026 Varun Karthic",
     "license": "AGPL-3.0-or-later",
@@ -1548,7 +1548,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "loaded": false,
     "loads": 0
@@ -1618,7 +1618,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "applications": true,
     "disabled_capabilities": [],
@@ -1736,7 +1736,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "elapsed_s": 0.0,
     "enabled": true,
@@ -1829,7 +1829,7 @@ Response `201`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "app": {
       "author": "",
@@ -1886,7 +1886,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "items": [
       {
@@ -1939,7 +1939,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "author": "",
     "blocked_ui": [],
@@ -1996,7 +1996,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {},
   "ok": true
 }
@@ -2025,7 +2025,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {},
   "ok": true
 }
@@ -2043,7 +2043,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "detail": "",
     "events": {
@@ -2113,7 +2113,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "at_ms": 1793606530845,
     "id": "org.example.planner",
@@ -2163,7 +2163,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {},
   "ok": true
 }
@@ -2202,7 +2202,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {},
   "ok": true
 }
@@ -2233,7 +2233,7 @@ Response `202`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "sequence": 1
   },
@@ -2273,7 +2273,7 @@ Response `202`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "request": 1
   },
@@ -2312,7 +2312,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "layers": {
       "traffic": true,
@@ -2348,7 +2348,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "dropped": 0,
     "items": [
@@ -2396,7 +2396,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "topics": [
       "lifecycle",
@@ -2434,7 +2434,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "at_s": 28800.0,
     "every_s": 3600.0,
@@ -2474,7 +2474,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {},
   "ok": true
 }
@@ -2533,7 +2533,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "items": [
       {
@@ -2571,7 +2571,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "values": {},
     "version": 0
@@ -2717,7 +2717,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "apps": [
       {
@@ -2775,7 +2775,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "capabilities": {
       "automatic": [
@@ -2839,7 +2839,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "items": [
       {
@@ -2890,7 +2890,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "checked": 3,
     "head": "d79998ebd35cc9ee61bb945de43fe3d9c7ea8b5184a18cdf22dae10026820bf3",
@@ -2910,7 +2910,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "applications": {
       "registered": 1,
@@ -2969,7 +2969,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "items": [
       {
@@ -3005,7 +3005,7 @@ Response `200`, from a real run:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "daemons": [
       {"description": "Resource Control Subsystem: each module's memory and processor against its α, β and γ", "enabled": true, "name": "rcs", "running": true},
@@ -3044,7 +3044,7 @@ Response `200`:
 
 ```json
 {
-  "api_version": "1.4",
+  "api_version": "1.13",
   "data": {
     "items": [
       {
