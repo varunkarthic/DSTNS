@@ -921,6 +921,10 @@ mod tests {
         let start = screens::start::StartScreen::new(&app(132, 40, Box::new(screens::about::AboutScreen)).ui);
         let mut start_app = app(132, 40, Box::new(start));
         save("launcher-start", &mut start_app);
+        // The dashboard, as the launcher opens.
+        let mut dashboard = app(132, 40, Box::new(screens::dashboard::DashboardScreen::new()));
+        screen(&mut dashboard, 132, 40);
+        save("launcher", &mut dashboard);
     }
 
     fn typed(app: &mut App, text: &str) {

@@ -80,13 +80,7 @@ through it, jump back and forward in time, and export a report of what happened.
 
 ## Quick start
 
-<table>
-<tr>
-<th width="50%">From source (macOS or Linux)</th>
-<th width="50%">With Docker</th>
-</tr>
-<tr>
-<td valign="top">
+**From source** (macOS or Linux):
 
 ```bash
 git clone https://github.com/varunkarthic/DSTNS.git
@@ -94,8 +88,7 @@ cd DSTNS
 ./launcher
 ```
 
-</td>
-<td valign="top">
+**With Docker:**
 
 ```bash
 git clone https://github.com/varunkarthic/DSTNS.git
@@ -103,11 +96,9 @@ cd DSTNS
 docker compose up --pull always
 ```
 
-</td>
-</tr>
-</table>
+Then open **http://localhost:8090**.
 
-Then open **http://localhost:8090**. To drive it from code instead:
+**From your own code**, once a server is running:
 
 ```bash
 curl -s http://127.0.0.1:8090/api/v1/playback/status
@@ -265,21 +256,36 @@ See the [observer guide](https://dstns.readthedocs.io/v3-core-ng/guide/observer-
 
 ## Fabric and WebFabric
 
-<p>
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/fabric-white.png">
-    <img alt="Fabric" src="docs/assets/brand/fabric-black.png" height="36">
+    <img alt="Fabric" src="docs/assets/brand/fabric-black.png" height="44">
   </picture>
-  &nbsp;&nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/webfabric-white.png">
-    <img alt="WebFabric" src="docs/assets/brand/webfabric-black.png" height="36">
+    <img alt="WebFabric" src="docs/assets/brand/webfabric-black.png" height="44">
   </picture>
 </p>
 
-**Fabric** is the layer everything reaches the engine through: HTTP and JSON, described in OpenAPI 3.1. **WebFabric**
-lets your programs become part of the observer. A program registers itself and declares what it wants to show as
-data, and the observer draws it in its own design.
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**Fabric** is the layer everything reaches the engine through: HTTP and JSON, described in OpenAPI 3.1. Start, play,
+pause and jump through a run; read its state, map and events; change roads, weather and demand.
+
+</td>
+<td width="50%" valign="top">
+
+**WebFabric** lets your programs become part of the observer. A program registers itself and declares what it wants
+to show as data, and the observer draws it in its own design.
+
+</td>
+</tr>
+</table>
+
+Registering an application, then drawing a bus route on the map:
 
 ```python
 token = post("/api/v1/fabric/apps", {
