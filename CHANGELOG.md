@@ -13,8 +13,6 @@ alter simulation results for an existing seed or map are called out explicitly,
 because the [reproducibility guarantee](https://dstns.readthedocs.io/concepts/reproducibility/) holds
 only within one version.
 
-## [Unreleased]
-
 ## [3.13.4] - 2026-11-18
 
 **Engine 3.13.4 (core-ng 1.2.2), launcher 3.16.1, observer 3.9.0, API contract 1.13.** The simulation is unchanged, and
@@ -2383,7 +2381,6 @@ The first deterministic vertical slice: seeded scenario compilation from a
 synthetic grid or OSM XML, the aggregate traffic model, checkpoint replay, the
 HTTP API, the SUMO export and the first observer.
 
-[Unreleased]: https://github.com/varunkarthic/DSTNS/compare/v3.13.4...HEAD
 [3.13.4]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.13.4
 [3.13.3]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.13.3
 [3.13.2]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.13.2
