@@ -3580,17 +3580,19 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 
 /* The security of applications as four cards, each with its state in a word and a mark (a tick, or ! when something
    needs attention), so neither colour nor icon alone carries it. */
-.fabric-security { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.fabric-security li { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--well-line); border-radius: var(--r-sm, 12px); background: var(--well); }
-.fabric-security-mark { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; }
-.fabric-security li.ok .fabric-security-mark { background: rgb(var(--ok-rgb) / 16%); color: rgb(var(--ok-rgb)); }
-.fabric-security li.warn { border-color: rgb(var(--warn-rgb) / 40%); background: rgb(var(--warn-rgb) / 7%); }
-.fabric-security li.warn .fabric-security-mark { background: rgb(var(--warn-rgb) / 22%); color: rgb(var(--warn-rgb)); }
-.fabric-security-text { display: grid; gap: 2px; min-width: 0; }
-.fabric-security-text small { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
-.fabric-security-text strong { font-size: 13px; font-weight: 600; color: var(--text); }
-.fabric-security-text span { font-size: 11.5px; line-height: 1.4; color: var(--text-dim); }
-@media (max-width: 420px) { .fabric-security { grid-template-columns: minmax(0, 1fr); } }
+/* Security: one compact list, a row per fact. Its icon and name, then how it stands as a chip on the right; the
+   explanation shows beneath only where something needs attention (and on hover otherwise). */
+.fabric-security { list-style: none; margin: 0; padding: 0; border: 1px solid var(--well-line); border-radius: var(--r-md); background: var(--well); overflow: hidden; }
+.fabric-security li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; padding: 9px 12px; }
+.fabric-security li + li { border-top: 1px solid var(--well-line); }
+.fabric-security-icon { color: var(--text-dim); }
+.fabric-security-label { font-size: 12.5px; color: var(--text); }
+.fabric-security-state { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 500; color: rgb(var(--ok-rgb)); background: rgb(var(--ok-rgb) / 11%); white-space: nowrap; }
+.fabric-security-state i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.fabric-security li.warn { background: rgb(var(--warn-rgb) / 6%); }
+.fabric-security li.warn .fabric-security-icon { color: rgb(var(--warn-rgb)); }
+.fabric-security li.warn .fabric-security-state { color: rgb(var(--warn-rgb)); background: rgb(var(--warn-rgb) / 14%); }
+.fabric-security-detail { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.4; color: var(--text-dim); }
 
 /* The permissions' closing note: a card with the sections' own corner and edge, its icon beside the words. */
 .fabric-disclaimer {
@@ -3697,3 +3699,56 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
    a full frame, as a long one fills it, rather than leaving the panel bare beneath a short card. */
 .telemetry-deck .stream-frame { flex: 1 1 auto; }
 .telemetry-deck .stream-frame > .stream { flex: 1; }
+
+/* ---- The list toolbars are one control -------------------------------------------------------------------------
+   Notifications' filter is the same segmented track as the Queue's Upcoming and Executed: a well-tinted stadium 32px
+   tall, its parts 26px inside it, the chosen one raised; each count a small badge after its name. Beside either, a
+   dropdown is the same 32px, so the two tabs' bars line up exactly. */
+.view-filters { align-items: center; }
+.view-filters .chips {
+  display: inline-flex; flex: 0 1 auto; min-width: 0; height: 32px; padding: 3px; gap: 2px; border-radius: 16px;
+  background: rgb(var(--ink-rgb) / 5%); box-shadow: inset 0 0 0 1px var(--well-line);
+}
+.view-filters .chip-filter {
+  height: 26px; padding: 0 10px 0 12px; gap: 6px; border-radius: 13px; font-size: 12px; font-weight: 500;
+  color: var(--text-dim); background: none; box-shadow: none; border: 0; white-space: nowrap;
+}
+.view-filters .chip-filter:hover { color: var(--text); background: rgb(var(--ink-rgb) / 5%); }
+.view-filters .chip-filter[aria-checked="true"] {
+  color: var(--text); background: var(--surface-solid);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 18%), inset 0 0 0 1px var(--well-line);
+}
+.view-filters .chip-filter .mono {
+  display: inline-grid; place-items: center; min-width: 18px; height: 16px; padding: 0 5px; border-radius: 8px;
+  font-size: 10px; line-height: 1; color: var(--text-faint); background: rgb(var(--ink-rgb) / 7%); opacity: 1;
+}
+.view-filters .chip-filter[aria-checked="true"] .mono { color: var(--accent); background: rgb(var(--accent-rgb) / 14%); opacity: 1; }
+/* The Queue's two parts take the same width each, and its dropdown the same height and edge as the track. */
+.view-filters .seg.small button { min-width: 84px; justify-content: center; }
+.view-filters .select-trigger { margin-left: auto; }
+/* The filter's track fills its bar and its parts share the width, so it fits the narrow panel the collapsed strip
+   opens as well as the full deck: tighter there, and a name cut short with an ellipsis only if nothing else will do. */
+.view-filters .chips { flex: 1 1 auto; overflow: hidden; }
+.view-filters .chip-filter { flex: 1 1 auto; min-width: 0; justify-content: center; }
+.view-filters .chip-filter .chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.view-filters .chip-filter .mono { flex: none; }
+.deck-panel .view-filters .chip-filter { padding: 0 6px 0 8px; gap: 4px; font-size: 11.5px; }
+.deck-panel .view-filters .chip-filter .mono { min-width: 16px; padding: 0 4px; }
+.deck-panel .view-filters .seg.small button { min-width: 0; padding: 0 12px; }
+
+/* ---- About, aligned -------------------------------------------------------------------------------------------------
+   Each section headed by its icon in a small accent tile, the heading's words on the tile's centre line. Facts in the
+   interface's own type; only codes (seeds, hashes, versions, IDs) in monospace, and a hash small enough to keep its
+   64 characters on one line beside the card's edge. The integrations' facts and their two cards have the sections'
+   own gap between them. */
+.about-section h3.about-heading { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.about-heading-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; color: var(--accent); background: rgb(var(--accent-rgb) / 12%); }
+.about-dialog .about-facts dd { font-family: var(--font-body); }
+.about-dialog .about-facts dd.mono, .about-dialog .about-facts dd .mono { font-family: var(--font-mono); }
+.about-dialog .about-facts dd.about-hash { font-size: 10.5px; line-height: 1.5; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.about-section .about-facts + .subsystem-cards { margin-top: 10px; }
+.about-engine-list .about-engine-name { display: inline-flex; align-items: center; gap: 6px; }
+.about-engine-list .about-engine-name .icon { color: var(--accent); flex: none; }
+.about-engine-list li.off .about-engine-name .icon { color: var(--text-faint); }
+.about-engine-list li { grid-template-columns: minmax(124px, max-content) 64px auto minmax(0, 1fr); }
+.about-engine-list .about-engine-name { white-space: nowrap; }

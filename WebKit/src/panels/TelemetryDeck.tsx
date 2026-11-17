@@ -593,7 +593,7 @@ function HistoryView({ history, filter, onFilter }: { history: HistoryFeed; filt
               className="chip-filter"
               onClick={() => onFilter(f.id)}
             >
-              {f.label}
+              <span className="chip-label">{f.label}</span>
               <span className="mono">{formatCompact(f.count(history.counts))}</span>
             </button>
           ))}

@@ -31,9 +31,12 @@ export interface BudGeometry {
   radius: number;
 }
 
-// Opening carries through without a long creep at its end; closing is quicker, as a panel put away is done with.
-export const BUD_OPEN: SpringPreset = { k: 70, c: 14.6 };
-export const BUD_CLOSE: SpringPreset = { k: 150, c: 23.3 };
+// Both arrive slowing to nothing, as something set down does, rather than reaching the end at speed and being cut off
+// there. Opening: a touch under critical damping (0.96), aimed just past the end, so it settles in about half a second
+// with its first 90% in 0.3 s and no visible overshoot. Closing: critically damped and a little quicker (0.4 s), as a
+// panel put away is done with; it used to hit closed at 2 widths a second and stop dead.
+export const BUD_OPEN: SpringPreset = { k: 140, c: 22.7 };
+export const BUD_CLOSE: SpringPreset = { k: 260, c: 32.2 };
 const BEAD = 22;
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
@@ -208,11 +211,10 @@ export class Bud {
     this.spring.setPreset(open ? BUD_OPEN : BUD_CLOSE);
     // Its first shape now, not a frame late, so the whole panel never shows before it has divided.
     this.paint(Math.max(0.001, Math.min(0.999, this.spring.value)));
-    // Aimed a little past the end, so it arrives moving and stops there: no last bead lingering at the edge, no panel
-    // creeping its last few pixels.
-    // From rest it leaves at once, as if the press had thrown it, rather than gathering speed at the edge.
-    const thrown = open && this.spring.value < 0.1 && Math.abs(this.spring.velocity) < 0.5 ? 2.6 : undefined;
-    this.spring.set(open ? 1.03 : -0.2, thrown);
+    // Aimed only just past the end, so it comes to rest there slowing smoothly, with no last pixels of creep and no
+    // stop at speed. From rest it leaves at once, as if the press had sent it, but gently enough not to lurch.
+    const thrown = open && this.spring.value < 0.1 && Math.abs(this.spring.velocity) < 0.5 ? 1.0 : undefined;
+    this.spring.set(open ? 1.004 : -0.01, thrown);
   }
 
   private paint(t: number): void {

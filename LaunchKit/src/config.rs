@@ -464,6 +464,38 @@ pub const DEMO_SCENES: &[&str] = &["streets", "signals", "demand", "rush-hour", 
 /// Their titles, as the film shows them.
 pub const DEMO_SCENE_TITLES: &[&str] = &["Mapped streets", "Signal timing", "Travel demand", "Rush hour", "Road incidents", "Simulated weather", "Cities worldwide", "Repeatable worlds", "Auto Focus", "WebFabric", "Time control", "Many worlds", "AI ready"];
 
+/// The start-up film's scenes, after the name that always opens it (WebKit/src/film/BootScene.tsx, FILM_CHAPTERS).
+pub const FILM_SCENES: &[&str] = &["streets", "signals", "demand", "rush-hour", "incidents", "weather", "cities", "repeatable", "auto-focus", "webfabric"];
+pub const FILM_SCENE_TITLES: &[&str] = &["Mapped streets", "Signal timing", "Travel demand", "Rush hour", "Road incidents", "Simulated weather", "Cities worldwide", "Repeatable worlds", "Auto Focus", "WebFabric"];
+
+/// The scenes named in a list setting, in order.
+fn scene_list(config: &Value, key: &str) -> Vec<String> {
+    setting(config, key).as_str().unwrap_or("").split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+}
+
+fn film_scenes(value: &Value, _config: &Value) -> String {
+    let text = value.as_str().unwrap_or("");
+    match text.split(',').map(str::trim).filter(|s| !s.is_empty()).find(|id| !FILM_SCENES.contains(id)) {
+        Some(unknown) => format!("No scene {unknown}. The scenes: {}.", FILM_SCENES.join(", ")),
+        None => String::new(),
+    }
+}
+
+/// The scene played first or last must be one that plays, and not both.
+fn film_pin(value: &Value, config: &Value) -> String {
+    let id = value.as_str().unwrap_or("none");
+    if id == "none" {
+        return String::new();
+    }
+    if !scene_list(config, "presentation.film_scenes").iter().any(|s| s == id) {
+        return format!("{id} is turned off under Start-up scenes; turn it on first.");
+    }
+    if setting(config, "presentation.film_first") == json!(id) && setting(config, "presentation.film_last") == json!(id) {
+        return format!("{id} cannot be both first and last.");
+    }
+    String::new()
+}
+
 /// The scenes named in demo.scenes, in order.
 pub fn demo_scene_list(config: &Value) -> Vec<String> {
     setting(config, "demo.scenes").as_str().unwrap_or("").split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
@@ -786,6 +818,21 @@ pub fn fields() -> &'static [Field] {
             Field::new("presentation.fullscreen", "Full screen", "Presentation", Boolean, "Open the observer full screen, in a window of its own.", json!(false)),
             Field::new("presentation.music_volume", "Music volume", "Presentation", Number, "From 0 (silent) to 1.", json!(0.6)).range(0.0, Some(1.0)).extra(volume),
             Field::new("presentation.music_file", "Music file", "Presentation", Text, "What the start-up film plays: score for the written score, or an MP3, M4A or WAV file (a path in this checkout, or an absolute one).", json!("score")).extra(music),
+            Field::new(
+                "presentation.film_scenes",
+                "Start-up scenes",
+                "Presentation",
+                Text,
+                "Which scenes the start-up film may play while a world is prepared. Space turns one on or off. The name always opens the film; the scenes between first and last play in a new order each time, as many as the wait allows. As text: ids separated by commas.",
+                json!(FILM_SCENES.join(", ")),
+            )
+            .extra(film_scenes),
+            Field::new("presentation.film_first", "Always first", "Presentation", Choice, "A scene the start-up film always plays first, after the name, or none.", json!("none"))
+                .choices(std::iter::once(("None", json!("none"))).chain(FILM_SCENES.iter().zip(FILM_SCENE_TITLES).map(|(id, t)| (*t, json!(id)))).collect())
+                .extra(film_pin),
+            Field::new("presentation.film_last", "Always last", "Presentation", Choice, "A scene the start-up film always keeps for last, once every other has played, or none. WebFabric by default.", json!("webfabric"))
+                .choices(std::iter::once(("None", json!("none"))).chain(FILM_SCENES.iter().zip(FILM_SCENE_TITLES).map(|(id, t)| (*t, json!(id)))).collect())
+                .extra(film_pin),
             // Demo
             Field::new("demo.music", "Music in Demo Mode", "Demo", Boolean, "Demo Mode plays its score. --no-music turns it off once.", json!(true)),
             Field::new("demo.music_file", "Demo Mode music file", "Demo", Text, "What Demo Mode plays: score for the written score, or an MP3, M4A or WAV file.", json!("score")).extra(music),
@@ -1111,6 +1158,9 @@ pub fn presentation(config: &Value, demo: bool) -> Value {
         "dynamic_particles": flag(config, "startup.dynamic_particles"),
         "demo": demo,
         "demo_scenes": demo_scene_list(config),
+        "film_scenes": scene_list(config, "presentation.film_scenes"),
+        "film_first": setting(config, "presentation.film_first"),
+        "film_last": setting(config, "presentation.film_last"),
         "music": flag(config, if demo { "demo.music" } else { "presentation.music" }),
         "fullscreen": flag(config, if demo { "demo.fullscreen" } else { "presentation.fullscreen" }),
         "music_volume": as_number(&setting(config, "presentation.music_volume")).unwrap_or(0.6),

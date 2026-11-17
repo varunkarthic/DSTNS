@@ -136,7 +136,7 @@ export function AboutCard({
 
       <div className="about-scroll scroll-region" tabIndex={0} aria-label="System details">
       <section className="about-section">
-        <h3>This run</h3>
+        <h3 className="about-heading"><span className="about-heading-icon" aria-hidden="true"><Icon name="play" size={14} /></span>This run</h3>
         <dl className="about-facts">
           <div>
             <dt>Location</dt>
@@ -168,20 +168,20 @@ export function AboutCard({
           </div>
           <div><dt>Selection policy</dt><dd className="mono">{selection?.policy || topology?.map_selection_version || "Unavailable"}</dd></div>
           <div><dt>Selection mode</dt><dd>{selection?.mode ? `${selection.mode}${places ? ` (${places})` : ""}` : "Unavailable"}</dd></div>
-          <div className="wide"><dt>Policy fingerprint</dt><dd className="mono">{selection?.fingerprint || "Unavailable"}</dd></div>
+          <div className="wide"><dt>Policy fingerprint</dt><dd className="mono about-hash">{selection?.fingerprint || "Unavailable"}</dd></div>
           <div className="wide"><dt>Network</dt><dd className="mono">{topology ? `${topology.nodes.length.toLocaleString()} junctions · ${topology.edges.length.toLocaleString()} edges · ${topology.features.length.toLocaleString()} places` : "Unavailable"}</dd></div>
           <div><dt>Map source</dt><dd>{topology?.source || "Unavailable"}</dd></div>
           <div><dt>Anchor</dt><dd className="mono">{topology?.location?.city ? `${topology.location.anchor_lat.toFixed(5)}, ${topology.location.anchor_lon.toFixed(5)}` : "Unavailable"}</dd></div>
           <div className="wide"><dt>Run</dt><dd className="mono">{status?.run_id || "No run"}</dd></div>
-          <div className="wide"><dt>Graph hash</dt><dd className="mono">{topology?.graph_hash || "Unavailable"}</dd></div>
-          <div className="wide advanced-only"><dt>Scenario hash</dt><dd className="mono">{manifest?.scenario_hash || "Unavailable"}</dd></div>
-          <div className="wide advanced-only"><dt>Event hash</dt><dd className="mono">{manifest?.event_hash || "Unavailable"}</dd></div>
-          <div className="wide advanced-only"><dt>Map hash</dt><dd className="mono">{manifest?.map_hash || "Unavailable"}</dd></div>
+          <div className="wide"><dt>Graph hash</dt><dd className="mono about-hash">{topology?.graph_hash || "Unavailable"}</dd></div>
+          <div className="wide advanced-only"><dt>Scenario hash</dt><dd className="mono about-hash">{manifest?.scenario_hash || "Unavailable"}</dd></div>
+          <div className="wide advanced-only"><dt>Event hash</dt><dd className="mono about-hash">{manifest?.event_hash || "Unavailable"}</dd></div>
+          <div className="wide advanced-only"><dt>Map hash</dt><dd className="mono about-hash">{manifest?.map_hash || "Unavailable"}</dd></div>
         </dl>
       </section>
 
       <section className="about-section">
-        <h3>Engines</h3>
+        <h3 className="about-heading"><span className="about-heading-icon" aria-hidden="true"><Icon name="gauge" size={14} /></span>Engines</h3>
         {system?.engine_catalogue?.length ? (
           <ul className="about-engine-list">
             {[...system.engine_catalogue]
@@ -192,7 +192,7 @@ export function AboutCard({
                 const role = engine.id === running?.id ? "Running this world" : engine.id === policy?.default ? "Default" : off ? "Disabled" : "Available";
                 return (
                   <li key={engine.id} className={off ? "off" : undefined}>
-                    <span className="about-engine-name mono">{engine.id}</span>
+                    <span className="about-engine-name mono"><Icon name={engine.id === running?.id ? "play" : off ? "power" : "gauge"} size={13} />{engine.id}</span>
                     <span className="about-engine-version mono">{engine.version}</span>
                     <Badge tone={engine.channel === "stable" ? "ok" : "warn"}>{channelName(engine.channel)}</Badge>
                     <span className="about-engine-role">{role}</span>
@@ -205,7 +205,7 @@ export function AboutCard({
       </section>
 
       <section className="about-section">
-        <h3>Server</h3>
+        <h3 className="about-heading"><span className="about-heading-icon" aria-hidden="true"><Icon name="system" size={14} /></span>Server</h3>
         <dl className="about-facts">
           <div><dt>Version</dt><dd className="mono">{serverVersion}</dd></div>
           <div><dt>Channel</dt><dd className="mono">{build?.channel || "Unavailable"}</dd></div>
@@ -224,7 +224,7 @@ export function AboutCard({
       </section>
 
       <section className="about-section">
-        <h3>Integrations</h3>
+        <h3 className="about-heading"><span className="about-heading-icon" aria-hidden="true"><Icon name="fabric" size={14} /></span>Integrations</h3>
         <dl className="about-facts">
           <div>
             <dt>SUMO adapter</dt>
@@ -254,7 +254,7 @@ export function AboutCard({
       </section>
 
       <section className="about-section about-licence" aria-label="Licence and attribution">
-        <h3>Licence</h3>
+        <h3 className="about-heading"><span className="about-heading-icon" aria-hidden="true"><Icon name="book" size={14} /></span>Licence</h3>
         <div className="about-licence-card">
           <p>
             Copyright © 2026 <strong>Varun Karthic</strong>. Free software under the <strong>GNU Affero General Public License v3 or later</strong>,

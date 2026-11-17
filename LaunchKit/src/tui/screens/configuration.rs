@@ -41,6 +41,12 @@ fn files_changed(paths: &crate::paths::Paths) -> Option<std::time::SystemTime> {
 }
 
 fn editor(field: &config::Field, value: &Value) -> Editor {
+    if field.key == "presentation.film_scenes" {
+        // Every scene, in the film's order, ticked if it may play.
+        let chosen: Vec<String> = value.as_str().unwrap_or("").split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+        let items = config::FILM_SCENES.iter().zip(config::FILM_SCENE_TITLES).map(|(id, t)| (id.to_string(), t.to_string(), chosen.iter().any(|c| c == id))).collect();
+        return Editor::Order { items, cursor: 0 };
+    }
     if field.key == "demo.scenes" {
         // The chosen scenes first, in their order, then the rest, off.
         let chosen: Vec<String> = value.as_str().unwrap_or("").split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();

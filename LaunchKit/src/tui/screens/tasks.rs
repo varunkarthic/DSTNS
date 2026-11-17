@@ -96,6 +96,7 @@ impl TaskScreen {
                 menu_item("graph", "Code knowledge graph", "The size of the graph of DSTNS's code, and where it was built from."),
                 heading("Launcher state"),
                 menu_item("launch-code", "Copy a launch code", "This launcher as one code on the clipboard, with the running world if there is one, and what it carries. ./launcher launch CODE elsewhere starts the same."),
+                menu_item("launch-code-start", "Copy a launch code from 00:00", "The same, with the running world from the start of its day: its seed, day, map rules and engine, at 00:00, with none of the changes made since, however far it has played."),
                 menu_item("config-docs", "Write config schemas and help", "Rewrite config/schema/ and each config file's _help from the settings table. Values are left as they are."),
                 heading("Maintenance"),
                 menu_item("reset", "Reset runtime data", "Delete logs, the journal, checkpoints, temporary files and development and test builds (often gigabytes), and forget the setup. Maps, saved seeds, configuration and the built launcher and server are kept."),
@@ -203,6 +204,10 @@ impl TaskScreen {
                         Err(error) => (false, format!("{}{}", error.message, if error.remedy.is_empty() { String::new() } else { format!("\n{}", error.remedy) })),
                     },
                     (_, "engines") => (true, crate::config::engines_summary(&paths).join("\n")),
+                    (_, "launch-code-start") => match crate::state::launch_code_lines_from(&paths, true, true, None, true) {
+                        Ok(lines) => (true, lines.join("\n")),
+                        Err(why) => (false, why),
+                    },
                     (_, "launch-code") => {
                         // With the world when there is one; otherwise the settings alone.
                         let lines = crate::state::launch_code_lines(&paths, true, None, true).or_else(|_| crate::state::launch_code_lines(&paths, false, None, true));

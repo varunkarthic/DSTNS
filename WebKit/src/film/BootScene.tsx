@@ -147,6 +147,30 @@ const CAMERAS: Camera[] = [
   { yaw: 0.12, pitch: 0.42, distance: 3.5, spin: 0.012, push: 0.05 },
 ];
 
+/**
+ * The start-up film's next scene (an index into FILM_CHAPTERS), from the operator's choices: only the scenes `allowed`
+ * names (all, if it names none), `first` before every other, `last` after every other, the rest in a random order, and
+ * only one that `fits` in the time left. 0 (the name) when this round has played every scene, or none fits.
+ */
+export function nextFilmScene(seen: ReadonlySet<number>, choices: { allowed?: readonly string[]; first?: string; last?: string }, fits: (i: number) => boolean, random = Math.random): number {
+  const index = (id?: string) => (id && id !== "none" ? FILM_CHAPTERS.findIndex((c) => c.id === id) : -1);
+  const allowed = choices.allowed?.length ? choices.allowed : FILM_CHAPTERS.slice(1).map((c) => c.id);
+  const scenes = FILM_CHAPTERS.map((_, i) => i).filter((i) => i > 0 && allowed.includes(FILM_CHAPTERS[i].id));
+  const first = index(choices.first);
+  const last = index(choices.last ?? "webfabric");
+  const pinnedFirst = scenes.includes(first) && first !== last ? first : -1;
+  const pinnedLast = scenes.includes(last) ? last : -1;
+  let pool: number[];
+  if (pinnedFirst > 0 && !seen.has(pinnedFirst)) pool = [pinnedFirst];
+  else {
+    const middle = scenes.filter((i) => i !== pinnedFirst && i !== pinnedLast && !seen.has(i));
+    pool = middle.length ? middle : pinnedLast > 0 && !seen.has(pinnedLast) ? [pinnedLast] : [];
+  }
+  const fitting = pool.filter(fits);
+  if (!fitting.length) return 0;
+  return fitting[Math.floor(random() * fitting.length)];
+}
+
 /** How far the map's camera has carried the roads since the particles were told where they are. */
 export const mapCarry = { x: 0, y: 0 };
 
@@ -798,20 +822,19 @@ export function BootScene({ playing, asleep = false, closing = false, landing, e
     // The scenes this round has shown. WebFabric, the last, waits for every other.
     const seen = new Set<number>();
     const plan = () => {
-      const last = chapters.length - 1;
-      const others = Array.from({ length: last - 1 }, (_, i) => i + 1).filter((i) => !seen.has(i));
-      const pool = others.length ? others : seen.has(last) ? [] : [last];
-      if (!pool.length) {
-        // A long wait: another round, in another order.
+      // The operator's scenes (Configuration, Presentation): which may play, which first, which last.
+      const presentation = currentFeatures().presentation;
+      const choices = { allowed: presentation.film_scenes, first: presentation.film_first, last: presentation.film_last };
+      // A scene, and the way back to the name, must both fit before the world is ready. Not knowing, it plays on.
+      const eta = remainingEta();
+      const fits = (i: number) => eta === null || holds[i] + MORPH_S * 2 <= eta;
+      const pick = nextFilmScene(seen, choices, fits);
+      if (!pick && nextFilmScene(seen, choices, () => true) === 0) {
+        // Every scene has played: a long wait plays another round, in another order.
         seen.clear();
         return 0;
       }
-      // A scene, and the way back to the name, must both fit before the world is ready. Not knowing, it plays on.
-      const eta = remainingEta();
-      const fits = eta === null ? pool : pool.filter((i) => holds[i] + MORPH_S * 2 <= eta);
-      if (!fits.length) return 0;
-      const pick = fits[Math.floor(Math.random() * fits.length)];
-      seen.add(pick);
+      if (pick) seen.add(pick);
       return pick;
     };
     if (!element || !gl) {

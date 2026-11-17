@@ -127,14 +127,34 @@ of when the world will be ready:
 - **Only as many scenes as fit.** Before each scene, it checks that the scene, and the way
   back to the name, fit in the time left. A world from the cache leaves no time: the name goes
   straight to the map.
-- **A new order every time,** with **WebFabric last**, and only once every other scene has
-  played.
+- **A new order every time,** with **WebFabric last** by default, and only once every other
+  scene has played. Which scenes play, and which come first and last, are yours to choose
+  (below).
 - **Ready sooner than planned?** The scene playing cuts back to the name within a moment, and
   the film lands.
 - **A long wait** plays the scenes through, rests on the name for a moment, and begins
   another round in another order.
 - No progress dashes under the captions: it plays as many scenes as the wait allows, not a
   fixed list.
+
+### Which scenes, and in what order
+
+Configuration, Presentation, chooses the scenes, as the Demo page does for Demo Mode:
+
+| Setting | Default | Does |
+|---|---|---|
+| Start-up scenes (`presentation.film_scenes`) | Every scene | Which scenes the film may play. Space turns one on or off. The name always opens the film |
+| Always first (`presentation.film_first`) | None | A scene played first, before any other, if there is time for it |
+| Always last (`presentation.film_last`) | WebFabric | A scene kept for last, once every other has played. None keeps nothing back |
+
+The scenes between the first and the last play in a new order each time, as many as the wait allows. A first or last
+scene that is turned off is ignored, and one scene cannot be both.
+
+```bash
+./launcher config set presentation.film_scenes "streets, signals, weather, cities, webfabric"
+./launcher config set presentation.film_first cities
+./launcher config set presentation.film_last none
+```
 
 The estimate is the server's `eta_s`, on `GET /api/v1/playback/status` while a run is
 prepared and on `GET /api/v1/world/status` while a new world is generated:

@@ -187,7 +187,9 @@ fn world(paths: &Paths, config: &Value) -> Option<Value> {
             let data = playback.data().cloned().unwrap_or(Value::Null);
             let day = data.get("day").cloned().unwrap_or(json!(0));
             let playing = playback.body.pointer("/clock/playback_state").and_then(|v| v.as_str()) == Some("RUNNING");
-            let rate = playback.body.pointer("/clock/target_virtual_rate").or(playback.body.pointer("/clock/tick_rate")).cloned().unwrap_or(Value::Null);
+            // The speed as a multiple of the day's length (1 is the length of a day): the tick rate, not the virtual
+            // seconds a second it gives, which is what target_virtual_rate is.
+            let rate = playback.body.pointer("/clock/tick_rate").cloned().unwrap_or(Value::Null);
             // The operator's own changes still in effect, in the order they were made.
             let history = crate::api::get(port, "/api/v1/control/history", 3.0, paths);
             let changes: Vec<Value> = history
@@ -276,7 +278,13 @@ pub fn copy(text: &str) -> Result<&'static str, String> {
 
 /// launch-code: the code in blocks, then what it carries, and on the clipboard if asked.
 pub fn launch_code_lines(paths: &Paths, with_world: bool, keys_passphrase: Option<&str>, to_clipboard: bool) -> Result<Vec<String>, String> {
-    let code = launch_code(paths, with_world, keys_passphrase)?;
+    launch_code_lines_from(paths, with_world, false, keys_passphrase, to_clipboard)
+}
+
+/// As launch_code_lines; `from_start` gives the world at 00:00, with none of the changes made since, however far the
+/// running one has played.
+pub fn launch_code_lines_from(paths: &Paths, with_world: bool, from_start: bool, keys_passphrase: Option<&str>, to_clipboard: bool) -> Result<Vec<String>, String> {
+    let code = launch_code_from(paths, with_world || from_start, from_start, keys_passphrase)?;
     let mut out = vec![grouped(&code), String::new()];
     out.extend(preview(&decode(&code)?));
     if to_clipboard {
@@ -295,6 +303,10 @@ pub fn get(paths: &Paths, with_world: bool) -> Result<String, String> {
 
 /// The launch code: settings, and the world and the API keys (sealed with `passphrase`) if asked.
 pub fn launch_code(paths: &Paths, with_world: bool, keys_passphrase: Option<&str>) -> Result<String, String> {
+    launch_code_from(paths, with_world, false, keys_passphrase)
+}
+
+pub fn launch_code_from(paths: &Paths, with_world: bool, from_start: bool, keys_passphrase: Option<&str>) -> Result<String, String> {
     let config = config::load(paths).map_err(|e| e.message)?;
     let mut settings = Map::new();
     for field in fields().iter().filter(|f| portable(f.key)) {
@@ -304,8 +316,14 @@ pub fn launch_code(paths: &Paths, with_world: bool, keys_passphrase: Option<&str
         }
     }
     let mut state = json!({"settings": settings});
-    if with_world {
+    if with_world || from_start {
         state["world"] = world(paths, &config).ok_or("There is no world to copy yet: start a run, or set a seed, first.")?;
+        if from_start {
+            // The same world, from the start of its day: the seed, the day, the map rules and the engine, at 00:00,
+            // with none of the changes made since. Whether it plays, and how fast, are kept.
+            state["world"]["at"] = json!(0);
+            state["world"]["changes"] = json!([]);
+        }
     }
     if let Some(passphrase) = keys_passphrase {
         let keys = keys_here(paths);
@@ -442,7 +460,9 @@ pub fn jump_after_start(port: u16, seeds: &[&str], paths: &Paths) -> Option<Stri
                 failed.push(change["type"].as_str().unwrap_or("change").to_string());
             }
         }
-        if let Some(rate) = plan["rate"].as_f64() {
+        // A code from a launcher before 3.14.2 recorded the virtual seconds a second (1,440 at 1x) in place of the
+        // speed; only a speed the server takes is sent, and one it would refuse is left at the start's own.
+        if let Some(rate) = plan["rate"].as_f64().filter(|r| r.is_finite() && *r > 0.0 && *r <= config::MAX_TICK_RATE) {
             let _ = crate::api::put(port, "/api/v1/control/tick-rate", &json!({"tick_rate": rate}), 30.0, paths);
         }
     }
@@ -564,6 +584,22 @@ mod tests {
         for p in [&a, &b] {
             let _ = std::fs::remove_dir_all(&p.root);
         }
+    }
+
+    #[test]
+    fn a_code_from_the_start_carries_the_world_at_midnight_with_no_changes() {
+        let _environment = crate::paths::test_environment();
+        let root = std::env::temp_dir().join(format!("dstns-state-start-{}", std::process::id()));
+        let paths = Paths::new(&root);
+        std::fs::create_dir_all(paths.config().parent().unwrap()).unwrap();
+        let mut config: Value = serde_json::from_str(include_str!("../../config/defaults.json")).unwrap();
+        config["seed"] = json!("382923");
+        std::fs::write(paths.config(), config.to_string()).unwrap();
+        let state = decode(&launch_code_from(&paths, false, true, None).unwrap()).unwrap();
+        assert_eq!(state["world"]["seed"], json!("382923"), "--start carries the world without --world");
+        assert_eq!(state["world"]["at"], json!(0));
+        assert_eq!(state["world"]["changes"], json!([]));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

@@ -14,6 +14,49 @@ only within one version.
 
 ## [Unreleased]
 
+### Launcher 3.15.0 and observer 3.9.0 (with engine 3.13.3)
+
+The engine is unchanged, and so are results for every seed.
+
+#### Fixed
+
+- **`PUT /api/v1/control/tick-rate: tick_rate must be finite and in (0,10]`** on applying a launch code. The code
+  recorded the virtual seconds a second (`clock.target_virtual_rate`, 1,440 at 1x) as the speed, and restoring sent that
+  as a multiple of the day's length. A code now records the tick rate, and only a speed the server takes is restored,
+  so codes made by earlier launchers apply cleanly too.
+- **The Notifications filter overflowed the narrow panel** the collapsed telemetry strip opens: "Auto Focus" and its
+  count were cut off at the edge. Its parts now share the width, tighter in the narrow panel.
+
+#### Added
+
+- **Which start-up scenes play** (Configuration, Presentation), as the Demo page chooses Demo Mode's:
+  - **Start-up scenes**: each scene turned on or off, all on by default.
+  - **Always first**: a scene played first, none by default.
+  - **Always last**: a scene kept for last, WebFabric by default.
+
+  The scenes between them play in a new order each time, as many as the wait allows.
+- **A launch code from 00:00**: `./launcher launch-code --start`, or Tools, Copy a launch code from 00:00. It carries
+  the same world (its seed, day, map rules and engine) from the start of its day, with none of the changes made since,
+  however far the running world has played.
+
+#### Changed
+
+- **Panels move more naturally.** The panels that grow from the dock (Settings, Search, the collapsed telemetry's)
+  used to be thrown past their end and clipped there, so a close hit its end at full speed and stopped dead. They now
+  slow into rest:
+  - Opening is just under critically damped: 90% of the way in 0.3 s, at rest in about half a second.
+  - Closing is critically damped and takes about 0.4 s.
+- **WebFabric's security is one compact list:** a row per fact with its icon, its name and a status chip. The
+  explanation shows only where something needs attention, and on hover otherwise. It was four cards in a grid.
+- **The Queue and Notifications toolbars are one control:** the same 32px segmented track, with the chosen part raised
+  and each count a small badge. The Queue's dropdown is the same height. They were two styles of different heights.
+- **About is aligned:**
+  - Each section is headed by its icon.
+  - Plain words are set in the interface's type, and only codes in monospace.
+  - Each hash's 64 characters stay on one line.
+  - The engines show an icon for running or disabled, and their names never break.
+  - The integrations' facts and cards have the sections' gap between them.
+
 ## [3.13.3] - 2026-11-17
 
 **Engine 3.13.3 (core-ng 1.2.2), launcher 3.14.1, observer 3.8.0, API contract 1.13.** Results for every seed are

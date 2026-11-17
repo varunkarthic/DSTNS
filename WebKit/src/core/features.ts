@@ -21,6 +21,11 @@ export interface Features {
     demo: boolean;
     /** Demo Mode's scenes, by id, in the order to play them. Absent: all, in the film's order. */
     demo_scenes?: string[];
+    /** The start-up film's scenes that may play, by id. Absent: every one. */
+    film_scenes?: string[];
+    /** A scene always played first, and one always kept for last ("none" or absent for neither; last is webfabric by default). */
+    film_first?: string;
+    film_last?: string;
     music: boolean;
     fullscreen: boolean;
     music_volume: number;

@@ -527,6 +527,48 @@
           "description": "Music file (Presentation). What the start-up film plays: score for the written score, or an MP3, M4A or WAV file (a path in this checkout, or an absolute one). Accepts: text. Default: \"score\". Applies from the next start of the server (./launcher start).",
           "default": "score",
           "type": "string"
+        },
+        "film_scenes": {
+          "title": "Start-up scenes",
+          "description": "Start-up scenes (Presentation). Which scenes the start-up film may play while a world is prepared. Space turns one on or off. The name always opens the film; the scenes between first and last play in a new order each time, as many as the wait allows. As text: ids separated by commas. Accepts: text. Default: \"streets, signals, demand, rush-hour, incidents, weather, cities, repeatable, auto-focus, webfabric\". Applies from the next start of the server (./launcher start).",
+          "default": "streets, signals, demand, rush-hour, incidents, weather, cities, repeatable, auto-focus, webfabric",
+          "type": "string"
+        },
+        "film_first": {
+          "title": "Always first",
+          "description": "Always first (Presentation). A scene the start-up film always plays first, after the name, or none. Accepts: \"none\" (None), \"streets\" (Mapped streets), \"signals\" (Signal timing), \"demand\" (Travel demand), \"rush-hour\" (Rush hour), \"incidents\" (Road incidents), \"weather\" (Simulated weather), \"cities\" (Cities worldwide), \"repeatable\" (Repeatable worlds), \"auto-focus\" (Auto Focus), \"webfabric\" (WebFabric). Default: \"none\". Applies from the next start of the server (./launcher start).",
+          "default": "none",
+          "enum": [
+            "none",
+            "streets",
+            "signals",
+            "demand",
+            "rush-hour",
+            "incidents",
+            "weather",
+            "cities",
+            "repeatable",
+            "auto-focus",
+            "webfabric"
+          ]
+        },
+        "film_last": {
+          "title": "Always last",
+          "description": "Always last (Presentation). A scene the start-up film always keeps for last, once every other has played, or none. WebFabric by default. Accepts: \"none\" (None), \"streets\" (Mapped streets), \"signals\" (Signal timing), \"demand\" (Travel demand), \"rush-hour\" (Rush hour), \"incidents\" (Road incidents), \"weather\" (Simulated weather), \"cities\" (Cities worldwide), \"repeatable\" (Repeatable worlds), \"auto-focus\" (Auto Focus), \"webfabric\" (WebFabric). Default: \"webfabric\". Applies from the next start of the server (./launcher start).",
+          "default": "webfabric",
+          "enum": [
+            "none",
+            "streets",
+            "signals",
+            "demand",
+            "rush-hour",
+            "incidents",
+            "weather",
+            "cities",
+            "repeatable",
+            "auto-focus",
+            "webfabric"
+          ]
         }
       }
     },

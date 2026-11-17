@@ -68,10 +68,10 @@ Where you see it:
 ```text
 $ ./launcher version
 DSTNS 3.13.3
- Launcher         3.14.1
+ Launcher         3.15.0
  Server           3.13.3 (local channel, built unknown (arm64))
  API contract     1.13
- Observer         3.8.0
+ Observer         3.9.0
  Engines          core-ng 1.2.2 (stable, standalone): default, selected
                   core-legacy 3.13.3 (stable, standalone): disabled
 ```

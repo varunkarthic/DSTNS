@@ -370,27 +370,31 @@ function SecurityPosture() {
     };
   }, []);
   if (!posture) return null;
-  const facts: { label: string; ok: boolean; state: string; detail: string }[] = [
+  const facts: { label: string; icon: IconName; ok: boolean; state: string; detail: string }[] = [
     {
       label: "Connection",
+      icon: "lock" as IconName,
       ok: posture.transport.tls,
       state: posture.transport.tls ? "Encrypted" : "Local only",
       detail: posture.transport.tls ? "TLS protects every request." : "Not encrypted: fine on this machine; use TLS or a gateway across a network.",
     },
     {
       label: "Credentials",
+      icon: "system" as IconName,
       ok: !posture.store.rejected,
       state: posture.store.rejected ? "Store rejected" : "Sealed",
       detail: posture.store.rejected ? "A changed store was rejected. Applications must register again." : "Tokens are kept only as hashes, in a sealed store.",
     },
     {
       label: "Audit log",
+      icon: "history" as IconName,
       ok: posture.audit.verification.intact,
       state: posture.audit.verification.intact ? "Intact" : "Altered",
       detail: posture.audit.verification.intact ? `${posture.audit.verification.checked.toLocaleString()} entries checked.` : "Entries have been altered; it does not verify.",
     },
     {
       label: "Signing",
+      icon: "check" as IconName,
       ok: true,
       state: `${posture.applications.requiring_signatures} of ${posture.applications.registered}`,
       detail: "Applications that must sign every request with their key.",
@@ -398,15 +402,18 @@ function SecurityPosture() {
   ];
   return (
     <Section title="Security">
+      {/* One row each: what it is, how it stands; the explanation only where something needs attention, and on
+          hover otherwise. */}
       <ul className="fabric-security" aria-label="Security">
         {facts.map((fact) => (
-          <li key={fact.label} className={fact.ok ? "ok" : "warn"}>
-            <span className="fabric-security-mark" aria-hidden="true">{fact.ok ? "✓" : "!"}</span>
-            <span className="fabric-security-text">
-              <small>{fact.label}</small>
-              <strong>{fact.state}</strong>
-              <span>{fact.detail}</span>
+          <li key={fact.label} className={fact.ok ? "ok" : "warn"} title={fact.detail}>
+            <Icon name={fact.icon} size={14} className="fabric-security-icon" />
+            <span className="fabric-security-label">{fact.label}</span>
+            <span className="fabric-security-state">
+              <i aria-hidden="true" />
+              {fact.state}
             </span>
+            {!fact.ok && <span className="fabric-security-detail">{fact.detail}</span>}
           </li>
         ))}
       </ul>
