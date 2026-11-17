@@ -1,4 +1,4 @@
-# Deployment
+# Operations
 
 How to run DSTNS for other people: where it can run, how to choose between the
 options, and what to look after once it is up.

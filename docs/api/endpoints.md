@@ -1,3 +1,8 @@
+---
+search:
+  boost: 2
+---
+
 # Every endpoint
 
 The whole API, route by route. For each one: who may call it, every field with its type and limits, what it answers, and what can go wrong. The responses are captured from a real server running a real world, so they show exactly what you get, shortened only where marked. They were first recorded at API contract 1.4 and are kept to the current contract, 1.13; a field added since 1.4 says which version added it.

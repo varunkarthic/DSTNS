@@ -1,3 +1,8 @@
+---
+search:
+  boost: 3
+---
+
 # Engines
 
 An **engine** builds a world from a seed and runs it: it chooses the city, compiles the district, advances every

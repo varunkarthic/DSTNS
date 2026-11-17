@@ -1,4 +1,4 @@
-# Getting started
+# Get started
 
 DSTNS runs in one of two ways. Pick the one that suits you; both give the same
 simulator.

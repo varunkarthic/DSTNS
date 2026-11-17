@@ -1,3 +1,8 @@
+---
+search:
+  boost: 2
+---
+
 # The launcher
 
 `./launcher` is how an operator builds DSTNS, checks that a machine can run it, starts

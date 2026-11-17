@@ -1464,3 +1464,17 @@ html { scrollbar-gutter: stable; }
 /* A route breaks at its slashes, never inside a word ("pau / se"). */
 .md-nav--secondary .md-ellipsis { word-break: normal; }
 .md-nav--secondary .md-ellipsis { white-space: normal; overflow: visible; text-overflow: clip; }
+
+/* ==========================================================================
+   The versions these pages describe (overrides/main.html, hooks/versions.py): one quiet line above the header
+   ========================================================================== */
+.md-banner { background: var(--dstns-navy-800); color: rgb(237 241 244 / 82%); border-bottom: 1px solid rgb(127 160 180 / 14%); }
+[data-md-color-scheme="default"] .md-banner { background: #eef3f6; color: rgb(16 32 44 / 78%); border-bottom-color: rgb(16 40 56 / 9%); }
+.md-banner__inner { margin: 0 auto; padding: 0.32rem 0.8rem; font-size: 0.62rem; }
+.dstns-versions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.9rem; justify-content: center; }
+.dstns-versions__lead { opacity: 0.8; }
+.dstns-versions__item { font-variant-numeric: tabular-nums; }
+.dstns-versions__item b { font-weight: 600; margin-right: 0.15rem; }
+.dstns-versions__link { color: var(--dstns-accent) !important; font-weight: 500; }
+.dstns-versions__link:hover { text-decoration: underline; }
+@media screen and (max-width: 44.9em) { .dstns-versions__lead { display: none; } .md-banner__inner { font-size: 0.58rem; } }

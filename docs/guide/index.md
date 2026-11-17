@@ -1,4 +1,4 @@
-# User guide
+# Guides
 
 How to operate DSTNS day to day: starting and steering runs, reading the
 observer, and configuring both.

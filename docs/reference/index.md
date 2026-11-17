@@ -4,6 +4,24 @@ Look-up material: exact commands, variables, paths and limits; the internal desi
 each component; the design specifications and the decisions behind them; how DSTNS is
 built, tested and verified; and the release history.
 
+## Versions this documentation describes
+
+Every page describes these versions. They are read from the sources when the site is built, so they always match the
+code the documentation was built from. Read the Docs keeps a site for each release; its version menu, at the bottom
+right, switches between them.
+
+| Part | Version | Reported by |
+|---|---|---|
+| DSTNS (the server) | {{ version.server }} | `./build/dstns_server --version`, `GET /api/v1/system/info` |
+| core-ng, the engine | {{ version.core_ng }} | `GET /api/v1/engine`, About in the observer |
+| core-legacy | {{ version.core_legacy }} | `GET /api/v1/engine` (disabled by default) |
+| Launcher | {{ version.launcher }} | `./launcher version` |
+| Observer | {{ version.observer }} | About in the observer |
+| API contract | {{ version.api }} | `api_version` in every answer |
+
+`./launcher version` prints them all at once, from the build that is installed. What changed in each version is in
+the [release notes](../changelog.md).
+
 ## Operating reference
 
 | Page | Use it to look up |

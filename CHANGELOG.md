@@ -57,6 +57,19 @@ unchanged.
   - "Optimised", as the rest of the interface spells it.
 - **Launcher:** the Supported cities list's columns fit the window, and its header has a gap after Code.
 - **Documentation site:**
+  - **Structured as product documentation.** The tabs are Home, Get started, Guides, Concepts, API, Operations,
+    Reference, Develop and Help:
+    - **Develop** holds what is for working on DSTNS itself: the design and specifications, building, testing,
+      quality, building applications, and the code graph.
+    - **Reference** is look-up material: commands, variables, files, limits, components, release notes and the licence.
+    - The home page's cards and the search's section filter follow the same names.
+  - **Every page says which versions it describes**, in a line above the header: DSTNS, core-ng, the launcher, the
+    observer and the API, with a link to the release notes. A build hook (`hooks/versions.py`) reads each version from
+    the source the build takes it from, so the line cannot fall behind the code. Reference has the same as a table,
+    with where each version is reported.
+  - **Search** ranks the Engines guide, the launcher, every endpoint and the quick start higher. It was checked in a
+    browser with the new terms (`core-legacy`, `urban-geo-v2`, `engine add`, `379`, `reset builds`,
+    `ENGINE_DISABLED`): every query finds its page, and there were no script errors.
   - **The header is light in the light scheme**, as the observer's is in its light theme: a frosted surface, the
     wordmark, tabs, search and links in the page's ink, and the current section an accent-tinted pill. It was a navy
     bar over a light page.

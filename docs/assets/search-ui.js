@@ -13,11 +13,11 @@
 (function () {
   var OPEN = "Start typing to search", CLOSED = "Search";
   var AREAS = [
-    ["getting-started", "Getting started"], ["guide", "User guide"], ["concepts", "Concepts"],
-    ["api", "API"], ["deployment", "Deployment"],
+    ["getting-started", "Get started"], ["guide", "Guides"], ["concepts", "Concepts"],
+    ["api", "API"], ["deployment", "Operations"], ["design", "Develop"], ["development", "Develop"], ["graph", "Develop"],
     ["troubleshooting", "Help"], ["faq", "Help"], ["glossary", "Help"]
   ];
-  var ORDER = ["Getting started", "User guide", "Concepts", "API", "Deployment", "Help", "Reference"];
+  var ORDER = ["Get started", "Guides", "Concepts", "API", "Operations", "Reference", "Develop", "Help"];
   var SECTIONS_SHOWN = 3;
   // Icons from Material Design Icons (Apache 2.0), as shipped with Material for MkDocs:
   // file-document-outline, pound, bullseye-arrow, format-title, text-search, chevron-right.

@@ -1,3 +1,8 @@
+---
+search:
+  boost: 2
+---
+
 # Quick start
 
 The shortest path from nothing to a running simulation.

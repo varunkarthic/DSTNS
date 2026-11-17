@@ -54,7 +54,7 @@ machine.
 <div class="dstns-cards" markdown>
 
 <div class="dstns-card" markdown>
-:material-rocket-launch-outline: [Getting started](getting-started/index.md){ .dstns-card__title }
+:material-rocket-launch-outline: [Get started](getting-started/index.md){ .dstns-card__title }
 
 Install, run with Docker, and take your first simulation.
 
@@ -62,7 +62,7 @@ Install, run with Docker, and take your first simulation.
 </div>
 
 <div class="dstns-card" markdown>
-:material-compass-outline: [User guide](guide/index.md){ .dstns-card__title }
+:material-compass-outline: [Guides](guide/index.md){ .dstns-card__title }
 
 The operator CLI, the observer, playback, seeds and configuration.
 
@@ -86,7 +86,7 @@ Playback, control, view and streaming routes, schemas and examples.
 </div>
 
 <div class="dstns-card" markdown>
-:material-server-outline: [Deployment](deployment/index.md){ .dstns-card__title }
+:material-server-outline: [Operations](deployment/index.md){ .dstns-card__title }
 
 Containers, TLS, security, logging and operations.
 
@@ -96,17 +96,17 @@ Containers, TLS, security, logging and operations.
 <div class="dstns-card" markdown>
 :material-book-open-variant: [Reference](reference/index.md){ .dstns-card__title }
 
-Commands, variables, paths and limits; component internals; release notes.
+Commands, variables, files and limits; components; release notes and the licence.
 
 [Limits](reference/limits.md){ .dstns-chip } [Components](components/index.md){ .dstns-chip }
 </div>
 
 <div class="dstns-card" markdown>
-:material-draw: [Design](design/index.md){ .dstns-card__title }
+:material-draw: [Develop](development/index.md){ .dstns-card__title }
 
-The decisions behind the system, and its formal specifications.
+Design and specifications, building and testing, applications, and the code graph.
 
-[Decisions](design/decisions.md){ .dstns-chip } [Foundation](design/mathematical-foundation.md){ .dstns-chip }
+[Decisions](design/decisions.md){ .dstns-chip } [Building](development/building.md){ .dstns-chip } [Code graph](graph.md){ .dstns-chip }
 </div>
 
 <div class="dstns-card" markdown>

@@ -69,6 +69,8 @@ hooks:
   - hooks/cachebust.py
   # Long API routes in a page's table of contents wrap at their slashes.
   - hooks/tocbreaks.py
+  # Which versions the documentation describes, read from the sources, on every page.
+  - hooks/versions.py
   # The Graph page's data: graphify reads the repository and the hook lays it out (docs/development/knowledge-graph.md).
   - hooks/graph.py
 
@@ -147,7 +149,7 @@ validation:
 
 nav:
   - Home: index.md
-  - Getting started:
+  - Get started:
       - getting-started/index.md
       - Before you begin:
           - System requirements: getting-started/requirements.md
@@ -157,7 +159,7 @@ nav:
           - Run with Docker: getting-started/docker.md
       - First steps:
           - Your first simulation: getting-started/first-simulation.md
-  - User guide:
+  - Guides:
       - guide/index.md
       - Running simulations:
           - The launcher: guide/operator-cli.md
@@ -224,7 +226,7 @@ nav:
       - Client guides:
           - Examples: api/examples.md
           - Python client walkthrough: api/client-walkthrough.md
-  - Deployment:
+  - Operations:
       - deployment/index.md
       - Deploying:
           - Docker: deployment/docker.md
@@ -234,11 +236,6 @@ nav:
           - Logging: deployment/logging.md
           - Performance: deployment/performance.md
           - Upgrading and data management: deployment/upgrading.md
-  - Help:
-      - troubleshooting.md
-      - FAQ: faq.md
-      - Known limitations: limitations.md
-      - Glossary: glossary.md
   - Reference:
       - reference/index.md
       - Operating reference:
@@ -271,6 +268,9 @@ nav:
           - Fabric: components/fabric.md
           - WebFabric: components/webfabric.md
           - CoreAI: components/coreai.md
+      - Release notes: changelog.md
+      - License: license.md
+  - Develop:
       - Design:
           - design/index.md
           - Design decisions: design/decisions.md
@@ -282,7 +282,7 @@ nav:
           - Motion and graphics mathematics: design/motion-mathematics.md
           - System architecture: design/system-architecture-spec.md
           - API, runtime and events: design/api-runtime-event-spec.md
-      - Development:
+      - Contributing:
           - development/index.md
           - Building from source: development/building.md
           - Testing: development/testing.md
@@ -290,6 +290,9 @@ nav:
           - Quality assurance: development/quality-assurance.md
           - Building the documentation: development/documentation.md
           - The knowledge graph: development/knowledge-graph.md
-      - Release notes: changelog.md
-      - License: license.md
-  - Graph: graph.md
+      - Code graph: graph.md
+  - Help:
+      - troubleshooting.md
+      - FAQ: faq.md
+      - Known limitations: limitations.md
+      - Glossary: glossary.md
