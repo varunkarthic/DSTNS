@@ -71,6 +71,8 @@ hooks:
   - hooks/cachebust.py
   # Long API routes in a page's table of contents wrap at their slashes.
   - hooks/tocbreaks.py
+  # The changelog's nested lists, nested on this site too (CHANGELOG.md indents by two, as GitHub reads it).
+  - hooks/changelog.py
   # Which versions the documentation describes, read from the sources, on every page.
   - hooks/versions.py
   # The Graph page's data: graphify reads the repository and the hook lays it out (docs/development/knowledge-graph.md).

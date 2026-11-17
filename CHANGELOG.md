@@ -53,10 +53,14 @@ resolution of Dependabot alert #18.
   `references/architecture.md` maps every part to its folder and entry points, and `references/recipes.md` gives
   checked commands for common tasks.
 - **README:** centred figures, tables with headings, the report's cover beside its text, a current knowledge-graph
-  screenshot, and benchmarks as medians of three runs for both engines The badges name each part's version (the
+  screenshot, and benchmarks as medians of three runs for both engines. The badges name each part's version (the
   server, core-ng, core-legacy, the launcher, the observer and the API, with the latest release) instead of an
   ambiguous "engine", and so does the versions table. The header's spacing is tighter, its links include Releases,
   and the observer section shows two of the film's scenes.
+- **The changelog page on the documentation site is laid out as on GitHub.** Its sub-lists were flattened into the
+  list above them, and an item after a paragraph inside another item ran into that paragraph, because this file
+  indents by two spaces as GitHub reads it and the site's Markdown needs four. A build hook (`hooks/changelog.py`)
+  deepens the page's indentation as it is built, and the file stays as it is.
 - **Every version has a release.** Each version in this changelog has a tag and a GitHub release, titled with its
   version (`vX.Y.Z`; `launcher-vX.Y.Z` and `observer-vX.Y.Z` for the launcher or the observer alone), and each heading
   here links to it.
