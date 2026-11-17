@@ -208,14 +208,34 @@ server's `system.log` runs beneath it, coloured by level. When a simulation is r
 | | Diagnostics | Every check, optionally with the test suites; server, terminal and path details |
 | Inspect | Logs | The system log and the API, operator-event and lifecycle journals |
 | | Tests | The test stages, with live output |
-| | Tools | The SUMO toolchain check, rebuilding the observer, the supported cities and choosing countries, resetting runtime data |
+| | Tools | Build and check; the server, its daemons and stopping it; Places (Supported cities, Choose countries); engines and AI; launcher state; maintenance. See [Tools](#tools) |
 | Help | Documentation | This site, in your browser |
 | | About | Version, copyright, licence and map-data attribution |
 | | Exit | Leaves the launcher, stopping a simulation it started after confirmation |
 
+### Tools
+
+![Tools: what each does, run with Enter, its output beneath](../assets/screenshots/launcher-tools.png){ .screenshot }
+
+| Group | Tool | Does |
+|---|---|---|
+| Build and check | Build what changed | The server, the export tool and the observer, each only if its sources changed |
+| | Check SUMO toolchain | Export a synthetic grid, convert it and run SUMO on it (needs `sumo.enabled`) |
+| | Rebuild the observer | Build the observer bundle again |
+| Server and services | Server status, Daemons, Stop the server | What runs, the watchers inside it, and stopping it |
+| Places | Supported cities | Every city a world can be in, filtered as you type, saved as CSV with Ctrl+S; see [Engines and places](engines.md#every-supported-city) |
+| | Choose countries | Where worlds are, from a list of countries; see [Places, in the launcher](engines.md#places-in-the-launcher) |
+| Engines and AI | Engines and policy, Model providers, MCP | The engines' channels, versions, types and policy; the launcher's model; the MCP Handler |
+| Launcher state | Copy a launch code, Write config schemas and help | One code for this launcher; `config/schema/` and each file's `_help` |
+| Maintenance | Reset runtime data, Clear the map cache | See [Reset scopes](#reset-scopes) |
+
+A tool's output wraps to the window, so nothing is cut off at the edge; **PgUp** and **PgDn** read back through a
+long one. **Ctrl+S exports** what the tool said and printed to a text file, `dstns-TOOL-YYYYMMDD-HHMMSS.txt`, in
+Downloads (or `output/` where there is none), and the rule above the output says where it went.
+
 ### Start simulation
 
-![The launcher's start page, with three applications set up](../assets/screenshots/launcher-start.png){ .screenshot }
+![The launcher's start page: the engine offered is core-ng, core-legacy disabled; Places shown as Configuration sets it](../assets/screenshots/launcher-start.png){ .screenshot }
 
 | Field | Meaning |
 |---|---|
@@ -223,6 +243,8 @@ server's `system.log` runs beneath it, coloured by level. When a simulation is r
 | Day type | Weekday or weekend |
 | Map | Chosen by the seed, a cached city, the bundled offline district, or another file |
 | Speed | Initial speed, more than 0 and at most 10 |
+| Engine | The engines that may run: core-ng (the default) and, once enabled, core-legacy. A disabled engine is named beneath, with where to enable it |
+| Places | Where worlds may be, as Configuration sets it, read-only here: change it under Configuration, Engine, or with `./launcher engine add IN` |
 | Applications | A switch for each application in the catalogue |
 | Save as, Description | Optionally save the configuration as a [saved seed](saved-seeds.md) |
 | Open observer | Open the observer in your browser when the run starts |
@@ -295,8 +317,18 @@ Every setting, in sections, each a heading over its categories:
 
 The arrows move between categories and pass over the headings. Each value is validated as you
 type, with its reason shown, and an invalid value is never written. The **Observer** section is
-kept in `config/ui-config.json`, the observer's operator defaults; the rest in
-`config/defaults.json`. The status line shows `! unsaved` while there are changes;
+kept in `config/ui-config.json`, the observer's operator defaults; the engine policy in `config/engines.json`; the rest
+in `config/defaults.json`. A change made elsewhere (the command bar, `./launcher engine add IN`, another window)
+shows at once, unless there are unsaved changes on the page.
+
+Most settings are a value to type or a choice to step through. Some are edited their own way:
+
+| Setting | Editor |
+|---|---|
+| Places (Engine) | A list of every country to tick: Space chooses, `-` leaves out, Ctrl+A all, Ctrl+D none. See [Engines and places](engines.md#places-in-the-launcher) |
+| Resource Control's lines | α, β and γ as three cells with a scale beneath; ←→ moves, digits type, `+` and `-` step. See [Daemons](daemons.md) |
+| Demo scenes | Scenes to turn on or off and put in order: Space, Shift+↑↓ |
+| On or off | A switch reading enabled or disabled; Space or Enter turns it | The status line shows `! unsaved` while there are changes;
 **Ctrl+S** saves, and leaving with changes asks first. See
 [Settings for every feature](#settings-for-every-feature).
 
@@ -475,8 +507,9 @@ reason and what would fix it) or **Disabled**:
 
 | Scope | What it resets | In plain `reset` |
 |---|---|---|
-| `runtime` | `logs/system.log`, `logs/runtime.db*`, `data/checkpoints`, `data/scenarios`, `data/sumo_live_run` | yes |
-| `cache` | The map cache (`map.cache_dir`), Fast Boot's cities and Dynamic Fastboot's `next-world.json` | yes |
+| `runtime` | Every log in `logs/` (the server's, the launcher's, rotated ones), `logs/runtime.db*`, the server's view dump (`logs/global_view.json`), `data/checkpoints`, `data/scenarios`, `data/sumo_live_run` | yes |
+| `cache` | The map cache (`map.cache_dir`), Fast Boot's cities, Dynamic Fastboot's `next-world.json`, and the narrations kept (`logs/narrations.db*`) | yes |
+| `builds` | What builds and tests leave behind, every piece made again when needed: the launcher's and CoreAI's development and test builds (`LaunchKit/target/debug`, `CoreAI/target/debug`, which grow by gigabytes as the code changes), test screenshots (`artifacts/`), `tmp/`, the documentation site (`site/`), Vite's cache and CTest's output. The launcher and the server stay built | yes |
 | `settings` | Every setting back to its default, in `config/defaults.json` and `config/ui-config.json`. Keys that are not settings are kept | yes |
 | `setup` | The launcher's setup flag; setup runs again at the next start | yes |
 | `seeds` | The saved-seed store and the maps saved with it | yes |
@@ -485,8 +518,8 @@ reason and what would fix it) or **Disabled**:
 | `app-settings [ID]` | WebFabric applications' own settings, for one application or all. The server's store is sealed, so the launcher writes a request (`logs/fabric-apps.json.reset`) and the server applies it when it next starts | no |
 | `all` | Every scope above | — |
 
-Scopes combine: `./launcher reset cache seeds --yes`. The Tasks screen's **Reset runtime data** resets `runtime` and
-`setup` only.
+Scopes combine: `./launcher reset cache seeds --yes`. A reset ends by saying how much space it freed. Tools,
+**Reset runtime data** resets `runtime`, `builds` and `setup`.
 
 ## Applications
 

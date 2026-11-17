@@ -38,6 +38,8 @@ core):
 The processor's α counts only while a run is running: an engine at rest uses nothing, and
 that is not wrong.
 
+![Resource Control in the launcher: each line's α, β and γ as three cells, with a scale beneath](../assets/screenshots/launcher-rcs.png){ .screenshot }
+
 In the launcher, Configuration, Resource Control shows each line as three cells, α, β and γ, with a scale beneath
 that marks where each sits between 0 and γ. ←→ moves between the cells, digits and Backspace type, and `+` and `-`
 step by about a twentieth; a line whose values are not each at least the one before is marked until it is.

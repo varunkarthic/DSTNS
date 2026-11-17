@@ -299,6 +299,16 @@ collapses it. While it is open the list is held steady, so a notification that
 would expire cannot vanish while being read. The capsule never covers the
 command rail.
 
+### Engine updates
+
+When the running engine is a stable version this browser has not seen before, the tray announces it once, as soon as
+the interface has loaded: "core-ng updated to 1.2.1", what changed in a line, and, expanded, the version before and
+after, the latest changes, and the engine's channel and type. It stays for 20 seconds unless opened, and is kept in
+the history. The first engine a browser ever sees is not news, and is not announced. See
+[Engines](engines.md#when-an-engine-is-updated).
+
+![core-ng's new version announced in the tray at the bottom left](../assets/screenshots/engine-update.png){ .screenshot }
+
 ### Important on top
 
 **Show important on top**, in Settings under Notifications, is on by default. With several events current, the capsule shows the
@@ -673,6 +683,22 @@ Those figures come from the laid-out interface rather than a round number. At
 the labelled seed, the re-roll, runtime status and Terminate on one row; at 640 px the map keeps
 about 400 px between the header and the rail. The browser suite asserts both,
 along with the absence of any overlap at that size.
+
+## About
+
+The **About** card (the ⓘ in the header) is the system's technical record, read from the server every few seconds
+while it is open:
+
+| Part | Shows |
+|---|---|
+| Under the name | The server's version, the API contract, the observer's version and the running engine, as the server reports them now: a server restarted on a new version shows it without reloading |
+| This run | Location, the seed in decimal (with a copy button) and 128-bit hexadecimal, lifecycle, engine and channel, selection policy, mode, places and fingerprint, network size, map source, anchor, run, graph hash; with Advanced detail, the scenario, event and map hashes |
+| Engines | Every installed engine: version, channel, whether it runs this world, is the default, available or disabled, its type and what it owns |
+| Server | Version, channel, revision and build date (release builds; "Local build" otherwise), architecture, C++ standard, compiler, process ID, uptime, memory and peak, processor time, API contract and observer |
+| Integrations | The SUMO adapter, Realistic News, Fabric and WebFabric |
+| Licence | AGPL-3.0-or-later, section 13's source offer, and the map data's ODbL |
+
+![About: versions under the name; this run's seed, policy, fingerprint and hashes](../assets/screenshots/about.png){ .screenshot }
 
 ## Dialogs, errors and empty states
 

@@ -247,8 +247,8 @@ impl Screen for PlacesScreen {
             header.push(Line::default());
         } else {
             let name_room = (width.saturating_sub(30) / 2).max(10);
-            let country_room = width.saturating_sub(name_room + 30).max(8);
-            header.push(Line::from(Span::styled(format!("  {:<name_room$} {:<country_room$} {:<4}{:<18}{}", "City", "Country", "Code", "ID", "Since"), fg(MUTED))));
+            let country_room = width.saturating_sub(name_room + 38).max(8);
+            header.push(Line::from(Span::styled(format!("  {:<name_room$} {:<country_room$} {:<6}{:<18}{}", "City", "Country", "Code", "ID", "Since"), fg(MUTED))));
         }
         let header_height = header.len() as u16;
         frame.render_widget(Paragraph::new(header), Rect { height: header_height, ..inner });
@@ -302,12 +302,12 @@ impl Screen for PlacesScreen {
                     let text = |k: &str| c.get(k).and_then(Value::as_str).unwrap_or("").to_string();
                     let new = text("since") == "urban-geo-v2";
                     let name_room = (width.saturating_sub(30) / 2).max(10);
-                    let country_room = width.saturating_sub(name_room + 30).max(8);
+                    let country_room = width.saturating_sub(name_room + 38).max(8);
                     Line::from(vec![
                         lead,
                         Span::styled(format!("{:<name_room$} ", clip(&text("city"), name_room, ui.unicode)), if here { bold(TEXT) } else { fg(TEXT) }),
                         Span::styled(format!("{:<country_room$} ", clip(&text("country"), country_room, ui.unicode)), fg(TEXT2)),
-                        Span::styled(format!("{:<4}", text("country_code")), fg(ACCENT)),
+                        Span::styled(format!("{:<6}", text("country_code")), fg(ACCENT)),
                         Span::styled(format!("{:<18}", clip(&text("id"), 17, ui.unicode)), fg(MUTED)),
                         Span::styled(if new { "new" } else { "always" }, fg(if new { OK } else { MUTED })),
                     ])

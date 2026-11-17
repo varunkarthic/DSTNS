@@ -795,6 +795,74 @@ mod tests {
         app.on_key(KeyEvent::from(code));
     }
 
+    /// The screen as HTML, cell by cell with its colours, for the documentation's screenshots.
+    fn html(app: &mut App, width: u16, height: u16) -> String {
+        use ratatui::style::{Color, Modifier};
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal.draw(|frame| app.draw(frame)).unwrap();
+        let buffer = terminal.backend().buffer().clone();
+        let css = |c: Color, fallback: &str| match c {
+            Color::Rgb(r, g, b) => format!("#{r:02x}{g:02x}{b:02x}"),
+            _ => fallback.to_string(),
+        };
+        let mut out = String::from("<!DOCTYPE html><meta charset=utf-8><style>body{margin:0;background:#000}pre{margin:0;padding:18px 22px;font:15px/1.32 'JetBrains Mono','SF Mono',Menlo,monospace;color:#d8e0e8;background:#000}span{white-space:pre}</style><pre>");
+        for y in 0..height {
+            for x in 0..width {
+                let cell = &buffer[(x, y)];
+                let (mut fg, mut bg) = (css(cell.fg, "#d8e0e8"), css(cell.bg, "#000000"));
+                if cell.modifier.contains(Modifier::REVERSED) {
+                    std::mem::swap(&mut fg, &mut bg);
+                }
+                let weight = if cell.modifier.contains(Modifier::BOLD) { "font-weight:700;" } else { "" };
+                let text = cell.symbol().replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+                out += &format!("<span style=\"color:{fg};background:{bg};{weight}\">{text}</span>");
+            }
+            out.push('\n');
+        }
+        out + "</pre>"
+    }
+
+    /// The launcher pages the documentation shows, as HTML, into DSTNS_SHOTS (run with --ignored).
+    #[test]
+    #[ignore]
+    fn documentation_screenshots() {
+        let Ok(dir) = std::env::var("DSTNS_SHOTS") else { return };
+        let save = |name: &str, app: &mut App| std::fs::write(format!("{dir}/{name}.html"), html(app, 132, 40)).unwrap();
+        // Configuration, Engine: the engine, and Places as a list.
+        let mut config = app(132, 40, Box::new(screens::configuration::ConfigurationScreen::new(Some("Engine".into()))));
+        screen(&mut config, 132, 40);
+        press(&mut config, KeyCode::Tab);
+        for _ in 0..7 {
+            press(&mut config, KeyCode::Down);
+        }
+        save("launcher-places", &mut config);
+        // Resource Control as alpha, beta and gamma.
+        let mut rcs = app(132, 40, Box::new(screens::configuration::ConfigurationScreen::new(Some("Resource Control".into()))));
+        screen(&mut rcs, 132, 40);
+        press(&mut rcs, KeyCode::Tab);
+        save("launcher-rcs", &mut rcs);
+        // Tools, and the list of supported cities.
+        let catalogue = crate::modules::fastboot::cities(&crate::paths::Paths::default()).unwrap_or_default();
+        let mut list = screens::places::PlacesScreen::cities();
+        list.set_cities(catalogue.clone());
+        let mut cities = app(132, 40, Box::new(list));
+        typed(&mut cities, "in");
+        save("launcher-cities", &mut cities);
+        let mut picker = screens::places::PlacesScreen::countries();
+        picker.set_cities(catalogue);
+        let mut countries = app(132, 40, Box::new(picker));
+        for _ in 0..3 {
+            press(&mut countries, KeyCode::Down);
+        }
+        press(&mut countries, KeyCode::Char(' '));
+        save("launcher-countries", &mut countries);
+        let mut tools = app(132, 40, Box::new(screens::tasks::TaskScreen::tools()));
+        save("launcher-tools", &mut tools);
+        let start = screens::start::StartScreen::new(&app(132, 40, Box::new(screens::about::AboutScreen)).ui);
+        let mut start_app = app(132, 40, Box::new(start));
+        save("launcher-start", &mut start_app);
+    }
+
     fn typed(app: &mut App, text: &str) {
         for ch in text.chars() {
             press(app, KeyCode::Char(ch));

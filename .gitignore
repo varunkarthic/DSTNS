@@ -85,3 +85,4 @@ context/
 dstns_local_services.py
 config/.launcher-seal
 config/.launch-pending.json
+logs/*.reset

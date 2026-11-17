@@ -159,6 +159,7 @@ nav:
       - guide/index.md
       - Running simulations:
           - The launcher: guide/operator-cli.md
+          - Engines and places: guide/engines.md
           - The console: guide/console.md
           - Fast starts and the film: guide/fast-boot.md
           - MCP Handler: guide/mcp.md

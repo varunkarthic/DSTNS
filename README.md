@@ -37,7 +37,7 @@ and you watch it, change it, and build on it.
 
 ## Overview
 
-Give DSTNS a number. It resolves to a district in one of 181 cities on every inhabited continent, downloads that district's streets from OpenStreetMap, and runs a full day of traffic, signals, demand, weather, flooding and incidents on one clock.
+Give DSTNS a number. It resolves to a district in one of 379 cities in 126 countries, on every inhabited continent, downloads that district's streets from OpenStreetMap, and runs a full day of traffic, signals, demand, weather, flooding and incidents on one clock.
 
 **The same seed, configuration, map and build always give the same day**, on any machine. You can pause it, step through it, jump back and forward in time, and export a report of what happened.
 
@@ -45,6 +45,8 @@ Give DSTNS a number. It resolves to a district in one of 181 cities on every inh
 - **A live observer.** A map with telemetry, notifications, Time Control and an Auto Focus camera that follows what matters. It has light and dark themes, palettes for colour vision, and keyboard shortcuts you can change.
 - **Open to your programs.** Through **Fabric**, an HTTP API with 152 documented paths, and **WebFabric**, which lets your applications add panels and map layers to the observer.
 - **Ready for AI.** An MCP server makes every API route a tool for AI clients. It is closed by default.
+- **Two engines, one contract.** **core-ng**, the engine, runs every world; **core-legacy**, the engine DSTNS had
+  before it, stays installed for comparison and makes the same world from the same seed, bit for bit.
 
 ## Quick start
 
@@ -88,7 +90,48 @@ One program checks your machine, builds what is needed, and runs everything. Its
 - **Plain words.** A local model can turn a request into a command for you to check and run.
 - **Advanced Security.** Touch ID or your password can be required before the launcher can be changed.
 
-More in the [launcher guide](https://dstns.readthedocs.io/v3/guide/operator-cli/) and the [console guide](https://dstns.readthedocs.io/v3/guide/console/).
+- **Where worlds are, ticked from a list.** Configuration, Engine, Places lists every country with its code and number
+  of cities: Space chooses one, `-` leaves one out. From any shell: `./launcher engine add IN AE`, `engine add -PK`,
+  `engine del all`.
+- **Every supported city, to look up and keep.** Tools, Supported cities filters all 379 and saves them as CSV;
+  `./launcher cities india` and `./launcher countries` do the same in a shell.
+- **Every tool's output can be exported**, and `./launcher reset` frees what builds and tests leave behind (often
+  gigabytes), saying how much.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/screenshots/launcher-places.png" alt="Places in the launcher: a list of countries with their codes and number of cities, to tick"></td>
+<td width="50%"><img src="docs/assets/screenshots/launcher-cities.png" alt="Tools, Supported cities: every city with its country, code and ID, filtered"></td>
+</tr>
+</table>
+
+```bash
+./launcher version                 # the launcher, server, API, observer and each engine
+./launcher engine                  # the engines and their policy
+./launcher engine add IN, AE       # worlds only in India and the UAE
+./launcher engine add -IN          # anywhere but India
+./launcher engine del all          # anywhere in the world again
+./launcher cities export cities.csv
+```
+
+More in the [launcher guide](https://dstns.readthedocs.io/v3/guide/operator-cli/), the [engines guide](https://dstns.readthedocs.io/v3/guide/engines/) and the [console guide](https://dstns.readthedocs.io/v3/guide/console/).
+
+## Engines
+
+| Engine | Version | Channel | State | What it is |
+|---|---|---|---|---|
+| **core-ng** | 1.2.1 | stable | the default; it cannot be disabled | The engine. Its own world selection, compiler, physics tick, checkpoints and lifecycle tables, on a common layer it shares with nothing engine-specific. 28% faster per tick than 3.13.0 at 50×50 |
+| **core-legacy** | the build's | stable | disabled by default | The engine DSTNS had before core-ng, frozen. Enable it to compare: both make the same world, hash for hash |
+
+- **Selection policies.** `urban-crfg-v3` (every seed's city as engine 3.0 chose it), `urban-geo-v1` (countries or
+  cities from those 181) and `urban-geo-v2` (the same rules over 379 cities; what the launcher uses on core-ng). A
+  policy never changes meaning: new cities come with a new policy, so recorded seeds keep their cities.
+- **No city twice in a session**, while the policy allows another. Regenerate goes somewhere new until every allowed
+  city has been shown.
+- **An alpha or beta engine's run waits for a person to accept the risk**, in the observer or with `--accept-risk`.
+  A new version of the running engine is announced once in the notifications.
+
+See [Engines](https://dstns.readthedocs.io/v3/guide/engines/) and [Engine governance](https://dstns.readthedocs.io/v3/design/engine-governance/).
 
 ## Fabric and WebFabric
 
@@ -172,7 +215,8 @@ See [Reports](https://dstns.readthedocs.io/v3/guide/reports/).
 | **Daemons** | Watchers inside the server for resources, memory, disk and stalled runs, and a cache handler. See [Daemons](https://dstns.readthedocs.io/v3/guide/daemons/) |
 | **Reproducibility** | The same seed, configuration, map bytes and build give the same results. See the [limits](https://dstns.readthedocs.io/v3/concepts/reproducibility/) |
 | **State machines** | Every lifecycle, with its states and transitions, is in [State machines](https://dstns.readthedocs.io/v3/design/state-machines/) |
-| **Tests** | 34 engine and HTTP suites, 85 launcher tests and 500 observer tests, with 155 recorded API calls replayed on every run. `./scripts/test.sh` runs them all |
+| **Tests** | 45 engine and HTTP suites (golden fixtures prove core-ng and core-legacy identical, and `dstns_core_ng_alone` builds core-ng with no core-legacy code), 107 launcher tests and 513 observer tests. `./scripts/test.sh` runs them all |
+| **Performance** | A 50×50 grid ticks in about 240 µs on an Apple M4, 2.9 times what the fastest playback needs. See [Performance](https://dstns.readthedocs.io/v3/deployment/performance/) |
 | **Deployment** | Containers, a TLS gateway, logging and upgrades. See [Deployment](https://dstns.readthedocs.io/v3/deployment/) |
 
 ## Security
@@ -181,7 +225,7 @@ DSTNS is a single-operator tool. It listens on loopback only, refuses cross-site
 
 ## Versions
 
-Engine **3.13.2** · Observer **3.7.0** · API contract **1.13**. `./build/dstns_server --version` and `/api/v1/system/info` report what is running. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Engine **3.13.2** (core-ng **1.2.1**) · Launcher **3.14.0** · Observer **3.7.0** · API contract **1.13**. `./launcher version`, `./build/dstns_server --version` and `/api/v1/system/info` report what is running. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 DSTNS is for research, teaching, algorithm integration and demonstrations. It is not calibrated or certified for controlling real traffic.
 
