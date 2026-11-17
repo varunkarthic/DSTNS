@@ -41,6 +41,46 @@ The engine and observer are unchanged, and so are results for every seed.
 - **A closing animation.** Leaving, the page falls away from the foot up into a line of particles and the name dims in
   the middle, in about 0.7 s. Any key skips it; reduced motion and the reduced interfaces skip it altogether.
 
+#### Safe exit
+
+- **A server goes with its launcher, however the launcher ends.** The launcher already stopped a server it started
+  on exit, Ctrl+C, SIGTERM and SIGHUP (a closed terminal). What it cannot catch (SIGKILL, Force Quit, a crash) left
+  that server running, holding a world in memory. The launcher now passes `DSTNS_PARENT_PID` to the server, which
+  checks every half second that its launcher is still there and, once it is not, stops as it does on SIGTERM: map
+  downloads cancelled, then the process ends. A server started by hand or in a container is unaffected.
+  `dstns_http_parent_watch` kills the parent with SIGKILL and requires the server to stop within 5 s; it stops in
+  about 0.2 s.
+
+#### Documentation search, the graph, and the colour schemes
+
+- **Search that understands questions, without a model.** The site's search now ranks with
+  [MiniSearch](https://github.com/lucaong/minisearch) (MIT, vendored in `docs/assets/vendor/`) over Material's
+  index, in `docs/assets/search-engine.js`:
+  - question phrasing goes ("how do I", "what is", "where can I"), and so do words that carry no meaning;
+  - words are stemmed, in the index and the question alike ("configuring", "configuration");
+  - DSTNS's own synonyms count for a little less than the word typed ("speed" finds the tick rate, "delete"
+    finds reset, "city" finds places, "ChatGPT" finds the MCP Handler);
+  - a word being typed matches as a prefix, a long one forgives a typo, and a misspelt long word is found by its
+    beginning;
+  - code is found as written and in parts (`api.port`, `tick_rate`, `tickRate`);
+  - a result needs most of the question; BM25 ranks it, titles count four times what text does, a page ranks by its
+    best section, and the changelog counts for less, since it mentions everything.
+
+  The index loads the first time the field is used. Material's own results remain the fallback.
+- **The Graph tab is back** at the top level (it had moved under Develop). The page fits the window below the version
+  line, so its controls are never below the edge. A question lists everything it found with a count; tests no longer
+  answer for the code they test, so "what calls sha256" is about the engine's `sha256`; the card's links wrap.
+- **The graph is rebuilt on every push** to the default branch too: the workflow now runs on `v3-*` branches.
+- **Light and dark everywhere.** The search panel and its results, tooltips, the back-to-top button, the "copied"
+  notice and the skip link were dark in the light scheme; they follow the chosen scheme.
+- **Engine benchmarks** (`docs/deployment/engine-benchmarks.md`): core-ng and core-legacy side by side on every grid
+  from 10 × 10 to 100 × 100 (medians of three runs), under event load, with up to 32 observers, and end to end over
+  HTTP on the bundled district, with eight charts. core-ng ticks 20 to 36% faster, jumps 34 to 60% faster on the grids
+  and 13 to 38% over HTTP, keeps up with the fastest playback up to 75 × 75 (core-legacy up to 50 × 50), and keeps its
+  checkpoints in 90% less memory; the hashes are identical.
+- **The version line can be closed**, and stays closed until a version changes; the versions are also in the
+  footer. "Release notes" reads "Changelog". Ten tabs fit beside the theme toggle at every width.
+
 #### Documentation and policy
 
 - **Documentation site:** content tabs (Docker / From source / API only) are a compact segmented control: Material had

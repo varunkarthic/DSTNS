@@ -239,6 +239,7 @@ nav:
           - Operations runbook: deployment/operations.md
           - Logging: deployment/logging.md
           - Performance: deployment/performance.md
+          - Engine benchmarks: deployment/engine-benchmarks.md
           - Upgrading and data management: deployment/upgrading.md
   - Reference:
       - reference/index.md

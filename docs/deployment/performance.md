@@ -4,6 +4,10 @@ How much DSTNS costs to run, how that scales with the size of the district, and 
 to measure it on your own hardware. Each figure is either measured (and says so,
 with the machine) or derived from a formula stated beside it.
 
+!!! tip "Comparing the engines"
+    [Engine benchmarks](engine-benchmarks.md) sets core-ng and core-legacy side by side: every grid size, event
+    load, observers, and end to end on a real district, with charts.
+
 ## Measured figures
 
 Release build, Apple silicon laptop (Apple Clang 21), the bundled real district
