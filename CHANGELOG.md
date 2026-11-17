@@ -6,19 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 DSTNS uses version numbers that identify three independently versioned parts:
 the engine (`DSTNS_VERSION`, set in `CMakeLists.txt`), the observer (`VERSION` in
 `WebKit/src/App.tsx`) and the HTTP API contract (`/api/v1`). Each release is
-tagged on GitHub as `v` and the engine's version, and says which versions of the
-other two it carries. Changes that
+tagged on GitHub as `v` and the engine's version (`launcher-v` or `observer-v` and
+its own version for a release of the launcher or the observer alone), says which
+versions of the other parts it carries, and each heading below links to its release. Changes that
 alter simulation results for an existing seed or map are called out explicitly,
 because the [reproducibility guarantee](https://dstns.readthedocs.io/concepts/reproducibility/) holds
 only within one version.
 
 ## [Unreleased]
 
-## [3.13.4] - 2026-11-17
+## [3.13.4] - 2026-11-18
 
 **Engine 3.13.4 (core-ng 1.2.2), launcher 3.16.1, observer 3.9.0, API contract 1.13.** The simulation is unchanged, and
-so are results for every seed: this release carries the launcher's fix for starting a simulation after Demo Mode, and
-the graph page's redesigned search.
+so are results for every seed: this release carries the launcher's fix for starting a simulation after Demo Mode, the
+graph page's redesigned search, a fuller Claude skill, a cleaner README, a release for every version, and the
+resolution of Dependabot alert #18.
 
 ### Launcher 3.16.1
 
@@ -51,7 +53,13 @@ the graph page's redesigned search.
   `references/architecture.md` maps every part to its folder and entry points, and `references/recipes.md` gives
   checked commands for common tasks.
 - **README:** centred figures, tables with headings, the report's cover beside its text, a current knowledge-graph
-  screenshot, and benchmarks as medians of three runs for both engines.
+  screenshot, and benchmarks as medians of three runs for both engines The badges name each part's version (the
+  server, core-ng, core-legacy, the launcher, the observer and the API, with the latest release) instead of an
+  ambiguous "engine", and so does the versions table. The header's spacing is tighter, its links include Releases,
+  and the observer section shows two of the film's scenes.
+- **Every version has a release.** Each version in this changelog has a tag and a GitHub release, titled with its
+  version (`vX.Y.Z`; `launcher-vX.Y.Z` and `observer-vX.Y.Z` for the launcher or the observer alone), and each heading
+  here links to it.
 
 ### Security
 
@@ -2371,8 +2379,40 @@ The first deterministic vertical slice: seeded scenario compilation from a
 synthetic grid or OSM XML, the aggregate traffic model, checkpoint replay, the
 HTTP API, the SUMO export and the first observer.
 
-[Unreleased]: https://github.com/varunkarthic/DSTNS/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/varunkarthic/DSTNS/compare/v3.13.4...HEAD
+[3.13.4]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.13.4
+[3.13.3]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.13.3
+[3.13.2]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.13.2
+[3.13.1]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.13.1
+[3.13.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.13.0
+[3.12.1]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.12.1
+[3.12.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.12.0
+[3.11.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.11.0
+[3.10.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.10.0
+[Observer 3.5.0]: https://github.com/varunkarthic/DSTNS/releases/tag/observer-v3.5.0
+[3.9.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.9.0
+[3.8.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.8.0
+[3.7.1]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.7.1
+[3.7.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.7.0
+[Launcher 3.8.1]: https://github.com/varunkarthic/DSTNS/releases/tag/launcher-v3.8.1
+[Launcher 3.8.0, observer 3.3.0]: https://github.com/varunkarthic/DSTNS/releases/tag/launcher-v3.8.0
+[Launcher 3.7.2, observer 3.2.1]: https://github.com/varunkarthic/DSTNS/releases/tag/launcher-v3.7.2
+[3.6.1]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.6.1
+[3.6.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.6.0
+[Launcher 3.6.0]: https://github.com/varunkarthic/DSTNS/releases/tag/launcher-v3.6.0
+[Launcher 3.5.0]: https://github.com/varunkarthic/DSTNS/releases/tag/launcher-v3.5.0
+[Launcher 3.4.0]: https://github.com/varunkarthic/DSTNS/releases/tag/launcher-v3.4.0
+[3.5.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.5.0
+[3.4.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.4.0
+[Launcher 3.1.0]: https://github.com/varunkarthic/DSTNS/releases/tag/launcher-v3.1.0
+[3.3.2]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.3.2
+[3.3.1]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.3.1
+[3.3.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.3.0
+[3.2.1]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.2.1
+[3.2.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.2.0
+[3.1.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.1.0
+[3.0.1]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.0.1
 [3.0.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v3.0.0
-[2.1.0]: https://github.com/varunkarthic/DSTNS/commits/main
-[2.0.0]: https://github.com/varunkarthic/DSTNS/commits/main
-[1.0.0]: https://github.com/varunkarthic/DSTNS/commits/main
+[2.1.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v2.1.0
+[2.0.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v2.0.0
+[1.0.0]: https://github.com/varunkarthic/DSTNS/releases/tag/v1.0.0

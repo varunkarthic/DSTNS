@@ -2,48 +2,40 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/wordmark-light.svg">
-  <img alt="DSTNS" src="docs/assets/wordmark-dark.svg" width="300">
+  <img alt="DSTNS" src="docs/assets/wordmark-dark.svg" width="280">
 </picture>
-
-<br><br>
 
 ### Deterministic Spatiotemporal Transport Network Simulator
 
 A seed chooses a real district of a real city. DSTNS simulates a whole day there,<br>
 and you watch it, change it, and build on it.
 
-<br>
-
 [![CI](https://img.shields.io/github/actions/workflow/status/varunkarthic/DSTNS/ci.yml?branch=v3-core-ng&label=CI&logo=githubactions&logoColor=white)](https://github.com/varunkarthic/DSTNS/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/varunkarthic/DSTNS?label=release&color=0f172a)](https://github.com/varunkarthic/DSTNS/releases/latest)
 [![Documentation](https://img.shields.io/badge/docs-v3--core--ng-0c7fa3?logo=readthedocs&logoColor=white)](https://dstns.readthedocs.io/v3-core-ng/)
 [![Container](https://img.shields.io/badge/container-ghcr.io-2563eb?logo=docker&logoColor=white)](https://github.com/varunkarthic/DSTNS/pkgs/container/dstns)
-[![Licence](https://img.shields.io/badge/licence-AGPL--3.0--or--later-2fbf8f)](LICENSE)
-
-[![Engine](https://img.shields.io/badge/engine-3.13.4-0f172a)](CHANGELOG.md)
+[![Licence](https://img.shields.io/badge/licence-AGPL--3.0--or--later-2fbf8f)](LICENSE)<br>
+[![Server](https://img.shields.io/badge/server-3.13.4-1e293b)](https://github.com/varunkarthic/DSTNS/releases/tag/v3.13.4)
 [![core-ng](https://img.shields.io/badge/core--ng-1.2.2_stable-0e7490)](https://dstns.readthedocs.io/v3-core-ng/guide/engines/)
+[![core-legacy](https://img.shields.io/badge/core--legacy-3.13.4_disabled-64748b)](https://dstns.readthedocs.io/v3-core-ng/guide/engines/)
 [![Launcher](https://img.shields.io/badge/launcher-3.16.1-7c3aed)](https://dstns.readthedocs.io/v3-core-ng/guide/operator-cli/)
 [![Observer](https://img.shields.io/badge/observer-3.9.0-db2777)](https://dstns.readthedocs.io/v3-core-ng/guide/observer-interface/)
 [![API](https://img.shields.io/badge/API_contract-1.13-d97706)](https://dstns.readthedocs.io/v3-core-ng/api/versioning/)
-
-<br>
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshots/observer-light.png">
   <img src="docs/assets/screenshots/observer.png" alt="The DSTNS observer, showing a simulated day in a district of a city" width="100%">
 </picture>
 
-<br>
-
 **[Quick start](https://dstns.readthedocs.io/v3-core-ng/getting-started/quick-start/)** &nbsp;·&nbsp;
 **[Documentation](https://dstns.readthedocs.io/v3-core-ng/)** &nbsp;·&nbsp;
 **[API](https://dstns.readthedocs.io/v3-core-ng/api/endpoints/)** &nbsp;·&nbsp;
 **[Knowledge graph](https://dstns.readthedocs.io/v3-core-ng/graph/)** &nbsp;·&nbsp;
 **[Changelog](CHANGELOG.md)** &nbsp;·&nbsp;
+**[Releases](https://github.com/varunkarthic/DSTNS/releases)** &nbsp;·&nbsp;
 **[Security](SECURITY.md)**
 
 </div>
-
-<br>
 
 <div align="center">
 <table>
@@ -406,13 +398,15 @@ version, and how to report a suspected vulnerability privately.
 
 | Part | Version | Reported by |
 |---|---|---|
-| Engine (server) | 3.13.4 | `./build/dstns_server --version`, `/api/v1/system/info` |
-| core-ng | 1.2.2, stable | `GET /api/v1/engine` |
+| Server | 3.13.4 | `./build/dstns_server --version`, `/api/v1/system/info` |
+| core-ng | 1.2.2, stable, the default engine | `GET /api/v1/engine` |
+| core-legacy | 3.13.4 (the server's), stable, disabled by default | `GET /api/v1/engine` |
 | Launcher | 3.16.1 | `./launcher version` |
 | Observer | 3.9.0 | About, in the observer |
 | API contract | 1.13 | `api_version` in every response |
 
-Changes are listed in [CHANGELOG.md](CHANGELOG.md). DSTNS is for research, teaching, algorithm integration and
+Changes are listed in [CHANGELOG.md](CHANGELOG.md), and every version has a
+[release](https://github.com/varunkarthic/DSTNS/releases). DSTNS is for research, teaching, algorithm integration and
 demonstrations. It is not calibrated or certified for controlling real traffic.
 
 ## Licence
