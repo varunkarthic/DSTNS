@@ -1,14 +1,14 @@
 # Engine governance
 
-How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.13.2,
-launcher 3.14.0, observer 3.7.0, API contract 1.13.
+How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.13.3,
+launcher 3.14.1, observer 3.8.0, API contract 1.13.
 
 ## Engines
 
 | Engine | Type | Channel | Version | What it is |
 |---|---|---|---|---|
-| `core-legacy` | standalone | stable | the build's (`3.13.2`) | The engine DSTNS had before core-ng. Installed, and **off by default** since engine 3.13.0: turn it on (`engines.core-legacy.enabled`) to run a world on it for comparison |
-| `core-ng` | standalone | stable | its own (`1.2.1`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)). **The default** since engine 3.10.0; it cannot be disabled |
+| `core-legacy` | standalone | stable | the build's (`3.13.3`) | The engine DSTNS had before core-ng. Installed, and **off by default** since engine 3.13.0: turn it on (`engines.core-legacy.enabled`) to run a world on it for comparison |
+| `core-ng` | standalone | stable | its own (`1.2.2`) | The next-generation engine, built beside core-legacy ([migration plan](v3-core-ng-migration.md)). **The default** since engine 3.10.0; it cannot be disabled |
 
 Every engine describes itself with an **identity**: `id`, `version`, `type` (`standalone` runs worlds itself; `delegating` would hand them to other engines; API 1.12 and
 before called it `kind`, `real` or `pseudo`, and still reports that beside it), `channel` (`alpha`, `beta` or `stable`), `owns` (the parts of a run it implements itself), `shared` (the
@@ -78,8 +78,8 @@ server reads it as it starts (`DSTNS_ENGINE_CONFIG`, which the launcher sets to 
   "default": "core-ng",
   "auto_switch": "off",
   "engines": {
-    "core-legacy": {"channel": "stable", "version": "3.13.2", "type": "standalone", "enabled": false},
-    "core-ng": {"channel": "stable", "version": "1.2.1", "type": "standalone", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
+    "core-legacy": {"channel": "stable", "version": "3.13.3", "type": "standalone", "enabled": false},
+    "core-ng": {"channel": "stable", "version": "1.2.2", "type": "standalone", "enabled": true, "acknowledgment": {"enforce": true, "ui": true}}
   }
 }
 ```

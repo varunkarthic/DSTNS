@@ -315,7 +315,7 @@ try {
     await page.waitForTimeout(400);
     const notice = page.getByRole("alert");
     await notice.waitFor({ timeout: 5000 });
-    assert.match(await notice.innerText(), /not optimized for this screen size/i);
+    assert.match(await notice.innerText(), /not optimised for this screen size/i);
     assert.match(await notice.innerText(), /1280/);
     assert.equal(await page.locator(".rail").count(), 0, "the interface is not rendered at all");
     const scrollW = await page.evaluate(() => document.documentElement.scrollWidth);

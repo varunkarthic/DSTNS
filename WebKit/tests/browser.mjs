@@ -272,7 +272,7 @@ try {
     await page.setViewportSize({ width, height });
     await wait(300);
     assert.equal(await page.locator(".rail").count(), 0, `no squeezed interface at ${width}`);
-    assert.match(await page.getByRole("alert").innerText(), /not optimized for this screen size/i);
+    assert.match(await page.getByRole("alert").innerText(), /not optimised for this screen size/i);
     assert.ok(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       "the notice does not overflow either",

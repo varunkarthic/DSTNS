@@ -33,11 +33,11 @@ machine.
 </div>
 
 <div class="dstns-stats" markdown>
-<div markdown><strong>181</strong><span>cities in the catalogue</span></div>
+<div markdown><strong>379</strong><span>cities in 126 countries</span></div>
 <div markdown><strong>3,000</strong><span>junctions per district</span></div>
 <div markdown><strong>1 s</strong><span>fixed physics step</span></div>
 <div markdown><strong>96</strong><span>checkpoints per day</span></div>
-<div markdown><strong>0.25 to 5x</strong><span>playback speed</span></div>
+<div markdown><strong>0.25 to 10x</strong><span>playback speed</span></div>
 </div>
 
 </div>
@@ -156,7 +156,7 @@ Symptoms and remedies, common questions, known limitations, a glossary.
 
 ```mermaid
 flowchart LR
-    Seed(["Seed"]) --> Place["City and district<br/>181-city catalogue"]
+    Seed(["Seed"]) --> Place["City and district<br/>379-city catalogue"]
     Place --> OSM[("OpenStreetMap")]
     OSM --> Graph["Road graph<br/>true metres, canonical IDs"]
     Seed --> Sched["Signals, demand,<br/>weather, incidents"]

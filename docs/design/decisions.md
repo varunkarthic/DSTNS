@@ -54,7 +54,8 @@ possible.
 the demand, the weather and the incidents. The seed is displayed exactly as typed.
 The mapping from seed to place (the catalogue of 181 cities and its order) is frozen
 under a version name, `urban-crfg-v3`, and saved configurations from any other version
-are refused rather than reinterpreted.
+are refused rather than reinterpreted. More cities came the same way: `urban-geo-v2` (engine 3.13.0) is the
+181 in their order and then 198 more, under a new name, so no recorded seed moved.
 
 **Consequences.** Sharing a run means sharing a number. Changing the catalogue would
 silently move every saved seed, so it can only change under a new version name.

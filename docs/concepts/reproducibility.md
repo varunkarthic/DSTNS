@@ -120,14 +120,14 @@ ways purity is classically lost, and how DSTNS avoids each:
 ### Seeds and the catalogue
 
 Seeds are drawn uniformly, so the number of distinct cities reached by \( n \) random
-seeds is that of \( n \) uniform draws from the \( C = 181 \) cities (a coupon-collector
-count):
+seeds is that of \( n \) uniform draws from the \( C \) cities of the policy (a coupon-collector
+count; \( C = 181 \) under `urban-crfg-v3`, 379 under `urban-geo-v2`):
 
 \[
 \mathbb{E}\big[\text{distinct cities}\big] \;=\; C\Big(1 - \big(1 - \tfrac1C\big)^{n}\Big)
 \]
 
-For \( n = 200 \) this is \( 181\,(1 - (180/181)^{200}) = 121 \), and the map sourcing
+For \( n = 200 \) under `urban-crfg-v3` this is \( 181\,(1 - (180/181)^{200}) = 121 \), and the map sourcing
 test, which resolves 200 seeds, observes 116 (the count has a standard deviation of
 about 5). The test asserts at least 60, so it fails if the catalogue's spread collapses
 without being sensitive to the luck of any one sample.

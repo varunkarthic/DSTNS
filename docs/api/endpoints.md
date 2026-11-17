@@ -1277,7 +1277,7 @@ Response `200`, from a real run:
   "ok": true,
   "product": "Deterministic Spatiotemporal Transport Network Simulator",
   "service": "dstns",
-  "version": "3.13.2"
+  "version": "3.13.3"
 }
 ```
 
@@ -1314,9 +1314,9 @@ The running engine and every installed one, with the engine policy (config/engin
 
 ```json
 {"ok": true, "data": {
-  "running": {"id": "core-ng", "version": "1.2.1", "type": "standalone", "kind": "real", "channel": "stable", "owns": ["…"], "shared": ["physics step", "…"], "changes": ["…"]},
-  "catalogue": [{"id": "core-legacy", "version": "3.13.2", "type": "standalone", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
-  "config": {"schema_version": 1, "selected": "core-legacy", "default": "core-legacy", "auto_switch": "offer", "engines": {"core-ng": {"enabled": true, "acknowledgment": {"ui": true, "enforce": true}}}},
+  "running": {"id": "core-ng", "version": "1.2.2", "type": "standalone", "kind": "real", "channel": "stable", "owns": ["…"], "shared": ["physics step", "…"], "changes": ["…"]},
+  "catalogue": [{"id": "core-legacy", "version": "3.13.3", "type": "standalone", "kind": "real", "channel": "stable"}, {"id": "core-ng", "…": "…"}],
+  "config": {"schema_version": 1, "selected": "core-ng", "default": "core-ng", "auto_switch": "off", "engines": {"core-legacy": {"enabled": false, "acknowledgment": {"ui": true, "enforce": true}}, "core-ng": {"enabled": true, "acknowledgment": {"ui": true, "enforce": true}}}, "warnings": []},
   "approval": {"state": "none", "revision": 0}}}
 ```
 
@@ -1331,7 +1331,7 @@ the enabled stable real engines a rejection may start the seed on (empty when `a
 {"ok": true, "data": {"state": "pending", "revision": 3,
   "approval": {"id": "9f1c…", "engine": {"id": "core-ng", "version": "1.0.0", "channel": "beta", "type": "standalone", "kind": "real"}, "seed": "42",
                "requested_at": "2026-11-13T18:00:00Z", "acknowledge_in": "observer", "decision": "", "then": "", "reason": ""},
-  "alternatives": [{"id": "core-legacy", "version": "3.13.2", "channel": "stable", "type": "standalone", "kind": "real"}]}}
+  "alternatives": [{"id": "core-legacy", "version": "3.13.3", "channel": "stable", "type": "standalone", "kind": "real"}]}}
 ```
 
 ### `GET /api/v1/engine/approval/wait`
@@ -1396,7 +1396,7 @@ Response `200`, from a real run:
     "sumo_home": "/Users/varun/sumo",
     "version": ""
   },
-  "version": "3.13.2"
+  "version": "3.13.3"
 }
 ```
 
@@ -1459,7 +1459,7 @@ Response `200`, from a real run:
     },
     "program": "DSTNS",
     "source_offer": "You may obtain the complete corresponding source for this running version, under the terms…",
-    "version": "3.13.2"
+    "version": "3.13.3"
   },
   "ok": true
 }
@@ -1677,7 +1677,7 @@ Body:
 }
 ```
 
-Errors: `403 SUMO_DISABLED` when SUMO is turned off (`DSTNS_SUMO=0`); `403 DIRECTORY_NOT_ALLOWED`; `409` with no run; `503 SUMO_FAILED` if it can't be written.
+Errors: `403 SUMO_DISABLED` when SUMO is disabled (`DSTNS_SUMO=0`); `403 DIRECTORY_NOT_ALLOWED`; `409` with no run; `503 SUMO_FAILED` if it can't be written.
 
 ### `POST /api/v1/system/sumo-simulate`
 
@@ -1693,7 +1693,7 @@ Body:
 | `begin_s` | seconds or `HH:MM:SS` | No | Default 0 |  |
 | `end_s` | seconds or `HH:MM:SS` | No | After `begin_s`, up to 86400. Default 3600 |  |
 
-Errors: `400` for the period; `403 SUMO_DISABLED` when SUMO is turned off; `403 DIRECTORY_NOT_ALLOWED`; `503 SUMO_FAILED`.
+Errors: `400` for the period; `403 SUMO_DISABLED` when SUMO is disabled; `403 DIRECTORY_NOT_ALLOWED`; `503 SUMO_FAILED`.
 
 ### `POST /api/v1/world/regenerate`
 

@@ -306,7 +306,7 @@ choices, never a change to them.
 Each of these is read once, when the server starts. The launcher sets them from its settings, and
 `GET /api/v1/system/features` says what they are.
 
-| Variable | Default | Turned off |
+| Variable | Default | Disabled |
 |---|---|---|
 | `DSTNS_FABRIC_APPS` | on | Applications can't register, and nothing under `/api/v1/fabric/apps` changes: `403 APPLICATIONS_DISABLED` |
 | `DSTNS_LEGACY_API` | on | `/api/v1/playback/*`, `/api/v1/control/*` and `/stop` answer `410 LEGACY_API_DISABLED`. This closes the routes [without a credential](#what-is-not-protected) |

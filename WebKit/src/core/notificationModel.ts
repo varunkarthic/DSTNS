@@ -110,6 +110,12 @@ export interface UiNotification {
   isd?: boolean;
 }
 
+/** The facts shown under a Location row: those that only say the location again ("Place: Kolonnade") are left out. */
+export function detailsBeside(location: string | undefined, details: UiNotification["details"]): UiNotification["details"] {
+  if (!location) return details;
+  return details.filter((d) => d.time !== undefined || d.value.trim() !== location.trim());
+}
+
 // ---------------------------------------------------------------------------
 // Geography helpers
 // ---------------------------------------------------------------------------

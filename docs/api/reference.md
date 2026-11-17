@@ -136,9 +136,10 @@ enough to read off the screen and retype. Responses report both forms: `seed`
 
 ## World selection
 
-`map.osm_file: "auto"` resolves the seed to a real place through the
-`urban-crfg-v3` map selection: one of 181 urban centres across every inhabited
-continent, then a district anchor inside that city's extract. The catalogue and
+`map.osm_file: "auto"` resolves the seed to a real place through the start's
+map selection policy: one of 181 urban centres under `urban-crfg-v3` (the
+default) and `urban-geo-v1`, or one of 379 in 126 countries under
+`urban-geo-v2`, then a district anchor inside that city's extract. The catalogue and
 its order are part of the version, so seeds saved under an earlier version are
 rejected rather than silently resolving somewhere else.
 

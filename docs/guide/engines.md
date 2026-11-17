@@ -6,8 +6,8 @@ that talks to DSTNS (the observer, the launcher, your applications, an AI client
 
 | Engine | Version | Channel | Type | By default | What it is |
 |---|---|---|---|---|---|
-| **core-ng** | 1.2.1 | stable | standalone | **The engine.** Selected, and it cannot be disabled | The next-generation engine: its own world selection, compiler, physics tick, checkpoints and lifecycle tables |
-| **core-legacy** | the build's (3.13.2) | stable | standalone | Disabled | The engine DSTNS had before core-ng, kept unchanged. Enable it to compare the two |
+| **core-ng** | 1.2.2 | stable | standalone | **The engine.** Selected, and it cannot be disabled | The next-generation engine: its own world selection, compiler, physics tick, checkpoints and lifecycle tables |
+| **core-legacy** | the build's (3.13.3) | stable | standalone | Disabled | The engine DSTNS had before core-ng, kept unchanged. Enable it to compare the two |
 
 Both make **the same world from the same seed**, to the last bit: the same city and district, the same hashes, the
 same state at every moment of the day. The golden fixtures prove it on every build (see
@@ -40,7 +40,7 @@ Each engine reports an **identity**, taken from the build, never from a configur
 | Field | Values | Meaning |
 |---|---|---|
 | `id` | `core-ng`, `core-legacy` | Its name |
-| `version` | core-ng: its own (`1.2.1`); core-legacy: the build's | Which release of it |
+| `version` | core-ng: its own (`1.2.2`); core-legacy: the build's | Which release of it |
 | `type` | `standalone`, `delegating` | A standalone engine runs worlds itself; a delegating one would hand them to other engines. API 1.12 and before called this `kind` (`real` or `pseudo`), and the API still reports it beside `type` |
 | `channel` | `alpha`, `beta`, `stable` | How far it has come (see [Release channels](#release-channels-and-the-acknowledgment)) |
 | `owns` | a list | The parts of a run it implements itself |
@@ -62,13 +62,13 @@ Where you see it:
 
 ```text
 $ ./launcher version
-DSTNS 3.13.2
- Launcher         3.14.0
- Server           3.13.2 (local channel, built unknown (arm64))
+DSTNS 3.13.3
+ Launcher         3.14.1
+ Server           3.13.3 (local channel, built unknown (arm64))
  API contract     1.13
- Observer         3.7.0
- Engines          core-ng 1.2.1 (stable, standalone): default, selected
-                  core-legacy 3.13.2 (stable, standalone): disabled
+ Observer         3.8.0
+ Engines          core-ng 1.2.2 (stable, standalone): default, selected
+                  core-legacy 3.13.3 (stable, standalone): disabled
 ```
 
 ![The About card: the server's, API's, observer's and engine's versions under the name, then this run's seed, policy, fingerprint and hashes](../assets/screenshots/about.png){ .screenshot }

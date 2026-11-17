@@ -120,7 +120,7 @@ More in the [launcher guide](https://dstns.readthedocs.io/v3/guide/operator-cli/
 
 | Engine | Version | Channel | State | What it is |
 |---|---|---|---|---|
-| **core-ng** | 1.2.1 | stable | the default; it cannot be disabled | The engine. Its own world selection, compiler, physics tick, checkpoints and lifecycle tables, on a common layer it shares with nothing engine-specific. 28% faster per tick than 3.13.0 at 50×50 |
+| **core-ng** | 1.2.2 | stable | the default; it cannot be disabled | The engine. Its own world selection, compiler, physics tick, checkpoints and lifecycle tables, on a common layer it shares with nothing engine-specific. 28% faster per tick than 3.13.0 at 50×50 |
 | **core-legacy** | the build's | stable | disabled by default | The engine DSTNS had before core-ng, frozen. Enable it to compare: both make the same world, hash for hash |
 
 - **Selection policies.** `urban-crfg-v3` (every seed's city as engine 3.0 chose it), `urban-geo-v1` (countries or
@@ -225,7 +225,7 @@ DSTNS is a single-operator tool. It listens on loopback only, refuses cross-site
 
 ## Versions
 
-Engine **3.13.2** (core-ng **1.2.1**) · Launcher **3.14.0** · Observer **3.7.0** · API contract **1.13**. `./launcher version`, `./build/dstns_server --version` and `/api/v1/system/info` report what is running. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Engine **3.13.3** (core-ng **1.2.2**) · Launcher **3.14.1** · Observer **3.8.0** · API contract **1.13**. `./launcher version`, `./build/dstns_server --version` and `/api/v1/system/info` report what is running. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 DSTNS is for research, teaching, algorithm integration and demonstrations. It is not calibrated or certified for controlling real traffic.
 

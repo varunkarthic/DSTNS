@@ -28,7 +28,8 @@ is enforced by the engine itself, so a client cannot bypass it.
 | City extract side | 500 to 20,000 metres | 5,000 | `map.city_extent_m` |
 | Smallest usable district | 400 junctions | | Fixed; smaller downloads fail with `MAP_FETCH_FAILED` |
 | Synthetic grid (tests) | At least 3 × 3, and width × height at most the graph size cap | 12 × 10 | `fixture.grid_width`, `fixture.grid_height` |
-| Cities in the catalogue | 181 | | Fixed under `urban-crfg-v3` |
+| Cities in the catalogue | 379 in 126 countries (`urban-geo-v2`); 181 in 83 (`urban-crfg-v3`, `urban-geo-v1`) | | Fixed for each policy; new cities only with a new policy |
+| Places | Any countries or cities of the catalogue, or every one but some | All | `map.places`; `./launcher engine add IN` |
 | Signal snapping radius | 45 metres | | Fixed |
 | Signal cycle | 50 to 120 seconds; each green at least 12 seconds | | Computed |
 

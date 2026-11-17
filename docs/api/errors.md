@@ -47,7 +47,7 @@ of failure always looks the same whichever route raised it.
 | `HOST_NOT_ALLOWED` | 421 | The server is bound to loopback and the `Host` header is not `localhost`, a `*.localhost` name or an IP address (DNS rebinding guard). Admit a name with `DSTNS_ALLOWED_HOSTS`. See [Security](../deployment/security.md#host-check-dns-rebinding) |
 | `WORLD_REGENERATION_DISABLED` | 403 | `DSTNS_DISABLE_WORLD_REGENERATION=1` is set |
 | `NOT_FOUND` | 404 | `/view/nodes/{id}` or `/view/edges/{id}` beyond the graph |
-| `LIFECYCLE_CONFLICT` | 409 | E.g. play when not paused, start while a run is active, a second regeneration, step at 24:00:00, seek while terminating, a stale playback guard or `expected_run_id`, SUMO without an active run |
+| `LIFECYCLE_CONFLICT` | 409 | E.g. play when not paused, start while a run is active, a second regeneration, step at 24:00:00, seek while terminating, a stale playback guard or `expected_run_id`, SUMO without an active run, a seek or step with no world loaded, confirming a new world when none is staged (a second confirmation of one already installed is answered with it, not refused) |
 | `TRANSIT_API_RETIRED` | 410 | `POST /api/v1/control/transit/route` |
 | `INTERNAL_ERROR` | 500 | Anything else, which is a fault in the server. Once: `SUMO simulation engine not found`, `Failed to build SUMO network` and `SUMO simulation failed` |
 | `MAP_FETCH_FAILED` | 503 | The seed's district could not be downloaded; the message names the city, coordinates and cause |
@@ -91,7 +91,7 @@ of failure always looks the same whichever route raised it.
 | `ENGINE_NOT_OFFERED` | 400 | Regeneration asked for an engine that is not an enabled stable real engine |
 | `BAD_DECISION` | 400 | `decision` must be accept or reject; `then` terminate or regenerate |
 | `SUMO_FAILED` | 503 | SUMO failed, or its files couldn't be written |
-| `SUMO_DISABLED` | 403 | SUMO is turned off (`DSTNS_SUMO=0`, the launcher's `sumo.enabled`) |
+| `SUMO_DISABLED` | 403 | SUMO is disabled (`DSTNS_SUMO=0`, the launcher's `sumo.enabled`) |
 
 World generation failures are not HTTP errors: `POST /world/regenerate`
 returns 202, and the job's outcome appears in `GET /world/status` as

@@ -59,7 +59,7 @@ holds simulation state of its own; both read what the core publishes.
 | `Core/server/main.cpp` | Process entry: flags, operator credential, cache sweep, engine and API start-up |
 | `Core/common/` | What every engine stands on, library `dstns_common`: the types, RNG, map catalogue and OSM pipeline, the demand and signal model (`events.cpp`, `demand.cpp`), weather helpers, logging, ASB, and the runtime host `SimulationEngine`, which has no engine of its own |
 | `Core/core-ng/` | `core-ng`, the default engine, library `dstns_core_ng`, which links `dstns_common` only: selection policies (`selection.cpp`), the compile (`compile.cpp`, `network.cpp`, `plans.cpp`), the tick (`physics.cpp`), checkpoints (`timeline.cpp`), and the lifecycle and world-job tables. `dstns_core_ng_alone` proves it runs a world with no core-legacy code linked |
-| `Core/core-legacy/` | `core-legacy`, kept installed and selectable, library `dstns_core_legacy`: its compiler (`scenario.cpp`), tick and checkpoints (`physics.cpp`), and its registration (`legacy.cpp`) |
+| `Core/core-legacy/` | `core-legacy`, kept installed and disabled by default (enable it to compare), library `dstns_core_legacy`: its compiler (`scenario.cpp`), tick and checkpoints (`physics.cpp`), and its registration (`legacy.cpp`) |
 | `Core/engines/` | `install_engines`: registers both engines in a runtime host, through the same hooks (`dstns/engine_hooks.hpp`) |
 | `Fabric/` | The HTTP API library `dstns_fabric`, one route module per API group |
 | `Core/common/src/engine.cpp` | `SimulationEngine`, the runtime host: lifecycle, clock, controls, undo/redo, views; the compile, tick and checkpoints are the running world's engine's, through its hooks |
@@ -67,7 +67,7 @@ holds simulation state of its own; both read what the core publishes.
 | `Core/core-legacy/src/scenario.cpp` | `ScenarioCompiler`: seed and config to a complete `Scenario` (graph, signals, stops, trips, weather, incidents) |
 | `Core/common/src/osm.cpp` | `OsmRoadLoader`: OSM XML to a connected, canonically numbered road graph and its places |
 | `Core/common/src/osm_fetch.cpp`, `osm_download.cpp` | On-demand map download, run as `dstns_server --fetch-osm` in a process of its own, progress, cache sweep |
-| `Core/common/src/geo.cpp` | The 181-city catalogue and seed-to-location resolution |
+| `Core/common/src/geo.cpp` | The city catalogues (`city_catalog()`: 181, `world_catalog()`: 379) and seed-to-location resolution |
 | `Core/common/src/graph.cpp` | `GraphStore` (static graph plus per-tick dynamic arrays) and `RoutePlanner` (A*) |
 | `Core/common/src/events.cpp` | `EventRuntime`: signal controller heap, demand schedule, couplings, event history |
 | `Core/common/src/demand.cpp` | Place taxonomy, diurnal demand curves, demand couplings, bus-stop thinning |

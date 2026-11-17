@@ -9,12 +9,14 @@ extract, parsing it, growing the district, and numbering it canonically.
 ## From seed to place
 
 With `map.osm_file: "auto"`, `select_map_location` (`Core/common/src/geo.cpp`) resolves
-the seed under the `urban-crfg-v3` selection version:
+the seed under its selection policy:
 
-1. **City.** A sub-seed derived as `seed.derive("map.city")` picks one of 181
-   urban centres across every inhabited continent. The catalogue and its order
-   are part of the version, so seeds saved under an older version are refused
-   rather than silently landing somewhere else.
+1. **City.** A sub-seed derived as `seed.derive("map.city")` picks one of the
+   cities the policy allows: 379 in 126 countries under `urban-geo-v2`, the
+   launcher's policy on core-ng, or the original 181 under `urban-crfg-v3` and
+   `urban-geo-v1`. The catalogue and its order are part of the policy, so seeds
+   saved under an older one are refused rather than silently landing somewhere
+   else. See [Engines and places](../guide/engines.md#where-worlds-are).
 2. **Extract.** The city's extract is a square of `city_extent_m` (default
    5 km) centred on the city. Its bounds depend only on the city and the
    extent, so every district of one city shares one download.

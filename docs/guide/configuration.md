@@ -67,7 +67,7 @@ Kept in `config/engines.json` (see [Engine governance](../design/engine-governan
 |---|---|---|---|---|
 | `engines.selected` | `core-ng` | an enabled engine | CLI | Which engine builds and runs each world. Both give the same world for the same seed under `urban-crfg-v3` |
 | `engines.auto_switch` | `off` | `offer`, `off` | server | Whether rejecting an unstable engine's run offers to start the seed on a stable engine |
-| `engines.engines.core-ng.enabled` | `true` | on only | CLI | The default engine cannot be turned off |
+| `engines.engines.core-ng.enabled` | `true` | on only | CLI | The default engine cannot be disabled |
 | `engines.engines.core-ng.acknowledgment.enforce` | `true` | on or off | server | Hold each core-ng run until a person accepts the risk. Off turns the observer's acknowledgment off too |
 | `engines.engines.core-ng.acknowledgment.ui` | `true` | on or off | server, observer | Ask in the observer; off while enforced, the launcher asks (`--accept-risk`) |
 | `engines.engines.core-legacy.enabled` | `false` | on or off | CLI, server | Off (the default since 3.13.0): core-legacy stays installed, but nothing can start on it, and `--engine core-legacy` is refused. On, it runs worlds for comparison |

@@ -6,7 +6,7 @@ import { Spring } from "../CoreMotion/motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSettle } from "../CoreMotion/settle";
 import { Icon, categoryIcon } from "../components/Icons";
-import { focusMatches, SEVERITY_LABEL, REALISTIC_NEWS } from "../core/notificationModel";
+import { detailsBeside, focusMatches, SEVERITY_LABEL, REALISTIC_NEWS } from "../core/notificationModel";
 import type { UiNotification } from "../core/notificationModel";
 import { useTimeFormat } from "../core/preferences";
 import { formatDuration } from "../core/timeFormat";
@@ -207,7 +207,7 @@ export function NotificationCapsule(
                       <dd>{current.location}</dd>
                     </div>
                   )}
-                  {current.details.map((d) => (
+                  {detailsBeside(current.location, current.details).map((d) => (
                     <div key={d.label}>
                       <dt>{d.label}</dt>
                       <dd className={d.time !== undefined ? "mono" : undefined}>{d.time !== undefined ? time.time(d.time) : d.value}</dd>

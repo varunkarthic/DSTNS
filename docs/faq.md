@@ -18,9 +18,10 @@
     They visualise modelled flow on each road, not individual tracked vehicles.
 
 ??? question "Which cities can it simulate?"
-    Any city in its catalogue of 181, chosen by the seed (see [Seeds and
-    places](guide/seeds-and-places.md#from-seed-to-place)), or any area you
-    have as OpenStreetMap XML, with `--osm-file`.
+    Any of 379 cities in 126 countries, chosen by the seed (see [Seeds and
+    places](guide/seeds-and-places.md#from-seed-to-place)), limited to the countries or cities you choose if you
+    like (see [Engines and places](guide/engines.md#where-worlds-are)), or any area you have as OpenStreetMap XML,
+    with `--osm-file`. `./launcher cities` lists them.
 
 ??? question "Does it need the internet?"
     Only to download a city's map the first time. Cached cities, pinned maps
@@ -47,8 +48,9 @@
     change of this kind.
 
 ??? question "Can two seeds give the same city?"
-    Yes, often: 181 cities, astronomically many seeds. They give different
-    districts of it, and different weather, incidents and demand.
+    Yes, often: 379 cities, astronomically many seeds. They give different
+    districts of it, and different weather, incidents and demand. Within one session, though, a new world goes to a
+    city the session has not shown yet, while there is one.
 
 ## Running
 

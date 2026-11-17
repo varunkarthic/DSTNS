@@ -851,7 +851,7 @@ describe("start-up", () => {
     await ready();
     sizeTo(900, 700);
     const notice = await screen.findByRole("alert");
-    expect(notice).toHaveTextContent("This interface is not optimized for this screen size.");
+    expect(notice).toHaveTextContent("This interface is not optimised for this screen size.");
     expect(notice).toHaveTextContent("1280");
     expect(notice).toHaveTextContent("900");
     expect(screen.queryByLabelText("Pause simulation")).not.toBeInTheDocument();

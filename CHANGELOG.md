@@ -14,6 +14,54 @@ only within one version.
 
 ## [Unreleased]
 
+## [3.13.3] - 2026-11-17
+
+**Engine 3.13.3 (core-ng 1.2.2), launcher 3.14.1, observer 3.8.0, API contract 1.13.** Results for every seed are
+unchanged.
+
+### Fixed
+
+- **The server crashed on undo or redo after a reset.** With the world gone, undoing a command such as a road override
+  reached for a world that was not there, and the process ended. The new stress tool found it under AddressSanitizer.
+  Every command but a speed now needs a world, and a speed set with no world still undoes and redoes.
+- **Discarding a world prepared ahead that had already failed** (cancelled by a stop or a reset) logged an illegal
+  world-job transition, `failed -> idle`. The world job's table now allows it, and a second discard changes nothing.
+- **A staged world confirmed twice** was refused the second time (`409`), so a confirmation resent after a lost
+  answer looked like a failure. The second confirmation is now answered with the world the first installed.
+- **A jump with no world** answered `400` (a bad request); it now answers `409` (the state does not allow it), as a
+  step does. A time outside the day is still `400`.
+
+### Added
+
+- **`tools/stress/lifecycle.py`**, a stress test of the server's state machines, which now runs in CI. It sends paced
+  random requests from four clients to one server: starts, prepares, stops, resets, new worlds (staged, confirmed,
+  discarded), jumps, steps, speeds, storms, traffic, surges, road overrides, undo and redo. It then requires:
+  - no 5xx answer;
+  - no `ERROR` in the server's log, so no transition outside the lifecycle and world-job tables;
+  - a clean start afterwards that runs, plays and jumps.
+
+  2,400 requests passed on the release build, and 1,000 passed twice under AddressSanitizer.
+- **A guide to the engines and places** (`docs/guide/engines.md`), and a README and launcher guide updated for
+  core-ng, `urban-geo-v2`, Places, the engine commands, Tools, export and reset. The new screenshots come from the
+  launcher's own screens, which a test renders as HTML, and from the observer.
+
+### Changed
+
+- **Observer, consistency:**
+  - Telemetry's tabs all fill the panel. A short list of notifications sits at the top of a full frame. The Apps
+    tab's empty state is centred in its frame like the other tabs', without a dashed card of its own.
+  - The four figures' labels are words alone. Weather's severity is shown in its value's colour (a darker shade on
+    the light theme) instead of a glyph only it had.
+  - A notification's details no longer repeat its location ("Location: Kolonnade" and "Place: Kolonnade"), in the
+    tray and in the history.
+  - "Optimised", as the rest of the interface spells it.
+- **Launcher:** the Supported cities list's columns fit the window, and its header has a gap after Code.
+- **CI:**
+  - It runs on every push to `v3` and `v3-*` branches, as well as to `main`; CodeQL also runs on `v3`.
+  - Actions are on their current major versions: checkout and setup-python 6, setup-node 6, CodeQL 4, and upload- and
+    download-artifact 6.
+- `logs/*.reset` (a reset waiting for the server's next start) is runtime state, and no longer tracked.
+
 ## [3.13.2] - 2026-11-14
 
 **Engine 3.13.2 (core-ng 1.2.1), launcher 3.14.0, observer 3.7.0, API contract 1.13.** Results for every seed are

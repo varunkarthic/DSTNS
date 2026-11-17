@@ -69,7 +69,7 @@ export function ViewportNotice({ width, height, reduceMotion }: { width: number;
       <div className="viewport-card">
         <Logo height={30} animated={!reduceMotion} />
         <span className="viewport-isd">Intentional system design</span>
-        <h1>This interface is not optimized for this screen size.</h1>
+        <h1>This interface is not optimised for this screen size.</h1>
         <p>
           DSTNS is built for laptop and desktop displays. The simulation is unaffected and keeps running; the observer
           returns as soon as this window is {need}.

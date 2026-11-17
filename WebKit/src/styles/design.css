@@ -3676,3 +3676,24 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .about-versions dt { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
 .about-versions dd { margin: 0; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
 .about-engine-list .about-engine-detail { grid-column: 1 / -1; font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
+
+/* ---- Telemetry's empty tabs are one kind of thing ------------------------------------------------------------
+   The Apps tab's empty state fills the panel's frame as Incidents' and Queue's do, centred, with no card of its own
+   inside it: one frame, one figure, the words beneath. */
+.stream-frame:has(.fabric-empty) { flex: 1 1 auto; }
+.stream-frame:has(.fabric-empty) > .stream { flex: 1; display: flex; flex-direction: column; }
+.stream > .fabric-empty { flex: 1; align-content: center; border: 0; border-radius: 0; background: none; padding-block: 12px 28px; }
+.stream > .fabric-empty .figure { width: min(188px, 62%); margin: 0 auto 4px; }
+
+/* The four figures' labels are words alone, as Road edges, Vehicles and Incidents are: the weather's severity is
+   carried by its value's colour instead of a glyph that only it had. */
+.metric:not(.wide) .metric-label .wx { display: none; }
+.metric-value.wx-clear, .metric-value.wx-none { color: var(--text); }
+/* As text on the light theme, the weather's colours are a step darker, to keep their contrast. */
+[data-theme="light"] .metric-value.wx-light { color: #1f6fb2; }
+[data-theme="light"] .metric-value.wx-heavy { color: #6b43c9; }
+
+/* Every telemetry tab's frame fills the panel, whatever it holds: a short list (two notifications) sits at the top of
+   a full frame, as a long one fills it, rather than leaving the panel bare beneath a short card. */
+.telemetry-deck .stream-frame { flex: 1 1 auto; }
+.telemetry-deck .stream-frame > .stream { flex: 1; }

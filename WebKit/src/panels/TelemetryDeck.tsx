@@ -19,7 +19,7 @@ import { api } from "../core/api";
 import { formatCompact } from "../core/format";
 import { DELIVERY_LABEL, filterHistory } from "../notifications/notificationHistory";
 import type { Delivery, HistoryEntry, HistoryFilter } from "../notifications/notificationHistory";
-import { SEVERITY_LABEL, describeNews, inPlainWords } from "../core/notificationModel";
+import { SEVERITY_LABEL, describeNews, detailsBeside, inPlainWords } from "../core/notificationModel";
 import { useTimeFormat } from "../core/preferences";
 import { networkFigures, weatherSummary } from "../simulation/telemetryModel";
 import type { WeatherSummary } from "../simulation/telemetryModel";
@@ -275,7 +275,7 @@ function Overview({ snapshot, topology, congestion }: Pick<Props, "snapshot" | "
         <span className="metric-label">
           <WeatherGlyph weather={weather} size={14} /> Weather
         </span>
-        <span className="metric-value small">{weather.label}</span>
+        <span className={`metric-value small wx-${weather.level}`}>{weather.label}</span>
         <span className="metric-sub">{weather.cells} {weather.cells === 1 ? "cell" : "cells"}</span>
       </div>
       <div className="metric wide" data-tutorial="telemetry-congestion">
@@ -544,7 +544,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
                 <dd>{entry.location}</dd>
               </div>
             )}
-            {entry.details.map((d) => (
+            {detailsBeside(entry.location, entry.details).map((d) => (
               <div key={d.label}>
                 <dt>{d.label}</dt>
                 <dd className={d.time !== undefined ? "mono" : undefined}>{d.time !== undefined ? time.time(d.time) : d.value}</dd>
