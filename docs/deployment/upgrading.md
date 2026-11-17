@@ -159,4 +159,4 @@ selection version.
 
 - [Operations runbook](operations.md): day-to-day operation and recovery
 - [Files and directories](../reference/files-and-directories.md): what each path holds
-- [Release notes](../changelog.md): what changed in each version
+- [Changelog](../changelog.md): what changed in each version

@@ -64,6 +64,8 @@ theme:
     - content.code.annotate
     - content.tabs.link
     - content.tooltips
+    # The version line above the header can be closed; it stays closed until it changes (a new version).
+    - announce.dismiss
 
 hooks:
   - hooks/cachebust.py
@@ -129,6 +131,8 @@ markdown_extensions:
   - pymdownx.tilde
 
 extra_javascript:
+  - assets/vendor/minisearch.js
+  - assets/search-engine.js
   - assets/search-ui.js
   - assets/site.js
   - assets/graph.js
@@ -268,7 +272,7 @@ nav:
           - Fabric: components/fabric.md
           - WebFabric: components/webfabric.md
           - CoreAI: components/coreai.md
-      - Release notes: changelog.md
+      - Changelog: changelog.md
       - License: license.md
   - Develop:
       - Design:
@@ -290,9 +294,9 @@ nav:
           - Quality assurance: development/quality-assurance.md
           - Building the documentation: development/documentation.md
           - The knowledge graph: development/knowledge-graph.md
-      - Code graph: graph.md
   - Help:
       - troubleshooting.md
       - FAQ: faq.md
       - Known limitations: limitations.md
       - Glossary: glossary.md
+  - Graph: graph.md

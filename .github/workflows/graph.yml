@@ -4,7 +4,8 @@ name: Knowledge graph
 
 on:
   push:
-    branches: [main, v3]
+    # main, and the v3 line with its working branches (v3-core-ng, the default branch, and the like).
+    branches: [main, v3, "v3-*"]
     paths-ignore:
       - "data/graph/**"
   workflow_dispatch:

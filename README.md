@@ -331,7 +331,7 @@ See the [MCP guide](https://dstns.readthedocs.io/v3-core-ng/guide/mcp/).
 
 The [Graph](https://dstns.readthedocs.io/v3-core-ng/graph/) page maps every file, class, function and page of DSTNS,
 and how they connect, rebuilt from the source with every documentation build. Search it in plain words (`what calls
-snapshot`, `functions in the launcher`), see one part on its own, and open anything on GitHub at its exact line. The
+sha256`, `functions in the launcher`), see one part on its own, and open anything on GitHub at its exact line. The
 same graph answers `./launcher graph`, the MCP Handler and a downloadable Claude skill.
 
 ## Reports

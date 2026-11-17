@@ -20,7 +20,7 @@ right, switches between them.
 | API contract | {{ version.api }} | `api_version` in every answer |
 
 `./launcher version` prints them all at once, from the build that is installed. What changed in each version is in
-the [release notes](../changelog.md).
+the [changelog](../changelog.md).
 
 ## Operating reference
 
@@ -56,5 +56,5 @@ For configuration files, see [Configuration](../guide/configuration.md) and
 
 | Page | Covers |
 |---|---|
-| [Release notes](../changelog.md) | What changed in each version, including changes that affect results |
+| [Changelog](../changelog.md) | What changed in each version, including changes that affect results |
 | [License](../license.md) | The AGPL terms, the network source offer and map data licensing |

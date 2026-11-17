@@ -1,0 +1,12 @@
+{#- The footer's line: the copyright, and the versions these pages describe, which stay here when the line above the
+    header has been closed. -#}
+{%- set v = config.extra.dstns_versions -%}
+<div class="md-copyright">
+  {% if config.copyright %}
+    <div class="md-copyright__highlight">{{ config.copyright }}</div>
+  {% endif %}
+  <div class="dstns-footer-versions">
+    Documentation for DSTNS {{ v.server }} · core-ng {{ v.core_ng }} · Launcher {{ v.launcher }} · Observer {{ v.observer }} · API {{ v.api }} ·
+    <a href="{{ base_url }}/changelog/">Changelog</a>
+  </div>
+</div>

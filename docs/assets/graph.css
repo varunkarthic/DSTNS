@@ -287,7 +287,7 @@ body:has(.dg) .md-content__inner::before { display: none; }
 .dg-card-links { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; padding-top: 12px; border-top: 1px solid var(--dg-edge); }
 .dg-card-links-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .dg-card-links-head strong { font-size: 13px; font-weight: 600; }
-.dg-tabs { flex: none; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.dg-tabs { flex: none; display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 2px; }
 .dg-tabs [role=tab] { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--dg-edge); color: var(--dg-dim); font-size: 12px; font-weight: 500; transition: background-color 140ms, border-color 140ms, color 140ms; }
 .dg-tabs [role=tab]:hover { color: var(--dg-fg); }
 .dg-tabs [role=tab] small { color: var(--dg-faint); font-variant-numeric: tabular-nums; }
@@ -338,3 +338,12 @@ body:has(.dg) .md-content__inner::before { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .dg *, .dg *::before, .dg *::after { animation: none !important; transition: none !important; }
 }
+
+/* A question's answer: what was understood, in words, with how many it found beneath. */
+.dg-understood > span:nth-child(2) { display: grid; gap: 2px; }
+.dg-understood strong { font-weight: 600; }
+.dg-understood small { color: var(--dg-dim); font-size: 11.5px; }
+/* The best match shows its whole location, wrapped, never cut short. */
+.dg-top-hit .dg-hit-text small { white-space: normal; overflow-wrap: anywhere; }
+.dg-hit-list [role=option] { padding: 9px 12px; }
+.dg-hit-head:first-child { padding-top: 12px; }

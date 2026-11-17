@@ -1485,3 +1485,21 @@ html { scrollbar-gutter: stable; }
 .dstns-versions__link { color: var(--dstns-accent) !important; font-weight: 500; }
 .dstns-versions__link:hover { text-decoration: underline; }
 @media screen and (max-width: 44.9em) { .dstns-versions__lead { display: none; } .md-banner__inner { font-size: 0.58rem; } }
+
+/* Ten section tabs (Graph among them): a gap before the theme toggle, and tighter tabs where the row would
+   otherwise run into it. Set last, so the capsule's own padding above does not undo it. */
+.md-header .md-tabs { margin-right: 0.6rem; }
+@media screen and (min-width: 76.25em) and (max-width: 100em) {
+  .md-header .md-tabs__link { padding: 0.34rem 0.5rem; font-size: 0.68rem; }
+  .md-header .md-tabs__list { gap: 0.05rem; }
+}
+@media screen and (min-width: 76.25em) and (max-width: 84em) {
+  .md-header .md-tabs__link { padding: 0.32rem 0.4rem; font-size: 0.64rem; }
+}
+
+/* The version line's close button (announce.dismiss), quiet until hovered; and the same versions in the footer. */
+.md-banner__button { color: inherit; opacity: 0.55; margin: 0.1rem 0.4rem 0 0; transition: opacity 140ms ease; }
+.md-banner__button:hover, .md-banner__button:focus-visible { opacity: 1; }
+.md-banner__button svg { width: 0.85rem; height: 0.85rem; }
+.dstns-footer-versions { margin-top: 0.2rem; font-size: 0.6rem; opacity: 0.75; font-variant-numeric: tabular-nums; }
+.dstns-footer-versions a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }

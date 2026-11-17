@@ -95,7 +95,7 @@ Containers, TLS, security, logging and operations.
 <div class="dstns-card" markdown>
 :material-book-open-variant: [Reference](reference/index.md){ .dstns-card__title }
 
-Commands, variables, files and limits; components; release notes and the licence.
+Commands, variables, files and limits; components; the changelog and the licence.
 
 [Limits](reference/limits.md){ .dstns-chip } [Components](components/index.md){ .dstns-chip }
 </div>

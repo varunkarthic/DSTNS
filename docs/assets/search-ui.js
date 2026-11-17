@@ -14,10 +14,10 @@
   var OPEN = "Start typing to search", CLOSED = "Search";
   var AREAS = [
     ["getting-started", "Get started"], ["guide", "Guides"], ["concepts", "Concepts"],
-    ["api", "API"], ["deployment", "Operations"], ["design", "Develop"], ["development", "Develop"], ["graph", "Develop"],
+    ["api", "API"], ["deployment", "Operations"], ["design", "Develop"], ["development", "Develop"], ["graph", "Graph"],
     ["troubleshooting", "Help"], ["faq", "Help"], ["glossary", "Help"]
   ];
-  var ORDER = ["Get started", "Guides", "Concepts", "API", "Operations", "Reference", "Develop", "Help"];
+  var ORDER = ["Get started", "Guides", "Concepts", "API", "Operations", "Reference", "Develop", "Help", "Graph"];
   var SECTIONS_SHOWN = 3;
   // Icons from Material Design Icons (Apache 2.0), as shipped with Material for MkDocs:
   // file-document-outline, pound, bullseye-arrow, format-title, text-search, chevron-right.
@@ -112,8 +112,16 @@
     return { area: area, trail: trail };
   }
 
-  // Read Material's own result list into plain data.
+  // The results: from the search engine (search-engine.js) once its index has loaded; until then, or if it cannot
+  // load, from Material's own list.
   function collect() {
+    var input = field(), q = input && input.value.trim();
+    if (q && window.DSTNSSearch && window.DSTNSSearch.ready()) {
+      try { return window.DSTNSSearch.pages(input.value); } catch (err) { if (window.console) console.error(err); }
+    }
+    return collectMaterial();
+  }
+  function collectMaterial() {
     var list = document.querySelector(".md-search-result__list");
     if (!list) return null;
     var pages = [];
@@ -307,6 +315,7 @@
     var all = links(); var i = all.indexOf(a);
     if (i !== active) { all.forEach(function (x) { x.classList.remove("dstns-active"); }); a.classList.add("dstns-active"); active = i; }
   });
+  if (window.DSTNSSearch) window.DSTNSSearch.onReady(function () { schedule(); });
   document.addEventListener("focusin", function (e) {
     if (isField(e)) { e.target.setAttribute("placeholder", OPEN); syncEmpty(); coverTabs(); attach(); schedule(); }
   });

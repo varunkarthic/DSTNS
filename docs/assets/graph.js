@@ -288,7 +288,7 @@
         score.forEach(function (v, node) {
           if (!passes(node, q) || (among && !among.has(node))) { score.delete(node); return; }
           var bonus = flatShort[node] === whole || flatFull[node] === whole ? 30 : flatShort[node].indexOf(whole) === 0 ? 12 : flatFull[node].indexOf(whole) === 0 ? 8 : 0;
-          score.set(node, v + bonus + (SORT_BONUS[sortOf(node)] || 0) + Math.log(1 + N.degree[node]) * 0.4);
+          score.set(node, (v + bonus + (SORT_BONUS[sortOf(node)] || 0) + Math.log(1 + N.degree[node]) * 0.4) * (isTest(node) ? 0.85 : 1));
         });
       }
       var out = [];
@@ -300,6 +300,9 @@
       out.sort(function (x, y) { return y[0] - x[0]; });
       return limit ? out.slice(0, limit) : out;
     }
+    // Tests and their helpers: found, but after the code they test, so "what calls X" is about the real X.
+    var testFile = /(^|\/)(tests?|__tests__|fixtures)\/|\.test\.|_tests?\.|\.spec\./;
+    function isTest(i) { return testFile.test(fileOf(i) || ""); }
     /** The best node for a name: the subject of a question about relations. What depends on what is said of files,
      * so a class or function asked about there stands for the file it is in. */
     function subjectOf(text, group, dir) {
@@ -308,6 +311,8 @@
       // Calls are between functions, and dependencies between files: those come first.
       var want = group === "calls" ? ["function", "other", "class"] : group === "imports" ? ["file"] : null;
       if (want) found = found.filter(function (f) { return want.indexOf(sortOf(f[1])) >= 0; }).concat(found.filter(function (f) { return want.indexOf(sortOf(f[1])) < 0; }));
+      // The code itself before its tests: a test helper of the same name never answers for it.
+      found = found.filter(function (f) { return !isTest(f[1]); }).concat(found.filter(function (f) { return isTest(f[1]); }));
       // A name not in the graph as written: its most telling word, the rarest, stands for it.
       if (!found.length) words(text).filter(function (w) { return !STOP.has(w); }).sort(function (x, y) { return idf(stem(y)) - idf(stem(x)); }).some(function (w) { found = rank(blank([w]), null, 8); return found.length; });
       var stand = function (node) {
@@ -317,7 +322,8 @@
       // Of the likely ones, the first the question has an answer for: only those nearly as good as the best, so a
       // looser match never answers for the name asked about.
       var best = found.reduce(function (m, f) { return Math.max(m, f[0]); }, 0);
-      for (var k = 0; k < found.length; k++) { if (found[k][0] < best * 0.6) continue; var node = stand(found[k][1]); if (around(node, group, dir).size) return node; }
+      var source = found.some(function (f) { return !isTest(f[1]) && f[0] >= best * 0.6; });
+      for (var k = 0; k < found.length; k++) { if (found[k][0] < best * 0.6 || (source && isTest(found[k][1]))) continue; var node = stand(found[k][1]); if (around(node, group, dir).size) return node; }
       return found.length ? stand(found[0][1]) : -1;
     }
     function around(node, group, dir) {
@@ -339,7 +345,7 @@
 
     // ---- the page: a sidebar to search and explore from, the map, its controls, and the card ----
     var canvas = el("canvas", { class: "dg-canvas", "aria-label": "The knowledge graph. Use the search to find something, or choose a dot.", role: "img" });
-    var input = el("input", { class: "dg-search-input", type: "search", placeholder: "Search, or ask: what calls snapshot?", "aria-label": "Search the graph in plain words", autocomplete: "off", spellcheck: "false", role: "combobox", "aria-expanded": "false", "aria-controls": "dg-results", "aria-autocomplete": "list" });
+    var input = el("input", { class: "dg-search-input", type: "search", placeholder: "Search, or ask: what calls sha256?", "aria-label": "Search the graph in plain words", autocomplete: "off", spellcheck: "false", role: "combobox", "aria-expanded": "false", "aria-controls": "dg-results", "aria-autocomplete": "list" });
     var clear = el("button", { class: "dg-clear", type: "button", "aria-label": "Clear the search", title: "Clear the search", hidden: true, html: icon("close", 14) });
     var results = el("div", { class: "dg-results", id: "dg-results", hidden: true });
     var searchBox = el("div", { class: "dg-search" }, [el("span", { class: "dg-search-icon", html: icon("search", 17) }), input, clear, el("kbd", { class: "dg-key", text: "/" })]);
@@ -426,7 +432,7 @@
     }
     function flip(set, v) { if (set.has(v)) set.delete(v); else set.add(v); refilter(); renderPane(); }
     function section(title, body, aside) { return el("section", { class: "dg-section" }, [el("h3", { class: "dg-section-title" }, [el("span", { text: title }), aside || null]), body]); }
-    var folder = el("input", { class: "dg-field", type: "search", placeholder: "For example Core/core-legacy/src", "aria-label": "Only inside a folder", spellcheck: "false" });
+    var folder = el("input", { class: "dg-field", type: "search", placeholder: "For example Core/common/src", "aria-label": "Only inside a folder", spellcheck: "false" });
     folder.addEventListener("input", function () { state.folder = folder.value.trim().toLowerCase().replace(/^\.?\//, ""); refilter(); });
     function renderExplore() {
       var biggest = Math.max.apply(null, data.areas.map(function (v) { return areaCount[v] || 0; }));
@@ -492,7 +498,7 @@
       return [
         el("p", { class: "dg-lede", text: "A map of DSTNS's source and documentation, read from the repository when this site was built." }),
         el("ol", { class: "dg-steps" }, [
-          el("li", {}, [el("b", { text: "Search in plain words." }), " A name, a topic, or a question such as “what calls snapshot” or “functions in the launcher”."]),
+          el("li", {}, [el("b", { text: "Search in plain words." }), " A name, a topic, or a question such as “what calls sha256” or “functions in the launcher”."]),
           el("li", {}, [el("b", { text: "Choose a result or a dot." }), " The card says what it is, where it is, and what it is linked to."]),
           el("li", {}, [el("b", { text: "Follow it." }), " Open it on GitHub at the exact line, or choose a link in the card to go to the next thing."]),
         ]),
@@ -949,7 +955,7 @@
       found.forEach(function (f) { matched[f[1]] = 1; });
       matching = found.length > 0;
       version++;
-      if (said) results.appendChild(el("div", { class: "dg-understood" }, [el("span", { html: icon("spark", 14) }), el("span", { text: said }), subject >= 0 ? el("button", { type: "button", class: "dg-understood-go", text: "Open it", onmousedown: function (ev) { ev.preventDefault(); closeSearch(); select(subject, true); } }) : null]));
+      if (said) results.appendChild(el("div", { class: "dg-understood" }, [el("span", { html: icon("spark", 14) }), el("span", {}, [el("strong", { text: said }), q.relation && found.length ? el("small", { text: found.length === 1 ? "1 item" : found.length.toLocaleString() + " items" }) : null]), subject >= 0 ? el("button", { type: "button", class: "dg-understood-go", text: "Open it", onmousedown: function (ev) { ev.preventDefault(); closeSearch(); select(subject, true); } }) : null]));
       var list = el("ul", { role: "listbox", class: "dg-hit-list", "aria-label": "Results" });
       var option = function (i, top) {
         var k = hits.length; hits.push({ node: i });
@@ -963,20 +969,23 @@
       if (!found.length) {
         list.appendChild(el("li", { class: "dg-none", role: "presentation" }, [el("strong", { text: "Nothing found" }), el("span", { text: isFresh() ? "Try fewer words, another name, or one of the questions in Explore." : "A filter may be hiding it. Reset the filters, or try other words." })]));
       } else {
-        list.appendChild(el("li", { class: "dg-hit-head", role: "presentation", text: q.relation ? "Answer" : "Best match" }));
-        list.appendChild(option(found[0][1], true));
+        // A question's answer is every item it found, none above the others; a search has its best match first.
+        if (!q.relation) {
+          list.appendChild(el("li", { class: "dg-hit-head", role: "presentation", text: "Best match" }));
+          list.appendChild(option(found[0][1], true));
+        }
         // The rest, grouped by what they are, a few of each, best groups first.
-        var groups = {}, orderOf = [];
-        found.slice(1, 160).forEach(function (f) { var s = sortOf(f[1]); if (!groups[s]) { groups[s] = []; orderOf.push(s); } groups[s].push(f[1]); });
+        var groups = {}, orderOf = [], each = q.relation ? 8 : 5;
+        found.slice(q.relation ? 0 : 1, 160).forEach(function (f) { var s = sortOf(f[1]); if (!groups[s]) { groups[s] = []; orderOf.push(s); } groups[s].push(f[1]); });
         orderOf.forEach(function (s) {
-          var members = groups[s], shown = members.slice(0, 5);
+          var members = groups[s], shown = members.slice(0, each);
           list.appendChild(el("li", { class: "dg-hit-head", role: "presentation" }, [el("span", { text: SORT_PLURAL[s] || s }), el("small", { text: members.length >= 159 ? "many" : String(members.length) })]));
           shown.forEach(function (i) { list.appendChild(option(i, false)); });
           if (members.length > shown.length) {
             var more = el("li", { class: "dg-hit-more", role: "presentation" }, [el("button", { type: "button", tabindex: "-1", text: "Show " + (members.length - shown.length) + " more " + (SORT_PLURAL[s] || "").toLowerCase(), onmousedown: function (ev) {
               ev.preventDefault();
               var after = more;
-              members.slice(5, 40).forEach(function (i) { var li = option(i, false); after.parentNode.insertBefore(li, after); });
+              members.slice(each, 40).forEach(function (i) { var li = option(i, false); after.parentNode.insertBefore(li, after); });
               more.remove();
               renumber();
             } })]);
@@ -1085,6 +1094,14 @@
     fitButton.addEventListener("click", function () { glide(fitView(minX, maxX, minY, maxY)); });
 
     // ---- start ----
+    // The map fills the window below whatever sits above it (the version line, the header), so its foot, with the
+    // zoom controls and the sidebar's buttons, is never below the edge.
+    function fitHeight() {
+      var top = root.getBoundingClientRect().top + window.scrollY;
+      root.style.height = Math.max(560, window.innerHeight - top) + "px";
+    }
+    fitHeight();
+    window.addEventListener("resize", fitHeight);
     new ResizeObserver(resize).observe(root);
     new MutationObserver(function () { css = getComputedStyle(root); version++; draw(); }).observe(document.body, { attributes: true, attributeFilter: ["data-md-color-scheme"] });
     document.addEventListener("visibilitychange", function () { if (!document.hidden) draw(); });
