@@ -192,6 +192,8 @@ pub fn start_with(reporter: &dyn Reporter, paths: &Paths, build_first: bool, can
     if let Some(token) = &choice.token {
         command.env("DSTNS_NARRATOR_TOKEN", token);
     }
+    // The server watches for this process and stops if it goes without stopping it (SIGKILL, Force Quit, a crash).
+    command.env("DSTNS_PARENT_PID", std::process::id().to_string());
     for (key, value) in paths.server_environment().into_iter().chain(switches(&config, paths, demo)) {
         command.env(key, value);
     }

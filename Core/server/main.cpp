@@ -25,9 +25,11 @@
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <chrono>
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
 
 int container_run_main(int argc, char** argv);
 int container_probe_main();
@@ -60,6 +62,27 @@ int main(int argc, char** argv) {
             std::raise(raised);
             std::_Exit(128 + raised);
         }).detach();
+        // A server the launcher started goes with it, however the launcher ends. The launcher stops it itself when it
+        // can (on exit, Ctrl+C, SIGTERM, SIGHUP); this covers what it cannot catch: SIGKILL, Force Quit, a crash. Once
+        // the launcher has gone (this process is handed to another parent, or that process no longer exists), the
+        // server stops as it does on SIGTERM, so no orphan keeps a world in memory.
+        if (const char* named = std::getenv("DSTNS_PARENT_PID"); named && *named) {
+            const auto parent = static_cast<pid_t>(std::strtol(named, nullptr, 10));
+            ::unsetenv("DSTNS_PARENT_PID");
+            if (parent > 1) {
+                std::thread([parent] {
+                    for (;;) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                        const bool gone = ::getppid() != parent || (::kill(parent, 0) != 0 && errno == ESRCH);
+                        if (!gone) continue;
+                        std::cerr << "[WARN] the launcher (pid " << parent << ") has gone: stopping\n";
+                        const char c = static_cast<char>(SIGTERM);
+                        (void)!::write(stop_pipe[1], &c, 1);
+                        return;
+                    }
+                }).detach();
+            }
+        }
     }
     try {
         // Loopback by default: the API can drive a run and write files, so it is
