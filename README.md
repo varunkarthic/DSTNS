@@ -19,7 +19,7 @@ and you watch it, change it, and build on it.
 [![Container](https://img.shields.io/badge/container-ghcr.io-2563eb?logo=docker&logoColor=white)](https://github.com/varunkarthic/DSTNS/pkgs/container/dstns)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0--or--later-2fbf8f)](LICENSE)
 
-[![Engine](https://img.shields.io/badge/engine-3.13.3-0f172a)](CHANGELOG.md)
+[![Engine](https://img.shields.io/badge/engine-3.13.4-0f172a)](CHANGELOG.md)
 [![core-ng](https://img.shields.io/badge/core--ng-1.2.2_stable-0e7490)](https://dstns.readthedocs.io/v3-core-ng/guide/engines/)
 [![Launcher](https://img.shields.io/badge/launcher-3.16.1-7c3aed)](https://dstns.readthedocs.io/v3-core-ng/guide/operator-cli/)
 [![Observer](https://img.shields.io/badge/observer-3.9.0-db2777)](https://dstns.readthedocs.io/v3-core-ng/guide/observer-interface/)
@@ -174,7 +174,7 @@ and [Reproducibility](https://dstns.readthedocs.io/v3-core-ng/concepts/reproduci
 | Engine | Version | Channel | State | What it is |
 |---|---|---|---|---|
 | **core-ng** | 1.2.2 | ![stable](https://img.shields.io/badge/-stable-2fbf8f) | The default; cannot be disabled | Its own world selection, compiler, physics tick, checkpoints and lifecycle tables |
-| **core-legacy** | 3.13.3 | ![stable](https://img.shields.io/badge/-stable-2fbf8f) | ![disabled](https://img.shields.io/badge/-disabled-94a3b8) | The engine before core-ng, frozen. Enable it to compare: both make the same world, hash for hash |
+| **core-legacy** | 3.13.4 | ![stable](https://img.shields.io/badge/-stable-2fbf8f) | ![disabled](https://img.shields.io/badge/-disabled-94a3b8) | The engine before core-ng, frozen. Enable it to compare: both make the same world, hash for hash |
 
 | Selection policy | Cities | What it does |
 |---|---|---|
@@ -398,7 +398,7 @@ version, and how to report a suspected vulnerability privately.
 
 | Part | Version | Reported by |
 |---|---|---|
-| Engine (server) | 3.13.3 | `./build/dstns_server --version`, `/api/v1/system/info` |
+| Engine (server) | 3.13.4 | `./build/dstns_server --version`, `/api/v1/system/info` |
 | core-ng | 1.2.2, stable | `GET /api/v1/engine` |
 | Launcher | 3.16.1 | `./launcher version` |
 | Observer | 3.9.0 | About, in the observer |

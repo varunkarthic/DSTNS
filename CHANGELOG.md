@@ -14,9 +14,13 @@ only within one version.
 
 ## [Unreleased]
 
-### Launcher 3.16.1 (with engine 3.13.3)
+## [3.13.4] - 2026-11-17
 
-The engine is unchanged, and so are results for every seed.
+**Engine 3.13.4 (core-ng 1.2.2), launcher 3.16.1, observer 3.9.0, API contract 1.13.** The simulation is unchanged, and
+so are results for every seed: this release carries the launcher's fix for starting a simulation after Demo Mode, and
+the graph page's redesigned search.
+
+### Launcher 3.16.1
 
 #### Fixed
 
@@ -31,7 +35,21 @@ The engine is unchanged, and so are results for every seed.
 
   A server another launcher or a script started is still refused, and `--take-over` still stops it.
 
-### Launcher 3.16.0 (with engine 3.13.3), documentation and policy
+### Documentation
+
+- **The graph's search, redesigned.** Suggestions show each question with an icon for what it asks (where it is,
+  callers, what it calls, dependents, members, a kind of thing, documentation) and that in words beneath; recent
+  searches can be cleared; filters (`in:`, `type:`, `file:`) are chips that insert themselves. Results put each
+  item's file and line first and its folder after, mark tests, and set the best match apart with what it is as a
+  pill. A question's answer has its relation's icon and how many it found. The rows had lost their spacing to a
+  list reset; they have it back. Enter on a suggestion chosen with the arrows asks it (it did nothing).
+
+## [3.13.3] - 2026-11-17
+
+**Engine 3.13.3 (core-ng 1.2.2), launcher 3.16.0, observer 3.9.0, API contract 1.13.** Results for every seed are
+unchanged.
+
+### Launcher 3.16.0, documentation and policy
 
 The engine and observer are unchanged, and so are results for every seed.
 
@@ -100,12 +118,6 @@ The engine and observer are unchanged, and so are results for every seed.
 - **The Graph tab is back** at the top level (it had moved under Develop). The page fits the window below the version
   line, so its controls are never below the edge. A question lists everything it found with a count; tests no longer
   answer for the code they test, so "what calls sha256" is about the engine's `sha256`; the card's links wrap.
-- **The graph's search, redesigned.** Suggestions show each question with an icon for what it asks (where it is,
-  callers, what it calls, dependents, members, a kind of thing, documentation) and that in words beneath; recent
-  searches can be cleared; filters (`in:`, `type:`, `file:`) are chips that insert themselves. Results put each
-  item's file and line first and its folder after, mark tests, and set the best match apart with what it is as a
-  pill. A question's answer has its relation's icon and how many it found. The rows had lost their spacing to a
-  list reset; they have it back. Enter on a suggestion chosen with the arrows asks it (it did nothing).
 - **The graph is rebuilt on every push** to the default branch too: the workflow now runs on `v3-*` branches.
 - **Light and dark everywhere.** The search panel and its results, tooltips, the back-to-top button, the "copied"
   notice and the skip link were dark in the light scheme; they follow the chosen scheme.
@@ -129,7 +141,7 @@ The engine and observer are unchanged, and so are results for every seed.
   what changed for security since 3.0.0, and corrected paths.
 - Links to `dstns.readthedocs.io/v3` now go to `/v3-core-ng`.
 
-### Launcher 3.15.0 and observer 3.9.0 (with engine 3.13.3)
+### Launcher 3.15.0 and observer 3.9.0
 
 The engine is unchanged, and so are results for every seed.
 
@@ -174,11 +186,6 @@ The engine is unchanged, and so are results for every seed.
   - Each hash's 64 characters stay on one line.
   - The engines show an icon for running or disabled, and their names never break.
   - The integrations' facts and cards have the sections' gap between them.
-
-## [3.13.3] - 2026-11-17
-
-**Engine 3.13.3 (core-ng 1.2.2), launcher 3.14.1, observer 3.8.0, API contract 1.13.** Results for every seed are
-unchanged.
 
 ### Fixed
 

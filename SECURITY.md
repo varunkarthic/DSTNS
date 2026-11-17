@@ -16,7 +16,7 @@ It follows the conventions of
 | Harden an installation | [Running DSTNS safely](#running-dstns-safely) |
 | See what this version protects | [Security in this version](#security-in-this-version) |
 
-**This policy describes** engine 3.13.3 (core-ng 1.2.2), launcher 3.15.0, observer 3.9.0 and API contract 1.13,
+**This policy describes** engine 3.13.4 (core-ng 1.2.2), launcher 3.16.1, observer 3.9.0 and API contract 1.13,
 on the `v3-core-ng` branch.
 
 ---
@@ -44,7 +44,7 @@ on the `v3-core-ng` branch.
 
 | Version | Branch or tag | Status |
 |---|---|---|
-| **3.13.x** (engine 3.13.3, core-ng 1.2.x, launcher 3.15.x, observer 3.9.x, API 1.13) | `v3-core-ng`, the default branch | **Supported.** Fixes land here first. |
+| **3.13.x** (engine 3.13.4, core-ng 1.2.x, launcher 3.16.x, observer 3.9.x, API 1.13) | `v3-core-ng`, the default branch | **Supported.** Fixes land here first. |
 | 3.0.x to 3.12.x | `v3`, tag `v3.0.0` | Reports are accepted; fixes are made on `v3-core-ng` and reach `v3` when it merges. Upgrade to 3.13.x. |
 | 2.1.x | `main`, tag `v2.1.0` | Critical and high-severity fixes only, until `v3` merges into `main`. |
 | 2.0.x and older | tags before `v2.1.0` | Not supported. Upgrade to the current version. |

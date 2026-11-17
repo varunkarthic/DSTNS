@@ -12,7 +12,7 @@ that talks to DSTNS (the observer, the launcher, your applications, an AI client
 | Engine | Version | Channel | Type | By default | What it is |
 |---|---|---|---|---|---|
 | **core-ng** | 1.2.2 | stable | standalone | **The engine.** Selected, and it cannot be disabled | The next-generation engine: its own world selection, compiler, physics tick, checkpoints and lifecycle tables |
-| **core-legacy** | the build's (3.13.3) | stable | standalone | Disabled | The engine DSTNS had before core-ng, kept unchanged. Enable it to compare the two |
+| **core-legacy** | the build's (3.13.4) | stable | standalone | Disabled | The engine DSTNS had before core-ng, kept unchanged. Enable it to compare the two |
 
 Both make **the same world from the same seed**, to the last bit: the same city and district, the same hashes, the
 same state at every moment of the day. The golden fixtures prove it on every build (see
@@ -67,13 +67,13 @@ Where you see it:
 
 ```text
 $ ./launcher version
-DSTNS 3.13.3
+DSTNS 3.13.4
  Launcher         3.16.1
- Server           3.13.3 (local channel, built unknown (arm64))
+ Server           3.13.4 (local channel, built unknown (arm64))
  API contract     1.13
  Observer         3.9.0
  Engines          core-ng 1.2.2 (stable, standalone): default, selected
-                  core-legacy 3.13.3 (stable, standalone): disabled
+                  core-legacy 3.13.4 (stable, standalone): disabled
 ```
 
 ![The About card: the server's, API's, observer's and engine's versions under the name, then this run's seed, policy, fingerprint and hashes](../assets/screenshots/about.png){ .screenshot }
