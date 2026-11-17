@@ -4,12 +4,17 @@
 
 """Ask DSTNS's knowledge graph: where something is, what it holds, what it calls and what calls it.
 
+    python3 graph.py ask "what calls sha256"                 any question in plain words
     python3 graph.py search "functions in the launcher that save settings"
-    python3 graph.py show SimulationEngine
-    python3 graph.py callers physics_step        callees capsuleFrame
-    python3 graph.py deps next_world.cpp         users motion.ts
-    python3 graph.py members SimulationEngine    path SeekFilm SimulationEngine
-    python3 graph.py stats
+    python3 graph.py show SimulationEngine                   what it is, where, and everything round it
+    python3 graph.py callers sha256        callees select_location
+    python3 graph.py deps engine.cpp       users engine.hpp
+    python3 graph.py members SimulationEngine
+    python3 graph.py path select_location SimulationEngine
+    python3 graph.py tests Seed128         docs "engine governance"
+    python3 graph.py file Core/core-ng/src/selection.cpp
+    python3 graph.py areas                 stats
+    python3 graph.py --json callers sha256                   the same, as JSON
 
 The graph is read from data/graph/dstns-graph.json in a DSTNS clone (found from here or the current folder upward),
 or from --graph FILE, or downloaded once from the documentation and kept beside this script. Only the standard
@@ -28,6 +33,11 @@ from collections import deque
 from pathlib import Path
 
 ONLINE = "https://dstns.readthedocs.io/v3-core-ng/graph/data.json"
+TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|fixtures)/|\.test\.|_tests?\.|\.spec\.")
+PART_NAMES = {"Core": "the engine (Core/common, Core/core-ng, Core/core-legacy, Core/engines)", "Fabric": "the HTTP API and WebFabric",
+              "Daemon": "the daemons inside the server", "LaunchKit": "the launcher (Rust)", "WebKit": "the observer (React)",
+              "docs": "the documentation", "tests": "the engine's and HTTP tests", "tools": "tools: benchmark, stress, release",
+              "config": "configuration files and their schemas", "CoreAI": "the shared model layer"}
 GROUPS = {
     "contains": ["contains", "defines", "method"],
     "calls": ["calls", "indirect_call"],
@@ -165,14 +175,17 @@ class Graph:
         return out
 
     def subject(self, text: str, group: str | None = None, direction: str = "in") -> int:
-        found = self.rank(words(text), limit=8)
+        # "the simulation engine" names SimulationEngine: words that only carry the sentence are left out.
+        named = [w for w in words(text) if w not in STOP] or words(text)
+        found = self.rank(named, limit=8)
         if not found:
             # A name not in the graph as written: its rarest word stands for it.
             for w in sorted((w for w in words(text) if w not in STOP), key=lambda w: len(self.index.get(stem(w), {}) or [0] * self.count)):
                 found = self.rank([w], limit=8)
                 if found:
                     break
-        candidates = [node for _, node in found]
+        # The code itself before its tests: a test helper of the same name never answers for it.
+        candidates = [node for _, node in found if not self.is_test(node)] + [node for _, node in found if self.is_test(node)]
         if group == "imports":
             candidates = [self.file_node(c) for c in candidates]
         if group:
@@ -180,6 +193,12 @@ class Graph:
                 if self.around(c, group, direction):
                     return c
         return candidates[0] if candidates else -1
+
+    def is_test(self, node: int) -> bool:
+        return bool(TEST_FILE.search(self.file(node) or ""))
+
+    def item(self, i: int) -> dict:
+        return {"name": self.n["label"][i], "type": self.sort(i), "part": self.area(i), "where": self.where(i), "url": self.url(i), "test": self.is_test(i)}
 
     def file_node(self, node: int) -> int:
         if self.sort(node) == "file" or not self.file(node):
@@ -193,32 +212,93 @@ class Graph:
         return f"  {self.n['label'][i]:<42} {self.sort(i):<9} {self.where(i)}"
 
 
+QUESTIONS = [
+    (r"^(?:who|what|which)\s+(?:calls|uses|invokes|runs)\s+(.+)$", "callers"),
+    (r"^(?:callers|users) of\s+(.+)$", "callers"),
+    (r"^what (?:does|do)\s+(.+?)\s+(?:call|use|invoke|run)$", "callees"),
+    (r"^(?:who|what|which)\s+(?:imports|depends on|needs|includes)\s+(.+)$", "users"),
+    (r"^what (?:does|do)\s+(.+?)\s+(?:import|depend on|need|include)$", "deps"),
+    (r"^what(?:'s| is| are)? (?:in|inside)\s+(.+)$", "members"),
+    (r"^(?:where (?:is|are|do|does)|what is|show)\s+(.+?)(?: defined| declared| kept| live| lives)?$", "show"),
+    (r"^(?:what )?tests? (?:for|of|cover(?:s|ing)?)\s+(.+)$", "tests"),
+    (r"^(?:docs?|documentation) (?:for|about|on)\s+(.+)$", "docs"),
+    (r"^how (?:does|do|is)\s+(.+?)\s+(?:connect(?:ed)? to|reach|relate to|get to)\s+(.+)$", "path"),
+]
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Ask DSTNS's knowledge graph.")
+    parser = argparse.ArgumentParser(description="Ask DSTNS's knowledge graph.", epilog="Commands: ask search show callers callees deps users members path tests docs file areas stats")
     parser.add_argument("--graph", help="graph file (default: the clone's data/graph/dstns-graph.json)")
     parser.add_argument("--limit", type=int, default=20)
-    parser.add_argument("command", choices=["search", "show", "callers", "callees", "deps", "users", "members", "path", "stats"])
+    parser.add_argument("--json", action="store_true", help="print the answer as JSON")
+    parser.add_argument("command", choices=["ask", "search", "show", "callers", "callees", "deps", "users", "members", "path", "tests", "docs", "file", "areas", "stats"])
     parser.add_argument("terms", nargs="*")
     args = parser.parse_args()
     g = Graph(find_graph(args.graph))
-    text = " ".join(args.terms)
+    command, terms = args.command, list(args.terms)
 
-    if args.command == "stats":
-        print(f"{g.count} nodes, {len(g.edges)} edges, {len(g.d['communities'])} communities, built from {g.d['repo']} at {g.d['commit'][:10]}")
+    # A question in plain words becomes the command that answers it.
+    if command == "ask":
+        q = " ".join(terms).strip().rstrip("?.!").strip()
+        for pattern, meaning in QUESTIONS:
+            m = re.match(pattern, q, re.I)
+            if m:
+                command, terms = meaning, [x for x in m.groups() if x]
+                if meaning == "path":
+                    terms = [m.group(1), m.group(2)]
+                break
+        else:
+            command, terms = "search", [q]
+        if not args.json:
+            print(f"Read as: {command} {' / '.join(terms)}")
+
+    text = " ".join(terms)
+
+    def emit(heading: str, nodes: list[int], extra: dict | None = None) -> int:
+        if args.json:
+            print(json.dumps({"answer": heading, **(extra or {}), "found": [g.item(i) for i in nodes]}, indent=1))
+        else:
+            print(heading)
+            for i in nodes:
+                print(g.line(i) + ("   [test]" if g.is_test(i) else ""))
         return 0
-    if args.command == "search":
+
+    if command == "stats":
+        info = {"nodes": g.count, "edges": len(g.edges), "communities": len(g.d["communities"]), "repo": g.d["repo"], "commit": g.d["commit"]}
+        print(json.dumps(info, indent=1) if args.json else f"{g.count} nodes, {len(g.edges)} edges, {len(g.d['communities'])} communities, built from {g.d['repo']} at {g.d['commit'][:10]}")
+        return 0
+    if command == "areas":
+        counts: dict[str, int] = {}
+        for i in range(g.count):
+            counts[g.area(i)] = counts.get(g.area(i), 0) + 1
+        rows = sorted(counts.items(), key=lambda kv: -kv[1])
+        if args.json:
+            print(json.dumps([{"part": k, "items": v, "is": PART_NAMES.get(k, "")} for k, v in rows], indent=1))
+        else:
+            for k, v in rows:
+                print(f"  {k:<10} {v:>6}  {PART_NAMES.get(k, '')}")
+        return 0
+    if command == "search":
         tokens = text.lower().split()
         sorts = [SORT_WORDS[w] for w in tokens if w in SORT_WORDS]
         areas = [AREA_WORDS[tokens[i + 1]] for i, w in enumerate(tokens[:-1]) if w in ("in", "inside") and tokens[i + 1] in AREA_WORDS]
         areas += [AREA_WORDS[tokens[i + 2]] for i, w in enumerate(tokens[:-2]) if w in ("in", "inside") and tokens[i + 1] == "the" and tokens[i + 2] in AREA_WORDS]
         left = [w for t in tokens if t not in STOP and t not in SORT_WORDS and AREA_WORDS.get(t) not in areas for w in words(t)]
-        found = g.rank(left, sorts, areas, limit=args.limit)
-        print(f"{len(found)} found" + (f" ({', '.join(sorts)})" if sorts else "") + (f" in {', '.join(areas)}" if areas else ""))
-        for _, node in found:
-            print(g.line(node))
-        return 0
-    if args.command == "path":
-        a, b = g.subject(args.terms[0]), g.subject(" ".join(args.terms[1:]))
+        found = [node for _, node in g.rank(left, sorts, areas, limit=args.limit)]
+        return emit(f"{len(found)} found" + (f" ({', '.join(sorts)})" if sorts else "") + (f" in {', '.join(areas)}" if areas else ""), found)
+    if command == "file":
+        wanted = text.strip().lower()
+        nodes = [i for i in range(g.count) if g.file(i) and (g.file(i).lower() == wanted or g.file(i).lower().endswith("/" + wanted) or g.file(i).lower().endswith(wanted))]
+        nodes.sort(key=lambda i: (g.file(i), g.n["line"][i] or 0))
+        if not nodes:
+            print(f"No file in the graph matches {text!r}.")
+            return 1
+        return emit(f"{len({g.file(i) for i in nodes})} file(s), {len(nodes)} items", nodes[: args.limit * 5])
+    if command == "path":
+        if len(terms) < 2:
+            print("path needs two names: path FROM TO")
+            return 1
+        a, b = g.subject(terms[0]), g.subject(" ".join(terms[1:]))
         if a < 0 or b < 0:
             print("One of them is not in the graph.")
             return 1
@@ -227,8 +307,8 @@ def main() -> int:
         while queue and b not in before:
             v = queue.popleft()
             for k in g.adj[v]:
-                s, t, _ = g.edges[k]
-                o = t if s == v else s
+                s0, t, _ = g.edges[k]
+                o = t if s0 == v else s0
                 if o not in before:
                     before[o] = (v, k)
                     queue.append(o)
@@ -237,28 +317,61 @@ def main() -> int:
             return 1
         steps, v = [], b
         while before[v]:
-            p, k = before[v]
-            steps.append((p, g.edges[k][2], v))
-            v = p
-        for p, rel, v in reversed(steps):
-            print(f"  {g.n['label'][p]} --{rel}--> {g.n['label'][v]}   ({g.where(v)})")
+            p0, k = before[v]
+            steps.append((p0, g.edges[k][2], v))
+            v = p0
+        steps.reverse()
+        if args.json:
+            print(json.dumps({"from": g.item(a), "to": g.item(b), "steps": [{"from": g.n["label"][p0], "relation": rel, "to": g.item(v)} for p0, rel, v in steps]}, indent=1))
+        else:
+            for p0, rel, v in steps:
+                print(f"  {g.n['label'][p0]} --{rel}--> {g.n['label'][v]}   ({g.where(v)})")
         return 0
+    if command in ("tests", "docs"):
+        node = g.subject(text)
+        if node < 0:
+            print(f"Nothing in the graph is called {text!r}.")
+            return 1
+        # Within two steps, the tests (or the documentation) linked to it, nearest first.
+        seen, frontier, found = {node}, [node], []
+        for _ in range(2):
+            nxt = []
+            for v in frontier:
+                for k in g.adj[v]:
+                    s0, t, _ = g.edges[k]
+                    o = t if s0 == v else s0
+                    if o in seen:
+                        continue
+                    seen.add(o)
+                    nxt.append(o)
+                    if (command == "tests" and g.is_test(o)) or (command == "docs" and g.area(o) == "docs"):
+                        found.append(o)
+            frontier = nxt
+        if command == "docs" and not found:
+            found = [i for _, i in g.rank(words(text), areas=["docs"], limit=args.limit)]
+        return emit(f"{command} for {g.n['label'][node]} ({g.where(node)}): {len(found)}", found[: args.limit])
     wanted = {"callers": ("calls", "in"), "callees": ("calls", "out"), "deps": ("imports", "out"), "users": ("imports", "in"), "members": ("contains", "out")}
-    if args.command in wanted:
-        group, direction = wanted[args.command]
+    if command in wanted:
+        group, direction = wanted[command]
         node = g.subject(text, group, direction)
         if node < 0:
             print(f"Nothing in the graph is called {text!r}.")
             return 1
-        found = sorted(g.around(node, group, direction), key=lambda i: (g.file(i), g.n["line"][i]))
-        print(f"{args.command} of {g.n['label'][node]} ({g.where(node)}): {len(found)}")
-        for i in found[: args.limit * 3]:
-            print(g.line(i))
-        return 0
+        found = sorted(g.around(node, group, direction), key=lambda i: (g.is_test(i), g.file(i), g.n["line"][i] or 0))
+        return emit(f"{command} of {g.n['label'][node]} ({g.where(node)}): {len(found)}", found[: args.limit * 3], {"subject": g.item(node)})
     node = g.subject(text)
     if node < 0:
         print(f"Nothing in the graph is called {text!r}.")
         return 1
+    if args.json:
+        links = {}
+        for group in GROUPS:
+            for direction in ("out", "in"):
+                items = g.around(node, group, direction)
+                if items:
+                    links[group + ("" if direction == "out" else " (from)")] = sorted(g.n["label"][i] for i in items)
+        print(json.dumps({**g.item(node), "connections": g.n["degree"][node], "links": links}, indent=1))
+        return 0
     print(f"{g.n['label'][node]}  ({g.sort(node)}, {g.area(node)})")
     print(f"  source: {g.where(node)}  {g.url(node)}")
     print(f"  connections: {g.n['degree'][node]}")

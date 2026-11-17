@@ -43,6 +43,24 @@ the graph page's redesigned search.
   item's file and line first and its folder after, mark tests, and set the best match apart with what it is as a
   pill. A question's answer has its relation's icon and how many it found. The rows had lost their spacing to a
   list reset; they have it back. Enter on a suggestion chosen with the arrows asks it (it did nothing).
+- **The Claude skill (`skills/dstns-graph`, the Graph page's download) is fuller.** New commands: `ask` (a question in
+  plain words, read back), `tests` (the tests linked to something), `docs` (its documentation), `file` (everything in
+  a file by line), `areas` (the parts of DSTNS) and `--json` on every answer. Questions choose the code over a test
+  helper of the same name, and ignore the words that only carry the sentence ("the simulation engine" is
+  `SimulationEngine`). SKILL.md has a command table, how questions are read, a relation glossary and a procedure;
+  `references/architecture.md` maps every part to its folder and entry points, and `references/recipes.md` gives
+  checked commands for common tasks.
+- **README:** centred figures, tables with headings, the report's cover beside its text, a current knowledge-graph
+  screenshot, and benchmarks as medians of three runs for both engines.
+
+### Security
+
+- **Dependabot alert #18 (picomatch, GHSA-fc5q-39xc-vjpf, ReDoS through repeated extglobs).** No fixed picomatch
+  exists (4.0.7 is the latest and is affected). It reaches DSTNS only through Vite and Vitest, which build and test the
+  observer, on globs written in the repository; no user input reaches them, and neither they nor picomatch are in the
+  observer bundle or the container image. Vite and its React plugin were listed as run-time dependencies, so the alert
+  was rated as run-time; they are now development dependencies, where they belong, and the alert is closed as a
+  tolerable risk until picomatch publishes a fix.
 
 ## [3.13.3] - 2026-11-17
 

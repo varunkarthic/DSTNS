@@ -45,6 +45,7 @@ and you watch it, change it, and build on it.
 
 <br>
 
+<div align="center">
 <table>
 <tr>
 <td align="center" width="25%"><h3>379</h3>cities</td>
@@ -53,6 +54,7 @@ and you watch it, change it, and build on it.
 <td align="center" width="25%"><h3>Same seed</h3>same day, every time</td>
 </tr>
 </table>
+</div>
 
 ## Contents
 
@@ -69,7 +71,7 @@ streets from OpenStreetMap, and runs a full day of traffic, signals, demand, wea
 clock. **The same seed, configuration, map and build always give the same day**, on any machine. Pause it, step
 through it, jump back and forward in time, and export a report of what happened.
 
-| | |
+| Feature | What it gives you |
 |---|---|
 | **A real simulation** | Signals snapped to real junctions and coordinated in green waves. Demand from the schools, offices and homes that are really there, different on weekdays and weekends. Storms that cross the district and flood its low roads; queues from collisions that spread back up the road |
 | **A live observer** | A map with live telemetry, notifications, Time Control and an Auto Focus camera. Light and dark themes, palettes for colour vision, map labels in 15 languages, keyboard shortcuts you can change |
@@ -197,7 +199,7 @@ See [Engines and places](https://dstns.readthedocs.io/v3-core-ng/guide/engines/)
 One program checks your machine, builds what is needed and runs everything. Its dashboard shows live readings of the
 engine, the simulation, the next world and the system.
 
-| | |
+| Area | What it does |
 |---|---|
 | **Runs** | Start with a seed, day type, speed and engine; save a configuration and run it again; your own applications start with the run, and the day begins once they are ready |
 | **Places** | A checklist of every country with its code and number of cities, or `engine add IN AE`, `engine add -PK`, `engine del all` from a shell |
@@ -336,38 +338,46 @@ same graph answers `./launcher graph`, the MCP Handler and a downloadable Claude
 
 ## Reports
 
-<img src="docs/assets/screenshots/report-cover.png" alt="The cover of a DSTNS report: the run's own map softening toward the city's name" width="260" align="right">
+<table>
+<tr>
+<td width="68%" valign="top">
 
 Export any run as a PDF in six parts: at a glance, the city, traffic, disruptions, how it ran, and reference. It
 opens with the day in one sentence, the figures that matter and numbered findings, and labels each statement as
-observed, derived or interpretation. The cover is drawn from the run itself: its streets, how busy each one is, and
-the hour.
+observed, derived or interpretation.
+
+The cover is drawn from the run itself: its streets, how busy each one is, and the hour.
 
 See [Reports](https://dstns.readthedocs.io/v3-core-ng/guide/reports/).
 
-<br clear="right">
+</td>
+<td width="32%" align="center"><img src="docs/assets/screenshots/report-cover.png" alt="The cover of a DSTNS report: the run's own map softening toward the city's name" width="220"></td>
+</tr>
+</table>
 
 ## Performance
 
-Measured with `build/dstns_benchmark` on an Apple M4, Release build, engine 3.13.3:
+Measured with `build/dstns_benchmark` on an Apple M4, Release build, medians of three runs:
 
-| Grid | Roads | core-ng tick | core-legacy tick | Seek (core-ng) | Headroom at the fastest playback |
-|---|---|---|---|---|---|
-| 10 × 10 | 360 | 9 µs | 12 µs | 5.9 ms | 73.9× |
-| 25 × 25 | 2,400 | 60 µs | 91 µs | 37.5 ms | 11.6× |
-| 50 × 50 | 9,800 | **248 µs** | 379 µs | 156.9 ms | 2.8× |
-| 100 × 100 | 39,600 | 1.02 ms | | 655 ms | 0.7× |
+| Grid | Roads | core-ng tick | core-legacy tick | core-ng jump | core-legacy jump | Headroom (core-ng) |
+|---|---:|---:|---:|---:|---:|---:|
+| 10 × 10 | 360 | 9 µs | 12 µs | 6.0 ms | 7.4 ms | 74.7× |
+| 25 × 25 | 2,400 | 61 µs | 91 µs | 37.5 ms | 58.1 ms | 11.4× |
+| 50 × 50 | 9,800 | **246 µs** | 376 µs | 158 ms | 240 ms | 2.8× |
+| 75 × 75 | 22,200 | **564 µs** | 854 µs | 357 ms | 902 ms | 1.2× |
+| 100 × 100 | 39,600 | **1.02 ms** | 1.61 ms | 951 ms | 1.35 s | 0.7× |
 
-core-ng's tick is 35% faster than core-legacy's with every result unchanged, and its checkpoints take 88% less
-memory. The fastest playback plays a day in 60 seconds; the default one-hour day needs a twenty-fourth of that. See
-[Performance](https://dstns.readthedocs.io/v3-core-ng/deployment/performance/).
+core-ng takes 20 to 36% less time per simulated second than core-legacy, with every result unchanged, and keeps its
+checkpoints in 90% less memory. Headroom is how many times over core-ng keeps up with the fastest playback (a
+day in 60 seconds); the default one-hour day needs a twenty-fourth of that. The full report, with charts, is
+[Engine benchmarks](https://dstns.readthedocs.io/v3-core-ng/deployment/engine-benchmarks/).
 
 ## Quality
 
 | Suite | What it proves |
 |---|---|
 | **Golden fixtures** | Results recorded from engine 3.0.0, reproduced bit for bit by both engines on macOS and Linux |
-| **45 engine and HTTP suites** | Each starts real servers; `dstns_core_ng_alone` builds core-ng with no core-legacy code |
+| **46 engine and HTTP suites** | Each starts real servers; `dstns_core_ng_alone` builds core-ng with no core-legacy code |
 | **Lifecycle races and stress** | 48 races at four delays, and a four-client stress test of every state machine, in CI |
 | **Launcher** | Over 100 tests, including the interface drawn at every terminal size |
 | **Observer** | Over 500 unit tests and browser suites |
@@ -383,8 +393,8 @@ memory. The fastest playback plays a day in 60 seconds; the default one-hour day
 | [Guides](https://dstns.readthedocs.io/v3-core-ng/guide/) | The launcher, engines and places, the console, playback, seeds, configuration |
 | [Concepts](https://dstns.readthedocs.io/v3-core-ng/concepts/simulation-engine/) | How a seed becomes a world and a day, with the equations |
 | [API](https://dstns.readthedocs.io/v3-core-ng/api/endpoints/) | Every endpoint, errors, schemas, versioning, Fabric |
-| [Operations](https://dstns.readthedocs.io/v3-core-ng/deployment/) | Containers, TLS, security, logging, upgrades, performance |
-| [Reference](https://dstns.readthedocs.io/v3-core-ng/reference/) | Commands, variables, files, limits, components, release notes |
+| [Operations](https://dstns.readthedocs.io/v3-core-ng/deployment/) | Containers, TLS, security, logging, upgrades, performance, engine benchmarks |
+| [Reference](https://dstns.readthedocs.io/v3-core-ng/reference/) | Commands, variables, files, limits, components, the changelog |
 | [Develop](https://dstns.readthedocs.io/v3-core-ng/design/state-machines/) | Design, state machines, building, testing, the code graph |
 
 ## Security
