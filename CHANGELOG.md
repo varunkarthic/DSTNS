@@ -46,6 +46,9 @@ The engine is unchanged, and so are results for every seed.
   slow into rest:
   - Opening is just under critically damped: 90% of the way in 0.3 s, at rest in about half a second.
   - Closing is critically damped and takes about 0.4 s.
+- **Dropdown menus are concentric.** A menu's corner is its rows' corner plus the padding between them (18px around
+  12px rows), so the top and bottom rows follow its curve. It was 26px, which left them looking squared off inside it.
+  The row under the keyboard is a soft fill instead of an outlined box.
 - **WebFabric's security is one compact list:** a row per fact with its icon, its name and a status chip. The
   explanation shows only where something needs attention, and on hover otherwise. It was four cards in a grid.
 - **The Queue and Notifications toolbars are one control:** the same 32px segmented track, with the chosen part raised

@@ -3752,3 +3752,13 @@ html body .report-film::before { backdrop-filter: blur(16px) saturate(1.1) !impo
 .about-engine-list li.off .about-engine-name .icon { color: var(--text-faint); }
 .about-engine-list li { grid-template-columns: minmax(124px, max-content) 64px auto minmax(0, 1fr); }
 .about-engine-list .about-engine-name { white-space: nowrap; }
+
+/* ---- Dropdown menus are concentric -----------------------------------------------------------------------------
+   The menu's corner is its rows' corner plus the padding between them (12 + 6), so every row's curve runs parallel
+   to the menu's; it was 26px around 12px rows, which left the top and bottom rows looking squared off inside it. The
+   row under the keyboard or pointer is a soft fill, not an outlined box; the chosen one is the accent with its tick. */
+.floating.menu { padding: 6px; border-radius: 18px; }
+.floating.menu .menu-item { border-radius: 12px; }
+.floating.menu .menu-item.active,
+.menu [role="listbox"]:focus-visible .menu-item.active { background: var(--hover); box-shadow: none; outline: none; }
+.menu [role="listbox"]:focus-visible .menu-item.active { background: rgb(var(--accent-rgb) / 10%); }
