@@ -93,6 +93,7 @@ stateDiagram-v2
     staged --> generating: commit (installing)
     staged --> idle: discard
     generating --> idle: discard (staged only; the compile finishes and is dropped)
+    failed --> idle: discard (a world prepared ahead that failed or was cancelled)
     generating --> failed: map fetch failed, compile failed, cancelled by a stop, reset or termination
     staged --> failed: cancelled by a stop, reset or termination
 ```
@@ -105,6 +106,8 @@ logged as an `ERROR` from `world`.
 | Rule | Where |
 |---|---|
 | A stop, reset or termination cancels a staged world at once, and frees it | `cancel_world_job` |
+| Confirming a staged world twice installs it once: the second confirmation is answered with the world the first installed. With nothing staged, a confirmation is refused | `commit_world` |
+| Discarding a world prepared ahead forgets it whatever became of it: staged, still preparing, or already failed or cancelled (its failure is not news to anyone). A second discard changes nothing | `discard_world` |
 | One still being prepared is marked cancelled and fails as `WORLD_CANCELLED` when its preparation ends, never staged or installed. Until then it reads `generating`, since the compile still holds the lease and a new start would be refused | `cancel_world_job`, the world worker |
 | Only a world that could not be made marks its seed as failed, for the next world to avoid that city; a cancelled or discarded one does not | the world worker's `fail` |
 

@@ -831,7 +831,10 @@ nlohmann::json SimulationEngine::reset() {
 
 nlohmann::json SimulationEngine::seek(std::uint32_t target, bool resume) {
     std::unique_lock lock(mutex_);
-    if (!graph_ || target > day_s) throw std::invalid_argument("target time outside virtual day");
+    // With no world there is nowhere to jump to: the state does not allow it (409), as for a step; a time outside
+    // the day is a bad request (400).
+    if (!graph_) throw std::logic_error("no active simulation");
+    if (target > day_s) throw std::invalid_argument("target time outside virtual day");
     if (lifecycle_ == Lifecycle::Terminating || lifecycle_ == Lifecycle::Preparing)
         throw std::logic_error("simulation cannot seek from current lifecycle");
     // A jump already under way is sent on to the new time rather than queued
@@ -1099,6 +1102,9 @@ nlohmann::json SimulationEngine::commit_world() {
     std::uint64_t compile_generation = 0, generation = 0;
     {
         std::lock_guard l(world_mutex_);
+        // Confirmed already, and installed: a confirmation sent again (its first answer lost on the way) is answered
+        // with what became of it, not refused.
+        if (world_job_.staged && world_job_.commit && world_job_.state == "ready") return world_status_locked();
         if (!world_job_.staged || (world_job_.state != "staged" && world_job_.state != "generating"))
             throw std::logic_error("no new world is waiting to be confirmed");
         if (world_job_.state == "generating") {
@@ -1452,6 +1458,9 @@ nlohmann::json SimulationEngine::override_edge(EdgeId id, double sm, double cm, 
 
 void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
     const auto& v = forward ? c.after : c.before;
+    // The speed is the one thing that can be set, and so undone, with no world loaded. Everything else acts on a
+    // world, and its history goes when the world does; should one ever be met without a world, it is left alone.
+    if (!graph_ && c.type != "tick_rate") return;
     if (c.type == "tick_rate") {
         catch_up_to_wall_clock();
         requested_tick_rate_ = v.at("tick_rate");
@@ -1488,7 +1497,7 @@ void SimulationEngine::apply_command(const AppliedCommand& c, bool forward) {
             if (e.id.value == id) e.intensity = v.at("intensity");
         }
     }
-    graph_->commit();
+    if (graph_) graph_->commit();
 }
 
 nlohmann::json SimulationEngine::undo(std::uint32_t count) {

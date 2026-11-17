@@ -14,6 +14,9 @@ const std::vector<std::pair<std::string, std::string>>& table() {
         {"generating", "staged"}, {"generating", "ready"}, {"generating", "failed"},
         // Discarded: a staged world, or one still being prepared to be staged.
         {"staged", "idle"}, {"generating", "idle"},
+        // A world prepared ahead that failed, or was cancelled, and is then discarded: nobody asked for it, so its
+        // failure is forgotten with it.
+        {"failed", "idle"},
         // A stop, reset or termination cancels a staged world.
         {"staged", "failed"},
     };

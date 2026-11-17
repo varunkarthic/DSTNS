@@ -4,7 +4,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # main, and the v3 line with its working branches (v3-core-ng and the like): every push is checked.
+    branches: [main, v3, "v3-*"]
   pull_request:
   workflow_dispatch:
   workflow_call:
@@ -21,12 +22,12 @@ jobs:
     name: Core (C++ and HTTP)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake libsqlite3-dev zlib1g-dev libcurl4-openssl-dev
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -43,6 +44,9 @@ jobs:
           cargo test --release --manifest-path LaunchKit/Cargo.toml
       - name: Replay verification
         run: ./build/dstns_replay_verify 382923
+      - name: State-machine stress
+        # Paced random requests from four clients at one server: no 5xx, no transition outside the tables.
+        run: python3 tools/stress/lifecycle.py --ops 600
       - name: Licence headers
         run: ./build/dstns_release headers --check
 
@@ -50,8 +54,8 @@ jobs:
     name: Observer
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -72,8 +76,8 @@ jobs:
     name: Documentation
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -89,7 +93,7 @@ jobs:
     name: Container image
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build
         run: docker build -t dstns:ci .
       - name: Build the release tool

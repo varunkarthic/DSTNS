@@ -97,7 +97,7 @@ jobs:
         run: |
           mkdir -p /tmp/digests
           touch "/tmp/digests/${DIGEST#sha256:}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: digest-${{ matrix.arch }}
           path: /tmp/digests/*
@@ -124,7 +124,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential cmake libsqlite3-dev zlib1g-dev libcurl4-openssl-dev
           cmake -S . -B build -DDSTNS_BUILD_TESTS=OFF && cmake --build build --target dstns_release -j"$(nproc)"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
           pattern: digest-*
           path: /tmp/digests

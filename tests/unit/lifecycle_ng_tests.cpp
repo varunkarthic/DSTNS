@@ -170,14 +170,36 @@ int main() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(5));
             const auto job = e.world_status().at("data");
             check(job.at("state") == "failed" && job.at("error").at("code") == "WORLD_CANCELLED", "stopped while staging: " + job.dump());
+            // Discarding the world prepared ahead forgets its failure too; discarding again changes nothing.
+            check(e.discard_world().at("data").at("state") == "idle", "a failed staged world, discarded");
+            check(e.discard_world().at("data").at("state") == "idle", "discard is idempotent");
             e.reset();
             for (int i = 0; i < 200; ++i) {
                 try { e.prepare(seed, grid()); break; } catch (const std::logic_error&) { std::this_thread::sleep_for(std::chrono::milliseconds(5)); }
             }
             check(state(e) == Ready, "a new world can be prepared afterwards");
         }
+        // A confirmation sent twice: the second is answered with the world the first installed.
+        {
+            Harness h("commit-twice");
+            auto& e = h.engine;
+            e.prepare(seed, grid());
+            e.seek(60, true);
+            e.regenerate_world({{"stage", true}});
+            for (int i = 0; i < 2000 && e.world_status().at("data").at("state") != "staged"; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            const auto first = e.commit_world().at("data");
+            check(first.at("state") == "ready", "committed: " + first.dump());
+            const auto again = e.commit_world().at("data");
+            check(again.at("state") == "ready" && again.at("run_id") == first.at("run_id"), "commit is idempotent: " + again.dump());
+            // With nothing ever staged, there is still nothing to confirm.
+            Harness none("commit-none");
+            none.engine.prepare(seed, grid());
+            bool refused = false;
+            try { none.engine.commit_world(); } catch (const std::logic_error&) { refused = true; }
+            check(refused, "nothing staged, nothing to confirm");
+        }
         // The world job's table.
-        check(core_ng::world::allowed("staged", "failed") && core_ng::world::allowed("generating", "staged"), "world edges");
+        check(core_ng::world::allowed("staged", "failed") && core_ng::world::allowed("generating", "staged") && core_ng::world::allowed("failed", "idle"), "world edges");
         check(!core_ng::world::allowed("idle", "ready") && !core_ng::world::allowed("ready", "staged") &&
               !core_ng::world::allowed("failed", "ready") && !core_ng::world::allowed("idle", "staged"), "world non-edges");
 
