@@ -33,11 +33,10 @@ machine.
 </div>
 
 <div class="dstns-stats" markdown>
-<div markdown><strong>379</strong><span>cities in 126 countries</span></div>
-<div markdown><strong>3,000</strong><span>junctions per district</span></div>
-<div markdown><strong>1 s</strong><span>fixed physics step</span></div>
-<div markdown><strong>96</strong><span>checkpoints per day</span></div>
-<div markdown><strong>0.25 to 10x</strong><span>playback speed</span></div>
+<div markdown><strong>379</strong><span>cities</span></div>
+<div markdown><strong>126</strong><span>countries</span></div>
+<div markdown><strong>Up to 10×</strong><span>playback speed</span></div>
+<div markdown><strong>Same seed</strong><span>same day, every time</span></div>
 </div>
 
 </div>
@@ -160,7 +159,7 @@ flowchart LR
     Place --> OSM[("OpenStreetMap")]
     OSM --> Graph["Road graph<br/>true metres, canonical IDs"]
     Seed --> Sched["Signals, demand,<br/>weather, incidents"]
-    Graph --> Engine["Simulation engine<br/>1-second physics"]
+    Graph --> Engine["Simulation engine"]
     Sched --> Engine
     Engine --> API["HTTP API"]
     API --> Observer["Observer<br/>browser"]

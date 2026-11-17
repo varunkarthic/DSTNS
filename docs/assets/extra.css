@@ -973,15 +973,22 @@
 .dstns-404__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; }
 .dstns-404__actions .md-button { margin: 0; cursor: pointer; }
 
-/* Footer in the header's navy, in both schemes. */
-:root {
+/* Footer: the page's own surface in the light scheme, as the header is; navy in the dark. */
+:root, [data-md-color-scheme="default"] {
+  --md-footer-bg-color: var(--dstns-well);
+  --md-footer-bg-color--dark: var(--md-default-bg-color);
+  --md-footer-fg-color: var(--md-default-fg-color);
+  --md-footer-fg-color--light: var(--md-default-fg-color--light);
+  --md-footer-fg-color--lighter: var(--md-default-fg-color--lighter);
+}
+[data-md-color-scheme="slate"] {
   --md-footer-bg-color: var(--dstns-navy-800);
   --md-footer-bg-color--dark: var(--dstns-navy-900);
   --md-footer-fg-color: var(--dstns-ink);
   --md-footer-fg-color--light: rgb(237 241 244 / 70%);
   --md-footer-fg-color--lighter: rgb(237 241 244 / 45%);
 }
-.md-footer { border-top: 1px solid rgb(127 160 180 / 14%); }
+.md-footer { border-top: 1px solid var(--dstns-hair); }
 
 /* The clear button in the search field: a filled circle, quiet until hovered. */
 .md-search__options .md-search__icon[type="reset"] { color: rgb(237 241 244 / 55%); transition: color 140ms ease, transform 140ms ease; }
@@ -1271,49 +1278,49 @@ html { scrollbar-gutter: stable; }
   flex: 1 1 0;
   padding: 0.75rem 0.9rem;
   border-radius: var(--dstns-r-md);
-  background: rgb(255 255 255 / 4%);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
+  background: var(--md-default-bg-color);
+  box-shadow: inset 0 0 0 1px var(--dstns-hair);
   transition: background-color 180ms ease, box-shadow 180ms ease;
 }
-.md-footer__link:hover { background: rgb(79 214 234 / 9%); box-shadow: inset 0 0 0 1px rgb(79 214 234 / 30%); opacity: 1; }
+[data-md-color-scheme="slate"] .md-footer__link { background: rgb(255 255 255 / 4%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%); }
+.md-footer__link:hover { background: rgb(var(--dstns-accent-rgb, 14 116 144) / 8%); box-shadow: inset 0 0 0 1px rgb(var(--dstns-accent-rgb, 14 116 144) / 30%); opacity: 1; }
 .md-footer__link--next { justify-content: flex-end; }
 .md-footer__direction { font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
 
 /* Buttons: pills, as every button in the observer. */
 .md-typeset .md-button { border-radius: 999px; padding: 0.62em 1.4em; }
 
-/* Content tabs (Docker / From source …): a capsule of pills over a rounded well. */
+/* Content tabs (Docker / From source …): a compact segmented control, as the observer's toolbars. */
 .md-typeset .tabbed-set { border-radius: var(--dstns-r-md); }
 .md-typeset .tabbed-labels {
-  gap: 0.15rem;
+  gap: 0.1rem;
   box-sizing: border-box;
   width: max-content;
   max-width: 100%;
   overflow-x: auto;
-  padding: 0.18rem;
+  padding: 0.15rem;
   border-radius: 999px;
   background: var(--dstns-well);
   box-shadow: inset 0 0 0 1px var(--dstns-hair);
 }
-.md-typeset .tabbed-labels::before { display: none; }
-.md-typeset .tabbed-labels > label {
-  padding: 0.38rem 0.9rem;
+/* Material draws a sliding underline under the chosen tab; the raised pill already says which. */
+.md-typeset .tabbed-labels::before,
+.js .md-typeset .tabbed-labels::before { display: none; }
+.md-typeset .tabbed-labels > label,
+.md-typeset .tabbed-labels--linked > label {
+  padding: 0;
+  border: 0;
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
+  line-height: 1.2;
   color: var(--md-default-fg-color--light);
   transition: color 150ms ease, background-color 200ms var(--dstns-ease);
 }
-.md-typeset .tabbed-set > input:nth-child(1):checked ~ .tabbed-labels > :nth-child(1),
-.md-typeset .tabbed-set > input:nth-child(2):checked ~ .tabbed-labels > :nth-child(2),
-.md-typeset .tabbed-set > input:nth-child(3):checked ~ .tabbed-labels > :nth-child(3),
-.md-typeset .tabbed-set > input:nth-child(4):checked ~ .tabbed-labels > :nth-child(4),
-.md-typeset .tabbed-set > input:nth-child(5):checked ~ .tabbed-labels > :nth-child(5),
-.md-typeset .tabbed-set > input:nth-child(6):checked ~ .tabbed-labels > :nth-child(6) {
-  background: var(--dstns-soft-strong);
-  color: var(--dstns-accent);
-  font-weight: 600;
-}
-.md-typeset .tabbed-content { margin-top: 0.6rem; }
+.md-typeset .tabbed-labels > label:not(:has(> a)) { padding: 0.3rem 0.8rem; }
+/* A linked tab's anchor fills the pill: Material pads it to its own underlined tab (1.25em). */
+.md-typeset .tabbed-labels--linked > label > a { display: block; margin: 0; padding: 0.3rem 0.8rem; color: inherit; }
+.md-typeset .tabbed-labels > label:hover { color: var(--md-default-fg-color); }
+.md-typeset .tabbed-content { margin-top: 0.5rem; }
 
 /* ---- Home ---- */
 .md-typeset .dstns-eyebrow {
@@ -1389,7 +1396,7 @@ html { scrollbar-gutter: stable; }
 }
 /* On a phone Material lets the tab row bleed to the screen's edges; as a capsule it stays inside the column. */
 @media screen and (max-width: 44.984375em) {
-  .md-content__inner.md-typeset > .tabbed-set .tabbed-labels { margin: 0; padding: 0.18rem; max-width: 100%; }
+  .md-content__inner.md-typeset > .tabbed-set .tabbed-labels { margin: 0; padding: 0.15rem; max-width: 100%; }
 }
 /* Titles in full ink, as the observer's headings. */
 [data-md-color-scheme="slate"] .md-typeset :is(h1, h2) { color: #edf1f4; }
@@ -1457,8 +1464,8 @@ html { scrollbar-gutter: stable; }
 /* A name in a table's first column is one word, never broken at its hyphen ("core-legacy"). */
 .md-typeset table:not([class]) td:first-child strong,
 .md-typeset table:not([class]) td:first-child code { white-space: nowrap; }
-/* A plain text block wraps rather than running under the copy button. */
-.md-typeset .language-text pre > code { white-space: pre-wrap; overflow-wrap: break-word; padding-right: 2.6rem; }
+/* A plain text block keeps its columns and scrolls; it ends clear of the copy button. */
+.md-typeset .language-text pre > code { padding-right: 2.6rem; }
 /* A long entry in the table of contents (an API route) wraps onto a second line instead of being cut short. */
 .md-nav--secondary .md-nav__link { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; }
 /* A route breaks at its slashes, never inside a word ("pau / se"). */

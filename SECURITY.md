@@ -1,8 +1,8 @@
 # Security Policy
 
-DSTNS is an open-source traffic simulator. It has a network-facing HTTP API, a browser observer,
-a terminal launcher, an interface for third-party applications (WebFabric) and an interface for AI
-clients (the MCP Handler). This policy explains how to report a vulnerability, what happens after a
+DSTNS is an open-source traffic simulator. It has a network-facing HTTP API, two simulation engines
+behind it (core-ng and core-legacy), a browser observer, a terminal launcher, an interface for
+third-party applications (WebFabric) and an interface for AI clients (the MCP Handler). This policy explains how to report a vulnerability, what happens after a
 report, what is in scope, and how DSTNS protects itself and the people who use it.
 
 It follows the conventions of
@@ -14,6 +14,10 @@ It follows the conventions of
 | See published advisories | [Security advisories](https://github.com/varunkarthic/DSTNS/security/advisories) |
 | Read the full security design | [Fabric and WebFabric security](docs/api/security.md) and [deployment security](docs/deployment/security.md) |
 | Harden an installation | [Running DSTNS safely](#running-dstns-safely) |
+| See what this version protects | [Security in this version](#security-in-this-version) |
+
+**This policy describes** engine 3.13.3 (core-ng 1.2.2), launcher 3.15.0, observer 3.9.0 and API contract 1.13,
+on the `v3-core-ng` branch.
 
 ---
 
@@ -26,12 +30,13 @@ It follows the conventions of
 5. [Scope](#scope)
 6. [Safe harbor](#safe-harbor)
 7. [Security model](#security-model)
-8. [Known limitations](#known-limitations)
-9. [Secrets and sensitive files](#secrets-and-sensitive-files)
-10. [Network connections DSTNS makes](#network-connections-dstns-makes)
-11. [Running DSTNS safely](#running-dstns-safely)
-12. [How this repository is protected](#how-this-repository-is-protected)
-13. [Security history](#security-history)
+8. [Security in this version](#security-in-this-version)
+9. [Known limitations](#known-limitations)
+10. [Secrets and sensitive files](#secrets-and-sensitive-files)
+11. [Network connections DSTNS makes](#network-connections-dstns-makes)
+12. [Running DSTNS safely](#running-dstns-safely)
+13. [How this repository is protected](#how-this-repository-is-protected)
+14. [Security history](#security-history)
 
 ---
 
@@ -39,9 +44,12 @@ It follows the conventions of
 
 | Version | Branch or tag | Status |
 |---|---|---|
-| **3.x** (in development) | `v3`, the default branch | **Supported.** Fixes land here first. |
-| 2.1.x | `main`, tag `v2.1.0` | Reports are accepted. Fixes reach `main` when `v3` merges into it. |
+| **3.13.x** (engine 3.13.3, core-ng 1.2.x, launcher 3.15.x, observer 3.9.x, API 1.13) | `v3-core-ng`, the default branch | **Supported.** Fixes land here first. |
+| 3.0.x to 3.12.x | `v3`, tag `v3.0.0` | Reports are accepted; fixes are made on `v3-core-ng` and reach `v3` when it merges. Upgrade to 3.13.x. |
+| 2.1.x | `main`, tag `v2.1.0` | Critical and high-severity fixes only, until `v3` merges into `main`. |
 | 2.0.x and older | tags before `v2.1.0` | Not supported. Upgrade to the current version. |
+
+Both engines in a supported release are supported, including core-legacy while it is disabled by default.
 
 A report must name the affected revision. Include the output of these commands:
 
@@ -155,12 +163,16 @@ Vulnerabilities in the code and configuration in this repository.
 | **Fabric API** | `Fabric/src/` | Bypass of the operator credential; cross-site request forgery; DNS rebinding; CORS that lets another site read a run; a single request that uses unbounded memory or processor time |
 | **WebFabric** | `Fabric/src/webfabric/`, `WebKit/src/webfabric/` | One application using another's identity or grants; a capability used without a grant; a forged, altered or replayed signed request; a bypass of the store seal or the audit hash chain; escape from the application frame sandbox |
 | **Daemons** | `Daemon/`, `Fabric/src/routes_daemon.cpp` | Reading the daemon queues without a token; changing a daemon without the operator credential; a crafted `config/daemon-alerts.json` that crashes the server |
-| **Simulation engine** | `Core/common/src/`, `Core/core-ng/src/`, `Core/core-legacy/src/` | Memory-safety errors, integer wrap-around or out-of-range access from request values, saved seeds, checkpoints or configuration files |
+| **Simulation engine** | `Core/common/src/`, `Core/core-ng/src/`, `Core/core-legacy/src/` | Memory-safety errors, integer wrap-around or out-of-range access from request values, saved seeds, checkpoints (including core-ng's deflated checkpoints) or configuration files; a request sequence that crashes the server or leaves a lifecycle or world job outside its table |
+| **Engine governance** | `Core/engines/`, `Fabric/src/gate.cpp`, `config/engines.json` | Running a disabled engine; running an alpha or beta engine without a person's acknowledgment; an approval that outlives its run or can be given by an application; `config/engines.json` making an engine look more stable than its build |
+| **Selection policies** | `Core/core-ng/src/selection.cpp` | A `map_selection` (countries, cities, exclusions) that escapes validation, exhausts memory or changes another policy's fingerprint |
 | **Map pipeline** | `Core/common/src/osm.cpp`, `Core/common/src/osm_fetch.cpp` | Crashes, resource exhaustion or code execution from a crafted OpenStreetMap file; command injection in the map downloader; writing outside the map cache |
 | **SUMO adapter** | `Core/common/src/sumo_bridge.cpp` | Shell injection; writing outside the requested directory |
 | **Observer** | `WebKit/src/` | Cross-site scripting or script injection from map tags, news messages, application content, notifications or report content; a crash caused by event or application data |
 | **Launcher** | `LaunchKit/` | A bypass of Advanced Security; a model suggestion that runs without the person's confirmation or passes the [suggestion checker](docs/guide/console.md) with a forbidden command; a secret written to a log or a terminal; unsafe temporary files; a process left running after the launcher stops it |
-| **MCP Handler** | `LaunchKit/src/mcp.rs` | A tool that changes the simulation while `mcp.allow_writes` is off; a launcher tool that runs while `mcp.allow_launcher` is off or Advanced Security is on |
+| **MCP Handler** | `LaunchKit/src/modules/mcp.rs` | A tool that changes the simulation while `mcp.allow_writes` is off; a launcher tool that runs while `mcp.allow_launcher` is off or Advanced Security is on; a client changing the settings that limit it, or reading model addresses or keys |
+| **Launch codes** | `LaunchKit/src/state.rs` | Reading API keys from a code without its passphrase; a code that applies a value the launcher would refuse; a code that changes a security setting |
+| **Reset** | `LaunchKit/src/maintenance.rs` | A reset that deletes outside the repository, or keeps a scope it says it cleared (such as `keys`) |
 | **Container image** | `Dockerfile`, `docker/` | Privilege escalation; a secret built into the image; an entrypoint that runs as root |
 | **Supply chain** | `.github/workflows/`, lock files | A vulnerable or malicious dependency, workflow or build step that affects a released artifact |
 | **Documentation** | `docs/` | An instruction that leads a reader to an insecure configuration |
@@ -170,6 +182,8 @@ Vulnerabilities in the code and configuration in this repository.
 | Area | Reason |
 |---|---|
 | Reading run state from a server you can reach | By design, reads are open. Run state is not confidential. Do not simulate private data on a shared server. |
+| A `4xx` refusal logged as a warning | By design since 3.13.2: only `5xx` answers are errors. A refusal that should have been a `5xx`, or the reverse hiding a fault, **is** in scope. |
+| Choosing core-legacy after enabling it, or accepting an unstable engine's risk | The operator's decision; the observer and the launcher say what it means |
 | Use of the older routes without a credential (`/api/v1/playback/*`, `/api/v1/control/*`, `/terminate`, `/api/v1/world/regenerate`, `/api/v1/system/backpressure`) by a program that can reach the port | Kept for compatibility, and documented. Set `DSTNS_LEGACY_API=off` to close them. Use from another web page **is** in scope. |
 | A program on the same machine that sends `X-DSTNS-Host` | The host header stops browsers, not local programs. See [Known limitations](#known-limitations). |
 | An attacker who runs as the same operating-system user, or as root | Outside the threat model. Such an attacker can read the files and the process memory. |
@@ -216,7 +230,8 @@ They do not replace an authenticating gateway when the server is exposed to a ne
 | The operator | `X-DSTNS-Operator` with the operator credential | Everything the observer can do, plus start and prepare runs, and change the daemons |
 | An application | `Authorization: Bearer <token>`, and a signature when one is required | Its own surfaces, the daemon queues, and what a person has granted it |
 | An application frame | Nothing: it has an opaque origin | Post messages to the observer, each checked against its application's grants |
-| An AI client, through the MCP Handler | The launcher's settings | Nothing while `mcp.enabled` is off (the default); reads when it is on; changes only as `mcp.allow_writes` and `mcp.allow_launcher` allow |
+| An AI client, through the MCP Handler | The launcher's settings | Nothing while `mcp.enabled` is disabled (the default); reads when it is enabled; changes only as `mcp.allow_writes` and `mcp.allow_launcher` allow; never the settings that limit it |
+| A person, for an unstable engine | The observer's risk dialog, or `--accept-risk` in the launcher | Accept or reject one run on an alpha or beta engine; the approval lives only on the server and only for that run |
 
 ### Controls
 
@@ -246,13 +261,43 @@ They do not replace an authenticating gateway when the server is exposed to a ne
 | Operator-only changes to the daemons (`403 OPERATOR_REQUIRED`), token-only reads of their queues | An unknown client silencing or reading alerts | `Fabric/src/routes_daemon.cpp` |
 | **Advanced Security** (`security.advanced`): the system's own prompt (Touch ID or the password on macOS, polkit or sudo on Linux, Windows Hello or sudo under WSL) before the launcher changes anything; changing the setting itself always asks | A program, or another person at an unlocked machine, changing the launcher | `LaunchKit/src/security.rs` |
 | Verification passed only to launchers that the verified launcher starts (`DSTNS_VERIFIED_BY` must name the parent, and the parent must be the same program) | A shell that sets the variable itself | `LaunchKit/src/security.rs` |
-| MCP Handler off by default; writes and launcher tools behind separate settings; under Advanced Security, no launcher tool that changes anything, and changes only to Fabric applications | An AI client doing more than the operator allowed | `LaunchKit/src/mcp.rs` |
+| MCP Handler off by default; writes and launcher tools behind separate settings; under Advanced Security, no launcher tool that changes anything, and changes only to Fabric applications | An AI client doing more than the operator allowed | `LaunchKit/src/modules/mcp.rs` |
+| `mcp.enabled`, `mcp.allow_writes`, `mcp.allow_launcher`, `security.advanced` and `api.host` changeable only by the person at the machine; model addresses and keys shown to clients as `(kept on this machine)` | An AI client raising its own permissions or learning where models are | `LaunchKit/src/modules/mcp.rs` |
+| Engine policy (`config/engines.json`): disabled engines refused with `403 ENGINE_DISABLED`; the build, not the file, decides an engine's channel; `DSTNS_ENGINE_CHANNEL` can mark an engine less stable, never more | Running code the operator turned off, or presenting an unstable engine as stable | `Core/engines/`, `Fabric/src/gate.cpp` |
+| Unstable-engine gate: a start on an alpha or beta engine is held (`202 approval_required`), nothing is compiled or downloaded, and everything that would run it is `409 APPROVAL_REQUIRED` until a person accepts; stop and reset cancel it | An unreviewed engine running unattended, or an application approving it | `Fabric/src/gate.cpp`, `WebKit/src/panels/` |
+| Lifecycle and world-job tables checked on every transition, and an `ERROR` logged for one outside them | A request sequence leaving the server in an undefined state | `Core/core-ng/src/lifecycle.cpp`, `Core/core-ng/src/world.cpp` |
+| Selection policies validated before anything is read or fetched; lists of at most 200 IDs of 1 to 64 characters | Hostile `map_selection` values | `Core/core-ng/src/` |
+| Launch-code keys sealed with PBKDF2-HMAC-SHA256 (210,000 rounds) and encrypt-then-MAC; a 4-byte checksum refuses a damaged code; every restored value validated (a speed must be in (0, 10]) | Keys read from a pasted code; a code applying values the launcher would refuse | `LaunchKit/src/state.rs` |
+| SUMO can be turned off (`DSTNS_SUMO=0`): its routes then answer `403 SUMO_DISABLED` and the server never looks for SUMO | Running an external toolchain the operator does not use | `Fabric/src/`, `Core/common/src/sumo_bridge.cpp` |
 | Model suggestions shown, never run by themselves, and refused if they substitute, redirect, chain with `;` or `\|\|`, use an unknown command, leave, open a shell, edit or write files, change Advanced Security or set the environment | A model's answer turning into an unsafe command | `LaunchKit/src/assistant.rs` (`check`) |
 | Non-root container user (UID 10001), no Docker socket | Escalation from a compromised process | `Dockerfile` |
 | Optional HTTPS (`-DDSTNS_TLS=ON`, `--tls-cert`, `--tls-key`) | Traffic read on the network | `CMakeLists.txt`, `Core/server/main.cpp` |
 
 The full design, with how to check each control, is in [Fabric and WebFabric security](docs/api/security.md)
 and [deployment security](docs/deployment/security.md).
+
+---
+
+## Security in this version
+
+What changed for security between Release 3.0.0 and this version, and how each change was checked.
+
+| Version | Change | Checked by |
+|---|---|---|
+| Launcher 3.4.0 | An AI client could change, through `launcher_config_set`, the settings that limit it (`mcp.allow_writes`, `mcp.allow_launcher`, `mcp.enabled`, `security.advanced`, `api.host`). Only the person at the machine may now change them | A launcher test that fails when the guard is removed |
+| Launcher 3.4.0 | `launcher_config_get` gave model addresses to the AI client. Addresses and credentials now show as `(kept on this machine)` | Launcher tests |
+| Launcher 3.5.0 | Launch codes record the world's engine and map rules, so a code can no longer start a world on an engine other than the one it names | Launcher tests |
+| Engine 3.5.0 | SUMO is off by default in the launcher; `DSTNS_SUMO=0` refuses its routes | `dstns_http_sumo_switch` |
+| Engine 3.6.0 | Engine identity, `config/engines.json` and the unstable-engine gate | `dstns_http_engine_gate` |
+| Engine 3.2.1, 3.3.1 | Seven faults in the lifecycle and world job (for example a staged world that could never be installed but read `staged`) | `dstns_lifecycle_ng`, 48 races |
+| Engine 3.13.0 | core-legacy disabled by default (`403 ENGINE_DISABLED`); `auto_switch` off, so rejecting an unstable engine only stops | `dstns_http_engine_switch` |
+| Engine 3.13.2 | A refused request (`4xx`) is logged as a warning, so the error log holds only faults | HTTP suites |
+| Engine 3.13.3 | **Undo or redo after a reset crashed the server** (a null dereference, found under AddressSanitizer). Commands now need a world | `tools/stress/lifecycle.py` under AddressSanitizer, 1,000 requests twice |
+| Engine 3.13.3 | Discarding a failed prepared world, and confirming a staged world twice, are now idempotent | The stress tool, in CI |
+| Launcher 3.15.0 | A launch code restored an out-of-range speed, which the server refused. Codes now record the tick rate and restore only a valid one | Launcher tests |
+
+The stress tool (`tools/stress/lifecycle.py`) sends paced random requests from four clients and requires no `5xx`,
+no `ERROR` in the log and a clean start afterwards. It runs in CI on every push to `main`, `v3` and `v3-*`.
 
 ---
 
@@ -271,6 +316,9 @@ beyond what is written here is in scope.
 - **Same-user attackers.** A process that runs as the same user can read the store's key, the operator
   token, `config/launcher.env` and the process memory.
 - **Storage is not encrypted at rest.**
+- **An unstable engine's approval is per run, not per person.** Whoever can reach the observer when a start is held
+  can accept it. Keep the server on loopback, or behind a gateway, if that matters.
+- **core-legacy is kept for comparison.** It receives fixes to the host it shares, but no new hardening of its own.
 - **The audit log is in memory.** It is lost on restart, and the oldest entries leave after 2,000. The
   chain proves consistency, not truth: keep the head elsewhere to detect a rebuilt chain.
 - **Advanced Security guards the launcher's ways in, not the files.** It is not a sandbox. A program that
@@ -293,7 +341,9 @@ push protection is enabled for this repository as a second line of defence.
 | `logs/fabric-apps.json` | Registered applications: token hashes, signing keys, grants | Sealed; a changed file is refused |
 | `logs/fabric-apps.json.key` | The key that seals the store | Keep it apart from backups of the store |
 | `config/launcher.env` | Launcher environment, including `DSTNS_GROQ_API_KEY` if one is set | Read by the launcher only |
-| `config/apps.json` | The operator's application catalogue | May contain commands and paths |
+| `config/apps.json` (or `DSTNS_APPS_FILE`) | The operator's application catalogue | May contain commands and paths; written only by the launcher |
+| `config/engines.json` | The engine policy | Not a secret, but it decides which engines may run; the server never trusts its channel or version |
+| A launch code made with `--keys` | API keys, sealed with your passphrase | Share the passphrase separately from the code |
 | `logs/launcher.log`, `logs/command-history` | The launcher's action log, and every line typed at its command bar | **Lines are kept as typed.** A secret typed on the command line, such as `model key <KEY>` or `env set DSTNS_GROQ_API_KEY=<KEY>`, is written to both. Put keys in `config/launcher.env` with an editor, or in the environment, instead |
 | Other files in `logs/` | Run logs, checkpoints and exports | May contain seeds and paths. The server writes no token values to them |
 
@@ -327,14 +377,17 @@ DSTNS makes no connection that the operator did not configure or start. It has n
    - `DSTNS_LAUNCH_PROPOSALS=off` stops applications from proposing how to start them.
    - `DSTNS_DISABLED_CAPABILITIES` lists capabilities that nobody may be granted.
 5. **Require signatures** for applications with `DSTNS_REQUIRE_SIGNATURES=on`.
-6. **Turn on Advanced Security** (`./launcher security on`) on a machine shared with other programs, such
+6. **Enable Advanced Security** (`./launcher security on`) on a machine shared with other programs, such
    as an AI client.
-7. **Keep the MCP Handler off** unless you use it, and turn on `mcp.allow_writes` and `mcp.allow_launcher`
+7. **Keep the MCP Handler disabled** unless you use it, and enable `mcp.allow_writes` and `mcp.allow_launcher`
    only for a client you trust.
-8. **Read each launch proposal** before you approve it. An approved command runs as you.
-9. **Check the audit chain** now and then with `GET /api/v1/fabric/audit/verify`, and keep its head
+8. **Keep core-legacy disabled and acknowledgment enforced** unless you are comparing engines, so that no engine runs
+   that you have not chosen.
+9. **Keep SUMO disabled** (`sumo.enabled`) unless you export to it.
+10. **Read each launch proposal** before you approve it. An approved command runs as you.
+11. **Check the audit chain** now and then with `GET /api/v1/fabric/audit/verify`, and keep its head
    elsewhere.
-10. **Keep DSTNS, its dependencies and the container image current.**
+12. **Keep DSTNS, its dependencies and the container image current.**
 
 The full checklist and the commands to verify a deployment are in
 [deployment security](docs/deployment/security.md#hardening-checklist).
@@ -345,12 +398,12 @@ The full checklist and the commands to verify a deployment are in
 
 | Measure | What it does |
 |---|---|
-| CodeQL code scanning | Analyses the C++, TypeScript and JavaScript, Python and GitHub Actions code on pull requests, on pushes to `main`, and every week |
+| CodeQL code scanning | Analyses the C++, Rust, TypeScript and JavaScript, Python and GitHub Actions code on pull requests, on pushes to `main` and `v3`, and every week |
 | Dependabot security updates | Opens pull requests for dependencies with known vulnerabilities |
 | Secret scanning with push protection | Blocks a push that contains a known kind of credential |
 | `CODEOWNERS` | Requires the owner's review for `SECURITY.md`, `.github/`, `Fabric/`, the map downloader, the SUMO adapter and the container files |
 | Licence header check in CI | Every source file carries its SPDX licence identifier |
-| Tests in CI | Native, HTTP, launcher and observer suites, replay verification, and a build of the container image |
+| Tests in CI | 45 native and HTTP suites (golden fixtures included), the state-machine stress test, launcher and observer suites, replay verification, and a build of the container image, on every push to `main`, `v3` and `v3-*` |
 | Least-privilege workflows | Workflows run with `contents: read` unless a job needs more |
 
 ---
@@ -363,6 +416,11 @@ Fixed vulnerabilities and security changes are listed under **Security** in the
 
 | Date | Change | Fixed in |
 |---|---|---|
+| 2026-11-17 | Undo or redo after a reset crashed the server; found by the new stress tool under AddressSanitizer | Engine 3.13.3 |
+| 2026-11-14 | core-legacy disabled by default; `4xx` logged as warnings | Engine 3.13.0, 3.13.2 |
+| 2026-11-13 | Unstable-engine gate and engine policy | Engine 3.6.0 |
+| 2026-11-13 | An AI client could raise its own permissions, and read model addresses, through the MCP Handler | Launcher 3.4.0 |
+| 2026-11-12 | Release 3.0.0: an audit of every route closed eight issues; hashed tokens, signed requests, hash-chained audit log, Advanced Security | `v3.0.0` |
 | 2026-11-04 | Code scanning alert [#2](https://github.com/varunkarthic/DSTNS/security/code-scanning/2) (`js/unvalidated-dynamic-method-call`): names from events and applications could reach `Object.prototype` in the observer's lookup tables | `302220e`, completed in `4f2a2e2` |
 | 2026-10-02 | Security policy published, and CodeQL analysis added (2.1.0) | `v2.1.0` |
 

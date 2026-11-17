@@ -340,10 +340,10 @@ impl Field {
             }
             FieldKind::Boolean => {
                 let lowered = text.to_lowercase();
-                if !["true", "false", "on", "off", "yes", "no", "1", "0"].contains(&lowered.as_str()) {
-                    return Err("Enter on or off.".into());
+                if !["enabled", "disabled", "enable", "disable", "true", "false", "on", "off", "yes", "no", "1", "0"].contains(&lowered.as_str()) {
+                    return Err("Enter enabled or disabled (on and off work too).".into());
                 }
-                json!(["true", "on", "yes", "1"].contains(&lowered.as_str()))
+                json!(["enabled", "enable", "true", "on", "yes", "1"].contains(&lowered.as_str()))
             }
             FieldKind::Choice => {
                 let lowered = text.to_lowercase();

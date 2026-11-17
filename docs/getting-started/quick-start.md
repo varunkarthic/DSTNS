@@ -53,7 +53,7 @@ The shortest path from nothing to a running simulation.
    map downloading, the world being built.
 2. The map of the district appears with roads coloured by congestion, and the
    clock starts at 00:00:00.
-3. The day plays out in an hour at 1× (choose 0.25× to 5× in the command rail).
+3. The day plays out in an hour at 1× (choose 0.25× to 10× in the command rail).
    Signals cycle, traffic builds through the morning peak, storms pass over,
    incidents close roads and clear.
 

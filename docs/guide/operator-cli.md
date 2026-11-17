@@ -752,9 +752,9 @@ dstns ~ ❯ how do I change the port the server listens on?
   is used, and the launcher says which [2].
   Sources
   [1] Configuration › Server flags
-      https://dstns.readthedocs.io/v3/guide/configuration/#server-flags
+      https://dstns.readthedocs.io/v3-core-ng/guide/configuration/#server-flags
   [2] Troubleshooting › Port 8090 or 8443 already in use
-      https://dstns.readthedocs.io/v3/troubleshooting/#port-8090-or-8443-already-in-use
+      https://dstns.readthedocs.io/v3-core-ng/troubleshooting/#port-8090-or-8443-already-in-use
 dstns ~ ❯ and what if that one is taken too?
 ```
 

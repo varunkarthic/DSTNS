@@ -205,7 +205,7 @@ Set these in `docker-compose.yml`, a `.env` file, or with `-e` on `docker run`.
 | `DSTNS_AUTOSTART` | `1` | `0`, `1` | Start a run once the server is healthy |
 | `DSTNS_SEED` | `auto` | decimal, `0x` hex, `auto` | Seed of the first run |
 | `DSTNS_DAY_TYPE` | `weekday` | `weekday`, `weekend` | Day type |
-| `DSTNS_SPEED` | `1` | 0.01 to 5 | Speed multiplier |
+| `DSTNS_SPEED` | `1` | 0.01 to 10 | Speed multiplier |
 | `DSTNS_DURATION` | `3600` | 60 to 3600 | Wall-clock seconds per day at 1× |
 | `DSTNS_OSM_FILE` | `auto` | `auto` or a path in the container | Map source |
 

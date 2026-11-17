@@ -60,7 +60,7 @@
     started](getting-started/index.md).
 
 ??? question "How long does a day take?"
-    One hour at 1× by default. Choose 0.25× to 5× in the interface, or change
+    One hour at 1× by default. Choose 0.25× to 10× in the interface, or change
     the duration (60 to 3600 seconds) with `--duration`.
 
 ??? question "Can I run several simulations at once?"

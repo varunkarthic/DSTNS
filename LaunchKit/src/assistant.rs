@@ -215,7 +215,7 @@ pub fn is_question(text: &str) -> bool {
 }
 
 /// Where the documentation is published, for the links in answers.
-pub const DOCS_URL: &str = "https://dstns.readthedocs.io/v3";
+pub const DOCS_URL: &str = "https://dstns.readthedocs.io/v3-core-ng";
 
 /// The assistant, over this checkout's documentation, made once.
 pub fn assistant(paths: &Paths) -> &'static coreai::assist::Assistant {
