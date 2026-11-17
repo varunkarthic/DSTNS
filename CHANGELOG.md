@@ -14,6 +14,23 @@ only within one version.
 
 ## [Unreleased]
 
+### Launcher 3.16.1 (with engine 3.13.3)
+
+The engine is unchanged, and so are results for every seed.
+
+#### Fixed
+
+- **A simulation started after Demo Mode was refused as "another process's server".** The interface runs Demo Mode as
+  a launcher of its own, beneath it, so the demo's server had that launcher as its parent, not the interface; and
+  once the demo ended, its server took up to half a second to stop by itself, during which a start found a server
+  with no owner at all. Now:
+  - a server started by a launcher beneath this one (Demo Mode, the command bar) is this launcher's: starting a
+    simulation ends that launcher first (SIGTERM; it stops its own server, in about 0.4 s), then starts its own on
+    the same port, saying "Ending Demo Mode first";
+  - a server whose launcher has just gone is given up to 4 s to stop by itself before it is called someone else's.
+
+  A server another launcher or a script started is still refused, and `--take-over` still stops it.
+
 ### Launcher 3.16.0 (with engine 3.13.3), documentation and policy
 
 The engine and observer are unchanged, and so are results for every seed.

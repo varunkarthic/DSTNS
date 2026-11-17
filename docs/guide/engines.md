@@ -68,7 +68,7 @@ Where you see it:
 ```text
 $ ./launcher version
 DSTNS 3.13.3
- Launcher         3.16.0
+ Launcher         3.16.1
  Server           3.13.3 (local channel, built unknown (arm64))
  API contract     1.13
  Observer         3.9.0

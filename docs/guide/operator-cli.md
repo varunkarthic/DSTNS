@@ -974,6 +974,10 @@ It says so, and names the process: the server reports its process ID, and the sy
    It is process 4100, started by another DSTNS launcher (process 4000: …/dstns-launcher).
 ```
 
+A server started from this launcher's own interface (Demo Mode and the command bar run as launchers of their own,
+beneath it) counts as this launcher's: starting a simulation ends that Demo Mode first, and starts on the same port.
+A server whose launcher has just ended is given a few seconds to stop by itself before it is treated as another's.
+
 Only the process that started a server drives its runs, so two of them never start, stop or jump the same world at
 once. Use the launcher that started it, or **take it over**:
 

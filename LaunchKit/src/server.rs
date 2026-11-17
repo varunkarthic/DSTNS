@@ -144,6 +144,43 @@ pub fn owner(port: u16, paths: &Paths) -> Option<Owner> {
     Some(Owner { pid, parent, parent_command })
 }
 
+/// A process's parent, as the system says.
+fn parent_of(pid: u32) -> Option<u32> {
+    let out = std::process::Command::new("ps").args(["-o", "ppid=", "-p", &pid.to_string()]).output().ok()?;
+    String::from_utf8_lossy(&out.stdout).trim().parse().ok()
+}
+
+/// Whether a process is this one, or one this one started (directly or through others): Demo Mode and the command
+/// bar run as launchers of their own, under this one.
+fn ours_or_beneath(mut pid: u32) -> bool {
+    let me = std::process::id();
+    for _ in 0..8 {
+        if pid == me {
+            return true;
+        }
+        if pid <= 1 {
+            return false;
+        }
+        match parent_of(pid) {
+            Some(parent) => pid = parent,
+            None => return false,
+        }
+    }
+    false
+}
+
+/// Wait for the server on a port to stop answering, for up to `seconds`.
+fn wait_gone(port: u16, paths: &Paths, seconds: f64) -> bool {
+    let deadline = Instant::now() + Duration::from_secs_f64(seconds);
+    while Instant::now() < deadline {
+        if api::health(port, paths).is_none() {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    api::health(port, paths).is_none()
+}
+
 /// Why this launcher may not use the server it found, in words: who started it.
 fn not_ours(port: u16, owner: Option<&Owner>) -> LauncherError {
     let who = match owner {
@@ -204,8 +241,33 @@ pub fn start_with(reporter: &dyn Reporter, paths: &Paths, build_first: bool, can
         // A server this process did not start is not this launcher's to drive: say whose it is, or take it over.
         let mut taken = false;
         let owner = if api::is_current(existing.as_ref()) { owner(port, paths) } else { None };
-        let ours = owner.as_ref().map(|o| o.parent == std::process::id()).unwrap_or(false);
-        if api::is_current(existing.as_ref()) && !ours {
+        let mut ours = owner.as_ref().map(|o| o.parent == std::process::id()).unwrap_or(false);
+        if let (Some(found), false) = (&owner, ours) {
+            if found.parent != std::process::id() && found.parent > 1 && ours_or_beneath(found.parent) {
+                // Started by a launcher this one started (Demo Mode, run from the interface): it is this launcher's to
+                // end. That launcher is asked to finish, and stops its own server as it does on Ctrl+C.
+                reporter.message(Level::Info, "Ending Demo Mode first", &format!("its server on port {port} stops, then the simulation starts"));
+                crate::log::info(&format!("ending a child launcher's server: launcher pid {}, server pid {}", found.parent, found.pid));
+                unsafe {
+                    libc::kill(found.parent as i32, libc::SIGTERM);
+                }
+                if !wait_gone(port, paths, 12.0) {
+                    take_over(port, found, reporter, paths)?;
+                }
+                ours = true;
+                taken = true;
+            } else if found.parent <= 1 {
+                // Its launcher has just gone (a Demo Mode that has ended, say): the server stops itself within a second.
+                // It is given a moment to, rather than being called someone else's.
+                if wait_gone(port, paths, 4.0) {
+                    ours = true;
+                    taken = true;
+                }
+            }
+        }
+        if taken {
+            // The port is free now; this launcher's own server goes on it below.
+        } else if api::is_current(existing.as_ref()) && !ours {
             match (&owner, TAKE_OVER.load(std::sync::atomic::Ordering::SeqCst)) {
                 (Some(found), true) => {
                     take_over(port, found, reporter, paths)?;
@@ -399,6 +461,18 @@ pub fn shut_down(handle: &ServerHandle, paths: &Paths) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A process this launcher started, such as the launcher that runs Demo Mode from the interface, is this launcher's;
+    /// an unrelated one, or the system's first process, is not.
+    #[test]
+    fn a_launchers_own_children_are_its_own() {
+        assert!(ours_or_beneath(std::process::id()));
+        let mut child = std::process::Command::new("sleep").arg("5").spawn().unwrap();
+        assert!(ours_or_beneath(child.id()), "a child of this process");
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(!ours_or_beneath(1));
+    }
 
     /// A server this launcher did not start is refused, with whose it is and how to take it over, and the risk.
     #[test]
