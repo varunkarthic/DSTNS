@@ -14,6 +14,45 @@ only within one version.
 
 ## [Unreleased]
 
+### Launcher 3.16.0 (with engine 3.13.3), documentation and policy
+
+The engine and observer are unchanged, and so are results for every seed.
+
+#### Fixed
+
+- **Grey bands in the command bar's output.** The output's title and foot rows, the suggestions, toasts and dialogs
+  were cleared to the terminal's own background but not painted, so on a terminal whose background is not black
+  they showed as grey bars. Everything cleared is now painted in the launcher's background.
+- **`places` took a code that names no country** (`places -XX`), and `engine add` took any city. Both now refuse a
+  country code or city ID the catalogue does not have, and say how to look it up.
+- **`reset --help` was read as a reset of a scope named help.** `COMMAND --help` and `help COMMAND` now print that
+  command's help (with the run options for `start`); `help` alone still prints every command.
+- **On/off settings could not be typed as they are shown.** `config set KEY enabled` (or `disabled`) is accepted, as
+  on and off still are.
+- The plain-language assistant's sources linked to the `v3` documentation; they link to `v3-core-ng`.
+- A column of the help (`ui PAGE`) was one space short.
+
+#### Added
+
+- **Find a setting.** In Configuration, Ctrl+F (or F in the list of categories) opens a search box over every setting:
+  its name, its key such as `api.port`, or a word from its explanation. Matches are listed with their category and
+  key, best first; Enter opens the setting with the keyboard on it.
+- **Filter a log.** In Logs, Ctrl+F filters the lines as you type and says how many match; Esc clears it.
+- **A closing animation.** Leaving, the page falls away from the foot up into a line of particles and the name dims in
+  the middle, in about 0.7 s. Any key skips it; reduced motion and the reduced interfaces skip it altogether.
+
+#### Documentation and policy
+
+- **Documentation site:** content tabs (Docker / From source / API only) are a compact segmented control: Material had
+  padded their linked labels to 1.25em and drawn an underline beneath the pill. The footer is light in the light
+  scheme. Plain-text code blocks keep their columns and scroll. Speeds read up to 10×. The home page's figures are
+  plainer.
+- **README** restructured: version badges, contents, a coloured diagram, aligned tables, benchmarks and a
+  documentation map.
+- **SECURITY.md** for this version: supported versions, engine governance, launch codes, the MCP fixes, a table of
+  what changed for security since 3.0.0, and corrected paths.
+- Links to `dstns.readthedocs.io/v3` now go to `/v3-core-ng`.
+
 ### Launcher 3.15.0 and observer 3.9.0 (with engine 3.13.3)
 
 The engine is unchanged, and so are results for every seed.

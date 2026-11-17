@@ -1072,6 +1072,7 @@ impl Shell {
             let rect = Rect { x: boxed.x, y: area.y.saturating_sub(height).max(body.y), width: boxed.width.min(96), height: height.min(area.y.saturating_sub(body.y)) };
             if rect.height >= 3 {
                 frame.render_widget(Clear, rect);
+                frame.render_widget(Block::default().style(theme::base()), rect);
                 let w = rect.width.saturating_sub(4) as usize;
                 let lines: Vec<Line> = suggestions
                     .iter()
@@ -1094,6 +1095,7 @@ impl Shell {
         self.pane = Some(area);
         let rect = Rect { x: area.x + 1, width: area.width.saturating_sub(2), ..area };
         frame.render_widget(Clear, rect);
+        frame.render_widget(Block::default().style(theme::base()), rect);
         if rect.height < 3 || rect.width < 20 {
             return;
         }

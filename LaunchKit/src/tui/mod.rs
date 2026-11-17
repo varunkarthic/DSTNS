@@ -218,6 +218,8 @@ struct App {
     shell: shell::Shell,
     outcome: Option<Outcome>,
     quitting: bool,
+    /// Leaving: when the closing animation began.
+    closing: Option<Instant>,
     help_open: Option<Vec<(String, String)>>,
     /// Simplified Launch Control, in place of everything else, for a terminal too small for the full interface.
     simple: Option<screens::simple::SimpleScreen>,
@@ -449,6 +451,46 @@ impl App {
         }
     }
 
+    /// Leaving: the page falls away from the foot up into a line of particles, which rise and fade, and the wordmark
+    /// dims in the middle. The reveal at the start, run backwards and a little quicker.
+    fn draw_close(&self, frame: &mut Frame) {
+        let Some(began) = self.closing else { return };
+        let t = (began.elapsed().as_secs_f64() * 1000.0 / CLOSE_MS).min(1.0);
+        let area = frame.area();
+        // Slow, then quickening: the page keeps its top rows longest.
+        let eased = t * t * (3.0 - 2.0 * t);
+        let edge = area.height - (area.height as f64 * eased).round() as u16;
+        let glyphs: &[&str] = if self.ui.unicode { &["·", "∙", "•", "⋅"] } else { &[".", "'", ":", "."] };
+        let buffer = frame.buffer_mut();
+        for y in area.y..area.y + area.height {
+            let row = y - area.y;
+            if row < edge {
+                continue;
+            }
+            let depth = row - edge;
+            for x in area.x..area.x + area.width {
+                let cell = &mut buffer[(x, y)];
+                cell.set_symbol(" ").set_style(theme::base());
+                // Particles just below the edge, as if the page were lifting off it.
+                if depth < 3 {
+                    let seed = (x as u64).wrapping_mul(2654435761) ^ (y as u64).wrapping_mul(40503) ^ (began.elapsed().as_millis() as u64 / 50);
+                    if seed % (5 + depth as u64 * 6) == 0 {
+                        let tone = [theme::GLOW, ACCENT, theme::TEAL][depth as usize];
+                        cell.set_symbol(glyphs[(seed / 7) as usize % glyphs.len()]).set_style(fg(tone));
+                    }
+                }
+            }
+        }
+        // Once most of the page has gone, the name, dimming to nothing.
+        if t > 0.45 {
+            let word = if self.ui.unicode { "D S T N S" } else { "DSTNS" };
+            let tone = match ((t - 0.45) / 0.55 * 4.0) as u8 { 0 => theme::GLOW, 1 => ACCENT, 2 => theme::TEAL, _ => theme::MUTED };
+            let width = widgets::width(word) as u16;
+            let rect = Rect { x: area.x + area.width.saturating_sub(width) / 2, y: area.y + area.height / 2, width: width.min(area.width), height: 1 };
+            frame.render_widget(Paragraph::new(Span::styled(word, bold(tone))), rect);
+        }
+    }
+
     /// Before anything starts: 0 is Simplified Launch Control, 1 is leaving.
     fn choose_size(&mut self, choice: usize) {
         self.size_prompt = None;
@@ -559,6 +601,7 @@ impl App {
             let w = (widgets::width(&text) as u16 + 2).min(area.width.saturating_sub(4));
             let rect = Rect { x: area.width.saturating_sub(w + 2), y: parts[3].y.saturating_sub(3 + bar_height), width: w, height: 3 };
             frame.render_widget(Clear, rect);
+            frame.render_widget(Block::default().style(theme::base()), rect);
             frame.render_widget(
                 Paragraph::new(Span::styled(text, fg(TEXT))).block(Block::default().borders(Borders::ALL).border_type(BorderType::Plain).border_style(fg(toast.tone))).style(theme::base()),
                 rect,
@@ -579,6 +622,9 @@ impl App {
     }
 }
 
+/// How long leaving takes, in milliseconds.
+const CLOSE_MS: f64 = 680.0;
+
 /// A centred, rounded box over everything: a dialog, or the help.
 fn draw_box(frame: &mut Frame, area: Rect, title: &str, message: Text<'static>, detail: &str, menu: Option<&mut Menu>, error: bool) {
     let width = 64.min(area.width.saturating_sub(4)).max(20);
@@ -593,6 +639,7 @@ fn draw_box(frame: &mut Frame, area: Rect, title: &str, message: Text<'static>, 
     let height = wanted.min(area.height.saturating_sub(2)).max(5);
     let rect = Rect { x: area.x + (area.width.saturating_sub(width)) / 2, y: area.y + (area.height.saturating_sub(height)) / 2, width, height };
     frame.render_widget(Clear, rect);
+    frame.render_widget(Block::default().style(theme::base()), rect);
     let border = if error { ERR } else { TEAL };
     let block = Block::default()
         .borders(Borders::ALL)
@@ -668,7 +715,7 @@ pub fn run(context: Context, initial: &str) -> std::io::Result<Outcome> {
     if cramped {
         crate::log::info(&format!("terminal {}x{} is small for the full interface ({small_terminal})", size.width, size.height));
     }
-    let mut app = App { ui, screens: vec![first], dialogs: vec![], toasts: vec![], shell: shell::Shell::new(command_bar), outcome: None, quitting: false, help_open: None, simple, size_prompt, scroll, reveal: None };
+    let mut app = App { ui, screens: vec![first], dialogs: vec![], toasts: vec![], shell: shell::Shell::new(command_bar), outcome: None, quitting: false, closing: None, help_open: None, simple, size_prompt, scroll, reveal: None };
     let result = (|| -> std::io::Result<()> {
         loop {
             if crate::interface::take_redraw() {
@@ -677,7 +724,15 @@ pub fn run(context: Context, initial: &str) -> std::io::Result<Outcome> {
             terminal.draw(|frame| {
                 app.draw(frame);
                 app.draw_reveal(frame);
+                app.draw_close(frame);
             })?;
+            // Leaving: the closing animation plays out, and any key cuts it short.
+            if let Some(began) = app.closing {
+                if began.elapsed().as_secs_f64() * 1000.0 >= CLOSE_MS || (event::poll(Duration::from_millis(16))? && matches!(event::read()?, Event::Key(_))) {
+                    return Ok(());
+                }
+                continue;
+            }
             // The start-up animates at about 30 frames a second; everything else needs no more than 10.
             let frame = if (app.screens.last().map(|s| s.path() == "/splash").unwrap_or(false) || app.reveal.is_some()) && app.ui.motion { 33 } else { 100 };
             if event::poll(Duration::from_millis(frame))? {
@@ -735,7 +790,12 @@ pub fn run(context: Context, initial: &str) -> std::io::Result<Outcome> {
             if app.quitting && app.ui.session.handle().map(|h| !h.running(&app.ui.paths)).unwrap_or(true) {
                 app.outcome = Some(Outcome { code: 0, reduced: false });
             }
-            if app.outcome.is_some() {
+            if let Some(outcome) = &app.outcome {
+                // A normal exit closes with its animation, unless motion is reduced or the interface is in a reduced mode.
+                if outcome.code == 0 && !outcome.reduced && app.ui.motion && app.ui.unicode && app.simple.is_none() && app.size_prompt.is_none() && app.ui.layout != Layout::TooSmall {
+                    app.closing = Some(Instant::now());
+                    continue;
+                }
                 return Ok(());
             }
         }
@@ -781,7 +841,7 @@ mod tests {
             run_log: VecDeque::new(),
             started: Instant::now(),
         };
-        App { ui, screens: vec![first], dialogs: vec![], toasts: vec![], shell: shell::Shell::new(true), outcome: None, quitting: false, help_open: None, simple: None, size_prompt: None, scroll: (3, false), reveal: None }
+        App { ui, screens: vec![first], dialogs: vec![], toasts: vec![], shell: shell::Shell::new(true), outcome: None, quitting: false, closing: None, help_open: None, simple: None, size_prompt: None, scroll: (3, false), reveal: None }
     }
 
     fn screen(app: &mut App, width: u16, height: u16) -> String {
@@ -1139,5 +1199,21 @@ mod tests {
         let text = screen(&mut app, 100, 30);
         assert!(text.contains("▌ "), "the selected item carries a marker, not only a colour");
         theme::set_depth(Colors::TrueColor);
+    }
+
+    /// Leaving clears the page from the foot up and shows the name in the middle as it goes.
+    #[test]
+    fn leaving_closes_with_the_page_falling_away() {
+        let mut app = app(100, 30, Box::new(screens::dashboard::DashboardScreen::new()));
+        let before = screen(&mut app, 100, 30);
+        assert!(before.contains("Start simulation"));
+        app.closing = Instant::now().checked_sub(Duration::from_millis(450));
+        let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+        terminal.draw(|frame| { app.draw(frame); app.draw_close(frame); }).unwrap();
+        let buffer = terminal.backend().buffer().clone();
+        let row = |y: u16| (0..100).map(|x| buffer[(x, y)].symbol().to_string()).collect::<String>();
+        assert!(row(29).trim().is_empty() || row(29).chars().all(|c| " ·∙•⋅".contains(c)), "the foot has gone: {}", row(29));
+        assert!(row(0).contains("DSTNS"), "the top stays longest: {}", row(0));
+        assert!(row(15).contains("D S T N S"), "the name shows in the middle: {}", row(15));
     }
 }

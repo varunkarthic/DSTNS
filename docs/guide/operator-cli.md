@@ -333,8 +333,9 @@ Most settings are a value to type or a choice to step through. Some are edited t
 | Places (Engine) | A list of every country to tick: Space chooses, `-` leaves out, Ctrl+A all, Ctrl+D none. See [Engines and places](engines.md#places-in-the-launcher) |
 | Resource Control's lines | α, β and γ as three cells with a scale beneath; ←→ moves, digits type, `+` and `-` step. See [Daemons](daemons.md) |
 | Demo scenes | Scenes to turn on or off and put in order: Space, Shift+↑↓ |
-| On or off | A switch reading enabled or disabled; Space or Enter turns it | The status line shows `! unsaved` while there are changes;
-**Ctrl+S** saves, and leaving with changes asks first. See
+| On or off | A switch reading enabled or disabled; Space or Enter turns it. Typed, `enabled` and `disabled` (or on and off) are accepted | The status line shows `! unsaved` while there are changes;
+**Ctrl+S** saves, and leaving with changes asks first. **Ctrl+F** (or F in the list of categories) finds a setting
+anywhere by its name, its key (`api.port`) or a word from its explanation; Enter opens it. See
 [Settings for every feature](#settings-for-every-feature).
 
 ### The command bar
@@ -401,6 +402,7 @@ line-by-line output.
 | Esc | Back, or close |
 | `:` or `/` | The command bar |
 | ? | Help for this page |
+| Ctrl+F | Find: a setting in Configuration (F too, in its list of categories), or lines in Logs |
 | q | Quit (from the dashboard and the check results) |
 | Ctrl+C | Stop a command in the command bar; otherwise quit safely, asking first if a simulation this launcher started is running |
 
@@ -457,7 +459,7 @@ ligatures, no images. Colour comes down from true colour to 256 and 16 colours t
 | `daemon [show NAME\|on NAME\|off NAME\|queue emergency\|notification]` | The server's [daemons](daemons.md) |
 | `security [on\|off\|verify]` | [Advanced Security](#advanced-security) |
 | `reset [SCOPE...] [--yes]` | Reset by scope (see [Reset scopes](#reset-scopes)). Alone, it resets everything except connected applications and their settings. It lists what it will reset and asks first; without a terminal it needs `--yes`; it refuses while a server is running |
-| `help`, `license` | Usage; the licence text |
+| `help [COMMAND]`, `COMMAND --help`, `license` | Usage, for every command or one; the licence text |
 | `--mode=server` | Run `dstns_server` in the foreground with the configured host and port |
 
 ### Run options
@@ -961,7 +963,8 @@ A server it attached to is left running.
 
 ## Ending a session
 
-Leaving the launcher stops a server it started, after confirmation. A server it attached
+Leaving the launcher stops a server it started, after confirmation. The page then falls away from the foot up and the
+name fades in the middle, in under a second; any key skips it, and it is not shown with reduced motion. A server it attached
 to keeps running. On `SIGTERM`, `SIGHUP` (the terminal closed) or Ctrl+C in scripted use,
 it stops a server it started before exiting, and cancellation during start-up reaches
 build commands and their descendants.

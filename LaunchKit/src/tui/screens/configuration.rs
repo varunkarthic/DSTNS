@@ -33,6 +33,31 @@ pub struct ConfigurationScreen {
     /// When the settings files last changed, as read; and when that was last looked at.
     seen: Option<std::time::SystemTime>,
     looked: Option<std::time::Instant>,
+    /// Find a setting: what is typed, and which match is chosen. None while the box is closed.
+    find: Option<(String, usize)>,
+}
+
+/// Every setting whose name, key, category or explanation has every word typed, best first: a name that starts with
+/// it, then a name that has it, then anything else.
+fn matches(query: &str) -> Vec<&'static config::Field> {
+    let words: Vec<String> = query.to_lowercase().split_whitespace().map(String::from).collect();
+    if words.is_empty() {
+        return vec![];
+    }
+    let mut found: Vec<(u8, &'static config::Field)> = config::fields()
+        .iter()
+        .filter_map(|f| {
+            let label = f.label.to_lowercase();
+            let all = format!("{label} {} {} {}", f.key.to_lowercase(), f.category.to_lowercase(), f.help.to_lowercase());
+            if !words.iter().all(|w| all.contains(w.as_str())) {
+                return None;
+            }
+            let rank = if label.starts_with(words[0].as_str()) { 0 } else if words.iter().all(|w| label.contains(w.as_str()) || f.key.contains(w.as_str())) { 1 } else { 2 };
+            Some((rank, f))
+        })
+        .collect();
+    found.sort_by_key(|(rank, _)| *rank);
+    found.into_iter().map(|(_, f)| f).collect()
 }
 
 /// The latest change to any of the files the settings live in.
@@ -117,7 +142,55 @@ impl ConfigurationScreen {
             risk_accepted: false,
             seen: None,
             looked: None,
+            find: None,
         }
+    }
+
+    /// Open the setting a search chose: its category, with the keyboard on it.
+    fn go_to(&mut self, field: &config::Field) {
+        self.categories.select(field.category);
+        self.show_category();
+        if let Some(at) = self.form.rows.iter().position(|r| r.key == field.key) {
+            self.form.focus = at;
+        }
+        self.in_form = true;
+        self.find = None;
+    }
+
+    fn draw_find(&self, frame: &mut Frame, area: Rect, ui: &Ui) {
+        use crate::tui::theme::{self, ACCENT, NAVY, TEXT};
+        use ratatui::widgets::{Block, BorderType, Borders, Clear};
+        let Some((query, chosen)) = &self.find else { return };
+        let found = matches(query);
+        let width = area.width.saturating_sub(4).min(96);
+        let shown = found.len().min(12) as u16;
+        let height = (shown.max(1) + 4).min(area.height);
+        let rect = Rect { x: area.x + (area.width.saturating_sub(width)) / 2, y: area.y + 1, width, height };
+        frame.render_widget(Clear, rect);
+        frame.render_widget(Block::default().style(theme::base()), rect);
+        let block = Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(fg(ACCENT)).title(Span::styled(" Find a setting ", bold(ACCENT)));
+        let inner = block.inner(rect);
+        frame.render_widget(block, rect);
+        let w = inner.width.saturating_sub(2) as usize;
+        let mut lines = vec![Line::from(vec![
+            Span::styled(if ui.unicode { " ⌕ " } else { " / " }, fg(ACCENT)),
+            Span::styled(query.clone(), bold(TEXT)),
+            Span::styled(" ", ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::REVERSED)),
+            Span::styled(if query.is_empty() { "  a name, a key such as api.port, or a word from its explanation" } else { "" }, fg(MUTED)),
+        ])];
+        lines.push(Line::from(Span::styled(widgets::clip(&"─".repeat(w), w, ui.unicode), fg(NAVY))));
+        if found.is_empty() {
+            lines.push(Line::from(Span::styled(if query.is_empty() { " Type to search every setting." } else { " Nothing matches." }, fg(MUTED))));
+        }
+        let start = (*chosen).saturating_sub(shown.saturating_sub(1) as usize);
+        for (i, field) in found.iter().enumerate().skip(start).take(shown as usize) {
+            let picked = i == *chosen;
+            let place = format!("{} · {}", field.category, field.key);
+            let label_width = 30.min(w / 2);
+            let text = format!("{}{:<label_width$}{}", if picked { "▸ " } else { "  " }, widgets::clip(field.label, label_width - 1, ui.unicode), widgets::clip(&place, w.saturating_sub(label_width + 2), ui.unicode));
+            lines.push(Line::from(Span::styled(format!("{text:<w$}"), if picked { theme::selected(true) } else { fg(TEXT2) })));
+        }
+        frame.render_widget(Paragraph::new(lines), Rect { x: inner.x + 1, width: inner.width.saturating_sub(1), ..inner });
     }
 
     fn load(&mut self, ui: &Ui) {
@@ -234,7 +307,10 @@ impl Screen for ConfigurationScreen {
         format!("/config/{}", self.categories.current_key().unwrap_or_default())
     }
     fn keys(&self, ui: &Ui) -> Vec<Key> {
-        let mut keys = vec![key(if ui.unicode { "↑↓" } else { "Up/Down" }, "Categories", "Move", false), key("Tab", "Next field", "Next", true)];
+        if self.find.is_some() {
+            return vec![key("Type", "Search", "Search", true), key(if ui.unicode { "↑↓" } else { "Up/Down" }, "Choose", "Move", true), key("Enter", "Open it", "Open", true), key("Esc", "Close", "Close", true)];
+        }
+        let mut keys = vec![key(if ui.unicode { "↑↓" } else { "Up/Down" }, "Categories", "Move", false), key("Tab", "Next field", "Next", true), key("Ctrl+F", "Find a setting", "Find", true)];
         match self.form.focused().filter(|_| self.in_form) {
             Some(row) if matches!(row.editor, Editor::Triple { .. }) => {
                 keys.push(key(if ui.unicode { "←→" } else { "Left/Right" }, if ui.unicode { "α β γ" } else { "alpha beta gamma" }, "Cell", true));
@@ -253,7 +329,7 @@ impl Screen for ConfigurationScreen {
         keys
     }
     fn typing(&self) -> bool {
-        self.in_form && self.form.focused().map(|r| matches!(r.editor, Editor::Text { .. })).unwrap_or(false)
+        self.find.is_some() || self.in_form && self.form.focused().map(|r| matches!(r.editor, Editor::Text { .. })).unwrap_or(false)
     }
     fn state(&self) -> Option<(State, String)> {
         Some(if !self.invalid.is_empty() {
@@ -307,11 +383,41 @@ impl Screen for ConfigurationScreen {
         if let Some(status) = status {
             frame.render_widget(Paragraph::new(status), Rect { y: inner.y + inner.height.saturating_sub(1), height: 1, ..inner });
         }
+        self.draw_find(frame, area, ui);
         let _ = (bold(TEXT2), TEXT2);
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {
         if event.modifiers.contains(KeyModifiers::CONTROL) && event.code == KeyCode::Char('s') {
             return self.save(ui);
+        }
+        // Ctrl+F anywhere, or F in the list of categories, finds a setting by name.
+        let ctrl_f = event.modifiers.contains(KeyModifiers::CONTROL) && event.code == KeyCode::Char('f');
+        if self.find.is_none() && (ctrl_f || (!self.in_form && matches!(event.code, KeyCode::Char('f') | KeyCode::Char('F')))) {
+            self.find = Some((String::new(), 0));
+            return Action::None;
+        }
+        if let Some((query, chosen)) = self.find.as_mut() {
+            let found = matches(query);
+            match event.code {
+                KeyCode::Enter => {
+                    if let Some(field) = found.get(*chosen).copied() {
+                        self.go_to(field);
+                    }
+                }
+                KeyCode::Down | KeyCode::Tab => *chosen = (*chosen + 1).min(found.len().saturating_sub(1)),
+                KeyCode::Up | KeyCode::BackTab => *chosen = chosen.saturating_sub(1),
+                KeyCode::Backspace => {
+                    query.pop();
+                    *chosen = 0;
+                }
+                KeyCode::Char('u') if event.modifiers.contains(KeyModifiers::CONTROL) => query.clear(),
+                KeyCode::Char(c) if !event.modifiers.contains(KeyModifiers::CONTROL) => {
+                    query.push(c);
+                    *chosen = 0;
+                }
+                _ => {}
+            }
+            return Action::None;
         }
         if !self.in_form {
             match self.categories.handle(&event) {
@@ -399,6 +505,9 @@ impl Screen for ConfigurationScreen {
         }
     }
     fn back(&mut self, _ui: &mut Ui) -> Action {
+        if self.find.take().is_some() {
+            return Action::None;
+        }
         if self.in_form {
             self.in_form = false;
             return Action::None;
@@ -420,6 +529,23 @@ impl Screen for ConfigurationScreen {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// Ctrl+F finds a setting by its name or key, and Enter opens its category with the keyboard on it.
+    #[test]
+    fn a_setting_is_found_by_name_and_opened() {
+        assert_eq!(matches("api.port").first().map(|f| f.key), Some("api.port"));
+        assert!(matches("speed").iter().any(|f| f.key == "playback.tick_rate" || f.label.to_lowercase().contains("speed")));
+        assert!(matches("zzzz nothing").is_empty());
+        let mut screen = ConfigurationScreen::new(None);
+        screen.current = json!({});
+        screen.show_category();
+        let field = matches("api.port")[0];
+        screen.find = Some(("api.port".into(), 0));
+        screen.go_to(field);
+        assert!(screen.find.is_none() && screen.in_form);
+        assert_eq!(screen.categories.current_key().as_deref(), Some(field.category));
+        assert_eq!(screen.form.focused().map(|r| r.key.clone()).as_deref(), Some("api.port"));
+    }
 
     /// A change that sets another setting gives that row back its own kind of editor: the engine is a choice and
     /// Places is text, and neither may become an on/off switch.

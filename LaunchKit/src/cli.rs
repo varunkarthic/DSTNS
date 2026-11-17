@@ -131,6 +131,14 @@ pub fn parse(argv: &[String]) -> Result<Arguments> {
         }
         index += 1;
     }
+    // `reset --help` and `help reset` both ask for one command's help, not a reset scope named help.
+    if positional.len() > 1 && positional[0] != "help" {
+        if let Some(at) = positional.iter().position(|p| p == "help") {
+            positional.remove(at);
+            positional.insert(0, "help".into());
+            positional.truncate(2);
+        }
+    }
     let mut positional = positional.into_iter();
     args.command = positional.next();
     args.topic = positional.next();
@@ -159,7 +167,7 @@ Commands
   setup                  Run the first-launch setup again
   seeds save|list|inspect|delete [ID]
                          Manage saved seeds (prints JSON)
-  ui PAGE               Open the interface on a page: start, apps, seeds, config, demo (runs
+  ui PAGE                Open the interface on a page: start, apps, seeds, config, demo (runs
                          Demo Mode), logs, diagnostics, tests, tools, about, setup
   ui open|dev|build|install
                          Open the observer, run its dev server, build or install it
@@ -231,9 +239,37 @@ Console
 In the terminal interface, : or / opens the command bar, where all of this can be typed as in a
 shell, with cd, kill and history besides.
 
-Documentation: https://dstns.readthedocs.io/guide/operator-cli/
+Documentation: https://dstns.readthedocs.io/v3-core-ng/guide/operator-cli/
 "
     )
+}
+
+/// One command's lines from the help, with the run options for `start`; None for a name it does not list.
+pub fn help_for(command: &str) -> Option<String> {
+    let all = help();
+    let mut out = String::new();
+    let mut taking = false;
+    for line in all.lines() {
+        let named = line.strip_prefix("  ").filter(|l| !l.starts_with(' '));
+        if let Some(entry) = named {
+            let first = entry.split([' ', ',', '[']).next().unwrap_or("");
+            taking = first == command;
+        } else if !line.starts_with("    ") {
+            taking = false;
+        }
+        if taking {
+            out += line;
+            out.push('\n');
+        }
+    }
+    if out.is_empty() {
+        return None;
+    }
+    if matches!(command, "start" | "seeds") {
+        let options = all.split("Run options (start, seeds save)\n").nth(1)?.split("\n\n").next()?;
+        out += &format!("\nRun options\n{options}\n");
+    }
+    Some(format!("Usage: ./launcher {command} ...\n\n{out}\nEvery command: ./launcher help\n"))
 }
 
 /// Everything a command is given to work with.
@@ -469,9 +505,7 @@ fn change_places(context: &Context) -> Result<i32> {
             None => (false, word.clone()),
         };
         let id = if id.len() == 2 { id.to_uppercase() } else { id.to_lowercase().replace(' ', "-") };
-        if id.len() == 2 && !countries.is_empty() && !countries.iter().any(|(code, ..)| *code == id) {
-            return Err(LauncherError::config(format!("No city in the catalogue is in {id}.")).remedy("./launcher countries lists the codes."));
-        }
+        check_place(&context.paths, &id)?;
         included.retain(|i| *i != id);
         excluded.retain(|i| *i != id);
         if adding {
@@ -488,6 +522,25 @@ fn change_places(context: &Context) -> Result<i32> {
     set_setting(context, "map.places", &text)
 }
 
+/// A place Places can name: a country code or a city ID in the catalogue. Without a built server to ask, any is taken.
+fn check_place(paths: &crate::paths::Paths, id: &str) -> Result<()> {
+    let countries = crate::modules::fastboot::countries(paths);
+    if countries.is_empty() {
+        return Ok(());
+    }
+    if id.len() == 2 {
+        if countries.iter().any(|(code, ..)| code == id) {
+            return Ok(());
+        }
+        return Err(LauncherError::config(format!("No city in the catalogue is in {id}.")).remedy("./launcher countries lists the codes."));
+    }
+    let known = crate::modules::fastboot::cities(paths).unwrap_or_default().iter().any(|c| c.get("id").and_then(Value::as_str) == Some(id));
+    if known {
+        return Ok(());
+    }
+    Err(LauncherError::config(format!("No supported city has the ID {id}.")).remedy(format!("./launcher cities {id} looks it up.")))
+}
+
 /// `./launcher places`: where worlds may be; `places IN, AE`, `places -IN` or `places all` changes it.
 fn command_places(context: &Context) -> Result<i32> {
     if matches!(context.args.topic.as_deref(), Some("add") | Some("del") | Some("delete") | Some("remove")) {
@@ -501,6 +554,10 @@ fn command_places(context: &Context) -> Result<i32> {
         context.out.pairs(&[("Places".into(), shown("map.places")), ("Where worlds are".into(), shown("map.selection_mode")), ("Policy".into(), version)], 18);
         context.out.muted("Change with: ./launcher places IN, AE (countries), places mumbai, delhi (cities), places -IN (all but India) or places all.");
         return Ok(EXIT_OK);
+    }
+    for word in words.iter().flat_map(|w| w.split(',')).map(|w| w.trim().trim_start_matches('-').trim()).filter(|w| !w.is_empty() && !w.eq_ignore_ascii_case("all")) {
+        let id = if word.len() == 2 { word.to_uppercase() } else { word.to_lowercase().replace(' ', "-") };
+        check_place(&context.paths, &id)?;
     }
     // Every city, read by what Places lists: two-letter codes are countries, other names cities. Only core-ng chooses
     // among them, so anything but all moves to it.
@@ -643,7 +700,10 @@ pub fn dispatch_scripted(context: &Context) -> Option<Result<i32>> {
     }
     match command.as_deref() {
         Some("help") => {
-            print!("{}", help());
+            match context.args.topic.as_deref().and_then(help_for) {
+                Some(text) => print!("{text}"),
+                None => print!("{}", help()),
+            }
             Some(Ok(EXIT_OK))
         }
         Some("version") => {
@@ -816,6 +876,18 @@ mod tests {
 
     fn args(list: &[&str]) -> Result<Arguments> {
         parse(&list.iter().map(|s| s.to_string()).collect::<Vec<_>>())
+    }
+
+    /// `help reset` and `reset --help` give one command's help; an unknown name gives the whole help.
+    #[test]
+    fn one_command_has_help_of_its_own() {
+        let parsed = args(&["reset", "--help"]).unwrap();
+        assert_eq!((parsed.command.as_deref(), parsed.topic.as_deref()), (Some("help"), Some("reset")));
+        let reset = help_for("reset").unwrap();
+        assert!(reset.contains("builds") && !reset.contains("--seed"), "{reset}");
+        assert!(help_for("start").unwrap().contains("--seed"), "start lists the run options");
+        assert!(help_for("engine").unwrap().contains("engine add|del"));
+        assert!(help_for("frobnicate").is_none());
     }
 
     #[test]

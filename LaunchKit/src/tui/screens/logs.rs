@@ -6,7 +6,7 @@
 use crate::tui::theme::{bold, fg, ACCENT, ERR, MUTED, TEXT, TEXT2, WARN};
 use crate::tui::widgets::{self, card, item, key, Key, Menu, MenuEvent};
 use crate::tui::{Action, Screen, Ui};
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
@@ -18,11 +18,14 @@ pub struct LogsScreen {
     title: String,
     scroll: usize,
     in_view: bool,
+    /// Only the lines with this in them; `filtering` while it is being typed.
+    filter: String,
+    filtering: bool,
 }
 
 impl LogsScreen {
     pub fn new(ui: &Ui) -> Self {
-        let mut screen = Self { menu: Menu::new(crate::logs::sources().into_iter().map(|(k, l)| item(k, l)).collect()), lines: vec![], title: String::new(), scroll: 0, in_view: false };
+        let mut screen = Self { menu: Menu::new(crate::logs::sources().into_iter().map(|(k, l)| item(k, l)).collect()), lines: vec![], title: String::new(), scroll: 0, in_view: false, filter: String::new(), filtering: false };
         screen.load(ui);
         screen
     }
@@ -61,7 +64,13 @@ impl Screen for LogsScreen {
         format!("/logs/{}", self.menu.current_key().unwrap_or_default())
     }
     fn keys(&self, ui: &Ui) -> Vec<Key> {
-        vec![key(if ui.unicode { "↑↓" } else { "Up/Down" }, "Source", "Source", false), key("r", "Refresh", "Refresh", true), key("PgUp/PgDn", "Scroll", "Scroll", false), key("Esc", "Back", "Back", true)]
+        if self.filtering {
+            return vec![key("Type", "Filter", "Filter", true), key("Enter", "Keep it", "Keep", true), key("Esc", "Clear", "Clear", true)];
+        }
+        vec![key(if ui.unicode { "↑↓" } else { "Up/Down" }, "Source", "Source", false), key("Ctrl+F", "Filter", "Filter", true), key("r", "Refresh", "Refresh", true), key("PgUp/PgDn", "Scroll", "Scroll", false), key("Esc", "Back", "Back", true)]
+    }
+    fn typing(&self) -> bool {
+        self.filtering
     }
     fn draw(&mut self, frame: &mut Frame, area: Rect, ui: &Ui) {
         let (side, content) = widgets::columns(area, widgets::list_width(&self.menu, area, ui.layout == crate::terminal::Layout::Medium), ui.small(), 5);
@@ -74,13 +83,26 @@ impl Screen for LogsScreen {
         let inner = block.inner(content);
         frame.render_widget(block, content);
         let inner = Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner };
-        frame.render_widget(Paragraph::new(Line::from(Span::styled(source.to_string(), fg(MUTED)))), Rect { height: 1, ..inner });
+        let needle = self.filter.to_lowercase();
+        let shown: Vec<Line<'static>> = if needle.is_empty() { self.lines.clone() } else { self.lines.iter().filter(|l| l.to_string().to_lowercase().contains(&needle)).cloned().collect() };
+        // Where the log is kept; or, while filtering, the filter as a search box.
+        let top = if self.filtering || !self.filter.is_empty() {
+            Line::from(vec![
+                Span::styled(if ui.unicode { "⌕ " } else { "/ " }, fg(ACCENT)),
+                Span::styled(self.filter.clone(), bold(TEXT)),
+                Span::styled(if self.filtering { " " } else { "" }, ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::REVERSED)),
+                Span::styled(format!("   {} of {} lines", shown.len(), self.lines.len()), fg(MUTED)),
+            ])
+        } else {
+            Line::from(Span::styled(source.to_string(), fg(MUTED)))
+        };
+        frame.render_widget(Paragraph::new(top), Rect { height: 1, ..inner });
         let view = Rect { y: inner.y + 2, height: inner.height.saturating_sub(2), ..inner };
-        let total = self.lines.len();
+        let total = shown.len();
         let visible = view.height as usize;
         let end = total.saturating_sub(self.scroll.min(total.saturating_sub(visible)));
         let start = end.saturating_sub(visible);
-        let mut text = Paragraph::new(self.lines[start..end].to_vec());
+        let mut text = Paragraph::new(shown[start..end].to_vec());
         // A single line is a message about the log, not the log: wrapped, never cut.
         if total == 1 {
             text = text.wrap(ratatui::widgets::Wrap { trim: true });
@@ -88,6 +110,22 @@ impl Screen for LogsScreen {
         frame.render_widget(text, view);
     }
     fn key(&mut self, event: KeyEvent, ui: &mut Ui) -> Action {
+        if event.modifiers.contains(KeyModifiers::CONTROL) && event.code == KeyCode::Char('f') {
+            self.filtering = true;
+            return Action::None;
+        }
+        if self.filtering {
+            match event.code {
+                KeyCode::Enter => self.filtering = false,
+                KeyCode::Backspace => {
+                    self.filter.pop();
+                }
+                KeyCode::Char(c) if !event.modifiers.contains(KeyModifiers::CONTROL) => self.filter.push(c),
+                _ => {}
+            }
+            self.scroll = 0;
+            return Action::None;
+        }
         match event.code {
             KeyCode::Char('r') => self.load(ui),
             KeyCode::PageUp => self.scroll += 10,
@@ -103,6 +141,11 @@ impl Screen for LogsScreen {
         Action::None
     }
     fn back(&mut self, _ui: &mut Ui) -> Action {
+        if self.filtering || !self.filter.is_empty() {
+            self.filtering = false;
+            self.filter.clear();
+            return Action::None;
+        }
         if self.in_view {
             self.in_view = false;
             return Action::None;

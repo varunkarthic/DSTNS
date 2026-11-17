@@ -1,7 +1,7 @@
 # Engine governance
 
 How DSTNS names its engines, chooses one, and protects a run on an engine that is not yet stable. Engine 3.13.3,
-launcher 3.15.0, observer 3.9.0, API contract 1.13.
+launcher 3.16.0, observer 3.9.0, API contract 1.13.
 
 ## Engines
 
