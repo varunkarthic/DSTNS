@@ -142,10 +142,17 @@
     "city_extent_m": 5000,
     "district_nodes": 3000,
     "cache_policy": "prune",
-    "cache_keep": 1
+    "cache_keep": 1,
+    "selection_mode": "global",
+    "places": "all",
+    "download_stall_s": 200
   },
   "launcher": {
-    "default_settings": false
+    "default_settings": false,
+    "command_bar": true,
+    "scroll_lines": 3,
+    "natural_scrolling": false,
+    "small_terminal": "ask"
   },
   "modules": {
     "traffic": true,
@@ -174,18 +181,22 @@
     "frequency": 3,
     "min_start_gap_playback_seconds": 5,
     "min_duration_virtual_min": 20,
-    "max_duration_virtual_min": 120
+    "max_duration_virtual_min": 120,
+    "storm_gap_s": 5,
+    "storm_min_minutes": 45,
+    "storm_max_minutes": 120
   },
   "api": {
     "host": "127.0.0.1",
-    "port": 8090
+    "port": 8090,
+    "allowed_hosts": "none",
+    "allowed_origins": "none"
   },
   "narration": {
     "mode": "auto"
   },
-  "ui": {
-    "port": 5173,
-    "osm_background": true
+  "security": {
+    "advanced": false
   },
   "logging": {
     "level": "INFO",
@@ -219,12 +230,17 @@
   "presentation": {
     "music": false,
     "fullscreen": false,
-    "music_volume": 0.6
+    "music_volume": 0.6,
+    "music_file": "score",
+    "film_scenes": "streets, signals, demand, rush-hour, incidents, weather, cities, repeatable, auto-focus, webfabric",
+    "film_first": "none",
+    "film_last": "webfabric"
   },
   "demo": {
     "music": true,
     "fullscreen": true,
-    "scenes": "streets, signals, demand, rush-hour, incidents, weather, cities, repeatable, auto-focus, webfabric, time-control, many-worlds, ai-ready"
+    "scenes": "streets, signals, demand, rush-hour, incidents, weather, cities, repeatable, auto-focus, webfabric, time-control, many-worlds, ai-ready",
+    "music_file": "score"
   },
   "performance": {
     "compression": "fast",
@@ -233,5 +249,60 @@
     "map_fps": 0,
     "render_scale": 2,
     "film_particles": 32000
+  },
+  "model": {
+    "provider": "auto",
+    "name": "default",
+    "base_url": "default",
+    "ollama_url": "http://127.0.0.1:11434",
+    "apple_cloud": true,
+    "key_store": "env",
+    "timeout_seconds": 60
+  },
+  "mcp": {
+    "allow_launcher": false,
+    "enabled": false,
+    "allow_writes": false
+  },
+  "cache": {
+    "max_mib": 2048,
+    "interval_min": 10
+  },
+  "rcs": {
+    "engine": {
+      "memory": "4, 2048, 4096",
+      "cpu": "0.2, 180, 380"
+    },
+    "downloads": {
+      "memory": "0, 768, 2048",
+      "cpu": "0, 150, 300"
+    },
+    "launcher": {
+      "memory": "1, 256, 1024",
+      "cpu": "0, 60, 150"
+    },
+    "applications": {
+      "memory": "0, 1024, 4096",
+      "cpu": "0, 200, 400"
+    }
+  },
+  "sumo": {
+    "enabled": false,
+    "home": "auto"
+  },
+  "worlds": {
+    "keep_history": false
+  },
+  "assist": {
+    "enabled": true
+  },
+  "daemon": {
+    "enabled": true,
+    "sustain_s": 5,
+    "rcs": true,
+    "memory": true,
+    "disk": true,
+    "stall": true,
+    "cache": true
   }
 }
