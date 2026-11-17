@@ -28,7 +28,18 @@
   ];
   var groupOfRel = {};
   GROUPS.forEach(function (g) { g.out.forEach(function (r) { groupOfRel[r] = g.key; }); });
-  var EXAMPLES = ["Where is the simulation engine?", "What calls snapshot", "Functions in the launcher", "Docs about weather", "What is inside App.tsx"];
+  // Questions to start from: each with what kind of question it is, and the icon for that.
+  var EXAMPLES = [
+    ["Where is the simulation engine?", "pin", "Where it is"],
+    ["What calls sha256", "call", "Callers"],
+    ["What does select_location call", "callout", "What it calls"],
+    ["What depends on engine.hpp", "import", "Dependents"],
+    ["What is inside App.tsx", "box", "Members"],
+    ["Functions in the launcher", "function", "By kind and part"],
+    ["Docs about weather", "book", "Documentation"],
+  ];
+  // Filters that can be typed into any search, inserted with a click.
+  var FILTER_CHIPS = [["in:launcher", "a part of DSTNS"], ["type:class", "a kind of thing"], ["file:engine", "a file's name"]];
 
   // Plain-language search, in the page: no model, no server. Words are split as code names are (camelCase, snake_case,
   // paths), lightly stemmed, widened by a thesaurus of DSTNS's own terms, matched with a little tolerance for typos, and
@@ -140,6 +151,11 @@
     copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V7a2.5 2.5 0 0 0-2.5-2.5H7A2.5 2.5 0 0 0 4.5 7v6A2.5 2.5 0 0 0 7 15.5h1.5"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', enter: '<path d="M19 5.5V11a3 3 0 0 1-3 3H6M10 10l-4 4 4 4"/>',
     group: '<circle cx="8" cy="9" r="3.25"/><circle cx="16" cy="9" r="3.25"/><circle cx="12" cy="16" r="3.25"/>',
+    pin: '<path d="M12 20.5s6.5-5.6 6.5-10.75a6.5 6.5 0 0 0-13 0C5.5 14.9 12 20.5 12 20.5z"/><circle cx="12" cy="9.75" r="2.4"/>',
+    callout: '<path d="M19.5 12h-13M11 7l-5 5 5 5"/>',
+    funnel: '<path d="M4.5 5.5h15l-5.75 7v5.25l-3.5 1.75v-7z"/>',
+    chevron: '<path d="M9.5 6.5l5.5 5.5-5.5 5.5"/>',
+    test: '<path d="M9.5 3.5v6L4.8 17.6a2 2 0 0 0 1.7 2.9h11a2 2 0 0 0 1.7-2.9L14.5 9.5v-6M8.5 3.5h7M7 14.5h10"/>',
   };
   function icon(name, size) {
     return '<svg viewBox="0 0 24 24" width="' + (size || 16) + '" height="' + (size || 16) + '" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">' + (PATHS[name] || "") + "</svg>";
@@ -904,15 +920,30 @@
       results.replaceChildren();
       hits = []; active = -1;
       var recent = store.get("recent", []);
-      var list = el("ul", { role: "listbox", class: "dg-hit-list", "aria-label": "Suggestions" });
-      var put = function (text, iconName) {
+      var list = el("ul", { role: "listbox", class: "dg-hit-list dg-suggestions", "aria-label": "Suggestions" });
+      var put = function (text, iconName, tag) {
         var k = hits.length; hits.push({ text: text });
-        list.appendChild(el("li", { role: "option", id: "dg-hit-" + k, class: "dg-suggest", "aria-selected": "false", onmousedown: function (ev) { ev.preventDefault(); ask(text); } }, [el("span", { class: "dg-kind plain", html: icon(iconName, 14) }), el("span", { text: text })]));
+        list.appendChild(el("li", { role: "option", id: "dg-hit-" + k, class: "dg-suggest", "aria-selected": "false", onmousedown: function (ev) { ev.preventDefault(); ask(text); }, onmousemove: function (ev) { var at0 = Number(ev.currentTarget.id.slice(7)); if (active !== at0) mark(at0, true); } }, [
+          el("span", { class: "dg-suggest-icon", html: icon(iconName, 16) }),
+          el("span", { class: "dg-suggest-body" }, [el("span", { class: "dg-suggest-text", text: text }), tag ? el("small", { class: "dg-suggest-tag", text: tag }) : null]),
+          el("span", { class: "dg-suggest-go", html: icon("arrow", 14) }),
+        ]));
       };
-      if (recent.length) { list.appendChild(el("li", { class: "dg-hit-head", role: "presentation", text: "Recent" })); recent.forEach(function (t) { put(t, "history"); }); }
-      list.appendChild(el("li", { class: "dg-hit-head", role: "presentation", text: "Try asking" }));
-      EXAMPLES.forEach(function (t) { put(t, "spark"); });
+      if (recent.length) {
+        list.appendChild(el("li", { class: "dg-hit-head", role: "presentation" }, [el("span", { text: "Recent" }), el("button", { type: "button", class: "dg-head-action", text: "Clear", onmousedown: function (ev) { ev.preventDefault(); store.set("recent", []); suggestions(); } })]));
+        recent.slice(0, 4).forEach(function (t) { put(t, "history", null); });
+      }
+      list.appendChild(el("li", { class: "dg-hit-head", role: "presentation" }, [el("span", { text: "Ask in plain words" })]));
+      EXAMPLES.forEach(function (x) { put(x[0], x[1], x[2]); });
+      list.appendChild(el("li", { class: "dg-hit-head", role: "presentation" }, [el("span", { text: "Narrow any search" })]));
+      list.appendChild(el("li", { class: "dg-chip-row", role: "presentation" }, FILTER_CHIPS.map(function (f) {
+        return el("button", { type: "button", class: "dg-filter-chip", title: "Only " + f[1], onmousedown: function (ev) { ev.preventDefault(); input.value = (input.value.trim() ? input.value.trim() + " " : "") + f[0] + " "; input.focus(); search(); } }, [el("span", { html: icon("funnel", 13) }), el("code", { text: f[0] })]);
+      })));
       results.appendChild(list);
+      results.appendChild(el("div", { class: "dg-results-foot" }, [
+        el("span", { text: "Names, questions or both" }),
+        el("span", { class: "dg-keys" }, [el("kbd", { text: "↑" }), el("kbd", { text: "↓" }), el("kbd", { html: icon("enter", 12) })]),
+      ]));
       showResults(true);
     }
     var closingResults = 0;
@@ -955,19 +986,32 @@
       found.forEach(function (f) { matched[f[1]] = 1; });
       matching = found.length > 0;
       version++;
-      if (said) results.appendChild(el("div", { class: "dg-understood" }, [el("span", { html: icon("spark", 14) }), el("span", {}, [el("strong", { text: said }), q.relation && found.length ? el("small", { text: found.length === 1 ? "1 item" : found.length.toLocaleString() + " items" }) : null]), subject >= 0 ? el("button", { type: "button", class: "dg-understood-go", text: "Open it", onmousedown: function (ev) { ev.preventDefault(); closeSearch(); select(subject, true); } }) : null]));
+      var relIcon = !q.relation ? "funnel" : q.relation.group === "calls" ? (q.relation.dir === "out" ? "callout" : "call") : q.relation.group === "imports" ? "import" : q.relation.group === "contains" ? "box" : "spark";
+      if (said) results.appendChild(el("div", { class: "dg-understood" + (q.relation ? "" : " dg-understood-filter") }, [el("span", { class: "dg-understood-icon", html: icon(relIcon, 16) }), el("span", { class: "dg-understood-text" }, [el("strong", { text: said }), q.relation && found.length ? el("small", { text: (found.length === 1 ? "1 item" : found.length.toLocaleString() + " items") + (subject >= 0 && fileOf(subject) ? " · " + fileOf(subject).split("/").pop() + (N.line[subject] ? ":" + N.line[subject] : "") : "") }) : null]), subject >= 0 ? el("button", { type: "button", class: "dg-understood-go", text: "Open it", onmousedown: function (ev) { ev.preventDefault(); closeSearch(); select(subject, true); } }) : null]));
       var list = el("ul", { role: "listbox", class: "dg-hit-list", "aria-label": "Results" });
+      // Where an item is: its file and line first, the folder it is in after, quieter; for the best match, what it is too.
+      var where = function (i, top) {
+        var f = fileOf(i), cut = f.lastIndexOf("/"), base = f.slice(cut + 1), dir = cut > 0 ? f.slice(0, cut) : "";
+        var line = el("small", { class: "dg-where" }, f ? [el("span", { class: "dg-where-file", text: base + (N.line[i] ? ":" + N.line[i] : "") }), dir ? el("span", { class: "dg-where-dir", text: dir }) : null] : [el("span", { class: "dg-where-dir", text: commName[N.community[i]] || "" })]);
+        if (!top) return line;
+        return el("span", { class: "dg-where-top" }, [el("span", { class: "dg-pill", style: "--c:" + colourOf(i), text: (SORT_NAMES[sortOf(i)] || "Item") + " · " + (AREA_NAMES[areaOf(i)] || "") }), line]);
+      };
       var option = function (i, top) {
         var k = hits.length; hits.push({ node: i });
         // The handlers read the option's place when they run: "Show more" can move it.
         return el("li", { role: "option", id: "dg-hit-" + k, class: top ? "dg-top-hit" : "", "aria-selected": "false", onmousedown: function (ev) { ev.preventDefault(); choose(Number(ev.currentTarget.id.slice(7))); }, onmousemove: function (ev) { var at0 = Number(ev.currentTarget.id.slice(7)); if (active !== at0) mark(at0, true); } }, [
           el("span", { class: "dg-kind", style: "--c:" + colourOf(i), html: icon(sortOf(i), top ? 18 : 14) }),
-          el("span", { class: "dg-hit-text" }, [nameNode(i, q.words), el("small", { text: (top ? (SORT_NAMES[sortOf(i)] || "Item") + " · " + (AREA_NAMES[areaOf(i)] || "") + " · " : "") + (fileOf(i) ? fileOf(i) + (N.line[i] ? ":" + N.line[i] : "") : commName[N.community[i]] || "") })]),
-          top ? el("kbd", { class: "dg-enter", html: icon("enter", 13) }) : null,
+          el("span", { class: "dg-hit-text" }, [nameNode(i, q.words), where(i, top)]),
+          isTest(i) ? el("span", { class: "dg-hit-tag", html: icon("test", 12) + "<span>test</span>" }) : el("kbd", { class: "dg-enter", html: icon("enter", 12) }),
         ]);
       };
       if (!found.length) {
-        list.appendChild(el("li", { class: "dg-none", role: "presentation" }, [el("strong", { text: "Nothing found" }), el("span", { text: isFresh() ? "Try fewer words, another name, or one of the questions in Explore." : "A filter may be hiding it. Reset the filters, or try other words." })]));
+        list.appendChild(el("li", { class: "dg-none", role: "presentation" }, [
+          el("span", { class: "dg-none-icon", html: icon("search", 20) }),
+          el("strong", { text: "Nothing found" }),
+          el("span", { text: isFresh() ? "Try fewer words or another name, or start from a question." : "A filter may be hiding it. Reset the filters, or try other words." }),
+          isFresh() ? el("button", { type: "button", class: "dg-none-go", text: "Show example questions", onmousedown: function (ev) { ev.preventDefault(); input.value = ""; clear.hidden = true; suggestions(); } }) : null,
+        ]));
       } else {
         // A question's answer is every item it found, none above the others; a search has its best match first.
         if (!q.relation) {
@@ -982,7 +1026,7 @@
           list.appendChild(el("li", { class: "dg-hit-head", role: "presentation" }, [el("span", { text: SORT_PLURAL[s] || s }), el("small", { text: members.length >= 159 ? "many" : String(members.length) })]));
           shown.forEach(function (i) { list.appendChild(option(i, false)); });
           if (members.length > shown.length) {
-            var more = el("li", { class: "dg-hit-more", role: "presentation" }, [el("button", { type: "button", tabindex: "-1", text: "Show " + (members.length - shown.length) + " more " + (SORT_PLURAL[s] || "").toLowerCase(), onmousedown: function (ev) {
+            var more = el("li", { class: "dg-hit-more", role: "presentation" }, [el("button", { type: "button", tabindex: "-1", html: icon("chevron", 13) + "<span>Show " + (members.length - shown.length) + " more " + (SORT_PLURAL[s] || "").toLowerCase() + "</span>", onmousedown: function (ev) {
               ev.preventDefault();
               var after = more;
               members.slice(each, 40).forEach(function (i) { var li = option(i, false); after.parentNode.insertBefore(li, after); });
@@ -995,8 +1039,8 @@
       }
       results.appendChild(list);
       results.appendChild(el("div", { class: "dg-results-foot" }, [
-        el("span", { text: found.length ? found.length.toLocaleString() + (found.length === 1 ? " match" : " matches") + ", ringed on the map" : "" }),
-        el("span", { class: "dg-keys" }, [el("kbd", { text: "↑" }), el("kbd", { text: "↓" }), " to move ", el("kbd", { text: "↵" }), " to open"]),
+        el("span", { class: "dg-foot-count" }, found.length ? [el("b", { text: found.length.toLocaleString() }), (found.length === 1 ? " match" : " matches") + " · ringed on the map"] : []),
+        el("span", { class: "dg-keys" }, [el("kbd", { text: "↑" }), el("kbd", { text: "↓" }), el("kbd", { html: icon("enter", 12) })]),
       ]));
       if (!silent) showResults(true);
       live.textContent = found.length ? found.length + " matches" : "Nothing found";
@@ -1032,7 +1076,13 @@
     input.addEventListener("keydown", function (ev) {
       if (ev.key === "ArrowDown") { ev.preventDefault(); if (results.hidden) search(); mark(active + 1); }
       else if (ev.key === "ArrowUp") { ev.preventDefault(); mark(active - 1); }
-      else if (ev.key === "Enter") { ev.preventDefault(); clearTimeout(pending); if (!lastQuery || active < 0) search(); choose(active < 0 ? (hits[0] && hits[0].text ? -1 : 0) : active); }
+      else if (ev.key === "Enter") {
+        ev.preventDefault(); clearTimeout(pending);
+        // A suggestion chosen with the arrows is asked as it is; redrawing first would lose the choice.
+        if (active >= 0 && hits[active] && hits[active].text) { choose(active); return; }
+        if (!lastQuery || active < 0) search();
+        choose(active < 0 ? (hits[0] && hits[0].text ? -1 : 0) : active);
+      }
       else if (ev.key === "Escape") { ev.preventDefault(); if (input.value) { input.value = ""; search(); } else closeSearch(); }
     });
     document.addEventListener("keydown", function (ev) {

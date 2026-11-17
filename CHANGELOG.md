@@ -83,6 +83,12 @@ The engine and observer are unchanged, and so are results for every seed.
 - **The Graph tab is back** at the top level (it had moved under Develop). The page fits the window below the version
   line, so its controls are never below the edge. A question lists everything it found with a count; tests no longer
   answer for the code they test, so "what calls sha256" is about the engine's `sha256`; the card's links wrap.
+- **The graph's search, redesigned.** Suggestions show each question with an icon for what it asks (where it is,
+  callers, what it calls, dependents, members, a kind of thing, documentation) and that in words beneath; recent
+  searches can be cleared; filters (`in:`, `type:`, `file:`) are chips that insert themselves. Results put each
+  item's file and line first and its folder after, mark tests, and set the best match apart with what it is as a
+  pill. A question's answer has its relation's icon and how many it found. The rows had lost their spacing to a
+  list reset; they have it back. Enter on a suggestion chosen with the arrows asks it (it did nothing).
 - **The graph is rebuilt on every push** to the default branch too: the workflow now runs on `v3-*` branches.
 - **Light and dark everywhere.** The search panel and its results, tooltips, the back-to-top button, the "copied"
   notice and the skip link were dark in the light scheme; they follow the chosen scheme.

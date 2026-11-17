@@ -228,8 +228,6 @@ body:has(.dg) .md-content__inner::before { display: none; }
 .dg-top-hit .dg-short { font-size: 15px; }
 .dg-hit-text { display: grid; min-width: 0; gap: 3px; }
 .dg-hit-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dg-faint); font: 11px/1.4 var(--dg-mono); }
-.dg-suggest { grid-template-columns: auto 1fr !important; color: var(--dg-dim); }
-.dg-suggest .dg-kind.plain { background: none; color: var(--dg-faint); }
 .dg-enter { opacity: 0; transition: opacity 140ms; }
 [aria-selected=true] > .dg-enter { opacity: 1; }
 .dg-hit-more button { width: 100%; height: 36px; margin: 4px 0 6px; padding: 0 12px 0 46px; border-radius: var(--dg-r-sm); color: var(--dg-accent); font-size: 12px; font-weight: 500; text-align: left; transition: background-color 120ms; }
@@ -347,3 +345,78 @@ body:has(.dg) .md-content__inner::before { display: none; }
 .dg-top-hit .dg-hit-text small { white-space: normal; overflow-wrap: anywhere; }
 .dg-hit-list [role=option] { padding: 9px 12px; }
 .dg-hit-head:first-child { padding-top: 12px; }
+
+/* ---- Search, redesigned: suggestions, results and answers ------------------------------------------------------------
+   Scoped under .md-typeset .dg, so the list reset above (margin and padding 0 on every li) cannot flatten the rows. */
+.md-typeset .dg .dg-results { margin-top: 10px; }
+.md-typeset .dg .dg-hit-list { padding: 4px 10px 14px; }
+.md-typeset .dg .dg-hit-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 18px 10px 8px; color: var(--dg-faint); font-size: 10.5px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
+.md-typeset .dg .dg-hit-list > .dg-hit-head:first-child { padding-top: 10px; }
+.md-typeset .dg .dg-hit-head small { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--dg-well); box-shadow: inset 0 0 0 1px var(--dg-edge); color: var(--dg-dim); font-size: 10.5px; font-weight: 600; letter-spacing: 0; text-align: center; font-variant-numeric: tabular-nums; }
+.md-typeset .dg .dg-head-action { padding: 2px 8px; border-radius: 999px; color: var(--dg-accent); font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.md-typeset .dg .dg-head-action:hover { background: var(--dg-accent-soft); }
+
+/* Every row: an icon tile, the name over where it is, and a key or a tag at the end. */
+.md-typeset .dg .dg-hit-list [role=option] { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; margin: 1px 0; padding: 9px 10px; border-radius: 12px; cursor: pointer; transition: background-color 120ms, box-shadow 120ms; }
+.md-typeset .dg .dg-hit-list [role=option][aria-selected=true] { background: var(--dg-hover); box-shadow: inset 0 0 0 1px var(--dg-edge); }
+.md-typeset .dg .dg-hit-list .dg-kind { width: 30px; height: 30px; border-radius: 9px; }
+.md-typeset .dg .dg-hit-text { display: grid; min-width: 0; gap: 2px; }
+.md-typeset .dg .dg-name { font-size: 13.5px; line-height: 1.35; }
+.md-typeset .dg .dg-owner { color: var(--dg-faint); font-weight: 450; }
+.md-typeset .dg .dg-short mark { padding: 0; border-radius: 0; background: none; color: var(--dg-accent); box-shadow: inset 0 -2px 0 var(--dg-accent-line); }
+.md-typeset .dg .dg-where { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px/1.45 var(--dg-mono); }
+.md-typeset .dg .dg-where-file { color: var(--dg-dim); }
+.md-typeset .dg .dg-where-dir { color: var(--dg-faint); }
+.md-typeset .dg .dg-where-file + .dg-where-dir::before { content: "  ·  "; white-space: pre; opacity: 0.6; }
+.md-typeset .dg .dg-enter { display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0; opacity: 0; transition: opacity 120ms; }
+.md-typeset .dg [aria-selected=true] > .dg-enter { opacity: 1; }
+.md-typeset .dg .dg-hit-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 6px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--dg-edge); color: var(--dg-faint); font-size: 10.5px; font-weight: 600; }
+.md-typeset .dg .dg-hit-list [role=option]:has(.dg-hit-tag) .dg-hit-text { opacity: 0.78; }
+
+/* The best match: a card of its own, with what it is as a tinted pill, and where it is in full. */
+.md-typeset .dg .dg-hit-list .dg-top-hit { align-items: start; margin: 2px 0 4px; padding: 12px; border-radius: 14px; background: var(--dg-well); box-shadow: inset 0 0 0 1px var(--dg-edge); }
+.md-typeset .dg .dg-hit-list .dg-top-hit[aria-selected=true] { background: var(--dg-accent-soft); box-shadow: inset 0 0 0 1px var(--dg-accent-line); }
+.md-typeset .dg .dg-top-hit .dg-kind { width: 38px; height: 38px; border-radius: 12px; }
+.md-typeset .dg .dg-top-hit { grid-template-columns: 38px minmax(0, 1fr) auto; }
+.md-typeset .dg .dg-top-hit .dg-name { font-size: 15px; }
+.md-typeset .dg .dg-where-top { display: grid; gap: 6px; margin-top: 2px; }
+.md-typeset .dg .dg-top-hit .dg-where { white-space: normal; overflow-wrap: anywhere; }
+.md-typeset .dg .dg-pill { justify-self: start; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c, var(--dg-accent)) 14%, transparent); color: color-mix(in srgb, var(--c, var(--dg-accent)) 72%, var(--dg-fg)); font-size: 10.5px; font-weight: 650; letter-spacing: 0.01em; }
+
+/* What a question was read as: the relation's own icon, the question, and how many it found. */
+.md-typeset .dg .dg-understood { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; margin: 12px 10px 2px; padding: 10px 10px 10px 10px; border-radius: 14px; background: var(--dg-accent-soft); box-shadow: inset 0 0 0 1px var(--dg-accent-line); font-size: 12.5px; line-height: 1.4; }
+.md-typeset .dg .dg-understood-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--dg-panel); color: var(--dg-accent); box-shadow: 0 0 0 1px var(--dg-accent-line); }
+.md-typeset .dg .dg-understood-text { display: grid; gap: 1px; min-width: 0; }
+.md-typeset .dg .dg-understood-text strong { overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 650; color: var(--dg-fg); }
+.md-typeset .dg .dg-understood-text small { color: var(--dg-dim); font-size: 11.5px; }
+.md-typeset .dg .dg-understood-filter { background: var(--dg-well); box-shadow: inset 0 0 0 1px var(--dg-edge); }
+.md-typeset .dg .dg-understood-filter .dg-understood-icon { color: var(--dg-dim); box-shadow: 0 0 0 1px var(--dg-edge); }
+.md-typeset .dg .dg-understood-go { height: 30px; padding: 0 14px; }
+
+/* Suggestions: the kind of question, as an icon and in words. */
+.md-typeset .dg .dg-hit-list .dg-suggest { grid-template-columns: 32px minmax(0, 1fr) auto; padding: 7px 10px; }
+.md-typeset .dg .dg-suggest-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--dg-well); box-shadow: inset 0 0 0 1px var(--dg-edge); color: var(--dg-accent); transition: background-color 120ms, color 120ms; }
+.md-typeset .dg [aria-selected=true] > .dg-suggest-icon { background: var(--dg-accent-soft); box-shadow: inset 0 0 0 1px var(--dg-accent-line); }
+.md-typeset .dg .dg-suggest-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dg-fg); font-size: 13px; }
+.md-typeset .dg .dg-suggest-tag { color: var(--dg-faint); font-size: 11px; white-space: nowrap; }
+.md-typeset .dg .dg-suggest-go { display: grid; color: var(--dg-faint); opacity: 0; transition: opacity 120ms; }
+.md-typeset .dg [aria-selected=true] > .dg-suggest-go { opacity: 1; }
+.md-typeset .dg .dg-chip-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 6px; }
+.md-typeset .dg .dg-filter-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px 0 9px; border-radius: 999px; background: var(--dg-panel); box-shadow: inset 0 0 0 1px var(--dg-edge); color: var(--dg-faint); transition: box-shadow 120ms, color 120ms; }
+.md-typeset .dg .dg-filter-chip span { display: grid; }
+.md-typeset .dg .dg-filter-chip code { padding: 0; background: none; color: var(--dg-fg); font: 500 11.5px var(--dg-mono); }
+.md-typeset .dg .dg-filter-chip:hover { box-shadow: inset 0 0 0 1px var(--dg-accent-line); color: var(--dg-accent); }
+
+/* More of a group, under the names it follows; and the foot, on one line. */
+.md-typeset .dg .dg-hit-more button { display: flex; align-items: center; gap: 6px; height: 32px; margin: 2px 0 4px; padding: 0 10px 0 52px; border-radius: 10px; color: var(--dg-accent); font-size: 12px; font-weight: 600; }
+.md-typeset .dg .dg-hit-more button:hover { background: var(--dg-accent-soft); }
+.md-typeset .dg .dg-results-foot { gap: 10px; padding: 10px 16px; white-space: nowrap; }
+.md-typeset .dg .dg-foot-count { overflow: hidden; text-overflow: ellipsis; }
+.md-typeset .dg .dg-foot-count b { color: var(--dg-fg); font-weight: 650; font-variant-numeric: tabular-nums; }
+.md-typeset .dg .dg-none { padding: 28px 16px; }
+.md-typeset .dg .dg-suggest-body { display: grid; gap: 1px; min-width: 0; }
+.md-typeset .dg .dg-suggest-tag { color: var(--dg-faint); font-size: 11px; }
+.md-typeset .dg .dg-none { display: grid; justify-items: center; gap: 6px; padding: 36px 20px 28px; text-align: center; color: var(--dg-dim); line-height: 1.5; }
+.md-typeset .dg .dg-none-icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 4px; border-radius: 14px; background: var(--dg-well); box-shadow: inset 0 0 0 1px var(--dg-edge); color: var(--dg-faint); }
+.md-typeset .dg .dg-none-go { margin-top: 8px; height: 32px; padding: 0 14px; border-radius: 999px; background: var(--dg-panel); box-shadow: inset 0 0 0 1px var(--dg-accent-line); color: var(--dg-accent); font-size: 12px; font-weight: 600; }
+.md-typeset .dg .dg-none-go:hover { background: var(--dg-accent-soft); }
