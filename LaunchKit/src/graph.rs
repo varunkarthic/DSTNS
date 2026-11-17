@@ -339,7 +339,9 @@ impl Graph {
                 let g = Self::group(group);
                 let mut nodes = self.around(node, group, direction);
                 nodes.truncate(limit);
-                return Found { understood: format!("what {} {} ({})", if *direction == "out" { g.2 } else { g.3 }, self.labels[node], self.where_is(node)), nodes };
+                // "what physics_step() calls" (out) and "what calls physics_step()" (in).
+                let named = format!("{} ({})", self.labels[node], self.where_is(node));
+                return Found { understood: if *direction == "out" { format!("what {named} {}", g.2) } else { format!("what {} {named}", g.2) }, nodes };
             }
         }
         let text = regex::Regex::new(r"^where (?:is|are)\s+(.+?)(?: defined| declared)?$").ok().and_then(|r| r.captures(&lower)).map(|m| original(&m[1])).unwrap_or_else(|| text.to_string());
@@ -506,7 +508,7 @@ mod tests {
         let g = tiny();
         let callers = g.ask("who calls physics_step", 10);
         assert_eq!(callers.nodes.iter().map(|n| g.label(*n)).collect::<Vec<_>>(), vec!["SimulationEngine::step_to()"]);
-        assert!(callers.understood.contains("is called by physics_step()"), "{}", callers.understood);
+        assert!(callers.understood.contains("what calls physics_step()"), "{}", callers.understood);
         let inside = g.ask("what is in SimulationEngine", 10);
         assert_eq!(inside.nodes.len(), 1);
         let launcher = g.ask("functions in the launcher that save settings", 10);

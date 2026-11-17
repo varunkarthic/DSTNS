@@ -943,8 +943,10 @@ mod tests {
         let tools = graph_tools(&paths);
         assert_eq!(tools.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(), vec!["graph_ask", "graph_show", "graph_relations", "graph_path"]);
         assert!(tools.iter().all(|t| t.read_only), "the graph only reads");
-        let found = (tools[0].handler)(&json!({"question": "who calls physics_step"})).unwrap();
-        assert!(found["found"].as_array().unwrap().iter().any(|n| n["name"] == "SimulationEngine::step_to()"), "{found}");
+        // sha256 is called from many places that stay put whatever else moves (the seed's own derivation among them).
+        let found = (tools[0].handler)(&json!({"question": "who calls sha256"})).unwrap();
+        assert!(found["read_as"].as_str().unwrap().starts_with("what calls sha256()"), "{found}");
+        assert!(found["found"].as_array().unwrap().iter().any(|n| n["name"] == "Seed128::derive()"), "{found}");
         assert!(found["found"][0]["url"].as_str().unwrap().contains("#L"));
     }
 }
